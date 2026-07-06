@@ -2413,12 +2413,29 @@ function updateTAMSelectLabel() {
   }
 }
 
+function getLatestSupportedVersion(platform) {
+  const p = (platform || "").toLowerCase();
+  if (p.includes("storagegrid")) {
+    return "StorageGRID 11.9.0";
+  } else if (p.includes("cisco") || p.includes("mds") || p.includes("nexus")) {
+    return "NX-OS 9.3(12)";
+  } else if (p.includes("brocade") || p.includes("switch")) {
+    return "Fabric OS (FOS) 9.2.1";
+  } else {
+    return "ONTAP 9.15.1P1";
+  }
+}
+
 function openRemediationModal(riskId) {
   let risk = null;
+  let ownerSys = null;
   for (const s of state.systems) {
     if (s.risks) {
       risk = s.risks.find(r => r.id === riskId);
-      if (risk) break;
+      if (risk) {
+        ownerSys = s;
+        break;
+      }
     }
   }
   if (!risk) return;
@@ -2451,6 +2468,24 @@ function openRemediationModal(riskId) {
   });
 
   document.getElementById("modalDetailThirdParty").innerText = risk.remediationPlan.thirdParty;
+
+  const contextSection = document.getElementById("modalUpgradeContextSection");
+  const contextText = document.getElementById("modalDetailUpgradeContext");
+  if (contextSection && contextText) {
+    if (ownerSys && (risk.category === "Software" || risk.category === "Firmware")) {
+      const minVer = ownerSys.upgrades ? ownerSys.upgrades.targetVersion : "Unknown";
+      const latestVer = getLatestSupportedVersion(ownerSys.platform);
+      contextText.innerHTML = `
+        Platform Type: <strong>${ownerSys.platform}</strong><br>
+        Current OS/Firmware Version: <strong style="color: var(--text-muted);">${ownerSys.ontapVersion}</strong><br>
+        Minimum Required Version (to resolve this issue): <strong style="color: var(--accent-cyan);">${minVer}</strong><br>
+        Latest Supported OS Version for Platform: <strong style="color: var(--status-normal);">${latestVer}</strong>
+      `;
+      contextSection.style.display = "block";
+    } else {
+      contextSection.style.display = "none";
+    }
+  }
 
   const kbBtn = document.getElementById("modalKbLink");
   kbBtn.href = risk.kbLink;
@@ -2550,7 +2585,8 @@ function renderTAMTab() {
         currentVersion: sys.ontapVersion,
         targetVersion: sys.upgrades.targetVersion,
         urgency: sys.upgrades.urgency,
-        benefits: sys.upgrades.benefits
+        benefits: sys.upgrades.benefits,
+        platform: sys.platform
       });
     }
   });
@@ -2563,14 +2599,17 @@ function renderTAMTab() {
   } else {
     let upgradeHtml = `<h3 style="font-size: 1.05rem; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Recommended OS Upgrades</h3>`;
     upgradeItems.forEach(item => {
+      const latestVer = getLatestSupportedVersion(item.platform);
       upgradeHtml += `
         <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed var(--border-color);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <strong style="color: var(--text-primary); font-size: 0.9rem;">${item.systemName}</strong>
             <span class="badge warning">${item.urgency}</span>
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-            Current: <strong style="color: var(--text-muted);">${item.currentVersion}</strong> | Target: <strong style="color: var(--accent-cyan);">${item.targetVersion}</strong>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px; line-height: 1.4;">
+            Current: <strong style="color: var(--text-muted);">${item.currentVersion}</strong> | 
+            Min. Required (To Fix): <strong style="color: var(--accent-cyan);">${item.targetVersion}</strong> | 
+            Latest Supported: <strong style="color: var(--status-normal);">${latestVer}</strong>
           </div>
           <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">${item.benefits}</p>
         </div>
@@ -4019,7 +4058,7 @@ function generateActionPlan() {
   targetSystems.forEach(sys => {
     sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
     if (sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
     }
     if (sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
@@ -4285,8 +4324,8 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
             <strong>System: ${u.systemName}</strong>
             <span class="badge warning">${u.urgency}</span>
           </div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary);">
-            Target ONTAP/GRID Version: <strong style="color: var(--accent-cyan);">${u.targetVersion}</strong>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+            Min. Required OS Version (To Fix): <strong style="color: var(--accent-cyan);">${u.targetVersion}</strong> | Latest Supported OS Version: <strong style="color: var(--status-normal);">${getLatestSupportedVersion(u.platform)}</strong>
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
             <strong>Expected Upgrade Benefits:</strong> ${u.benefits}
@@ -4354,8 +4393,8 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
           <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;">
             Switch S/N: <code style="color: var(--accent-cyan);">${sw.serialNumber}</code> | IP: <code>${sw.ipAddress}</code>
           </div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
-            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Target: <strong style="color: var(--accent-cyan);">${sw.targetFirmware}</strong>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
+            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Min. Required (To Fix): <strong style="color: var(--accent-cyan);">${sw.targetFirmware}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getLatestSupportedVersion(sw.model)}</strong>
           </div>
           <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
             <strong>Validation Drift:</strong> ${sw.validationDetails}
