@@ -21,13 +21,13 @@
     
     <!-- Sidebar Navigation -->
     <div class="sidebar">
-      <div class="logo-container">
+      <div class="logo-container" onclick="resetFilterAndGoToOverview()" style="cursor: pointer;" data-tooltip="Reset all active filters and return to the main environment overview.">
         <div class="logo-icon">AIQ</div>
         <div class="logo-text">Active IQ Advisor</div>
       </div>
       
       <div class="nav-menu">
-        <div class="nav-item active" data-tab="overview" onclick="resetFilter()">
+        <div class="nav-item active" data-tab="overview" onclick="resetFilterAndGoToOverview()" data-tooltip="Return to the environment overview dashboard and reset all active customer, subgroup, watchlist, and KPI filters.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
           Overview Dashboard
         </div>

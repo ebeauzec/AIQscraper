@@ -1742,6 +1742,7 @@ function saveConfig(refresh, access, expiry) {
 
 function saveSystems() {
   localStorage.setItem("aiq_systems_db", JSON.stringify(state.systems));
+  updateSearchSuggestions();
 }
 
 function saveGroups() {
@@ -2073,6 +2074,15 @@ function renderOverviewTable() {
       if (valB) valB = valB[k];
     });
 
+    if (sortKey === "status") {
+      const priority = { "critical": 1, "warning": 2, "normal": 3, "healthy": 3 };
+      const priorityA = priority[valA ? valA.toLowerCase() : ""] || 99;
+      const priorityB = priority[valB ? valB.toLowerCase() : ""] || 99;
+      if (priorityA < priorityB) return sortOrder === "asc" ? -1 : 1;
+      if (priorityA > priorityB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    }
+
     // Handle type-specific sorting (strings are case-insensitive)
     if (typeof valA === "string") {
       valA = valA.toLowerCase();
@@ -2300,9 +2310,13 @@ function updateTAMSelectLabel() {
 }
 
 function openRemediationModal(riskId) {
-  const sys = state.selectedSystem;
-  if (!sys) return;
-  const risk = sys.risks.find(r => r.id === riskId);
+  let risk = null;
+  for (const s of state.systems) {
+    if (s.risks) {
+      risk = s.risks.find(r => r.id === riskId);
+      if (risk) break;
+    }
+  }
   if (!risk) return;
 
   const modal = document.getElementById("remediationModal");
@@ -2807,16 +2821,46 @@ function renderSAMTab() {
     </div>
   `;
 
-  const recList = getSystemWorkloadRecommendations(sys);
+  const recMap = new Map();
+  currentFiltered.forEach(s => {
+    const list = getSystemWorkloadRecommendations(s);
+    list.forEach(rec => {
+      const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
+      if (match) {
+        const category = match[1];
+        const body = match[2];
+        const key = `${category}||${body}`;
+        if (!recMap.has(key)) {
+          recMap.set(key, []);
+        }
+        recMap.get(key).push(s.systemName);
+      } else {
+        if (!recMap.has(rec)) {
+          recMap.set(rec, []);
+        }
+        recMap.get(rec).push(s.systemName);
+      }
+    });
+  });
+
   const recsContainer = document.getElementById("samWorkloadRecommendations");
   if (recsContainer) {
     recsContainer.innerHTML = "";
-    if (recList.length === 0) {
+    if (recMap.size === 0) {
       recsContainer.innerHTML = `<li>No active optimization recommendations for this appliance workload.</li>`;
     } else {
-      recList.forEach(rec => {
+      recMap.forEach((sysNames, key) => {
         const li = document.createElement("li");
-        li.innerHTML = rec;
+        if (key.includes("||")) {
+          const [category, body] = key.split("||");
+          const systemsStr = sysNames.length === state.systems.length 
+            ? "All Systems" 
+            : (sysNames.length > 3 ? `${sysNames.length} Systems` : sysNames.join(", "));
+          li.innerHTML = `<strong>[${category}]</strong> <span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${body}`;
+        } else {
+          const systemsStr = sysNames.join(", ");
+          li.innerHTML = `<span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${key}`;
+        }
         recsContainer.appendChild(li);
       });
     }
@@ -3922,6 +3966,24 @@ function resetFilter() {
   renderSidebarGroups();
 }
 
+function resetFilterAndGoToOverview() {
+  state.activeFilterType = "ALL";
+  state.activeFilterValue = "";
+  state.activeSearchQuery = "";
+  state.activeKpiFilter = "NONE";
+  
+  const cards = ["kpiCardAll", "kpiCardCritical", "kpiCardWarning", "kpiCardContract"];
+  cards.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("active");
+  });
+
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) searchInput.value = "";
+  switchTab("overview");
+  renderSidebarGroups();
+}
+
 // 9. Custom Group & Metadata Editor Logic (in Settings panel)
 // 9. Custom Group & Metadata Editor Logic (in Settings panel)
 function editCustomGroup(groupId) {
@@ -4553,6 +4615,49 @@ function exportCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+function exportConfigJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.systems, null, 2));
+  const link = document.createElement("a");
+  link.setAttribute("href", dataStr);
+  link.setAttribute("download", `ActiveIQ_AccountReportConfig_${new Date().toISOString().split('T')[0]}.json`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function triggerImportFileInput() {
+  const input = document.getElementById("importFileInput");
+  if (input) input.click();
+}
+
+function handleJSONImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const importedData = JSON.parse(e.target.result);
+      if (Array.isArray(importedData)) {
+        if (importedData.length > 0 && importedData[0].serialNumber) {
+          state.systems = importedData;
+          state.selectedSystem = importedData[0];
+          saveSystems();
+          alert(`Successfully imported configuration containing ${importedData.length} NetApp systems!`);
+          switchTab("overview");
+        } else {
+          alert("Invalid file format. Systems must contain 'serialNumber' property.");
+        }
+      } else {
+        alert("Invalid file format. Configuration must be a JSON array of systems.");
+      }
+    } catch (err) {
+      alert("Failed to parse JSON configuration: " + err.message);
+    }
+  };
+  reader.readAsText(file);
 }
 
 // 11. Initialization on Load
