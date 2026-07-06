@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-07-06
+
+### Added
+*   **Detailed Remediation Plans**: Added interactive modal action plans for every active risk, displaying detailed cause, impact, step-by-step resolution commands, and options/trade-offs.
+*   **Expanded Platform Telemetry**: Added mock configurations representing Cloud Volumes ONTAP (CVO), StorageGRID, and MetroCluster IP nodes.
+*   **SnapMirror Monitoring**: Added SnapMirror relationship card showing replication status, states, and lag times.
+*   **3rd-Party Integrations**: Added hypervisor compliance tracking, checking VMware ESXi NMP Round Robin multipathing configurations and Astra Trident version updates.
+*   **UI Enhancements**: Added active system selection dropdowns within TAM, SAM, and CSM tabs.
+
 ## [1.0.0] - 2026-07-06
 
 ### Added

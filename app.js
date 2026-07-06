@@ -7,9 +7,10 @@
 // The single POST request made in this app is strictly for token authentication
 // exchange (refreshing NSS tokens) and does not perform any data modifications.
 //
+
 const API_BASE = "https://api.activeiq.netapp.com/v1";
 
-// 1. Mock Data Definitions (For offline testing and developer previews)
+// 1. Mock Data Definitions (Aligned with ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors)
 const MOCK_SYSTEMS = [
   {
     serialNumber: "622001234567",
@@ -17,7 +18,7 @@ const MOCK_SYSTEMS = [
     clusterName: "NY-AFF-CLUSTER",
     customerName: "Global Bank Corp",
     ontapVersion: "9.12.1P4",
-    platform: "AFF A400",
+    platform: "AFF A400 (On-Prem)",
     status: "warning",
     risks: [
       {
@@ -26,33 +27,55 @@ const MOCK_SYSTEMS = [
         category: "Hardware",
         description: "Single Controller Path Failure detected on SAS loop 1.",
         recommendation: "Inspect SAS cable connections on shelf 2, port 1B. Refer to KB1089201.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Single_controller_path_errors"
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Single_controller_path_errors",
+        remediationPlan: {
+          cause: "Signal degradation or physical disconnection on controller SAS port 1b connected to Shelf 2 Module B.",
+          impact: "Loss of SAS path redundancy. A secondary failure on SAS port 1a will cause a complete shelf outage, leading to Data Unavailable (DU) status for all aggregates on Shelf 2.",
+          steps: [
+            "1. SSH into the NY-AFF-CLUSTER-01 node controller CLI.",
+            "2. Run: 'storage show path' to view disk path map and confirm the offline controller port.",
+            "3. Locate Shelf 2 at the rack. Verify the status LED on the SAS connector at port 1B (Module B).",
+            "4. Gently reseat the SAS cable. If the LED remains amber or off, replace the SAS cable (Part: 112-00234) under active warranty.",
+            "5. Run: 'storage show path -fields disk-count,path-link-status' to confirm all disk drives report dual-path status."
+          ],
+          options: [
+            "Option A (Online): Reseat/replace SAS cable online (non-disruptive). ONTAP multipathing protects data availability via the active path.",
+            "Option B (Schedule Maintenance): If IOM shelf controller module replacement is required, schedule a maintenance window. Although hot-swappable, doing it off-peak minimizes IO latency risks."
+          ],
+          thirdParty: "No direct hypervisor impacts. However, VMware ESXi storage paths might generate temporary ScsiDeviceIO path failure alerts which can be ignored during hot-swap."
+        }
       },
       {
         id: 102,
         severity: "medium",
         category: "Software",
-        description: "Disk Shelf firmware is outdated (current: 0240, target: 0260).",
-        recommendation: "Schedule a non-disruptive firmware upgrade using ONTAP System Manager.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware"
-      },
-      {
-        id: 103,
-        severity: "low",
-        category: "Best Practice",
-        description: "Insecure HTTP management protocol enabled on Cluster LIF.",
-        recommendation: "Disable HTTP and enforce HTTPS management access using command: 'system services web modify -http-enabled false'.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/Security/How_to_enable_HTTPS_and_disable_HTTP"
+        description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
+        recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware",
+        remediationPlan: {
+          cause: "Older firmware baseline (v0240) lacks optimization for SAS signal margins under heavy loads.",
+          impact: "Increased risk of soft SAS path resets and packet retries under high transactional workloads.",
+          steps: [
+            "1. Download the IOM12 firmware bundle (version 0260) from the NetApp Support Site.",
+            "2. Upload the bundle to the ONTAP cluster. Run CLI command: 'storage firmware download -node * -package iom12_0260.web'.",
+            "3. Monitor progress: 'storage firmware show -package iom12'. The update installs background/non-disruptively, updating one module (A or B) at a time."
+          ],
+          options: [
+            "Option A: Automated update via NetApp Active IQ Unified Manager (AIQUM) or System Manager GUI.",
+            "Option B: Manual CLI update. Requires downloading and staging files locally on cluster web servers."
+          ],
+          thirdParty: "Ensure vSphere Host storage queue depths are configured correctly to absorb transient IO delays (less than 2 seconds) during module reboots."
+        }
       }
     ],
     upgrades: {
       targetVersion: "9.13.1P8",
       urgency: "Recommended",
-      benefits: "Fixes 12 critical security vulnerabilities and improves volume throughput efficiency by 8%."
+      benefits: "Provides critical patches for MetroCluster IP stability and snapmirror engine multi-stream optimizations."
     },
     contracts: {
       status: "warning",
-      endDate: "2026-08-01", // ~26 days from local time 2026-07-06
+      endDate: "2026-08-01",
       daysRemaining: 26,
       supportLevel: "SupportEdge Premium 4hr"
     },
@@ -74,78 +97,202 @@ const MOCK_SYSTEMS = [
       physicalUsedTB: 28.7,
       spaceSavedTB: 91.8,
       fabricPoolTieredTB: 12.4
-    }
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "netapp-cvo-aws (CVO)",
+          type: "XDP (Asynchronous)",
+          schedule: "hourly",
+          status: "Mirrored",
+          state: "Snapmirrored",
+          lagTime: "42 mins",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere",
+        version: "ESXi 8.0 Update 2",
+        plugin: "VASA Provider 10.1 (Active)",
+        multipathing: "VMW_PSP_RR (Round Robin)",
+        health: "Normal"
+      }
+    ]
   },
   {
-    serialNumber: "622009876543",
-    systemName: "netapp-fas-02",
-    clusterName: "LN-FAS-CLUSTER",
-    customerName: "Euro Logistics Ltd",
-    ontapVersion: "9.9.1P15",
-    platform: "FAS8300",
-    status: "critical",
+    serialNumber: "622002223333",
+    systemName: "netapp-cvo-aws",
+    clusterName: "AWS-CVO-CLUSTER",
+    customerName: "Global Bank Corp",
+    ontapVersion: "9.14.1P3",
+    platform: "Cloud Volumes ONTAP (AWS)",
+    status: "warning",
     risks: [
       {
         id: 201,
-        severity: "critical",
-        category: "Hardware",
-        description: "Multiple drive failures predicted on aggregate 'aggr1_data'. Spare count is 0.",
-        recommendation: "Immediate replacement of drive in Bay 12, Shelf 1. Order replacement spare.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/Predictive_drive_failure_troubleshooting"
+        severity: "high",
+        category: "Integration",
+        description: "Kubernetes Astra Trident driver (v23.04) is outdated and unsupported.",
+        recommendation: "Upgrade Astra Trident driver to v24.02 for full ONTAP 9.14 API support.",
+        kbLink: "https://docs.netapp.com/us-en/trident/trident-get-started/requirements.html",
+        remediationPlan: {
+          cause: "Kubernetes cluster upgraded to v1.28 while Astra Trident version remains at v23.04. API deprecations break storage provisioning.",
+          impact: "Inability to dynamically provision new Persistent Volumes (PV) for container workloads. Existing PVs remain mounted but configuration edits fail.",
+          steps: [
+            "1. Backup active Trident state: 'tridentctl get backend -n trident'.",
+            "2. Download the Trident installer bundle v24.02.",
+            "3. Run the installer upgrade command: 'tridentctl upgrade -n trident --to-image netapp/trident:24.02.0'.",
+            "4. Verify Pod status: 'kubectl get pods -n trident' and verify all pods are running version 24.02.0."
+          ],
+          options: [
+            "Option A (Helm Upgrade - Recommended): Use Helm package manager: 'helm upgrade trident netapp-trident/trident-operator --version 24.02.0'.",
+            "Option B (Operator Upgrade): Apply the updated Trident Operator manifests manually."
+          ],
+          thirdParty: "Compatible with Kubernetes v1.26 through v1.29. Ensure downstream apps are prepared for dynamic PV mounts."
+        }
       },
       {
         id: 202,
-        severity: "high",
-        category: "Software",
-        description: "ONTAP 9.9.1 is approaching End of Version Support.",
-        recommendation: "Plan OS migration to ONTAP 9.12.1 or 9.13.1 within 60 days.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ONTAP_software_support_lifecycle"
+        severity: "medium",
+        category: "Cloud",
+        description: "Atheros AWS S3 capacity tiering bucket reports connection timeouts.",
+        recommendation: "Verify VPC endpoint routing for AWS S3. Refer to NetApp Cloud Manager guide.",
+        kbLink: "https://kb.netapp.com/Cloud/Cloud_Volumes_ONTAP/FabricPool_S3_connection_troubleshooting",
+        remediationPlan: {
+          cause: "Security Group policy changes in the AWS VPC restricted outbound HTTPS access on Port 443 to S3 IP ranges.",
+          impact: "FabricPool tiering stops. Cold data remains on EBS root volumes, causing storage capacity overflow on premium cloud volumes.",
+          steps: [
+            "1. Log in to the AWS Management Console.",
+            "2. Navigate to VPC -> Security Groups. Select CVO Node Security Group.",
+            "3. Verify Outbound Rules. Ensure outbound HTTPS (Port 443) to S3 Gateway Endpoint is allowed.",
+            "4. From ONTAP CLI, run: 'storage aggregate object-store profile show' to verify object-store endpoint connectivity."
+          ],
+          options: [
+            "Option A: Implement AWS VPC Endpoint (Gateway) for S3. This routes traffic internally inside AWS and bypasses external gateway constraints.",
+            "Option B: Open NAT Gateway outbound routing if VPC endpoints are not desired in the subnet."
+          ],
+          thirdParty: "Affects CVO nodes running inside AWS subnets. No physical hypervisor dependencies."
+        }
       }
     ],
     upgrades: {
-      targetVersion: "9.11.1P12",
-      urgency: "Required",
-      benefits: "Restores full technical support status and resolves critical NVRAM logging memory bug."
+      targetVersion: "9.14.1P5",
+      urgency: "Recommended",
+      benefits: "Fixes AWS EBS block allocation bugs and optimizes cloud tiering latency performance."
     },
     contracts: {
-      status: "critical",
-      endDate: "2026-07-01", // Expired 5 days ago
-      daysRemaining: -5,
-      supportLevel: "SupportEdge Standard"
+      status: "normal",
+      endDate: "2027-12-15",
+      daysRemaining: 527,
+      supportLevel: "Cloud Volumes Premium BYOL"
     },
     lifecycle: {
-      eoaDate: "2024-12-31",
-      eosDate: "2029-12-31",
+      eoaDate: "2027-12-31",
+      eosDate: "2032-12-31",
       isNearEos: false
     },
     fieldActions: [],
     efficiency: {
-      ratio: "2.1:1",
-      logicalUsedTB: 450.2,
-      physicalUsedTB: 214.4,
-      spaceSavedTB: 235.8,
-      fabricPoolTieredTB: 0.0 // CSM Opportunity
-    }
+      ratio: "3.5:1",
+      logicalUsedTB: 250.0,
+      physicalUsedTB: 71.4,
+      spaceSavedTB: 178.6,
+      fabricPoolTieredTB: 48.0
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "NY-AFF-CLUSTER (On-Prem)",
+          type: "XDP (Asynchronous)",
+          schedule: "daily",
+          status: "Mirrored",
+          state: "Snapmirrored",
+          lagTime: "12 hours",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [
+      {
+        type: "Kubernetes (EKS)",
+        version: "v1.28",
+        plugin: "Astra Trident 23.04 (Outdated)",
+        multipathing: "AWS EBS Multipath NVMe",
+        health: "Warning"
+      }
+    ]
   },
   {
-    serialNumber: "622005556666",
-    systemName: "netapp-c190-03",
-    clusterName: "SGP-CLUSTER",
-    customerName: "Asia Tech Inc",
-    ontapVersion: "9.14.1P2",
-    platform: "AFF C190",
-    status: "normal",
-    risks: [],
+    serialNumber: "622003334444",
+    systemName: "netapp-grid-01",
+    clusterName: "SGRID-SG6060",
+    customerName: "Global Bank Corp",
+    ontapVersion: "11.8.0",
+    platform: "StorageGRID Webscale (Object)",
+    status: "critical",
+    risks: [
+      {
+        id: 301,
+        severity: "critical",
+        category: "Security",
+        description: "Management Interface SSL Certificate expires in 12 days.",
+        recommendation: "Renew SSL certificate in StorageGRID Grid Manager. Refer to admin guidelines.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/StorageGRID/How_to_renew_StorageGRID_SSL_certificates",
+        remediationPlan: {
+          cause: "The user-installed custom certificate authority cert for StorageGRID Management Console (port 9443) is expiring.",
+          impact: "Complete loss of S3/Swift client connections using TLS. API calls from backup programs, applications, and dashboards fail due to untrusted certificates.",
+          steps: [
+            "1. Generate a new Certificate Signing Request (CSR) in Grid Manager: Configuration -> Security -> Certificates.",
+            "2. Obtain signing approval from your enterprise Certificate Authority (CA).",
+            "3. Navigate to StorageGRID Grid Manager. Upload the new signed certificate (.PEM format) and private key.",
+            "4. Verify client connection using curl: 'curl -v https://<storagegrid-endpoint>:9443/' and confirm the new expiry date."
+          ],
+          options: [
+            "Option A: Upload custom CA certificate. Recommended for enterprise compliance.",
+            "Option B: Regenerate default StorageGRID Self-Signed Certificate. Quick resolution but generates browser warnings."
+          ],
+          thirdParty: "Affects external API clients (Veeam, Commvault, Astra Control, AWS SDKs) making HTTPS S3 connections."
+        }
+      },
+      {
+        id: 302,
+        severity: "high",
+        category: "Hardware",
+        description: "Grid storage node SG6060 Fan Module 2 reports RPM below critical threshold.",
+        recommendation: "Replace Fan Module assembly (Part: 112-00445) immediately.",
+        kbLink: "https://docs.netapp.com/us-en/storagegrid-appliances/sg6000/replacing-fan-in-sg6000-cn.html",
+        remediationPlan: {
+          cause: "Physical bearing failure in Fan Module 2 of the compute controller chassis.",
+          impact: "Chassis temperature increases. If chassis temp exceeds 45°C, controller CPU throttles speed by 50%, degrading grid write speeds.",
+          steps: [
+            "1. Locate the SG6000 compute controller in the server rack. Check rear blue Identify LED.",
+            "2. Access Grid Manager console. Verify which fan module reported failure (Fan 2).",
+            "3. Pull fan module out of the slot (hot-swappable).",
+            "4. Insert new fan assembly module (Part: 112-00445). Confirm Green status LED is lit.",
+            "5. Verify RPM status reports normal in Grid Manager grid nodes status tree."
+          ],
+          options: [
+            "Option A: Hot-Swap replacement. Highly recommended as the chassis can run safely on remaining fans for up to 24 hours.",
+            "Option B: Shut down node for replacement. Unnecessary precaution that causes node outage and grid data redistribution."
+          ],
+          thirdParty: "No hypervisor impact. Controlled inside the physical SG6000 hardware chassis."
+        }
+      }
+    ],
     upgrades: {
-      targetVersion: "Up to Date",
-      urgency: "None",
-      benefits: "System is running latest stable version."
+      targetVersion: "11.8.2",
+      urgency: "Recommended",
+      benefits: "Patches security issues and introduces S3 Object Lock configuration wizard interfaces."
     },
     contracts: {
       status: "normal",
-      endDate: "2027-09-15",
-      daysRemaining: 436,
-      supportLevel: "SupportEdge Premium 2hr"
+      endDate: "2028-01-10",
+      daysRemaining: 553,
+      supportLevel: "SupportEdge Premium 4hr"
     },
     lifecycle: {
       eoaDate: "2026-12-31",
@@ -154,12 +301,179 @@ const MOCK_SYSTEMS = [
     },
     fieldActions: [],
     efficiency: {
-      ratio: "5.5:1",
-      logicalUsedTB: 85.0,
-      physicalUsedTB: 15.4,
-      spaceSavedTB: 69.6,
-      fabricPoolTieredTB: 45.2
-    }
+      ratio: "1.0:1", // Object storage uses erasure coding, not dedupe ratio representation
+      logicalUsedTB: 850.0,
+      physicalUsedTB: 850.0,
+      spaceSavedTB: 0.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [
+      {
+        type: "Bare Metal Appliance",
+        version: "SG6060 firmware v3.4",
+        plugin: "None",
+        multipathing: "100G LACP Bonding",
+        health: "Critical"
+      }
+    ]
+  },
+  {
+    serialNumber: "622004445555",
+    systemName: "netapp-mc-ip",
+    clusterName: "NY-NJ-METROCLUSTER",
+    customerName: "Global Bank Corp",
+    ontapVersion: "9.12.1P10",
+    platform: "FAS9000 MetroCluster IP",
+    status: "warning",
+    risks: [
+      {
+        id: 401,
+        severity: "high",
+        category: "MetroCluster",
+        description: "MetroCluster IP Inter-Switch Link (ISL) packet loss on port e5a exceeds 2%.",
+        recommendation: "Inspect fiber patch cables and SFP+ optical transceivers on Switch A1.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_IP_ISL_link_troubleshooting",
+        remediationPlan: {
+          cause: "Optical transceiver (SFP) in Cisco Nexus 3132 MetroCluster switch port e5a is reporting high CRC error rates due to dust contamination.",
+          impact: "SyncMirror replication lag between Site A and Site B. Under high write loads, write operations might stall to maintain syncreplication parity.",
+          steps: [
+            "1. SSH to Cisco Switch A1. Run: 'show interface ethernet 1/5 counters errors'.",
+            "2. Note the high FCS/CRC error count.",
+            "3. Put port in admin shutdown: 'interface ethernet 1/5' -> 'shutdown'. (ONTAP will failover replication traffic to path B).",
+            "4. Disconnect optical fiber cable, clean connector using a fiber optic cleaning pen, and replace SFP transceiver.",
+            "5. Re-enable port: 'no shutdown'. Verify errors do not increment."
+          ],
+          options: [
+            "Option A: Clean fiber and replace SFP (non-disruptive, recommended).",
+            "Option B: Replace optical patch cord. Only if SFP swap does not resolve error rates."
+          ],
+          thirdParty: "No hypervisor impact. Managed entirely by the back-end MetroCluster IP fabric switch layers."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "9.13.1P8",
+      urgency: "Recommended",
+      benefits: "Provides automated switchover enhancements for MetroCluster configuration."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-04-30",
+      daysRemaining: 298,
+      supportLevel: "SupportEdge Premium 2hr"
+    },
+    lifecycle: {
+      eoaDate: "2025-12-31",
+      eosDate: "2030-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "3.8:1",
+      logicalUsedTB: 540.0,
+      physicalUsedTB: 142.1,
+      spaceSavedTB: 397.9,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "NJ-METROCLUSTER (Site B)",
+          type: "SyncMirror (Synchronous)",
+          schedule: "Immediate",
+          status: "In-Sync",
+          state: "Snapmirrored",
+          lagTime: "0 sec",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere (Stretch)",
+        version: "ESXi 8.0",
+        plugin: "ONTAP Tools v10.0",
+        multipathing: "ALUA Multipath configured",
+        health: "Normal"
+      }
+    ]
+  },
+  {
+    serialNumber: "622005557777",
+    systemName: "netapp-fas-vmware",
+    clusterName: "HQ-ESXI-CLUSTER",
+    customerName: "Global Bank Corp",
+    ontapVersion: "9.13.1P5",
+    platform: "AFF A800 (VMware Integrations)",
+    status: "warning",
+    risks: [
+      {
+        id: 501,
+        severity: "high",
+        category: "Hypervisor Integration",
+        description: "VMware ESXi Host multipathing policy is configured to default 'Most Recently Used' (Fixed) instead of recommended 'Round Robin'.",
+        recommendation: "Change ESXi Host Native Multipathing (NMP) Path Selection Policy (PSP) to VMW_PSP_RR.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ESXi_multipathing_best_practices_for_ONTAP",
+        remediationPlan: {
+          cause: "Newly added ESXi hosts did not have the NetApp Host Utilities script executed, leaving default storage path settings active.",
+          impact: "Unbalanced storage path utilization. If the active FC/iSCSI path fails, path failover times exceed 30 seconds, causing ESXi datastore disconnect warnings (PDL - Permanent Device Loss) and VM freeze/crash events.",
+          steps: [
+            "1. Log in to VMware vCenter Server using vSphere Client.",
+            "2. Select affected ESXi host -> Configure -> Storage -> Storage Devices.",
+            "3. Select NetApp LUN -> Properties -> Edit Multipathing Policy.",
+            "4. Change Path Selection Policy from 'Fixed' to 'Round Robin (VMW_PSP_RR)' and set the IO operation limit to 1.",
+            "5. Alternatively, run CLI script on ESXi shell: 'esxcli storage nmp device set -d <naa_id> -P VMW_PSP_RR' and 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'."
+          ],
+          options: [
+            "Option A: Apply manually via vCenter GUI. Suitable for small environments.",
+            "Option B (Recommended): Deploy ONTAP Tools for VMware (OTV) vSphere plugin. It automates host configuration checks and applies all NetApp best practice settings with one click."
+          ],
+          thirdParty: "VMware vSphere 7.x/8.x configurations. Directly impacts VM stability during storage port path failures."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "9.13.1P8",
+      urgency: "None",
+      benefits: "Updates security certificates for VASA API communication."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-11-20",
+      daysRemaining: 502,
+      supportLevel: "SupportEdge Premium 4hr"
+    },
+    lifecycle: {
+      eoaDate: "2027-06-30",
+      eosDate: "2032-06-30",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "4.8:1",
+      logicalUsedTB: 350.0,
+      physicalUsedTB: 72.9,
+      spaceSavedTB: 277.1,
+      fabricPoolTieredTB: 85.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere",
+        version: "ESXi 8.0 Update 1",
+        plugin: "VASA Provider 10.0 (Connected)",
+        multipathing: "VMW_PSP_FIXED (Out of Compliance)",
+        health: "Warning"
+      }
+    ]
   }
 ];
 
@@ -168,7 +482,7 @@ let state = {
   currentTab: "overview",
   mockMode: true,
   systems: [...MOCK_SYSTEMS],
-  selectedSystem: null,
+  selectedSystem: MOCK_SYSTEMS[0], // Default selected system
   activeSearchQuery: ""
 };
 
@@ -208,12 +522,10 @@ async function getValidAccessToken() {
     throw new Error("API Refresh Token not configured. Please visit the Settings tab.");
   }
 
-  // Token valid for at least 5 more minutes?
   if (access && expiry > (Date.now() / 1000) + 300) {
     return access;
   }
 
-  // Swap refresh token for new access/refresh pair
   const response = await fetch(`${API_BASE}/tokens/accessToken`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -225,7 +537,7 @@ async function getValidAccessToken() {
   }
 
   const data = await response.json();
-  const newExpiry = (Date.now() / 1000) + 3600; // 1 hour validity
+  const newExpiry = (Date.now() / 1000) + 3600;
   saveConfig(data.refresh_token, data.access_token, newExpiry.toString());
   return data.access_token;
 }
@@ -233,7 +545,6 @@ async function getValidAccessToken() {
 // Global API Fetch wrapper with auto-rotation
 async function callActiveIQAPI(endpoint) {
   if (state.mockMode) {
-    // Return mock results based on endpoint signatures
     return simulateMockAPIResponse(endpoint);
   }
   
@@ -256,9 +567,7 @@ async function callActiveIQAPI(endpoint) {
   }
 }
 
-// Simulate API endpoints when in Mock Mode
 function simulateMockAPIResponse(endpoint) {
-  // Simple endpoint matching
   if (endpoint.includes("/systems")) {
     const parts = endpoint.split("/");
     if (parts.length > 2) {
@@ -280,13 +589,10 @@ function renderCharts() {
   
   if (!ctxEff || !ctxCap) return;
   
-  // Collect aggregated stats based on state.systems
   const logicalSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.logicalUsedTB, 0);
   const physicalSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.physicalUsedTB, 0);
   const savedSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.spaceSavedTB, 0);
-  const tieredSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.fabricPoolTieredTB, 0);
 
-  // Destroy existing charts to prevent canvas ghosting on redraw
   if (efficiencyChartInstance) efficiencyChartInstance.destroy();
   if (capacityChartInstance) capacityChartInstance.destroy();
 
@@ -295,7 +601,6 @@ function renderCharts() {
     return;
   }
 
-  // 1. Efficiency Chart (Savings Breakdown)
   efficiencyChartInstance = new Chart(ctxEff, {
     type: 'doughnut',
     data: {
@@ -319,7 +624,6 @@ function renderCharts() {
     }
   });
 
-  // 2. Capacity & Tiering Chart (Cloud vs On-Prem)
   capacityChartInstance = new Chart(ctxCap, {
     type: 'bar',
     data: {
@@ -371,7 +675,6 @@ function updateOverviewKpis() {
   document.getElementById("kpiWarningRisks").innerText = warningRisksCount;
   document.getElementById("kpiContracts").innerText = expiringContracts;
   
-  // Set KPI colors based on values
   document.getElementById("kpiCriticalRisks").style.color = criticalRisksCount > 0 ? "var(--status-critical)" : "var(--status-normal)";
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
@@ -387,7 +690,8 @@ function renderOverviewTable() {
     sys.systemName.toLowerCase().includes(query) || 
     sys.serialNumber.toLowerCase().includes(query) ||
     sys.clusterName.toLowerCase().includes(query) ||
-    sys.customerName.toLowerCase().includes(query)
+    sys.customerName.toLowerCase().includes(query) ||
+    sys.platform.toLowerCase().includes(query)
   );
 
   if (filteredSystems.length === 0) {
@@ -400,12 +704,10 @@ function renderOverviewTable() {
     tr.style.cursor = "pointer";
     tr.onclick = () => selectSystem(sys.serialNumber);
     
-    // Status Badge
     let statusBadge = `<span class="badge normal">Healthy</span>`;
     if (sys.status === "critical") statusBadge = `<span class="badge critical">Critical</span>`;
     else if (sys.status === "warning") statusBadge = `<span class="badge warning">Warning</span>`;
 
-    // Contract status End Date
     let contractText = `${sys.contracts.endDate} (${sys.contracts.daysRemaining}d)`;
     if (sys.contracts.daysRemaining < 0) {
       contractText = `<span style="color: var(--status-critical); font-weight: 600;">Expired (${Math.abs(sys.contracts.daysRemaining)}d ago)</span>`;
@@ -426,15 +728,91 @@ function renderOverviewTable() {
   });
 }
 
-function renderTAMTab() {
-  const sys = state.selectedSystem || state.systems[0];
-  const container = document.getElementById("tamViewContainer");
-  if (!container || !sys) return;
+// System Selector Dropdowns inside TAM, SAM, and CSM tabs
+function populateSystemSelectors() {
+  const selectors = ["tamSystemSelect", "samSystemSelect", "csmSystemSelect"];
+  selectors.forEach(id => {
+    const select = document.getElementById(id);
+    if (!select) return;
+    select.innerHTML = "";
+    state.systems.forEach(sys => {
+      const opt = document.createElement("option");
+      opt.value = sys.serialNumber;
+      opt.innerText = `${sys.systemName} (${sys.platform})`;
+      if (state.selectedSystem && sys.serialNumber === state.selectedSystem.serialNumber) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+    
+    // Bind change listener
+    select.onchange = (e) => {
+      const serial = e.target.value;
+      const found = state.systems.find(s => s.serialNumber === serial);
+      if (found) {
+        state.selectedSystem = found;
+        // Redraw current tab
+        switchTab(state.currentTab);
+      }
+    };
+  });
+}
 
-  // Header Details
-  document.getElementById("tamActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>ONTAP</strong>: ${sys.ontapVersion}
-  `;
+// Open sliding modal for detailed remediation plans
+function openRemediationModal(riskId) {
+  const sys = state.selectedSystem;
+  if (!sys) return;
+  const risk = sys.risks.find(r => r.id === riskId);
+  if (!risk) return;
+
+  const modal = document.getElementById("remediationModal");
+  if (!modal) return;
+
+  document.getElementById("modalRiskTitle").innerText = `Remediation Plan: ${risk.category} Risk`;
+  document.getElementById("modalRiskDesc").innerText = risk.description;
+
+  document.getElementById("modalDetailCause").innerText = risk.remediationPlan.cause;
+  document.getElementById("modalDetailImpact").innerText = risk.remediationPlan.impact;
+  
+  // Format Steps
+  const stepsList = document.getElementById("modalDetailSteps");
+  stepsList.innerHTML = "";
+  risk.remediationPlan.steps.forEach(step => {
+    const li = document.createElement("li");
+    li.innerText = step;
+    li.style.marginBottom = "6px";
+    stepsList.appendChild(li);
+  });
+
+  // Format Options
+  const optionsList = document.getElementById("modalDetailOptions");
+  optionsList.innerHTML = "";
+  risk.remediationPlan.options.forEach(opt => {
+    const li = document.createElement("li");
+    li.innerText = opt;
+    li.style.marginBottom = "6px";
+    optionsList.appendChild(li);
+  });
+
+  // Format 3rd Party Integrations
+  document.getElementById("modalDetailThirdParty").innerText = risk.remediationPlan.thirdParty;
+
+  // View KB link
+  const kbBtn = document.getElementById("modalKbLink");
+  kbBtn.href = risk.kbLink;
+
+  modal.style.display = "flex";
+}
+
+function closeRemediationModal() {
+  const modal = document.getElementById("remediationModal");
+  if (modal) modal.style.display = "none";
+}
+
+function renderTAMTab() {
+  populateSystemSelectors();
+  const sys = state.selectedSystem;
+  if (!sys) return;
 
   // Render Risk Table
   let riskRows = "";
@@ -454,12 +832,13 @@ function renderTAMTab() {
           <td style="font-weight: 600;">${r.category}</td>
           <td>
             <div style="font-weight: 500; margin-bottom: 4px;">${r.description}</div>
-            <div style="color: var(--text-secondary); font-size: 0.8rem;">${r.recommendation}</div>
+            <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 6px;">${r.recommendation}</div>
           </td>
           <td>
-            <a class="external-link" href="${r.kbLink}" target="_blank">
-              View KB <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
-            </a>
+            <div style="display: flex; gap: 8px;">
+              <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})">Remediation Plan</button>
+              <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${r.kbLink}" target="_blank">KB Art</a>
+            </div>
           </td>
         </tr>
       `;
@@ -479,6 +858,7 @@ function renderTAMTab() {
         <h3 style="font-size: 1.05rem;">Recommended OS Upgrade</h3>
         <span class="badge warning">${sys.upgrades.urgency}</span>
       </div>
+      <div style="margin-bottom: 8px;">Current Version: <strong style="color: var(--text-muted);">${sys.ontapVersion}</strong></div>
       <div style="margin-bottom: 8px;">Target Version: <strong style="color: var(--accent-cyan);">${sys.upgrades.targetVersion}</strong></div>
       <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">${sys.upgrades.benefits}</p>
     `;
@@ -488,13 +868,9 @@ function renderTAMTab() {
 }
 
 function renderSAMTab() {
-  const sys = state.selectedSystem || state.systems[0];
-  const container = document.getElementById("samViewContainer");
-  if (!container || !sys) return;
-
-  document.getElementById("samActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Platform</strong>: ${sys.platform}
-  `;
+  populateSystemSelectors();
+  const sys = state.selectedSystem;
+  if (!sys) return;
 
   // 1. Contract & Warranty card
   let contractBadge = `<span class="badge normal">Active</span>`;
@@ -544,7 +920,7 @@ function renderSAMTab() {
   // 3. Field Actions Table
   let faRows = "";
   if (sys.fieldActions.length === 0) {
-    faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. System is up to date.</td></tr>`;
+    faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. System is compliant.</td></tr>`;
   } else {
     sys.fieldActions.forEach(fa => {
       faRows += `
@@ -559,16 +935,39 @@ function renderSAMTab() {
     });
   }
   document.getElementById("samFieldActionsBody").innerHTML = faRows;
+
+  // 4. Extended Hypervisor Status Card
+  const hypContainer = document.getElementById("samHypervisorCard");
+  if (hypContainer && sys.hypervisors && sys.hypervisors.length > 0) {
+    const hyp = sys.hypervisors[0];
+    let hBadge = `<span class="badge normal">${hyp.health}</span>`;
+    if (hyp.health === "Warning" || hyp.health === "Critical") {
+      hBadge = `<span class="badge warning">${hyp.health}</span>`;
+    }
+    hypContainer.innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">3rd-Party Integrations</h4>
+        ${hBadge}
+      </div>
+      <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">
+        ${hyp.type} (v${hyp.version})
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+        Plugin: <strong>${hyp.plugin}</strong>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-secondary);">
+        Multipathing PSP: <strong>${hyp.multipathing}</strong>
+      </div>
+    `;
+  } else if (hypContainer) {
+    hypContainer.innerHTML = `<div style="color: var(--text-muted);">No hypervisor integrations tracked.</div>`;
+  }
 }
 
 function renderCSMTab() {
-  const sys = state.selectedSystem || state.systems[0];
-  const container = document.getElementById("csmViewContainer");
-  if (!container || !sys) return;
-
-  document.getElementById("csmActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Customer</strong>: ${sys.customerName}
-  `;
+  populateSystemSelectors();
+  const sys = state.selectedSystem;
+  if (!sys) return;
 
   // Render Efficiency Metrics Card
   document.getElementById("csmSavingsCard").innerHTML = `
@@ -620,13 +1019,43 @@ function renderCSMTab() {
     </p>
   `;
 
+  // Render SnapMirror & Replication status
+  const smContainer = document.getElementById("csmSnapmirrorCard");
+  if (smContainer && sys.snapmirror) {
+    let smBadge = `<span class="badge normal">Inactive</span>`;
+    let relationshipsHTML = "";
+    
+    if (sys.snapmirror.enabled) {
+      smBadge = `<span class="badge normal">Enabled</span>`;
+      sys.snapmirror.relationships.forEach(rel => {
+        relationshipsHTML += `
+          <div style="margin-top: 8px; font-size: 0.8rem; border-top: 1px solid var(--border-color); padding-top: 8px;">
+            <div>Dest: <strong>${rel.destination}</strong></div>
+            <div>Type: <strong>${rel.type}</strong> | State: <strong>${rel.state}</strong></div>
+            <div>Lag Time: <strong style="color: var(--accent-cyan);">${rel.lagTime}</strong></div>
+          </div>
+        `;
+      });
+    } else {
+      relationshipsHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">No SnapMirror relations mapped. Add sync/async links for remote backups.</div>`;
+    }
+
+    smContainer.innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">SnapMirror replication</h4>
+        ${smBadge}
+      </div>
+      ${relationshipsHTML}
+    `;
+  }
+
   // Adoption Checklist
   const checklist = [
-    { name: "ONTAP 9.10+ Upgrade", completed: parseFloat(sys.ontapVersion.substring(0,4)) >= 9.10 },
-    { name: "Storage Efficiency Enabled", completed: parseFloat(sys.efficiency.ratio.split(":")[0]) > 1.5 },
+    { name: "ONTAP 9.10+ / StorageGRID 11.5+", completed: true },
+    { name: "Storage Efficiency Enabled (>1.5:1)", completed: parseFloat(sys.efficiency.ratio.split(":")[0]) > 1.5 },
     { name: "Cloud FabricPool Configured", completed: fpTiered > 0 },
-    { name: "Active Service Contracts", completed: sys.contracts.daysRemaining > 0 },
-    { name: "Risk Remediation Actioned", completed: sys.risks.length === 0 }
+    { name: "SnapMirror DR Configured", completed: sys.snapmirror.enabled },
+    { name: "Zero High/Critical Risks", completed: sys.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0 }
   ];
 
   let checklistHTML = "";
@@ -650,7 +1079,6 @@ function renderSettingsTab() {
   document.getElementById("settingsMockModeToggle").checked = state.mockMode;
 }
 
-// Global active status visual indicators
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
@@ -671,11 +1099,9 @@ function updateStatusIndicators() {
   });
 }
 
-// 6. Navigation Actions & Switch tabs
 function switchTab(tabId) {
   state.currentTab = tabId;
   
-  // Update sidebar active link state
   document.querySelectorAll(".nav-item").forEach(item => {
     item.classList.remove("active");
     if (item.getAttribute("data-tab") === tabId) {
@@ -683,14 +1109,12 @@ function switchTab(tabId) {
     }
   });
 
-  // Update visible tab view panels
   document.querySelectorAll(".tab-content").forEach(content => {
     content.classList.remove("active");
   });
   const activeContent = document.getElementById(tabId + "Tab");
   if (activeContent) activeContent.classList.add("active");
 
-  // Trigger tab-specific drawing routines
   if (tabId === "overview") {
     updateOverviewKpis();
     renderOverviewTable();
@@ -710,30 +1134,26 @@ function selectSystem(serialNumber) {
   const sys = state.systems.find(s => s.serialNumber === serialNumber);
   if (sys) {
     state.selectedSystem = sys;
-    // Redirect to TAM page to view the selected system details
     switchTab("tam");
   }
 }
 
-// 7. Save Credentials Settings
 function saveSettings() {
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
   const mockChecked = document.getElementById("settingsMockModeToggle").checked;
 
-  saveConfig(refresh, "", "0"); // Reset access token when refresh token is edited
+  saveConfig(refresh, "", "0");
   setMockMode(mockChecked);
   
   alert("Settings updated successfully! Persisted in browser localStorage.");
   switchTab("overview");
 }
 
-// 8. Search filter updates
 function handleSearch(e) {
   state.activeSearchQuery = e.target.value;
   renderOverviewTable();
 }
 
-// 9. CSV Report Exporters
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Platform,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count\n";
@@ -764,16 +1184,13 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
-// 10. Initialization on Load
 window.onload = function() {
   loadConfig();
   updateStatusIndicators();
   switchTab("overview");
 
-  // Bind Listeners
   document.getElementById("searchInput").addEventListener("input", handleSearch);
   
-  // Set up resize handler to redraw charts cleanly
   window.addEventListener('resize', () => {
     if (state.currentTab === "overview") {
       renderCharts();

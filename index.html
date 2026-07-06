@@ -149,8 +149,13 @@
       <div id="tamTab" class="tab-content">
         <div class="table-header-row" style="margin-bottom: 24px;">
           <h2 style="font-weight: 700; font-size: 1.5rem;">Technical Health & Risk Mitigation</h2>
-          <div id="tamActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
-            <!-- Active Selected System info -->
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <select id="tamSystemSelect" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 280px; background-color: var(--bg-card); cursor: pointer;">
+              <!-- Javascript will inject options -->
+            </select>
+            <div id="tamActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
+              <!-- Active Selected System info -->
+            </div>
           </div>
         </div>
         
@@ -167,7 +172,7 @@
                     <th>Severity</th>
                     <th>Category</th>
                     <th>Risk Description & Recommended Remediation</th>
-                    <th>Reference</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody id="tamRisksTableBody">
@@ -188,18 +193,26 @@
       <div id="samTab" class="tab-content">
         <div class="table-header-row" style="margin-bottom: 24px;">
           <h2 style="font-weight: 700; font-size: 1.5rem;">Support Contracts & Lifecycles</h2>
-          <div id="samActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
-            <!-- Active Selected System info -->
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <select id="samSystemSelect" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 280px; background-color: var(--bg-card); cursor: pointer;">
+              <!-- JS injected options -->
+            </select>
+            <div id="samActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
+              <!-- Active Selected System info -->
+            </div>
           </div>
         </div>
         
-        <!-- Contract & Lifecycle Row -->
-        <div class="charts-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
+        <!-- Contract, Lifecycle, and Hypervisor Row -->
+        <div class="kpi-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 32px;">
           <div class="card" id="samContractCard">
             <!-- Contract details card -->
           </div>
           <div class="card" id="samLifecycleCard">
             <!-- Platform EOS/EOA lifecycle status card -->
+          </div>
+          <div class="card" id="samHypervisorCard">
+            <!-- 3rd-Party Virtualization integration status card -->
           </div>
         </div>
         
@@ -226,17 +239,25 @@
       <div id="csmTab" class="tab-content">
         <div class="table-header-row" style="margin-bottom: 24px;">
           <h2 style="font-weight: 700; font-size: 1.5rem;">Adoption Scorecard & Business Value</h2>
-          <div id="csmActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
-            <!-- Active Selected System info -->
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <select id="csmSystemSelect" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 280px; background-color: var(--bg-card); cursor: pointer;">
+              <!-- JS injected options -->
+            </select>
+            <div id="csmActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
+              <!-- Active Selected System info -->
+            </div>
           </div>
         </div>
         
-        <div class="kpi-row" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
+        <div class="kpi-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 32px;">
           <div class="card" id="csmSavingsCard">
             <!-- Efficiency Savings Card -->
           </div>
           <div class="card" id="csmCloudCard">
             <!-- FabricPool Cloud Tiering ROI -->
+          </div>
+          <div class="card" id="csmSnapmirrorCard">
+            <!-- SnapMirror Replication Card -->
           </div>
         </div>
         
@@ -309,6 +330,57 @@
         </div>
       </div>
       
+    </div>
+  </div>
+
+  <!-- SLIDING MODAL DIALOG: DETAILED REMEDIATION PLANS -->
+  <div id="remediationModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalRiskTitle" style="font-size: 1.2rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Remediation Plan</h3>
+        <button class="modal-close" onclick="closeRemediationModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-section">
+          <h4 class="modal-section-title">Risk Description</h4>
+          <p id="modalRiskDesc" style="color: var(--text-primary); font-size: 0.9rem; font-weight: 500;"></p>
+        </div>
+        
+        <div class="modal-section">
+          <h4 class="modal-section-title">Root Cause Analysis</h4>
+          <p id="modalDetailCause" style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;"></p>
+        </div>
+
+        <div class="modal-section">
+          <h4 class="modal-section-title">Business & Data Integrity Impact</h4>
+          <p id="modalDetailImpact" style="color: var(--status-critical); font-size: 0.85rem; font-weight: 600; line-height: 1.4; background-color: rgba(255, 51, 102, 0.05); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 51, 102, 0.15);"></p>
+        </div>
+
+        <div class="modal-section">
+          <h4 class="modal-section-title">Step-by-Step Remediation Plan</h4>
+          <ul id="modalDetailSteps" style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; font-family: monospace;">
+            <!-- JS updates -->
+          </ul>
+        </div>
+
+        <div class="modal-section">
+          <h4 class="modal-section-title">Options & Trade-offs</h4>
+          <ul id="modalDetailOptions" style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">
+            <!-- JS updates -->
+          </ul>
+        </div>
+
+        <div class="modal-section">
+          <h4 class="modal-section-title">Hypervisor & 3rd-Party Compliance Settings</h4>
+          <p id="modalDetailThirdParty" style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;"></p>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid var(--border-color);">
+        <button class="action-btn secondary" onclick="closeRemediationModal()">Close Action Plan</button>
+        <a id="modalKbLink" href="" target="_blank" class="action-btn" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
+          View Official NetApp KB
+        </a>
+      </div>
     </div>
   </div>
 
