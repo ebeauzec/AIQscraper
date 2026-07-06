@@ -2743,11 +2743,10 @@ function populateSystemSelectors() {
           customDropdown.appendChild(itemDiv);
         });
       });
-    }
   }
-    
-    updateTAMSelectLabel();
-  }
+}
+
+updateTAMSelectLabel();
 }
 
 function toggleTAMMultiSelect(event) {
