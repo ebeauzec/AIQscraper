@@ -712,6 +712,757 @@ const MOCK_SYSTEMS = [
         ownerNotes: "Self-signed certificate renewed and vCenter connection re-established. Customer verifying."
       }
     ]
+  },
+  // NEW CUSTOMER: HealthCare Solutions Inc
+  {
+    serialNumber: "622007771111",
+    systemName: "hc-ontap-primary",
+    clusterName: "BOS-CLINIC-CLUST",
+    customerName: "HealthCare Solutions Inc",
+    ontapVersion: "9.13.1",
+    platform: "AFF A250 (Hospital Core)",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "9.13.1P8",
+      urgency: "None",
+      benefits: "Applies stability fixes for NVMe-over-Fabric setups."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2028-09-30",
+      daysRemaining: 816,
+      supportLevel: "SupportEdge Premium 4hr"
+    },
+    lifecycle: {
+      eoaDate: "2028-03-31",
+      eosDate: "2033-03-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "3.2:1",
+      logicalUsedTB: 80.0,
+      physicalUsedTB: 25.0,
+      spaceSavedTB: 55.0,
+      fabricPoolTieredTB: 5.0
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "hc-cvo-azure (Azure DR)",
+          type: "XDP (Asynchronous)",
+          schedule: "hourly",
+          status: "Mirrored",
+          state: "Snapmirrored",
+          lagTime: "15 mins",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere",
+        version: "ESXi 7.0 Update 3",
+        plugin: "VASA Provider 9.8 (Connected)",
+        multipathing: "VMW_PSP_RR (Round Robin)",
+        health: "Normal"
+      }
+    ],
+    logistics: {
+      deliveryAddress: "75 Francis St, Boston Clinic Building, Boston, MA 02115, US",
+      accessRestrictions: "Sterile lab protocols. Badge ID and background medical clearance paperwork required.",
+      shippingAlert: "None - Site operations running normal"
+    },
+    contacts: {
+      name: "Dr. Alan Grant",
+      phone: "+1-617-555-0811",
+      email: "alan.grant@hcsolutions.org",
+      nssUsername: "agrant_hc"
+    },
+    salesHealth: {
+      accountManager: "Rebecca Loomis",
+      supportTam: "Jerry Seinfeld",
+      sentimentScore: 9.5,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "AFF A400 expansion shelf",
+      refreshWindow: "Q2 2028"
+    },
+    projections: {
+      growthRateGBPerDay: 95,
+      daysToLimit: 290,
+      limitDate: "2027-04-22",
+      peakIops: 15400,
+      avgLatencyMs: 1.9,
+      historicalCapacityMonths: [15.0, 17.2, 19.1, 21.0, 23.2, 25.0],
+      projectedCapacityMonths: [27.1, 29.0, 31.0]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  {
+    serialNumber: "622007772222",
+    systemName: "hc-grid-archive",
+    clusterName: "GRID-ARCHIVE-100",
+    customerName: "HealthCare Solutions Inc",
+    ontapVersion: "11.7.0",
+    platform: "StorageGRID SG100",
+    status: "warning",
+    risks: [
+      {
+        id: 701,
+        severity: "medium",
+        category: "Software",
+        description: "StorageGRID OS version 11.7.0 is reaching End of Version Support.",
+        recommendation: "Plan upgrade to StorageGRID 11.8.x. Refer to NetApp Upgrade Advisor.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/StorageGRID/How_to_upgrade_StorageGRID",
+        remediationPlan: {
+          cause: "Operating system baseline reaching official support retirement date.",
+          impact: "Loss of developer hot-patches and security vulnerability coverage from NetApp engineering after this quarter.",
+          steps: [
+            "1. Run StorageGRID Pre-Upgrade Validator tool.",
+            "2. Download StorageGRID 11.8 package.",
+            "3. Execute rolling node upgrade starting with the primary Admin Node."
+          ],
+          options: [
+            "Option A: Upgrade to 11.8.x (Recommended).",
+            "Option B: Postpone update under extended support agreement."
+          ],
+          thirdParty: "Compatible with AWS S3 API v4."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "11.8.0",
+      urgency: "Recommended",
+      benefits: "Resolves multiple open security CVEs and improves object recovery times."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2029-01-15",
+      daysRemaining: 923,
+      supportLevel: "SupportEdge Premium"
+    },
+    lifecycle: {
+      eoaDate: "2028-06-30",
+      eosDate: "2033-06-30",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "1.0:1",
+      logicalUsedTB: 450.0,
+      physicalUsedTB: 450.0,
+      spaceSavedTB: 0.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [
+      {
+        type: "Bare Metal Grid Node",
+        version: "SG100 Appliance",
+        plugin: "None",
+        multipathing: "LACP Bonded Interface",
+        health: "Normal"
+      }
+    ],
+    logistics: {
+      deliveryAddress: "300 Tech Way, Boston Data Center Rack 12, Boston, MA 02109, US",
+      accessRestrictions: "Escort required. Standard 24h advance scheduling.",
+      shippingAlert: "None - depot operating normal"
+    },
+    contacts: {
+      name: "Dr. Alan Grant",
+      phone: "+1-617-555-0811",
+      email: "alan.grant@hcsolutions.org",
+      nssUsername: "agrant_hc"
+    },
+    salesHealth: {
+      accountManager: "Rebecca Loomis",
+      supportTam: "Jerry Seinfeld",
+      sentimentScore: 8.0,
+      healthStatus: "Stable",
+      upsellPotential: "StorageGRID expansion node purchase",
+      refreshWindow: "Q1 2029"
+    },
+    projections: {
+      growthRateGBPerDay: 480,
+      daysToLimit: 110,
+      limitDate: "2026-10-24",
+      peakIops: 4200,
+      avgLatencyMs: 12.4,
+      historicalCapacityMonths: [390.0, 400.0, 412.0, 425.0, 438.0, 450.0],
+      projectedCapacityMonths: [462.1, 475.0, 488.0]
+    },
+    securityBulletins: [
+      {
+        id: "NTAP-SA-2023-0402",
+        title: "Linux Kernel privilege escalation vulnerability on SG100 firmware",
+        severity: "high",
+        status: "Vulnerable - Action Required",
+        mitigation: "Upgrade SG100 firmware to version 11.8."
+      }
+    ],
+    supportCases: []
+  },
+  {
+    serialNumber: "622007773333",
+    systemName: "hc-cvo-azure",
+    clusterName: "AZR-CVO-DR",
+    customerName: "HealthCare Solutions Inc",
+    ontapVersion: "9.14.1",
+    platform: "Cloud Volumes ONTAP (Azure)",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "Up to Date",
+      urgency: "None",
+      benefits: ""
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-05-20",
+      daysRemaining: 318,
+      supportLevel: "Cloud Volumes Premium"
+    },
+    lifecycle: {
+      eoaDate: "2028-12-31",
+      eosDate: "2033-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "2.8:1",
+      logicalUsedTB: 140.0,
+      physicalUsedTB: 50.0,
+      spaceSavedTB: 90.0,
+      fabricPoolTieredTB: 22.0
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "hc-ontap-primary (Boston Primary)",
+          type: "XDP (Asynchronous)",
+          schedule: "hourly",
+          status: "Mirrored",
+          state: "Snapmirrored",
+          lagTime: "15 mins",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "Azure US-East Subnet 2 (Logical CVO Node)",
+      accessRestrictions: "None - Cloud Instance. Managed via Azure Portal.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Dr. Alan Grant",
+      phone: "+1-617-555-0811",
+      email: "alan.grant@hcsolutions.org",
+      nssUsername: "agrant_hc"
+    },
+    salesHealth: {
+      accountManager: "Rebecca Loomis",
+      supportTam: "Jerry Seinfeld",
+      sentimentScore: 9.0,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "Azure backup integrations",
+      refreshWindow: "Q2 2027"
+    },
+    projections: {
+      growthRateGBPerDay: 80,
+      daysToLimit: 400,
+      limitDate: "2027-08-10",
+      peakIops: 8200,
+      avgLatencyMs: 3.5,
+      historicalCapacityMonths: [38.0, 40.2, 42.1, 45.0, 48.2, 50.0],
+      projectedCapacityMonths: [52.1, 54.0, 56.0]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  // NEW CUSTOMER: Apex Retail Group
+  {
+    serialNumber: "622008881111",
+    systemName: "apex-fas-01",
+    clusterName: "DAL-RETAIL-01",
+    customerName: "Apex Retail Group",
+    ontapVersion: "9.11.1",
+    platform: "FAS2720 (Store Primary)",
+    status: "warning",
+    risks: [
+      {
+        id: 801,
+        severity: "medium",
+        category: "Software",
+        description: "Disk Shelf IOM3 firmware is outdated.",
+        recommendation: "Upgrade IOM3 firmware. Refer to KB Article.",
+        kbLink: "https://kb.netapp.com",
+        remediationPlan: {
+          cause: "Outdated firmware baseline.",
+          impact: "Soft resets on SAS loops.",
+          steps: ["1. Download bundle.", "2. Upload via CLI.", "3. Run background upgrade."],
+          options: ["Option A: CLI.", "Option B: System Manager GUI."],
+          thirdParty: "None."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "9.12.1P8",
+      urgency: "Recommended",
+      benefits: "Improves overall storage shelf stability."
+    },
+    contracts: {
+      status: "warning",
+      endDate: "2026-07-20",
+      daysRemaining: 14,
+      supportLevel: "SupportEdge Standard"
+    },
+    lifecycle: {
+      eoaDate: "2025-12-31",
+      eosDate: "2030-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "1.8:1",
+      logicalUsedTB: 54.0,
+      physicalUsedTB: 30.0,
+      spaceSavedTB: 24.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "400 Store Way, Dallas Store Hub, Dallas, TX 75204, US",
+      accessRestrictions: "Retail loading zone. Escort required.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Marcus Aurelius",
+      phone: "+1-214-555-0909",
+      email: "maurelius@apexretail.com",
+      nssUsername: "maurelius_ap"
+    },
+    salesHealth: {
+      accountManager: "Livia Drusilla",
+      supportTam: "Cicero",
+      sentimentScore: 6.0,
+      healthStatus: "Retention Risk",
+      upsellPotential: "FAS upgrade swap",
+      refreshWindow: "Q3 2026"
+    },
+    projections: {
+      growthRateGBPerDay: 75,
+      daysToLimit: 50,
+      limitDate: "2026-08-25",
+      peakIops: 2400,
+      avgLatencyMs: 4.8,
+      historicalCapacityMonths: [20.0, 22.0, 24.0, 26.0, 28.0, 30.0],
+      projectedCapacityMonths: [32.0, 34.0, 36.0]
+    },
+    securityBulletins: [],
+    supportCases: [
+      {
+        id: "2009819999",
+        title: "Replacement SAS cable failure alert",
+        severity: "S3 - Medium",
+        status: "Open - NetApp Engineering",
+        createdDate: "2026-07-02",
+        lastUpdated: "2026-07-05",
+        ownerNotes: "Case opened, replacement cable dispatched."
+      }
+    ]
+  },
+  {
+    serialNumber: "622008882222",
+    systemName: "apex-fas-02",
+    clusterName: "DAL-RETAIL-01",
+    customerName: "Apex Retail Group",
+    ontapVersion: "9.11.1",
+    platform: "FAS2720 (Store Backup)",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "9.12.1P8",
+      urgency: "None",
+      benefits: "Brings feature alignment with apex-fas-01."
+    },
+    contracts: {
+      status: "warning",
+      endDate: "2026-07-20",
+      daysRemaining: 14,
+      supportLevel: "SupportEdge Standard"
+    },
+    lifecycle: {
+      eoaDate: "2025-12-31",
+      eosDate: "2030-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "1.8:1",
+      logicalUsedTB: 54.0,
+      physicalUsedTB: 30.0,
+      spaceSavedTB: 24.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "400 Store Way, Dallas Store Hub, Dallas, TX 75204, US",
+      accessRestrictions: "Retail loading zone. Escort required.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Marcus Aurelius",
+      phone: "+1-214-555-0909",
+      email: "maurelius@apexretail.com",
+      nssUsername: "maurelius_ap"
+    },
+    salesHealth: {
+      accountManager: "Livia Drusilla",
+      supportTam: "Cicero",
+      sentimentScore: 6.0,
+      healthStatus: "Retention Risk",
+      upsellPotential: "FAS upgrade swap",
+      refreshWindow: "Q3 2026"
+    },
+    projections: {
+      growthRateGBPerDay: 50,
+      daysToLimit: 120,
+      limitDate: "2026-11-03",
+      peakIops: 1200,
+      avgLatencyMs: 5.5,
+      historicalCapacityMonths: [20.0, 22.0, 24.0, 26.0, 28.0, 30.0],
+      projectedCapacityMonths: [31.5, 33.0, 34.5]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  {
+    serialNumber: "622008883333",
+    systemName: "apex-cvo-gcp",
+    clusterName: "GCP-CVO-PROD",
+    customerName: "Apex Retail Group",
+    ontapVersion: "9.13.1",
+    platform: "Cloud Volumes ONTAP (GCP)",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "Up to Date",
+      urgency: "None",
+      benefits: ""
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-10-10",
+      daysRemaining: 461,
+      supportLevel: "Cloud Volumes Premium"
+    },
+    lifecycle: {
+      eoaDate: "2028-06-30",
+      eosDate: "2033-06-30",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "3.4:1",
+      logicalUsedTB: 170.0,
+      physicalUsedTB: 50.0,
+      spaceSavedTB: 120.0,
+      fabricPoolTieredTB: 10.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "GCP Subnet central-1 (Logical Instance)",
+      accessRestrictions: "None",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Marcus Aurelius",
+      phone: "+1-214-555-0909",
+      email: "maurelius@apexretail.com",
+      nssUsername: "maurelius_ap"
+    },
+    salesHealth: {
+      accountManager: "Livia Drusilla",
+      supportTam: "Cicero",
+      sentimentScore: 7.5,
+      healthStatus: "Stable",
+      upsellPotential: "Expand tiering limits",
+      refreshWindow: "Q4 2027"
+    },
+    projections: {
+      growthRateGBPerDay: 190,
+      daysToLimit: 220,
+      limitDate: "2027-02-11",
+      peakIops: 9500,
+      avgLatencyMs: 2.8,
+      historicalCapacityMonths: [35.0, 38.2, 41.0, 44.0, 47.0, 50.0],
+      projectedCapacityMonths: [53.2, 56.4, 59.6]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  {
+    serialNumber: "622008884444",
+    systemName: "apex-mc-fc",
+    clusterName: "DAL-HOU-METRO",
+    customerName: "Apex Retail Group",
+    ontapVersion: "9.12.1",
+    platform: "FAS9000 MetroCluster FC",
+    status: "warning",
+    risks: [
+      {
+        id: 840,
+        severity: "medium",
+        category: "MetroCluster",
+        description: "FC Switch ATTO bridges firmware mismatch detected.",
+        recommendation: "Align bridge firmware across sites. Refer to NetApp MetroCluster docs.",
+        kbLink: "https://kb.netapp.com",
+        remediationPlan: {
+          cause: "Bridge firmware versions mismatched.",
+          impact: "Possible failover stability delays.",
+          steps: ["1. Stage firmware on ATTO bridges.", "2. Perform sequential update."],
+          options: ["Option A: Sequential upgrade (Online)."],
+          thirdParty: "None."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "9.12.1P10",
+      urgency: "Recommended",
+      benefits: "Applies MetroCluster stability patches."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-11-30",
+      daysRemaining: 512,
+      supportLevel: "SupportEdge Premium 4hr"
+    },
+    lifecycle: {
+      eoaDate: "2025-12-31",
+      eosDate: "2030-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "2.5:1",
+      logicalUsedTB: 350.0,
+      physicalUsedTB: 140.0,
+      spaceSavedTB: 210.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "HOUSTON-REPL (Site B)",
+          type: "SyncMirror (Synchronous)",
+          schedule: "Immediate",
+          status: "In-Sync",
+          state: "Snapmirrored",
+          lagTime: "0 sec",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "400 Store Way, Dallas Store Hub | Houston Backup Site, Houston, TX 77001",
+      accessRestrictions: "Badged entry. Multi-site logistics coordination required.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Marcus Aurelius",
+      phone: "+1-214-555-0909",
+      email: "maurelius@apexretail.com",
+      nssUsername: "maurelius_ap"
+    },
+    salesHealth: {
+      accountManager: "Livia Drusilla",
+      supportTam: "Cicero",
+      sentimentScore: 7.0,
+      healthStatus: "Stable",
+      upsellPotential: "Upgrade to MetroCluster IP systems",
+      refreshWindow: "Q4 2027"
+    },
+    projections: {
+      growthRateGBPerDay: 350,
+      daysToLimit: 140,
+      limitDate: "2026-11-23",
+      peakIops: 28500,
+      avgLatencyMs: 2.2,
+      historicalCapacityMonths: [110.0, 115.0, 122.0, 128.0, 134.0, 140.0],
+      projectedCapacityMonths: [149.2, 158.4, 167.6]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  // NEW CUSTOMER: Federal Aero Systems
+  {
+    serialNumber: "622009991111",
+    systemName: "fed-aff-ultra",
+    clusterName: "DC-SECURE-CLUST",
+    customerName: "Federal Aero Systems",
+    ontapVersion: "9.12.1P8",
+    platform: "AFF A900 (High-Security)",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "Up to Date",
+      urgency: "None",
+      benefits: ""
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2030-05-15",
+      daysRemaining: 1409,
+      supportLevel: "SupportEdge GovSecure"
+    },
+    lifecycle: {
+      eoaDate: "2030-12-31",
+      eosDate: "2035-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "4.5:1",
+      logicalUsedTB: 450.0,
+      physicalUsedTB: 100.0,
+      spaceSavedTB: 350.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere (Secure)",
+        version: "ESXi 8.0 Update 2",
+        plugin: "VASA Provider 10.1",
+        multipathing: "VMW_PSP_RR",
+        health: "Normal"
+      }
+    ],
+    logistics: {
+      deliveryAddress: "Building 4, Pentagon Site South, Arlington, VA 22202, US",
+      accessRestrictions: "Active Secret clearance, background checks, and escort required. Cell phones prohibited.",
+      shippingAlert: "Security checkpoint delays: expect up to 3h delays for courier drop-off."
+    },
+    contacts: {
+      name: "Gen. John Miller",
+      phone: "+1-703-555-0111",
+      email: "john.miller@fed-aero.gov",
+      nssUsername: "jmiller_fed"
+    },
+    salesHealth: {
+      accountManager: "Alexander Hamilton",
+      supportTam: "Thomas Jefferson",
+      sentimentScore: 10.0,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "Government cloud integrations",
+      refreshWindow: "Q2 2030"
+    },
+    projections: {
+      growthRateGBPerDay: 550,
+      daysToLimit: 610,
+      limitDate: "2028-03-08",
+      peakIops: 45000,
+      avgLatencyMs: 1.2,
+      historicalCapacityMonths: [80.0, 84.0, 88.0, 92.0, 96.0, 100.0],
+      projectedCapacityMonths: [104.2, 108.4, 112.6]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  {
+    serialNumber: "622009992222",
+    systemName: "fed-sg-secure",
+    clusterName: "DC-SECURE-GRID",
+    customerName: "Federal Aero Systems",
+    ontapVersion: "11.8.0",
+    platform: "StorageGRID SG6060",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "Up to Date",
+      urgency: "None",
+      benefits: ""
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2030-05-15",
+      daysRemaining: 1409,
+      supportLevel: "SupportEdge GovSecure"
+    },
+    lifecycle: {
+      eoaDate: "2029-12-31",
+      eosDate: "2034-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "1.0:1",
+      logicalUsedTB: 950.0,
+      physicalUsedTB: 950.0,
+      spaceSavedTB: 0.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "Building 4, Pentagon Site South, Arlington, VA 22202, US",
+      accessRestrictions: "Active Secret clearance, background checks, and escort required. Cell phones prohibited.",
+      shippingAlert: "Security checkpoint delays: expect up to 3h delays for courier drop-off."
+    },
+    contacts: {
+      name: "Gen. John Miller",
+      phone: "+1-703-555-0111",
+      email: "john.miller@fed-aero.gov",
+      nssUsername: "jmiller_fed"
+    },
+    salesHealth: {
+      accountManager: "Alexander Hamilton",
+      supportTam: "Thomas Jefferson",
+      sentimentScore: 9.5,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "S3 Object lock configuration review",
+      refreshWindow: "Q2 2030"
+    },
+    projections: {
+      growthRateGBPerDay: 1200,
+      daysToLimit: 320,
+      limitDate: "2027-05-22",
+      peakIops: 12400,
+      avgLatencyMs: 6.8,
+      historicalCapacityMonths: [800.0, 830.0, 860.0, 890.0, 920.0, 950.0],
+      projectedCapacityMonths: [980.0, 1010.0, 1040.0]
+    },
+    securityBulletins: [],
+    supportCases: []
   }
 ];
 
@@ -1310,7 +2061,7 @@ function renderSAMTab() {
       </div>
     `;
   } else if (hypContainer) {
-    hypContainer.innerHTML = `<div style="color: var(--text-muted);">No hypervisor integrations tracked.</div>`;
+    hypContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding-top: 12px;">No hypervisor integrations tracked on this appliance.</div>`;
   }
 
   // Logistics & Site Access Card
@@ -1800,21 +2551,21 @@ function generateActionPlan() {
           </div>
           <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;"><strong>Issue</strong>: ${r.description}</div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: var(--radius-sm);">
-            <strong>Root Cause Analysis:</strong><br>${r.remediationPlan.cause}
+            <strong>Root Cause Analysis:</strong><br>${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
           </div>
           <div style="font-size: 0.85rem; color: var(--status-critical); margin-bottom: 12px; background: rgba(255, 51, 102, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 51, 102, 0.1);">
-            <strong>Operations Impact:</strong><br>${r.remediationPlan.impact}
+            <strong>Operations Impact:</strong><br>${r.remediationPlan ? r.remediationPlan.impact : "Undetermined"}
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
             <strong>Step-by-Step Remediation Plan:</strong>
             <ol style="margin-left: 20px; margin-top: 6px; font-family: monospace; line-height: 1.4;">
-              ${r.remediationPlan.steps.map(s => `<li>${s}</li>`).join("")}
+              ${r.remediationPlan ? r.remediationPlan.steps.map(s => `<li>${s}</li>`).join("") : "<li>Review standard operating guidelines.</li>"}
             </ol>
           </div>
           <div style="font-size: 0.85rem; color: var(--text-muted);">
             <strong>Options & Trade-offs:</strong>
             <ul style="margin-left: 20px; margin-top: 4px; line-height: 1.4;">
-              ${r.remediationPlan.options.map(o => `<li>${o}</li>`).join("")}
+              ${r.remediationPlan ? r.remediationPlan.options.map(o => `<li>${o}</li>`).join("") : "<li>Contact NetApp Support.</li>"}
             </ul>
           </div>
         </div>
@@ -2353,7 +3104,7 @@ function handleCreateGroup() {
   nameInput.value = "";
   document.querySelectorAll(".group-system-checkbox").forEach(chk => chk.checked = false);
   
-  alert(`Group "${name}" created successfully!`);
+  alert("Group created successfully!");
   populateGroupManagerSystems();
   renderSidebarGroups();
 }
