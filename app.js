@@ -247,7 +247,7 @@ const MOCK_SYSTEMS = [
           impact: "Complete loss of S3/Swift client connections using TLS. API calls from backup programs, applications, and dashboards fail due to untrusted certificates.",
           steps: [
             "1. Generate a new Certificate Signing Request (CSR) in Grid Manager: Configuration -> Security -> Certificates.",
-            "2. Obtain signing approval from your enterprise Certificate Authority (CA).",
+            "2. Obtain signing approval from your enterprise CA.",
             "3. Navigate to StorageGRID Grid Manager. Upload the new signed certificate (.PEM format) and private key.",
             "4. Verify client connection using curl: 'curl -v https://<storagegrid-endpoint>:9443/' and confirm the new expiry date."
           ],
@@ -255,7 +255,7 @@ const MOCK_SYSTEMS = [
             "Option A: Upload custom CA certificate. Recommended for enterprise compliance.",
             "Option B: Regenerate default StorageGRID Self-Signed Certificate. Quick resolution but generates browser warnings."
           ],
-          thirdParty: "Affects external API clients (Veeam, Commvault, Astra Control, AWS SDKs) making HTTPS S3 connections."
+          thirdParty: "Affects external S3 clients (Veeam, Commvault, Astra Control, AWS SDKs) making HTTPS S3 connections."
         }
       },
       {
@@ -273,7 +273,7 @@ const MOCK_SYSTEMS = [
             "2. Access Grid Manager console. Verify which fan module reported failure (Fan 2).",
             "3. Pull fan module out of the slot (hot-swappable).",
             "4. Insert new fan assembly module (Part: 112-00445). Confirm Green status LED is lit.",
-            "5. Verify RPM status reports normal in Grid Manager grid nodes status tree."
+            "5. Verify RPM status reports normal in Grid Manager status tree."
           ],
           options: [
             "Option A: Hot-Swap replacement. Highly recommended as the chassis can run safely on remaining fans for up to 24 hours.",
@@ -301,7 +301,7 @@ const MOCK_SYSTEMS = [
     },
     fieldActions: [],
     efficiency: {
-      ratio: "1.0:1", // Object storage uses erasure coding, not dedupe ratio representation
+      ratio: "1.0:1",
       logicalUsedTB: 850.0,
       physicalUsedTB: 850.0,
       spaceSavedTB: 0.0,
@@ -416,7 +416,7 @@ const MOCK_SYSTEMS = [
         id: 501,
         severity: "high",
         category: "Hypervisor Integration",
-        description: "VMware ESXi Host multipathing policy is configured to default 'Most Recently Used' (Fixed) instead of recommended 'Round Robin'.",
+        description: "VMware ESXi Host multipathing policy is configured to default 'Most Recently Used' (Fixed) instead of Round Robin.",
         recommendation: "Change ESXi Host Native Multipathing (NMP) Path Selection Policy (PSP) to VMW_PSP_RR.",
         kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ESXi_multipathing_best_practices_for_ONTAP",
         remediationPlan: {
@@ -482,7 +482,7 @@ let state = {
   currentTab: "overview",
   mockMode: true,
   systems: [...MOCK_SYSTEMS],
-  selectedSystem: MOCK_SYSTEMS[0], // Default selected system
+  selectedSystem: MOCK_SYSTEMS[0],
   activeSearchQuery: ""
 };
 
@@ -728,7 +728,6 @@ function renderOverviewTable() {
   });
 }
 
-// System Selector Dropdowns inside TAM, SAM, and CSM tabs
 function populateSystemSelectors() {
   const selectors = ["tamSystemSelect", "samSystemSelect", "csmSystemSelect"];
   selectors.forEach(id => {
@@ -745,20 +744,17 @@ function populateSystemSelectors() {
       select.appendChild(opt);
     });
     
-    // Bind change listener
     select.onchange = (e) => {
       const serial = e.target.value;
       const found = state.systems.find(s => s.serialNumber === serial);
       if (found) {
         state.selectedSystem = found;
-        // Redraw current tab
         switchTab(state.currentTab);
       }
     };
   });
 }
 
-// Open sliding modal for detailed remediation plans
 function openRemediationModal(riskId) {
   const sys = state.selectedSystem;
   if (!sys) return;
@@ -774,7 +770,6 @@ function openRemediationModal(riskId) {
   document.getElementById("modalDetailCause").innerText = risk.remediationPlan.cause;
   document.getElementById("modalDetailImpact").innerText = risk.remediationPlan.impact;
   
-  // Format Steps
   const stepsList = document.getElementById("modalDetailSteps");
   stepsList.innerHTML = "";
   risk.remediationPlan.steps.forEach(step => {
@@ -784,7 +779,6 @@ function openRemediationModal(riskId) {
     stepsList.appendChild(li);
   });
 
-  // Format Options
   const optionsList = document.getElementById("modalDetailOptions");
   optionsList.innerHTML = "";
   risk.remediationPlan.options.forEach(opt => {
@@ -794,10 +788,8 @@ function openRemediationModal(riskId) {
     optionsList.appendChild(li);
   });
 
-  // Format 3rd Party Integrations
   document.getElementById("modalDetailThirdParty").innerText = risk.remediationPlan.thirdParty;
 
-  // View KB link
   const kbBtn = document.getElementById("modalKbLink");
   kbBtn.href = risk.kbLink;
 
@@ -814,7 +806,10 @@ function renderTAMTab() {
   const sys = state.selectedSystem;
   if (!sys) return;
 
-  // Render Risk Table
+  document.getElementById("tamActiveSystem").innerHTML = `
+    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>ONTAP</strong>: ${sys.ontapVersion}
+  `;
+
   let riskRows = "";
   if (sys.risks.length === 0) {
     riskRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active technical risks found. System is fully compliant.</td></tr>`;
@@ -845,7 +840,6 @@ function renderTAMTab() {
     });
   }
 
-  // Render Upgrade Section
   const upgradeBox = document.getElementById("tamUpgradeContainer");
   if (sys.upgrades.targetVersion === "Up to Date") {
     upgradeBox.innerHTML = `
@@ -872,7 +866,10 @@ function renderSAMTab() {
   const sys = state.selectedSystem;
   if (!sys) return;
 
-  // 1. Contract & Warranty card
+  document.getElementById("samActiveSystem").innerHTML = `
+    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Platform</strong>: ${sys.platform}
+  `;
+
   let contractBadge = `<span class="badge normal">Active</span>`;
   let expiryColor = "var(--text-primary)";
   if (sys.contracts.status === "critical") {
@@ -896,7 +893,6 @@ function renderSAMTab() {
     </div>
   `;
 
-  // 2. Hardware Lifecycle Card
   let lcStatus = `<span class="badge normal">Fully Supported</span>`;
   let eoaGlow = "var(--text-primary)";
   if (sys.lifecycle.isNearEos) {
@@ -917,7 +913,6 @@ function renderSAMTab() {
     </div>
   `;
 
-  // 3. Field Actions Table
   let faRows = "";
   if (sys.fieldActions.length === 0) {
     faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. System is compliant.</td></tr>`;
@@ -936,7 +931,6 @@ function renderSAMTab() {
   }
   document.getElementById("samFieldActionsBody").innerHTML = faRows;
 
-  // 4. Extended Hypervisor Status Card
   const hypContainer = document.getElementById("samHypervisorCard");
   if (hypContainer && sys.hypervisors && sys.hypervisors.length > 0) {
     const hyp = sys.hypervisors[0];
@@ -956,7 +950,7 @@ function renderSAMTab() {
         Plugin: <strong>${hyp.plugin}</strong>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-secondary);">
-        Multipathing PSP: <strong>${hyp.multipathing}</strong>
+        Multipathing: <strong>${hyp.multipathing}</strong>
       </div>
     `;
   } else if (hypContainer) {
@@ -969,7 +963,10 @@ function renderCSMTab() {
   const sys = state.selectedSystem;
   if (!sys) return;
 
-  // Render Efficiency Metrics Card
+  document.getElementById("csmActiveSystem").innerHTML = `
+    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Customer</strong>: ${sys.customerName}
+  `;
+
   document.getElementById("csmSavingsCard").innerHTML = `
     <div style="display: flex; flex-direction: column; gap: 12px;">
       <div>
@@ -993,7 +990,6 @@ function renderCSMTab() {
     </div>
   `;
 
-  // Render FabricPool Cloud Adoption Card
   const fpTiered = sys.efficiency.fabricPoolTieredTB;
   let fpStatusText = "";
   let fpAdoptionBadge = "";
@@ -1019,7 +1015,6 @@ function renderCSMTab() {
     </p>
   `;
 
-  // Render SnapMirror & Replication status
   const smContainer = document.getElementById("csmSnapmirrorCard");
   if (smContainer && sys.snapmirror) {
     let smBadge = `<span class="badge normal">Inactive</span>`;
@@ -1049,7 +1044,6 @@ function renderCSMTab() {
     `;
   }
 
-  // Adoption Checklist
   const checklist = [
     { name: "ONTAP 9.10+ / StorageGRID 11.5+", completed: true },
     { name: "Storage Efficiency Enabled (>1.5:1)", completed: parseFloat(sys.efficiency.ratio.split(":")[0]) > 1.5 },
@@ -1073,10 +1067,347 @@ function renderCSMTab() {
   document.getElementById("csmAdoptionChecklist").innerHTML = checklistHTML;
 }
 
-function renderSettingsTab() {
-  const { refresh } = loadConfig();
-  document.getElementById("settingsRefreshToken").value = refresh;
-  document.getElementById("settingsMockModeToggle").checked = state.mockMode;
+// 6. JSON Import / Export & Configuration Panel functions
+function exportConfigJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.systems, null, 2));
+  const link = document.createElement("a");
+  link.setAttribute("href", dataStr);
+  link.setAttribute("download", `ActiveIQ_AccountReportConfig_${new Date().toISOString().split('T')[0]}.json`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function triggerImportFileInput() {
+  document.getElementById("importFileInput").click();
+}
+
+function handleJSONImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const importedData = JSON.parse(e.target.result);
+      if (Array.isArray(importedData)) {
+        if (importedData.length > 0 && importedData[0].serialNumber) {
+          state.systems = importedData;
+          state.selectedSystem = importedData[0];
+          alert(`Successfully imported configuration containing ${importedData.length} NetApp systems!`);
+          switchTab("overview");
+        } else {
+          alert("Invalid file format. Systems must contain 'serialNumber' property.");
+        }
+      } else {
+        alert("Invalid file format. Configuration must be a JSON array of systems.");
+      }
+    } catch (err) {
+      alert("Failed to parse JSON configuration: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// 7. Action Plan Compiler
+function populateActionPlanSelector() {
+  const select = document.getElementById("planTargetSelect");
+  if (!select) return;
+  select.innerHTML = '<option value="ALL">All Account Systems (Customer View)</option>';
+  
+  // Group by Customers first
+  const customers = [...new Set(state.systems.map(s => s.customerName))];
+  customers.forEach(cust => {
+    const opt = document.createElement("option");
+    opt.value = `CUST:${cust}`;
+    opt.innerText = `Customer: ${cust} (All Systems)`;
+    select.appendChild(opt);
+  });
+  
+  // System entries
+  state.systems.forEach(sys => {
+    const opt = document.createElement("option");
+    opt.value = `SYS:${sys.serialNumber}`;
+    opt.innerText = `System: ${sys.systemName} (${sys.platform})`;
+    select.appendChild(opt);
+  });
+}
+
+function generateActionPlan() {
+  const selectValue = document.getElementById("planTargetSelect").value;
+  const planBody = document.getElementById("generatedPlanBody");
+  if (!planBody) return;
+  
+  let targetSystems = [];
+  let scopeTitle = "";
+  
+  if (selectValue === "ALL") {
+    targetSystems = state.systems;
+    scopeTitle = "Total Account Portfolio";
+  } else if (selectValue.startsWith("CUST:")) {
+    const custName = selectValue.substring(5);
+    targetSystems = state.systems.filter(s => s.customerName === custName);
+    scopeTitle = `Customer: ${custName}`;
+  } else if (selectValue.startsWith("SYS:")) {
+    const serial = selectValue.substring(4);
+    const found = state.systems.find(s => s.serialNumber === serial);
+    if (found) targetSystems = [found];
+    scopeTitle = `System: ${found ? found.systemName : serial}`;
+  }
+
+  if (targetSystems.length === 0) {
+    planBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px;">No systems found in the selected scope.</div>`;
+    return;
+  }
+
+  // Compile risks and lifecycle items
+  const allRisks = [];
+  const allUpgrades = [];
+  const expiringContracts = [];
+  const activeFAs = [];
+  const allHypervisors = [];
+
+  targetSystems.forEach(sys => {
+    sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+    if (sys.upgrades.targetVersion !== "Up to Date") {
+      allUpgrades.push({ systemName: sys.systemName, ...sys.upgrades });
+    }
+    if (sys.contracts.daysRemaining <= 90) {
+      expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
+    }
+    sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
+    if (sys.hypervisors) {
+      sys.hypervisors.forEach(h => allHypervisors.push({ systemName: sys.systemName, ...h }));
+    }
+  });
+
+  // Build HTML Report
+  let html = `
+    <div class="plan-document-header">
+      <div style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">NetApp Operations & Advisory Plan</div>
+      <h1 style="font-size: 1.8rem; margin: 8px 0 16px 0; color: #fff;">Executive Action Plan & Best Practices Guide</h1>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px solid var(--border-color); padding-top: 12px;">
+        <div>Scope: <strong>${scopeTitle}</strong></div>
+        <div>Date Generated: <strong>${new Date().toISOString().split('T')[0]}</strong></div>
+      </div>
+    </div>
+
+    <!-- Executive Summary Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">1. Executive Summary</h2>
+      <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 12px;">
+        This document represents the consolidated operational action plan generated from telemetry data analyzed by NetApp Active IQ Digital Advisor. 
+        A total of <strong>${targetSystems.length}</strong> storage configuration(s) were audited.
+      </p>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0;">
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Total Risks</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Pending OS Upgrades</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: ${allUpgrades.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allUpgrades.length}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Support Expired/Expiring</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Technical Risks Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">2. Prioritized Technical Risks & Remediation Steps</h2>
+  `;
+
+  if (allRisks.length === 0) {
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No technical risk signatures identified across the monitored scope.</p>`;
+  } else {
+    allRisks.forEach((r, idx) => {
+      let badgeColor = "var(--status-info)";
+      if (r.severity === "critical" || r.severity === "high") badgeColor = "var(--status-critical)";
+      else if (r.severity === "medium") badgeColor = "var(--status-warning)";
+
+      html += `
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-left: 4px solid ${badgeColor}; padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="font-size: 0.95rem; color: #fff;">Item 2.${idx + 1}: ${r.category} Risk - ${r.systemName}</strong>
+            <span class="badge ${r.severity}" style="font-size: 0.7rem;">${r.severity}</span>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;"><strong>Issue</strong>: ${r.description}</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: var(--radius-sm);">
+            <strong>Root Cause Analysis:</strong><br>${r.remediationPlan.cause}
+          </div>
+          <div style="font-size: 0.85rem; color: var(--status-critical); margin-bottom: 12px; background: rgba(255, 51, 102, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 51, 102, 0.1);">
+            <strong>Operations Impact:</strong><br>${r.remediationPlan.impact}
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+            <strong>Step-by-Step Remediation Plan:</strong>
+            <ol style="margin-left: 20px; margin-top: 6px; font-family: monospace; line-height: 1.4;">
+              ${r.remediationPlan.steps.map(s => `<li>${s}</li>`).join("")}
+            </ol>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">
+            <strong>Options & Trade-offs:</strong>
+            <ul style="margin-left: 20px; margin-top: 4px; line-height: 1.4;">
+              ${r.remediationPlan.options.map(o => `<li>${o}</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    </div>
+
+    <!-- OS/Firmware Upgrades Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">3. Recommended OS Upgrade Roadmaps</h2>
+  `;
+
+  if (allUpgrades.length === 0) {
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All systems are running target version baselines.</p>`;
+  } else {
+    allUpgrades.forEach(u => {
+      html += `
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <strong>System: ${u.systemName}</strong>
+            <span class="badge warning">${u.urgency}</span>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary);">
+            Target ONTAP/GRID Version: <strong style="color: var(--accent-cyan);">${u.targetVersion}</strong>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
+            <strong>Expected Upgrade Benefits:</strong> ${u.benefits}
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    </div>
+
+    <!-- Support and Lifecycles Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Support Agreements & Hardware Lifecycles</h2>
+  `;
+
+  if (expiringContracts.length === 0) {
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All support contracts have active status and exceed 90 days validity.</p>`;
+  } else {
+    expiringContracts.forEach(c => {
+      const isExpired = c.daysRemaining < 0;
+      const textClass = isExpired ? "color: var(--status-critical);" : "color: var(--status-warning);";
+      html += `
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px; ${textClass}">
+          <strong>System: ${c.systemName} - Contract Expiry Warning</strong>
+          <div style="font-size: 0.85rem; margin-top: 4px; color: var(--text-secondary);">
+            Support Level: <strong>${c.supportLevel}</strong> | Expiration Date: <strong>${c.endDate}</strong> (${c.daysRemaining} days remaining)
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    </div>
+
+    <!-- Guidelines and Proceeding Steps Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Operational Guidelines & Proceeding Steps</h2>
+      
+      <div style="margin-bottom: 18px;">
+        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Implementing Changes via NetApp Change Control</h4>
+        <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary);">
+          To minimize risk when applying technical fixes (e.g., replacing hardware spare parts, updating shelf SAS cabling, or performing software firmware upgrades), ensure you adhere to NetApp change control guidelines:
+        </p>
+        <ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-top: 6px;">
+          <li><strong>Upgrade Advisor</strong>: Always run the 'Upgrade Advisor' script inside Active IQ Digital Advisor to generate a customized configuration checklist before performing any ONTAP updates.</li>
+          <li><strong>Pre-upgrade Checklists</strong>: Run cluster health checks: 'system health alert show' and verify that replication paths are stable.</li>
+          <li><strong>Maintenance Windows</strong>: Schedule all disk replacement and switch firmware modifications during off-peak periods, even if non-disruptive, to prevent application latency spikes.</li>
+        </ul>
+      </div>
+
+      <div style="margin-bottom: 18px;">
+        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">B. 3rd-Party Virtualization & Hypervisor Integrations</h4>
+        <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary);">
+          If systems back VM workloads (VMware ESXi or Kubernetes orchestrators), follow host compliance settings:
+        </p>
+        <ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-top: 6px;">
+          <li><strong>Multipathing PSP</strong>: Confirm ESXi hosts utilize VMW_PSP_RR Round Robin policies with IOPS limit=1 to distribute workload. Fixed pathing configurations should be corrected immediately using: 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'.</li>
+          <li><strong>Trident Upgrades</strong>: Coordinate Astra Trident driver upgrades alongside Kubernetes API migrations to avoid CSI mount failures.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">C. Proceeding Milestones & Next Steps</h4>
+        <ol style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-top: 6px;">
+          <li><strong>Coordinate support renewal quotes</strong> for all systems identified in Section 4.</li>
+          <li><strong>Create internal IT ticket instances</strong> for the high-priority technical items in Section 2, attaching the generated remediation steps.</li>
+          <li><strong>Download detailed upgrade advisor procedures</strong> from Active IQ Portal for the systems in Section 3.</li>
+        </ol>
+      </div>
+    </div>
+  `;
+
+  planBody.innerHTML = html;
+  
+  // Show plan controls
+  document.getElementById("planControlsPanel").style.display = "flex";
+}
+
+function printActionPlan() {
+  const printContent = document.getElementById("generatedPlanBody").innerHTML;
+  const originalContent = document.body.innerHTML;
+  
+  // Open a new window for clean print styling
+  const printWindow = window.open("", "_blank");
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>NetApp Active IQ Action Plan</title>
+        <style>
+          body {
+            background-color: #ffffff;
+            color: #000000;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            padding: 40px;
+          }
+          h1, h2, h3, h4 { color: #000000; font-family: sans-serif; }
+          h2 { border-bottom: 2px solid #00e5ff; padding-bottom: 8px; }
+          .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; border: 1px solid #333; }
+          .badge.critical { background: #ffe3e3; color: #cc0033; }
+          .badge.warning { background: #fff8e3; color: #cc9900; }
+          .badge.normal { background: #e3ffe3; color: #009933; }
+          .badge.info { background: #e3f8ff; color: #0066cc; }
+          ul, ol { margin-left: 20px; }
+          li { margin-bottom: 6px; font-size: 0.85rem; }
+          .plan-document-header { border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 24px; }
+          @media print {
+            body { padding: 0; }
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        ${printContent}
+        <script>
+          window.onload = function() {
+            window.print();
+            window.close();
+          }
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
 
 function updateStatusIndicators() {
@@ -1127,6 +1458,16 @@ function switchTab(tabId) {
     renderCSMTab();
   } else if (tabId === "settings") {
     renderSettingsTab();
+  } else if (tabId === "plan") {
+    populateActionPlanSelector();
+    document.getElementById("planControlsPanel").style.display = "none";
+    document.getElementById("generatedPlanBody").innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 60px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.6;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        <p style="font-weight: 500; font-size: 0.95rem;">Action Plan Not Generated</p>
+        <p style="font-size: 0.8rem; margin-top: 4px;">Choose a target system scope above and click "Generate Operational Action Plan".</p>
+      </div>
+    `;
   }
 }
 

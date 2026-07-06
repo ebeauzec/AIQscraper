@@ -641,3 +641,45 @@ input:checked + .slider:before {
   from { transform: translateY(-20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Print Overrides and Print Layout support */
+.plan-document-body {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .app-container {
+    display: block !important;
+  }
+  .sidebar, .top-header, #planControlsPanel, .nav-menu, .nav-footer {
+    display: none !important;
+  }
+  .main-content {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+  .tab-content {
+    display: none !important;
+  }
+  #planTab.tab-content {
+    display: block !important;
+    padding: 0 !important;
+  }
+  .card {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+  }
+  .plan-document-body {
+    color: #000000 !important;
+  }
+}

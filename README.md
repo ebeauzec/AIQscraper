@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -16,7 +16,8 @@ This dashboard consolidates telemetry data from the public Active IQ API to help
 *   **TAM Module (Technical Compliance)**: Lists active predictive risks (e.g., single-path storage failures, outdated shelf firmware) with official NetApp KB remediation links and target version upgrade recommendations. Includes interactive **Remediation Action Plans** displaying root cause, impact, step-by-step commands, and trade-off options.
 *   **SAM Module (Support Operations)**: Tracks contract/warranty expiration thresholds (30/60/90 days), flags hardware End-of-Support (EOS/EOA) dates, and displays unresolved NetApp Field Actions (FA). Includes **3rd-Party Hypervisor Integration** compliance checks.
 *   **CSM Module (ROI & Adoption)**: Showcases storage efficiencies (deduplication ratios, space saved), FabricPool cloud capacity tiering savings, SnapMirror active disaster recovery replication status, and a capability adoption scorecard.
-*   **Unified Account Overview**: Search/filter by customer, cluster, system, or serial number. Aggregates data across the install base and supports one-click CSV report exports.
+*   **Action Planner**: Compiles an exhaustive, print-friendly **Executive Action Plan** for a single system, all systems under a specific customer account, or your entire monitored portfolio. Includes prioritized risk remediations, OS roadmaps, and change management proceeding guidelines.
+*   **Import/Export Config**: Save your active telemetry reports and custom mock datasets as a JSON file, or import external files to load report views instantly without re-querying the API.
 
 ---
 
@@ -41,6 +42,28 @@ The tool highlights compliance warnings against NetApp storage best practices fo
 
 ---
 
+## Exporting & Importing Report Configurations
+
+To share customer environments or preserve custom report states:
+1.  **Exporting**: Click **Export Config (JSON)** on the Overview page or Settings page. This downloads a local JSON file containing your active systems list, risk profiles, contract lifecycles, and efficiency telemetry.
+2.  **Importing**: Click **Import Config (JSON)** and select a previously exported `.json` configuration file. The webpage will immediately parse the schema and refresh all modules (TAM, SAM, CSM, Planner) with the new data.
+
+---
+
+## Action Plan Guidelines & Best Practices
+
+When presenting the generated **Executive Action Plans** to customers, account teams should align next steps with NetApp change standards:
+
+1.  **Change Management Windows**: 
+    *   All hardware swaps (SAS cables, failed sparing drives, chassis fans) and firmware upgrades should be routed through internal Change Advisory Boards (CAB).
+    *   Even if actions are designated as online/non-disruptive, schedule them during off-peak windows to absorb transient controller failovers or path resets without impacting production apps.
+2.  **Firmware Updates**:
+    *   Disk and shelf firmware updates should be applied before attempting major ONTAP OS upgrades to ensure complete driver compatibility.
+3.  **Active IQ Change Advisor**:
+    *   Utilize the Change Advisor tool inside the Active IQ portal to validate compatibility metrics for complex upgrades, especially MetroCluster switches or SnapMirror destinations.
+
+---
+
 ## Indemnity & License Agreement
 
 This tool is distributed under the **MIT License**. 
@@ -62,7 +85,7 @@ This dashboard is designed to be **strictly read-only** under all circumstances.
 Simply double-click the **`index.html`** file in this directory to open the dashboard in your default web browser (Chrome, Edge, or Firefox).
 
 ### 2. Testing with Demo Data (Offline Mode)
-To see how the dashboard functions immediately with CVO, StorageGRID, MetroCluster, SnapMirror, and VMware integration metrics:
+To see how the dashboard functions immediately:
 1. Open the dashboard.
 2. Click the **Settings & Config** tab in the sidebar.
 3. Turn on the **Enable Offline Demo Mode (Mock Data)** toggle.
