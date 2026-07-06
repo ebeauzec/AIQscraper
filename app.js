@@ -475,7 +475,7 @@ const MOCK_SYSTEMS = [
   },
   {
     serialNumber: "622004445555",
-    systemName: "netapp-mc-ip",
+    systemName: "netapp-mc-ip-a",
     clusterName: "NY-NJ-METROCLUSTER",
     customerName: "Global Bank Corp",
     ontapVersion: "9.12.1P10",
@@ -500,8 +500,8 @@ const MOCK_SYSTEMS = [
             "5. Re-enable port: 'no shutdown'. Verify errors do not increment."
           ],
           options: [
-            "Option A: Clean fiber and replace SFP (non-disruptive, recommended).",
-            "Option B: Replace optical patch cord. Only if SFP swap does not resolve error rates."
+            "Option A: Clean optical fiber terminations using professional fiber pen.",
+            "Option B: Replace faulty SFP+ physical transceiver module."
           ],
           thirdParty: "No hypervisor impact. Managed entirely by the back-end MetroCluster IP fabric switch layers."
         }
@@ -591,6 +591,93 @@ const MOCK_SYSTEMS = [
         mitigation: "Cisco Nexus NX-OS patch applied at site A & B switches."
       }
     ],
+    supportCases: []
+  },
+  {
+    serialNumber: "622004445556",
+    systemName: "netapp-mc-ip-b",
+    clusterName: "NY-NJ-METROCLUSTER",
+    customerName: "Global Bank Corp",
+    ontapVersion: "9.12.1P10",
+    platform: "FAS9000 MetroCluster IP",
+    status: "normal",
+    risks: [],
+    upgrades: {
+      targetVersion: "9.13.1P8",
+      urgency: "Recommended",
+      benefits: "Provides automated switchover enhancements for MetroCluster configuration."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-04-30",
+      daysRemaining: 298,
+      supportLevel: "SupportEdge Premium 2hr"
+    },
+    lifecycle: {
+      eoaDate: "2025-12-31",
+      eosDate: "2030-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "3.8:1",
+      logicalUsedTB: 512.0,
+      physicalUsedTB: 134.7,
+      spaceSavedTB: 377.3,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: true,
+      relationships: [
+        {
+          destination: "NY-METROCLUSTER (Site A)",
+          type: "SyncMirror (Synchronous)",
+          schedule: "Immediate",
+          status: "In-Sync",
+          state: "Snapmirrored",
+          lagTime: "0 sec",
+          healthy: true
+        }
+      ]
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere (Stretch)",
+        version: "ESXi 8.0",
+        plugin: "ONTAP Tools v10.0",
+        multipathing: "ALUA Multipath configured",
+        health: "Normal"
+      }
+    ],
+    logistics: {
+      deliveryAddress: "Site B: 200 Broad St, Newark, NJ 07102",
+      accessRestrictions: "Requires custom high-security access clearance pass and photo ID.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Samantha Ross",
+      phone: "+1-201-555-0988",
+      email: "samantha.ross@globalbank.com",
+      nssUsername: "sross_mc_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 9.0,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "Switch support upgrade agreements",
+      refreshWindow: "Q1 2028"
+    },
+    projections: {
+      growthRateGBPerDay: 220,
+      daysToLimit: 220,
+      limitDate: "2027-02-11",
+      peakIops: 31000,
+      avgLatencyMs: 1.7,
+      historicalCapacityMonths: [100.0, 108.0, 114.0, 120.0, 128.0, 134.7],
+      projectedCapacityMonths: [141.0, 147.0, 153.0]
+    },
+    securityBulletins: [],
     supportCases: []
   },
   {
@@ -1466,6 +1553,56 @@ const MOCK_SYSTEMS = [
   }
 ];
 
+(function ensureMultiNodeClusters() {
+  const clusterCounts = {};
+  MOCK_SYSTEMS.forEach(sys => {
+    clusterCounts[sys.clusterName] = (clusterCounts[sys.clusterName] || 0) + 1;
+  });
+
+  const singleNodeClusters = Object.keys(clusterCounts).filter(c => clusterCounts[c] === 1);
+
+  const newNodes = [];
+  MOCK_SYSTEMS.forEach(sys => {
+    if (singleNodeClusters.includes(sys.clusterName)) {
+      let partnerSerialNum = parseInt(sys.serialNumber) || 0;
+      partnerSerialNum = partnerSerialNum + 1;
+      const partnerSerial = partnerSerialNum.toString();
+      
+      let origName = sys.systemName;
+      if (!origName.endsWith("-a") && !origName.endsWith("-01")) {
+        sys.systemName = `${origName}-a`;
+      }
+      
+      const partnerName = sys.systemName.replace(/-a$/, "-b").replace(/-01$/, "-02");
+      
+      const partnerNode = {
+        ...sys,
+        serialNumber: partnerSerial,
+        systemName: partnerName,
+        status: "normal",
+        risks: [],
+        switches: sys.switches ? sys.switches.map(sw => ({
+          ...sw,
+          serialNumber: sw.serialNumber + "-B"
+        })) : undefined,
+        contracts: {
+          ...sys.contracts,
+          daysRemaining: sys.contracts.daysRemaining + 2
+        },
+        efficiency: {
+          ...sys.efficiency,
+          logicalUsedTB: sys.efficiency.logicalUsedTB * 0.9,
+          physicalUsedTB: sys.efficiency.physicalUsedTB * 0.9,
+          spaceSavedTB: sys.efficiency.spaceSavedTB * 0.9
+        }
+      };
+      newNodes.push(partnerNode);
+    }
+  });
+
+  MOCK_SYSTEMS.push(...newNodes);
+})();
+
 // Dynamically generate additional systems to reach approximately 50 systems (with new customers)
 (function generateExtraMockData() {
   const extraCustomers = [
@@ -1807,6 +1944,38 @@ const MOCK_SYSTEMS = [
     };
 
     MOCK_SYSTEMS.push(sys);
+
+    // Generate Node B partner to ensure HA pair configuration in all clusters
+    if (true) {
+      const partnerSerial = (722000000000 + i + 500).toString();
+      const partnerSysName = sysName.endsWith("a") ? sysName.replace(/a$/, "b") : `${sysName}b`;
+      
+      const partnerSys = {
+        ...sys,
+        serialNumber: partnerSerial,
+        systemName: partnerSysName,
+        switches: sys.switches.map(sw => ({
+          ...sw,
+          serialNumber: sw.serialNumber.replace(serial.substring(6), partnerSerial.substring(6))
+        })),
+        contracts: {
+          ...sys.contracts,
+          daysRemaining: sys.contracts.daysRemaining + 1
+        },
+        efficiency: {
+          ...sys.efficiency,
+          logicalUsedTB: sys.efficiency.logicalUsedTB * 0.95,
+          physicalUsedTB: sys.efficiency.physicalUsedTB * 0.95,
+          spaceSavedTB: sys.efficiency.spaceSavedTB * 0.95
+        }
+      };
+      
+      if (!sys.systemName.endsWith("a")) {
+        sys.systemName = `${sys.systemName}a`;
+      }
+      
+      MOCK_SYSTEMS.push(partnerSys);
+    }
   }
 })();
 
@@ -1869,10 +2038,10 @@ function loadConfig() {
   const expiry = localStorage.getItem("aiq_token_expiry") || "";
   
   // Load systems db if exists in local storage
-  const schemaVer = localStorage.getItem("aiq_systems_schema_v2");
+  const schemaVer = localStorage.getItem("aiq_systems_schema_v3");
   const savedSystems = localStorage.getItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v2") {
+  if (savedSystems && schemaVer === "v3") {
     const parsed = JSON.parse(savedSystems);
     if (parsed.length < MOCK_SYSTEMS.length) {
       state.systems = [...MOCK_SYSTEMS];
@@ -1882,7 +2051,7 @@ function loadConfig() {
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
-    localStorage.setItem("aiq_systems_schema_v2", "v2");
+    localStorage.setItem("aiq_systems_schema_v3", "v3");
     saveSystems();
   }
 
@@ -2359,24 +2528,47 @@ function populateSystemSelectors() {
   if (samSelect) {
     samSelect.innerHTML = "";
     if (currentFiltered.length > 0) {
+      const grpPortfolio = document.createElement("optgroup");
+      grpPortfolio.label = "Portfolio View";
       const optAll = document.createElement("option");
       optAll.value = "ALL";
       optAll.innerText = `All Systems (Account View - ${currentFiltered.length} nodes)`;
       if (state.selectedSAMSystemSerial === "ALL") optAll.selected = true;
-      samSelect.appendChild(optAll);
+      grpPortfolio.appendChild(optAll);
+      samSelect.appendChild(grpPortfolio);
+      
+      const uniqueClusters = [...new Set(currentFiltered.map(s => s.clusterName))];
+      if (uniqueClusters.length > 0) {
+        const grpClusters = document.createElement("optgroup");
+        grpClusters.label = "Clusters (Aggregated)";
+        uniqueClusters.forEach(clusterName => {
+          const clusterNodes = currentFiltered.filter(s => s.clusterName === clusterName);
+          const opt = document.createElement("option");
+          opt.value = `CLUSTER:${clusterName}`;
+          opt.innerText = `Cluster: ${clusterName} (${clusterNodes.length} nodes)`;
+          if (state.selectedSAMSystemSerial === `CLUSTER:${clusterName}`) opt.selected = true;
+          grpClusters.appendChild(opt);
+        });
+        samSelect.appendChild(grpClusters);
+      }
+      
+      const grpNodes = document.createElement("optgroup");
+      grpNodes.label = "Nodes (Individual)";
+      currentFiltered.forEach(sys => {
+        const opt = document.createElement("option");
+        opt.value = `NODE:${sys.serialNumber}`;
+        opt.innerText = `Node: ${sys.systemName} (${sys.platform})`;
+        if (state.selectedSAMSystemSerial === `NODE:${sys.serialNumber}` || state.selectedSAMSystemSerial === sys.serialNumber) opt.selected = true;
+        grpNodes.appendChild(opt);
+      });
+      samSelect.appendChild(grpNodes);
     }
-    currentFiltered.forEach(sys => {
-      const opt = document.createElement("option");
-      opt.value = sys.serialNumber;
-      opt.innerText = `${sys.systemName} (${sys.platform})`;
-      if (state.selectedSAMSystemSerial === sys.serialNumber) opt.selected = true;
-      samSelect.appendChild(opt);
-    });
     samSelect.onchange = (e) => {
       const val = e.target.value;
       state.selectedSAMSystemSerial = val;
-      if (val !== "ALL") {
-        const found = state.systems.find(s => s.serialNumber === val);
+      if (val !== "ALL" && !val.startsWith("CLUSTER:")) {
+        const serial = val.startsWith("NODE:") ? val.substring(5) : val;
+        const found = state.systems.find(s => s.serialNumber === serial);
         if (found) state.selectedSystem = found;
       }
       switchTab("sam");
@@ -2388,24 +2580,47 @@ function populateSystemSelectors() {
   if (csmSelect) {
     csmSelect.innerHTML = "";
     if (currentFiltered.length > 0) {
+      const grpPortfolio = document.createElement("optgroup");
+      grpPortfolio.label = "Portfolio View";
       const optAll = document.createElement("option");
       optAll.value = "ALL";
       optAll.innerText = `All Systems (Account View - ${currentFiltered.length} nodes)`;
       if (state.selectedCSMSystemSerial === "ALL") optAll.selected = true;
-      csmSelect.appendChild(optAll);
+      grpPortfolio.appendChild(optAll);
+      csmSelect.appendChild(grpPortfolio);
+      
+      const uniqueClusters = [...new Set(currentFiltered.map(s => s.clusterName))];
+      if (uniqueClusters.length > 0) {
+        const grpClusters = document.createElement("optgroup");
+        grpClusters.label = "Clusters (Aggregated)";
+        uniqueClusters.forEach(clusterName => {
+          const clusterNodes = currentFiltered.filter(s => s.clusterName === clusterName);
+          const opt = document.createElement("option");
+          opt.value = `CLUSTER:${clusterName}`;
+          opt.innerText = `Cluster: ${clusterName} (${clusterNodes.length} nodes)`;
+          if (state.selectedCSMSystemSerial === `CLUSTER:${clusterName}`) opt.selected = true;
+          grpClusters.appendChild(opt);
+        });
+        csmSelect.appendChild(grpClusters);
+      }
+      
+      const grpNodes = document.createElement("optgroup");
+      grpNodes.label = "Nodes (Individual)";
+      currentFiltered.forEach(sys => {
+        const opt = document.createElement("option");
+        opt.value = `NODE:${sys.serialNumber}`;
+        opt.innerText = `Node: ${sys.systemName} (${sys.platform})`;
+        if (state.selectedCSMSystemSerial === `NODE:${sys.serialNumber}` || state.selectedCSMSystemSerial === sys.serialNumber) opt.selected = true;
+        grpNodes.appendChild(opt);
+      });
+      csmSelect.appendChild(grpNodes);
     }
-    currentFiltered.forEach(sys => {
-      const opt = document.createElement("option");
-      opt.value = sys.serialNumber;
-      opt.innerText = `${sys.systemName} (${sys.platform})`;
-      if (state.selectedCSMSystemSerial === sys.serialNumber) opt.selected = true;
-      csmSelect.appendChild(opt);
-    });
     csmSelect.onchange = (e) => {
       const val = e.target.value;
       state.selectedCSMSystemSerial = val;
-      if (val !== "ALL") {
-        const found = state.systems.find(s => s.serialNumber === val);
+      if (val !== "ALL" && !val.startsWith("CLUSTER:")) {
+        const serial = val.startsWith("NODE:") ? val.substring(5) : val;
+        const found = state.systems.find(s => s.serialNumber === serial);
         if (found) state.selectedSystem = found;
       }
       switchTab("csm");
@@ -2436,9 +2651,7 @@ function populateSystemSelectors() {
         <input type="checkbox" id="chk_tam_all" ${allSelected ? 'checked' : ''} style="cursor: pointer;">
         <label for="chk_tam_all" style="cursor: pointer; font-weight: 700; font-size: 0.8rem; flex: 1;">Select All Systems</label>
       `;
-      selectAllDiv.onclick = (e) => {
-        e.stopPropagation();
-      };
+      selectAllDiv.onclick = (e) => e.stopPropagation();
       
       const selectAllChk = selectAllDiv.querySelector("input");
       selectAllChk.onchange = (e) => {
@@ -2452,42 +2665,86 @@ function populateSystemSelectors() {
       };
       customDropdown.appendChild(selectAllDiv);
       
-      // Individual System Options
+      // Group systems by cluster
+      const clustersMap = new Map();
       currentFiltered.forEach(sys => {
-        const itemDiv = document.createElement("div");
-        itemDiv.style.padding = "6px 12px";
-        itemDiv.style.display = "flex";
-        itemDiv.style.alignItems = "center";
-        itemDiv.style.gap = "8px";
-        itemDiv.style.cursor = "pointer";
+        if (!clustersMap.has(sys.clusterName)) {
+          clustersMap.set(sys.clusterName, []);
+        }
+        clustersMap.get(sys.clusterName).push(sys);
+      });
+      
+      clustersMap.forEach((nodes, clusterName) => {
+        const clusterDiv = document.createElement("div");
+        clusterDiv.style.padding = "6px 12px";
+        clusterDiv.style.background = "rgba(0, 229, 255, 0.02)";
+        clusterDiv.style.borderBottom = "1px solid rgba(255, 255, 255, 0.05)";
+        clusterDiv.style.display = "flex";
+        clusterDiv.style.alignItems = "center";
+        clusterDiv.style.gap = "8px";
+        clusterDiv.style.cursor = "pointer";
         
-        const isChecked = state.selectedTAMSerials.includes(sys.serialNumber);
+        const nodeSerials = nodes.map(n => n.serialNumber);
+        const allClusterNodesChecked = nodeSerials.every(ser => state.selectedTAMSerials.includes(ser));
         
-        itemDiv.innerHTML = `
-          <input type="checkbox" value="${sys.serialNumber}" id="chk_tam_${sys.serialNumber}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
-          <label for="chk_tam_${sys.serialNumber}" style="cursor: pointer; font-size: 0.8rem; flex: 1;">${sys.systemName} (${sys.platform})</label>
+        clusterDiv.innerHTML = `
+          <input type="checkbox" id="chk_cluster_${clusterName}" ${allClusterNodesChecked ? 'checked' : ''} style="cursor: pointer;">
+          <label for="chk_cluster_${clusterName}" style="cursor: pointer; font-weight: 600; font-size: 0.8rem; color: var(--accent-cyan); flex: 1;">
+            Cluster: ${clusterName}
+          </label>
         `;
-        itemDiv.onclick = (e) => {
-          e.stopPropagation();
-        };
+        clusterDiv.onclick = (e) => e.stopPropagation();
         
-        const chk = itemDiv.querySelector("input");
-        chk.onchange = (e) => {
-          const serial = sys.serialNumber;
+        const clusterChk = clusterDiv.querySelector("input");
+        clusterChk.onchange = (e) => {
           if (e.target.checked) {
-            if (!state.selectedTAMSerials.includes(serial)) {
-              state.selectedTAMSerials.push(serial);
-            }
+            nodeSerials.forEach(ser => {
+              if (!state.selectedTAMSerials.includes(ser)) {
+                state.selectedTAMSerials.push(ser);
+              }
+            });
           } else {
-            state.selectedTAMSerials = state.selectedTAMSerials.filter(s => s !== serial);
+            state.selectedTAMSerials = state.selectedTAMSerials.filter(ser => !nodeSerials.includes(ser));
           }
           updateTAMSelectLabel();
           renderTAMTab();
         };
+        customDropdown.appendChild(clusterDiv);
         
-        customDropdown.appendChild(itemDiv);
+        nodes.forEach(sys => {
+          const itemDiv = document.createElement("div");
+          itemDiv.style.padding = "6px 12px 6px 28px";
+          itemDiv.style.display = "flex";
+          itemDiv.style.alignItems = "center";
+          itemDiv.style.gap = "8px";
+          itemDiv.style.cursor = "pointer";
+          
+          const isChecked = state.selectedTAMSerials.includes(sys.serialNumber);
+          
+          itemDiv.innerHTML = `
+            <input type="checkbox" value="${sys.serialNumber}" id="chk_tam_${sys.serialNumber}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
+            <label for="chk_tam_${sys.serialNumber}" style="cursor: pointer; font-size: 0.8rem; flex: 1;">Node: ${sys.systemName} (${sys.platform})</label>
+          `;
+          itemDiv.onclick = (e) => e.stopPropagation();
+          
+          const chk = itemDiv.querySelector("input");
+          chk.onchange = (e) => {
+            const serial = sys.serialNumber;
+            if (e.target.checked) {
+              if (!state.selectedTAMSerials.includes(serial)) {
+                state.selectedTAMSerials.push(serial);
+              }
+            } else {
+              state.selectedTAMSerials = state.selectedTAMSerials.filter(s => s !== serial);
+            }
+            updateTAMSelectLabel();
+            renderTAMTab();
+          };
+          customDropdown.appendChild(itemDiv);
+        });
       });
     }
+  }
     
     updateTAMSelectLabel();
   }
@@ -3044,9 +3301,19 @@ function renderSAMTab() {
   populateSystemSelectors();
   
   const currentFiltered = getFilteredSystems();
-  const isAll = state.selectedSAMSystemSerial === "ALL";
+  const targetSAMSystems = [];
+  if (state.selectedSAMSystemSerial === "ALL") {
+    targetSAMSystems.push(...currentFiltered);
+  } else if (state.selectedSAMSystemSerial.startsWith("CLUSTER:")) {
+    const cluster = state.selectedSAMSystemSerial.substring(8);
+    targetSAMSystems.push(...currentFiltered.filter(s => s.clusterName === cluster));
+  } else {
+    const serial = state.selectedSAMSystemSerial.startsWith("NODE:") ? state.selectedSAMSystemSerial.substring(5) : state.selectedSAMSystemSerial;
+    const found = currentFiltered.find(s => s.serialNumber === serial);
+    if (found) targetSAMSystems.push(found);
+  }
   
-  if (currentFiltered.length === 0) {
+  if (targetSAMSystems.length === 0) {
     document.getElementById("samContractCard").innerHTML = "";
     document.getElementById("samLifecycleCard").innerHTML = "";
     document.getElementById("samHypervisorCard").innerHTML = "";
@@ -3061,14 +3328,16 @@ function renderSAMTab() {
     return;
   }
 
-  if (isAll) {
+  const isMulti = targetSAMSystems.length > 1;
+
+  if (isMulti) {
     document.getElementById("samActiveSystem").innerHTML = `
-      <strong>Selected Systems (${currentFiltered.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${currentFiltered.map(s => s.systemName).join(", ")}</span>
+      <strong>Selected Systems (${targetSAMSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${targetSAMSystems.map(s => s.systemName).join(", ")}</span>
     `;
 
     // 1. Contract aggregate
     let activeCount = 0, warningCount = 0, criticalCount = 0;
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       if (s.contracts.status === "critical") criticalCount++;
       else if (s.contracts.status === "warning") warningCount++;
       else activeCount++;
@@ -3088,7 +3357,7 @@ function renderSAMTab() {
         ${cBadge}
       </div>
       <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; color: ${cColor};">
-        ${currentFiltered.length} Monitored Contracts
+        ${targetSAMSystems.length} Monitored Contracts
       </div>
       <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 8px;">
         <span style="color: var(--status-normal);">Active: ${activeCount}</span> | 
@@ -3099,7 +3368,7 @@ function renderSAMTab() {
 
     // 2. Lifecycle aggregate
     let nearEosCount = 0;
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       if (s.lifecycle && s.lifecycle.isNearEos) nearEosCount++;
     });
     let lBadge = `<span class="badge normal">Active</span>`;
@@ -3110,7 +3379,7 @@ function renderSAMTab() {
         ${lBadge}
       </div>
       <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px;">
-        ${currentFiltered.length} Hardware Assets
+        ${targetSAMSystems.length} Hardware Assets
       </div>
       <div style="font-size: 0.8rem; color: var(--text-muted);">
         Near End-of-Support: <strong style="color: ${nearEosCount > 0 ? "var(--status-critical)" : "var(--status-normal)"};">${nearEosCount} nodes</strong>
@@ -3119,7 +3388,7 @@ function renderSAMTab() {
 
     // 3. Hypervisors / Integrations Summary
     let ESXiCount = 0, K8sCount = 0, OpenStackCount = 0;
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       const ints = getSystemIntegrations(s);
       if (ints.virtualization.type.includes("VMware")) ESXiCount++;
       else if (ints.virtualization.type.includes("Kubernetes")) K8sCount++;
@@ -3139,7 +3408,7 @@ function renderSAMTab() {
 
     // 4. 3rd-party Workload Alignment cards
     let hypervisorAgg = {}, databaseAgg = {}, backupAgg = {};
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       const ints = getSystemIntegrations(s);
       hypervisorAgg[ints.virtualization.type] = (hypervisorAgg[ints.virtualization.type] || 0) + 1;
       databaseAgg[ints.database.type] = (databaseAgg[ints.database.type] || 0) + 1;
@@ -3174,10 +3443,10 @@ function renderSAMTab() {
     `;
 
     // 5. Logistics Card Summary
-    const uniqueAddrs = new Set(currentFiltered.map(s => (s.logistics ? s.logistics.deliveryAddress : null)).filter(Boolean));
-    const totalContacts = new Set(currentFiltered.map(s => (s.contacts ? s.contacts.name : null)).filter(Boolean));
+    const uniqueAddrs = new Set(targetSAMSystems.map(s => (s.logistics ? s.logistics.deliveryAddress : null)).filter(Boolean));
+    const totalContacts = new Set(targetSAMSystems.map(s => (s.contacts ? s.contacts.name : null)).filter(Boolean));
     let aggAlertsCount = 0;
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       const l = s.logistics || {};
       if (l.shippingAlert && l.shippingAlert.toLowerCase() !== "none" && !l.shippingAlert.toLowerCase().includes("normal")) {
         aggAlertsCount++;
@@ -3202,7 +3471,7 @@ function renderSAMTab() {
     // 6. Sales Health Card Summary
     let totalScore = 0, countScore = 0;
     let ams = new Set(), tams = new Set();
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       if (s.salesHealth) {
         totalScore += s.salesHealth.sentimentScore;
         countScore++;
@@ -3244,7 +3513,7 @@ function renderSAMTab() {
     // 7. Field Actions Table: aggregate all field actions
     let faRows = "";
     const allFAs = [];
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       if (s.fieldActions) {
         s.fieldActions.forEach(fa => {
           allFAs.push({ ...fa, systemName: s.systemName });
@@ -3274,7 +3543,7 @@ function renderSAMTab() {
     // 8. Active Technical Support Cases Table: aggregate all support cases
     let caseRows = "";
     const allCases = [];
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       if (s.supportCases) {
         s.supportCases.forEach(sc => {
           allCases.push({ ...sc, systemName: s.systemName });
@@ -3307,7 +3576,7 @@ function renderSAMTab() {
     
     // Virtualized workload recommendations
     const recMap = new Map();
-    currentFiltered.forEach(s => {
+    targetSAMSystems.forEach(s => {
       const list = getSystemWorkloadRecommendations(s);
       list.forEach(rec => {
         const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
@@ -3338,7 +3607,7 @@ function renderSAMTab() {
           const li = document.createElement("li");
           if (key.includes("||")) {
             const [category, body] = key.split("||");
-            const systemsStr = sysNames.length === state.systems.length 
+            const systemsStr = sysNames.length === targetSAMSystems.length 
               ? "All Systems" 
               : (sysNames.length > 3 ? `${sysNames.length} Systems` : sysNames.join(", "));
             li.innerHTML = `<strong>[${category}]</strong> <span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${body}`;
@@ -3353,7 +3622,7 @@ function renderSAMTab() {
     return;
   }
 
-  const sys = state.selectedSystem;
+  const sys = targetSAMSystems[0];
   if (!sys) {
     document.getElementById("samContractCard").innerHTML = "";
     document.getElementById("samLifecycleCard").innerHTML = "";
@@ -3680,9 +3949,19 @@ function renderCSMTab() {
   populateSystemSelectors();
   
   const currentFiltered = getFilteredSystems();
-  const isAll = state.selectedCSMSystemSerial === "ALL";
+  const targetCSMSystems = [];
+  if (state.selectedCSMSystemSerial === "ALL") {
+    targetCSMSystems.push(...currentFiltered);
+  } else if (state.selectedCSMSystemSerial.startsWith("CLUSTER:")) {
+    const cluster = state.selectedCSMSystemSerial.substring(8);
+    targetCSMSystems.push(...currentFiltered.filter(s => s.clusterName === cluster));
+  } else {
+    const serial = state.selectedCSMSystemSerial.startsWith("NODE:") ? state.selectedCSMSystemSerial.substring(5) : state.selectedCSMSystemSerial;
+    const found = currentFiltered.find(s => s.serialNumber === serial);
+    if (found) targetCSMSystems.push(found);
+  }
   
-  if (currentFiltered.length === 0) {
+  if (targetCSMSystems.length === 0) {
     document.getElementById("csmSavingsCard").innerHTML = "";
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
@@ -3695,14 +3974,16 @@ function renderCSMTab() {
     return;
   }
 
-  if (isAll) {
+  const isMulti = targetCSMSystems.length > 1;
+
+  if (isMulti) {
     document.getElementById("csmActiveSystem").innerHTML = `
-      <strong>Selected Systems (${currentFiltered.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${currentFiltered.map(s => s.systemName).join(", ")}</span>
+      <strong>Selected Systems (${targetCSMSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${targetCSMSystems.map(s => s.systemName).join(", ")}</span>
     `;
 
     // 1. Efficiency aggregate
     let totalLogical = 0, totalPhysical = 0, totalSaved = 0;
-    currentFiltered.forEach(s => {
+    targetCSMSystems.forEach(s => {
       totalLogical += s.efficiency.logicalUsedTB;
       totalPhysical += s.efficiency.physicalUsedTB;
       totalSaved += s.efficiency.spaceSavedTB;
@@ -3734,7 +4015,7 @@ function renderCSMTab() {
 
     // 2. FabricPool aggregate
     let totalFP = 0, activeFPCount = 0;
-    currentFiltered.forEach(s => {
+    targetCSMSystems.forEach(s => {
       const fp = s.efficiency.fabricPoolTieredTB || 0;
       totalFP += fp;
       if (fp > 0) activeFPCount++;
@@ -3749,14 +4030,14 @@ function renderCSMTab() {
         Cloud Tiered: ${totalFP.toFixed(1)} TB
       </div>
       <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-        ${activeFPCount} out of ${currentFiltered.length} systems are tiering cold data to public/private cloud object storage.
+        ${activeFPCount} out of ${targetCSMSystems.length} systems are tiering cold data to public/private cloud object storage.
       </p>
     `;
 
     // 3. SnapMirror aggregate
     let smEnabledCount = 0;
     let relationshipsHTML = "";
-    currentFiltered.forEach(s => {
+    targetCSMSystems.forEach(s => {
       if (s.snapmirror && s.snapmirror.enabled) {
         smEnabledCount++;
         s.snapmirror.relationships.forEach(rel => {
@@ -3784,14 +4065,14 @@ function renderCSMTab() {
 
     // 4. Checklist aggregate
     let efficiencyPass = 0, cloudPass = 0, drPass = 0, riskPass = 0;
-    currentFiltered.forEach(s => {
+    targetCSMSystems.forEach(s => {
       if (parseFloat(s.efficiency.ratio.split(":")[0]) > 1.5) efficiencyPass++;
       if (s.efficiency.fabricPoolTieredTB > 0) cloudPass++;
       if (s.snapmirror && s.snapmirror.enabled) drPass++;
       if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) riskPass++;
     });
     const checklist = [
-      { name: "ONTAP 9.10+ / StorageGRID 11.5+", completedCount: currentFiltered.length },
+      { name: "ONTAP 9.10+ / StorageGRID 11.5+", completedCount: targetCSMSystems.length },
       { name: "Storage Efficiency Enabled (>1.5:1)", completedCount: efficiencyPass },
       { name: "Cloud FabricPool Configured", completedCount: cloudPass },
       { name: "SnapMirror DR Configured", completedCount: drPass },
@@ -3802,8 +4083,8 @@ function renderCSMTab() {
       checklistHTML += `
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
           <span style="font-size: 0.85rem;">${item.name}</span>
-          <span style="font-size: 0.85rem; font-weight: 600; color: ${item.completedCount === currentFiltered.length ? "var(--status-normal)" : "var(--status-warning)"};">
-            ${item.completedCount}/${currentFiltered.length} Done
+          <span style="font-size: 0.85rem; font-weight: 600; color: ${item.completedCount === targetCSMSystems.length ? "var(--status-normal)" : "var(--status-warning)"};">
+            ${item.completedCount}/${targetCSMSystems.length} Done
           </span>
         </div>
       `;
@@ -3817,7 +4098,7 @@ function renderCSMTab() {
     const aggHist = Array(6).fill(0);
     const aggProj = Array(3).fill(0);
     
-    currentFiltered.forEach(s => {
+    targetCSMSystems.forEach(s => {
       const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
       totalGrowth += p.growthRateGBPerDay;
       if (p.daysToLimit < minDaysToLimit) {
@@ -3857,7 +4138,7 @@ function renderCSMTab() {
     return;
   }
 
-  const sys = state.selectedSystem;
+  const sys = targetCSMSystems[0];
   if (!sys) {
     document.getElementById("csmSavingsCard").innerHTML = "";
     document.getElementById("csmCloudCard").innerHTML = "";
@@ -5705,6 +5986,10 @@ window.onload = async function() {
     const target = e.target.closest("[data-tooltip]");
     if (!target) return;
     
+    if (e.relatedTarget && target.contains(e.relatedTarget)) {
+      return;
+    }
+    
     const text = target.getAttribute("data-tooltip");
     if (!text) return;
     
@@ -5712,7 +5997,8 @@ window.onload = async function() {
     if (!tooltip) return;
     
     tooltip.innerText = text;
-    tooltip.style.display = "block";
+    tooltip.style.visibility = "visible";
+    tooltip.style.opacity = "1";
     
     const rect = target.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
@@ -5731,16 +6017,18 @@ window.onload = async function() {
     
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${top}px`;
-    tooltip.style.opacity = "1";
   });
   
   document.addEventListener("mouseout", (e) => {
     const target = e.target.closest("[data-tooltip]");
     if (target) {
+      if (e.relatedTarget && target.contains(e.relatedTarget)) {
+        return;
+      }
       const tooltip = document.getElementById("globalTooltip");
       if (tooltip) {
         tooltip.style.opacity = "0";
-        tooltip.style.display = "none";
+        tooltip.style.visibility = "hidden";
       }
     }
   });

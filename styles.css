@@ -330,8 +330,9 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   z-index: 999999;
   pointer-events: none;
-  transition: opacity 0.15s ease-out;
+  transition: opacity 0.15s ease-out, visibility 0.15s ease-out;
   opacity: 0;
+  visibility: hidden;
   text-align: center;
 }
 
