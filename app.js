@@ -2366,12 +2366,28 @@ function deleteCustomGroup(groupId) {
 }
 
 // 10. Global active status visual indicators & Settings Saves
-function saveSettings() {
+async function saveSettings() {
   const mockToggle = document.getElementById("settingsMockModeToggle").checked;
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
+  const oldMockMode = state.mockMode;
+  
   setMockMode(mockToggle);
   saveConfig(refresh, localStorage.getItem("aiq_access_token") || "", localStorage.getItem("aiq_token_expiry") || "");
+  
+  if (!mockToggle && (oldMockMode || refresh)) {
+    // User enabled API mode or updated token - let's fetch!
+    await loadProductionData();
+  } else if (mockToggle) {
+    // Reset to mock systems database
+    state.systems = [...MOCK_SYSTEMS];
+    saveSystems();
+    if (state.systems.length > 0) {
+      state.selectedSystem = state.systems[0];
+    }
+  }
+  
   alert("Settings saved successfully.");
+  switchTab("settings");
 }
 
 function updateStatusIndicators() {
@@ -2392,6 +2408,73 @@ function updateStatusIndicators() {
       if (textLabel) textLabel.innerText = "No Credentials Configured";
     }
   });
+}
+
+async function loadProductionData() {
+  const textLabel = document.getElementById("connectionStatusText");
+  const indicator = document.querySelector(".indicator");
+  
+  if (textLabel) textLabel.innerText = "Connecting & Loading Telemetry...";
+  if (indicator) {
+    indicator.className = "indicator warning"; // Amber indicator while loading
+  }
+
+  try {
+    const apiSystems = await callActiveIQAPI("/systems");
+    if (apiSystems && (Array.isArray(apiSystems) || (typeof apiSystems === 'object' && apiSystems !== null))) {
+      const systemsList = Array.isArray(apiSystems) ? apiSystems : (apiSystems.systems || [apiSystems]);
+      if (systemsList.length > 0) {
+        state.systems = systemsList.map(s => {
+          return {
+            serialNumber: s.serialNumber || s.serial_number || "unknown",
+            systemName: s.systemName || s.system_name || "unknown",
+            clusterName: s.clusterName || s.cluster_name || "unknown",
+            customerName: s.customerName || s.customer_name || "customer",
+            ontapVersion: s.ontapVersion || s.ontap_version || s.osVersion || "9.12.1",
+            platform: s.platform || s.model || "AFF A400",
+            status: s.status || "normal",
+            risks: s.risks || [],
+            upgrades: s.upgrades || { targetVersion: "Up to Date", urgency: "None", benefits: "" },
+            contracts: s.contracts || { status: "normal", endDate: "2027-01-01", daysRemaining: 180, supportLevel: "SupportEdge Premium" },
+            lifecycle: s.lifecycle || { eoaDate: "2026-01-01", eosDate: "2031-01-01", isNearEos: false },
+            fieldActions: s.fieldActions || [],
+            efficiency: s.efficiency || { ratio: "1.0:1", logicalUsedTB: 10.0, physicalUsedTB: 10.0, spaceSavedTB: 0.0, fabricPoolTieredTB: 0.0 },
+            snapmirror: s.snapmirror || { enabled: false, relationships: [] },
+            hypervisors: s.hypervisors || [],
+            logistics: s.logistics || { deliveryAddress: "Not Configured", accessRestrictions: "Not Configured", shippingAlert: "None" },
+            contacts: s.contacts || { name: "Not Configured", phone: "Not Configured", email: "Not Configured", nssUsername: "Not Configured" },
+            salesHealth: s.salesHealth || { accountManager: "Not Configured", supportTam: "Not Configured", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review" },
+            projections: s.projections || { growthRateGBPerDay: 100, daysToLimit: 365, limitDate: "2027-07-06", peakIops: 5000, avgLatencyMs: 2.0, historicalCapacityMonths: [10, 10, 10, 10, 10, 10], projectedCapacityMonths: [10, 10, 10] },
+            securityBulletins: s.securityBulletins || [],
+            supportCases: s.supportCases || []
+          };
+        });
+        saveSystems();
+        if (state.systems.length > 0) {
+          state.selectedSystem = state.systems[0];
+        }
+        updateStatusIndicators();
+        return;
+      }
+    }
+    
+    console.warn("Active IQ API returned no clusters or systems.");
+    alert("Warning: The Active IQ API endpoint connected successfully, but returned an empty system listing. Falling back to cached data.");
+  } catch (error) {
+    console.error("Failed to fetch from Active IQ API:", error);
+    alert(`Failed to load data from Active IQ API.
+Reason: ${error.message}
+
+⚠️ COMMON ISSUE: If you are running the dashboard as a local file (file:///...), browser CORS security policies will block API connections to NetApp.
+To resolve this:
+1. Re-enable Offline Demo Mode in Settings, OR
+2. Install a browser CORS extension (e.g. CORS Unblock), OR
+3. Serve the dashboard files using a simple web server (e.g. 'python -m http.server 8080').
+
+See the README.md file for detailed CORS bypass guidelines.`);
+  }
+
+  updateStatusIndicators();
 }
 
 function handleSearch(e) {
@@ -2483,9 +2566,14 @@ function exportCSV() {
 }
 
 // 11. Initialization on Load
-window.onload = function() {
+window.onload = async function() {
   loadConfig();
   updateStatusIndicators();
+  
+  if (!state.mockMode) {
+    await loadProductionData();
+  }
+  
   switchTab("overview");
   renderSidebarGroups();
 
