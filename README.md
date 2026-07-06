@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -17,6 +17,7 @@ This dashboard consolidates telemetry data from the public Active IQ API to help
 *   **SAM Module (Support Operations)**: Tracks contract/warranty expiration thresholds (30/60/90 days), flags hardware End-of-Support (EOS/EOA) dates, and displays unresolved NetApp Field Actions (FA). Includes **3rd-Party Hypervisor Integration** compliance checks.
 *   **CSM Module (ROI & Adoption)**: Showcases storage efficiencies (deduplication ratios, space saved), FabricPool cloud capacity tiering savings, SnapMirror active disaster recovery replication status, and a capability adoption scorecard.
 *   **Action Planner**: Compiles an exhaustive, print-friendly **Executive Action Plan** for a single system, all systems under a specific customer account, or your entire monitored portfolio. Includes prioritized risk remediations, OS roadmaps, and change management proceeding guidelines.
+*   **Sidebar Filtering (Accounts & Groups)**: Dynamically groups systems by Customer Account or Custom Subgroups directly in the sidebar navigation pane. Clicking a group filters the entire dashboard context instantly, complete with risk count indicators.
 *   **Import/Export Config**: Save your active telemetry reports and custom mock datasets as a JSON file, or import external files to load report views instantly without re-querying the API.
 
 ---
@@ -33,12 +34,25 @@ This reporting tool is aligned to retrieve and map telemetry across the complete
 ### 3rd-Party Platform & Hypervisor Best Practices
 The tool highlights compliance warnings against NetApp storage best practices for virtualization hosts and orchestrators:
 *   **VMware vSphere / ESXi**:
-    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` (via `esxcli storage nmp psp roundrobin device config set -I 1 -t iops`) to balance controller load and prevent latency warnings.
+    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` (via `esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops`) to balance controller load and prevent latency warnings.
     *   *Integration Plugins*: Audits connectivity and credentials for **VASA Provider** and **ONTAP Tools for VMware (OTV)** for VVol and datastore provisioning.
 *   **Kubernetes (Astra Trident)**:
     *   *Driver Versioning*: Flags outdated Astra Trident CSI drivers backing Kubernetes Persistent Volumes (PVs) that mismatch host API versions.
 *   **Cloud Providers (AWS / Azure / GCP)**:
     *   *VPC Endpoints*: Tracks network latency timeouts between CVO nodes and backing S3/Blob storage, recommending private VPC endpoints to reduce cloud data routing costs.
+
+---
+
+## Customer Accounts & Custom Subgroups
+
+To help SAMs, TAMs, and CSMs organize reports:
+1.  **Sidebar Filtering**: The sidebar automatically extracts all unique **Customer Accounts** dynamically from system data. Click a Customer in the sidebar to restrict the dashboard (Overview metrics, charts, lists, and tabs) to that customer.
+2.  **Custom Subgroups**: Create groupings across different customers or sites (e.g., "US Production", "StorageGRID Node tier").
+    *   Go to **Settings & Config**.
+    *   Find the **Create Custom Subgroup** panel.
+    *   Enter a name, check the checkboxes for target systems, and click **Create Subgroup**.
+    *   The subgroup is saved to browser local storage and rendered immediately in the sidebar tree.
+3.  **Manage Groups**: Remove old subgroups by clicking **Delete** on the list in the Settings tab.
 
 ---
 
@@ -68,7 +82,7 @@ When presenting the generated **Executive Action Plans** to customers, account t
 
 This tool is distributed under the **MIT License**. 
 
-> [!IMPORTANT]
+> [vanity badge](LICENSE)
 > **Operational Responsibility & Indemnity Disclaimer:**
 > This is an unofficial utility script. Users are solely responsible for verifying the accuracy of the risks, field actions, contract states, and ONTAP upgrade targets in this dashboard before scheduling maintenance or making configuration changes to production clusters. The developers and contributors of this tool assume no liability for system downtime, data corruption, or service disruptions.
 > 

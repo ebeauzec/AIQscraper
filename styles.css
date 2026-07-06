@@ -683,3 +683,81 @@ input:checked + .slider:before {
     color: #000000 !important;
   }
 }
+
+/* SIDEBAR COLLAPSIBLE GROUPS & CUSTOM ACCOUNTS TREE */
+.sidebar-groups-section {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.tree-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tree-section-header {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 8px 4px 4px 4px;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tree-item:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+}
+
+.tree-item.active {
+  background-color: rgba(0, 229, 255, 0.05);
+  border-color: rgba(0, 229, 255, 0.15);
+  color: var(--accent-cyan);
+}
+
+.tree-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-grow: 1;
+  margin-right: 28px;
+}
+
+.tree-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  position: absolute;
+  right: 12px;
+}
+
+.tree-badge.critical {
+  background-color: var(--status-critical);
+  box-shadow: 0 0 6px rgba(255, 51, 102, 0.4);
+}
+
+.tree-badge.warning {
+  background-color: var(--status-warning);
+  box-shadow: 0 0 6px rgba(255, 179, 0, 0.4);
+}

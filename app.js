@@ -477,16 +477,37 @@ const MOCK_SYSTEMS = [
   }
 ];
 
+const DEFAULT_GROUPS = [
+  {
+    id: "group_us_prod",
+    name: "US Production Clusters",
+    systemSerials: ["622001234567", "622004445555"]
+  },
+  {
+    id: "group_cvo_dr",
+    name: "AWS Cloud DR",
+    systemSerials: ["622002223333"]
+  },
+  {
+    id: "group_sg_object",
+    name: "Object Storage Tier",
+    systemSerials: ["622003334444"]
+  }
+];
+
 // 2. Global State Variable
 let state = {
   currentTab: "overview",
   mockMode: true,
   systems: [...MOCK_SYSTEMS],
+  groups: [...DEFAULT_GROUPS],
   selectedSystem: MOCK_SYSTEMS[0],
-  activeSearchQuery: ""
+  activeSearchQuery: "",
+  activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP"
+  activeFilterValue: ""    // Customer Name or Group ID
 };
 
-// 3. Storage Helpers
+// 3. Storage & Groups Helpers
 function loadConfig() {
   const mockModeVal = localStorage.getItem("aiq_mock_mode");
   state.mockMode = mockModeVal === null ? true : mockModeVal === "true";
@@ -495,6 +516,14 @@ function loadConfig() {
   const access = localStorage.getItem("aiq_access_token") || "";
   const expiry = localStorage.getItem("aiq_token_expiry") || "";
   
+  // Load groups
+  const savedGroups = localStorage.getItem("aiq_custom_groups");
+  if (savedGroups) {
+    state.groups = JSON.parse(savedGroups);
+  } else {
+    state.groups = [...DEFAULT_GROUPS];
+  }
+  
   return { refresh, access, expiry };
 }
 
@@ -502,6 +531,10 @@ function saveConfig(refresh, access, expiry) {
   localStorage.setItem("aiq_refresh_token", refresh);
   localStorage.setItem("aiq_access_token", access);
   localStorage.setItem("aiq_token_expiry", expiry);
+}
+
+function saveGroups() {
+  localStorage.setItem("aiq_custom_groups", JSON.stringify(state.groups));
 }
 
 function setMockMode(val) {
@@ -589,9 +622,10 @@ function renderCharts() {
   
   if (!ctxEff || !ctxCap) return;
   
-  const logicalSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.logicalUsedTB, 0);
-  const physicalSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.physicalUsedTB, 0);
-  const savedSum = state.systems.reduce((acc, sys) => acc + sys.efficiency.spaceSavedTB, 0);
+  const filteredSystems = getFilteredSystems();
+  const logicalSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.logicalUsedTB, 0);
+  const physicalSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.physicalUsedTB, 0);
+  const savedSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.spaceSavedTB, 0);
 
   if (efficiencyChartInstance) efficiencyChartInstance.destroy();
   if (capacityChartInstance) capacityChartInstance.destroy();
@@ -627,18 +661,18 @@ function renderCharts() {
   capacityChartInstance = new Chart(ctxCap, {
     type: 'bar',
     data: {
-      labels: state.systems.map(s => s.systemName),
+      labels: filteredSystems.map(s => s.systemName),
       datasets: [
         {
           label: 'On-Prem Flash Storage (TB)',
-          data: state.systems.map(s => (s.efficiency.physicalUsedTB - s.efficiency.fabricPoolTieredTB).toFixed(1)),
+          data: filteredSystems.map(s => (s.efficiency.physicalUsedTB - s.efficiency.fabricPoolTieredTB).toFixed(1)),
           backgroundColor: 'rgba(79, 172, 254, 0.7)',
           borderColor: '#4facfe',
           borderWidth: 1
         },
         {
           label: 'FabricPool Tiered to Cloud (TB)',
-          data: state.systems.map(s => s.efficiency.fabricPoolTieredTB.toFixed(1)),
+          data: filteredSystems.map(s => s.efficiency.fabricPoolTieredTB.toFixed(1)),
           backgroundColor: 'rgba(0, 229, 255, 0.7)',
           borderColor: '#00e5ff',
           borderWidth: 1
@@ -662,13 +696,26 @@ function renderCharts() {
   });
 }
 
+function getFilteredSystems() {
+  if (state.activeFilterType === "CUSTOMER") {
+    return state.systems.filter(s => s.customerName === state.activeFilterValue);
+  } else if (state.activeFilterType === "GROUP") {
+    const group = state.groups.find(g => g.id === state.activeFilterValue);
+    if (group) {
+      return state.systems.filter(s => group.systemSerials.includes(s.serialNumber));
+    }
+  }
+  return state.systems; // default: show all
+}
+
 function updateOverviewKpis() {
-  const totalSystems = state.systems.length;
-  const criticalRisksCount = state.systems.reduce((acc, sys) => 
+  const filtered = getFilteredSystems();
+  const totalSystems = filtered.length;
+  const criticalRisksCount = filtered.reduce((acc, sys) => 
     acc + sys.risks.filter(r => r.severity === 'critical').length, 0);
-  const warningRisksCount = state.systems.reduce((acc, sys) => 
+  const warningRisksCount = filtered.reduce((acc, sys) => 
     acc + sys.risks.filter(r => r.severity === 'high' || r.severity === 'medium').length, 0);
-  const expiringContracts = state.systems.filter(sys => sys.contracts.daysRemaining <= 90).length;
+  const expiringContracts = filtered.filter(sys => sys.contracts.daysRemaining <= 90).length;
 
   document.getElementById("kpiTotalSystems").innerText = totalSystems;
   document.getElementById("kpiCriticalRisks").innerText = criticalRisksCount;
@@ -686,7 +733,9 @@ function renderOverviewTable() {
   tbody.innerHTML = "";
 
   const query = state.activeSearchQuery.toLowerCase();
-  const filteredSystems = state.systems.filter(sys => 
+  const baseSystems = getFilteredSystems();
+  
+  const filteredSystems = baseSystems.filter(sys => 
     sys.systemName.toLowerCase().includes(query) || 
     sys.serialNumber.toLowerCase().includes(query) ||
     sys.clusterName.toLowerCase().includes(query) ||
@@ -730,11 +779,18 @@ function renderOverviewTable() {
 
 function populateSystemSelectors() {
   const selectors = ["tamSystemSelect", "samSystemSelect", "csmSystemSelect"];
+  const currentFiltered = getFilteredSystems();
+  
+  // If selectedSystem is not in the filtered scope, pick the first filtered system
+  if (currentFiltered.length > 0 && !currentFiltered.some(s => s.serialNumber === state.selectedSystem.serialNumber)) {
+    state.selectedSystem = currentFiltered[0];
+  }
+  
   selectors.forEach(id => {
     const select = document.getElementById(id);
     if (!select) return;
     select.innerHTML = "";
-    state.systems.forEach(sys => {
+    currentFiltered.forEach(sys => {
       const opt = document.createElement("option");
       opt.value = sys.serialNumber;
       opt.innerText = `${sys.systemName} (${sys.platform})`;
@@ -804,7 +860,11 @@ function closeRemediationModal() {
 function renderTAMTab() {
   populateSystemSelectors();
   const sys = state.selectedSystem;
-  if (!sys) return;
+  if (!sys) {
+    document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
+    document.getElementById("tamUpgradeContainer").innerHTML = "";
+    return;
+  }
 
   document.getElementById("tamActiveSystem").innerHTML = `
     <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>ONTAP</strong>: ${sys.ontapVersion}
@@ -864,7 +924,13 @@ function renderTAMTab() {
 function renderSAMTab() {
   populateSystemSelectors();
   const sys = state.selectedSystem;
-  if (!sys) return;
+  if (!sys) {
+    document.getElementById("samContractCard").innerHTML = "";
+    document.getElementById("samLifecycleCard").innerHTML = "";
+    document.getElementById("samHypervisorCard").innerHTML = "";
+    document.getElementById("samFieldActionsBody").innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
+    return;
+  }
 
   document.getElementById("samActiveSystem").innerHTML = `
     <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Platform</strong>: ${sys.platform}
@@ -961,7 +1027,13 @@ function renderSAMTab() {
 function renderCSMTab() {
   populateSystemSelectors();
   const sys = state.selectedSystem;
-  if (!sys) return;
+  if (!sys) {
+    document.getElementById("csmSavingsCard").innerHTML = "";
+    document.getElementById("csmCloudCard").innerHTML = "";
+    document.getElementById("csmSnapmirrorCard").innerHTML = "";
+    document.getElementById("csmAdoptionChecklist").innerHTML = "";
+    return;
+  }
 
   document.getElementById("csmActiveSystem").innerHTML = `
     <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Customer</strong>: ${sys.customerName}
@@ -1067,7 +1139,7 @@ function renderCSMTab() {
   document.getElementById("csmAdoptionChecklist").innerHTML = checklistHTML;
 }
 
-// 6. JSON Import / Export & Configuration Panel functions
+// 6. JSON Import / Export & Configuration Panel
 function exportConfigJSON() {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.systems, null, 2));
   const link = document.createElement("a");
@@ -1115,7 +1187,6 @@ function populateActionPlanSelector() {
   if (!select) return;
   select.innerHTML = '<option value="ALL">All Account Systems (Customer View)</option>';
   
-  // Group by Customers first
   const customers = [...new Set(state.systems.map(s => s.customerName))];
   customers.forEach(cust => {
     const opt = document.createElement("option");
@@ -1124,7 +1195,13 @@ function populateActionPlanSelector() {
     select.appendChild(opt);
   });
   
-  // System entries
+  state.groups.forEach(grp => {
+    const opt = document.createElement("option");
+    opt.value = `GRP:${grp.id}`;
+    opt.innerText = `Group: ${grp.name} (${grp.systemSerials.length} systems)`;
+    select.appendChild(opt);
+  });
+  
   state.systems.forEach(sys => {
     const opt = document.createElement("option");
     opt.value = `SYS:${sys.serialNumber}`;
@@ -1148,6 +1225,13 @@ function generateActionPlan() {
     const custName = selectValue.substring(5);
     targetSystems = state.systems.filter(s => s.customerName === custName);
     scopeTitle = `Customer: ${custName}`;
+  } else if (selectValue.startsWith("GRP:")) {
+    const groupId = selectValue.substring(4);
+    const grp = state.groups.find(g => g.id === groupId);
+    if (grp) {
+      targetSystems = state.systems.filter(s => grp.systemSerials.includes(s.serialNumber));
+      scopeTitle = `Custom Group: ${grp.name}`;
+    }
   } else if (selectValue.startsWith("SYS:")) {
     const serial = selectValue.substring(4);
     const found = state.systems.find(s => s.serialNumber === serial);
@@ -1160,7 +1244,6 @@ function generateActionPlan() {
     return;
   }
 
-  // Compile risks and lifecycle items
   const allRisks = [];
   const allUpgrades = [];
   const expiringContracts = [];
@@ -1181,7 +1264,6 @@ function generateActionPlan() {
     }
   });
 
-  // Build HTML Report
   let html = `
     <div class="plan-document-header">
       <div style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">NetApp Operations & Advisory Plan</div>
@@ -1358,16 +1440,11 @@ function generateActionPlan() {
   `;
 
   planBody.innerHTML = html;
-  
-  // Show plan controls
   document.getElementById("planControlsPanel").style.display = "flex";
 }
 
 function printActionPlan() {
   const printContent = document.getElementById("generatedPlanBody").innerHTML;
-  const originalContent = document.body.innerHTML;
-  
-  // Open a new window for clean print styling
   const printWindow = window.open("", "_blank");
   printWindow.document.write(`
     <html>
@@ -1410,6 +1487,200 @@ function printActionPlan() {
   printWindow.document.close();
 }
 
+// 8. Collapsible Sidebar Groups Tree Builders
+function renderSidebarGroups() {
+  const container = document.getElementById("sidebarGroupsList");
+  if (!container) return;
+  container.innerHTML = "";
+
+  // 1. Group by Customers (calculated dynamically)
+  const customers = [...new Set(state.systems.map(s => s.customerName))];
+  
+  if (customers.length > 0) {
+    const custHeader = document.createElement("div");
+    custHeader.className = "tree-section-header";
+    custHeader.innerText = "Customer Accounts";
+    container.appendChild(custHeader);
+
+    customers.forEach(cust => {
+      const item = document.createElement("div");
+      item.className = "tree-item";
+      if (state.activeFilterType === "CUSTOMER" && state.activeFilterValue === cust) {
+        item.classList.add("active");
+      }
+      item.onclick = (e) => {
+        e.stopPropagation();
+        setFilter("CUSTOMER", cust);
+      };
+      
+      // Calculate active risks for badge
+      const custSystems = state.systems.filter(s => s.customerName === cust);
+      const riskCount = custSystems.reduce((acc, s) => acc + s.risks.length, 0);
+      const badge = riskCount > 0 ? `<span class="tree-badge ${custSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
+      
+      item.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        <span class="tree-text">${cust}</span>
+        ${badge}
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  // 2. Custom User Defined Groups
+  if (state.groups.length > 0) {
+    const groupHeader = document.createElement("div");
+    groupHeader.className = "tree-section-header";
+    groupHeader.style.marginTop = "16px";
+    groupHeader.innerText = "Custom Subgroups";
+    container.appendChild(groupHeader);
+
+    state.groups.forEach(grp => {
+      const item = document.createElement("div");
+      item.className = "tree-item";
+      if (state.activeFilterType === "GROUP" && state.activeFilterValue === grp.id) {
+        item.classList.add("active");
+      }
+      item.onclick = (e) => {
+        e.stopPropagation();
+        setFilter("GROUP", grp.id);
+      };
+
+      const groupSystems = state.systems.filter(s => grp.systemSerials.includes(s.serialNumber));
+      const riskCount = groupSystems.reduce((acc, s) => acc + s.risks.length, 0);
+      const badge = riskCount > 0 ? `<span class="tree-badge ${groupSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
+
+      item.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span class="tree-text">${grp.name}</span>
+        ${badge}
+      `;
+      container.appendChild(item);
+    });
+  }
+}
+
+function setFilter(type, value) {
+  state.activeFilterType = type;
+  state.activeFilterValue = value;
+  
+  // Highlight tab or overview
+  if (state.currentTab !== "overview") {
+    switchTab("overview");
+  } else {
+    updateOverviewKpis();
+    renderOverviewTable();
+    renderCharts();
+  }
+  
+  // Redraw sidebar tree highlights
+  renderSidebarGroups();
+}
+
+function resetFilter() {
+  state.activeFilterType = "ALL";
+  state.activeFilterValue = "";
+  switchTab("overview");
+  renderSidebarGroups();
+}
+
+// 9. Custom Group Creation Form Logic (in Settings panel)
+function populateGroupManagerSystems() {
+  const container = document.getElementById("groupManagerSystemsList");
+  if (!container) return;
+  container.innerHTML = "";
+
+  state.systems.forEach(sys => {
+    const div = document.createElement("div");
+    div.style.display = "flex";
+    div.style.alignItems = "center";
+    div.style.gap = "8px";
+    div.style.marginBottom = "8px";
+    div.style.fontSize = "0.85rem";
+
+    div.innerHTML = `
+      <input type="checkbox" class="group-system-checkbox" value="${sys.serialNumber}" id="chk_${sys.serialNumber}" style="cursor: pointer;">
+      <label for="chk_${sys.serialNumber}" style="cursor: pointer;">${sys.systemName} (S/N: ${sys.serialNumber} - ${sys.platform})</label>
+    `;
+    container.appendChild(div);
+  });
+  
+  // Render existing groups list in settings for deletion
+  const listContainer = document.getElementById("settingsGroupsManagerList");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+  
+  if (state.groups.length === 0) {
+    listContainer.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-muted);">No custom subgroups defined.</div>`;
+    return;
+  }
+  
+  state.groups.forEach(grp => {
+    const item = document.createElement("div");
+    item.style.display = "flex";
+    item.style.justifyContent = "space-between";
+    item.style.alignItems = "center";
+    item.style.padding = "8px 12px";
+    item.style.background = "rgba(255,255,255,0.01)";
+    item.style.border = "1px solid var(--border-color)";
+    item.style.borderRadius = "var(--radius-sm)";
+    item.style.marginBottom = "6px";
+    item.style.fontSize = "0.8rem";
+
+    item.innerHTML = `
+      <div>
+        <strong>${grp.name}</strong> (${grp.systemSerials.length} systems)
+      </div>
+      <button class="action-btn secondary" style="font-size: 0.7rem; padding: 4px 8px; color: var(--status-critical); border-color: rgba(255,51,102,0.2);" onclick="deleteCustomGroup('${grp.id}')">Delete</button>
+    `;
+    listContainer.appendChild(item);
+  });
+}
+
+function handleCreateGroup() {
+  const nameInput = document.getElementById("newGroupNameInput");
+  const name = nameInput.value.trim();
+  if (!name) {
+    alert("Please enter a group name.");
+    return;
+  }
+
+  const selectedSerials = [];
+  document.querySelectorAll(".group-system-checkbox:checked").forEach(chk => {
+    selectedSerials.push(chk.value);
+  });
+
+  if (selectedSerials.length === 0) {
+    alert("Please select at least one system to assign to this group.");
+    return;
+  }
+
+  const newGroup = {
+    id: "group_" + Date.now(),
+    name: name,
+    systemSerials: selectedSerials
+  };
+
+  state.groups.push(newGroup);
+  saveGroups();
+  
+  nameInput.value = "";
+  document.querySelectorAll(".group-system-checkbox").forEach(chk => chk.checked = false);
+  
+  alert(`Group "${name}" created successfully!`);
+  populateGroupManagerSystems();
+  renderSidebarGroups();
+}
+
+function deleteCustomGroup(groupId) {
+  state.groups = state.groups.filter(g => g.id !== groupId);
+  saveGroups();
+  alert("Group deleted successfully.");
+  populateGroupManagerSystems();
+  renderSidebarGroups();
+}
+
+// 10. Global active status visual indicators
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
@@ -1428,66 +1699,6 @@ function updateStatusIndicators() {
       if (textLabel) textLabel.innerText = "No Credentials Configured";
     }
   });
-}
-
-function switchTab(tabId) {
-  state.currentTab = tabId;
-  
-  document.querySelectorAll(".nav-item").forEach(item => {
-    item.classList.remove("active");
-    if (item.getAttribute("data-tab") === tabId) {
-      item.classList.add("active");
-    }
-  });
-
-  document.querySelectorAll(".tab-content").forEach(content => {
-    content.classList.remove("active");
-  });
-  const activeContent = document.getElementById(tabId + "Tab");
-  if (activeContent) activeContent.classList.add("active");
-
-  if (tabId === "overview") {
-    updateOverviewKpis();
-    renderOverviewTable();
-    renderCharts();
-  } else if (tabId === "tam") {
-    renderTAMTab();
-  } else if (tabId === "sam") {
-    renderSAMTab();
-  } else if (tabId === "csm") {
-    renderCSMTab();
-  } else if (tabId === "settings") {
-    renderSettingsTab();
-  } else if (tabId === "plan") {
-    populateActionPlanSelector();
-    document.getElementById("planControlsPanel").style.display = "none";
-    document.getElementById("generatedPlanBody").innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 60px;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.6;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-        <p style="font-weight: 500; font-size: 0.95rem;">Action Plan Not Generated</p>
-        <p style="font-size: 0.8rem; margin-top: 4px;">Choose a target system scope above and click "Generate Operational Action Plan".</p>
-      </div>
-    `;
-  }
-}
-
-function selectSystem(serialNumber) {
-  const sys = state.systems.find(s => s.serialNumber === serialNumber);
-  if (sys) {
-    state.selectedSystem = sys;
-    switchTab("tam");
-  }
-}
-
-function saveSettings() {
-  const refresh = document.getElementById("settingsRefreshToken").value.trim();
-  const mockChecked = document.getElementById("settingsMockModeToggle").checked;
-
-  saveConfig(refresh, "", "0");
-  setMockMode(mockChecked);
-  
-  alert("Settings updated successfully! Persisted in browser localStorage.");
-  switchTab("overview");
 }
 
 function handleSearch(e) {
@@ -1525,10 +1736,12 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 
+// 11. Initialization on Load
 window.onload = function() {
   loadConfig();
   updateStatusIndicators();
   switchTab("overview");
+  renderSidebarGroups();
 
   document.getElementById("searchInput").addEventListener("input", handleSearch);
   

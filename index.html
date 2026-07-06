@@ -27,7 +27,7 @@
       </div>
       
       <div class="nav-menu">
-        <div class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
+        <div class="nav-item active" data-tab="overview" onclick="resetFilter()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
           Overview Dashboard
         </div>
@@ -50,6 +50,17 @@
         <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           Settings & Config
+        </div>
+      </div>
+
+      <!-- Collapsible Sidebar Filters tree -->
+      <div class="sidebar-groups-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
+          <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">Account Filters</span>
+          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()">Reset</button>
+        </div>
+        <div id="sidebarGroupsList" class="tree-menu">
+          <!-- JS dynamic groups list -->
         </div>
       </div>
       
@@ -308,59 +319,87 @@
         
         <div class="settings-grid">
           <!-- Setup credentials form -->
-          <div class="card">
-            <div class="section-title" style="margin-bottom: 24px;">API Authentication Configuration</div>
-            
-            <div class="toggle-container">
-              <label class="switch">
-                <input type="checkbox" id="settingsMockModeToggle">
-                <span class="slider"></span>
-              </label>
-              <div>
-                <span style="font-weight: 600; display: block; font-size: 0.9rem;">Enable Offline Demo Mode (Mock Data)</span>
-                <span style="font-size: 0.75rem; color: var(--text-secondary);">Render mock customer systems, risks, and lifecycle data to test application layout.</span>
+          <div>
+            <div class="card">
+              <div class="section-title" style="margin-bottom: 24px;">API Authentication Configuration</div>
+              
+              <div class="toggle-container">
+                <label class="switch">
+                  <input type="checkbox" id="settingsMockModeToggle">
+                  <span class="slider"></span>
+                </label>
+                <div>
+                  <span style="font-weight: 600; display: block; font-size: 0.9rem;">Enable Offline Demo Mode (Mock Data)</span>
+                  <span style="font-size: 0.75rem; color: var(--text-secondary);">Render mock customer systems, risks, and lifecycle data to test application layout.</span>
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label" for="settingsRefreshToken">Active IQ Developer Refresh Token</label>
+                <textarea id="settingsRefreshToken" class="form-input" rows="5" placeholder="Enter your Active IQ Refresh Token..."></textarea>
+                <div class="form-helper">This token is persisted locally inside your browser's private localStorage and rotated automatically.</div>
+              </div>
+
+              <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <button class="action-btn" onclick="saveSettings()">Save Configuration</button>
+                <button class="action-btn secondary" onclick="triggerImportFileInput()">Import Config (JSON)</button>
+                <button class="action-btn secondary" onclick="exportConfigJSON()">Export Config (JSON)</button>
               </div>
             </div>
             
-            <div class="form-group">
-              <label class="form-label" for="settingsRefreshToken">Active IQ Developer Refresh Token</label>
-              <textarea id="settingsRefreshToken" class="form-input" rows="5" placeholder="Enter your Active IQ Refresh Token..."></textarea>
-              <div class="form-helper">This token is persisted locally inside your browser's private localStorage and rotated automatically.</div>
-            </div>
-
-            <div style="display: flex; gap: 12px; margin-top: 16px;">
-              <button class="action-btn" onclick="saveSettings()">Save Configuration</button>
-              <button class="action-btn secondary" onclick="triggerImportFileInput()">Import Config (JSON)</button>
-              <button class="action-btn secondary" onclick="exportConfigJSON()">Export Config (JSON)</button>
+            <!-- Dynamic Custom Subgroups Creator panel -->
+            <div class="card" style="margin-top: 24px;">
+              <div class="section-title" style="margin-bottom: 16px;">Create Custom Subgroup</div>
+              <div class="form-group">
+                <label class="form-label" for="newGroupNameInput">Subgroup Name</label>
+                <input type="text" id="newGroupNameInput" class="form-input" placeholder="e.g. US Production, StorageGRID grid node sub-tier...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Select Systems to Add to Group</label>
+                <div id="groupManagerSystemsList" style="max-height: 160px; overflow-y: auto; background: rgba(0,0,0,0.15); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column;">
+                  <!-- Checkbox list -->
+                </div>
+              </div>
+              <button class="action-btn" onclick="handleCreateGroup()">Create Subgroup</button>
             </div>
           </div>
           
-          <!-- Instructions Panel -->
-          <div class="setup-box">
-            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 20px;">API Authorization Setup</h3>
-            
-            <div class="setup-step">
-              <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <span class="step-num">1</span>
-                <span class="step-title">Log in to Portal</span>
+          <!-- Instructions Panel and Subgroup deletion manager -->
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="setup-box">
+              <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 20px;">API Authorization Setup</h3>
+              
+              <div class="setup-step">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                  <span class="step-num">1</span>
+                  <span class="step-title">Log in to Portal</span>
+                </div>
+                <div class="step-desc">Open <a href="https://activeiq.netapp.com" target="_blank" class="external-link">activeiq.netapp.com</a> and sign in with your NetApp Support Site (NSS) credentials.</div>
               </div>
-              <div class="step-desc">Open <a href="https://activeiq.netapp.com" target="_blank" class="external-link">activeiq.netapp.com</a> and sign in with your NetApp Support Site (NSS) credentials.</div>
+              
+              <div class="setup-step">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                  <span class="step-num">2</span>
+                  <span class="step-title">Generate API Token</span>
+                </div>
+                <div class="step-desc">Navigate to <strong>Quick Links</strong> in the top header and click <strong>API Services</strong>. Select <strong>Generate Token</strong>.</div>
+              </div>
+              
+              <div class="setup-step">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                  <span class="step-num">3</span>
+                  <span class="step-title">Copy & Save</span>
+                </div>
+                <div class="step-desc">Copy the generated <strong>Refresh Token</strong> and paste it into the input box on the left, then click <strong>Save Configuration</strong>.</div>
+              </div>
             </div>
-            
-            <div class="setup-step">
-              <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <span class="step-num">2</span>
-                <span class="step-title">Generate API Token</span>
+
+            <!-- Manage Subgroups list -->
+            <div class="card">
+              <div class="section-title" style="margin-bottom: 16px;">Manage Custom Subgroups</div>
+              <div id="settingsGroupsManagerList" style="display: flex; flex-direction: column; gap: 6px;">
+                <!-- List for deletion -->
               </div>
-              <div class="step-desc">Navigate to <strong>Quick Links</strong> in the top header and click <strong>API Services</strong>. Select <strong>Generate Token</strong>.</div>
-            </div>
-            
-            <div class="setup-step">
-              <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <span class="step-num">3</span>
-                <span class="step-title">Copy & Save</span>
-              </div>
-              <div class="step-desc">Copy the generated <strong>Refresh Token</strong> and paste it into the input box on the left, then click <strong>Save Configuration</strong>.</div>
             </div>
           </div>
         </div>
