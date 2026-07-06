@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-07-06
+
+### Added
+*   **Active Technical Support Cases**: Added open support cases table to the Support & Ops tab, capturing Case ID, Subject Title, Severity levels, workflow Statuses, Created/Updated dates, and TAM action updates.
+*   **Support Cases Planner Integration**: Injected support case list into compiled Action Plans (Section 4) with status tags and milestones.
+*   **Support Cases Metadata Editor**: Added support cases JSON array editor under the Settings & Config tab to modify or add active support tickets.
+
 ## [1.4.0] - 2026-07-06
 
 ### Added

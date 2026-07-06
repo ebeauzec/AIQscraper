@@ -207,7 +207,7 @@
           </div>
         </div>
 
-        <!-- NEW: Security & Technical Bulletins Card -->
+        <!-- Security & Technical Bulletins Card -->
         <div class="card table-card" style="margin-top: 24px;">
           <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Security & Technical Bulletins</div>
           <div class="data-table-container">
@@ -262,6 +262,27 @@
           </div>
           <div class="card" id="samSalesHealthCard" style="display: flex; flex-direction: column;">
             <!-- Customer sales health scorecard -->
+          </div>
+        </div>
+
+        <!-- Active Technical Support Cases Table Card -->
+        <div class="card table-card" style="margin-bottom: 24px;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Technical Support Cases</div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 140px;">Case ID</th>
+                  <th>Subject & Action Updates</th>
+                  <th>Severity</th>
+                  <th>Status</th>
+                  <th>Timestamps</th>
+                </tr>
+              </thead>
+              <tbody id="samSupportCasesBody">
+                <!-- JS dynamic cases -->
+              </tbody>
+            </table>
           </div>
         </div>
         
@@ -519,6 +540,15 @@
                 <div class="form-group" style="margin-bottom: 12px;">
                   <textarea id="editSecurityBulletinsJSON" class="form-input" rows="8" style="font-family: monospace; font-size: 0.8rem;"></textarea>
                   <div class="form-helper">Ensure valid JSON array format, e.g. [{"id": "NTAP-SA-XXX", "title": "Desc", "severity": "high", "status": "Vulnerable", "mitigation": "Mitigate"}].</div>
+                </div>
+              </div>
+
+              <!-- Support Cases Edit panel -->
+              <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 12px;">
+                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Open Technical Support Cases (JSON Array)</h4>
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <textarea id="editSupportCasesJSON" class="form-input" rows="8" style="font-family: monospace; font-size: 0.8rem;"></textarea>
+                  <div class="form-helper">Ensure valid JSON array format, e.g. [{"id": "200981XXXX", "title": "Desc", "severity": "S3 - Medium", "status": "Open", "createdDate": "2026-06-25", "lastUpdated": "2026-07-03", "ownerNotes": "Notes"}].</div>
                 </div>
               </div>
 

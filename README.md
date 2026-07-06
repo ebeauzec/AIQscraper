@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -14,12 +14,24 @@ This tool runs **entirely inside your browser** (as a static webpage) from this 
 This dashboard consolidates telemetry data from the public Active IQ API to help account teams prepare customer reviews, identify system issues, and optimize installations.
 
 *   **Technical Audit Module**: Lists active predictive risks (e.g., single-path storage failures, outdated shelf firmware) and **Security & Technical Bulletins** (NetApp Security Advisories - NTAP-SA) with CVE references, vulnerability status, and official mitigation links.
-*   **Support & Ops Module**: Tracks support contract expiration thresholds, flags hardware End-of-Support (EOS/EOA) dates, and displays unresolved NetApp Field Actions (FA). Includes **3rd-Party Hypervisor Integration** compliance checks.
+*   **Support & Ops Module**: Tracks support contract expiration thresholds, flags hardware End-of-Support (EOS/EOA) dates, and displays unresolved NetApp Field Actions (FA). Includes **3rd-Party Hypervisor Integration** compliance checks and **Open Technical Support Cases** list.
 *   **Site Logistics & Sales Health**: Displays site-specific delivery addresses, access and security gate restrictions, transit alerts, primary technical contacts (with NSS usernames), and account health indicators (AM/TAM leads, customer CSAT sentiment scores, upgrade potential pipelines, tech refresh windows).
 *   **CSM Module (ROI & Adoption)**: Showcases storage efficiencies, FabricPool cloud capacity tiering savings, SnapMirror disaster recovery replication states, and a capability adoption scorecard. Includes a **Capacity & Performance Projection Graph** forecasting storage runway days and peak IOPS latency boundaries.
-*   **Action Planner**: Compiles an exhaustive, print-friendly **Executive Action Plan** for a single system, all systems under a specific customer account, or your entire monitored portfolio. Includes prioritized risks, security bulletins, runway timelines, logistics site contacts, and Change Control proceeding guidelines.
+*   **Action Planner**: Compiles an exhaustive, print-friendly **Executive Action Plan** for a single system, all systems under a specific customer account, or your entire monitored portfolio. Includes prioritized risks, security bulletins, active support cases, runway timelines, logistics site contacts, and Change Control proceeding guidelines.
 *   **Sidebar Filtering (Accounts & Groups)**: Dynamically groups systems by Customer Account or Custom Subgroups directly in the sidebar navigation pane. Clicking a group filters the entire dashboard context instantly, complete with risk count indicators.
-*   **Import/Export Config**: Save your active telemetry reports, custom mock datasets, and updated logistics/bulletins schemas as a JSON file, or import external files to load report views instantly.
+*   **Import/Export Config**: Save your active telemetry reports, custom mock datasets, and updated logistics/bulletins/cases schemas as a JSON file, or import external files to load report views instantly.
+
+---
+
+## Technical Support Cases Tracking
+
+SAMs and customer leads can review active technical assistance cases directly in the **Support & Ops** tab:
+*   **Case ID**: Unique NetApp Support Case identifier.
+*   **Subject**: Clear title description of the reported issue (e.g., SSD failure, license mismatches, VASA Provider sync issues).
+*   **Severity**: Standard NetApp priority levels (`S1 - Critical`, `S2 - Major`, `S3 - Medium`, `S4 - Low`).
+*   **Status**: Dynamic workflow tracker (e.g., `Open - Pending Parts Dispatch`, `Open - NetApp Engineering`, `Open - Customer Action`, `Resolved - Pending Customer Closure`).
+*   **Timestamps**: Opened Date and Last Updated Date.
+*   **TAM Notes**: Operational updates and next actions (e.g., parts delivery estimates, escalation states).
 
 ---
 
@@ -55,6 +67,7 @@ SAMs and TAMs can manage account-specific details directly inside the applicatio
    *   *Account Health*: CSAT score, AM/TAM representatives, upsell opportunities, and refresh timeline dates.
    *   *Projections*: Forecasted storage runway days, daily growth rates, peak IOPS performance, and historical capacity CSV strings.
    *   *Security Bulletins*: Enter technical vulnerabilities directly as a JSON array.
+   *   *Support Cases*: Enter active case listings as a JSON array.
 4. Click **Save System Metadata** to commit changes to local storage.
 
 ---

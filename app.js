@@ -10,7 +10,7 @@
 
 const API_BASE = "https://api.activeiq.netapp.com/v1";
 
-// 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins)
+// 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins, Support Cases)
 const MOCK_SYSTEMS = [
   {
     serialNumber: "622001234567",
@@ -164,6 +164,17 @@ const MOCK_SYSTEMS = [
         status: "Workaround Applied",
         mitigation: "Workaround applied: Disabled TLS 1.0/1.1 protocols. Upgrade recommended."
       }
+    ],
+    supportCases: [
+      {
+        id: "2009812234",
+        title: "Aggregate aggr1_pcie SSD failure - disk replacement dispatch",
+        severity: "S3 - Medium",
+        status: "Open - Pending Parts Dispatch",
+        createdDate: "2026-06-28",
+        lastUpdated: "2026-07-05",
+        ownerNotes: "Replacement drive sent to site. Estimated delivery tomorrow morning. Site contact notified."
+      }
     ]
   },
   {
@@ -305,6 +316,17 @@ const MOCK_SYSTEMS = [
         status: "Vulnerable - Action Required",
         mitigation: "Upgrade Astra Trident driver to version 24.02.0."
       }
+    ],
+    supportCases: [
+      {
+        id: "2009813567",
+        title: "CVO instance licensing mismatch warning on console",
+        severity: "S2 - Major",
+        status: "Open - NetApp Engineering",
+        createdDate: "2026-07-02",
+        lastUpdated: "2026-07-06",
+        ownerNotes: "Escalated to SaaS subscription billing team. Waiting for verification check."
+      }
     ]
   },
   {
@@ -437,6 +459,17 @@ const MOCK_SYSTEMS = [
         status: "Vulnerable - Action Required",
         mitigation: "Apply security patch StorageGRID 11.8.0.2 or disable Management port 9443 access to untrusted networks."
       }
+    ],
+    supportCases: [
+      {
+        id: "2009814890",
+        title: "Chassis temperature high warning on compute controller",
+        severity: "S1 - Critical",
+        status: "Open - Customer Action",
+        createdDate: "2026-07-04",
+        lastUpdated: "2026-07-06",
+        ownerNotes: "Advised customer to inspect fan module 2 immediately to prevent hardware speed throttling."
+      }
     ]
   },
   {
@@ -556,7 +589,8 @@ const MOCK_SYSTEMS = [
         status: "Mitigated",
         mitigation: "Cisco Nexus NX-OS patch applied at site A & B switches."
       }
-    ]
+    ],
+    supportCases: []
   },
   {
     serialNumber: "622005557777",
@@ -664,6 +698,17 @@ const MOCK_SYSTEMS = [
         severity: "high",
         status: "Vulnerable - Action Required",
         mitigation: "Install ESXi patch NetApp-NFS-VAAI-Plugin v2.1."
+      }
+    ],
+    supportCases: [
+      {
+        id: "2009815001",
+        title: "VASA Provider certificate sync failure",
+        severity: "S3 - Medium",
+        status: "Resolved - Pending Customer Close",
+        createdDate: "2026-06-25",
+        lastUpdated: "2026-07-03",
+        ownerNotes: "Self-signed certificate renewed and vCenter connection re-established. Customer verifying."
       }
     ]
   }
@@ -1147,7 +1192,7 @@ function renderTAMTab() {
     `;
   }
 
-  // NEW: Render Security & Technical Bulletins
+  // Render Security & Technical Bulletins
   const bulletins = sys.securityBulletins || [];
   let bulletinRows = "";
   if (bulletins.length === 0) {
@@ -1184,6 +1229,7 @@ function renderSAMTab() {
     document.getElementById("samLogisticsCard").innerHTML = "";
     document.getElementById("samSalesHealthCard").innerHTML = "";
     document.getElementById("samFieldActionsBody").innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
+    document.getElementById("samSupportCasesBody").innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No systems available.</td></tr>`;
     return;
   }
 
@@ -1366,6 +1412,35 @@ function renderSAMTab() {
     });
   }
   document.getElementById("samFieldActionsBody").innerHTML = faRows;
+
+  // Render Open Support Cases Table
+  const cases = sys.supportCases || [];
+  let caseRows = "";
+  if (cases.length === 0) {
+    caseRows = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active technical support cases open.</td></tr>`;
+  } else {
+    cases.forEach(c => {
+      let sevBadge = `<span class="badge info">${c.severity}</span>`;
+      if (c.severity.includes("S1")) sevBadge = `<span class="badge critical">${c.severity}</span>`;
+      else if (c.severity.includes("S2")) sevBadge = `<span class="badge warning">${c.severity}</span>`;
+
+      caseRows += `
+        <tr>
+          <td><strong style="color: var(--accent-cyan); font-family: monospace;">${c.id}</strong></td>
+          <td>
+            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 3px;">${c.title}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">${c.ownerNotes}</div>
+          </td>
+          <td>${sevBadge}</td>
+          <td><code style="color: var(--status-warning); font-size: 0.78rem;">${c.status}</code></td>
+          <td style="font-size: 0.78rem; color: var(--text-muted);">
+            Opened: ${c.createdDate}<br>Updated: ${c.lastUpdated}
+          </td>
+        </tr>
+      `;
+    });
+  }
+  document.getElementById("samSupportCasesBody").innerHTML = caseRows;
 }
 
 function renderCSMTab() {
@@ -1640,6 +1715,7 @@ function generateActionPlan() {
   const activeFAs = [];
   const allHypervisors = [];
   const allSecurityAdvisories = [];
+  const allSupportCases = [];
 
   targetSystems.forEach(sys => {
     sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
@@ -1655,6 +1731,9 @@ function generateActionPlan() {
     }
     if (sys.securityBulletins) {
       sys.securityBulletins.forEach(sb => allSecurityAdvisories.push({ systemName: sys.systemName, ...sb }));
+    }
+    if (sys.supportCases) {
+      sys.supportCases.forEach(sc => allSupportCases.push({ systemName: sys.systemName, ...sc }));
     }
   });
 
@@ -1675,22 +1754,26 @@ function generateActionPlan() {
         This document represents the consolidated operational action plan generated from telemetry data analyzed by NetApp Active IQ Digital Advisor. 
         A total of <strong>${targetSystems.length}</strong> storage configuration(s) were audited.
       </p>
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0;">
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 20px 0;">
         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Total Risks</div>
-          <div style="font-size: 1.4rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Total Risks</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
-          <div style="font-size: 1.4rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Support Expired/Expiring</div>
-          <div style="font-size: 1.4rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Open Support Cases</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
-          <div style="font-size: 1.4rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Expiring</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
         </div>
       </div>
     </div>
@@ -1741,7 +1824,7 @@ function generateActionPlan() {
   html += `
     </div>
 
-    <!-- NEW: Security & Technical Bulletins Section -->
+    <!-- Security & Technical Bulletins Section -->
     <div style="margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">3. Security Bulletins & Vulnerability Mitigations</h2>
   `;
@@ -1772,9 +1855,43 @@ function generateActionPlan() {
   html += `
     </div>
 
+    <!-- Open Support Cases Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Active Support Cases & Milestones</h2>
+  `;
+
+  if (allSupportCases.length === 0) {
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No active technical support cases open in the NetApp Support portal.</p>`;
+  } else {
+    allSupportCases.forEach((c, idx) => {
+      let badgeClass = "badge info";
+      if (c.severity.includes("S1")) badgeClass = "badge critical";
+      else if (c.severity.includes("S2")) badgeClass = "badge warning";
+
+      html += `
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <strong>Case ID: ${c.id} - ${c.systemName}</strong>
+            <span class="${badgeClass}" style="font-size: 0.7rem;">${c.severity}</span>
+          </div>
+          <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${c.title}</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic;">
+            <strong>Latest Action Notes:</strong> ${c.ownerNotes}
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">
+            Status: <code style="color: var(--status-info);">${c.status}</code> | Opened: <strong>${c.createdDate}</strong> | Last Updated: <strong>${c.lastUpdated}</strong>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    </div>
+
     <!-- OS/Firmware Upgrades Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Recommended OS Upgrade Roadmaps</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Recommended OS Upgrade Roadmaps</h2>
   `;
 
   if (allUpgrades.length === 0) {
@@ -1803,7 +1920,7 @@ function generateActionPlan() {
 
     <!-- Site Logistics, Contacts & Health Details Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Site Logistics, Contacts, & Customer Health</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Site Logistics, Contacts, & Customer Health</h2>
   `;
 
   targetSystems.forEach(sys => {
@@ -1840,7 +1957,7 @@ function generateActionPlan() {
 
     <!-- Guidelines and Proceeding Steps Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Operational Guidelines & Proceeding Steps</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">7. Operational Guidelines & Proceeding Steps</h2>
       
       <div style="margin-bottom: 18px;">
         <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Implementing Changes via NetApp Change Control</h4>
@@ -1870,7 +1987,7 @@ function generateActionPlan() {
         <ol style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-top: 6px;">
           <li><strong>Coordinate support renewal quotes</strong> for all systems identified in support reports.</li>
           <li><strong>Create internal IT ticket instances</strong> for the high-priority technical items in Section 2, attaching the generated remediation steps.</li>
-          <li><strong>Verify delivery credentials</strong> and clearance permissions with site contacts listed in Section 5 before shipping parts.</li>
+          <li><strong>Verify delivery credentials</strong> and clearance permissions with site contacts listed in Section 6 before shipping parts.</li>
           <li><strong>Review the Security advisories</strong> in Section 3 and schedule OS micro-patches or workaround applications to block exposures.</li>
         </ol>
       </div>
@@ -2104,6 +2221,7 @@ function loadSelectedSystemMetadataForEdit() {
   const health = sys.salesHealth || { accountManager: "", supportTam: "", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "", refreshWindow: "Under Review" };
   const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 12, 14, 16, 18, 20], projectedCapacityMonths: [22, 24, 26] };
   const bulletins = sys.securityBulletins || [];
+  const cases = sys.supportCases || [];
 
   document.getElementById("editDeliveryAddress").value = logistics.deliveryAddress;
   document.getElementById("editAccessRestrictions").value = logistics.accessRestrictions;
@@ -2132,6 +2250,9 @@ function loadSelectedSystemMetadataForEdit() {
 
   // Set Security Bulletins JSON
   document.getElementById("editSecurityBulletinsJSON").value = JSON.stringify(bulletins, null, 2);
+
+  // Set Open Support Cases JSON
+  document.getElementById("editSupportCasesJSON").value = JSON.stringify(cases, null, 2);
 }
 
 function saveSystemMetadata() {
@@ -2181,6 +2302,15 @@ function saveSystemMetadata() {
     state.systems[idx].securityBulletins = JSON.parse(rawJSON || "[]");
   } catch (err) {
     alert("Invalid Security Bulletins JSON format. Please verify syntax.");
+    return;
+  }
+
+  // Parse and save open support cases JSON
+  try {
+    const rawCasesJSON = document.getElementById("editSupportCasesJSON").value.trim();
+    state.systems[idx].supportCases = JSON.parse(rawCasesJSON || "[]");
+  } catch (err) {
+    alert("Invalid Support Cases JSON format. Please verify syntax.");
     return;
   }
 
