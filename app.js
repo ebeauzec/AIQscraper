@@ -1747,16 +1747,22 @@ function renderOverviewTable() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const query = state.activeSearchQuery.toLowerCase();
+  const query = state.activeSearchQuery.toLowerCase().trim();
   const baseSystems = getFilteredSystems();
   
-  const filteredSystems = baseSystems.filter(sys => 
-    sys.systemName.toLowerCase().includes(query) || 
-    sys.serialNumber.toLowerCase().includes(query) ||
-    sys.clusterName.toLowerCase().includes(query) ||
-    sys.customerName.toLowerCase().includes(query) ||
-    sys.platform.toLowerCase().includes(query)
-  );
+  let filteredSystems = baseSystems;
+  if (query) {
+    const terms = query.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    filteredSystems = baseSystems.filter(sys => {
+      return terms.some(term => 
+        sys.systemName.toLowerCase().includes(term) || 
+        sys.serialNumber.toLowerCase().includes(term) ||
+        sys.clusterName.toLowerCase().includes(term) ||
+        sys.customerName.toLowerCase().includes(term) ||
+        sys.platform.toLowerCase().includes(term)
+      );
+    });
+  }
 
   if (filteredSystems.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No matching systems found.</td></tr>`;
@@ -2489,6 +2495,78 @@ function generateActionPlan() {
     }
   });
 
+  // 8. Compile Executable Deliverables (Draft Email, Upgrade Proposal, and Internal Dispatch Ticket)
+  const emailRisksList = allRisks.map(r => ` - System: ${r.systemName} | Category: ${r.category} | Issue: ${r.description}`).join("\n");
+  const emailCasesList = allSupportCases.map(c => ` - Case ID: ${c.id} | Subject: ${c.title} | Status: ${c.status}`).join("\n");
+  
+  const upgradeTargetsList = allUpgrades.map(u => {
+    const origSys = targetSystems.find(s => s.systemName === u.systemName);
+    const origVer = origSys ? origSys.ontapVersion : "unknown";
+    return ` - System: ${u.systemName} | Current OS: ${origVer} | Target OS: ${u.targetVersion}`;
+  }).join("\n");
+  
+  const contractExpiryList = expiringContracts.map(e => ` - System: ${e.systemName} | Support Level: ${e.supportLevel} | Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)`).join("\n");
+
+  const draftEmailText = `Subject: NetApp Operational Health & Risk Advisory Alert - ${scopeTitle}
+
+Dear Storage Operations Team,
+
+This is a proactive advisory update from your NetApp Account Team regarding the health, stability, and operational risk metrics of your storage systems. Active IQ Digital Advisor has analyzed your configurations and identified items requiring your review:
+
+${allRisks.length > 0 ? `CRITICAL/HIGH TECHNICAL RISKS:\n${emailRisksList}` : "✓ No critical or high technical configuration risks detected."}
+
+${allSupportCases.length > 0 ? `OPEN SUPPORT TICKETS:\n${emailCasesList}` : "✓ No active open technical support cases detected."}
+
+RECOMMENDED ACTION ITEMS:
+1. Review the step-by-step remediation plans in our attached Operations Plan.
+2. Schedule a maintenance window to apply critical firmware upgrades or replace degraded SAS cabling if applicable.
+3. Verify logistics shipping details with site contacts before part dispatch.
+
+If you have any questions or require assistance, please contact your account support leads.
+
+Best Regards,
+[Your Name / NetApp TAM Team]`;
+
+  const draftProposalText = `MEMORANDUM OF PROPOSAL: STORAGE OS UPGRADE & PLATFORM REFRESH
+
+CUSTOMER BASE: ${scopeTitle}
+PREPARED BY: NetApp Technical Account Management (TAM)
+
+1. RECOMMENDED OPERATING SYSTEM UPGRADES
+To align your systems with NetApp's Interoperability Matrix Tool (IMT) and apply critical security/performance microcode updates, we recommend the following target version updates:
+${allUpgrades.length > 0 ? upgradeTargetsList : "✓ All systems in scope are currently running recommended stable releases."}
+
+2. SUPPORT CONTRACT RENEWALS & PLATFORM REFRESH
+The following storage controllers are approaching contract expiration or end-of-support deadlines and require immediate renewal or node swap planning:
+${expiringContracts.length > 0 ? contractExpiryList : "✓ All active contracts have > 90 days remaining."}
+
+3. HARDWARE EXPANSION OPPORTUNITIES
+To maintain performance headroom and address storage growth runway targets, we propose expanding:
+ - FabricPool cloud tiering to offload cold blocks to Object Storage.
+ - Target tech refresh timelines matching upcoming windows.`;
+
+  const internalTicketText = `TICKET TITLE: NetApp Dispatch & Parts Coordination - ${scopeTitle}
+
+TICKET CLASSIFICATION: Infrastructure Operations -> NetApp Storage Maintenance
+TICKET SEVERITY: S2 - Major (Logistics & Maintenance Window Required)
+
+DESCRIPTION:
+Please initiate change control and stage parts coordination for the following NetApp systems:
+
+${targetSystems.map(s => {
+  const l = s.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set" };
+  const c = s.contacts || { name: "Not Set", phone: "Not Set" };
+  return `SYSTEM: ${s.systemName} (S/N: ${s.serialNumber})
+- Delivery Address: ${l.deliveryAddress}
+- Access Rules: ${l.accessRestrictions}
+- Site Contact: ${c.name} (${c.phone})
+- Required Action: Coordinate parts delivery and schedule on-site technician.`;
+}).join("\n\n")}
+
+LOGISTICS COMPLIANCE INSTRUCTIONS:
+- Verify active Secret/Biometric clearance criteria with site contacts prior to dispatch.
+- Cross-reference active shipment codes against tracking APIs.`;
+
   let html = `
     <div class="plan-document-header">
       <div style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">NetApp Operations & Advisory Plan</div>
@@ -2744,6 +2822,29 @@ function generateActionPlan() {
         </ol>
       </div>
     </div>
+
+    <!-- Deliverables and Drafts Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">8. Executable Account Deliverables</h2>
+      
+      <div style="margin-bottom: 20px;">
+        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Draft Customer Alert Email Notification</h4>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Copy and customize this email to notify the customer's operations team regarding active risks and support cases.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${draftEmailText}</textarea>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">B. Storage Upgrade & Hardware Refresh Proposal Draft</h4>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">A formal proposal draft to request funding or approvals for target OS updates and hardware contract renewals.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${draftProposalText}</textarea>
+      </div>
+
+      <div>
+        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">C. Internal Operations Coordination Ticket Template</h4>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Create an internal IT ticket to dispatch technicians or coordinate parts delivery based on logistics rules.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${internalTicketText}</textarea>
+      </div>
+    </div>
   `;
 
   planBody.innerHTML = html;
@@ -2795,6 +2896,45 @@ function printActionPlan() {
 }
 
 // 8. Collapsible Sidebar Groups Tree Builders
+function loadSavedFilters() {
+  const saved = localStorage.getItem("aiq_saved_filters");
+  return saved ? JSON.parse(saved) : [];
+}
+
+function starCurrentSearch() {
+  const query = (document.getElementById("searchInput").value || "").trim();
+  if (!query) {
+    alert("Please type a search query first to star it.");
+    return;
+  }
+  const name = prompt("Enter a name for this starred filter:", query);
+  if (!name) return;
+
+  const savedFilters = loadSavedFilters();
+  if (savedFilters.some(f => f.query === query)) {
+    alert("This exact search query is already starred.");
+    return;
+  }
+
+  savedFilters.push({
+    id: "filter_" + Date.now(),
+    name: name.trim(),
+    query: query
+  });
+  localStorage.setItem("aiq_saved_filters", JSON.stringify(savedFilters));
+  
+  renderSidebarGroups();
+  alert(`Starred filter "${name}" saved!`);
+}
+
+function deleteSavedFilter(event, id) {
+  event.stopPropagation();
+  let savedFilters = loadSavedFilters();
+  savedFilters = savedFilters.filter(f => f.id !== id);
+  localStorage.setItem("aiq_saved_filters", JSON.stringify(savedFilters));
+  renderSidebarGroups();
+}
+
 function renderSidebarGroups() {
   const container = document.getElementById("sidebarGroupsList");
   if (!container) return;
@@ -2865,6 +3005,39 @@ function renderSidebarGroups() {
       container.appendChild(item);
     });
   }
+
+  // 3. Starred & Dynamic Filters
+  const savedFilters = loadSavedFilters();
+  if (savedFilters.length > 0) {
+    const filterHeader = document.createElement("div");
+    filterHeader.className = "tree-section-header";
+    filterHeader.style.marginTop = "16px";
+    filterHeader.innerText = "Starred Filters (Dynamic)";
+    container.appendChild(filterHeader);
+
+    savedFilters.forEach(f => {
+      const item = document.createElement("div");
+      item.className = "tree-item";
+      if (state.activeSearchQuery === f.query) {
+        item.classList.add("active");
+      }
+      
+      item.innerHTML = `
+        <span style="color: var(--status-warning); margin-right: 8px; font-size: 0.85rem;">★</span>
+        <span class="tree-text" title="Query: ${f.query}">${f.name}</span>
+        <button class="action-btn secondary delete-filter-btn" style="opacity: 0.6; padding: 2px 6px; font-size: 0.65rem; border-color: transparent; margin-left: auto; background: transparent; color: var(--status-critical);" onclick="deleteSavedFilter(event, '${f.id}')">×</button>
+      `;
+      
+      item.onclick = (e) => {
+        document.getElementById("searchInput").value = f.query;
+        state.activeSearchQuery = f.query;
+        renderOverviewTable();
+        renderSidebarGroups();
+        renderCharts();
+      };
+      container.appendChild(item);
+    });
+  }
 }
 
 function setFilter(type, value) {
@@ -2885,6 +3058,9 @@ function setFilter(type, value) {
 function resetFilter() {
   state.activeFilterType = "ALL";
   state.activeFilterValue = "";
+  state.activeSearchQuery = "";
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) searchInput.value = "";
   switchTab("overview");
   renderSidebarGroups();
 }

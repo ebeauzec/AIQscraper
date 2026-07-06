@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-07-06
+
+### Added
+*   **Starred & Dynamic Filters**: Added ability to save/star current search queries. Starred queries are persisted to local storage and dynamically evaluated as custom filters in the sidebar.
+*   **Multi-Query Search**: Support searching by multiple comma-separated systems, customers, clusters, or serial numbers.
+*   **Action Plan Deliverables**: Added Section 8 (Executable Account Deliverables) to compiled plans, generating draft customer emails, os/refresh proposals, and internal operations dispatch tickets.
+*   **Version Increments**: Fixed sidebar footer version displays to match version 1.6.0.
+
 ## [1.5.0] - 2026-07-06
 
 ### Added
