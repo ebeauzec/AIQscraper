@@ -1711,15 +1711,34 @@ function renderCharts() {
 }
 
 function getFilteredSystems() {
+  let filtered = state.systems;
+
+  // 1. Sidebar customer/group filters
   if (state.activeFilterType === "CUSTOMER") {
-    return state.systems.filter(s => s.customerName === state.activeFilterValue);
+    filtered = state.systems.filter(s => s.customerName === state.activeFilterValue);
   } else if (state.activeFilterType === "GROUP") {
     const group = state.groups.find(g => g.id === state.activeFilterValue);
     if (group) {
-      return state.systems.filter(s => group.systemSerials.includes(s.serialNumber));
+      filtered = state.systems.filter(s => group.systemSerials.includes(s.serialNumber));
     }
   }
-  return state.systems; // default: show all
+
+  // 2. Main Search Query filter (multi-term support)
+  const query = (state.activeSearchQuery || "").toLowerCase().trim();
+  if (query) {
+    const terms = query.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    filtered = filtered.filter(sys => {
+      return terms.some(term => 
+        sys.systemName.toLowerCase().includes(term) || 
+        sys.serialNumber.toLowerCase().includes(term) ||
+        sys.clusterName.toLowerCase().includes(term) ||
+        sys.customerName.toLowerCase().includes(term) ||
+        sys.platform.toLowerCase().includes(term)
+      );
+    });
+  }
+
+  return filtered;
 }
 
 function updateOverviewKpis() {
@@ -1747,22 +1766,7 @@ function renderOverviewTable() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const query = state.activeSearchQuery.toLowerCase().trim();
-  const baseSystems = getFilteredSystems();
-  
-  let filteredSystems = baseSystems;
-  if (query) {
-    const terms = query.split(",").map(t => t.trim()).filter(t => t.length > 0);
-    filteredSystems = baseSystems.filter(sys => {
-      return terms.some(term => 
-        sys.systemName.toLowerCase().includes(term) || 
-        sys.serialNumber.toLowerCase().includes(term) ||
-        sys.clusterName.toLowerCase().includes(term) ||
-        sys.customerName.toLowerCase().includes(term) ||
-        sys.platform.toLowerCase().includes(term)
-      );
-    });
-  }
+  const filteredSystems = getFilteredSystems();
 
   if (filteredSystems.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No matching systems found.</td></tr>`;
@@ -3631,7 +3635,8 @@ See the README.md file for detailed CORS bypass guidelines.`);
 
 function handleSearch(e) {
   state.activeSearchQuery = e.target.value;
-  renderOverviewTable();
+  switchTab(state.currentTab);
+  renderSidebarGroups();
 }
 
 // Sidebar switches tabs
