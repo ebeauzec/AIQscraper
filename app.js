@@ -1496,7 +1496,7 @@ const MOCK_SYSTEMS = [
   
   const ontapVersions = ["9.12.1P4", "9.11.1P8", "9.13.1P8", "9.10.1P12", "11.8.0", "9.14.1P2"];
 
-  for (let i = 1; i <= 44; i++) {
+  for (let i = 1; i <= 54; i++) {
     const custIndex = i % extraCustomers.length;
     const customer = extraCustomers[custIndex];
     const serial = (722000000000 + i).toString();
@@ -1546,6 +1546,75 @@ const MOCK_SYSTEMS = [
     const contractsStatus = daysRemaining < 0 ? "critical" : (daysRemaining <= 90 ? "warning" : "normal");
     const endDate = new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+    // Generate Switches configuration
+    const switches = [];
+    if (platform.includes("MetroCluster")) {
+      switches.push({
+        type: "MetroCluster Back-end",
+        model: platform.includes("IP") ? "Cisco Nexus 9336C-FX2" : "Brocade G620 FC",
+        serialNumber: `SW-MC-${serial.substring(6)}A`,
+        firmware: i % 3 === 0 ? "9.3(8)" : "9.3(12)",
+        targetFirmware: "9.3(12)",
+        status: i % 3 === 0 ? "Warning" : "Optimal",
+        ipAddress: `192.168.50.${100 + i}`,
+        validationDetails: i % 3 === 0 ? "Firmware drift: NX-OS 9.3(8) is below the minimum Interoperability Matrix Tool (IMT) validated version." : "Optimal connection."
+      });
+      switches.push({
+        type: "Cluster Interconnect",
+        model: "Cisco Nexus 3132Q-V",
+        serialNumber: `SW-CI-${serial.substring(6)}B`,
+        firmware: "9.3(12)",
+        targetFirmware: "9.3(12)",
+        status: "Optimal",
+        ipAddress: `192.168.50.${120 + i}`,
+        validationDetails: "Optimal connection."
+      });
+      switches.push({
+        type: "Front-end Storage",
+        model: "Cisco MDS 9148T",
+        serialNumber: `SW-FE-${serial.substring(6)}C`,
+        firmware: i % 4 === 0 ? "8.4(2)" : "9.2(2)",
+        targetFirmware: "9.2(2)",
+        status: i % 4 === 0 ? "Warning" : "Optimal",
+        ipAddress: `10.10.20.${150 + i}`,
+        validationDetails: i % 4 === 0 ? "Firmware warning: MDS-OS v8.4(2) contains security vulnerability CVE-2023-20092. Upgrade advised." : "Optimal connection."
+      });
+    } else if (platform.includes("On-Prem")) {
+      switches.push({
+        type: "Cluster Interconnect",
+        model: i % 5 === 0 ? "Broadcom BES-53248" : "Cisco Nexus 3132Q-V",
+        serialNumber: `SW-CI-${serial.substring(6)}A`,
+        firmware: i % 5 === 0 ? "EFOS 3.4.4.6" : "NX-OS 9.3(10)",
+        targetFirmware: i % 5 === 0 ? "EFOS 3.8.0.2" : "NX-OS 9.3(12)",
+        status: i % 5 === 0 ? "Warning" : (i % 7 === 0 ? "Critical" : "Optimal"),
+        ipAddress: `192.168.60.${100 + i}`,
+        validationDetails: i % 5 === 0 
+          ? "Firmware drift detected: EFOS 3.4 is out of sync." 
+          : (i % 7 === 0 ? "Critical Bug Alert: NX-OS 9.3(10) has a memory leak in ports telemetry. Urgent upgrade required." : "Optimal connection.")
+      });
+      switches.push({
+        type: "Front-end Data",
+        model: "Cisco Nexus 93180YC-FX",
+        serialNumber: `SW-FE-${serial.substring(6)}B`,
+        firmware: "9.3(12)",
+        targetFirmware: "9.3(12)",
+        status: "Optimal",
+        ipAddress: `10.10.10.${100 + i}`,
+        validationDetails: "Optimal connection."
+      });
+    } else if (platform.includes("StorageGRID")) {
+      switches.push({
+        type: "Grid Network",
+        model: "Cisco Nexus 93180YC-FX",
+        serialNumber: `SW-GRID-${serial.substring(6)}A`,
+        firmware: i % 6 === 0 ? "9.3(8)" : "9.3(12)",
+        targetFirmware: "9.3(12)",
+        status: i % 6 === 0 ? "Warning" : "Optimal",
+        ipAddress: `10.50.10.${100 + i}`,
+        validationDetails: i % 6 === 0 ? "Firmware warning: upgrade NX-OS to address grid MTU packet loss bugs." : "Optimal connection."
+      });
+    }
+
     const sys = {
       serialNumber: serial,
       systemName: sysName,
@@ -1555,6 +1624,7 @@ const MOCK_SYSTEMS = [
       platform: platform,
       status: status,
       risks: risks,
+      switches: switches,
       upgrades: {
         targetVersion: status === "normal" ? "Up to Date" : "9.13.1P8",
         urgency: status === "normal" ? "None" : "Recommended",
@@ -2372,6 +2442,7 @@ function renderTAMTab() {
     document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems selected in current scope.</td></tr>`;
     document.getElementById("tamUpgradeContainer").innerHTML = "";
     document.getElementById("tamSecurityBulletinsBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No bulletins.</td></tr>`;
+    document.getElementById("tamSwitchesTableBody").innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No switch components monitored.</td></tr>`;
     document.getElementById("tamActiveSystem").innerHTML = `<strong>No Systems Selected</strong>`;
     return;
   }
@@ -2474,6 +2545,54 @@ function renderTAMTab() {
     upgradeBox.innerHTML = upgradeHtml;
   }
   
+  // Compile Combined Switch Validation
+  let switchRows = "";
+  const allSwitches = [];
+  selectedSystems.forEach(sys => {
+    const sws = getSystemSwitches(sys);
+    sws.forEach(sw => {
+      allSwitches.push({ ...sw, systemName: sys.systemName });
+    });
+  });
+
+  if (allSwitches.length === 0) {
+    switchRows = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No switch components monitored for these platforms.</td></tr>`;
+  } else {
+    allSwitches.forEach(sw => {
+      let statusBadge = `<span class="badge normal">Optimal</span>`;
+      if (sw.status === "Critical") statusBadge = `<span class="badge critical">Critical</span>`;
+      else if (sw.status === "Warning") statusBadge = `<span class="badge warning">Warning</span>`;
+      
+      let actionText = "None required. Switch configuration matches validated baseline.";
+      if (sw.status === "Warning") {
+        actionText = `Plan firmware update to target release: <strong>${sw.targetFirmware}</strong>. Reference IMT baseline.`;
+      } else if (sw.status === "Critical") {
+        actionText = `<strong style="color: var(--status-critical);">Immediate action required:</strong> Schedule window to install recommended version <strong>${sw.targetFirmware}</strong> to resolve bug or security vulnerability.`;
+      }
+      
+      switchRows += `
+        <tr>
+          <td><strong style="color: var(--text-primary); font-size: 0.85rem;">${sw.systemName}</strong></td>
+          <td>
+            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${sw.model}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">S/N: ${sw.serialNumber}</div>
+          </td>
+          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span></td>
+          <td>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware}</code></div>
+            <div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>
+          </td>
+          <td>${statusBadge}</td>
+          <td>
+            <div style="font-size: 0.8rem; color: var(--text-primary); margin-bottom: 4px;">${sw.validationDetails}</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary); font-style: italic;">${actionText}</div>
+          </td>
+        </tr>
+      `;
+    });
+  }
+  document.getElementById("tamSwitchesTableBody").innerHTML = switchRows;
+  
   // Compile Combined Security & Technical Bulletins
   let bulletinRows = "";
   const allBulletins = [];
@@ -2510,6 +2629,82 @@ function renderTAMTab() {
     });
   }
   document.getElementById("tamSecurityBulletinsBody").innerHTML = bulletinRows;
+}
+
+function getSystemSwitches(sys) {
+  if (sys.switches) return sys.switches;
+  
+  const seed = parseInt(sys.serialNumber) || 0;
+  const switches = [];
+  
+  if (sys.platform.includes("MetroCluster")) {
+    switches.push({
+      type: "MetroCluster Back-end",
+      model: sys.platform.includes("IP") ? "Cisco Nexus 9336C-FX2" : "Brocade G620 FC",
+      serialNumber: `SW-MC-${sys.serialNumber.substring(6)}A`,
+      firmware: seed % 3 === 0 ? "9.3(8)" : "9.3(12)",
+      targetFirmware: "9.3(12)",
+      status: seed % 3 === 0 ? "Warning" : "Optimal",
+      ipAddress: `192.168.50.100`,
+      validationDetails: seed % 3 === 0 ? "Firmware drift: NX-OS 9.3(8) is below the minimum Interoperability Matrix Tool (IMT) validated version." : "Optimal connection."
+    });
+    switches.push({
+      type: "Cluster Interconnect",
+      model: "Cisco Nexus 3132Q-V",
+      serialNumber: `SW-CI-${sys.serialNumber.substring(6)}B`,
+      firmware: "9.3(12)",
+      targetFirmware: "9.3(12)",
+      status: "Optimal",
+      ipAddress: `192.168.50.120`,
+      validationDetails: "Optimal connection."
+    });
+    switches.push({
+      type: "Front-end Storage",
+      model: "Cisco MDS 9148T",
+      serialNumber: `SW-FE-${sys.serialNumber.substring(6)}C`,
+      firmware: seed % 4 === 0 ? "8.4(2)" : "9.2(2)",
+      targetFirmware: "9.2(2)",
+      status: seed % 4 === 0 ? "Warning" : "Optimal",
+      ipAddress: `10.10.20.150`,
+      validationDetails: seed % 4 === 0 ? "Firmware warning: MDS-OS v8.4(2) contains security vulnerability CVE-2023-20092. Upgrade advised." : "Optimal connection."
+    });
+  } else if (sys.platform.includes("On-Prem") || sys.platform.includes("FAS") || sys.platform.includes("AFF")) {
+    switches.push({
+      type: "Cluster Interconnect",
+      model: seed % 5 === 0 ? "Broadcom BES-53248" : "Cisco Nexus 3132Q-V",
+      serialNumber: `SW-CI-${sys.serialNumber.substring(6)}A`,
+      firmware: seed % 5 === 0 ? "EFOS 3.4.4.6" : "NX-OS 9.3(10)",
+      targetFirmware: seed % 5 === 0 ? "EFOS 3.8.0.2" : "NX-OS 9.3(12)",
+      status: seed % 5 === 0 ? "Warning" : (seed % 7 === 0 ? "Critical" : "Optimal"),
+      ipAddress: `192.168.60.100`,
+      validationDetails: seed % 5 === 0 
+        ? "Firmware drift detected: EFOS 3.4 is out of sync." 
+        : (seed % 7 === 0 ? "Critical Bug Alert: NX-OS 9.3(10) has a memory leak in ports telemetry. Urgent upgrade required." : "Optimal connection.")
+    });
+    switches.push({
+      type: "Front-end Data",
+      model: "Cisco Nexus 93180YC-FX",
+      serialNumber: `SW-FE-${sys.serialNumber.substring(6)}B`,
+      firmware: "9.3(12)",
+      targetFirmware: "9.3(12)",
+      status: "Optimal",
+      ipAddress: `10.10.10.100`,
+      validationDetails: "Optimal connection."
+    });
+  } else if (sys.platform.includes("StorageGRID")) {
+    switches.push({
+      type: "Grid Network",
+      model: "Cisco Nexus 93180YC-FX",
+      serialNumber: `SW-GRID-${sys.serialNumber.substring(6)}A`,
+      firmware: seed % 6 === 0 ? "9.3(8)" : "9.3(12)",
+      targetFirmware: "9.3(12)",
+      status: seed % 6 === 0 ? "Warning" : "Optimal",
+      ipAddress: `10.50.10.100`,
+      validationDetails: seed % 6 === 0 ? "Firmware warning: upgrade NX-OS to address grid MTU packet loss bugs." : "Optimal connection."
+    });
+  }
+  
+  return switches;
 }
 
 function getSystemIntegrations(sys) {
@@ -3323,6 +3518,16 @@ function generateActionPlan() {
     }
   });
 
+  const switchAlerts = [];
+  targetSystems.forEach(sys => {
+    const sws = getSystemSwitches(sys);
+    sws.forEach(sw => {
+      if (sw.status !== "Optimal") {
+        switchAlerts.push({ systemName: sys.systemName, ...sw });
+      }
+    });
+  });
+
   // 8. Compile Executable Deliverables (Draft Email, Upgrade Proposal, and Internal Dispatch Ticket)
   const emailRisksList = allRisks.map(r => ` - System: ${r.systemName} | Category: ${r.category} | Issue: ${r.description}`).join("\n");
   const emailCasesList = allSupportCases.map(c => ` - Case ID: ${c.id} | Subject: ${c.title} | Status: ${c.status}`).join("\n");
@@ -3576,9 +3781,81 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
   html += `
     </div>
 
+    <!-- Network Switch & Fabric Infrastructure Remediation Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Network Switch & Fabric Infrastructure Remediation</h2>
+  `;
+
+  if (switchAlerts.length === 0) {
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All interconnect and storage network fabric switches match validated firmware baselines.</p>`;
+  } else {
+    switchAlerts.forEach(sw => {
+      let badgeClass = "badge warning";
+      if (sw.status === "Critical") badgeClass = "badge critical";
+      
+      let stepGuide = "";
+      if (sw.model.toLowerCase().includes("nexus")) {
+        stepGuide = `
+          <strong>ISSU (In-Service Software Upgrade) Action Steps:</strong>
+          <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
+            <li>1. Copy NX-OS system image to switch bootflash: via SCP/SFTP.</li>
+            <li>2. Verify file checksum: <code>show file bootflash:${sw.targetFirmware}.bin md5sum</code></li>
+            <li>3. Perform pre-upgrade impact checks: <code>show install all impact nxos bootflash:${sw.targetFirmware}.bin</code></li>
+            <li>4. Initiate non-disruptive installation: <code>install all nxos bootflash:${sw.targetFirmware}.bin</code></li>
+            <li>5. Verify switch status after reload: <code>show version</code> and check link integrity.</li>
+          </ol>
+        `;
+      } else if (sw.model.toLowerCase().includes("brocade")) {
+        stepGuide = `
+          <strong>Hot Code Load Upgrade Action Steps:</strong>
+          <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
+            <li>1. Upload Fabric OS (FOS) firmware package to switch via FTP/SFTP.</li>
+            <li>2. Run pre-install validations: <code>firmwaredownload -p sftp -u admin -d ...</code></li>
+            <li>3. Initiate non-disruptive download: <code>firmwaredownload</code></li>
+            <li>4. Confirm active partition status: <code>firmwareshow</code></li>
+            <li>5. Verify fabric sync status: <code>switchshow</code></li>
+          </ol>
+        `;
+      } else {
+        stepGuide = `
+          <strong>Firmware Upgrade Steps:</strong>
+          <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
+            <li>1. Back up switch running configuration: <code>copy running-config tftp://...</code></li>
+            <li>2. Download target firmware package matching validated version ${sw.targetFirmware}.</li>
+            <li>3. Run system flash upgrade check and reboot switch during maintenance window.</li>
+          </ol>
+        `;
+      }
+
+      html += `
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 0.85rem; line-height: 1.4;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="font-size: 0.95rem; color: #fff;">System: ${sw.systemName} | ${sw.model} (${sw.type})</strong>
+            <span class="${badgeClass}" style="font-size: 0.7rem;">${sw.status}</span>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;">
+            Switch S/N: <code style="color: var(--accent-cyan);">${sw.serialNumber}</code> | IP: <code>${sw.ipAddress}</code>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Target: <strong style="color: var(--accent-cyan);">${sw.targetFirmware}</strong>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
+            <strong>Validation Drift:</strong> ${sw.validationDetails}
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+            ${stepGuide}
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    </div>
+
     <!-- Site Logistics, Contacts & Health Details Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Site Logistics, Contacts, & Customer Health</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">7. Site Logistics, Contacts, & Customer Health</h2>
   `;
 
   targetSystems.forEach(sys => {
@@ -3615,16 +3892,17 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Guidelines and Proceeding Steps Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">7. Operational Guidelines & Proceeding Steps</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">8. Operational Guidelines & Proceeding Steps</h2>
       
       <div style="margin-bottom: 18px;">
         <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Implementing Changes via NetApp Change Control</h4>
         <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary);">
-          To minimize risk when applying technical fixes (e.g., replacing hardware spare parts, updating shelf SAS cabling, or performing software firmware upgrades), ensure you adhere to NetApp change control guidelines:
+          To minimize risk when applying technical fixes (e.g., replacing hardware spare parts, updating shelf SAS cabling, or performing software/switch firmware upgrades), ensure you adhere to NetApp change control guidelines:
         </p>
         <ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-top: 6px;">
           <li><strong>Upgrade Advisor</strong>: Always run the 'Upgrade Advisor' script inside Active IQ Digital Advisor to generate a customized configuration checklist before performing any ONTAP updates.</li>
           <li><strong>Pre-upgrade Checklists</strong>: Run cluster health checks: 'system health alert show' and verify that replication paths are stable.</li>
+          <li><strong>Switch Upgrades</strong>: For cluster switch ISSU, verify port redundancy using <code>show interface status</code> and ensure peer interconnect links are online. For MetroCluster systems, upgrade switch firmware strictly one switch at a time, validating fabric sync via <code>switchshow</code> before proceeding to the partner site.</li>
           <li><strong>Maintenance Windows</strong>: Schedule all disk replacement and switch firmware modifications during off-peak periods, even if non-disruptive, to prevent application latency spikes.</li>
         </ul>
       </div>
@@ -4534,6 +4812,39 @@ function handleSearch(e) {
   renderSidebarGroups();
 }
 
+function executeSearchGo() {
+  const query = (state.activeSearchQuery || "").trim().toLowerCase();
+  if (!query) return;
+
+  // 1. Check if query matches a customer name exactly
+  const matchedCustomer = state.systems.find(s => s.customerName.toLowerCase() === query);
+  if (matchedCustomer) {
+    state.activeFilterType = "CUSTOMER";
+    state.activeFilterValue = matchedCustomer.customerName;
+    state.activeSearchQuery = "";
+    const searchInput = document.getElementById("searchInput");
+    if (searchInput) searchInput.value = "";
+    switchTab("overview");
+    renderSidebarGroups();
+    return;
+  }
+
+  // 2. Check if query matches a system name, serial number, or cluster name exactly
+  const matchedSystem = state.systems.find(s => 
+    s.systemName.toLowerCase() === query || 
+    s.serialNumber.toLowerCase() === query ||
+    s.clusterName.toLowerCase() === query
+  );
+  if (matchedSystem) {
+    selectSystem(matchedSystem.serialNumber);
+    state.activeSearchQuery = "";
+    const searchInput = document.getElementById("searchInput");
+    if (searchInput) searchInput.value = "";
+    renderSidebarGroups();
+    return;
+  }
+}
+
 // Sidebar switches tabs
 function switchTab(tabId) {
   state.currentTab = tabId;
@@ -4674,6 +4985,11 @@ window.onload = async function() {
   renderSidebarGroups();
 
   document.getElementById("searchInput").addEventListener("input", handleSearch);
+  document.getElementById("searchInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      executeSearchGo();
+    }
+  });
   
   // Close custom multi-select dropdown when clicking outside
   window.addEventListener('click', (e) => {

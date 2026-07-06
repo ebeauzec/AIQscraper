@@ -222,6 +222,31 @@
           </div>
         </div>
 
+        <!-- Network Switch & Fabric Validation Card -->
+        <div class="card table-card" style="margin-top: 24px;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>Network Switch & Fabric Firmware Validation</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Active IQ IMT Verification</span>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 140px;">System</th>
+                  <th style="width: 220px;">Switch Model & S/N</th>
+                  <th style="width: 160px;">Role / Type</th>
+                  <th style="width: 180px;">Firmware (Current / Target)</th>
+                  <th style="width: 140px;">Validation Status</th>
+                  <th>Remediation Action</th>
+                </tr>
+              </thead>
+              <tbody id="tamSwitchesTableBody">
+                <!-- JS dynamic switches list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Security & Technical Bulletins Card -->
         <div class="card table-card" style="margin-top: 24px;">
           <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Security & Technical Bulletins</div>
