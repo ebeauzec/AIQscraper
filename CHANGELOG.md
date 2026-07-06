@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-07-06
+
+### Added
+*   **Site Logistics & Site Contacts**: Added delivery site addresses, gate access restrictions, courier transit alert banners, and primary site contacts (names, emails, phones, NSS IDs) to the Support & Ops tab.
+*   **Sales Health Scorecards**: Added account sentiment scores (CSAT), sales AM/TAM representative tracks, target hardware refresh windows, and CSM upsell pipelines.
+*   **Projections Line Charts**: Added historical and projected storage capacity growth line graphs and performance peak IOPS metrics to the CSM Value & ROI tab.
+*   **Security & Technical Bulletins**: Added NetApp Security Advisories (NTAP-SA) tables mapping CVE vulnerabilities and mitigation guides to the Technical Audit tab.
+*   **Custom Metadata & Bulletins Editors**: Added edit input forms and JSON textareas in the Settings tab to modify logistics, site contacts, CSAT sentiments, daily growth rates, and security advisories for each system.
+*   **Sidebar Navigation Renaming**: Renamed "TAM Technical Audit" to "Technical Audit" and "SAM Support & Ops" to "Support & Ops" for concise terminology.
+
 ## [1.3.0] - 2026-07-06
 
 ### Added

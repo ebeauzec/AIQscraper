@@ -761,3 +761,13 @@ input:checked + .slider:before {
   background-color: var(--status-warning);
   box-shadow: 0 0 6px rgba(255, 179, 0, 0.4);
 }
+
+/* Account Health Sentiment Progress trackers */
+.health-bar-container {
+  background: rgba(255, 255, 255, 0.05);
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 6px;
+  overflow: hidden;
+  position: relative;
+}

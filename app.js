@@ -10,7 +10,7 @@
 
 const API_BASE = "https://api.activeiq.netapp.com/v1";
 
-// 1. Mock Data Definitions (Aligned with ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors)
+// 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins)
 const MOCK_SYSTEMS = [
   {
     serialNumber: "622001234567",
@@ -120,6 +120,50 @@ const MOCK_SYSTEMS = [
         multipathing: "VMW_PSP_RR (Round Robin)",
         health: "Normal"
       }
+    ],
+    logistics: {
+      deliveryAddress: "740 Broadway, Floor 8, New York, NY 10003, US",
+      accessRestrictions: "Escort required. 24-hr advance notification to security lobby for loading dock B access.",
+      shippingAlert: "None - Active logistics hubs running normal"
+    },
+    contacts: {
+      name: "Sarah Jenkins",
+      phone: "+1-212-555-0182",
+      email: "sarah.jenkins@globalbank.com",
+      nssUsername: "sjenkins_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 8.5,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "AFF A900 hardware refresh upgrade",
+      refreshWindow: "Q3 2026"
+    },
+    projections: {
+      growthRateGBPerDay: 185,
+      daysToLimit: 78,
+      limitDate: "2026-09-22",
+      peakIops: 28500,
+      avgLatencyMs: 2.1,
+      historicalCapacityMonths: [18.5, 20.1, 22.0, 24.2, 26.5, 28.7],
+      projectedCapacityMonths: [30.5, 32.4, 34.3]
+    },
+    securityBulletins: [
+      {
+        id: "NTAP-SA-2024-0002",
+        title: "NetApp ONTAP Web UI Multi-vector Denial of Service (DoS) vulnerability",
+        severity: "high",
+        status: "Vulnerable - Action Required",
+        mitigation: "Upgrade to ONTAP 9.13.1P8 or restrict HTTP access on admin interface."
+      },
+      {
+        id: "NTAP-SA-2023-0914",
+        title: "OpenSSL Vulnerabilities in ONTAP cryptographic modules",
+        severity: "medium",
+        status: "Workaround Applied",
+        mitigation: "Workaround applied: Disabled TLS 1.0/1.1 protocols. Upgrade recommended."
+      }
     ]
   },
   {
@@ -137,7 +181,7 @@ const MOCK_SYSTEMS = [
         category: "Integration",
         description: "Kubernetes Astra Trident driver (v23.04) is outdated and unsupported.",
         recommendation: "Upgrade Astra Trident driver to v24.02 for full ONTAP 9.14 API support.",
-        kbLink: "https://docs.netapp.com/us-en/trident/trident-get-started/requirements.html",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/requirements",
         remediationPlan: {
           cause: "Kubernetes cluster upgraded to v1.28 while Astra Trident version remains at v23.04. API deprecations break storage provisioning.",
           impact: "Inability to dynamically provision new Persistent Volumes (PV) for container workloads. Existing PVs remain mounted but configuration edits fail.",
@@ -223,6 +267,43 @@ const MOCK_SYSTEMS = [
         plugin: "Astra Trident 23.04 (Outdated)",
         multipathing: "AWS EBS Multipath NVMe",
         health: "Warning"
+      }
+    ],
+    logistics: {
+      deliveryAddress: "AWS Cloud VPC (AWS US-East-1 region, Logical Instance)",
+      accessRestrictions: "No physical site restrictions. API/IAM authorization configuration required.",
+      shippingAlert: "Virtual cloud instance - No physical parts delivery required"
+    },
+    contacts: {
+      name: "Robert Chen",
+      phone: "+1-415-555-0923",
+      email: "robert.chen@globalbank.com",
+      nssUsername: "rchen_cloud_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 6.5,
+      healthStatus: "Retention Risk",
+      upsellPotential: "FabricPool cloud tiering expansion",
+      refreshWindow: "Q4 2027"
+    },
+    projections: {
+      growthRateGBPerDay: 320,
+      daysToLimit: 145,
+      limitDate: "2026-11-28",
+      peakIops: 12400,
+      avgLatencyMs: 4.5,
+      historicalCapacityMonths: [45.0, 50.2, 55.4, 60.1, 65.8, 71.4],
+      projectedCapacityMonths: [77.2, 83.0, 88.8]
+    },
+    securityBulletins: [
+      {
+        id: "NTAP-SA-2024-0015",
+        title: "Astra Trident CSI provisioning unauthorized API validation bypass",
+        severity: "high",
+        status: "Vulnerable - Action Required",
+        mitigation: "Upgrade Astra Trident driver to version 24.02.0."
       }
     ]
   },
@@ -319,6 +400,43 @@ const MOCK_SYSTEMS = [
         multipathing: "100G LACP Bonding",
         health: "Critical"
       }
+    ],
+    logistics: {
+      deliveryAddress: "550 Enterprise Dr, Data Center Row 4, Dallas, TX 75201, US",
+      accessRestrictions: "Biometric check required. SATA drive chassis hot-swap only by certified NetApp engineers.",
+      shippingAlert: "Dallas Transit Alert: Winter storm warning causing 24h shipping delays from local depot."
+    },
+    contacts: {
+      name: "James Cole",
+      phone: "+1-214-555-0374",
+      email: "james.cole@globalbank.com",
+      nssUsername: "jcole_infra_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 7.0,
+      healthStatus: "Stable",
+      upsellPotential: "Expansion of StorageGRID SGRID-SG6060 compute node shelf",
+      refreshWindow: "Q2 2027"
+    },
+    projections: {
+      growthRateGBPerDay: 1500,
+      daysToLimit: 92,
+      limitDate: "2026-10-06",
+      peakIops: 8900,
+      avgLatencyMs: 8.2,
+      historicalCapacityMonths: [700.0, 730.0, 760.0, 790.0, 820.0, 850.0],
+      projectedCapacityMonths: [880.0, 910.0, 940.0]
+    },
+    securityBulletins: [
+      {
+        id: "NTAP-SA-2024-0012",
+        title: "StorageGRID Webscale Management Interface Remote Code Execution (RCE)",
+        severity: "critical",
+        status: "Vulnerable - Action Required",
+        mitigation: "Apply security patch StorageGRID 11.8.0.2 or disable Management port 9443 access to untrusted networks."
+      }
     ]
   },
   {
@@ -401,6 +519,43 @@ const MOCK_SYSTEMS = [
         multipathing: "ALUA Multipath configured",
         health: "Normal"
       }
+    ],
+    logistics: {
+      deliveryAddress: "Site A: 100 Plaza Dr, Secaucus, NJ 07094 | Site B: 200 Broad St, Newark, NJ 07102",
+      accessRestrictions: "Requires custom high-security access clearance pass and photo ID.",
+      shippingAlert: "None - Switch modules staged at Newark local storage"
+    },
+    contacts: {
+      name: "Samantha Ross",
+      phone: "+1-201-555-0988",
+      email: "samantha.ross@globalbank.com",
+      nssUsername: "sross_mc_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 9.0,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "Switch support upgrade agreements",
+      refreshWindow: "Q1 2028"
+    },
+    projections: {
+      growthRateGBPerDay: 240,
+      daysToLimit: 210,
+      limitDate: "2027-02-01",
+      peakIops: 34200,
+      avgLatencyMs: 1.8,
+      historicalCapacityMonths: [110.0, 115.4, 122.1, 128.5, 135.0, 142.1],
+      projectedCapacityMonths: [148.5, 154.9, 161.3]
+    },
+    securityBulletins: [
+      {
+        id: "NTAP-SA-2023-1120",
+        title: "Cisco switch hardware supervisor privilege escalation vulnerability",
+        severity: "medium",
+        status: "Mitigated",
+        mitigation: "Cisco Nexus NX-OS patch applied at site A & B switches."
+      }
     ]
   },
   {
@@ -473,6 +628,43 @@ const MOCK_SYSTEMS = [
         multipathing: "VMW_PSP_FIXED (Out of Compliance)",
         health: "Warning"
       }
+    ],
+    logistics: {
+      deliveryAddress: "1000 Innovation Way, Server Room A, Sunnyvale, CA 94089, US",
+      accessRestrictions: "Badged access required. Coordinate delivery with virtualization team 48 hours in advance.",
+      shippingAlert: "None - Sunnyvale depot operations running normal"
+    },
+    contacts: {
+      name: "Thomas Miller",
+      phone: "+1-408-555-0456",
+      email: "thomas.miller@globalbank.com",
+      nssUsername: "tmiller_vm_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 5.8,
+      healthStatus: "Retention Risk",
+      upsellPotential: "Migrate VMware storage to ONTAP Tools v10",
+      refreshWindow: "Q3 2026"
+    },
+    projections: {
+      growthRateGBPerDay: 110,
+      daysToLimit: 45,
+      limitDate: "2026-08-20",
+      peakIops: 19500,
+      avgLatencyMs: 3.2,
+      historicalCapacityMonths: [60.0, 62.5, 65.0, 67.5, 70.2, 72.9],
+      projectedCapacityMonths: [75.2, 77.5, 79.8]
+    },
+    securityBulletins: [
+      {
+        id: "NTAP-SA-2024-0301",
+        title: "NetApp NFS VAAI integration plugin for VMware heap overflow",
+        severity: "high",
+        status: "Vulnerable - Action Required",
+        mitigation: "Install ESXi patch NetApp-NFS-VAAI-Plugin v2.1."
+      }
     ]
   }
 ];
@@ -516,6 +708,19 @@ function loadConfig() {
   const access = localStorage.getItem("aiq_access_token") || "";
   const expiry = localStorage.getItem("aiq_token_expiry") || "";
   
+  // Load systems db if exists in local storage
+  const savedSystems = localStorage.getItem("aiq_systems_db");
+  if (savedSystems) {
+    state.systems = JSON.parse(savedSystems);
+  } else {
+    state.systems = [...MOCK_SYSTEMS];
+  }
+
+  // Pick first system as selected
+  if (state.systems.length > 0) {
+    state.selectedSystem = state.systems[0];
+  }
+
   // Load groups
   const savedGroups = localStorage.getItem("aiq_custom_groups");
   if (savedGroups) {
@@ -531,6 +736,10 @@ function saveConfig(refresh, access, expiry) {
   localStorage.setItem("aiq_refresh_token", refresh);
   localStorage.setItem("aiq_access_token", access);
   localStorage.setItem("aiq_token_expiry", expiry);
+}
+
+function saveSystems() {
+  localStorage.setItem("aiq_systems_db", JSON.stringify(state.systems));
 }
 
 function saveGroups() {
@@ -605,9 +814,9 @@ function simulateMockAPIResponse(endpoint) {
     const parts = endpoint.split("/");
     if (parts.length > 2) {
       const serial = parts[2];
-      return MOCK_SYSTEMS.find(s => s.serialNumber === serial) || MOCK_SYSTEMS[0];
+      return state.systems.find(s => s.serialNumber === serial) || state.systems[0];
     }
-    return MOCK_SYSTEMS;
+    return state.systems;
   }
   return {};
 }
@@ -615,6 +824,7 @@ function simulateMockAPIResponse(endpoint) {
 // 5. DOM Render Utilities & Charts
 let efficiencyChartInstance = null;
 let capacityChartInstance = null;
+let projectionsChartInstance = null; // Line chart for capacity & performance trends
 
 function renderCharts() {
   const ctxEff = document.getElementById("efficiencyChart");
@@ -623,6 +833,13 @@ function renderCharts() {
   if (!ctxEff || !ctxCap) return;
   
   const filteredSystems = getFilteredSystems();
+  
+  if (filteredSystems.length === 0) {
+    if (efficiencyChartInstance) efficiencyChartInstance.destroy();
+    if (capacityChartInstance) capacityChartInstance.destroy();
+    return;
+  }
+
   const logicalSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.logicalUsedTB, 0);
   const physicalSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.physicalUsedTB, 0);
   const savedSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.spaceSavedTB, 0);
@@ -722,6 +939,7 @@ function updateOverviewKpis() {
   document.getElementById("kpiWarningRisks").innerText = warningRisksCount;
   document.getElementById("kpiContracts").innerText = expiringContracts;
   
+  document.getElementById("kpiTotalSystems").style.color = "var(--text-primary)";
   document.getElementById("kpiCriticalRisks").style.color = criticalRisksCount > 0 ? "var(--status-critical)" : "var(--status-normal)";
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
@@ -775,6 +993,14 @@ function renderOverviewTable() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+function selectSystem(serial) {
+  const found = state.systems.find(s => s.serialNumber === serial);
+  if (found) {
+    state.selectedSystem = found;
+    switchTab("tam"); // Switch to Technical Audit details on system click
+  }
 }
 
 function populateSystemSelectors() {
@@ -863,6 +1089,7 @@ function renderTAMTab() {
   if (!sys) {
     document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
     document.getElementById("tamUpgradeContainer").innerHTML = "";
+    document.getElementById("tamSecurityBulletinsBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No bulletins.</td></tr>`;
     return;
   }
 
@@ -899,7 +1126,9 @@ function renderTAMTab() {
       `;
     });
   }
+  document.getElementById("tamRisksTableBody").innerHTML = riskRows;
 
+  // OS Upgrade
   const upgradeBox = document.getElementById("tamUpgradeContainer");
   if (sys.upgrades.targetVersion === "Up to Date") {
     upgradeBox.innerHTML = `
@@ -918,7 +1147,31 @@ function renderTAMTab() {
     `;
   }
 
-  document.getElementById("tamRisksTableBody").innerHTML = riskRows;
+  // NEW: Render Security & Technical Bulletins
+  const bulletins = sys.securityBulletins || [];
+  let bulletinRows = "";
+  if (bulletins.length === 0) {
+    bulletinRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active security advisories mapped.</td></tr>`;
+  } else {
+    bulletins.forEach(b => {
+      let bBadge = `<span class="badge warning">${b.severity}</span>`;
+      if (b.severity === "critical") bBadge = `<span class="badge critical">Critical</span>`;
+      else if (b.severity === "high") bBadge = `<span class="badge critical">High</span>`;
+      
+      bulletinRows += `
+        <tr>
+          <td><strong style="color: var(--accent-cyan); font-family: monospace;">${b.id}</strong></td>
+          <td>
+            <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; color: var(--text-primary);">${b.title}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">${b.mitigation}</div>
+          </td>
+          <td>${bBadge}</td>
+          <td><code style="color: var(--status-warning); font-size: 0.78rem;">${b.status}</code></td>
+        </tr>
+      `;
+    });
+  }
+  document.getElementById("tamSecurityBulletinsBody").innerHTML = bulletinRows;
 }
 
 function renderSAMTab() {
@@ -928,6 +1181,8 @@ function renderSAMTab() {
     document.getElementById("samContractCard").innerHTML = "";
     document.getElementById("samLifecycleCard").innerHTML = "";
     document.getElementById("samHypervisorCard").innerHTML = "";
+    document.getElementById("samLogisticsCard").innerHTML = "";
+    document.getElementById("samSalesHealthCard").innerHTML = "";
     document.getElementById("samFieldActionsBody").innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
     return;
   }
@@ -936,6 +1191,7 @@ function renderSAMTab() {
     <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Platform</strong>: ${sys.platform}
   `;
 
+  // Contract details
   let contractBadge = `<span class="badge normal">Active</span>`;
   let expiryColor = "var(--text-primary)";
   if (sys.contracts.status === "critical") {
@@ -948,17 +1204,21 @@ function renderSAMTab() {
 
   document.getElementById("samContractCard").innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Support Level: ${sys.contracts.supportLevel}</h4>
+      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Support Level</h4>
       ${contractBadge}
     </div>
-    <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${expiryColor};">
-      Expires: ${sys.contracts.endDate}
+    <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; color: ${expiryColor};">
+      ${sys.contracts.supportLevel}
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 4px;">
+      Expires: <strong>${sys.contracts.endDate}</strong>
     </div>
     <div style="font-size: 0.8rem; color: var(--text-muted);">
       ${sys.contracts.daysRemaining < 0 ? `Support ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`}
     </div>
   `;
 
+  // Lifecycles
   let lcStatus = `<span class="badge normal">Fully Supported</span>`;
   let eoaGlow = "var(--text-primary)";
   if (sys.lifecycle.isNearEos) {
@@ -971,32 +1231,15 @@ function renderSAMTab() {
       <h4 style="font-size: 0.9rem; color: var(--text-secondary);">End of Support (EOS)</h4>
       ${lcStatus}
     </div>
-    <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${eoaGlow};">
+    <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; color: ${eoaGlow};">
       EOS: ${sys.lifecycle.eosDate}
     </div>
-    <div style="font-size: 0.8rem; color: var(--text-muted);">
-      End of Availability (EOA): ${sys.lifecycle.eoaDate}
+    <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 4px;">
+      End of Availability: <strong>${sys.lifecycle.eoaDate}</strong>
     </div>
   `;
 
-  let faRows = "";
-  if (sys.fieldActions.length === 0) {
-    faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. System is compliant.</td></tr>`;
-  } else {
-    sys.fieldActions.forEach(fa => {
-      faRows += `
-        <tr>
-          <td style="font-weight: 600; color: var(--status-warning);"><code>${fa.id}</code></td>
-          <td>
-            <div style="font-weight: 500; margin-bottom: 4px;">${fa.title}</div>
-            <div style="color: var(--text-secondary); font-size: 0.8rem;">${fa.actionRequired}</div>
-          </td>
-        </tr>
-      `;
-    });
-  }
-  document.getElementById("samFieldActionsBody").innerHTML = faRows;
-
+  // Hypervisors
   const hypContainer = document.getElementById("samHypervisorCard");
   if (hypContainer && sys.hypervisors && sys.hypervisors.length > 0) {
     const hyp = sys.hypervisors[0];
@@ -1022,6 +1265,107 @@ function renderSAMTab() {
   } else if (hypContainer) {
     hypContainer.innerHTML = `<div style="color: var(--text-muted);">No hypervisor integrations tracked.</div>`;
   }
+
+  // Logistics & Site Access Card
+  const logistics = sys.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None" };
+  const contacts = sys.contacts || { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set" };
+  const logAlertActive = logistics.shippingAlert && logistics.shippingAlert.toLowerCase() !== "none" && !logistics.shippingAlert.toLowerCase().includes("normal");
+  
+  document.getElementById("samLogisticsCard").innerHTML = `
+    <div class="card-title" style="color: var(--accent-cyan); margin-bottom: 16px;">Site Logistics & Contacts</div>
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px;">
+      <div>
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Delivery Address</span>
+          <div style="font-size: 0.85rem; color: var(--text-primary); margin-top: 4px; font-style: italic;">${logistics.deliveryAddress}</div>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Site Access & Security Rules</span>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; line-height: 1.3;">${logistics.accessRestrictions}</div>
+        </div>
+        ${logAlertActive ? `
+          <div style="background-color: rgba(255, 51, 102, 0.06); border: 1px solid rgba(255, 51, 102, 0.2); padding: 10px; border-radius: var(--radius-sm); color: var(--status-critical); font-size: 0.78rem;">
+            <strong>⚠️ Logistics Transit Alert:</strong> ${logistics.shippingAlert}
+          </div>
+        ` : `
+          <div style="background-color: rgba(0, 230, 118, 0.05); border: 1px solid rgba(0, 230, 118, 0.15); padding: 8px 12px; border-radius: var(--radius-sm); color: var(--status-normal); font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px;">
+            <span>✓</span> Parts Logistics Hubs Normal
+          </div>
+        `}
+      </div>
+      <div style="border-left: 1px solid var(--border-color); padding-left: 20px;">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 8px;">Primary Site Contact</span>
+        <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 4px;">${contacts.name}</div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px;">📞 ${contacts.phone}</div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">✉️ <a href="mailto:${contacts.email}" style="color: var(--accent-cyan); text-decoration: none;">${contacts.email}</a></div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); padding-top: 6px; border-top: 1px dashed var(--border-color);">
+          NSS Account ID: <code style="color: var(--text-primary); font-size: 0.75rem;">${contacts.nssUsername}</code>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Sales & Customer Health Card
+  const health = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review" };
+  const sentimentPct = health.sentimentScore * 10;
+  let healthColor = "var(--status-normal)";
+  if (health.sentimentScore < 6.0) healthColor = "var(--status-critical)";
+  else if (health.sentimentScore < 7.5) healthColor = "var(--status-warning)";
+
+  document.getElementById("samSalesHealthCard").innerHTML = `
+    <div class="card-title" style="color: var(--accent-cyan); margin-bottom: 16px;">Sales & Account Health Scorecard</div>
+    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px;">
+      <div>
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 4px;">Customer CSAT Sentiment</span>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="font-size: 1.8rem; font-weight: 800; color: ${healthColor};">${health.sentimentScore.toFixed(1)}<span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/10</span></div>
+            <span class="badge" style="background-color: rgba(255,255,255,0.03); border-color: var(--border-color); color: ${healthColor}; font-size: 0.7rem; font-weight: 700;">${health.healthStatus}</span>
+          </div>
+          <div class="health-bar-container" style="background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; margin-top: 6px; overflow: hidden;">
+            <div style="background: ${healthColor}; height: 100%; width: ${sentimentPct}%;"></div>
+          </div>
+        </div>
+        <div style="margin-bottom: 4px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Sales Account Manager</span>
+          <div style="font-size: 0.85rem; color: var(--text-primary); font-weight: 600; margin-top: 2px;">${health.accountManager}</div>
+        </div>
+        <div>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Support Lead TAM/SAM</span>
+          <div style="font-size: 0.85rem; color: var(--text-primary); margin-top: 2px;">${health.supportTam}</div>
+        </div>
+      </div>
+      <div style="border-left: 1px solid var(--border-color); padding-left: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="margin-bottom: 10px;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Upcoming Refresh Window</span>
+          <div style="font-size: 0.85rem; color: var(--status-warning); font-weight: 700; margin-top: 4px;">${health.refreshWindow}</div>
+        </div>
+        <div style="background-color: rgba(0, 229, 255, 0.04); border: 1px solid rgba(0, 229, 255, 0.15); padding: 10px; border-radius: var(--radius-sm);">
+          <div style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">CSM Upsell Pipeline Opportunity</div>
+          <div style="font-size: 0.8rem; color: var(--text-primary); font-weight: 500; line-height: 1.3;">${health.upsellPotential}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Field Actions
+  let faRows = "";
+  if (sys.fieldActions.length === 0) {
+    faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. System is compliant.</td></tr>`;
+  } else {
+    sys.fieldActions.forEach(fa => {
+      faRows += `
+        <tr>
+          <td style="font-weight: 600; color: var(--status-warning);"><code>${fa.id}</code></td>
+          <td>
+            <div style="font-weight: 500; margin-bottom: 4px;">${fa.title}</div>
+            <div style="color: var(--text-secondary); font-size: 0.8rem;">${fa.actionRequired}</div>
+          </td>
+        </tr>
+      `;
+    });
+  }
+  document.getElementById("samFieldActionsBody").innerHTML = faRows;
 }
 
 function renderCSMTab() {
@@ -1032,6 +1376,11 @@ function renderCSMTab() {
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
+    document.getElementById("csmGrowthRateText").innerText = "";
+    document.getElementById("csmDaysToLimitText").innerText = "-";
+    document.getElementById("csmLimitDateText").innerText = "-";
+    document.getElementById("csmPeakIopsText").innerText = "-";
+    document.getElementById("csmAvgLatencyText").innerText = "-";
     return;
   }
 
@@ -1063,8 +1412,8 @@ function renderCSMTab() {
   `;
 
   const fpTiered = sys.efficiency.fabricPoolTieredTB;
-  let fpStatusText = "";
   let fpAdoptionBadge = "";
+  let fpStatusText = "";
   
   if (fpTiered > 0) {
     fpAdoptionBadge = `<span class="badge normal">Tiering Active</span>`;
@@ -1104,7 +1453,7 @@ function renderCSMTab() {
         `;
       });
     } else {
-      relationshipsHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">No SnapMirror relations mapped. Add sync/async links for remote backups.</div>`;
+      relationshipsHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">No SnapMirror relations mapped. Add sync/async replication for disaster recovery.</div>`;
     }
 
     smContainer.innerHTML = `
@@ -1137,48 +1486,89 @@ function renderCSMTab() {
     `;
   });
   document.getElementById("csmAdoptionChecklist").innerHTML = checklistHTML;
-}
 
-// 6. JSON Import / Export & Configuration Panel
-function exportConfigJSON() {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.systems, null, 2));
-  const link = document.createElement("a");
-  link.setAttribute("href", dataStr);
-  link.setAttribute("download", `ActiveIQ_AccountReportConfig_${new Date().toISOString().split('T')[0]}.json`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function triggerImportFileInput() {
-  document.getElementById("importFileInput").click();
-}
-
-function handleJSONImport(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+  // Render Projections & Forecasting Metrics & Line Chart
+  const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
   
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const importedData = JSON.parse(e.target.result);
-      if (Array.isArray(importedData)) {
-        if (importedData.length > 0 && importedData[0].serialNumber) {
-          state.systems = importedData;
-          state.selectedSystem = importedData[0];
-          alert(`Successfully imported configuration containing ${importedData.length} NetApp systems!`);
-          switchTab("overview");
-        } else {
-          alert("Invalid file format. Systems must contain 'serialNumber' property.");
+  document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay} GB/day`;
+  
+  const limitLabel = document.getElementById("csmDaysToLimitText");
+  limitLabel.innerText = `${proj.daysToLimit} Days`;
+  limitLabel.style.color = proj.daysToLimit <= 60 ? "var(--status-critical)" : (proj.daysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
+  
+  document.getElementById("csmLimitDateText").innerText = `Est. Limit reached: ${proj.limitDate}`;
+  document.getElementById("csmPeakIopsText").innerText = `${proj.peakIops.toLocaleString()} IOPS`;
+  document.getElementById("csmAvgLatencyText").innerText = `Avg Latency: ${proj.avgLatencyMs.toFixed(1)} ms`;
+
+  // Draw capacity/performance projection line chart
+  renderProjectionsChart(proj, sys.systemName);
+}
+
+function renderProjectionsChart(proj, systemName) {
+  const ctx = document.getElementById("csmProjectionsChart");
+  if (!ctx) return;
+
+  if (projectionsChartInstance) {
+    projectionsChartInstance.destroy();
+  }
+
+  if (typeof Chart === "undefined") return;
+
+  // Generate labels representing past 6 months + next 3 months
+  const labels = ["Month -6", "Month -5", "Month -4", "Month -3", "Month -2", "Current", "Month +1 (Proj)", "Month +2 (Proj)", "Month +3 (Proj)"];
+  
+  // Format datasets: historical capacity stops at "Current", projected capacity continues from "Current"
+  const histData = [...proj.historicalCapacityMonths, ...Array(3).fill(null)];
+  const projData = [...Array(5).fill(null), proj.historicalCapacityMonths[5], ...proj.projectedCapacityMonths];
+
+  projectionsChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Historical Storage Utilized (TB)',
+          data: histData,
+          borderColor: '#00e5ff',
+          backgroundColor: 'rgba(0, 229, 255, 0.05)',
+          borderWidth: 3,
+          tension: 0.2,
+          fill: true
+        },
+        {
+          label: 'Projected Growth Trend (TB)',
+          data: projData,
+          borderColor: '#ffb300',
+          borderDash: [5, 5],
+          backgroundColor: 'transparent',
+          borderWidth: 3,
+          tension: 0.2,
+          pointStyle: 'rectRot',
+          pointRadius: 6
         }
-      } else {
-        alert("Invalid file format. Configuration must be a JSON array of systems.");
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          ticks: { color: '#9ca3af', font: { size: 10 } },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        },
+        y: {
+          ticks: { color: '#9ca3af', font: { size: 10 } },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: '#f3f4f6', boxWidth: 12, font: { size: 11 } }
+        }
       }
-    } catch (err) {
-      alert("Failed to parse JSON configuration: " + err.message);
     }
-  };
-  reader.readAsText(file);
+  });
 }
 
 // 7. Action Plan Compiler
@@ -1240,7 +1630,7 @@ function generateActionPlan() {
   }
 
   if (targetSystems.length === 0) {
-    planBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px;">No systems found in the selected scope.</div>`;
+    planBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px;">No systems found in selected scope.</div>`;
     return;
   }
 
@@ -1249,6 +1639,7 @@ function generateActionPlan() {
   const expiringContracts = [];
   const activeFAs = [];
   const allHypervisors = [];
+  const allSecurityAdvisories = [];
 
   targetSystems.forEach(sys => {
     sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
@@ -1261,6 +1652,9 @@ function generateActionPlan() {
     sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
     if (sys.hypervisors) {
       sys.hypervisors.forEach(h => allHypervisors.push({ systemName: sys.systemName, ...h }));
+    }
+    if (sys.securityBulletins) {
+      sys.securityBulletins.forEach(sb => allSecurityAdvisories.push({ systemName: sys.systemName, ...sb }));
     }
   });
 
@@ -1287,8 +1681,8 @@ function generateActionPlan() {
           <div style="font-size: 1.4rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Pending OS Upgrades</div>
-          <div style="font-size: 1.4rem; font-weight: 700; color: ${allUpgrades.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allUpgrades.length}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
           <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Support Expired/Expiring</div>
@@ -1347,9 +1741,40 @@ function generateActionPlan() {
   html += `
     </div>
 
+    <!-- NEW: Security & Technical Bulletins Section -->
+    <div style="margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">3. Security Bulletins & Vulnerability Mitigations</h2>
+  `;
+
+  if (allSecurityAdvisories.length === 0) {
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No security vulnerabilities mapped against the target system release baselines.</p>`;
+  } else {
+    allSecurityAdvisories.forEach((s, idx) => {
+      let badgeClass = "badge info";
+      if (s.severity === "critical" || s.severity === "high") badgeClass = "badge critical";
+      
+      html += `
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <strong>Bulletin: ${s.id} - ${s.systemName}</strong>
+            <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity}</span>
+          </div>
+          <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${s.title}</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px;">
+            <strong>Mitigation Steps:</strong> ${s.mitigation}
+          </div>
+          <div style="font-size: 0.8rem; color: var(--status-warning);">Status: <strong>${s.status}</strong></div>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    </div>
+
     <!-- OS/Firmware Upgrades Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">3. Recommended OS Upgrade Roadmaps</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Recommended OS Upgrade Roadmaps</h2>
   `;
 
   if (allUpgrades.length === 0) {
@@ -1376,34 +1801,46 @@ function generateActionPlan() {
   html += `
     </div>
 
-    <!-- Support and Lifecycles Section -->
+    <!-- Site Logistics, Contacts & Health Details Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Support Agreements & Hardware Lifecycles</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Site Logistics, Contacts, & Customer Health</h2>
   `;
 
-  if (expiringContracts.length === 0) {
-    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All support contracts have active status and exceed 90 days validity.</p>`;
-  } else {
-    expiringContracts.forEach(c => {
-      const isExpired = c.daysRemaining < 0;
-      const textClass = isExpired ? "color: var(--status-critical);" : "color: var(--status-warning);";
-      html += `
-        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px; ${textClass}">
-          <strong>System: ${c.systemName} - Contract Expiry Warning</strong>
-          <div style="font-size: 0.85rem; margin-top: 4px; color: var(--text-secondary);">
-            Support Level: <strong>${c.supportLevel}</strong> | Expiration Date: <strong>${c.endDate}</strong> (${c.daysRemaining} days remaining)
+  targetSystems.forEach(sys => {
+    const l = sys.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None" };
+    const c = sys.contacts || { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set" };
+    const h = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review" };
+    const p = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review" };
+    
+    html += `
+      <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 0.85rem; line-height: 1.4;">
+        <div style="font-weight: 700; font-size: 0.95rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px; margin-bottom: 10px; color: var(--accent-cyan);">${sys.systemName} (S/N: ${sys.serialNumber})</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div>
+            <div><strong>Delivery Address:</strong><br><span style="color: var(--text-secondary); font-style: italic;">${l.deliveryAddress}</span></div>
+            <div style="margin-top: 8px;"><strong>Access Rules:</strong><br><span style="color: var(--text-secondary);">${l.accessRestrictions}</span></div>
+            <div style="margin-top: 8px;"><strong>Logistics Alerts:</strong><br><span style="color: ${l.shippingAlert.toLowerCase() !== 'none' ? 'var(--status-critical)' : 'var(--status-normal)'}; font-weight: 500;">${l.shippingAlert}</span></div>
+            <div style="margin-top: 8px;"><strong>Storage Growth Runway:</strong><br><span style="color: ${p.daysToLimit < 90 ? 'var(--status-critical)' : 'var(--status-normal)'}; font-weight: 600;">${p.daysToLimit} Days remaining</span> (Est. limit date: ${p.limitDate})</div>
+          </div>
+          <div>
+            <div><strong>Primary Site Contact:</strong><br><span style="color: var(--text-secondary);">${c.name} (${c.phone} / ${c.email})</span></div>
+            <div style="margin-top: 8px;"><strong>Sales Lead & Support TAM:</strong><br><span style="color: var(--text-secondary);">AM: ${h.accountManager} | TAM: ${h.supportTam}</span></div>
+            <div style="margin-top: 8px; display: flex; gap: 20px;">
+              <div><strong>CSAT Score:</strong> <span style="font-weight: 700; color: var(--accent-cyan);">${h.sentimentScore.toFixed(1)}/10</span></div>
+              <div><strong>Tech Refresh window:</strong> <span style="font-weight: 700; color: var(--status-warning);">${h.refreshWindow}</span></div>
+            </div>
           </div>
         </div>
-      `;
-    });
-  }
+      </div>
+    `;
+  });
 
   html += `
     </div>
 
     <!-- Guidelines and Proceeding Steps Section -->
     <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Operational Guidelines & Proceeding Steps</h2>
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Operational Guidelines & Proceeding Steps</h2>
       
       <div style="margin-bottom: 18px;">
         <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Implementing Changes via NetApp Change Control</h4>
@@ -1431,9 +1868,10 @@ function generateActionPlan() {
       <div>
         <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">C. Proceeding Milestones & Next Steps</h4>
         <ol style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-top: 6px;">
-          <li><strong>Coordinate support renewal quotes</strong> for all systems identified in Section 4.</li>
+          <li><strong>Coordinate support renewal quotes</strong> for all systems identified in support reports.</li>
           <li><strong>Create internal IT ticket instances</strong> for the high-priority technical items in Section 2, attaching the generated remediation steps.</li>
-          <li><strong>Download detailed upgrade advisor procedures</strong> from Active IQ Portal for the systems in Section 3.</li>
+          <li><strong>Verify delivery credentials</strong> and clearance permissions with site contacts listed in Section 5 before shipping parts.</li>
+          <li><strong>Review the Security advisories</strong> in Section 3 and schedule OS micro-patches or workaround applications to block exposures.</li>
         </ol>
       </div>
     </div>
@@ -1564,7 +2002,6 @@ function setFilter(type, value) {
   state.activeFilterType = type;
   state.activeFilterValue = value;
   
-  // Highlight tab or overview
   if (state.currentTab !== "overview") {
     switchTab("overview");
   } else {
@@ -1573,7 +2010,6 @@ function setFilter(type, value) {
     renderCharts();
   }
   
-  // Redraw sidebar tree highlights
   renderSidebarGroups();
 }
 
@@ -1584,7 +2020,7 @@ function resetFilter() {
   renderSidebarGroups();
 }
 
-// 9. Custom Group Creation Form Logic (in Settings panel)
+// 9. Custom Group & Metadata Editor Logic (in Settings panel)
 function populateGroupManagerSystems() {
   const container = document.getElementById("groupManagerSystemsList");
   if (!container) return;
@@ -1637,6 +2073,125 @@ function populateGroupManagerSystems() {
   });
 }
 
+function populateLogisticsEditor() {
+  const select = document.getElementById("editorSystemSelect");
+  if (!select) return;
+  
+  const originalVal = select.value;
+  select.innerHTML = "";
+  
+  state.systems.forEach(sys => {
+    const opt = document.createElement("option");
+    opt.value = sys.serialNumber;
+    opt.innerText = sys.systemName;
+    select.appendChild(opt);
+  });
+  
+  if (originalVal && state.systems.some(s => s.serialNumber === originalVal)) {
+    select.value = originalVal;
+  }
+  
+  loadSelectedSystemMetadataForEdit();
+}
+
+function loadSelectedSystemMetadataForEdit() {
+  const serial = document.getElementById("editorSystemSelect").value;
+  const sys = state.systems.find(s => s.serialNumber === serial);
+  if (!sys) return;
+
+  const logistics = sys.logistics || { deliveryAddress: "", accessRestrictions: "", shippingAlert: "None" };
+  const contacts = sys.contacts || { name: "", phone: "", email: "", nssUsername: "" };
+  const health = sys.salesHealth || { accountManager: "", supportTam: "", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "", refreshWindow: "Under Review" };
+  const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 12, 14, 16, 18, 20], projectedCapacityMonths: [22, 24, 26] };
+  const bulletins = sys.securityBulletins || [];
+
+  document.getElementById("editDeliveryAddress").value = logistics.deliveryAddress;
+  document.getElementById("editAccessRestrictions").value = logistics.accessRestrictions;
+  document.getElementById("editShippingAlert").value = logistics.shippingAlert;
+
+  document.getElementById("editContactName").value = contacts.name;
+  document.getElementById("editContactPhone").value = contacts.phone;
+  document.getElementById("editContactEmail").value = contacts.email;
+  document.getElementById("editNssUsername").value = contacts.nssUsername;
+
+  document.getElementById("editAccountManager").value = health.accountManager;
+  document.getElementById("editSupportTam").value = health.supportTam;
+  document.getElementById("editSentimentScore").value = health.sentimentScore;
+  document.getElementById("editHealthStatus").value = health.healthStatus;
+  document.getElementById("editUpsellPotential").value = health.upsellPotential;
+  document.getElementById("editRefreshWindow").value = health.refreshWindow;
+
+  // Set projections fields inside edit panel
+  document.getElementById("editGrowthRate").value = proj.growthRateGBPerDay;
+  document.getElementById("editDaysToLimit").value = proj.daysToLimit;
+  document.getElementById("editLimitDate").value = proj.limitDate;
+  document.getElementById("editPeakIops").value = proj.peakIops;
+  document.getElementById("editAvgLatency").value = proj.avgLatencyMs;
+  document.getElementById("editHistCapacityCSV").value = proj.historicalCapacityMonths.join(",");
+  document.getElementById("editProjCapacityCSV").value = proj.projectedCapacityMonths.join(",");
+
+  // Set Security Bulletins JSON
+  document.getElementById("editSecurityBulletinsJSON").value = JSON.stringify(bulletins, null, 2);
+}
+
+function saveSystemMetadata() {
+  const serial = document.getElementById("editorSystemSelect").value;
+  const idx = state.systems.findIndex(s => s.serialNumber === serial);
+  if (idx === -1) return;
+
+  state.systems[idx].logistics = {
+    deliveryAddress: document.getElementById("editDeliveryAddress").value.trim(),
+    accessRestrictions: document.getElementById("editAccessRestrictions").value.trim(),
+    shippingAlert: document.getElementById("editShippingAlert").value.trim()
+  };
+
+  state.systems[idx].contacts = {
+    name: document.getElementById("editContactName").value.trim(),
+    phone: document.getElementById("editContactPhone").value.trim(),
+    email: document.getElementById("editContactEmail").value.trim(),
+    nssUsername: document.getElementById("editNssUsername").value.trim()
+  };
+
+  state.systems[idx].salesHealth = {
+    accountManager: document.getElementById("editAccountManager").value.trim(),
+    supportTam: document.getElementById("editSupportTam").value.trim(),
+    sentimentScore: parseFloat(document.getElementById("editSentimentScore").value || "7.0"),
+    healthStatus: document.getElementById("editHealthStatus").value.trim(),
+    upsellPotential: document.getElementById("editUpsellPotential").value.trim(),
+    refreshWindow: document.getElementById("editRefreshWindow").value.trim()
+  };
+
+  // Save projections numbers
+  const histCSV = document.getElementById("editHistCapacityCSV").value.trim();
+  const projCSV = document.getElementById("editProjCapacityCSV").value.trim();
+
+  state.systems[idx].projections = {
+    growthRateGBPerDay: parseInt(document.getElementById("editGrowthRate").value || "100"),
+    daysToLimit: parseInt(document.getElementById("editDaysToLimit").value || "120"),
+    limitDate: document.getElementById("editLimitDate").value.trim(),
+    peakIops: parseInt(document.getElementById("editPeakIops").value || "10000"),
+    avgLatencyMs: parseFloat(document.getElementById("editAvgLatency").value || "2.5"),
+    historicalCapacityMonths: histCSV ? histCSV.split(",").map(v => parseFloat(v.trim())) : [10, 11, 12, 13, 14, 15],
+    projectedCapacityMonths: projCSV ? projCSV.split(",").map(v => parseFloat(v.trim())) : [16, 17, 18]
+  };
+
+  // Parse and save security bulletins JSON
+  try {
+    const rawJSON = document.getElementById("editSecurityBulletinsJSON").value.trim();
+    state.systems[idx].securityBulletins = JSON.parse(rawJSON || "[]");
+  } catch (err) {
+    alert("Invalid Security Bulletins JSON format. Please verify syntax.");
+    return;
+  }
+
+  saveSystems();
+  alert(`Metadata & specifications for "${state.systems[idx].systemName}" updated successfully!`);
+  
+  if (state.selectedSystem.serialNumber === serial) {
+    state.selectedSystem = state.systems[idx];
+  }
+}
+
 function handleCreateGroup() {
   const nameInput = document.getElementById("newGroupNameInput");
   const name = nameInput.value.trim();
@@ -1680,7 +2235,15 @@ function deleteCustomGroup(groupId) {
   renderSidebarGroups();
 }
 
-// 10. Global active status visual indicators
+// 10. Global active status visual indicators & Settings Saves
+function saveSettings() {
+  const mockToggle = document.getElementById("settingsMockModeToggle").checked;
+  const refresh = document.getElementById("settingsRefreshToken").value.trim();
+  setMockMode(mockToggle);
+  saveConfig(refresh, localStorage.getItem("aiq_access_token") || "", localStorage.getItem("aiq_token_expiry") || "");
+  alert("Settings saved successfully.");
+}
+
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
@@ -1706,12 +2269,60 @@ function handleSearch(e) {
   renderOverviewTable();
 }
 
+// Sidebar switches tabs
+function switchTab(tabId) {
+  state.currentTab = tabId;
+  
+  // Update sidebar active highlights
+  document.querySelectorAll(".nav-item").forEach(item => {
+    item.classList.remove("active");
+    if (item.getAttribute("data-tab") === tabId) {
+      item.classList.add("active");
+    }
+  });
+  
+  // Hide all views
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+  
+  // Show active view
+  const target = document.getElementById(`${tabId}Tab`);
+  if (target) target.classList.add("active");
+
+  // Render specific tab scopes
+  if (tabId === "overview") {
+    updateOverviewKpis();
+    renderOverviewTable();
+    renderCharts();
+  } else if (tabId === "tam") {
+    renderTAMTab();
+  } else if (tabId === "sam") {
+    renderSAMTab();
+  } else if (tabId === "csm") {
+    renderCSMTab();
+  } else if (tabId === "plan") {
+    populateActionPlanSelector();
+    generateActionPlan();
+  } else if (tabId === "settings") {
+    populateGroupManagerSystems();
+    populateLogisticsEditor();
+    
+    // Load auth token input
+    document.getElementById("settingsMockModeToggle").checked = state.mockMode;
+    document.getElementById("settingsRefreshToken").value = localStorage.getItem("aiq_refresh_token") || "";
+  }
+}
+
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Platform,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count\n";
+  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Platform,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,CSAT Sentiment,Daily Growth (GB),Days to Limit\n";
 
   state.systems.forEach(s => {
     const risksCount = s.risks.length;
+    const l = s.logistics || { deliveryAddress: "Not Set" };
+    const c = s.contacts || { name: "Not Set" };
+    const h = s.salesHealth || { sentimentScore: 7.0 };
+    const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120 };
+    
     const row = [
       s.systemName,
       s.serialNumber,
@@ -1722,7 +2333,12 @@ function exportCSV() {
       s.ontapVersion,
       s.efficiency.ratio,
       s.contracts.endDate,
-      risksCount
+      risksCount,
+      l.deliveryAddress,
+      c.name,
+      h.sentimentScore,
+      p.growthRateGBPerDay,
+      p.daysToLimit
     ].map(v => `"${v}"`).join(",");
     csvContent += row + "\n";
   });

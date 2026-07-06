@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -13,12 +13,13 @@ This tool runs **entirely inside your browser** (as a static webpage) from this 
 
 This dashboard consolidates telemetry data from the public Active IQ API to help account teams prepare customer reviews, identify system issues, and optimize installations.
 
-*   **TAM Module (Technical Compliance)**: Lists active predictive risks (e.g., single-path storage failures, outdated shelf firmware) with official NetApp KB remediation links and target version upgrade recommendations. Includes interactive **Remediation Action Plans** displaying root cause, impact, step-by-step commands, and trade-off options.
-*   **SAM Module (Support Operations)**: Tracks contract/warranty expiration thresholds (30/60/90 days), flags hardware End-of-Support (EOS/EOA) dates, and displays unresolved NetApp Field Actions (FA). Includes **3rd-Party Hypervisor Integration** compliance checks.
-*   **CSM Module (ROI & Adoption)**: Showcases storage efficiencies (deduplication ratios, space saved), FabricPool cloud capacity tiering savings, SnapMirror active disaster recovery replication status, and a capability adoption scorecard.
-*   **Action Planner**: Compiles an exhaustive, print-friendly **Executive Action Plan** for a single system, all systems under a specific customer account, or your entire monitored portfolio. Includes prioritized risk remediations, OS roadmaps, and change management proceeding guidelines.
+*   **Technical Audit Module**: Lists active predictive risks (e.g., single-path storage failures, outdated shelf firmware) and **Security & Technical Bulletins** (NetApp Security Advisories - NTAP-SA) with CVE references, vulnerability status, and official mitigation links.
+*   **Support & Ops Module**: Tracks support contract expiration thresholds, flags hardware End-of-Support (EOS/EOA) dates, and displays unresolved NetApp Field Actions (FA). Includes **3rd-Party Hypervisor Integration** compliance checks.
+*   **Site Logistics & Sales Health**: Displays site-specific delivery addresses, access and security gate restrictions, transit alerts, primary technical contacts (with NSS usernames), and account health indicators (AM/TAM leads, customer CSAT sentiment scores, upgrade potential pipelines, tech refresh windows).
+*   **CSM Module (ROI & Adoption)**: Showcases storage efficiencies, FabricPool cloud capacity tiering savings, SnapMirror disaster recovery replication states, and a capability adoption scorecard. Includes a **Capacity & Performance Projection Graph** forecasting storage runway days and peak IOPS latency boundaries.
+*   **Action Planner**: Compiles an exhaustive, print-friendly **Executive Action Plan** for a single system, all systems under a specific customer account, or your entire monitored portfolio. Includes prioritized risks, security bulletins, runway timelines, logistics site contacts, and Change Control proceeding guidelines.
 *   **Sidebar Filtering (Accounts & Groups)**: Dynamically groups systems by Customer Account or Custom Subgroups directly in the sidebar navigation pane. Clicking a group filters the entire dashboard context instantly, complete with risk count indicators.
-*   **Import/Export Config**: Save your active telemetry reports and custom mock datasets as a JSON file, or import external files to load report views instantly without re-querying the API.
+*   **Import/Export Config**: Save your active telemetry reports, custom mock datasets, and updated logistics/bulletins schemas as a JSON file, or import external files to load report views instantly.
 
 ---
 
@@ -34,7 +35,7 @@ This reporting tool is aligned to retrieve and map telemetry across the complete
 ### 3rd-Party Platform & Hypervisor Best Practices
 The tool highlights compliance warnings against NetApp storage best practices for virtualization hosts and orchestrators:
 *   **VMware vSphere / ESXi**:
-    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` (via `esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops`) to balance controller load and prevent latency warnings.
+    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` (via `esxcli storage nmp psp roundrobin device config set -I 1 -t iops`) to balance controller load and prevent latency warnings.
     *   *Integration Plugins*: Audits connectivity and credentials for **VASA Provider** and **ONTAP Tools for VMware (OTV)** for VVol and datastore provisioning.
 *   **Kubernetes (Astra Trident)**:
     *   *Driver Versioning*: Flags outdated Astra Trident CSI drivers backing Kubernetes Persistent Volumes (PVs) that mismatch host API versions.
@@ -43,16 +44,18 @@ The tool highlights compliance warnings against NetApp storage best practices fo
 
 ---
 
-## Customer Accounts & Custom Subgroups
+## Site Logistics & Customer Health Editor
 
-To help SAMs, TAMs, and CSMs organize reports:
-1.  **Sidebar Filtering**: The sidebar automatically extracts all unique **Customer Accounts** dynamically from system data. Click a Customer in the sidebar to restrict the dashboard (Overview metrics, charts, lists, and tabs) to that customer.
-2.  **Custom Subgroups**: Create groupings across different customers or sites (e.g., "US Production", "StorageGRID Node tier").
-    *   Go to **Settings & Config**.
-    *   Find the **Create Custom Subgroup** panel.
-    *   Enter a name, check the checkboxes for target systems, and click **Create Subgroup**.
-    *   The subgroup is saved to browser local storage and rendered immediately in the sidebar tree.
-3.  **Manage Groups**: Remove old subgroups by clicking **Delete** on the list in the Settings tab.
+SAMs and TAMs can manage account-specific details directly inside the application:
+1. Go to the **Settings & Config** tab.
+2. Select a system from the **Select System to Edit** dropdown.
+3. Edit the following sections:
+   *   *Logistics*: Delivery addresses, site access requirements (security clearances, escorts), and courier alerts.
+   *   *Contacts*: Site engineer name, telephone, email, and NSS username.
+   *   *Account Health*: CSAT score, AM/TAM representatives, upsell opportunities, and refresh timeline dates.
+   *   *Projections*: Forecasted storage runway days, daily growth rates, peak IOPS performance, and historical capacity CSV strings.
+   *   *Security Bulletins*: Enter technical vulnerabilities directly as a JSON array.
+4. Click **Save System Metadata** to commit changes to local storage.
 
 ---
 
@@ -103,7 +106,7 @@ To see how the dashboard functions immediately:
 1. Open the dashboard.
 2. Click the **Settings & Config** tab in the sidebar.
 3. Turn on the **Enable Offline Demo Mode (Mock Data)** toggle.
-4. Go back to the **Overview Dashboard** to inspect system reports, charts, and metrics. Click on any system row, go to **TAM Technical Audit**, and click **Remediation Plan** on a risk to see the detailed action plan.
+4. Go back to the **Overview Dashboard** to inspect system reports, charts, and metrics. Click on any system row, go to **Technical Audit**, and click **Remediation Plan** on a risk to see the detailed action plan.
 
 ### 3. Setting Up Production API Credentials
 To view your own live customer accounts and clusters:
