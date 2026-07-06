@@ -1484,16 +1484,30 @@ const DEFAULT_GROUPS = [
   }
 ];
 
+const MOCK_WATCHLISTS = [
+  {
+    id: "wl_prod",
+    name: "Production Clusters Watchlist",
+    systemSerials: ["622001234567", "622007771111", "622009998888"]
+  },
+  {
+    id: "wl_cvo",
+    name: "Cloud CVO Watchlist",
+    systemSerials: ["622002223333"]
+  }
+];
+
 // 2. Global State Variable
 let state = {
   currentTab: "overview",
   mockMode: false,
   systems: [...MOCK_SYSTEMS],
   groups: [...DEFAULT_GROUPS],
+  watchlists: [],
   selectedSystem: MOCK_SYSTEMS[0],
   activeSearchQuery: "",
-  activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP"
-  activeFilterValue: ""    // Customer Name or Group ID
+  activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP", "WATCHLIST"
+  activeFilterValue: ""    // Customer Name, Group ID, or Watchlist ID
 };
 
 // 3. Storage & Groups Helpers
@@ -1525,6 +1539,14 @@ function loadConfig() {
   } else {
     state.groups = [...DEFAULT_GROUPS];
   }
+
+  // Load watchlists
+  const savedWatchlists = localStorage.getItem("aiq_watchlists_db");
+  if (savedWatchlists) {
+    state.watchlists = JSON.parse(savedWatchlists);
+  } else {
+    state.watchlists = [...MOCK_WATCHLISTS];
+  }
   
   return { refresh, access, expiry };
 }
@@ -1541,6 +1563,10 @@ function saveSystems() {
 
 function saveGroups() {
   localStorage.setItem("aiq_custom_groups", JSON.stringify(state.groups));
+}
+
+function saveWatchlists() {
+  localStorage.setItem("aiq_watchlists_db", JSON.stringify(state.watchlists));
 }
 
 function setMockMode(val) {
@@ -1713,13 +1739,18 @@ function renderCharts() {
 function getFilteredSystems() {
   let filtered = state.systems;
 
-  // 1. Sidebar customer/group filters
+  // 1. Sidebar customer/group/watchlist filters
   if (state.activeFilterType === "CUSTOMER") {
     filtered = state.systems.filter(s => s.customerName === state.activeFilterValue);
   } else if (state.activeFilterType === "GROUP") {
     const group = state.groups.find(g => g.id === state.activeFilterValue);
     if (group) {
       filtered = state.systems.filter(s => group.systemSerials.includes(s.serialNumber));
+    }
+  } else if (state.activeFilterType === "WATCHLIST") {
+    const wl = state.watchlists.find(w => w.id === state.activeFilterValue);
+    if (wl) {
+      filtered = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
     }
   }
 
@@ -3047,6 +3078,38 @@ function renderSidebarGroups() {
       container.appendChild(item);
     });
   }
+
+  // 4. Watchlists (Fetched from Active IQ API or Mocked)
+  if (state.watchlists && state.watchlists.length > 0) {
+    const wlHeader = document.createElement("div");
+    wlHeader.className = "tree-section-header";
+    wlHeader.style.marginTop = "16px";
+    wlHeader.innerText = "Active IQ Watchlists";
+    container.appendChild(wlHeader);
+
+    state.watchlists.forEach(wl => {
+      const item = document.createElement("div");
+      item.className = "tree-item";
+      if (state.activeFilterType === "WATCHLIST" && state.activeFilterValue === wl.id) {
+        item.classList.add("active");
+      }
+      item.onclick = (e) => {
+        e.stopPropagation();
+        setFilter("WATCHLIST", wl.id);
+      };
+
+      const wlSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
+      const riskCount = wlSystems.reduce((acc, s) => acc + s.risks.length, 0);
+      const badge = riskCount > 0 ? `<span class="tree-badge ${wlSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
+
+      item.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        <span class="tree-text">${wl.name}</span>
+        ${badge}
+      `;
+      container.appendChild(item);
+    });
+  }
 }
 
 function copyToClipboard(text, event) {
@@ -3604,6 +3667,23 @@ async function loadProductionData() {
           };
         });
         saveSystems();
+
+        // Try fetching active watchlists from Active IQ API
+        try {
+          const apiWatchlists = await callActiveIQAPI("/watchlists");
+          if (apiWatchlists) {
+            const wlList = Array.isArray(apiWatchlists) ? apiWatchlists : (apiWatchlists.watchlists || []);
+            state.watchlists = wlList.map(wl => ({
+              id: wl.watchlistId || wl.id || "wl_" + Date.now(),
+              name: wl.watchListName || wl.name || "Watchlist",
+              systemSerials: wl.serialNumbers || wl.systemSerials || []
+            }));
+            saveWatchlists();
+          }
+        } catch (wlErr) {
+          console.warn("Failed to retrieve Active IQ watchlists:", wlErr);
+        }
+        
         if (state.systems.length > 0) {
           state.selectedSystem = state.systems[0];
         }
