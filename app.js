@@ -2496,7 +2496,7 @@ function renderTAMTab() {
           <td>
             <div style="display: flex; gap: 8px;">
               <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})" data-tooltip="View detailed step-by-step remediation procedures, action paths, and third-party environment considerations for this risk.">Remediation Plan</button>
-              <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${r.kbLink}" target="_blank">KB Art</a>
+              <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${r.kbLink}" target="_blank" onclick="window.open(this.href, '_blank'); return false;">KB Art</a>
             </div>
           </td>
         </tr>
