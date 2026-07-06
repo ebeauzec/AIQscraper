@@ -77,8 +77,7 @@
         <div class="search-box" style="display: flex; align-items: center; gap: 8px; flex: 1; max-width: 650px;">
           <div style="position: relative; flex: 1; display: flex; align-items: center;">
             <svg class="search-icon" style="position: absolute; left: 14px; top: 12px; color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" id="searchInput" list="searchSuggestions" class="search-input" style="padding-left: 40px; width: 100%;" placeholder="Search by Name, S/N(s), Cluster, or Customer...">
-            <datalist id="searchSuggestions"></datalist>
+            <input type="text" id="searchInput" class="search-input" style="padding-left: 40px; width: 100%;" placeholder="Search by Name, S/N(s), Cluster, or Customer...">
           </div>
           <button id="starSearchBtn" class="action-btn" style="padding: 10px 14px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;" onclick="starCurrentSearch()" data-tooltip="Save the current search query as a starred shortcut in the sidebar for easy access.">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
