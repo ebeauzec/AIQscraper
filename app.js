@@ -2448,7 +2448,7 @@ function renderProjectionsChart(proj, systemName) {
 function populateActionPlanSelector() {
   const select = document.getElementById("planTargetSelect");
   if (!select) return;
-  select.innerHTML = '<option value="ALL">All Account Systems (Customer View)</option>';
+  select.innerHTML = '<option value="ALL">All Account Systems (Filtered Context)</option>';
   
   const customers = [...new Set(state.systems.map(s => s.customerName))];
   customers.forEach(cust => {
@@ -2464,6 +2464,15 @@ function populateActionPlanSelector() {
     opt.innerText = `Group: ${grp.name} (${grp.systemSerials.length} systems)`;
     select.appendChild(opt);
   });
+
+  if (state.watchlists) {
+    state.watchlists.forEach(wl => {
+      const opt = document.createElement("option");
+      opt.value = `WL:${wl.id}`;
+      opt.innerText = `Watchlist: ${wl.name} (${wl.systemSerials.length} systems)`;
+      select.appendChild(opt);
+    });
+  }
   
   state.systems.forEach(sys => {
     const opt = document.createElement("option");
@@ -2471,6 +2480,17 @@ function populateActionPlanSelector() {
     opt.innerText = `System: ${sys.systemName} (${sys.platform})`;
     select.appendChild(opt);
   });
+
+  // Automatically align selected action planner target with active sidebar filter
+  if (state.activeFilterType === "CUSTOMER") {
+    select.value = `CUST:${state.activeFilterValue}`;
+  } else if (state.activeFilterType === "GROUP") {
+    select.value = `GRP:${state.activeFilterValue}`;
+  } else if (state.activeFilterType === "WATCHLIST") {
+    select.value = `WL:${state.activeFilterValue}`;
+  } else {
+    select.value = "ALL";
+  }
 }
 
 function generateActionPlan() {
@@ -2482,8 +2502,13 @@ function generateActionPlan() {
   let scopeTitle = "";
   
   if (selectValue === "ALL") {
-    targetSystems = state.systems;
-    scopeTitle = "Total Account Portfolio";
+    targetSystems = getFilteredSystems();
+    const query = (state.activeSearchQuery || "").trim();
+    if (state.activeFilterType !== "ALL" || query !== "") {
+      scopeTitle = "Filtered Account Portfolio";
+    } else {
+      scopeTitle = "Total Account Portfolio";
+    }
   } else if (selectValue.startsWith("CUST:")) {
     const custName = selectValue.substring(5);
     targetSystems = state.systems.filter(s => s.customerName === custName);
@@ -2494,6 +2519,13 @@ function generateActionPlan() {
     if (grp) {
       targetSystems = state.systems.filter(s => grp.systemSerials.includes(s.serialNumber));
       scopeTitle = `Custom Group: ${grp.name}`;
+    }
+  } else if (selectValue.startsWith("WL:")) {
+    const wlId = selectValue.substring(3);
+    const wl = state.watchlists.find(w => w.id === wlId);
+    if (wl) {
+      targetSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
+      scopeTitle = `Watchlist: ${wl.name}`;
     }
   } else if (selectValue.startsWith("SYS:")) {
     const serial = selectValue.substring(4);
