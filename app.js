@@ -1850,24 +1850,39 @@ function populateSystemSelectors() {
   const selectors = ["tamSystemSelect", "samSystemSelect", "csmSystemSelect"];
   const currentFiltered = getFilteredSystems();
   
-  // If selectedSystem is not in the filtered scope, pick the first filtered system
-  if (currentFiltered.length > 0 && !currentFiltered.some(s => s.serialNumber === state.selectedSystem.serialNumber)) {
-    state.selectedSystem = currentFiltered[0];
+  // Safe check for null/undefined selectedSystem
+  const hasSelectedSystem = state.selectedSystem && typeof state.selectedSystem === 'object';
+  const selectedSerial = hasSelectedSystem ? state.selectedSystem.serialNumber : null;
+  
+  if (currentFiltered.length > 0) {
+    const isStillInScope = selectedSerial && currentFiltered.some(s => s.serialNumber === selectedSerial);
+    if (!isStillInScope) {
+      state.selectedSystem = currentFiltered[0];
+    }
+  } else {
+    state.selectedSystem = null;
   }
+  
+  const activeSerial = state.selectedSystem ? state.selectedSystem.serialNumber : "";
   
   selectors.forEach(id => {
     const select = document.getElementById(id);
     if (!select) return;
     select.innerHTML = "";
+    
     currentFiltered.forEach(sys => {
       const opt = document.createElement("option");
       opt.value = sys.serialNumber;
       opt.innerText = `${sys.systemName} (${sys.platform})`;
-      if (state.selectedSystem && sys.serialNumber === state.selectedSystem.serialNumber) {
+      if (activeSerial && sys.serialNumber === activeSerial) {
         opt.selected = true;
       }
       select.appendChild(opt);
     });
+    
+    if (activeSerial) {
+      select.value = activeSerial;
+    }
     
     select.onchange = (e) => {
       const serial = e.target.value;
