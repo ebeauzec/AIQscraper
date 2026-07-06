@@ -771,3 +771,28 @@ input:checked + .slider:before {
   overflow: hidden;
   position: relative;
 }
+
+.copyable-code {
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px dashed rgba(255,255,255,0.15) !important;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  font-family: monospace;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.copyable-code:hover {
+  background: rgba(0, 229, 255, 0.08) !important;
+  border-color: var(--accent-cyan) !important;
+  color: var(--accent-cyan) !important;
+}
+.copyable-code svg {
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.copyable-code:hover svg {
+  opacity: 0.9;
+}

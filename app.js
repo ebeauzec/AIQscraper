@@ -1787,7 +1787,12 @@ function renderOverviewTable() {
 
     tr.innerHTML = `
       <td style="font-weight: 600; color: var(--accent-cyan);">${sys.systemName}</td>
-      <td><code>${sys.serialNumber}</code></td>
+      <td>
+        <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">
+          ${sys.serialNumber}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        </code>
+      </td>
       <td>${sys.clusterName}</td>
       <td>${sys.customerName}</td>
       <td>${sys.platform}</td>
@@ -1897,7 +1902,7 @@ function renderTAMTab() {
   }
 
   document.getElementById("tamActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>ONTAP</strong>: ${sys.ontapVersion}
+    <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>ONTAP</strong>: ${sys.ontapVersion}
   `;
 
   let riskRows = "";
@@ -1992,7 +1997,7 @@ function renderSAMTab() {
   }
 
   document.getElementById("samActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Platform</strong>: ${sys.platform}
+    <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>Platform</strong>: ${sys.platform}
   `;
 
   // Contract details
@@ -2218,7 +2223,7 @@ function renderCSMTab() {
   }
 
   document.getElementById("csmActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: ${sys.serialNumber}) | <strong>Customer</strong>: ${sys.customerName}
+    <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>Customer</strong>: ${sys.customerName}
   `;
 
   document.getElementById("csmSavingsCard").innerHTML = `
@@ -3040,17 +3045,49 @@ function renderSidebarGroups() {
   }
 }
 
+function copyToClipboard(text, event) {
+  if (event) event.stopPropagation();
+  navigator.clipboard.writeText(text).then(() => {
+    showToast("Copied to clipboard: " + text);
+  }).catch(err => {
+    console.error("Failed to copy: ", err);
+  });
+}
+
+function showToast(message) {
+  let toast = document.getElementById("toastNotification");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "toastNotification";
+    toast.style.position = "fixed";
+    toast.style.bottom = "20px";
+    toast.style.right = "20px";
+    toast.style.backgroundColor = "rgba(0, 230, 118, 0.95)";
+    toast.style.color = "#000";
+    toast.style.padding = "10px 20px";
+    toast.style.borderRadius = "4px";
+    toast.style.fontWeight = "600";
+    toast.style.fontSize = "0.85rem";
+    toast.style.zIndex = "9999";
+    toast.style.transition = "opacity 0.3s ease";
+    toast.style.boxShadow = "0 4px 12px rgba(0,230,118,0.2)";
+    document.body.appendChild(toast);
+  }
+  toast.innerText = message;
+  toast.style.opacity = "1";
+  toast.style.display = "block";
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => { toast.style.display = "none"; }, 300);
+  }, 2000);
+}
+
 function setFilter(type, value) {
   state.activeFilterType = type;
   state.activeFilterValue = value;
   
-  if (state.currentTab !== "overview") {
-    switchTab("overview");
-  } else {
-    updateOverviewKpis();
-    renderOverviewTable();
-    renderCharts();
-  }
+  // Context-aware update: stay on the current tab but refresh system list scope
+  switchTab(state.currentTab);
   
   renderSidebarGroups();
 }
@@ -3061,7 +3098,7 @@ function resetFilter() {
   state.activeSearchQuery = "";
   const searchInput = document.getElementById("searchInput");
   if (searchInput) searchInput.value = "";
-  switchTab("overview");
+  switchTab(state.currentTab);
   renderSidebarGroups();
 }
 
