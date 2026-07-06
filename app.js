@@ -2216,7 +2216,6 @@ function selectSystem(serial) {
 }
 
 function populateSystemSelectors() {
-  const selectors = ["samSystemSelect", "csmSystemSelect"];
   const currentFiltered = getFilteredSystems();
   
   // Safe check for null/undefined selectedSystem
@@ -2232,46 +2231,80 @@ function populateSystemSelectors() {
     state.selectedSystem = null;
   }
   
-  const activeSerial = state.selectedSystem ? state.selectedSystem.serialNumber : "";
+  // Initialize tab selectors if undefined
+  if (state.selectedSAMSystemSerial === undefined) state.selectedSAMSystemSerial = "ALL";
+  if (state.selectedCSMSystemSerial === undefined) state.selectedCSMSystemSerial = "ALL";
   
   // Prune/initialize selectedTAMSerials based on current scope
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
   if (!state.selectedTAMSerials) {
     state.selectedTAMSerials = [];
   }
-  state.selectedTAMSerials = state.selectedTAMSerials.filter(ser => allSerialsInScope.includes(ser));
-  if (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0) {
-    state.selectedTAMSerials = [currentFiltered[0].serialNumber];
+  
+  // Default TAM serials to ALL systems in scope when filter changes
+  const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
+                                (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
+  if (hasTAMFilterMismatch) {
+    state.selectedTAMSerials = [...allSerialsInScope];
   }
   
-  selectors.forEach(id => {
-    const select = document.getElementById(id);
-    if (!select) return;
-    select.innerHTML = "";
-    
+  // Populate SAM System Selector
+  const samSelect = document.getElementById("samSystemSelect");
+  if (samSelect) {
+    samSelect.innerHTML = "";
+    if (currentFiltered.length > 0) {
+      const optAll = document.createElement("option");
+      optAll.value = "ALL";
+      optAll.innerText = `All Systems (Account View - ${currentFiltered.length} nodes)`;
+      if (state.selectedSAMSystemSerial === "ALL") optAll.selected = true;
+      samSelect.appendChild(optAll);
+    }
     currentFiltered.forEach(sys => {
       const opt = document.createElement("option");
       opt.value = sys.serialNumber;
       opt.innerText = `${sys.systemName} (${sys.platform})`;
-      if (activeSerial && sys.serialNumber === activeSerial) {
-        opt.selected = true;
-      }
-      select.appendChild(opt);
+      if (state.selectedSAMSystemSerial === sys.serialNumber) opt.selected = true;
+      samSelect.appendChild(opt);
     });
-    
-    if (activeSerial) {
-      select.value = activeSerial;
-    }
-    
-    select.onchange = (e) => {
-      const serial = e.target.value;
-      const found = state.systems.find(s => s.serialNumber === serial);
-      if (found) {
-        state.selectedSystem = found;
-        switchTab(state.currentTab);
+    samSelect.onchange = (e) => {
+      const val = e.target.value;
+      state.selectedSAMSystemSerial = val;
+      if (val !== "ALL") {
+        const found = state.systems.find(s => s.serialNumber === val);
+        if (found) state.selectedSystem = found;
       }
+      switchTab("sam");
     };
-  });
+  }
+
+  // Populate CSM System Selector
+  const csmSelect = document.getElementById("csmSystemSelect");
+  if (csmSelect) {
+    csmSelect.innerHTML = "";
+    if (currentFiltered.length > 0) {
+      const optAll = document.createElement("option");
+      optAll.value = "ALL";
+      optAll.innerText = `All Systems (Account View - ${currentFiltered.length} nodes)`;
+      if (state.selectedCSMSystemSerial === "ALL") optAll.selected = true;
+      csmSelect.appendChild(optAll);
+    }
+    currentFiltered.forEach(sys => {
+      const opt = document.createElement("option");
+      opt.value = sys.serialNumber;
+      opt.innerText = `${sys.systemName} (${sys.platform})`;
+      if (state.selectedCSMSystemSerial === sys.serialNumber) opt.selected = true;
+      csmSelect.appendChild(opt);
+    });
+    csmSelect.onchange = (e) => {
+      const val = e.target.value;
+      state.selectedCSMSystemSerial = val;
+      if (val !== "ALL") {
+        const found = state.systems.find(s => s.serialNumber === val);
+        if (found) state.selectedSystem = found;
+      }
+      switchTab("csm");
+    };
+  }
 
   // Render custom multi-select checkbox dropdown for Technical Audit
   const customDropdown = document.getElementById("tamMultiSelectDropdown");
@@ -2864,6 +2897,317 @@ function getSystemWorkloadRecommendations(sys) {
 
 function renderSAMTab() {
   populateSystemSelectors();
+  
+  const currentFiltered = getFilteredSystems();
+  const isAll = state.selectedSAMSystemSerial === "ALL";
+  
+  if (currentFiltered.length === 0) {
+    document.getElementById("samContractCard").innerHTML = "";
+    document.getElementById("samLifecycleCard").innerHTML = "";
+    document.getElementById("samHypervisorCard").innerHTML = "";
+    document.getElementById("samLogisticsCard").innerHTML = "";
+    document.getElementById("samSalesHealthCard").innerHTML = "";
+    if (document.getElementById("samWorkloadVirtualization")) document.getElementById("samWorkloadVirtualization").innerHTML = "";
+    if (document.getElementById("samWorkloadDatabase")) document.getElementById("samWorkloadDatabase").innerHTML = "";
+    if (document.getElementById("samWorkloadBackup")) document.getElementById("samWorkloadBackup").innerHTML = "";
+    if (document.getElementById("samWorkloadRecommendations")) document.getElementById("samWorkloadRecommendations").innerHTML = "";
+    document.getElementById("samFieldActionsBody").innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
+    document.getElementById("samSupportCasesBody").innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No systems available.</td></tr>`;
+    return;
+  }
+
+  if (isAll) {
+    document.getElementById("samActiveSystem").innerHTML = `
+      <strong>Selected Systems (${currentFiltered.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${currentFiltered.map(s => s.systemName).join(", ")}</span>
+    `;
+
+    // 1. Contract aggregate
+    let activeCount = 0, warningCount = 0, criticalCount = 0;
+    currentFiltered.forEach(s => {
+      if (s.contracts.status === "critical") criticalCount++;
+      else if (s.contracts.status === "warning") warningCount++;
+      else activeCount++;
+    });
+    let cBadge = `<span class="badge normal">Active</span>`;
+    let cColor = "var(--text-primary)";
+    if (criticalCount > 0) {
+      cBadge = `<span class="badge critical">${criticalCount} Expired</span>`;
+      cColor = "var(--status-critical)";
+    } else if (warningCount > 0) {
+      cBadge = `<span class="badge warning">${warningCount} Expiring</span>`;
+      cColor = "var(--status-warning)";
+    }
+    document.getElementById("samContractCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Contracts Summary</h4>
+        ${cBadge}
+      </div>
+      <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; color: ${cColor};">
+        ${currentFiltered.length} Monitored Contracts
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 8px;">
+        <span style="color: var(--status-normal);">Active: ${activeCount}</span> | 
+        <span style="color: var(--status-warning);">Expiring: ${warningCount}</span> | 
+        <span style="color: var(--status-critical);">Expired: ${criticalCount}</span>
+      </div>
+    `;
+
+    // 2. Lifecycle aggregate
+    let nearEosCount = 0;
+    currentFiltered.forEach(s => {
+      if (s.lifecycle && s.lifecycle.isNearEos) nearEosCount++;
+    });
+    let lBadge = `<span class="badge normal">Active</span>`;
+    if (nearEosCount > 0) lBadge = `<span class="badge critical">${nearEosCount} Near EOS</span>`;
+    document.getElementById("samLifecycleCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Lifecycle Summary</h4>
+        ${lBadge}
+      </div>
+      <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px;">
+        ${currentFiltered.length} Hardware Assets
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">
+        Near End-of-Support: <strong style="color: ${nearEosCount > 0 ? "var(--status-critical)" : "var(--status-normal)"};">${nearEosCount} nodes</strong>
+      </div>
+    `;
+
+    // 3. Hypervisors / Integrations Summary
+    let ESXiCount = 0, K8sCount = 0, OpenStackCount = 0;
+    currentFiltered.forEach(s => {
+      const ints = getSystemIntegrations(s);
+      if (ints.virtualization.type.includes("VMware")) ESXiCount++;
+      else if (ints.virtualization.type.includes("Kubernetes")) K8sCount++;
+      else if (ints.virtualization.type.includes("OpenStack")) OpenStackCount++;
+    });
+    document.getElementById("samHypervisorCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Integrations Overview</h4>
+      </div>
+      <div style="font-size: 1.15rem; font-weight: 700; margin-bottom: 8px;">Workload Types</div>
+      <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
+        <div>• VMware vSphere: <strong>${ESXiCount}</strong> hosts</div>
+        <div>• Kubernetes (CSI): <strong>${K8sCount}</strong> nodes</div>
+        <div>• OpenStack Swift: <strong>${OpenStackCount}</strong> instances</div>
+      </div>
+    `;
+
+    // 4. 3rd-party Workload Alignment cards
+    let hypervisorAgg = {}, databaseAgg = {}, backupAgg = {};
+    currentFiltered.forEach(s => {
+      const ints = getSystemIntegrations(s);
+      hypervisorAgg[ints.virtualization.type] = (hypervisorAgg[ints.virtualization.type] || 0) + 1;
+      databaseAgg[ints.database.type] = (databaseAgg[ints.database.type] || 0) + 1;
+      backupAgg[ints.backup.type] = (backupAgg[ints.backup.type] || 0) + 1;
+    });
+    
+    document.getElementById("samWorkloadVirtualization").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Orchestration & Hypervisors</h5>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
+        ${Object.entries(hypervisorAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} systems</div>`).join("")}
+      </div>
+    `;
+
+    document.getElementById("samWorkloadDatabase").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Database & Workload</h5>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
+        ${Object.entries(databaseAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} systems</div>`).join("")}
+      </div>
+    `;
+
+    document.getElementById("samWorkloadBackup").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Data Protection & Backup</h5>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
+        ${Object.entries(backupAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} systems</div>`).join("")}
+      </div>
+    `;
+
+    // 5. Logistics Card Summary
+    const uniqueAddrs = new Set(currentFiltered.map(s => (s.logistics ? s.logistics.deliveryAddress : null)).filter(Boolean));
+    const totalContacts = new Set(currentFiltered.map(s => (s.contacts ? s.contacts.name : null)).filter(Boolean));
+    let aggAlertsCount = 0;
+    currentFiltered.forEach(s => {
+      const l = s.logistics || {};
+      if (l.shippingAlert && l.shippingAlert.toLowerCase() !== "none" && !l.shippingAlert.toLowerCase().includes("normal")) {
+        aggAlertsCount++;
+      }
+    });
+
+    document.getElementById("samLogisticsCard").innerHTML = `
+      <div class="card-title" style="color: var(--accent-cyan); margin-bottom: 16px;">Site Logistics Summary</div>
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px;">
+        <div>
+          <div style="margin-bottom: 8px;">Unique Sites: <strong>${uniqueAddrs.size} addresses</strong></div>
+          <div style="margin-bottom: 8px;">Active logistics alerts: <strong style="color: ${aggAlertsCount > 0 ? "var(--status-critical)" : "var(--status-normal)"};">${aggAlertsCount} alerts</strong></div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary);">Parts shipping pathways are verified across all locations.</div>
+        </div>
+        <div style="border-left: 1px solid var(--border-color); padding-left: 20px;">
+          <div>Key Contacts: <strong>${totalContacts.size} unique users</strong></div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">Primary accounts synced with NetApp Support Site (NSS) credentials.</div>
+        </div>
+      </div>
+    `;
+
+    // 6. Sales Health Card Summary
+    let totalScore = 0, countScore = 0;
+    let ams = new Set(), tams = new Set();
+    currentFiltered.forEach(s => {
+      if (s.salesHealth) {
+        totalScore += s.salesHealth.sentimentScore;
+        countScore++;
+        ams.add(s.salesHealth.accountManager);
+        tams.add(s.salesHealth.supportTam);
+      }
+    });
+    const avgScore = countScore > 0 ? (totalScore / countScore) : 8.0;
+    const avgPct = avgScore * 10;
+    let shColor = "var(--status-normal)";
+    if (avgScore < 6.0) shColor = "var(--status-critical)";
+    else if (avgScore < 7.5) shColor = "var(--status-warning)";
+
+    document.getElementById("samSalesHealthCard").innerHTML = `
+      <div class="card-title" style="color: var(--accent-cyan); margin-bottom: 16px;">Sales & Account Health Scorecard</div>
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px;">
+        <div>
+          <div style="margin-bottom: 12px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 4px;">Average CSAT Sentiment</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="font-size: 1.8rem; font-weight: 800; color: ${shColor};">${avgScore.toFixed(1)}<span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/10</span></div>
+            </div>
+            <div class="health-bar-container" style="background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; margin-top: 6px; overflow: hidden;">
+              <div style="background: ${shColor}; height: 100%; width: ${avgPct}%;"></div>
+            </div>
+          </div>
+          <div style="font-size: 0.8rem;">
+            Managers: <strong>${[...ams].join(", ") || "Under Review"}</strong>
+          </div>
+        </div>
+        <div style="border-left: 1px solid var(--border-color); padding-left: 20px;">
+          <div>Support TAMs: <strong>${[...tams].join(", ") || "Under Review"}</strong></div>
+          <div style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; margin-top: 8px;">Pipeline Status</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); font-style: italic;">Account is under regular quarterly review.</div>
+        </div>
+      </div>
+    `;
+
+    // 7. Field Actions Table: aggregate all field actions
+    let faRows = "";
+    const allFAs = [];
+    currentFiltered.forEach(s => {
+      if (s.fieldActions) {
+        s.fieldActions.forEach(fa => {
+          allFAs.push({ ...fa, systemName: s.systemName });
+        });
+      }
+    });
+    if (allFAs.length === 0) {
+      faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. Systems are compliant.</td></tr>`;
+    } else {
+      allFAs.forEach(fa => {
+        faRows += `
+          <tr>
+            <td>
+              <code style="font-weight: 600; color: var(--status-warning);">${fa.id}</code>
+              <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">${fa.systemName}</div>
+            </td>
+            <td>
+              <div style="font-weight: 500; margin-bottom: 4px;">${fa.title}</div>
+              <div style="color: var(--text-secondary); font-size: 0.8rem;">${fa.actionRequired}</div>
+            </td>
+          </tr>
+        `;
+      });
+    }
+    document.getElementById("samFieldActionsBody").innerHTML = faRows;
+
+    // 8. Active Technical Support Cases Table: aggregate all support cases
+    let caseRows = "";
+    const allCases = [];
+    currentFiltered.forEach(s => {
+      if (s.supportCases) {
+        s.supportCases.forEach(sc => {
+          allCases.push({ ...sc, systemName: s.systemName });
+        });
+      }
+    });
+    if (allCases.length === 0) {
+      caseRows = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active support cases open.</td></tr>`;
+    } else {
+      allCases.forEach(c => {
+        let badgeColor = "info";
+        if (c.severity.includes("S1")) badgeColor = "critical";
+        else if (c.severity.includes("S2")) badgeColor = "warning";
+        
+        caseRows += `
+          <tr>
+            <td><strong style="color: var(--accent-cyan); font-family: monospace;">${c.id}</strong></td>
+            <td>
+              <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${c.title}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">System: ${c.systemName}</div>
+            </td>
+            <td><span class="badge ${badgeColor}">${c.severity}</span></td>
+            <td><code style="color: var(--status-info); font-size: 0.78rem;">${c.status}</code></td>
+            <td><span style="font-size: 0.8rem; color: var(--text-secondary);">${c.lastUpdated}</span></td>
+          </tr>
+        `;
+      });
+    }
+    document.getElementById("samSupportCasesBody").innerHTML = caseRows;
+    
+    // Virtualized workload recommendations
+    const recMap = new Map();
+    currentFiltered.forEach(s => {
+      const list = getSystemWorkloadRecommendations(s);
+      list.forEach(rec => {
+        const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
+        if (match) {
+          const category = match[1];
+          const body = match[2];
+          const key = `${category}||${body}`;
+          if (!recMap.has(key)) {
+            recMap.set(key, []);
+          }
+          recMap.get(key).push(s.systemName);
+        } else {
+          if (!recMap.has(rec)) {
+            recMap.set(rec, []);
+          }
+          recMap.get(rec).push(s.systemName);
+        }
+      });
+    });
+
+    const recsContainer = document.getElementById("samWorkloadRecommendations");
+    if (recsContainer) {
+      recsContainer.innerHTML = "";
+      if (recMap.size === 0) {
+        recsContainer.innerHTML = `<li>No active optimization recommendations for this workload portfolio.</li>`;
+      } else {
+        recMap.forEach((sysNames, key) => {
+          const li = document.createElement("li");
+          if (key.includes("||")) {
+            const [category, body] = key.split("||");
+            const systemsStr = sysNames.length === state.systems.length 
+              ? "All Systems" 
+              : (sysNames.length > 3 ? `${sysNames.length} Systems` : sysNames.join(", "));
+            li.innerHTML = `<strong>[${category}]</strong> <span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${body}`;
+          } else {
+            const systemsStr = sysNames.join(", ");
+            li.innerHTML = `<span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${key}`;
+          }
+          recsContainer.appendChild(li);
+        });
+      }
+    }
+    return;
+  }
+
   const sys = state.selectedSystem;
   if (!sys) {
     document.getElementById("samContractCard").innerHTML = "";
@@ -3018,25 +3362,23 @@ function renderSAMTab() {
   `;
 
   const recMap = new Map();
-  currentFiltered.forEach(s => {
-    const list = getSystemWorkloadRecommendations(s);
-    list.forEach(rec => {
-      const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
-      if (match) {
-        const category = match[1];
-        const body = match[2];
-        const key = `${category}||${body}`;
-        if (!recMap.has(key)) {
-          recMap.set(key, []);
-        }
-        recMap.get(key).push(s.systemName);
-      } else {
-        if (!recMap.has(rec)) {
-          recMap.set(rec, []);
-        }
-        recMap.get(rec).push(s.systemName);
+  const list = getSystemWorkloadRecommendations(sys);
+  list.forEach(rec => {
+    const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
+    if (match) {
+      const category = match[1];
+      const body = match[2];
+      const key = `${category}||${body}`;
+      if (!recMap.has(key)) {
+        recMap.set(key, []);
       }
-    });
+      recMap.get(key).push(sys.systemName);
+    } else {
+      if (!recMap.has(rec)) {
+        recMap.set(rec, []);
+      }
+      recMap.get(rec).push(sys.systemName);
+    }
   });
 
   const recsContainer = document.getElementById("samWorkloadRecommendations");
@@ -3049,13 +3391,9 @@ function renderSAMTab() {
         const li = document.createElement("li");
         if (key.includes("||")) {
           const [category, body] = key.split("||");
-          const systemsStr = sysNames.length === state.systems.length 
-            ? "All Systems" 
-            : (sysNames.length > 3 ? `${sysNames.length} Systems` : sysNames.join(", "));
-          li.innerHTML = `<strong>[${category}]</strong> <span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${body}`;
+          li.innerHTML = `<strong>[${category}]</strong> ${body}`;
         } else {
-          const systemsStr = sysNames.join(", ");
-          li.innerHTML = `<span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${key}`;
+          li.innerHTML = key;
         }
         recsContainer.appendChild(li);
       });
@@ -3195,6 +3533,185 @@ function renderSAMTab() {
 
 function renderCSMTab() {
   populateSystemSelectors();
+  
+  const currentFiltered = getFilteredSystems();
+  const isAll = state.selectedCSMSystemSerial === "ALL";
+  
+  if (currentFiltered.length === 0) {
+    document.getElementById("csmSavingsCard").innerHTML = "";
+    document.getElementById("csmCloudCard").innerHTML = "";
+    document.getElementById("csmSnapmirrorCard").innerHTML = "";
+    document.getElementById("csmAdoptionChecklist").innerHTML = "";
+    document.getElementById("csmGrowthRateText").innerText = "";
+    document.getElementById("csmDaysToLimitText").innerText = "-";
+    document.getElementById("csmLimitDateText").innerText = "-";
+    document.getElementById("csmPeakIopsText").innerText = "-";
+    document.getElementById("csmAvgLatencyText").innerText = "-";
+    return;
+  }
+
+  if (isAll) {
+    document.getElementById("csmActiveSystem").innerHTML = `
+      <strong>Selected Systems (${currentFiltered.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${currentFiltered.map(s => s.systemName).join(", ")}</span>
+    `;
+
+    // 1. Efficiency aggregate
+    let totalLogical = 0, totalPhysical = 0, totalSaved = 0;
+    currentFiltered.forEach(s => {
+      totalLogical += s.efficiency.logicalUsedTB;
+      totalPhysical += s.efficiency.physicalUsedTB;
+      totalSaved += s.efficiency.spaceSavedTB;
+    });
+    const avgRatio = totalPhysical > 0 ? (totalLogical / totalPhysical).toFixed(1) : "1.0";
+
+    document.getElementById("csmSavingsCard").innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Efficiency</span>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${avgRatio}:1</div>
+        </div>
+        <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Logical Space Used</span>
+            <div style="font-weight: 600;">${totalLogical.toFixed(1)} TB</div>
+          </div>
+          <div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Physical Space Used</span>
+            <div style="font-weight: 600;">${totalPhysical.toFixed(1)} TB</div>
+          </div>
+        </div>
+        <div style="background-color: rgba(0, 230, 118, 0.08); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0, 230, 118, 0.2);">
+          <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Total Storage Saved</div>
+          <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${totalSaved.toFixed(1)} TB</div>
+        </div>
+      </div>
+    `;
+
+    // 2. FabricPool aggregate
+    let totalFP = 0, activeFPCount = 0;
+    currentFiltered.forEach(s => {
+      const fp = s.efficiency.fabricPoolTieredTB || 0;
+      totalFP += fp;
+      if (fp > 0) activeFPCount++;
+    });
+    let fpBadge = activeFPCount > 0 ? `<span class="badge normal">${activeFPCount} active tiering</span>` : `<span class="badge warning">No Cloud Tiering</span>`;
+    document.getElementById("csmCloudCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
+        ${fpBadge}
+      </div>
+      <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${totalFP > 0 ? "var(--status-info)" : "var(--status-warning)"};">
+        Cloud Tiered: ${totalFP.toFixed(1)} TB
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
+        ${activeFPCount} out of ${currentFiltered.length} systems are tiering cold data to public/private cloud object storage.
+      </p>
+    `;
+
+    // 3. SnapMirror aggregate
+    let smEnabledCount = 0;
+    let relationshipsHTML = "";
+    currentFiltered.forEach(s => {
+      if (s.snapmirror && s.snapmirror.enabled) {
+        smEnabledCount++;
+        s.snapmirror.relationships.forEach(rel => {
+          relationshipsHTML += `
+            <div style="margin-top: 8px; font-size: 0.78rem; border-top: 1px solid var(--border-color); padding-top: 6px; display: flex; justify-content: space-between;">
+              <span>Sys: <strong>${s.systemName}</strong> -> <strong>${rel.destination}</strong></span>
+              <span style="color: var(--accent-cyan);">${rel.lagTime}</span>
+            </div>
+          `;
+        });
+      }
+    });
+    if (relationshipsHTML === "") {
+      relationshipsHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">No SnapMirror relations mapped.</div>`;
+    }
+    document.getElementById("csmSnapmirrorCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">SnapMirror replication</h4>
+        <span class="badge normal">${smEnabledCount} Enabled</span>
+      </div>
+      <div style="max-height: 120px; overflow-y: auto; padding-right: 4px;">
+        ${relationshipsHTML}
+      </div>
+    `;
+
+    // 4. Checklist aggregate
+    let efficiencyPass = 0, cloudPass = 0, drPass = 0, riskPass = 0;
+    currentFiltered.forEach(s => {
+      if (parseFloat(s.efficiency.ratio.split(":")[0]) > 1.5) efficiencyPass++;
+      if (s.efficiency.fabricPoolTieredTB > 0) cloudPass++;
+      if (s.snapmirror && s.snapmirror.enabled) drPass++;
+      if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) riskPass++;
+    });
+    const checklist = [
+      { name: "ONTAP 9.10+ / StorageGRID 11.5+", completedCount: currentFiltered.length },
+      { name: "Storage Efficiency Enabled (>1.5:1)", completedCount: efficiencyPass },
+      { name: "Cloud FabricPool Configured", completedCount: cloudPass },
+      { name: "SnapMirror DR Configured", completedCount: drPass },
+      { name: "Zero High/Critical Risks", completedCount: riskPass }
+    ];
+    let checklistHTML = "";
+    checklist.forEach(item => {
+      checklistHTML += `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
+          <span style="font-size: 0.85rem;">${item.name}</span>
+          <span style="font-size: 0.85rem; font-weight: 600; color: ${item.completedCount === currentFiltered.length ? "var(--status-normal)" : "var(--status-warning)"};">
+            ${item.completedCount}/${currentFiltered.length} Done
+          </span>
+        </div>
+      `;
+    });
+    document.getElementById("csmAdoptionChecklist").innerHTML = checklistHTML;
+
+    // 5. Projections aggregate
+    let totalGrowth = 0, minDaysToLimit = 9999, worstLimitDate = "N/A", worstSystemName = "";
+    let totalPeakIops = 0, sumAvgLatency = 0, countAvgLatency = 0;
+    
+    const aggHist = Array(6).fill(0);
+    const aggProj = Array(3).fill(0);
+    
+    currentFiltered.forEach(s => {
+      const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
+      totalGrowth += p.growthRateGBPerDay;
+      if (p.daysToLimit < minDaysToLimit) {
+        minDaysToLimit = p.daysToLimit;
+        worstLimitDate = p.limitDate;
+        worstSystemName = s.systemName;
+      }
+      totalPeakIops += p.peakIops;
+      sumAvgLatency += p.avgLatencyMs;
+      countAvgLatency++;
+      
+      for (let m = 0; m < 6; m++) {
+        aggHist[m] += p.historicalCapacityMonths[m] || 0;
+      }
+      for (let m = 0; m < 3; m++) {
+        aggProj[m] += p.projectedCapacityMonths[m] || 0;
+      }
+    });
+    
+    const avgLatency = countAvgLatency > 0 ? (sumAvgLatency / countAvgLatency) : 2.5;
+
+    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${totalGrowth} GB/day`;
+    
+    const limitLabel = document.getElementById("csmDaysToLimitText");
+    limitLabel.innerText = `${minDaysToLimit} Days`;
+    limitLabel.style.color = minDaysToLimit <= 60 ? "var(--status-critical)" : (minDaysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
+    
+    document.getElementById("csmLimitDateText").innerText = `Est. limit reached on ${worstSystemName}: ${worstLimitDate}`;
+    document.getElementById("csmPeakIopsText").innerText = `${totalPeakIops.toLocaleString()} IOPS`;
+    document.getElementById("csmAvgLatencyText").innerText = `Avg Latency: ${avgLatency.toFixed(1)} ms`;
+
+    const aggProjObj = {
+      historicalCapacityMonths: aggHist,
+      projectedCapacityMonths: aggProj
+    };
+    renderProjectionsChart(aggProjObj, "Consolidated Account Portfolio");
+    return;
+  }
+
   const sys = state.selectedSystem;
   if (!sys) {
     document.getElementById("csmSavingsCard").innerHTML = "";
@@ -4219,6 +4736,8 @@ function showToast(message) {
 function setFilter(type, value) {
   state.activeFilterType = type;
   state.activeFilterValue = value;
+  state.selectedSAMSystemSerial = "ALL";
+  state.selectedCSMSystemSerial = "ALL";
   
   // Context-aware update: stay on the current tab but refresh system list scope
   switchTab(state.currentTab);
@@ -4231,6 +4750,8 @@ function resetFilter() {
   state.activeFilterValue = "";
   state.activeSearchQuery = "";
   state.activeKpiFilter = "NONE";
+  state.selectedSAMSystemSerial = "ALL";
+  state.selectedCSMSystemSerial = "ALL";
   
   // Clear KPI card active classes
   const cards = ["kpiCardAll", "kpiCardCritical", "kpiCardWarning", "kpiCardContract"];
@@ -4250,6 +4771,8 @@ function resetFilterAndGoToOverview() {
   state.activeFilterValue = "";
   state.activeSearchQuery = "";
   state.activeKpiFilter = "NONE";
+  state.selectedSAMSystemSerial = "ALL";
+  state.selectedCSMSystemSerial = "ALL";
   
   const cards = ["kpiCardAll", "kpiCardCritical", "kpiCardWarning", "kpiCardContract"];
   cards.forEach(id => {
@@ -4873,6 +5396,8 @@ function executeSearchGo() {
     state.activeFilterType = "CUSTOMER";
     state.activeFilterValue = matchedCustomer.customerName;
     state.activeSearchQuery = "";
+    state.selectedSAMSystemSerial = "ALL";
+    state.selectedCSMSystemSerial = "ALL";
     const searchInput = document.getElementById("searchInput");
     if (searchInput) searchInput.value = "";
     switchTab("overview");
@@ -5024,6 +5549,57 @@ function handleJSONImport(event) {
 
 // 11. Initialization on Load
 window.onload = async function() {
+  // Create global tooltip element
+  const tEl = document.createElement("div");
+  tEl.id = "globalTooltip";
+  tEl.className = "premium-tooltip-popup";
+  document.body.appendChild(tEl);
+
+  // Global event delegation for premium tooltips
+  document.addEventListener("mouseover", (e) => {
+    const target = e.target.closest("[data-tooltip]");
+    if (!target) return;
+    
+    const text = target.getAttribute("data-tooltip");
+    if (!text) return;
+    
+    const tooltip = document.getElementById("globalTooltip");
+    if (!tooltip) return;
+    
+    tooltip.innerText = text;
+    tooltip.style.display = "block";
+    
+    const rect = target.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    
+    let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+    let top = rect.top - tooltipRect.height - 8;
+    
+    // Safety viewport boundaries
+    if (left < 10) left = 10;
+    if (left + tooltipRect.width > window.innerWidth - 10) {
+      left = window.innerWidth - tooltipRect.width - 10;
+    }
+    if (top < 10) {
+      top = rect.bottom + 8;
+    }
+    
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.opacity = "1";
+  });
+  
+  document.addEventListener("mouseout", (e) => {
+    const target = e.target.closest("[data-tooltip]");
+    if (target) {
+      const tooltip = document.getElementById("globalTooltip");
+      if (tooltip) {
+        tooltip.style.opacity = "0";
+        tooltip.style.display = "none";
+      }
+    }
+  });
+
   loadConfig();
   updateStatusIndicators();
   

@@ -315,54 +315,24 @@ body {
 }
 
 /* Custom Premium Tooltips System */
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 125%;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  background: rgba(15, 23, 42, 0.95);
+.premium-tooltip-popup {
+  position: fixed;
+  background: rgba(15, 23, 42, 0.98);
   color: #f8fafc;
   padding: 8px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  border: 1px solid rgba(0, 229, 255, 0.35);
   font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.4;
   white-space: normal;
-  width: max-content;
-  max-width: 220px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 240px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-  z-index: 10000;
-  text-align: center;
-}
-
-[data-tooltip]::before {
-  content: "";
-  position: absolute;
-  bottom: 112%;
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  border-width: 6px;
-  border-style: solid;
-  border-color: rgba(0, 229, 255, 0.3) transparent transparent transparent;
-  opacity: 0;
+  z-index: 999999;
   pointer-events: none;
-  transition: opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10000;
-}
-
-[data-tooltip]:hover::after,
-[data-tooltip]:hover::before {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transition: opacity 0.15s ease-out;
+  opacity: 0;
+  text-align: center;
 }
 
 .card-value {
