@@ -1487,7 +1487,9 @@ const MOCK_SYSTEMS = [
     "StorageGRID SG6060",
     "AFF A900 (On-Prem)",
     "FAS2750 (On-Prem)",
-    "AFF A250 (On-Prem)"
+    "AFF A250 (On-Prem)",
+    "AFF A400 (MetroCluster IP)",
+    "FAS8700 (MetroCluster FC)"
   ];
   
   const statuses = ["normal", "normal", "normal", "normal", "warning", "warning", "critical"];
@@ -1696,7 +1698,13 @@ function loadConfig() {
   // Load systems db if exists in local storage
   const savedSystems = localStorage.getItem("aiq_systems_db");
   if (savedSystems) {
-    state.systems = JSON.parse(savedSystems);
+    const parsed = JSON.parse(savedSystems);
+    if (parsed.length < MOCK_SYSTEMS.length) {
+      state.systems = [...MOCK_SYSTEMS];
+      saveSystems();
+    } else {
+      state.systems = parsed;
+    }
   } else {
     state.systems = [...MOCK_SYSTEMS];
   }
@@ -2255,7 +2263,7 @@ function renderTAMTab() {
           </td>
           <td>
             <div style="display: flex; gap: 8px;">
-              <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})">Remediation Plan</button>
+              <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})" title="View detailed step-by-step remediation procedures, action paths, and third-party environment considerations for this risk.">Remediation Plan</button>
               <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${r.kbLink}" target="_blank">KB Art</a>
             </div>
           </td>
@@ -2311,6 +2319,160 @@ function renderTAMTab() {
   document.getElementById("tamSecurityBulletinsBody").innerHTML = bulletinRows;
 }
 
+function getSystemIntegrations(sys) {
+  if (sys.integrations) return sys.integrations;
+  
+  const seed = parseInt(sys.serialNumber) || 0;
+  
+  let virtualization = { type: "None", version: "", status: "Not Configured", plugin: "None", multipathing: "None" };
+  let database = { type: "None", version: "", status: "Not Configured", details: "None" };
+  let backup = { type: "None", version: "", status: "Not Configured", details: "None" };
+  
+  // Virtualization / Orchestration
+  if (sys.platform.includes("StorageGRID")) {
+    virtualization = {
+      type: "OpenStack Swift",
+      version: "Bobcat (v28.0)",
+      status: "Optimal",
+      plugin: "StorageGRID Keystone integration",
+      multipathing: "N/A (HTTPS Object)"
+    };
+  } else if (sys.platform.includes("Cloud")) {
+    virtualization = {
+      type: "Kubernetes (EKS)",
+      version: "v1.28",
+      status: "Optimal",
+      plugin: "NetApp Astra Trident CSI v23.10",
+      multipathing: "N/A (Cloud VPC Routing)"
+    };
+  } else if (sys.platform.includes("MetroCluster")) {
+    virtualization = {
+      type: "VMware vSphere (HA)",
+      version: "8.0 Update 2",
+      status: "Optimal",
+      plugin: "ONTAP Tools stretch-cluster config (VASA v10.1)",
+      multipathing: "VMW_PSP_RR (Round Robin)"
+    };
+  } else {
+    // On-Prem system (VMware)
+    virtualization = {
+      type: "VMware vSphere",
+      version: seed % 2 === 0 ? "8.0 Update 2" : "7.0 Update 3",
+      status: "Optimal",
+      plugin: "ONTAP Tools for VMware (VASA v10.1)",
+      multipathing: "VMW_PSP_RR (Round Robin)"
+    };
+  }
+  
+  // Database / Workload
+  if (sys.platform.includes("StorageGRID")) {
+    database = {
+      type: "Apache Spark / Hadoop S3A",
+      version: "v3.4.1",
+      status: "Configured",
+      details: "S3A connector configured for metadata storage"
+    };
+  } else if (sys.platform.includes("MetroCluster")) {
+    database = {
+      type: "Oracle Database (RAC)",
+      version: "19c",
+      status: "Configured (dNFS)",
+      details: "Oracle Real Application Clusters active-active across sites"
+    };
+  } else if (seed % 3 === 0) {
+    database = {
+      type: "Oracle Database",
+      version: "19c (19.18)",
+      status: "Configured (dNFS)",
+      details: "Direct NFS client active on 10GbE network"
+    };
+  } else if (seed % 3 === 1) {
+    database = {
+      type: "MS SQL Server",
+      version: "2022 Enterprise",
+      status: "Optimal",
+      details: "SnapCenter MSSQL Plug-in v5.0 active"
+    };
+  } else {
+    database = {
+      type: "SAP HANA",
+      version: "2.0 SPS06",
+      status: "Configured",
+      details: "NFSv4 storage partition for Hana Shared"
+    };
+  }
+  
+  // Backup / Data Protection
+  if (sys.platform.includes("StorageGRID")) {
+    backup = {
+      type: "Commvault IntelliSnap",
+      version: "v11.32",
+      status: "Optimal",
+      details: "NetApp StorageGRID Object Storage target (S3)"
+    };
+  } else if (seed % 2 === 0) {
+    backup = {
+      type: "Veeam Backup & Replication",
+      version: "v12.1",
+      status: "Configured",
+      details: "ONTAP Hardware Snapshot Integration enabled"
+    };
+  } else {
+    backup = {
+      type: "Commvault IntelliSnap",
+      version: "v11.32",
+      status: "Optimal",
+      details: "Hardware Snapshot Engine configured for NFS/SAN volumes"
+    };
+  }
+  
+  return { virtualization, database, backup };
+}
+
+function getSystemWorkloadRecommendations(sys) {
+  const ints = getSystemIntegrations(sys);
+  const recs = [];
+  
+  // MetroCluster recommendations
+  if (sys.platform.includes("MetroCluster")) {
+    recs.push(`<strong>[MetroCluster]</strong> Active-Active stretch cluster detected. Best Practice: Configure VMware vSphere HA Admission Control with 50% CPU and memory reservations to ensure failover capacity.`);
+    recs.push(`<strong>[MetroCluster]</strong> Best Practice: Verify that automatic unplanned switchover (AUSO) is enabled via ONTAP command: <code>metrocluster operation show</code> to protect against sudden power loss.`);
+  }
+
+  // Virtualization Recommendations
+  if (ints.virtualization.type.includes("VMware vSphere")) {
+    recs.push(`<strong>[VMware]</strong> ONTAP Tools VASA Provider is active. Best Practice: Ensure VAAI (vStorage APIs for Array Integration) is enabled on ESXi hosts to offload copy operations.`);
+    recs.push(`<strong>[VMware]</strong> Multipathing is set to Round Robin (VMW_PSP_RR). Best Practice: Modify default path switching from 1000 IOPS to 1 IOPS for optimal performance on SAN LUNs.`);
+  } else if (ints.virtualization.type === "Kubernetes (EKS)") {
+    recs.push(`<strong>[Kubernetes]</strong> Astra Trident CSI driver v23.10 is active. Best Practice: Configure storage classes with <code>spaceReserve: none</code> (Thin Provisioning) to utilize ONTAP storage savings.`);
+    recs.push(`<strong>[Kubernetes]</strong> EKS Pods mount PVs via NFS. Best Practice: Increase Trident's mount options to use <code>nfsvers=4.1</code> for better locking performance.`);
+  } else if (ints.virtualization.type === "OpenStack Swift") {
+    recs.push(`<strong>[OpenStack]</strong> StorageGRID is configured as a Keystone-integrated identity endpoint. Best Practice: Enable SSL/TLS encryption for all Keystone endpoints to prevent session token sniffing.`);
+  }
+  
+  // Database Recommendations
+  if (ints.database.type.includes("Oracle Database")) {
+    recs.push(`<strong>[Oracle]</strong> Direct NFS (dNFS) is enabled. Best Practice: Configure <code>filesystemio_options=SETALL</code> in init.ora parameter file to enable asynchronous I/O.`);
+    recs.push(`<strong>[Oracle]</strong> Best Practice: Distribute data files and redo log files across separate ONTAP aggregates to prevent disk contention.`);
+  } else if (ints.database.type === "MS SQL Server") {
+    recs.push(`<strong>[MS SQL]</strong> SnapCenter MSSQL plugin is active. Best Practice: Configure SnapCenter policies to perform transaction log backups every 15 minutes, with storage-level verification.`);
+    recs.push(`<strong>[MS SQL]</strong> Best Practice: Format SAN LUNs hosting database files with a 64KB NTFS allocation unit size to align with SQL Server's extent architecture.`);
+  } else if (ints.database.type === "SAP HANA") {
+    recs.push(`<strong>[SAP HANA]</strong> NFSv4 mount detected. Best Practice: Tune mount options to <code>rw,bg,hard,timeo=600,rsize=262144,wsize=262144</code> for optimal latency performance.`);
+  } else if (ints.database.type.includes("Spark")) {
+    recs.push(`<strong>[Hadoop/Spark]</strong> S3A connector detected. Best Practice: Configure the S3A client to use <code>fs.s3a.fast.upload=true</code> to leverage StorageGRID's high-speed uploads.`);
+  }
+  
+  // Backup Recommendations
+  if (ints.backup.type === "Veeam Backup & Replication") {
+    recs.push(`<strong>[Veeam]</strong> ONTAP Hardware Snapshot Integration is active. Best Practice: Limit the number of concurrent storage snapshots to 5 per volume to prevent ONTAP metadata lock contention.`);
+  } else if (ints.backup.type === "Commvault IntelliSnap") {
+    recs.push(`<strong>[Commvault]</strong> IntelliSnap NetApp engine is active. Best Practice: Ensure NetApp OCUM/AIQUM portal credentials are up-to-date in Commvault's Array Management.`);
+  }
+  
+  return recs;
+}
+
 function renderSAMTab() {
   populateSystemSelectors();
   const sys = state.selectedSystem;
@@ -2320,6 +2482,10 @@ function renderSAMTab() {
     document.getElementById("samHypervisorCard").innerHTML = "";
     document.getElementById("samLogisticsCard").innerHTML = "";
     document.getElementById("samSalesHealthCard").innerHTML = "";
+    if (document.getElementById("samWorkloadVirtualization")) document.getElementById("samWorkloadVirtualization").innerHTML = "";
+    if (document.getElementById("samWorkloadDatabase")) document.getElementById("samWorkloadDatabase").innerHTML = "";
+    if (document.getElementById("samWorkloadBackup")) document.getElementById("samWorkloadBackup").innerHTML = "";
+    if (document.getElementById("samWorkloadRecommendations")) document.getElementById("samWorkloadRecommendations").innerHTML = "";
     document.getElementById("samFieldActionsBody").innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
     document.getElementById("samSupportCasesBody").innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No systems available.</td></tr>`;
     return;
@@ -2402,6 +2568,79 @@ function renderSAMTab() {
     `;
   } else if (hypContainer) {
     hypContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding-top: 12px;">No hypervisor integrations tracked on this appliance.</div>`;
+  }
+
+  // 3rd-Party Integrations & Workloads Audit
+  const ints = getSystemIntegrations(sys);
+  
+  let virtBadge = `<span class="badge normal">${ints.virtualization.status}</span>`;
+  if (ints.virtualization.status === "Warning" || ints.virtualization.status === "Out of Date") {
+    virtBadge = `<span class="badge warning">${ints.virtualization.status}</span>`;
+  }
+  document.getElementById("samWorkloadVirtualization").innerHTML = `
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Orchestration & Hypervisor</h5>
+      ${virtBadge}
+    </div>
+    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
+      ${ints.virtualization.type}
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+      Version: <strong>${ints.virtualization.version || "N/A"}</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+      Plugin: <strong>${ints.virtualization.plugin}</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary);">
+      Multipathing: <strong>${ints.virtualization.multipathing}</strong>
+    </div>
+  `;
+
+  document.getElementById("samWorkloadDatabase").innerHTML = `
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Database & Workload</h5>
+      <span class="badge normal">${ints.database.status}</span>
+    </div>
+    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
+      ${ints.database.type}
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+      Version: <strong>${ints.database.version || "N/A"}</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">
+      Details: <strong>${ints.database.details}</strong>
+    </div>
+  `;
+
+  document.getElementById("samWorkloadBackup").innerHTML = `
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Data Protection & Backup</h5>
+      <span class="badge normal">${ints.backup.status}</span>
+    </div>
+    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
+      ${ints.backup.type}
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+      Version: <strong>${ints.backup.version || "N/A"}</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">
+      Details: <strong>${ints.backup.details}</strong>
+    </div>
+  `;
+
+  const recList = getSystemWorkloadRecommendations(sys);
+  const recsContainer = document.getElementById("samWorkloadRecommendations");
+  if (recsContainer) {
+    recsContainer.innerHTML = "";
+    if (recList.length === 0) {
+      recsContainer.innerHTML = `<li>No active optimization recommendations for this appliance workload.</li>`;
+    } else {
+      recList.forEach(rec => {
+        const li = document.createElement("li");
+        li.innerHTML = rec;
+        recsContainer.appendChild(li);
+      });
+    }
   }
 
   // Logistics & Site Access Card
@@ -3391,7 +3630,7 @@ function renderSidebarGroups() {
       item.innerHTML = `
         <span style="color: var(--status-warning); margin-right: 8px; font-size: 0.85rem;">★</span>
         <span class="tree-text" title="Query: ${f.query}">${f.name}</span>
-        <button class="action-btn secondary delete-filter-btn" style="opacity: 0.6; padding: 2px 6px; font-size: 0.65rem; border-color: transparent; margin-left: auto; background: transparent; color: var(--status-critical);" onclick="deleteSavedFilter(event, '${f.id}')">×</button>
+        <button class="action-btn secondary delete-filter-btn" style="opacity: 0.6; padding: 2px 6px; font-size: 0.65rem; border-color: transparent; margin-left: auto; background: transparent; color: var(--status-critical);" onclick="deleteSavedFilter(event, '${f.id}')" title="Delete this starred filter shortcut.">×</button>
       `;
       
       item.onclick = (e) => {
@@ -3677,8 +3916,8 @@ function populateGroupManagerSystems() {
         <strong>${grp.name}</strong> (${grp.systemSerials.length} systems)
       </div>
       <div style="display: flex; gap: 8px;">
-        <button class="action-btn" style="font-size: 0.7rem; padding: 4px 8px; border-color: rgba(0,229,255,0.2);" onclick="editCustomGroup('${grp.id}')">Edit</button>
-        <button class="action-btn secondary" style="font-size: 0.7rem; padding: 4px 8px; color: var(--status-critical); border-color: rgba(255,51,102,0.2);" onclick="deleteCustomGroup('${grp.id}')">Delete</button>
+        <button class="action-btn" style="font-size: 0.7rem; padding: 4px 8px; border-color: rgba(0,229,255,0.2);" onclick="editCustomGroup('${grp.id}')" title="Edit this subgroup's name and system assignments.">Edit</button>
+        <button class="action-btn secondary" style="font-size: 0.7rem; padding: 4px 8px; color: var(--status-critical); border-color: rgba(255,51,102,0.2);" onclick="deleteCustomGroup('${grp.id}')" title="Delete this subgroup completely (does not delete member systems).">Delete</button>
       </div>
     `;
     listContainer.appendChild(item);
