@@ -2465,11 +2465,13 @@ async function loadProductionData() {
     alert(`Failed to load data from Active IQ API.
 Reason: ${error.message}
 
-⚠️ COMMON ISSUE: If you are running the dashboard as a local file (file:///...), browser CORS security policies will block API connections to NetApp.
+⚠️ CORS / ORIGIN RESTRICTION:
+Even though the dashboard is served via a local web server (http://localhost:8080), browser CORS (Cross-Origin Resource Sharing) security policies will block direct API calls from localhost/file origins to NetApp's API servers.
+
 To resolve this:
-1. Re-enable Offline Demo Mode in Settings, OR
-2. Install a browser CORS extension (e.g. CORS Unblock), OR
-3. Serve the dashboard files using a simple web server (e.g. 'python -m http.server 8080').
+1. Re-enable "Offline Demo Mode (Mock Data)" in Settings to load the demo database.
+2. Install a developer browser extension (e.g., search the Chrome Web Store for "CORS Unblock" or "Allow CORS") and toggle it ON to bypass browser CORS origin checks.
+3. Or launch Chrome with disabled web security.
 
 See the README.md file for detailed CORS bypass guidelines.`);
   }
