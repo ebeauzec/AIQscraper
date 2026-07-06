@@ -3103,6 +3103,131 @@ function resetFilter() {
 }
 
 // 9. Custom Group & Metadata Editor Logic (in Settings panel)
+// 9. Custom Group & Metadata Editor Logic (in Settings panel)
+function editCustomGroup(groupId) {
+  const grp = state.groups.find(g => g.id === groupId);
+  if (!grp) return;
+  
+  state.editingGroupId = groupId;
+  document.getElementById("subgroupFormTitle").innerText = "Edit Custom Subgroup";
+  document.getElementById("newGroupNameInput").value = grp.name;
+  
+  document.querySelectorAll(".group-system-checkbox").forEach(chk => {
+    chk.checked = grp.systemSerials.includes(chk.value);
+  });
+  
+  document.getElementById("saveSubgroupBtn").innerText = "Update Subgroup";
+  document.getElementById("cancelSubgroupEditBtn").style.display = "inline-block";
+}
+
+function cancelSubgroupEdit() {
+  state.editingGroupId = null;
+  document.getElementById("subgroupFormTitle").innerText = "Create Custom Subgroup";
+  document.getElementById("newGroupNameInput").value = "";
+  document.querySelectorAll(".group-system-checkbox").forEach(chk => chk.checked = false);
+  document.getElementById("saveSubgroupBtn").innerText = "Create Subgroup";
+  document.getElementById("cancelSubgroupEditBtn").style.display = "none";
+}
+
+function createNewSystemPrompt() {
+  const serial = prompt("Enter Serial Number for New System:");
+  if (!serial) return;
+  const serialClean = serial.trim();
+  if (state.systems.some(s => s.serialNumber === serialClean)) {
+    alert("A system with this serial number already exists!");
+    return;
+  }
+  const name = prompt("Enter System Name:", "new-system-" + serialClean);
+  if (!name) return;
+  const customer = prompt("Enter Customer Account Name:", "Default Customer");
+  if (!customer) return;
+
+  const newSys = {
+    serialNumber: serialClean,
+    systemName: name.trim(),
+    customerName: customer.trim(),
+    clusterName: "cluster-" + name.trim(),
+    platform: "FAS2750",
+    ontapVersion: "ONTAP 9.12.1",
+    status: "normal",
+    risks: [],
+    upgrades: { targetVersion: "Up to Date", urgency: "none", benefits: "Running recommended release." },
+    contracts: { endDate: "2027-12-31", daysRemaining: 500, status: "normal", supportLevel: "Core Support" },
+    fieldActions: [],
+    hypervisors: [],
+    securityBulletins: [],
+    supportCases: [],
+    logistics: { deliveryAddress: "Site HQ", accessRestrictions: "Standard Business Hours", shippingAlert: "None" },
+    contacts: { name: "John Doe", phone: "555-0100", email: "johndoe@example.com", nssUsername: "jdoe" },
+    salesHealth: { accountManager: "Account Rep", supportTam: "TAM Rep", sentimentScore: 9.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Q4 2027" },
+    projections: { growthRateGBPerDay: 50, daysToLimit: 365, limitDate: "2027-07-06" },
+    efficiency: { ratio: "2.4:1" }
+  };
+
+  state.systems.push(newSys);
+  saveSystems();
+  populateSystemSelectors();
+  updateSearchSuggestions();
+  
+  document.getElementById("editorSystemSelect").value = serialClean;
+  loadSelectedSystemMetadataForEdit();
+  
+  switchTab(state.currentTab);
+  alert(`System "${name.trim()}" (S/N: ${serialClean}) created successfully! Additional specifications can be edited below.`);
+}
+
+function deleteCurrentSystem() {
+  const select = document.getElementById("editorSystemSelect");
+  if (!select || !select.value) return;
+  const serial = select.value;
+  const found = state.systems.find(s => s.serialNumber === serial);
+  if (!found) return;
+
+  if (!confirm(`Are you sure you want to delete system "${found.systemName}" (S/N: ${serial})?`)) {
+    return;
+  }
+
+  state.systems = state.systems.filter(s => s.serialNumber !== serial);
+  state.groups.forEach(g => {
+    g.systemSerials = g.systemSerials.filter(sn => sn !== serial);
+  });
+  
+  saveSystems();
+  populateSystemSelectors();
+  updateSearchSuggestions();
+  
+  if (state.systems.length > 0) {
+    state.selectedSystem = state.systems[0];
+    select.value = state.selectedSystem.serialNumber;
+    loadSelectedSystemMetadataForEdit();
+  } else {
+    state.selectedSystem = null;
+  }
+  
+  switchTab(state.currentTab);
+  alert("System deleted successfully!");
+}
+
+function updateSearchSuggestions() {
+  const datalist = document.getElementById("searchSuggestions");
+  if (!datalist) return;
+  datalist.innerHTML = "";
+  
+  const suggestions = new Set();
+  state.systems.forEach(sys => {
+    suggestions.add(sys.customerName);
+    suggestions.add(sys.systemName);
+    suggestions.add(sys.clusterName);
+    suggestions.add(sys.serialNumber);
+  });
+  
+  suggestions.forEach(sug => {
+    const opt = document.createElement("option");
+    opt.value = sug;
+    datalist.appendChild(opt);
+  });
+}
+
 function populateGroupManagerSystems() {
   const container = document.getElementById("groupManagerSystemsList");
   if (!container) return;
@@ -3123,7 +3248,7 @@ function populateGroupManagerSystems() {
     container.appendChild(div);
   });
   
-  // Render existing groups list in settings for deletion
+  // Render existing groups list in settings for deletion & edit
   const listContainer = document.getElementById("settingsGroupsManagerList");
   if (!listContainer) return;
   listContainer.innerHTML = "";
@@ -3149,7 +3274,10 @@ function populateGroupManagerSystems() {
       <div>
         <strong>${grp.name}</strong> (${grp.systemSerials.length} systems)
       </div>
-      <button class="action-btn secondary" style="font-size: 0.7rem; padding: 4px 8px; color: var(--status-critical); border-color: rgba(255,51,102,0.2);" onclick="deleteCustomGroup('${grp.id}')">Delete</button>
+      <div style="display: flex; gap: 8px;">
+        <button class="action-btn" style="font-size: 0.7rem; padding: 4px 8px; border-color: rgba(0,229,255,0.2);" onclick="editCustomGroup('${grp.id}')">Edit</button>
+        <button class="action-btn secondary" style="font-size: 0.7rem; padding: 4px 8px; color: var(--status-critical); border-color: rgba(255,51,102,0.2);" onclick="deleteCustomGroup('${grp.id}')">Delete</button>
+      </div>
     `;
     listContainer.appendChild(item);
   });
@@ -3188,6 +3316,13 @@ function loadSelectedSystemMetadataForEdit() {
   const bulletins = sys.securityBulletins || [];
   const cases = sys.supportCases || [];
 
+  document.getElementById("editSystemName").value = sys.systemName || "";
+  document.getElementById("editSerialNumber").value = sys.serialNumber || "";
+  document.getElementById("editCustomerName").value = sys.customerName || "";
+  document.getElementById("editClusterName").value = sys.clusterName || "";
+  document.getElementById("editPlatform").value = sys.platform || "";
+  document.getElementById("editOntapVersion").value = sys.ontapVersion || "";
+
   document.getElementById("editDeliveryAddress").value = logistics.deliveryAddress;
   document.getElementById("editAccessRestrictions").value = logistics.accessRestrictions;
   document.getElementById("editShippingAlert").value = logistics.shippingAlert;
@@ -3224,6 +3359,37 @@ function saveSystemMetadata() {
   const serial = document.getElementById("editorSystemSelect").value;
   const idx = state.systems.findIndex(s => s.serialNumber === serial);
   if (idx === -1) return;
+
+  const newSerial = document.getElementById("editSerialNumber").value.trim();
+  const newSysName = document.getElementById("editSystemName").value.trim();
+  const newCustName = document.getElementById("editCustomerName").value.trim();
+  const newClusterName = document.getElementById("editClusterName").value.trim();
+  const newPlatform = document.getElementById("editPlatform").value.trim();
+  const newOntap = document.getElementById("editOntapVersion").value.trim();
+
+  if (!newSerial || !newSysName || !newCustName) {
+    alert("System Name, Serial Number, and Customer Name are required core fields.");
+    return;
+  }
+
+  // Handle serial number change
+  if (newSerial !== serial) {
+    if (state.systems.some(s => s.serialNumber === newSerial)) {
+      alert(`A system with serial number "${newSerial}" already exists!`);
+      return;
+    }
+    // Update subgroup assignments
+    state.groups.forEach(g => {
+      g.systemSerials = g.systemSerials.map(sn => sn === serial ? newSerial : sn);
+    });
+  }
+
+  state.systems[idx].serialNumber = newSerial;
+  state.systems[idx].systemName = newSysName;
+  state.systems[idx].customerName = newCustName;
+  state.systems[idx].clusterName = newClusterName;
+  state.systems[idx].platform = newPlatform;
+  state.systems[idx].ontapVersion = newOntap;
 
   state.systems[idx].logistics = {
     deliveryAddress: document.getElementById("editDeliveryAddress").value.trim(),
@@ -3280,11 +3446,20 @@ function saveSystemMetadata() {
   }
 
   saveSystems();
-  alert(`Metadata & specifications for "${state.systems[idx].systemName}" updated successfully!`);
-  
-  if (state.selectedSystem.serialNumber === serial) {
+  populateSystemSelectors();
+  updateSearchSuggestions();
+
+  // If the edited system was the currently selected system, update state.selectedSystem
+  if (!state.selectedSystem || state.selectedSystem.serialNumber === serial) {
     state.selectedSystem = state.systems[idx];
   }
+
+  // Re-select in the editor selector
+  document.getElementById("editorSystemSelect").value = newSerial;
+
+  // Refresh active tab views
+  switchTab(state.currentTab);
+  alert(`Metadata & specifications for "${newSysName}" updated successfully!`);
 }
 
 function handleCreateGroup() {
@@ -3305,19 +3480,29 @@ function handleCreateGroup() {
     return;
   }
 
-  const newGroup = {
-    id: "group_" + Date.now(),
-    name: name,
-    systemSerials: selectedSerials
-  };
+  if (state.editingGroupId) {
+    const idx = state.groups.findIndex(g => g.id === state.editingGroupId);
+    if (idx !== -1) {
+      state.groups[idx].name = name;
+      state.groups[idx].systemSerials = selectedSerials;
+      saveGroups();
+      cancelSubgroupEdit();
+      alert("Subgroup updated successfully!");
+    }
+  } else {
+    const newGroup = {
+      id: "group_" + Date.now(),
+      name: name,
+      systemSerials: selectedSerials
+    };
 
-  state.groups.push(newGroup);
-  saveGroups();
-  
-  nameInput.value = "";
-  document.querySelectorAll(".group-system-checkbox").forEach(chk => chk.checked = false);
-  
-  alert("Group created successfully!");
+    state.groups.push(newGroup);
+    saveGroups();
+    nameInput.value = "";
+    document.querySelectorAll(".group-system-checkbox").forEach(chk => chk.checked = false);
+    alert("Group created successfully!");
+  }
+
   populateGroupManagerSystems();
   renderSidebarGroups();
 }
@@ -3541,6 +3726,7 @@ window.onload = async function() {
     await loadProductionData();
   }
   
+  updateSearchSuggestions();
   switchTab("overview");
   renderSidebarGroups();
 
