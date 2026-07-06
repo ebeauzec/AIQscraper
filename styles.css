@@ -869,3 +869,20 @@ input:checked + .slider:before {
 .copyable-code:hover svg {
   opacity: 0.9;
 }
+
+/* Custom scrollbars for the GraphQL Sandbox code block */
+#sandboxGraphQLOutput::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+#sandboxGraphQLOutput::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+}
+#sandboxGraphQLOutput::-webkit-scrollbar-thumb {
+  background: rgba(0, 229, 255, 0.2);
+  border-radius: var(--radius-sm);
+}
+#sandboxGraphQLOutput::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 229, 255, 0.4);
+}

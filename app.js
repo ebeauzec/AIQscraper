@@ -2204,6 +2204,100 @@ async function callActiveIQAPI(endpoint) {
   }
 }
 
+// Global GraphQL fetch client dispatcher
+async function callActiveIQGraphQL(query, variables = {}) {
+  if (state.mockMode) {
+    // Wrap inside a promise to simulate network latency
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(simulateMockGraphQLResponse(query, variables));
+      }, 150);
+    });
+  }
+  
+  try {
+    const token = await getValidAccessToken();
+    const response = await fetch("/graphql", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ query, variables })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`GraphQL API returned error: ${response.status} ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (result.errors) {
+      throw new Error(result.errors.map(e => e.message).join(", "));
+    }
+    return result.data;
+  } catch (error) {
+    console.error("Active IQ GraphQL Fetch Error: ", error);
+    throw error;
+  }
+}
+
+// Local mock resolver simulating dynamic GraphQL resolution
+function simulateMockGraphQLResponse(query, variables = {}) {
+  let filtered = [...state.systems];
+  
+  // Extract query filters from variables or query body
+  if (variables.customerName) {
+    filtered = filtered.filter(s => s.customerName === variables.customerName);
+  } else if (variables.serialNumber) {
+    filtered = filtered.filter(s => s.serialNumber === variables.serialNumber);
+  } else {
+    const custMatch = query.match(/customerName:\s*"([^"]+)"/);
+    if (custMatch) {
+      filtered = filtered.filter(s => s.customerName === custMatch[1]);
+    }
+    const serialMatch = query.match(/serialNumber:\s*"([^"]+)"/);
+    if (serialMatch) {
+      filtered = filtered.filter(s => s.serialNumber === serialMatch[1]);
+    }
+  }
+  
+  // Clean query string to perform field matching checks
+  const cleanQuery = query.replace(/\s+/g, "");
+  
+  const resultSystems = filtered.map(sys => {
+    const resolvedSys = {};
+    
+    // Select dynamic system fields based on GraphQL selection set query pattern
+    if (cleanQuery.includes("serialNumber")) resolvedSys.serialNumber = sys.serialNumber;
+    if (cleanQuery.includes("systemName")) resolvedSys.systemName = sys.systemName;
+    if (cleanQuery.includes("clusterName")) resolvedSys.clusterName = sys.clusterName;
+    if (cleanQuery.includes("customerName")) resolvedSys.customerName = sys.customerName;
+    if (cleanQuery.includes("platform")) resolvedSys.platform = sys.platform;
+    if (cleanQuery.includes("status")) resolvedSys.status = sys.status;
+    if (cleanQuery.includes("ontapVersion")) resolvedSys.ontapVersion = sys.ontapVersion;
+    
+    if (cleanQuery.includes("contracts")) resolvedSys.contracts = sys.contracts;
+    if (cleanQuery.includes("supportCases")) resolvedSys.supportCases = sys.supportCases;
+    if (cleanQuery.includes("risks")) resolvedSys.risks = sys.risks;
+    if (cleanQuery.includes("projections")) resolvedSys.projections = sys.projections;
+    if (cleanQuery.includes("switches")) resolvedSys.switches = sys.switches;
+    
+    // Default fallback if no fields were parsed
+    if (Object.keys(resolvedSys).length === 0) {
+      return {
+        serialNumber: sys.serialNumber,
+        systemName: sys.systemName,
+        platform: sys.platform,
+        status: sys.status
+      };
+    }
+    return resolvedSys;
+  });
+  
+  return {
+    systems: resultSystems
+  };
+}
+
 function simulateMockAPIResponse(endpoint) {
   if (endpoint.includes("/systems")) {
     const parts = endpoint.split("/");
@@ -6154,6 +6248,26 @@ window.onload = async function() {
   
   updateSearchSuggestions();
   switchTab("overview");
+
+  // Initialize GraphQL Sandbox default query and variables
+  const sandboxQuery = document.getElementById("sandboxGraphQLQuery");
+  const sandboxVars = document.getElementById("sandboxGraphQLVariables");
+  if (sandboxQuery && sandboxVars) {
+    sandboxQuery.value = `query GetCustomerTelemetry($customerName: String!) {
+  systems(customerName: $customerName) {
+    serialNumber
+    systemName
+    clusterName
+    platform
+    status
+    contracts {
+      endDate
+      daysRemaining
+    }
+  }
+}`;
+    sandboxVars.value = JSON.stringify({ customerName: "RetailGiant Corp" }, null, 2);
+  }
   renderSidebarGroups();
 
   document.getElementById("searchInput").addEventListener("input", handleSearch);
@@ -6187,3 +6301,67 @@ window.onload = async function() {
     }
   });
 };
+
+// GraphQL Query Sandbox Execution handler
+async function runSandboxGraphQLQuery() {
+  const queryArea = document.getElementById("sandboxGraphQLQuery");
+  const variablesArea = document.getElementById("sandboxGraphQLVariables");
+  const outputDiv = document.getElementById("sandboxGraphQLOutput");
+  const statusLabel = document.getElementById("sandboxQueryStatus");
+  const latencyLabel = document.getElementById("sandboxQueryLatency");
+  
+  if (!queryArea || !outputDiv) return;
+  
+  const query = queryArea.value.trim();
+  let variables = {};
+  
+  if (variablesArea && variablesArea.value.trim()) {
+    try {
+      variables = JSON.parse(variablesArea.value.trim());
+    } catch (err) {
+      if (statusLabel) {
+        statusLabel.innerText = "Error";
+        statusLabel.style.color = "var(--status-critical)";
+      }
+      outputDiv.innerText = `Invalid Variables JSON: ${err.message}`;
+      return;
+    }
+  }
+  
+  if (statusLabel) {
+    statusLabel.innerText = "Executing...";
+    statusLabel.style.color = "var(--accent-cyan)";
+  }
+  if (latencyLabel) {
+    latencyLabel.innerText = "-";
+  }
+  outputDiv.innerText = "// Executing query against NetApp Active IQ GraphQL gateway...";
+  
+  const startTime = performance.now();
+  try {
+    const data = await callActiveIQGraphQL(query, variables);
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(0);
+    
+    if (statusLabel) {
+      statusLabel.innerText = "Success";
+      statusLabel.style.color = "var(--status-normal)";
+    }
+    if (latencyLabel) {
+      latencyLabel.innerText = `${duration} ms`;
+    }
+    outputDiv.innerText = JSON.stringify(data, null, 2);
+  } catch (error) {
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(0);
+    
+    if (statusLabel) {
+      statusLabel.innerText = "Failed";
+      statusLabel.style.color = "var(--status-critical)";
+    }
+    if (latencyLabel) {
+      latencyLabel.innerText = `${duration} ms`;
+    }
+    outputDiv.innerText = `Query Execution Failed:\n${error.message}`;
+  }
+}

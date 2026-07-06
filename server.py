@@ -25,15 +25,18 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith('/api/'):
+        if self.path.startswith('/api/') or self.path == '/graphql':
             self.handle_proxy('POST')
         else:
             self.send_error(404, "Not Found")
 
     def handle_proxy(self, method):
-        # Convert local proxy endpoint (/api/systems -> https://api.activeiq.netapp.com/v1/systems)
-        endpoint = self.path[4:]
-        target_url = f"https://api.activeiq.netapp.com/v1{endpoint}"
+        if self.path == '/graphql':
+            target_url = "https://api.activeiq.netapp.com/graphql"
+        else:
+            # Convert local proxy endpoint (/api/systems -> https://api.activeiq.netapp.com/v1/systems)
+            endpoint = self.path[4:]
+            target_url = f"https://api.activeiq.netapp.com/v1{endpoint}"
         
         # Read request body data for POST
         content_length = int(self.headers.get('Content-Length', 0))
