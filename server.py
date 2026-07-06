@@ -1,0 +1,86 @@
+import http.server
+import urllib.request
+import urllib.error
+import sys
+
+PORT = 8080
+
+class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # Inject CORS headers for local origin access
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        # Handle CORS preflight options check
+        self.send_response(200, "OK")
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path.startswith('/api/'):
+            self.handle_proxy('GET')
+        else:
+            super().do_GET()
+
+    def do_POST(self):
+        if self.path.startswith('/api/'):
+            self.handle_proxy('POST')
+        else:
+            self.send_error(404, "Not Found")
+
+    def handle_proxy(self, method):
+        # Convert local proxy endpoint (/api/systems -> https://api.activeiq.netapp.com/v1/systems)
+        endpoint = self.path[4:]
+        target_url = f"https://api.activeiq.netapp.com/v1{endpoint}"
+        
+        # Read request body data for POST
+        content_length = int(self.headers.get('Content-Length', 0))
+        req_data = self.rfile.read(content_length) if content_length > 0 else None
+        
+        # Clone headers (skipping host and connection to prevent conflicts)
+        headers = {}
+        for key, val in self.headers.items():
+            if key.lower() not in ['host', 'connection', 'content-length', 'accept-encoding']:
+                headers[key] = val
+
+        if method == 'POST' and 'Content-Type' not in headers:
+            headers['Content-Type'] = 'application/json'
+
+        # Query NetApp API using standard urllib
+        req = urllib.request.Request(target_url, data=req_data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req) as response:
+                res_data = response.read()
+                self.send_response(response.status)
+                
+                # Forward remote response headers
+                for key, val in response.getheaders():
+                    if key.lower() not in ['transfer-encoding', 'content-encoding', 'access-control-allow-origin']:
+                        self.send_header(key, val)
+                
+                self.end_headers()
+                self.wfile.write(res_data)
+        except urllib.error.HTTPError as e:
+            res_data = e.read()
+            self.send_response(e.code)
+            for key, val in e.headers.items():
+                if key.lower() not in ['transfer-encoding', 'content-encoding', 'access-control-allow-origin']:
+                    self.send_header(key, val)
+            self.end_headers()
+            self.wfile.write(res_data)
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(str(e).encode('utf-8'))
+
+if __name__ == '__main__':
+    print(f"Starting CORS Proxy Web Server on port {PORT}...")
+    print(f"Access the dashboard at http://localhost:{PORT}")
+    server = http.server.HTTPServer(('127.0.0.1', PORT), ProxyHTTPRequestHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping server.")
+        server.server_close()

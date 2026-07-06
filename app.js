@@ -8,7 +8,8 @@
 // exchange (refreshing NSS tokens) and does not perform any data modifications.
 //
 
-const API_BASE = "https://api.activeiq.netapp.com/v1";
+// Determine API base dynamically to support zero-config CORS proxying when served locally
+const API_BASE = window.location.origin.startsWith("http") ? "/api" : "https://api.activeiq.netapp.com/v1";
 
 // 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins, Support Cases)
 const MOCK_SYSTEMS = [
