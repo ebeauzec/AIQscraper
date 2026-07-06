@@ -1466,6 +1466,177 @@ const MOCK_SYSTEMS = [
   }
 ];
 
+// Dynamically generate additional systems to reach approximately 50 systems (with new customers)
+(function generateExtraMockData() {
+  const extraCustomers = [
+    "RetailGiant Corp",
+    "AutoDrive Labs",
+    "MediaStream Inc",
+    "EduCloud Academy",
+    "FinServices Ltd",
+    "BioTech Research",
+    "EnergyGrid Co",
+    "TeleCom Global"
+  ];
+  
+  const platforms = [
+    "AFF A400 (On-Prem)",
+    "FAS8700 (On-Prem)",
+    "Cloud Volumes ONTAP (AWS)",
+    "Cloud Volumes ONTAP (Azure)",
+    "StorageGRID SG6060",
+    "AFF A900 (On-Prem)",
+    "FAS2750 (On-Prem)",
+    "AFF A250 (On-Prem)"
+  ];
+  
+  const statuses = ["normal", "normal", "normal", "normal", "warning", "warning", "critical"];
+  
+  const ontapVersions = ["9.12.1P4", "9.11.1P8", "9.13.1P8", "9.10.1P12", "11.8.0", "9.14.1P2"];
+
+  for (let i = 1; i <= 44; i++) {
+    const custIndex = i % extraCustomers.length;
+    const customer = extraCustomers[custIndex];
+    const serial = (722000000000 + i).toString();
+    const platIndex = i % platforms.length;
+    const platform = platforms[platIndex];
+    const status = statuses[i % statuses.length];
+    
+    const sysName = `${customer.toLowerCase().split(" ")[0]}-${platform.toLowerCase().substring(0, 3)}-0${Math.ceil(i/8)}`;
+    const clusterName = `${customer.toUpperCase().split(" ")[0]}-CLUSTER-0${Math.ceil(i/8)}`;
+    
+    const risks = [];
+    if (status === "critical") {
+      risks.push({
+        id: 200 + i,
+        severity: "critical",
+        category: "Hardware",
+        description: "Multiple disk drive failures detected in Aggregate rg0.",
+        recommendation: "Replace disk drives in slots 3 and 7 immediately. Refer to KB990211.",
+        kbLink: "https://kb.netapp.com",
+        remediationPlan: {
+          cause: "Double disk failure on shelf 1 within RAID-DP group.",
+          impact: "Aggregates are currently running in degraded state. A third disk failure will cause complete data loss.",
+          steps: ["1. Order replacement disks.", "2. Replace disk 3.", "3. Wait for reconstruction.", "4. Replace disk 7."],
+          options: ["Option A: Non-disruptive online hot-swap.", "Option B: Contact NetApp Support for dispatch."],
+          thirdParty: "No external hypervisor impacts."
+        }
+      });
+    } else if (status === "warning") {
+      risks.push({
+        id: 300 + i,
+        severity: "medium",
+        category: "Software",
+        description: "ONTAP upgrade advised to address TLS vulnerability.",
+        recommendation: "Upgrade ONTAP to version 9.13.1 or newer.",
+        kbLink: "https://kb.netapp.com",
+        remediationPlan: {
+          cause: "Older ONTAP version contains vulnerable TLS 1.0/1.1 protocols.",
+          impact: "Non-compliance with PCI-DSS security standards.",
+          steps: ["1. Perform Upgrade Advisor check.", "2. Update ONTAP cluster non-disruptively."],
+          options: ["Option A: Upgrade ONTAP.", "Option B: Disable TLS 1.0 manually."],
+          thirdParty: "Requires storage plugin compatibility checks."
+        }
+      });
+    }
+    
+    const daysRemaining = (i % 2 === 0) ? (30 + (i * 12)) : -(i * 2);
+    const contractsStatus = daysRemaining < 0 ? "critical" : (daysRemaining <= 90 ? "warning" : "normal");
+    const endDate = new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const sys = {
+      serialNumber: serial,
+      systemName: sysName,
+      clusterName: clusterName,
+      customerName: customer,
+      ontapVersion: ontapVersions[i % ontapVersions.length],
+      platform: platform,
+      status: status,
+      risks: risks,
+      upgrades: {
+        targetVersion: status === "normal" ? "Up to Date" : "9.13.1P8",
+        urgency: status === "normal" ? "None" : "Recommended",
+        benefits: "Enhances security standards and fixes multi-path signal checks."
+      },
+      contracts: {
+        status: contractsStatus,
+        endDate: endDate,
+        daysRemaining: daysRemaining,
+        supportLevel: "SupportEdge Premium"
+      },
+      lifecycle: {
+        eoaDate: "2028-12-31",
+        eosDate: "2033-12-31",
+        isNearEos: false
+      },
+      fieldActions: [],
+      efficiency: {
+        ratio: "3.5:1",
+        logicalUsedTB: 50.0 + (i * 5),
+        physicalUsedTB: 15.0 + i,
+        spaceSavedTB: 35.0 + (i * 4),
+        fabricPoolTieredTB: (i % 3 === 0) ? (5.0 + i) : 0.0
+      },
+      snapmirror: {
+        enabled: (i % 4 === 0),
+        relationships: (i % 4 === 0) ? [
+          {
+            destination: `backup-cvo-${i}`,
+            type: "XDP",
+            schedule: "daily",
+            status: "Mirrored",
+            state: "Snapmirrored",
+            lagTime: "3 hours",
+            healthy: true
+          }
+        ] : []
+      },
+      hypervisors: (i % 3 === 0) ? [
+        {
+          type: "VMware vSphere",
+          version: "ESXi 8.0",
+          plugin: "VASA Provider 10.1",
+          multipathing: "VMW_PSP_RR",
+          health: "Normal"
+        }
+      ] : [],
+      logistics: {
+        deliveryAddress: `Warehouse ${i}, Tech Boulevard, Suite ${100 + i}, Silicon Valley, CA, US`,
+        accessRestrictions: "General business hours. Escort required.",
+        shippingAlert: "None"
+      },
+      contacts: {
+        name: `Engineer ${i}`,
+        phone: `+1-408-555-00${i}`,
+        email: `ops-${i}@${customer.toLowerCase().split(" ")[0]}.com`,
+        nssUsername: `nss_user_${i}`
+      },
+      salesHealth: {
+        accountManager: "David Vance",
+        supportTam: "Marcus Vance",
+        sentimentScore: 8.0,
+        healthStatus: "Stable",
+        upsellPotential: "AFF capacity extension shelves",
+        refreshWindow: "Q2 2028"
+      },
+      projections: {
+        growthRateGBPerDay: 80 + i,
+        daysToLimit: 120 + (i * 2),
+        limitDate: new Date(Date.now() + (120 + (i * 2)) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        peakIops: 8000 + (i * 500),
+        avgLatencyMs: 1.5,
+        historicalCapacityMonths: [10, 11, 12, 13, 14, 15],
+        projectedCapacityMonths: [16, 17, 18]
+      },
+      securityBulletins: [],
+      supportCases: []
+    };
+
+    MOCK_SYSTEMS.push(sys);
+  }
+})();
+
+
 const DEFAULT_GROUPS = [
   {
     id: "group_us_prod",
