@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NetApp Active IQ Account Report Dashboard</title>
+  <!-- Load Inter Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Load Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+      <div class="logo-container">
+        <div class="logo-icon">AIQ</div>
+        <div class="logo-text">Active IQ Advisor</div>
+      </div>
+      
+      <div class="nav-menu">
+        <div class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+          Overview Dashboard
+        </div>
+        <div class="nav-item" data-tab="tam" onclick="switchTab('tam')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+          TAM Technical Audit
+        </div>
+        <div class="nav-item" data-tab="sam" onclick="switchTab('sam')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          SAM Support & Ops
+        </div>
+        <div class="nav-item" data-tab="csm" onclick="switchTab('csm')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          CSM Value & ROI
+        </div>
+        <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          Settings & Config
+        </div>
+      </div>
+      
+      <div class="nav-footer">
+        NetApp Internal Tool<br>Version 1.0.0
+      </div>
+    </div>
+    
+    <!-- Main Content Panel -->
+    <div class="main-content">
+      
+      <!-- Top Header Bar -->
+      <div class="top-header">
+        <div class="search-box">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="searchInput" class="search-input" placeholder="Search systems by Name, S/N, Cluster, or Customer...">
+        </div>
+        
+        <div class="header-status">
+          <div class="status-badge-header">
+            <span class="indicator disconnected"></span>
+            <span id="connectionStatusText" style="font-weight: 500;">Offline</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- VIEW: OVERVIEW DASHBOARD -->
+      <div id="overviewTab" class="tab-content active">
+        <!-- KPI Cards Row -->
+        <div class="kpi-row">
+          <div class="card">
+            <div class="card-title">Total Systems</div>
+            <div class="card-value" id="kpiTotalSystems">0</div>
+            <div class="card-subtitle">Active monitored assets</div>
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+          </div>
+          <div class="card">
+            <div class="card-title">Critical Risks</div>
+            <div class="card-value" id="kpiCriticalRisks">0</div>
+            <div class="card-subtitle">Action required immediately</div>
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </div>
+          <div class="card">
+            <div class="card-title">Active Warnings</div>
+            <div class="card-value" id="kpiWarningRisks">0</div>
+            <div class="card-subtitle">Preventative review recommended</div>
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <div class="card">
+            <div class="card-title">Expiring Contracts</div>
+            <div class="card-value" id="kpiContracts">0</div>
+            <div class="card-subtitle">Expires within 90 days</div>
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          </div>
+        </div>
+        
+        <!-- Charts Grid Row -->
+        <div class="charts-grid">
+          <div class="card chart-card">
+            <div class="card-title" style="margin-bottom: 20px;">Total Account Storage Savings (Efficiency)</div>
+            <div class="chart-wrapper">
+              <canvas id="efficiencyChart"></canvas>
+            </div>
+          </div>
+          <div class="card chart-card">
+            <div class="card-title" style="margin-bottom: 20px;">FabricPool Cloud Capacity Breakdown (per System)</div>
+            <div class="chart-wrapper">
+              <canvas id="capacityChart"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Systems Table Card -->
+        <div class="card table-card">
+          <div class="table-header-row">
+            <div class="section-title">Monitored Systems & Clusters</div>
+            <button class="action-btn" onclick="exportCSV()">Export Account Report (CSV)</button>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>System Name</th>
+                  <th>Serial Number</th>
+                  <th>Cluster</th>
+                  <th>Customer Account</th>
+                  <th>Platform</th>
+                  <th>Health Status</th>
+                  <th>Support Renewal Date</th>
+                </tr>
+              </thead>
+              <tbody id="overviewTableBody">
+                <!-- Javascript will inject table rows here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <!-- VIEW: TAM TECHNICAL AUDIT -->
+      <div id="tamTab" class="tab-content">
+        <div class="table-header-row" style="margin-bottom: 24px;">
+          <h2 style="font-weight: 700; font-size: 1.5rem;">Technical Health & Risk Mitigation</h2>
+          <div id="tamActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
+            <!-- Active Selected System info -->
+          </div>
+        </div>
+        
+        <div class="settings-grid">
+          <!-- Main Risks Table -->
+          <div class="card table-card" style="margin-bottom: 0;">
+            <div class="section-title" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+              Active Predictive Risk Signatures
+            </div>
+            <div class="data-table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Category</th>
+                    <th>Risk Description & Recommended Remediation</th>
+                    <th>Reference</th>
+                  </tr>
+                </thead>
+                <tbody id="tamRisksTableBody">
+                  <!-- JS injected risks -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Upgrade advisor sidebar -->
+          <div class="card" id="tamUpgradeContainer">
+            <!-- OS Upgrade Planner UI -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- VIEW: SAM SUPPORT & OPERATIONS -->
+      <div id="samTab" class="tab-content">
+        <div class="table-header-row" style="margin-bottom: 24px;">
+          <h2 style="font-weight: 700; font-size: 1.5rem;">Support Contracts & Lifecycles</h2>
+          <div id="samActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
+            <!-- Active Selected System info -->
+          </div>
+        </div>
+        
+        <!-- Contract & Lifecycle Row -->
+        <div class="charts-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
+          <div class="card" id="samContractCard">
+            <!-- Contract details card -->
+          </div>
+          <div class="card" id="samLifecycleCard">
+            <!-- Platform EOS/EOA lifecycle status card -->
+          </div>
+        </div>
+        
+        <!-- Field Actions Table -->
+        <div class="card table-card">
+          <div class="section-title" style="margin-bottom: 16px;">Outstanding Field Actions (FA) Bulletins</div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 150px;">FA Reference ID</th>
+                  <th>Action Required & Impact Scope</th>
+                </tr>
+              </thead>
+              <tbody id="samFieldActionsBody">
+                <!-- JS injected field actions -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <!-- VIEW: CSM VALUE & ROI -->
+      <div id="csmTab" class="tab-content">
+        <div class="table-header-row" style="margin-bottom: 24px;">
+          <h2 style="font-weight: 700; font-size: 1.5rem;">Adoption Scorecard & Business Value</h2>
+          <div id="csmActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
+            <!-- Active Selected System info -->
+          </div>
+        </div>
+        
+        <div class="kpi-row" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
+          <div class="card" id="csmSavingsCard">
+            <!-- Efficiency Savings Card -->
+          </div>
+          <div class="card" id="csmCloudCard">
+            <!-- FabricPool Cloud Tiering ROI -->
+          </div>
+        </div>
+        
+        <!-- Adoption Checklist Card -->
+        <div class="card table-card" style="max-width: 600px;">
+          <div class="section-title" style="margin-bottom: 16px;">Strategic Capability Adoption Checklist</div>
+          <div id="csmAdoptionChecklist">
+            <!-- Adoption metrics rows -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- VIEW: SETTINGS & CONFIG -->
+      <div id="settingsTab" class="tab-content">
+        <h2 style="font-weight: 700; font-size: 1.5rem; margin-bottom: 32px;">Settings & API Configuration</h2>
+        
+        <div class="settings-grid">
+          <!-- Setup credentials form -->
+          <div class="card">
+            <div class="section-title" style="margin-bottom: 24px;">API Authentication Configuration</div>
+            
+            <div class="toggle-container">
+              <label class="switch">
+                <input type="checkbox" id="settingsMockModeToggle">
+                <span class="slider"></span>
+              </label>
+              <div>
+                <span style="font-weight: 600; display: block; font-size: 0.9rem;">Enable Offline Demo Mode (Mock Data)</span>
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">Render mock customer systems, risks, and lifecycle data to test application layout.</span>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="settingsRefreshToken">Active IQ Developer Refresh Token</label>
+              <textarea id="settingsRefreshToken" class="form-input" rows="5" placeholder="Enter your Active IQ Refresh Token..."></textarea>
+              <div class="form-helper">This token is persisted locally inside your browser's private localStorage and rotated automatically.</div>
+            </div>
+            
+            <button class="action-btn" onclick="saveSettings()">Save Configuration</button>
+          </div>
+          
+          <!-- Instructions Panel -->
+          <div class="setup-box">
+            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 20px;">API Authorization Setup</h3>
+            
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span class="step-num">1</span>
+                <span class="step-title">Log in to Portal</span>
+              </div>
+              <div class="step-desc">Open <a href="https://activeiq.netapp.com" target="_blank" class="external-link">activeiq.netapp.com</a> and sign in with your NetApp Support Site (NSS) credentials.</div>
+            </div>
+            
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span class="step-num">2</span>
+                <span class="step-title">Generate API Token</span>
+              </div>
+              <div class="step-desc">Navigate to <strong>Quick Links</strong> in the top header and click <strong>API Services</strong>. Select <strong>Generate Token</strong>.</div>
+            </div>
+            
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span class="step-num">3</span>
+                <span class="step-title">Copy & Save</span>
+              </div>
+              <div class="step-desc">Copy the generated <strong>Refresh Token</strong> and paste it into the input box on the left, then click <strong>Save Configuration</strong>.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- Javascript File -->
+  <script src="app.js"></script>
+</body>
+</html>
