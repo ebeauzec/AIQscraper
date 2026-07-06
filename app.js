@@ -735,7 +735,7 @@ const DEFAULT_GROUPS = [
 // 2. Global State Variable
 let state = {
   currentTab: "overview",
-  mockMode: true,
+  mockMode: false,
   systems: [...MOCK_SYSTEMS],
   groups: [...DEFAULT_GROUPS],
   selectedSystem: MOCK_SYSTEMS[0],
@@ -747,7 +747,7 @@ let state = {
 // 3. Storage & Groups Helpers
 function loadConfig() {
   const mockModeVal = localStorage.getItem("aiq_mock_mode");
-  state.mockMode = mockModeVal === null ? true : mockModeVal === "true";
+  state.mockMode = mockModeVal === null ? false : mockModeVal === "true";
   
   const refresh = localStorage.getItem("aiq_refresh_token") || "";
   const access = localStorage.getItem("aiq_access_token") || "";
