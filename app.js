@@ -1509,37 +1509,139 @@ const MOCK_SYSTEMS = [
     
     const risks = [];
     if (status === "critical") {
-      risks.push({
-        id: 200 + i,
-        severity: "critical",
-        category: "Hardware",
-        description: "Multiple disk drive failures detected in Aggregate rg0.",
-        recommendation: "Replace disk drives in slots 3 and 7 immediately. Refer to KB990211.",
-        kbLink: "https://kb.netapp.com",
-        remediationPlan: {
-          cause: "Double disk failure on shelf 1 within RAID-DP group.",
-          impact: "Aggregates are currently running in degraded state. A third disk failure will cause complete data loss.",
-          steps: ["1. Order replacement disks.", "2. Replace disk 3.", "3. Wait for reconstruction.", "4. Replace disk 7."],
-          options: ["Option A: Non-disruptive online hot-swap.", "Option B: Contact NetApp Support for dispatch."],
-          thirdParty: "No external hypervisor impacts."
-        }
-      });
+      const critScenario = i % 4;
+      if (critScenario === 0) {
+        risks.push({
+          id: 200 + i,
+          severity: "critical",
+          category: "Hardware",
+          description: "Multiple disk drive failures detected in Aggregate rg0.",
+          recommendation: "Replace disk drives in slots 3 and 7 immediately. Refer to KB990211.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Double disk failure on shelf 1 within RAID-DP group.",
+            impact: "Aggregates are currently running in degraded state. A third disk failure will cause complete data loss.",
+            steps: ["1. Order replacement disks.", "2. Replace disk 3.", "3. Wait for reconstruction.", "4. Replace disk 7."],
+            options: ["Option A: Non-disruptive online hot-swap.", "Option B: Contact NetApp Support for dispatch."],
+            thirdParty: "No external hypervisor impacts."
+          }
+        });
+      } else if (critScenario === 1) {
+        risks.push({
+          id: 200 + i,
+          severity: "critical",
+          category: "Hardware",
+          description: "SAS initiator port reset threshold exceeded on Controller A.",
+          recommendation: "Inspect SAS cable connections between controller port 2a and shelf 1 port A. Swap SAS cable if errors persist.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Degraded SAS link signaling causing port resets on port 2a.",
+            impact: "SAS path redundancy lost. A secondary failure on path B will disrupt active storage access.",
+            steps: ["1. Identify shelf ports.", "2. Re-seat SAS cable.", "3. Run CLI command: 'storage port show -port 2a' to verify link status."],
+            options: ["Option A: Non-disruptive cable re-seat.", "Option B: Order replacement SAS cable."],
+            thirdParty: "No impact on hypervisors."
+          }
+        });
+      } else if (critScenario === 2) {
+        risks.push({
+          id: 200 + i,
+          severity: "critical",
+          category: "Software",
+          description: "MetroCluster IP configuration synchronization failed.",
+          recommendation: "Force site-to-site configuration sync. Upgrade firmware to resolve sync race condition.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Sync timeout between local and remote site NVRAM logs.",
+            impact: "Automatic unplanned switchover disabled. MetroCluster protection is compromised.",
+            steps: ["1. Run 'metrocluster operation show'.", "2. Force sync using 'metrocluster configure syncforce'."],
+            options: ["Option A: Non-disruptive syncforce CLI.", "Option B: Contact Support."],
+            thirdParty: "VMware vSphere vMSC configuration will alert on path status."
+          }
+        });
+      } else {
+        risks.push({
+          id: 200 + i,
+          severity: "critical",
+          category: "Hardware",
+          description: "HA interconnect link status degraded (link 1 down).",
+          recommendation: "Replace faulty SFP+ module on cluster interconnect switch port 5.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Faulty physical SFP transceiver module on internal fabric interface.",
+            impact: "Loss of HA failover synchronization path. Storage takeover capacity is impaired.",
+            steps: ["1. Identify controller SFP.", "2. Hot-swap SFP module on switch port 5.", "3. Verify link status."],
+            options: ["Option A: Online SFP hot-swap.", "Option B: Switch port reallocation."],
+            thirdParty: "No hypervisor impact."
+          }
+        });
+      }
     } else if (status === "warning") {
-      risks.push({
-        id: 300 + i,
-        severity: "medium",
-        category: "Software",
-        description: "ONTAP upgrade advised to address TLS vulnerability.",
-        recommendation: "Upgrade ONTAP to version 9.13.1 or newer.",
-        kbLink: "https://kb.netapp.com",
-        remediationPlan: {
-          cause: "Older ONTAP version contains vulnerable TLS 1.0/1.1 protocols.",
-          impact: "Non-compliance with PCI-DSS security standards.",
-          steps: ["1. Perform Upgrade Advisor check.", "2. Update ONTAP cluster non-disruptively."],
-          options: ["Option A: Upgrade ONTAP.", "Option B: Disable TLS 1.0 manually."],
-          thirdParty: "Requires storage plugin compatibility checks."
-        }
-      });
+      const warnScenario = i % 4;
+      if (warnScenario === 0) {
+        risks.push({
+          id: 300 + i,
+          severity: "medium",
+          category: "Software",
+          description: "ONTAP upgrade advised to address TLS vulnerability.",
+          recommendation: "Upgrade ONTAP to version 9.13.1 or newer.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Older ONTAP version contains vulnerable TLS 1.0/1.1 protocols.",
+            impact: "Non-compliance with PCI-DSS security standards.",
+            steps: ["1. Perform Upgrade Advisor check.", "2. Update ONTAP cluster non-disruptively."],
+            options: ["Option A: Upgrade ONTAP.", "Option B: Disable TLS 1.0 manually."],
+            thirdParty: "Requires storage plugin compatibility checks."
+          }
+        });
+      } else if (warnScenario === 1) {
+        risks.push({
+          id: 300 + i,
+          severity: "medium",
+          category: "Configuration",
+          description: "NTP server synchronization drift exceeds 500ms.",
+          recommendation: "Reconfigure cluster time synchronization with reliable active directory NTP server.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Network latency or firewall blocking UDP port 123 to current server.",
+            impact: "Disruptions in Kerberos authentication and active directory integration.",
+            steps: ["1. Verify NTP server ping.", "2. Modify NTP server: 'cluster time-service ntp server modify -server time.windows.com'."],
+            options: ["Option A: Set local AD server.", "Option B: Configure external pool NTP servers."],
+            thirdParty: "Active directory integrated hypervisors will fail CIFS file share authentications."
+          }
+        });
+      } else if (warnScenario === 2) {
+        risks.push({
+          id: 300 + i,
+          severity: "medium",
+          category: "Firmware",
+          description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
+          recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Shelf module firmware drift behind validated baseline.",
+            impact: "Risk of soft path resets under heavy transactional traffic.",
+            steps: ["1. Download firmware bundle.", "2. Upload via CLI.", "3. Run background upgrade."],
+            options: ["Option A: Automated update.", "Option B: CLI background update."],
+            thirdParty: "Ensure ESXi queue depths are configured correctly."
+          }
+        });
+      } else {
+        risks.push({
+          id: 300 + i,
+          severity: "medium",
+          category: "Configuration",
+          description: "Aggregates utilization exceeds 85% capacity threshold.",
+          recommendation: "Initiate volume relocation to less utilized aggregate or enable thin provisioning.",
+          kbLink: "https://kb.netapp.com",
+          remediationPlan: {
+            cause: "Unplanned storage growth in local snapshot copies.",
+            impact: "Potential read-only fail-safes if aggregates fill to 100%.",
+            steps: ["1. Identify thick-provisioned volumes.", "2. Convert to thin-provisioned or move volumes to node 2 aggregates."],
+            options: ["Option A: Relocate volumes non-disruptively.", "Option B: Reclaim space by deleting snapshots."],
+            thirdParty: "Virtual machine provisionings will fail."
+          }
+        });
+      }
     }
     
     const daysRemaining = (i % 2 === 0) ? (30 + (i * 12)) : -(i * 2);
@@ -1767,8 +1869,10 @@ function loadConfig() {
   const expiry = localStorage.getItem("aiq_token_expiry") || "";
   
   // Load systems db if exists in local storage
+  const schemaVer = localStorage.getItem("aiq_systems_schema_v2");
   const savedSystems = localStorage.getItem("aiq_systems_db");
-  if (savedSystems) {
+  
+  if (savedSystems && schemaVer === "v2") {
     const parsed = JSON.parse(savedSystems);
     if (parsed.length < MOCK_SYSTEMS.length) {
       state.systems = [...MOCK_SYSTEMS];
@@ -1778,6 +1882,8 @@ function loadConfig() {
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
+    localStorage.setItem("aiq_systems_schema_v2", "v2");
+    saveSystems();
   }
 
   // Pick first system as selected
