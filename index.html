@@ -98,25 +98,25 @@
       <div id="overviewTab" class="tab-content active">
         <!-- KPI Cards Row -->
         <div class="kpi-row">
-          <div class="card">
+          <div class="card kpi-card" id="kpiCardAll" onclick="setKpiFilter('ALL')" style="cursor: pointer;">
             <div class="card-title">Total Systems</div>
             <div class="card-value" id="kpiTotalSystems">0</div>
             <div class="card-subtitle">Active monitored assets</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
           </div>
-          <div class="card">
+          <div class="card kpi-card" id="kpiCardCritical" onclick="setKpiFilter('CRITICAL')" style="cursor: pointer;">
             <div class="card-title">Critical Risks</div>
             <div class="card-value" id="kpiCriticalRisks">0</div>
             <div class="card-subtitle">Action required immediately</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
           </div>
-          <div class="card">
+          <div class="card kpi-card" id="kpiCardWarning" onclick="setKpiFilter('WARNING')" style="cursor: pointer;">
             <div class="card-title">Active Warnings</div>
             <div class="card-value" id="kpiWarningRisks">0</div>
             <div class="card-subtitle">Preventative review recommended</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <div class="card">
+          <div class="card kpi-card" id="kpiCardContract" onclick="setKpiFilter('CONTRACT')" style="cursor: pointer;">
             <div class="card-title">Expiring Contracts</div>
             <div class="card-value" id="kpiContracts">0</div>
             <div class="card-subtitle">Expires within 90 days</div>
@@ -154,13 +154,13 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>System Name</th>
-                  <th>Serial Number</th>
-                  <th>Cluster</th>
-                  <th>Customer Account</th>
-                  <th>Platform</th>
-                  <th>Health Status</th>
-                  <th>Support Renewal Date</th>
+                  <th onclick="sortTable('systemName')" style="cursor: pointer; user-select: none;">System Name <span id="sort-systemName" class="sort-icon"></span></th>
+                  <th onclick="sortTable('serialNumber')" style="cursor: pointer; user-select: none;">Serial Number <span id="sort-serialNumber" class="sort-icon"></span></th>
+                  <th onclick="sortTable('clusterName')" style="cursor: pointer; user-select: none;">Cluster <span id="sort-clusterName" class="sort-icon"></span></th>
+                  <th onclick="sortTable('customerName')" style="cursor: pointer; user-select: none;">Customer Account <span id="sort-customerName" class="sort-icon"></span></th>
+                  <th onclick="sortTable('platform')" style="cursor: pointer; user-select: none;">Platform <span id="sort-platform" class="sort-icon"></span></th>
+                  <th onclick="sortTable('status')" style="cursor: pointer; user-select: none;">Health Status <span id="sort-status" class="sort-icon"></span></th>
+                  <th onclick="sortTable('contracts.endDate')" style="cursor: pointer; user-select: none;">Support Renewal Date <span id="sort-contracts-endDate" class="sort-icon"></span></th>
                 </tr>
               </thead>
               <tbody id="overviewTableBody">

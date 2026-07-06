@@ -254,6 +254,12 @@ body {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
+.card.kpi-card.active {
+  border-color: var(--accent-cyan);
+  background-color: rgba(0, 229, 255, 0.05);
+  box-shadow: 0 8px 30px rgba(0, 229, 255, 0.15);
+}
+
 .card-title {
   color: var(--text-secondary);
   font-size: 0.85rem;

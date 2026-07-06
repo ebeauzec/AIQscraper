@@ -1507,7 +1507,10 @@ let state = {
   selectedSystem: MOCK_SYSTEMS[0],
   activeSearchQuery: "",
   activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP", "WATCHLIST"
-  activeFilterValue: ""    // Customer Name, Group ID, or Watchlist ID
+  activeFilterValue: "",   // Customer Name, Group ID, or Watchlist ID
+  sortKey: "systemName",
+  sortOrder: "asc",
+  activeKpiFilter: "NONE" // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
 };
 
 // 3. Storage & Groups Helpers
@@ -1736,7 +1739,7 @@ function renderCharts() {
   });
 }
 
-function getFilteredSystems() {
+function getFilteredSystems(excludeKpiFilter = false) {
   let filtered = state.systems;
 
   // 1. Sidebar customer/group/watchlist filters
@@ -1769,11 +1772,22 @@ function getFilteredSystems() {
     });
   }
 
+  // 3. KPI Card Drill-Down filter (except when calculating the KPI values themselves)
+  if (!excludeKpiFilter && state.activeKpiFilter && state.activeKpiFilter !== "NONE") {
+    if (state.activeKpiFilter === "CRITICAL") {
+      filtered = filtered.filter(s => s.status === "critical" || s.risks.some(r => r.severity === "critical"));
+    } else if (state.activeKpiFilter === "WARNING") {
+      filtered = filtered.filter(s => s.status === "warning" || s.risks.some(r => r.severity === "high" || r.severity === "medium"));
+    } else if (state.activeKpiFilter === "CONTRACT") {
+      filtered = filtered.filter(s => s.contracts.daysRemaining <= 90);
+    }
+  }
+
   return filtered;
 }
 
 function updateOverviewKpis() {
-  const filtered = getFilteredSystems();
+  const filtered = getFilteredSystems(true); // Exclude activeKpiFilter to calculate accurate KPI counts
   const totalSystems = filtered.length;
   const criticalRisksCount = filtered.reduce((acc, sys) => 
     acc + sys.risks.filter(r => r.severity === 'critical').length, 0);
@@ -1792,12 +1806,106 @@ function updateOverviewKpis() {
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
 }
 
+function setKpiFilter(filterType) {
+  if (state.activeKpiFilter === filterType) {
+    state.activeKpiFilter = "NONE"; // toggle off
+  } else {
+    state.activeKpiFilter = filterType;
+  }
+  
+  // Update visual card active highlight states
+  const cards = {
+    "ALL": "kpiCardAll",
+    "CRITICAL": "kpiCardCritical",
+    "WARNING": "kpiCardWarning",
+    "CONTRACT": "kpiCardContract"
+  };
+  
+  Object.keys(cards).forEach(key => {
+    const el = document.getElementById(cards[key]);
+    if (!el) return;
+    if (state.activeKpiFilter === key) {
+      el.classList.add("active");
+    } else {
+      el.classList.remove("active");
+    }
+  });
+
+  // Re-render overview table and switch/update tabs accordingly
+  renderOverviewTable();
+}
+
+function sortTable(key) {
+  if (state.sortKey === key) {
+    state.sortOrder = state.sortOrder === "asc" ? "desc" : "asc";
+  } else {
+    state.sortKey = key;
+    state.sortOrder = "asc";
+  }
+  renderOverviewTable();
+}
+
+function updateSortIndicators() {
+  const headers = {
+    "systemName": "sort-systemName",
+    "serialNumber": "sort-serialNumber",
+    "clusterName": "sort-clusterName",
+    "customerName": "sort-customerName",
+    "platform": "sort-platform",
+    "status": "sort-status",
+    "contracts.endDate": "sort-contracts-endDate"
+  };
+
+  Object.keys(headers).forEach(key => {
+    const el = document.getElementById(headers[key]);
+    if (!el) return;
+    if (state.sortKey === key) {
+      el.innerText = state.sortOrder === "asc" ? " ▲" : " ▼";
+      el.style.opacity = "1";
+      el.style.color = "var(--accent-cyan)";
+    } else {
+      el.innerText = " ↕";
+      el.style.opacity = "0.3";
+      el.style.color = "inherit";
+    }
+  });
+}
+
 function renderOverviewTable() {
   const tbody = document.getElementById("overviewTableBody");
   if (!tbody) return;
   tbody.innerHTML = "";
 
   const filteredSystems = getFilteredSystems();
+
+  // Sort filteredSystems based on state.sortKey and state.sortOrder
+  const sortKey = state.sortKey || "systemName";
+  const sortOrder = state.sortOrder || "asc";
+
+  filteredSystems.sort((a, b) => {
+    let valA = a;
+    let valB = b;
+
+    // Resolve nested keys if needed (like contracts.endDate)
+    const keys = sortKey.split(".");
+    keys.forEach(k => {
+      if (valA) valA = valA[k];
+      if (valB) valB = valB[k];
+    });
+
+    // Handle type-specific sorting (strings are case-insensitive)
+    if (typeof valA === "string") {
+      valA = valA.toLowerCase();
+      valB = (valB || "").toLowerCase();
+    }
+
+    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  // Update visual sort indicators on table headers
+  updateSortIndicators();
 
   if (filteredSystems.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No matching systems found.</td></tr>`;
@@ -3210,6 +3318,15 @@ function resetFilter() {
   state.activeFilterType = "ALL";
   state.activeFilterValue = "";
   state.activeSearchQuery = "";
+  state.activeKpiFilter = "NONE";
+  
+  // Clear KPI card active classes
+  const cards = ["kpiCardAll", "kpiCardCritical", "kpiCardWarning", "kpiCardContract"];
+  cards.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("active");
+  });
+
   const searchInput = document.getElementById("searchInput");
   if (searchInput) searchInput.value = "";
   switchTab(state.currentTab);
