@@ -808,21 +808,21 @@ input:checked + .slider:before {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-grow: 1;
-  margin-right: 28px;
+  margin-right: 8px;
 }
 
 .tree-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
   font-size: 0.65rem;
   font-weight: 700;
   color: #fff;
-  position: absolute;
-  right: 12px;
+  flex-shrink: 0;
 }
 
 .tree-badge.critical {

@@ -2508,7 +2508,7 @@ function renderOverviewTable() {
 
     let nameHtml = sys.systemName;
     if (sys.supportCases && sys.supportCases.length > 0) {
-      nameHtml += ` <span class="badge warning" style="font-size: 0.65rem; padding: 2px 4px; vertical-align: middle; margin-left: 4px; background-color: var(--status-info); border-color: rgba(0, 230, 118, 0.2);" data-tooltip="${sys.supportCases.length} Active Support Case(s) Open">✉ ${sys.supportCases.length} Open</span>`;
+      nameHtml += ` <span class="badge warning" style="font-size: 0.65rem; padding: 2px 4px; vertical-align: middle; margin-left: 4px; background-color: var(--status-info); border-color: rgba(0, 230, 118, 0.2); cursor: pointer;" onclick="navigateToSupportCases('SYSTEM', '${sys.serialNumber}', event)" data-tooltip="Click to view active support cases for this system">✉ ${sys.supportCases.length} Open</span>`;
     }
 
     tr.innerHTML = `
@@ -5089,13 +5089,15 @@ function renderSidebarGroups() {
       const badge = riskCount > 0 ? `<span class="tree-badge ${custSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
       
       const caseCount = custSystems.reduce((acc, s) => acc + (s.supportCases ? s.supportCases.length : 0), 0);
-      const caseBadge = caseCount > 0 ? `<span class="tree-badge info" style="background: var(--status-info); margin-right: 4px;" data-tooltip="${caseCount} Open Support Case(s) Active">✉ ${caseCount}</span>` : '';
+      const caseBadge = caseCount > 0 ? `<span class="tree-badge info" style="background: var(--status-info); cursor: pointer;" onclick="navigateToSupportCases('CUSTOMER', '${cust}', event)" data-tooltip="Click to view all ${caseCount} open support cases">✉ ${caseCount}</span>` : '';
 
       item.innerHTML = `
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        <span class="tree-text" style="flex: 1;">${cust}</span>
-        ${caseBadge}
-        ${badge}
+        <span class="tree-text">${cust}</span>
+        <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; position: relative; z-index: 10;">
+          ${caseBadge}
+          ${badge}
+        </div>
       `;
       container.appendChild(item);
     });
@@ -5125,13 +5127,15 @@ function renderSidebarGroups() {
       const badge = riskCount > 0 ? `<span class="tree-badge ${groupSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
 
       const caseCount = groupSystems.reduce((acc, s) => acc + (s.supportCases ? s.supportCases.length : 0), 0);
-      const caseBadge = caseCount > 0 ? `<span class="tree-badge info" style="background: var(--status-info); margin-right: 4px;" data-tooltip="${caseCount} Open Support Case(s) Active">✉ ${caseCount}</span>` : '';
+      const caseBadge = caseCount > 0 ? `<span class="tree-badge info" style="background: var(--status-info); cursor: pointer;" onclick="navigateToSupportCases('GROUP', '${grp.id}', event)" data-tooltip="Click to view all ${caseCount} open support cases">✉ ${caseCount}</span>` : '';
 
       item.innerHTML = `
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-        <span class="tree-text" style="flex: 1;">${grp.name}</span>
-        ${caseBadge}
-        ${badge}
+        <span class="tree-text">${grp.name}</span>
+        <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; position: relative; z-index: 10;">
+          ${caseBadge}
+          ${badge}
+        </div>
       `;
       container.appendChild(item);
     });
@@ -5196,7 +5200,9 @@ function renderSidebarGroups() {
       item.innerHTML = `
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
         <span class="tree-text">${wl.name}</span>
-        ${badge}
+        <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; position: relative; z-index: 10;">
+          ${badge}
+        </div>
       `;
       container.appendChild(item);
     });
@@ -5250,6 +5256,31 @@ function setFilter(type, value) {
   switchTab(state.currentTab);
   
   renderSidebarGroups();
+}
+
+function navigateToSupportCases(type, value, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  
+  if (type === "SYSTEM") {
+    const sys = state.systems.find(s => s.serialNumber === value);
+    if (sys) {
+      state.currentTab = "sam";
+      setFilter("CUSTOMER", sys.customerName);
+      state.selectedSAMSystemSerial = value;
+      switchTab("sam");
+    }
+  } else if (type === "CUSTOMER") {
+    state.currentTab = "sam";
+    setFilter("CUSTOMER", value);
+    switchTab("sam");
+  } else if (type === "GROUP") {
+    state.currentTab = "sam";
+    setFilter("GROUP", value);
+    switchTab("sam");
+  }
 }
 
 function resetFilter() {
