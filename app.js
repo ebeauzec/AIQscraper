@@ -1,4 +1,12 @@
 // Active IQ Web Client - Core Application Logic
+//
+// NOTE ON READ-ONLY DESIGN SAFETY:
+// This tool is designed to be strictly READ-ONLY. Under no circumstances should
+// this application perform mutating actions (POST, PUT, PATCH, DELETE) against 
+// any Active IQ data configurations, customer assets, or cluster parameters.
+// The single POST request made in this app is strictly for token authentication
+// exchange (refreshing NSS tokens) and does not perform any data modifications.
+//
 const API_BASE = "https://api.activeiq.netapp.com/v1";
 
 // 1. Mock Data Definitions (For offline testing and developer previews)

@@ -30,6 +30,9 @@ This tool is distributed under the **MIT License**.
 > 
 > For full details, see the [LICENSE](LICENSE) file.
 
+### Strict Read-Only Design
+This dashboard is designed to be **strictly read-only** under all circumstances. It retrieves read-only telemetry data using HTTP `GET` requests. It contains no forms, endpoints, scripts, or interfaces that can execute mutating requests (`POST` for configuration, `PUT`, `PATCH`, or `DELETE`) against the Active IQ portal or any customer storage systems. The only `POST` call in the application is strictly for the initial authentication token swap.
+
 ---
 
 ## Instructions
