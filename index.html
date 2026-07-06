@@ -57,7 +57,7 @@
       <div class="sidebar-groups-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
           <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">Account Filters</span>
-          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()">Reset</button>
+          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()" data-tooltip="Clear all active customer, subgroup, watchlist filters, search terms, and KPI card drill-downs.">Reset</button>
         </div>
         <div id="sidebarGroupsList" class="tree-menu">
           <!-- JS dynamic groups list -->
@@ -80,7 +80,7 @@
             <input type="text" id="searchInput" list="searchSuggestions" class="search-input" style="padding-left: 40px; width: 100%;" placeholder="Search by Name, S/N(s), Cluster, or Customer...">
             <datalist id="searchSuggestions"></datalist>
           </div>
-          <button id="starSearchBtn" class="action-btn" style="padding: 10px 14px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;" onclick="starCurrentSearch()">
+          <button id="starSearchBtn" class="action-btn" style="padding: 10px 14px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;" onclick="starCurrentSearch()" data-tooltip="Save the current search query as a starred shortcut in the sidebar for easy access.">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
             Star Filter
           </button>
@@ -145,9 +145,9 @@
           <div class="table-header-row">
             <div class="section-title">Monitored Systems & Clusters</div>
             <div style="display: flex; gap: 8px;">
-              <button class="action-btn secondary" onclick="triggerImportFileInput()">Import Config (JSON)</button>
-              <button class="action-btn secondary" onclick="exportConfigJSON()">Export Config (JSON)</button>
-              <button class="action-btn" onclick="exportCSV()">Export Account Report (CSV)</button>
+              <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database, systems metadata, custom subgroups, and star filters from a JSON file.">Import Config (JSON)</button>
+              <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export all systems metadata, custom subgroups, and star filters to a JSON file to share or back up.">Export Config (JSON)</button>
+              <button class="action-btn" onclick="exportCSV()" data-tooltip="Export the current filtered systems list, risk counts, and support statuses to a spreadsheet-compatible CSV file.">Export Account Report (CSV)</button>
             </div>
           </div>
           <div class="data-table-container">
@@ -176,9 +176,17 @@
         <div class="table-header-row" style="margin-bottom: 24px;">
           <h2 style="font-weight: 700; font-size: 1.5rem;">Technical Health & Risk Mitigation</h2>
           <div style="display: flex; align-items: center; gap: 12px;">
-            <select id="tamSystemSelect" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 280px; background-color: var(--bg-card); cursor: pointer;">
-              <!-- Javascript will inject options -->
-            </select>
+            <div id="tamSystemSelectContainer" style="position: relative; width: 280px; z-index: 100;">
+              <!-- Custom Multi-Select Dropdown Button -->
+              <div id="tamMultiSelectBtn" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 100%; background-color: var(--bg-card); border: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;" onclick="toggleTAMMultiSelect(event)" data-tooltip="Select one or multiple systems to compile aggregated risks and technical bulletins.">
+                <span id="tamMultiSelectLabel">Select Systems...</span>
+                <span style="font-size: 0.6rem; color: var(--text-muted);">▼</span>
+              </div>
+              <!-- Dropdown List of Checkboxes -->
+              <div id="tamMultiSelectDropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 250px; overflow-y: auto; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-top: 4px; box-shadow: var(--shadow); padding: 8px 0; z-index: 101;">
+                <!-- Dynamic checkboxes injected here -->
+              </div>
+            </div>
             <div id="tamActiveSystem" class="status-badge-header" style="background-color: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.15);">
               <!-- Active Selected System info -->
             </div>
@@ -408,13 +416,13 @@
             <select id="planTargetSelect" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 300px; background-color: var(--bg-card); cursor: pointer;">
               <!-- Generated customers and systems -->
             </select>
-            <button class="action-btn" onclick="generateActionPlan()">Generate Operational Action Plan</button>
+            <button class="action-btn" onclick="generateActionPlan()" data-tooltip="Analyze all active systems and compile a consolidated operational health action plan.">Generate Operational Action Plan</button>
           </div>
         </div>
 
         <div id="planControlsPanel" class="card" style="display: none; padding: 14px 24px; margin-bottom: 20px; flex-direction: row; justify-content: space-between; align-items: center;">
           <div style="font-size: 0.85rem; color: var(--text-secondary);">Action Plan loaded. Ready for distribution.</div>
-          <button class="action-btn" onclick="printActionPlan()">Print / Save Action Plan (PDF)</button>
+          <button class="action-btn" onclick="printActionPlan()" data-tooltip="Print or save the current operational action plan as a PDF file.">Print / Save Action Plan (PDF)</button>
         </div>
 
         <div class="card" style="padding: 32px; background-color: var(--bg-card);">
@@ -452,9 +460,9 @@
               </div>
 
               <div style="display: flex; gap: 12px; margin-top: 16px;">
-                <button class="action-btn" onclick="saveSettings()">Save Configuration</button>
-                <button class="action-btn secondary" onclick="triggerImportFileInput()">Import Config (JSON)</button>
-                <button class="action-btn secondary" onclick="exportConfigJSON()">Export Config (JSON)</button>
+                <button class="action-btn" onclick="saveSettings()" data-tooltip="Save general configuration settings (like Offline Mode or API refresh tokens).">Save Configuration</button>
+                <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database configuration from a JSON file.">Import Config (JSON)</button>
+                <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export local database configuration to a JSON file.">Export Config (JSON)</button>
               </div>
             </div>
 
@@ -470,8 +478,8 @@
               </div>
 
               <div class="form-group" style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button class="action-btn" style="flex: 1;" onclick="createNewSystemPrompt()" title="Create a brand new system template with default settings.">+ Create New System</button>
-                <button class="action-btn secondary" style="flex: 1; border-color: rgba(255,51,102,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()" title="Completely remove the selected system from the database.">Delete Selected System</button>
+                <button class="action-btn" style="flex: 1;" onclick="createNewSystemPrompt()" data-tooltip="Create a brand new system template with default settings.">+ Create New System</button>
+                <button class="action-btn secondary" style="flex: 1; border-color: rgba(255,51,102,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()" data-tooltip="Completely remove the selected system from the database.">Delete Selected System</button>
               </div>
 
               <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 20px;">
@@ -623,7 +631,7 @@
               </div>
 
               <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
-                <button class="action-btn" onclick="saveSystemMetadata()" title="Save changes to system identity, address log, cases, and bulleting boards.">Save System Metadata</button>
+                <button class="action-btn" onclick="saveSystemMetadata()" data-tooltip="Save changes to system identity, logistics logs, support cases, and bulletins.">Save System Metadata</button>
               </div>
             </div>
             
@@ -641,8 +649,8 @@
                 </div>
               </div>
               <div style="display: flex; gap: 12px;">
-                <button id="saveSubgroupBtn" class="action-btn" onclick="handleCreateGroup()" title="Create or update this custom subgroup with the selected systems.">Create Subgroup</button>
-                <button id="cancelSubgroupEditBtn" class="action-btn secondary" style="display: none;" onclick="cancelSubgroupEdit()" title="Cancel subgroup editing and clear form inputs.">Cancel</button>
+                <button id="saveSubgroupBtn" class="action-btn" onclick="handleCreateGroup()" data-tooltip="Create or update this custom subgroup with the selected systems.">Create Subgroup</button>
+                <button id="cancelSubgroupEditBtn" class="action-btn secondary" style="display: none;" onclick="cancelSubgroupEdit()" data-tooltip="Cancel subgroup editing and clear form inputs.">Cancel</button>
               </div>
             </div>
           </div>

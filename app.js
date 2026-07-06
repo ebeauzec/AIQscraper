@@ -1678,6 +1678,7 @@ let state = {
   groups: [...DEFAULT_GROUPS],
   watchlists: [],
   selectedSystem: MOCK_SYSTEMS[0],
+  selectedTAMSerials: [],
   activeSearchQuery: "",
   activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP", "WATCHLIST"
   activeFilterValue: "",   // Customer Name, Group ID, or Watchlist ID
@@ -2134,7 +2135,7 @@ function selectSystem(serial) {
 }
 
 function populateSystemSelectors() {
-  const selectors = ["tamSystemSelect", "samSystemSelect", "csmSystemSelect"];
+  const selectors = ["samSystemSelect", "csmSystemSelect"];
   const currentFiltered = getFilteredSystems();
   
   // Safe check for null/undefined selectedSystem
@@ -2151,6 +2152,16 @@ function populateSystemSelectors() {
   }
   
   const activeSerial = state.selectedSystem ? state.selectedSystem.serialNumber : "";
+  
+  // Prune/initialize selectedTAMSerials based on current scope
+  const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
+  if (!state.selectedTAMSerials) {
+    state.selectedTAMSerials = [];
+  }
+  state.selectedTAMSerials = state.selectedTAMSerials.filter(ser => allSerialsInScope.includes(ser));
+  if (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0) {
+    state.selectedTAMSerials = [currentFiltered[0].serialNumber];
+  }
   
   selectors.forEach(id => {
     const select = document.getElementById(id);
@@ -2180,6 +2191,112 @@ function populateSystemSelectors() {
       }
     };
   });
+
+  // Render custom multi-select checkbox dropdown for Technical Audit
+  const customDropdown = document.getElementById("tamMultiSelectDropdown");
+  if (customDropdown) {
+    customDropdown.innerHTML = "";
+    
+    if (currentFiltered.length === 0) {
+      customDropdown.innerHTML = `<div style="padding: 8px 12px; font-size: 0.8rem; color: var(--text-muted);">No systems in current scope.</div>`;
+    } else {
+      // Select All Option
+      const selectAllDiv = document.createElement("div");
+      selectAllDiv.style.padding = "6px 12px";
+      selectAllDiv.style.display = "flex";
+      selectAllDiv.style.alignItems = "center";
+      selectAllDiv.style.gap = "8px";
+      selectAllDiv.style.cursor = "pointer";
+      selectAllDiv.style.borderBottom = "1px solid var(--border-color)";
+      selectAllDiv.style.background = "rgba(255, 255, 255, 0.02)";
+      
+      const allSelected = allSerialsInScope.length > 0 && allSerialsInScope.every(ser => state.selectedTAMSerials.includes(ser));
+      
+      selectAllDiv.innerHTML = `
+        <input type="checkbox" id="chk_tam_all" ${allSelected ? 'checked' : ''} style="cursor: pointer;">
+        <label for="chk_tam_all" style="cursor: pointer; font-weight: 700; font-size: 0.8rem; flex: 1;">Select All Systems</label>
+      `;
+      selectAllDiv.onclick = (e) => {
+        e.stopPropagation();
+      };
+      
+      const selectAllChk = selectAllDiv.querySelector("input");
+      selectAllChk.onchange = (e) => {
+        if (e.target.checked) {
+          state.selectedTAMSerials = [...allSerialsInScope];
+        } else {
+          state.selectedTAMSerials = [];
+        }
+        updateTAMSelectLabel();
+        renderTAMTab();
+      };
+      customDropdown.appendChild(selectAllDiv);
+      
+      // Individual System Options
+      currentFiltered.forEach(sys => {
+        const itemDiv = document.createElement("div");
+        itemDiv.style.padding = "6px 12px";
+        itemDiv.style.display = "flex";
+        itemDiv.style.alignItems = "center";
+        itemDiv.style.gap = "8px";
+        itemDiv.style.cursor = "pointer";
+        
+        const isChecked = state.selectedTAMSerials.includes(sys.serialNumber);
+        
+        itemDiv.innerHTML = `
+          <input type="checkbox" value="${sys.serialNumber}" id="chk_tam_${sys.serialNumber}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
+          <label for="chk_tam_${sys.serialNumber}" style="cursor: pointer; font-size: 0.8rem; flex: 1;">${sys.systemName} (${sys.platform})</label>
+        `;
+        itemDiv.onclick = (e) => {
+          e.stopPropagation();
+        };
+        
+        const chk = itemDiv.querySelector("input");
+        chk.onchange = (e) => {
+          const serial = sys.serialNumber;
+          if (e.target.checked) {
+            if (!state.selectedTAMSerials.includes(serial)) {
+              state.selectedTAMSerials.push(serial);
+            }
+          } else {
+            state.selectedTAMSerials = state.selectedTAMSerials.filter(s => s !== serial);
+          }
+          updateTAMSelectLabel();
+          renderTAMTab();
+        };
+        
+        customDropdown.appendChild(itemDiv);
+      });
+    }
+    
+    updateTAMSelectLabel();
+  }
+}
+
+function toggleTAMMultiSelect(event) {
+  if (event) event.stopPropagation();
+  const dropdown = document.getElementById("tamMultiSelectDropdown");
+  if (!dropdown) return;
+  dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
+}
+
+function updateTAMSelectLabel() {
+  const label = document.getElementById("tamMultiSelectLabel");
+  if (!label) return;
+  const currentFiltered = getFilteredSystems();
+  const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
+  const activeInScope = state.selectedTAMSerials.filter(ser => allSerialsInScope.includes(ser));
+  
+  if (activeInScope.length === 0) {
+    label.innerText = "No Systems Selected";
+  } else if (activeInScope.length === allSerialsInScope.length) {
+    label.innerText = `All Systems (${activeInScope.length})`;
+  } else if (activeInScope.length === 1) {
+    const sys = currentFiltered.find(s => s.serialNumber === activeInScope[0]);
+    label.innerText = sys ? sys.systemName : "1 System Selected";
+  } else {
+    label.innerText = `${activeInScope.length} Systems Selected`;
+  }
 }
 
 function openRemediationModal(riskId) {
@@ -2230,40 +2347,69 @@ function closeRemediationModal() {
 
 function renderTAMTab() {
   populateSystemSelectors();
-  const sys = state.selectedSystem;
-  if (!sys) {
-    document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems available in current scope.</td></tr>`;
+  
+  const currentFiltered = getFilteredSystems();
+  const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
+  
+  // Prune/initialize active serials
+  const activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
+  
+  if (activeSerials.length === 0) {
+    document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems selected in current scope.</td></tr>`;
     document.getElementById("tamUpgradeContainer").innerHTML = "";
     document.getElementById("tamSecurityBulletinsBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No bulletins.</td></tr>`;
+    document.getElementById("tamActiveSystem").innerHTML = `<strong>No Systems Selected</strong>`;
     return;
   }
-
-  document.getElementById("tamActiveSystem").innerHTML = `
-    <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>ONTAP</strong>: ${sys.ontapVersion}
-  `;
-
-  let riskRows = "";
-  if (sys.risks.length === 0) {
-    riskRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active technical risks found. System is fully compliant.</td></tr>`;
+  
+  const selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
+  
+  // Render active systems list description
+  if (selectedSystems.length === 1) {
+    const sys = selectedSystems[0];
+    document.getElementById("tamActiveSystem").innerHTML = `
+      <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>ONTAP</strong>: ${sys.ontapVersion}
+    `;
   } else {
-    sys.risks.forEach(r => {
+    const names = selectedSystems.map(s => s.systemName).join(", ");
+    document.getElementById("tamActiveSystem").innerHTML = `
+      <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
+    `;
+  }
+  
+  // Compile Combined Risks
+  let riskRows = "";
+  const allRisks = [];
+  selectedSystems.forEach(sys => {
+    (sys.risks || []).forEach(r => {
+      allRisks.push({ ...r, systemName: sys.systemName });
+    });
+  });
+  
+  if (allRisks.length === 0) {
+    riskRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active technical risks found. Systems are fully compliant.</td></tr>`;
+  } else {
+    allRisks.forEach(r => {
       let sevBadge = `<span class="badge info">${r.severity}</span>`;
       if (r.severity === "critical") sevBadge = `<span class="badge critical">Critical</span>`;
       else if (r.severity === "high") sevBadge = `<span class="badge critical">High</span>`;
       else if (r.severity === "medium") sevBadge = `<span class="badge warning">Medium</span>`;
       else if (r.severity === "low") sevBadge = `<span class="badge info">Low</span>`;
-
+      
       riskRows += `
         <tr>
           <td>${sevBadge}</td>
-          <td style="font-weight: 600;">${r.category}</td>
+          <td>
+            <div style="font-weight: 600;">${r.category}</div>
+            <div style="font-size: 0.72rem; color: var(--accent-cyan); margin-top: 2px;">System: ${r.systemName}</div>
+          </td>
           <td>
             <div style="font-weight: 500; margin-bottom: 4px;">${r.description}</div>
-            <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 6px;">${r.recommendation}</div>
+            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">${r.recommendation}</div>
           </td>
           <td>
             <div style="display: flex; gap: 8px;">
-              <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})" title="View detailed step-by-step remediation procedures, action paths, and third-party environment considerations for this risk.">Remediation Plan</button>
+              <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})" data-tooltip="View detailed step-by-step remediation procedures, action paths, and third-party environment considerations for this risk.">Remediation Plan</button>
               <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${r.kbLink}" target="_blank">KB Art</a>
             </div>
           </td>
@@ -2272,40 +2418,73 @@ function renderTAMTab() {
     });
   }
   document.getElementById("tamRisksTableBody").innerHTML = riskRows;
-
-  // OS Upgrade
+  
+  // Compile Combined OS Upgrades
   const upgradeBox = document.getElementById("tamUpgradeContainer");
-  if (sys.upgrades.targetVersion === "Up to Date") {
+  upgradeBox.innerHTML = "";
+  
+  const upgradeItems = [];
+  selectedSystems.forEach(sys => {
+    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
+      upgradeItems.push({
+        systemName: sys.systemName,
+        currentVersion: sys.ontapVersion,
+        targetVersion: sys.upgrades.targetVersion,
+        urgency: sys.upgrades.urgency,
+        benefits: sys.upgrades.benefits
+      });
+    }
+  });
+  
+  if (upgradeItems.length === 0) {
     upgradeBox.innerHTML = `
-      <h3 style="color: var(--status-normal); margin-bottom: 12px;">✓ System Up to Date</h3>
-      <p style="font-size: 0.9rem; color: var(--text-secondary);">This system is currently running a fully supported, stable release. No upgrades are required.</p>
+      <h3 style="color: var(--status-normal); margin-bottom: 12px;">✓ Systems Up to Date</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">All ${selectedSystems.length} selected systems are currently running fully supported, stable releases. No upgrades required.</p>
     `;
   } else {
-    upgradeBox.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="font-size: 1.05rem;">Recommended OS Upgrade</h3>
-        <span class="badge warning">${sys.upgrades.urgency}</span>
-      </div>
-      <div style="margin-bottom: 8px;">Current Version: <strong style="color: var(--text-muted);">${sys.ontapVersion}</strong></div>
-      <div style="margin-bottom: 8px;">Target Version: <strong style="color: var(--accent-cyan);">${sys.upgrades.targetVersion}</strong></div>
-      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">${sys.upgrades.benefits}</p>
-    `;
+    let upgradeHtml = `<h3 style="font-size: 1.05rem; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Recommended OS Upgrades</h3>`;
+    upgradeItems.forEach(item => {
+      upgradeHtml += `
+        <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed var(--border-color);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="color: var(--text-primary); font-size: 0.9rem;">${item.systemName}</strong>
+            <span class="badge warning">${item.urgency}</span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+            Current: <strong style="color: var(--text-muted);">${item.currentVersion}</strong> | Target: <strong style="color: var(--accent-cyan);">${item.targetVersion}</strong>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">${item.benefits}</p>
+        </div>
+      `;
+    });
+    upgradeBox.innerHTML = upgradeHtml;
   }
-
-  // Render Security & Technical Bulletins
-  const bulletins = sys.securityBulletins || [];
+  
+  // Compile Combined Security & Technical Bulletins
   let bulletinRows = "";
-  if (bulletins.length === 0) {
+  const allBulletins = [];
+  selectedSystems.forEach(sys => {
+    if (sys.securityBulletins) {
+      sys.securityBulletins.forEach(b => {
+        allBulletins.push({ ...b, systemName: sys.systemName });
+      });
+    }
+  });
+  
+  if (allBulletins.length === 0) {
     bulletinRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active security advisories mapped.</td></tr>`;
   } else {
-    bulletins.forEach(b => {
+    allBulletins.forEach(b => {
       let bBadge = `<span class="badge warning">${b.severity}</span>`;
       if (b.severity === "critical") bBadge = `<span class="badge critical">Critical</span>`;
       else if (b.severity === "high") bBadge = `<span class="badge critical">High</span>`;
       
       bulletinRows += `
         <tr>
-          <td><strong style="color: var(--accent-cyan); font-family: monospace;">${b.id}</strong></td>
+          <td>
+            <strong style="color: var(--accent-cyan); font-family: monospace;">${b.id}</strong>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">${b.systemName}</div>
+          </td>
           <td>
             <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; color: var(--text-primary);">${b.title}</div>
             <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">${b.mitigation}</div>
@@ -3630,7 +3809,7 @@ function renderSidebarGroups() {
       item.innerHTML = `
         <span style="color: var(--status-warning); margin-right: 8px; font-size: 0.85rem;">★</span>
         <span class="tree-text" title="Query: ${f.query}">${f.name}</span>
-        <button class="action-btn secondary delete-filter-btn" style="opacity: 0.6; padding: 2px 6px; font-size: 0.65rem; border-color: transparent; margin-left: auto; background: transparent; color: var(--status-critical);" onclick="deleteSavedFilter(event, '${f.id}')" title="Delete this starred filter shortcut.">×</button>
+        <button class="action-btn secondary delete-filter-btn" style="opacity: 0.6; padding: 2px 6px; font-size: 0.65rem; border-color: transparent; margin-left: auto; background: transparent; color: var(--status-critical);" onclick="deleteSavedFilter(event, '${f.id}')" data-tooltip="Delete this starred filter shortcut.">×</button>
       `;
       
       item.onclick = (e) => {
@@ -4390,6 +4569,15 @@ window.onload = async function() {
   renderSidebarGroups();
 
   document.getElementById("searchInput").addEventListener("input", handleSearch);
+  
+  // Close custom multi-select dropdown when clicking outside
+  window.addEventListener('click', (e) => {
+    const dropdown = document.getElementById("tamMultiSelectDropdown");
+    const container = document.getElementById("tamSystemSelectContainer");
+    if (dropdown && container && !container.contains(e.target)) {
+      dropdown.style.display = "none";
+    }
+  });
   
   window.addEventListener('resize', () => {
     if (state.currentTab === "overview") {
