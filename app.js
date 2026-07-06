@@ -172,9 +172,11 @@ const MOCK_SYSTEMS = [
         title: "Aggregate aggr1_pcie SSD failure - disk replacement dispatch",
         severity: "S3 - Medium",
         status: "Open - Pending Parts Dispatch",
+        criticality: "Moderate - Aggregate in degraded state but protected by RAID-DP. No active data outage.",
+        nextActionBy: "NetApp Support Dispatcher",
         createdDate: "2026-06-28",
         lastUpdated: "2026-07-05",
-        ownerNotes: "Replacement drive sent to site. Estimated delivery tomorrow morning. Site contact notified."
+        ownerNotes: "Replacement drive sent to site. Estimated delivery tomorrow morning. Site contact Samantha Ross notified."
       }
     ]
   },
@@ -324,6 +326,8 @@ const MOCK_SYSTEMS = [
         title: "CVO instance licensing mismatch warning on console",
         severity: "S2 - Major",
         status: "Open - NetApp Engineering",
+        criticality: "High compliance risk - License termination warning active, potential read-only state threat.",
+        nextActionBy: "NetApp SaaS Operations Escalation Desk",
         createdDate: "2026-07-02",
         lastUpdated: "2026-07-06",
         ownerNotes: "Escalated to SaaS subscription billing team. Waiting for verification check."
@@ -467,6 +471,8 @@ const MOCK_SYSTEMS = [
         title: "Chassis temperature high warning on compute controller",
         severity: "S1 - Critical",
         status: "Open - Customer Action",
+        criticality: "High risk - Potential automatic thermal shutdown of controller module node to prevent board damage.",
+        nextActionBy: "Customer Data Center Operations Team",
         createdDate: "2026-07-04",
         lastUpdated: "2026-07-06",
         ownerNotes: "Advised customer to inspect fan module 2 immediately to prevent hardware speed throttling."
@@ -794,6 +800,8 @@ const MOCK_SYSTEMS = [
         title: "VASA Provider certificate sync failure",
         severity: "S3 - Medium",
         status: "Resolved - Pending Customer Close",
+        criticality: "Low operational risk - certificate sync failure affects management but not data paths.",
+        nextActionBy: "Customer Storage Admin (To Close Ticket)",
         createdDate: "2026-06-25",
         lastUpdated: "2026-07-03",
         ownerNotes: "Self-signed certificate renewed and vCenter connection re-established. Customer verifying."
@@ -1165,6 +1173,8 @@ const MOCK_SYSTEMS = [
         title: "Replacement SAS cable failure alert",
         severity: "S3 - Medium",
         status: "Open - NetApp Engineering",
+        criticality: "Low operational risk - transient CRC error counts logged, but SAS multipathing is active.",
+        nextActionBy: "NetApp Hardware Engineering Level 2 Support",
         createdDate: "2026-07-02",
         lastUpdated: "2026-07-05",
         ownerNotes: "Case opened, replacement cable dispatched."
@@ -1940,7 +1950,39 @@ const MOCK_SYSTEMS = [
         projectedCapacityMonths: [16, 17, 18]
       },
       securityBulletins: [],
-      supportCases: []
+      supportCases: (i % 7 === 2) ? [
+        (i % 3 === 0) ? {
+          id: `200982${1000 + i}`,
+          title: "S3 API Bucket read timeout errors in Grid node 3",
+          severity: "S2 - Major",
+          status: "Open - NetApp Engineering",
+          criticality: "High risk - read latency spikes impacting Hadoop/Spark analytic processing speed.",
+          nextActionBy: "NetApp Software Engineering Team",
+          createdDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          lastUpdated: new Date().toISOString().split('T')[0],
+          ownerNotes: "Investigating StorageGRID heap allocation limits for S3 metadata servers."
+        } : (i % 3 === 1 ? {
+          id: `200982${2000 + i}`,
+          title: "NVMe over Fabrics (NVMe/FC) target port link flap",
+          severity: "S1 - Critical",
+          status: "Open - Customer Action",
+          criticality: "Critical risk - host path failover occurred. A secondary link flap on port 1b will drop storage paths.",
+          nextActionBy: "Customer SAN/Switch Operations Desk",
+          createdDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          lastUpdated: new Date().toISOString().split('T')[0],
+          ownerNotes: "Advised customer to inspect fibre channel port alignments and clean transceivers."
+        } : {
+          id: `200982${3000 + i}`,
+          title: "Volume snapshot autodelete rule failure",
+          severity: "S3 - Medium",
+          status: "Open - NetApp Support",
+          criticality: "Low risk - volume has 18% remaining capacity, no immediate read-only lock threat.",
+          nextActionBy: "NetApp Support Core Team Specialist",
+          createdDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          lastUpdated: new Date().toISOString().split('T')[0],
+          ownerNotes: "Evaluating ONTAP snapshot retention policy to check for active SnapMirror locks."
+        })
+      ] : []
     };
 
     MOCK_SYSTEMS.push(sys);
@@ -1954,6 +1996,7 @@ const MOCK_SYSTEMS = [
         ...sys,
         serialNumber: partnerSerial,
         systemName: partnerSysName,
+        supportCases: [],
         switches: sys.switches.map(sw => ({
           ...sw,
           serialNumber: sw.serialNumber.replace(serial.substring(6), partnerSerial.substring(6))
@@ -2038,10 +2081,10 @@ function loadConfig() {
   const expiry = localStorage.getItem("aiq_token_expiry") || "";
   
   // Load systems db if exists in local storage
-  const schemaVer = localStorage.getItem("aiq_systems_schema_v3");
+  const schemaVer = localStorage.getItem("aiq_systems_schema_v4");
   const savedSystems = localStorage.getItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v3") {
+  if (savedSystems && schemaVer === "v4") {
     const parsed = JSON.parse(savedSystems);
     if (parsed.length < MOCK_SYSTEMS.length) {
       state.systems = [...MOCK_SYSTEMS];
@@ -2051,7 +2094,7 @@ function loadConfig() {
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
-    localStorage.setItem("aiq_systems_schema_v3", "v3");
+    localStorage.setItem("aiq_systems_schema_v4", "v4");
     saveSystems();
   }
 
@@ -2463,8 +2506,13 @@ function renderOverviewTable() {
       contractText = `<span style="color: var(--status-warning); font-weight: 600;">${sys.contracts.endDate} (${sys.contracts.daysRemaining}d)</span>`;
     }
 
+    let nameHtml = sys.systemName;
+    if (sys.supportCases && sys.supportCases.length > 0) {
+      nameHtml += ` <span class="badge warning" style="font-size: 0.65rem; padding: 2px 4px; vertical-align: middle; margin-left: 4px; background-color: var(--status-info); border-color: rgba(0, 230, 118, 0.2);" data-tooltip="${sys.supportCases.length} Active Support Case(s) Open">✉ ${sys.supportCases.length} Open</span>`;
+    }
+
     tr.innerHTML = `
-      <td style="font-weight: 600; color: var(--accent-cyan);">${sys.systemName}</td>
+      <td style="font-weight: 600; color: var(--accent-cyan);">${nameHtml}</td>
       <td>
         <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">
           ${sys.serialNumber}
@@ -3563,10 +3611,22 @@ function renderSAMTab() {
             <td>
               <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${c.title}</div>
               <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">System: ${c.systemName}</div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                <strong>Next Action By:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Investigation"}</span>
+              </div>
+              <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                <strong>Criticality:</strong> ${c.criticality || "Normal"}
+              </div>
+              <div style="font-size: 0.72rem; color: var(--text-secondary); font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--accent-cyan); margin-top: 6px;">
+                "${c.ownerNotes}"
+              </div>
             </td>
             <td><span class="badge ${badgeColor}">${c.severity}</span></td>
             <td><code style="color: var(--status-info); font-size: 0.78rem;">${c.status}</code></td>
-            <td><span style="font-size: 0.8rem; color: var(--text-secondary);">${c.lastUpdated}</span></td>
+            <td>
+              <div style="font-size: 0.75rem;">Opened: ${c.createdDate}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Updated: ${c.lastUpdated}</div>
+            </td>
           </tr>
         `;
       });
@@ -3929,11 +3989,19 @@ function renderSAMTab() {
         <tr>
           <td><strong style="color: var(--accent-cyan); font-family: monospace;">${c.id}</strong></td>
           <td>
-            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 3px;">${c.title}</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">${c.ownerNotes}</div>
+            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${c.title}</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+              <strong>Next Action By:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Investigation"}</span>
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+              <strong>Criticality:</strong> ${c.criticality || "Normal"}
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-secondary); font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--accent-cyan); margin-top: 6px;">
+              "${c.ownerNotes}"
+            </div>
           </td>
           <td>${sevBadge}</td>
-          <td><code style="color: var(--status-warning); font-size: 0.78rem;">${c.status}</code></td>
+          <td><code style="color: var(--status-info); font-size: 0.78rem;">${c.status}</code></td>
           <td style="font-size: 0.78rem; color: var(--text-muted);">
             Opened: ${c.createdDate}<br>Updated: ${c.lastUpdated}
           </td>
@@ -4681,8 +4749,14 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
             <span class="${badgeClass}" style="font-size: 0.7rem;">${c.severity}</span>
           </div>
           <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${c.title}</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic;">
-            <strong>Latest Action Notes:</strong> ${c.ownerNotes}
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px;">
+            <strong>Criticality Assessment:</strong> ${c.criticality || "Normal"}
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;">
+            <strong>Next Action Owner:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Review"}</span>
+          </div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan);">
+            <strong>Latest Notes:</strong> ${c.ownerNotes}
           </div>
           <div style="font-size: 0.8rem; color: var(--text-secondary);">
             Status: <code style="color: var(--status-info);">${c.status}</code> | Opened: <strong>${c.createdDate}</strong> | Last Updated: <strong>${c.lastUpdated}</strong>
@@ -5014,9 +5088,13 @@ function renderSidebarGroups() {
       const riskCount = custSystems.reduce((acc, s) => acc + s.risks.length, 0);
       const badge = riskCount > 0 ? `<span class="tree-badge ${custSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
       
+      const caseCount = custSystems.reduce((acc, s) => acc + (s.supportCases ? s.supportCases.length : 0), 0);
+      const caseBadge = caseCount > 0 ? `<span class="tree-badge info" style="background: var(--status-info); margin-right: 4px;" data-tooltip="${caseCount} Open Support Case(s) Active">✉ ${caseCount}</span>` : '';
+
       item.innerHTML = `
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        <span class="tree-text">${cust}</span>
+        <span class="tree-text" style="flex: 1;">${cust}</span>
+        ${caseBadge}
         ${badge}
       `;
       container.appendChild(item);
@@ -5046,9 +5124,13 @@ function renderSidebarGroups() {
       const riskCount = groupSystems.reduce((acc, s) => acc + s.risks.length, 0);
       const badge = riskCount > 0 ? `<span class="tree-badge ${groupSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
 
+      const caseCount = groupSystems.reduce((acc, s) => acc + (s.supportCases ? s.supportCases.length : 0), 0);
+      const caseBadge = caseCount > 0 ? `<span class="tree-badge info" style="background: var(--status-info); margin-right: 4px;" data-tooltip="${caseCount} Open Support Case(s) Active">✉ ${caseCount}</span>` : '';
+
       item.innerHTML = `
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-        <span class="tree-text">${grp.name}</span>
+        <span class="tree-text" style="flex: 1;">${grp.name}</span>
+        ${caseBadge}
         ${badge}
       `;
       container.appendChild(item);
