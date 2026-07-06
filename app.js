@@ -2210,6 +2210,7 @@ function selectSystem(serial) {
   const found = state.systems.find(s => s.serialNumber === serial);
   if (found) {
     state.selectedSystem = found;
+    state.selectedTAMSerials = [serial];
     switchTab("tam"); // Switch to Technical Audit details on system click
   }
 }
