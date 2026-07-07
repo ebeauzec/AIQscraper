@@ -3022,17 +3022,25 @@ function renderTAMTab() {
   
   const selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
   
-  // Render active systems list description
+  // Render active systems list description and physical cabling node layout
+  const visualCard = document.getElementById("tamNodeVisualCard");
   if (selectedSystems.length === 1) {
     const sys = selectedSystems[0];
     document.getElementById("tamActiveSystem").innerHTML = `
       <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>ONTAP</strong>: ${sys.ontapVersion}
     `;
+    if (visualCard) {
+      visualCard.style.display = "block";
+      renderNodeVisualLayout(sys);
+    }
   } else {
     const names = selectedSystems.map(s => s.systemName).join(", ");
     document.getElementById("tamActiveSystem").innerHTML = `
       <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
     `;
+    if (visualCard) {
+      visualCard.style.display = "none";
+    }
   }
   
   // Compile Combined Risks
@@ -6790,13 +6798,324 @@ async function runSandboxGraphQLQuery() {
     const endTime = performance.now();
     const duration = (endTime - startTime).toFixed(0);
     
-    if (statusLabel) {
-      statusLabel.innerText = "Failed";
-      statusLabel.style.color = "var(--status-critical)";
-    }
-    if (latencyLabel) {
-      latencyLabel.innerText = `${duration} ms`;
-    }
     outputDiv.innerText = `Query Execution Failed:\n${error.message}`;
   }
 }
+
+// 12. Visual Port Mapping & L1 Topology Representation Helpers
+function getSystemPortMappings(sys) {
+  // Check if system has specific risks to dynamically fail/degrade ports
+  const hasSasFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("path failure") || r.description.toLowerCase().includes("sas"));
+  const hasClusterFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("cluster interconnect") || r.description.toLowerCase().includes("cluster network"));
+  const hasMgmtFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("management") || r.description.toLowerCase().includes("mgmt"));
+  
+  return [
+    {
+      name: "e0M",
+      type: "mgmt",
+      status: hasMgmtFailure ? "offline" : "online",
+      partnerType: "mgmt_switch",
+      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-01`,
+      partnerPort: "Fa0/24",
+      cablingStatus: hasMgmtFailure ? "disconnected" : "optimal",
+      details: { speed: "1 Gbps", mtu: 1500, ip: `10.250.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.5` }
+    },
+    {
+      name: "e0a",
+      type: "cluster",
+      status: "online",
+      partnerType: "cluster_switch",
+      partnerName: `${sys.clusterName.toLowerCase()}-clus-sw-01`,
+      partnerPort: "Eth1/1",
+      cablingStatus: "optimal",
+      details: { speed: "40 Gbps", mtu: 9000, ip: "169.254.1.10" }
+    },
+    {
+      name: "e0b",
+      type: "cluster",
+      status: hasClusterFailure ? "offline" : "online",
+      partnerType: "cluster_switch",
+      partnerName: `${sys.clusterName.toLowerCase()}-clus-sw-02`,
+      partnerPort: "Eth1/1",
+      cablingStatus: hasClusterFailure ? "disconnected" : "optimal",
+      details: { speed: "40 Gbps", mtu: 9000, ip: "169.254.2.10" }
+    },
+    {
+      name: "e0c",
+      type: "data",
+      status: "online",
+      partnerType: "core_switch",
+      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-01`,
+      partnerPort: "Eth1/41",
+      cablingStatus: "optimal",
+      details: { speed: "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.11` }
+    },
+    {
+      name: "e0d",
+      type: "data",
+      status: "online",
+      partnerType: "core_switch",
+      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-02`,
+      partnerPort: "Eth1/41",
+      cablingStatus: "optimal",
+      details: { speed: "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.12` }
+    },
+    {
+      name: "0a",
+      type: "fc",
+      status: "online",
+      partnerType: "san_switch",
+      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-san-sw-A`,
+      partnerPort: "fc1/5",
+      cablingStatus: "optimal",
+      details: { speed: "32 Gbps", wwpn: `50:0a:09:80:30:1a:2b:${sys.serialNumber.slice(-2)}` }
+    },
+    {
+      name: "0b",
+      type: "fc",
+      status: "online",
+      partnerType: "san_switch",
+      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-san-sw-B`,
+      partnerPort: "fc1/5",
+      cablingStatus: "optimal",
+      details: { speed: "32 Gbps", wwpn: `50:0a:09:80:30:1a:2c:${sys.serialNumber.slice(-2)}` }
+    },
+    {
+      name: "0c",
+      type: "sas",
+      status: "online",
+      partnerType: "disk_shelf",
+      partnerName: `shelf-ds224c-stack-1`,
+      partnerPort: "IOM-A-IN",
+      cablingStatus: "optimal",
+      details: { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module A" }
+    },
+    {
+      name: "0d",
+      type: "sas",
+      status: hasSasFailure ? "offline" : "online",
+      partnerType: "disk_shelf",
+      partnerName: `shelf-ds224c-stack-1`,
+      partnerPort: "IOM-B-IN",
+      cablingStatus: hasSasFailure ? "disconnected" : "optimal",
+      details: { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module B" }
+    }
+  ];
+}
+
+function renderNodeVisualLayout(sys) {
+  const container = document.getElementById("tamNodeVisualContainer");
+  if (!container) return;
+
+  const ports = getSystemPortMappings(sys);
+  
+  let portsHtml = "";
+  let targetsHtml = "";
+  
+  const uniquePartners = [];
+  ports.forEach(p => {
+    if (!uniquePartners.some(up => up.name === p.partnerName)) {
+      uniquePartners.push({
+        name: p.partnerName,
+        type: p.partnerType,
+        cablingStatus: p.cablingStatus
+      });
+    }
+  });
+  
+  ports.forEach(port => {
+    let portColor = "#10b981"; // Green (mgmt)
+    if (port.type === "cluster") portColor = "#3b82f6"; // Blue
+    if (port.type === "data") portColor = "#f59e0b"; // Orange
+    if (port.type === "fc") portColor = "#eab308"; // Yellow
+    if (port.type === "sas") portColor = "#a855f7"; // Purple
+
+    const statusLedColor = port.status === "online" ? "#10b981" : "#ef4444";
+    const statusLedShadow = port.status === "online" ? "0 0 8px #10b981" : "0 0 8px #ef4444";
+    
+    const tooltipText = `Port: ${port.name} (${port.type.toUpperCase()})\nSpeed: ${port.details.speed}\nStatus: ${port.status.toUpperCase()}\nLink Partner: ${port.partnerName} [Port: ${port.partnerPort}]`;
+    
+    portsHtml += `
+      <div class="physical-port-slot" 
+           style="background: rgba(0,0,0,0.4); border: 2px solid ${portColor};" 
+           onmouseenter="highlightCablingConnection('${port.name}', '${port.partnerName}')" 
+           onmouseleave="resetCablingHighlight()"
+           data-tooltip="${tooltipText}">
+        <div style="font-size: 0.65rem; color: #fff; margin-bottom: 2px; text-align: center;">${port.name}</div>
+        <div style="width: 16px; height: 16px; background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 2px; display: flex; align-items: center; justify-content: center; margin: 0 auto; position: relative;">
+          <div style="width: 4px; height: 4px; border-radius: 50%; background: ${statusLedColor}; box-shadow: ${statusLedShadow}; position: absolute; top: 1px; right: 1px;"></div>
+          <div style="width: 8px; height: 6px; background: #fff; opacity: 0.1;"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  uniquePartners.forEach(part => {
+    let typeLabel = "Core Switch";
+    let iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6" y2="6"></line><line x1="18" y1="18" x2="18" y2="18"></line></svg>`;
+    
+    if (part.type === "mgmt_switch") typeLabel = "Mgmt Switch";
+    if (part.type === "cluster_switch") typeLabel = "Cluster Switch";
+    if (part.type === "san_switch") typeLabel = "SAN Switch";
+    if (part.type === "disk_shelf") {
+      typeLabel = "SAS Disk Shelf";
+      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg>`;
+    }
+
+    const boxBorder = part.cablingStatus === "optimal" ? "var(--border-color)" : "rgba(255, 51, 102, 0.4)";
+    const boxBg = part.cablingStatus === "optimal" ? "rgba(255,255,255,0.02)" : "rgba(255, 51, 102, 0.03)";
+    const statusText = part.cablingStatus === "optimal" ? "<span style='color: var(--status-normal);'>✓ Link OK</span>" : "<span style='color: var(--status-critical); font-weight: 700;'>✗ Degraded</span>";
+
+    targetsHtml += `
+      <div id="partner-box-${part.name.replace(/[^a-z0-9]/gi, '_')}" class="partner-device-box" 
+           style="background: ${boxBg}; border: 1px solid ${boxBorder}; padding: 10px; border-radius: var(--radius-sm); transition: all 0.3s ease;">
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #fff; font-size: 0.8rem;">
+          ${iconSvg}
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${part.name}</span>
+        </div>
+        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; display: flex; justify-content: space-between;">
+          <span>${typeLabel}</span>
+          <span>${statusText}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = `
+    <div style="display: grid; grid-template-columns: 240px 1fr 240px; gap: 24px; align-items: center;">
+      <!-- Controller Node rear backplate -->
+      <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan);">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #4b5563; padding-bottom: 8px; margin-bottom: 14px;">
+          <div style="font-size: 0.68rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">NETAPP SYSTEM PANEL</div>
+          <div style="font-size: 0.58rem; color: var(--accent-cyan); font-family: monospace;">${sys.platform.split(' ')[0]}</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
+          ${portsHtml}
+        </div>
+        <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #4b5563; padding-top: 10px;">
+          <div style="background: #2e353f; height: 16px; border-radius: 1px; font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700;">PSU-1</div>
+          <div style="background: #2e353f; height: 16px; border-radius: 1px; font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700;">PSU-2</div>
+        </div>
+      </div>
+      
+      <!-- Connector Lines SVG -->
+      <div style="height: 180px; position: relative;">
+        <svg id="cablingTopologySvg" width="100%" height="100%" style="overflow: visible; pointer-events: none;">
+        </svg>
+      </div>
+      
+      <!-- Connected Device Targets -->
+      <div style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 4px;">
+        ${targetsHtml}
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    drawCablingTopologyLines(sys);
+  }, 120);
+}
+
+function drawCablingTopologyLines(sys) {
+  const svg = document.getElementById("cablingTopologySvg");
+  if (!svg) return;
+  svg.innerHTML = "";
+  
+  const ports = getSystemPortMappings(sys);
+  const slots = document.querySelectorAll(".physical-port-slot");
+  
+  ports.forEach(port => {
+    let slotEl = null;
+    slots.forEach(s => {
+      if (s.textContent.includes(port.name)) {
+        slotEl = s;
+      }
+    });
+    
+    const pBox = document.getElementById(`partner-box-${port.partnerName.replace(/[^a-z0-9]/gi, '_')}`);
+    
+    if (slotEl && pBox) {
+      const svgRect = svg.getBoundingClientRect();
+      const slotRect = slotEl.getBoundingClientRect();
+      const pRect = pBox.getBoundingClientRect();
+      
+      const x1 = slotRect.right - svgRect.left;
+      const y1 = (slotRect.top + slotRect.height / 2) - svgRect.top;
+      
+      const x2 = pRect.left - svgRect.left;
+      const y2 = (pRect.top + pRect.height / 2) - svgRect.top;
+      
+      let cableColor = "#10b981"; 
+      if (port.type === "cluster") cableColor = "#3b82f6"; 
+      if (port.type === "data") cableColor = "#f59e0b"; 
+      if (port.type === "fc") cableColor = "#eab308"; 
+      if (port.type === "sas") cableColor = "#a855f7"; 
+      
+      if (port.status === "offline") {
+        cableColor = "rgba(255, 51, 102, 0.4)"; 
+      }
+      
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const dx = Math.abs(x2 - x1) * 0.5;
+      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+      
+      path.setAttribute("d", d);
+      path.setAttribute("stroke", cableColor);
+      path.setAttribute("stroke-width", port.status === "online" ? "2" : "1.5");
+      if (port.status === "offline") {
+        path.setAttribute("stroke-dasharray", "4,4");
+      }
+      path.setAttribute("fill", "none");
+      path.setAttribute("class", `cable-line cable-port-${port.name} cable-partner-${port.partnerName.replace(/[^a-z0-9]/gi, '_')}`);
+      path.setAttribute("style", "transition: all 0.3s ease; opacity: 0.65; filter: drop-shadow(0 0 2px " + cableColor + ")");
+      
+      svg.appendChild(path);
+    }
+  });
+}
+
+function highlightCablingConnection(portName, partnerName) {
+  const cables = document.querySelectorAll(".cable-line");
+  cables.forEach(c => {
+    c.style.opacity = "0.15";
+    c.style.strokeWidth = "1.5";
+  });
+  
+  const targetCable = document.querySelector(`.cable-port-${portName}`);
+  if (targetCable) {
+    targetCable.style.opacity = "1";
+    targetCable.style.strokeWidth = "4.5";
+  }
+  
+  const partnerId = `partner-box-${partnerName.replace(/[^a-z0-9]/gi, '_')}`;
+  const pBox = document.getElementById(partnerId);
+  if (pBox) {
+    pBox.style.borderColor = "var(--accent-cyan)";
+    pBox.style.boxShadow = "0 0 12px rgba(0, 229, 255, 0.2)";
+    pBox.style.background = "rgba(0, 229, 255, 0.05)";
+  }
+}
+
+function resetCablingHighlight() {
+  const cables = document.querySelectorAll(".cable-line");
+  cables.forEach(c => {
+    c.style.opacity = "0.65";
+    c.style.strokeWidth = "2";
+  });
+  
+  const boxes = document.querySelectorAll(".partner-device-box");
+  boxes.forEach(b => {
+    b.style.borderColor = "";
+    b.style.boxShadow = "";
+    b.style.background = "";
+  });
+}
+
+window.addEventListener("resize", () => {
+  if (state.activeTab === "tam" && state.selectedSystem) {
+    const activeSerials = state.selectedTAMSerials || [];
+    if (activeSerials.length === 1) {
+      drawCablingTopologyLines(state.selectedSystem);
+    }
+  }
+});

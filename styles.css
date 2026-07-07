@@ -944,3 +944,39 @@ input:checked + .slider:before {
     display: none !important;
   }
 }
+
+/* Global sleek custom scrollbars override */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 229, 255, 0.15) !important;
+  border-radius: 3px !important;
+  border: 1px solid rgba(0, 229, 255, 0.05) !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 229, 255, 0.35) !important;
+  border-color: rgba(0, 229, 255, 0.15) !important;
+}
+
+/* Physical Node interface slots and link partner styles */
+.physical-port-slot {
+  padding: 8px 6px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+}
+.physical-port-slot:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  transform: scale(1.06);
+}
+.partner-device-box {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

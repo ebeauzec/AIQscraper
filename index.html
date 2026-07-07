@@ -192,8 +192,18 @@
               <!-- Active Selected System info -->
             </div>
           </div>
-        </div>
         
+        <!-- Node Physical Layout & Port Mapping Graphic -->
+        <div id="tamNodeVisualCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>Controller Node Port Assignments & Link Topology</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Real-time Cabling & Physical Layer (L1) Audit</span>
+          </div>
+          <div id="tamNodeVisualContainer">
+            <!-- Injected dynamically by JS -->
+          </div>
+        </div>
+
         <div class="settings-grid">
           <!-- Main Risks Table -->
           <div class="card table-card" style="margin-bottom: 0;">
