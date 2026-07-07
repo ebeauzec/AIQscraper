@@ -3455,101 +3455,127 @@ function getSystemIntegrations(sys) {
   let database = { type: "None", version: "", status: "Not Configured", details: "None" };
   let backup = { type: "None", version: "", status: "Not Configured", details: "None" };
   
-  // Virtualization / Orchestration
+  const modVal = seed % 5;
+  
   if (sys.platform.includes("StorageGRID")) {
     virtualization = {
-      type: "OpenStack Swift",
+      type: "OpenStack Swift Object",
       version: "Bobcat (v28.0)",
       status: "Optimal",
       plugin: "StorageGRID Keystone integration",
       multipathing: "N/A (HTTPS Object)"
     };
-  } else if (sys.platform.includes("Cloud")) {
-    virtualization = {
-      type: "Kubernetes (EKS)",
-      version: "v1.28",
-      status: "Optimal",
-      plugin: "NetApp Astra Trident CSI v23.10",
-      multipathing: "N/A (Cloud VPC Routing)"
+    database = {
+      type: "Apache Spark / Hadoop S3A",
+      version: "v3.5.0",
+      status: "Configured",
+      details: "S3A connector configured for high-concurrency object access"
     };
-  } else if (sys.platform.includes("MetroCluster")) {
-    virtualization = {
-      type: "VMware vSphere (HA)",
-      version: "8.0 Update 2",
+    backup = {
+      type: "Commvault Metallic SaaS",
+      version: "SaaS Enterprise",
       status: "Optimal",
-      plugin: "ONTAP Tools stretch-cluster config (VASA v10.1)",
-      multipathing: "VMW_PSP_RR (Round Robin)"
+      details: "S3 Object lock enabled for WORM compliance storage tier"
     };
-  } else {
-    // On-Prem system (VMware)
+  } else if (modVal === 0) {
     virtualization = {
       type: "VMware vSphere",
-      version: seed % 2 === 0 ? "8.0 Update 2" : "7.0 Update 3",
+      version: "8.0 Update 2",
       status: "Optimal",
       plugin: "ONTAP Tools for VMware (VASA v10.1)",
       multipathing: "VMW_PSP_RR (Round Robin)"
     };
-  }
-  
-  // Database / Workload
-  if (sys.platform.includes("StorageGRID")) {
-    database = {
-      type: "Apache Spark / Hadoop S3A",
-      version: "v3.4.1",
-      status: "Configured",
-      details: "S3A connector configured for metadata storage"
-    };
-  } else if (sys.platform.includes("MetroCluster")) {
     database = {
       type: "Oracle Database (RAC)",
-      version: "19c",
+      version: "19c (19.21)",
       status: "Configured (dNFS)",
-      details: "Oracle Real Application Clusters active-active across sites"
+      details: "Direct NFS client active on 25GbE network channels"
     };
-  } else if (seed % 3 === 0) {
-    database = {
-      type: "Oracle Database",
-      version: "19c (19.18)",
-      status: "Configured (dNFS)",
-      details: "Direct NFS client active on 10GbE network"
+    backup = {
+      type: "Commvault IntelliSnap",
+      version: "v11.32 SP3",
+      status: "Optimal",
+      details: "IntelliSnap NetApp engine configured with hardware snapshots"
     };
-  } else if (seed % 3 === 1) {
+  } else if (modVal === 1) {
+    virtualization = {
+      type: "Microsoft Hyper-V",
+      version: "Windows Server 2022",
+      status: "Optimal",
+      plugin: "ONTAP VSS Provider for Hyper-V",
+      multipathing: "Microsoft MPIO (Round Robin)"
+    };
     database = {
       type: "MS SQL Server",
       version: "2022 Enterprise",
       status: "Optimal",
-      details: "SnapCenter MSSQL Plug-in v5.0 active"
+      details: "SnapCenter MSSQL Plug-in v5.0 active with dynamic restores"
     };
-  } else {
+    backup = {
+      type: "Veritas NetBackup",
+      version: "v10.3",
+      status: "Configured",
+      details: "NetBackup snapshot manager agent deployed on array"
+    };
+  } else if (modVal === 2) {
+    virtualization = {
+      type: "Kubernetes (EKS / OpenShift)",
+      version: "v1.29",
+      status: "Optimal",
+      plugin: "NetApp Astra Trident CSI v24.02",
+      multipathing: "N/A (CSI Managed)"
+    };
     database = {
       type: "SAP HANA",
-      version: "2.0 SPS06",
+      version: "2.0 SPS07",
       status: "Configured",
-      details: "NFSv4 storage partition for Hana Shared"
+      details: "NFSv4.1 partitions configured with HANA System Replication (HSR)"
     };
-  }
-  
-  // Backup / Data Protection
-  if (sys.platform.includes("StorageGRID")) {
-    backup = {
-      type: "Commvault IntelliSnap",
-      version: "v11.32",
-      status: "Optimal",
-      details: "NetApp StorageGRID Object Storage target (S3)"
-    };
-  } else if (seed % 2 === 0) {
     backup = {
       type: "Veeam Backup & Replication",
       version: "v12.1",
       status: "Configured",
-      details: "ONTAP Hardware Snapshot Integration enabled"
+      details: "ONTAP hardware snapshot and SnapMirror replication orchestration"
+    };
+  } else if (modVal === 3) {
+    virtualization = {
+      type: "OpenStack Cinder",
+      version: "Antelope (v2023.2)",
+      status: "Optimal",
+      plugin: "ONTAP Cinder Unified Driver",
+      multipathing: "Multipathd (iSCSI ALUA)"
+    };
+    database = {
+      type: "Apache Spark / PostgreSQL",
+      version: "v15.4",
+      status: "Configured",
+      details: "Spark streaming analytics using ONTAP S3 object storage buckets"
+    };
+    backup = {
+      type: "NetApp SnapCenter",
+      version: "v5.0",
+      status: "Optimal",
+      details: "Native application-consistent snapshot & clone orchestrator"
     };
   } else {
-    backup = {
-      type: "Commvault IntelliSnap",
-      version: "v11.32",
+    virtualization = {
+      type: "NVIDIA AI BasePOD",
+      version: "Kubeflow / Slurm v23.02",
       status: "Optimal",
-      details: "Hardware Snapshot Engine configured for NFS/SAN volumes"
+      plugin: "Astra Trident CSI + GPUDirect Storage (GDS)",
+      multipathing: "NFS over RDMA (RoCEv2)"
+    };
+    database = {
+      type: "AI/ML Training Pipeline",
+      version: "PyTorch / TensorFlow",
+      status: "Configured",
+      details: "Massive scale parallel read dataset streaming on local NFS mount points"
+    };
+    backup = {
+      type: "Commvault Metallic SaaS",
+      version: "SaaS Enterprise",
+      status: "Optimal",
+      details: "Active backup targeting ONTAP S3 compliance bucket"
     };
   }
   
@@ -3560,7 +3586,6 @@ function getSystemWorkloadRecommendations(sys) {
   const ints = getSystemIntegrations(sys);
   const recs = [];
   
-  // MetroCluster recommendations
   if (sys.platform.includes("MetroCluster")) {
     recs.push(`<strong>[MetroCluster]</strong> Active-Active stretch cluster detected. Best Practice: Configure VMware vSphere HA Admission Control with 50% CPU and memory reservations to ensure failover capacity.`);
     recs.push(`<strong>[MetroCluster]</strong> Best Practice: Verify that automatic unplanned switchover (AUSO) is enabled via ONTAP command: <code>metrocluster operation show</code> to protect against sudden power loss.`);
@@ -3570,31 +3595,46 @@ function getSystemWorkloadRecommendations(sys) {
   if (ints.virtualization.type.includes("VMware vSphere")) {
     recs.push(`<strong>[VMware]</strong> ONTAP Tools VASA Provider is active. Best Practice: Ensure VAAI (vStorage APIs for Array Integration) is enabled on ESXi hosts to offload copy operations.`);
     recs.push(`<strong>[VMware]</strong> Multipathing is set to Round Robin (VMW_PSP_RR). Best Practice: Modify default path switching from 1000 IOPS to 1 IOPS for optimal performance on SAN LUNs.`);
-  } else if (ints.virtualization.type === "Kubernetes (EKS)") {
-    recs.push(`<strong>[Kubernetes]</strong> Astra Trident CSI driver v23.10 is active. Best Practice: Configure storage classes with <code>spaceReserve: none</code> (Thin Provisioning) to utilize ONTAP storage savings.`);
-    recs.push(`<strong>[Kubernetes]</strong> EKS Pods mount PVs via NFS. Best Practice: Increase Trident's mount options to use <code>nfsvers=4.1</code> for better locking performance.`);
-  } else if (ints.virtualization.type === "OpenStack Swift") {
-    recs.push(`<strong>[OpenStack]</strong> StorageGRID is configured as a Keystone-integrated identity endpoint. Best Practice: Enable SSL/TLS encryption for all Keystone endpoints to prevent session token sniffing.`);
+  } else if (ints.virtualization.type.includes("Microsoft Hyper-V")) {
+    recs.push(`<strong>[Hyper-V]</strong> Windows Server MPIO with NetApp DSM/MPIO driver detected. Best Practice: Configure Path Verification Period to 30 seconds to prevent premature path failovers.`);
+    recs.push(`<strong>[Hyper-V]</strong> Best Practice: Store virtual machines on SMB3 Continuous Availability (CA) shares with <code>OdxEnabled</code> set to true to offload VM cloning operations.`);
+  } else if (ints.virtualization.type.includes("Kubernetes")) {
+    recs.push(`<strong>[Kubernetes]</strong> Astra Trident CSI driver is active. Best Practice: Configure storage classes with <code>spaceReserve: none</code> (Thin Provisioning) to utilize ONTAP storage savings.`);
+    recs.push(`<strong>[Kubernetes]</strong> Pods mount PVs via NFS. Best Practice: Increase Trident's mount options to use <code>nfsvers=4.1</code> for better locking performance.`);
+  } else if (ints.virtualization.type.includes("OpenStack")) {
+    recs.push(`<strong>[OpenStack]</strong> ONTAP Cinder driver is configured. Best Practice: Enable Cinder volume multi-attach only for clustered filesystems to prevent partition corruption.`);
+    recs.push(`<strong>[OpenStack]</strong> StorageGRID Swift API identity integration. Best Practice: Enable SSL/TLS encryption for all Keystone endpoints to prevent session token sniffing.`);
+  } else if (ints.virtualization.type.includes("NVIDIA AI")) {
+    recs.push(`<strong>[NVIDIA AI]</strong> GPUDirect Storage (GDS) with NFS over RDMA enabled. Best Practice: Set <code>mount -o rdma,port=20049</code> and ensure RoCEv2 flow control (PFC/ECN) is configured on network switches.`);
+    recs.push(`<strong>[NVIDIA AI]</strong> Large scale datasets. Best Practice: Enable ONTAP FlexGroup volumes to distribute unstructured training data across all controller nodes in the cluster.`);
   }
   
   // Database Recommendations
   if (ints.database.type.includes("Oracle Database")) {
     recs.push(`<strong>[Oracle]</strong> Direct NFS (dNFS) is enabled. Best Practice: Configure <code>filesystemio_options=SETALL</code> in init.ora parameter file to enable asynchronous I/O.`);
     recs.push(`<strong>[Oracle]</strong> Best Practice: Distribute data files and redo log files across separate ONTAP aggregates to prevent disk contention.`);
-  } else if (ints.database.type === "MS SQL Server") {
+  } else if (ints.database.type.includes("MS SQL Server")) {
     recs.push(`<strong>[MS SQL]</strong> SnapCenter MSSQL plugin is active. Best Practice: Configure SnapCenter policies to perform transaction log backups every 15 minutes, with storage-level verification.`);
     recs.push(`<strong>[MS SQL]</strong> Best Practice: Format SAN LUNs hosting database files with a 64KB NTFS allocation unit size to align with SQL Server's extent architecture.`);
-  } else if (ints.database.type === "SAP HANA") {
+  } else if (ints.database.type.includes("SAP HANA")) {
     recs.push(`<strong>[SAP HANA]</strong> NFSv4 mount detected. Best Practice: Tune mount options to <code>rw,bg,hard,timeo=600,rsize=262144,wsize=262144</code> for optimal latency performance.`);
-  } else if (ints.database.type.includes("Spark")) {
+  } else if (ints.database.type.includes("Spark") || ints.database.type.includes("Hadoop")) {
     recs.push(`<strong>[Hadoop/Spark]</strong> S3A connector detected. Best Practice: Configure the S3A client to use <code>fs.s3a.fast.upload=true</code> to leverage StorageGRID's high-speed uploads.`);
+  } else if (ints.database.type.includes("AI/ML Training")) {
+    recs.push(`<strong>[AI Workloads]</strong> PyTorch/TensorFlow dataset loading. Best Practice: Configure local read cache on GPU nodes using NFS CacheFilesd (FS-Cache) to reduce redundant network transfers.`);
   }
   
   // Backup Recommendations
-  if (ints.backup.type === "Veeam Backup & Replication") {
+  if (ints.backup.type.includes("Veeam")) {
     recs.push(`<strong>[Veeam]</strong> ONTAP Hardware Snapshot Integration is active. Best Practice: Limit the number of concurrent storage snapshots to 5 per volume to prevent ONTAP metadata lock contention.`);
-  } else if (ints.backup.type === "Commvault IntelliSnap") {
+  } else if (ints.backup.type.includes("Commvault IntelliSnap")) {
     recs.push(`<strong>[Commvault]</strong> IntelliSnap NetApp engine is active. Best Practice: Ensure NetApp OCUM/AIQUM portal credentials are up-to-date in Commvault's Array Management.`);
+  } else if (ints.backup.type.includes("Veritas")) {
+    recs.push(`<strong>[Veritas]</strong> NetBackup Snapshot Manager is active. Best Practice: Create snapshot policies that clean up deleted or orphaned snapshots older than 7 days using the NetApp REST API.`);
+  } else if (ints.backup.type.includes("SnapCenter")) {
+    recs.push(`<strong>[SnapCenter]</strong> Native application-consistent backups. Best Practice: Schedule backup jobs outside of ONTAP system background processes (such as deduplication or scrub schedules).`);
+  } else if (ints.backup.type.includes("Commvault Metallic")) {
+    recs.push(`<strong>[Metallic SaaS]</strong> SaaS backup to cloud storage. Best Practice: Enable ONTAP S3 Object Lock (WORM) on bucket destination to protect against ransomware injection.`);
   }
   
   return recs;
@@ -3690,22 +3730,25 @@ function renderSAMTab() {
     `;
 
     // 3. Hypervisors / Integrations Summary
-    let ESXiCount = 0, K8sCount = 0, OpenStackCount = 0;
+    const virtTypes = {};
     targetSAMSystems.forEach(s => {
       const ints = getSystemIntegrations(s);
-      if (ints.virtualization.type.includes("VMware")) ESXiCount++;
-      else if (ints.virtualization.type.includes("Kubernetes")) K8sCount++;
-      else if (ints.virtualization.type.includes("OpenStack")) OpenStackCount++;
+      const vt = ints.virtualization.type.split(" (")[0]; // Clean version suffix
+      virtTypes[vt] = (virtTypes[vt] || 0) + 1;
     });
+    
+    let virtHtml = "";
+    Object.entries(virtTypes).forEach(([type, count]) => {
+      virtHtml += `<div>• ${type}: <strong>${count}</strong> system${count > 1 ? 's' : ''}</div>`;
+    });
+    
     document.getElementById("samHypervisorCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Integrations Overview</h4>
       </div>
       <div style="font-size: 1.15rem; font-weight: 700; margin-bottom: 8px;">Workload Types</div>
-      <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-        <div>• VMware vSphere: <strong>${ESXiCount}</strong> hosts</div>
-        <div>• Kubernetes (CSI): <strong>${K8sCount}</strong> nodes</div>
-        <div>• OpenStack Swift: <strong>${OpenStackCount}</strong> instances</div>
+      <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45;">
+        ${virtHtml || "<div>No workloads active.</div>"}
       </div>
     `;
 
