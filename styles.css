@@ -931,13 +931,16 @@ input:checked + .slider:before {
   box-shadow: 0 4px 12px rgba(0, 229, 255, 0.2);
 }
 
-/* Print layout overrides: expand all sub-tabs sequentially and hide navigation */
+/* Print layout overrides: expand all sub-tabs sequentially and hide navigation/buttons */
 @media print {
   .plan-section {
     display: block !important;
     page-break-after: always;
   }
-  .action-plan-tabs-nav {
+  .action-plan-tabs-nav,
+  .action-btn,
+  button,
+  .plan-section button {
     display: none !important;
   }
 }

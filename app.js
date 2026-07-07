@@ -4718,7 +4718,13 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
       <!-- Executive Summary Section -->
       <div style="margin-top: 32px;">
-        <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">1. Executive Summary</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+          <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">1. Executive Summary</h2>
+          <div style="display: flex; gap: 8px;">
+            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(1)" data-tooltip="Download Section 1 text report as a TXT file.">Download Summary (TXT)</button>
+            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CSV')" data-tooltip="Download full filtered systems inventory list as a CSV spreadsheet.">Export Inventory (CSV)</button>
+          </div>
+        </div>
         <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 12px;">
           This document represents the consolidated operational action plan generated from telemetry data analyzed by NetApp Active IQ Digital Advisor. 
           A total of <strong>${targetSystems.length}</strong> storage configuration(s) were audited.
@@ -4750,7 +4756,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Technical Risks Section -->
     <div class="plan-section" data-section-index="2" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">2. Prioritized Technical Risks & Remediation Steps</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">2. Prioritized Technical Risks & Remediation Steps</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(2)" data-tooltip="Download Section 2 prioritized risks report as a TXT file.">Download Risks (TXT)</button>
+      </div>
   `;
 
   if (allRisks.length === 0) {
@@ -4771,7 +4780,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: var(--radius-sm);">
             <strong>Root Cause Analysis:</strong><br>${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
           </div>
-          <div style="font-size: 0.85rem; color: var(--status-critical); margin-bottom: 12px; background: rgba(255, 51, 102, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 51, 102, 0.1);">
+          <div style="font-size: 0.85rem; color: var(--status-critical); margin-bottom: 12px; background: rgba(255, 51, 102, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 51, 102, 0.15); margin-top: 8px;">
             <strong>Operations Impact:</strong><br>${r.remediationPlan ? r.remediationPlan.impact : "Undetermined"}
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
@@ -4796,7 +4805,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Security & Technical Bulletins Section -->
     <div class="plan-section" data-section-index="3" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">3. Security Bulletins & Vulnerability Mitigations</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">3. Security Bulletins & Vulnerability Mitigations</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(3)" data-tooltip="Download Section 3 security advisories report as a TXT file.">Download Advisories (TXT)</button>
+      </div>
   `;
 
   if (allSecurityAdvisories.length === 0) {
@@ -4827,7 +4839,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Open Support Cases Section -->
     <div class="plan-section" data-section-index="4" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Active Support Cases & Milestones</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Active Support Cases & Milestones</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 open support cases report as a TXT file.">Download Cases (TXT)</button>
+      </div>
   `;
 
   if (allSupportCases.length === 0) {
@@ -4867,7 +4882,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- OS/Firmware Upgrades Section -->
     <div class="plan-section" data-section-index="5" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Recommended OS Upgrade Roadmaps</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">5. Recommended OS Upgrade Roadmaps</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps (TXT)</button>
+      </div>
   `;
 
   if (allUpgrades.length === 0) {
@@ -4896,7 +4914,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Network Switch & Fabric Infrastructure Remediation Section -->
     <div class="plan-section" data-section-index="6" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Network Switch & Fabric Infrastructure Remediation</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">6. Network Switch & Fabric Infrastructure Remediation</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(6)" data-tooltip="Download Section 6 switch validation roadmap as a TXT file.">Download Switch Report (TXT)</button>
+      </div>
   `;
 
   if (switchAlerts.length === 0) {
@@ -4968,7 +4989,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Site Logistics, Contacts & Health Details Section -->
     <div class="plan-section" data-section-index="7" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">7. Site Logistics, Contacts, & Customer Health</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">7. Site Logistics, Contacts, & Customer Health</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(7)" data-tooltip="Download Section 7 logistics and contacts catalog as a TXT file.">Download Logistics (TXT)</button>
+      </div>
   `;
 
   targetSystems.forEach(sys => {
@@ -5005,7 +5029,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Guidelines and Proceeding Steps Section -->
     <div class="plan-section" data-section-index="8" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">8. Operational Guidelines & Proceeding Steps</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">8. Operational Guidelines & Proceeding Steps</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(8)" data-tooltip="Download Section 8 change control guidelines as a TXT file.">Download Guidelines (TXT)</button>
+      </div>
       
       <div style="margin-bottom: 18px;">
         <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Implementing Changes via NetApp Change Control</h4>
@@ -5044,25 +5071,38 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 
     <!-- Deliverables and Drafts Section -->
     <div class="plan-section" data-section-index="9" style="display: none; margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">9. Executable Account Deliverables</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">9. Executable Account Deliverables</h2>
+      </div>
       
-      <div style="margin-bottom: 20px;">
-        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Draft Customer Alert Email Notification</h4>
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">A. Draft Customer Alert Email Notification</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('EMAIL')">Download Email Draft (TXT)</button>
+        </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Copy and customize this email to notify the customer's operations team regarding active risks and support cases.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${draftEmailText}</textarea>
       </div>
 
-      <div style="margin-bottom: 20px;">
-        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">B. Storage Upgrade & Hardware Refresh Proposal Draft</h4>
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">B. Storage Upgrade & Hardware Refresh Proposal Draft</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('PROPOSAL')">Download Proposal Draft (TXT)</button>
+        </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">A formal proposal draft to request funding or approvals for target OS updates and hardware contract renewals.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${draftProposalText}</textarea>
       </div>
 
-      <div>
-        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">C. Internal Operations Coordination Ticket Template</h4>
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">C. Internal Operations Coordination Ticket Template</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('TICKET')">Download Ticket Template (TXT)</button>
+        </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Create an internal IT ticket to dispatch technicians or coordinate parts delivery based on logistics rules.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${internalTicketText}</textarea>
       </div>
+    </div>
+  `;
     </div>
   `;
 
@@ -5112,6 +5152,193 @@ function switchPlanTab(index) {
       btn.classList.remove("active");
     }
   });
+}
+
+}
+
+// Download report of a specific Action Plan section as plain text
+function downloadPlanSection(index) {
+  const selectValue = document.getElementById("planTargetSelect").value;
+  let targetSystems = [];
+  let scopeTitle = "";
+  
+  if (selectValue === "ALL") {
+    targetSystems = getFilteredSystems();
+    scopeTitle = "Total Portfolio";
+  } else if (selectValue.startsWith("CUST:")) {
+    const custName = selectValue.substring(5);
+    targetSystems = state.systems.filter(s => s.customerName === custName);
+    scopeTitle = `Customer: ${custName}`;
+  } else if (selectValue.startsWith("GRP:")) {
+    const groupId = selectValue.substring(4);
+    const grp = state.groups.find(g => g.id === groupId);
+    if (grp) {
+      targetSystems = state.systems.filter(s => grp.systemSerials.includes(s.serialNumber));
+      scopeTitle = `Group: ${grp.name}`;
+    }
+  } else if (selectValue.startsWith("WL:")) {
+    const wlId = selectValue.substring(3);
+    const wl = state.watchlists.find(w => w.id === wlId);
+    if (wl) {
+      targetSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
+      scopeTitle = `Watchlist: ${wl.name}`;
+    }
+  } else if (selectValue.startsWith("SYS:")) {
+    const serial = selectValue.substring(4);
+    const found = state.systems.find(s => s.serialNumber === serial);
+    if (found) targetSystems = [found];
+    scopeTitle = `System: ${found ? found.systemName : serial}`;
+  }
+  
+  const cleanScope = scopeTitle.replace(/[^a-z0-9]/gi, '_');
+  
+  let filename = "";
+  let text = "";
+  
+  const allRisks = [];
+  const allUpgrades = [];
+  const expiringContracts = [];
+  const activeFAs = [];
+  const allSecurityAdvisories = [];
+  const allSupportCases = [];
+  const switchAlerts = [];
+  
+  targetSystems.forEach(sys => {
+    sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+    if (sys.upgrades.targetVersion !== "Up to Date") {
+      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
+    }
+    if (sys.contracts.daysRemaining <= 90) {
+      expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
+    }
+    sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
+    if (sys.securityBulletins) {
+      sys.securityBulletins.forEach(sb => allSecurityAdvisories.push({ systemName: sys.systemName, ...sb }));
+    }
+    if (sys.supportCases) {
+      sys.supportCases.forEach(sc => allSupportCases.push({ systemName: sys.systemName, ...sc }));
+    }
+    const sws = getSystemSwitches(sys);
+    sws.forEach(sw => {
+      if (sw.status !== "Optimal") {
+        switchAlerts.push({ systemName: sys.systemName, ...sw });
+      }
+    });
+  });
+
+  if (index === 1) {
+    filename = `executive_summary_${cleanScope}.txt`;
+    text = `NETAPP EXECUTIVE SUMMARY REPORT
+Scope: ${scopeTitle}
+Date Generated: ${new Date().toISOString().split('T')[0]}
+Total Systems Audited: ${targetSystems.length}
+
+METRICS SUMMARY:
+- Technical Risks: ${allRisks.length}
+- Security Advisories: ${allSecurityAdvisories.length}
+- Open Support Cases: ${allSupportCases.length}
+- Expiring Contracts: ${expiringContracts.length}
+- Active Field Actions: ${activeFAs.length}
+
+This document compiles the high-level metrics generated from telemetry data analyzed by NetApp Active IQ Digital Advisor.`;
+  } else if (index === 2) {
+    filename = `prioritized_risks_${cleanScope}.txt`;
+    text = `NETAPP PRIORITIZED TECHNICAL RISKS REPORT
+Scope: ${scopeTitle}
+
+${allRisks.length === 0 ? "✓ No technical risk signatures identified across the monitored scope." : 
+  allRisks.map((r, idx) => `Item 2.${idx + 1}: ${r.category} Risk - ${r.systemName} [Severity: ${r.severity.toUpperCase()}]
+- Issue: ${r.description}
+- Root Cause: ${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
+- Operations Impact: ${r.remediationPlan ? r.remediationPlan.impact : "Undetermined"}
+- Remediation steps:
+${r.remediationPlan ? r.remediationPlan.steps.map((s, i) => `   ${i+1}. ${s}`).join("\n") : "   1. Review standard operating guidelines."}
+- Trade-offs:
+${r.remediationPlan ? r.remediationPlan.options.map(o => `   * ${o}`).join("\n") : "   * Contact NetApp Support."}
+`).join("\n\n")}`;
+  } else if (index === 3) {
+    filename = `security_advisories_${cleanScope}.txt`;
+    text = `NETAPP SECURITY ADVISORIES REPORT
+Scope: ${scopeTitle}
+
+${allSecurityAdvisories.length === 0 ? "✓ No security vulnerabilities mapped against release baselines." :
+  allSecurityAdvisories.map((s, idx) => `SA-ID: ${s.id} - ${s.systemName} [Severity: ${s.severity.toUpperCase()}]
+- Title: ${s.title}
+- Mitigation: ${s.mitigation}
+- Status: ${s.status}
+`).join("\n\n")}`;
+  } else if (index === 4) {
+    filename = `support_cases_${cleanScope}.txt`;
+    text = `NETAPP ACTIVE SUPPORT CASES REPORT
+Scope: ${scopeTitle}
+
+${allSupportCases.length === 0 ? "✓ No active support cases open in the NetApp Support portal." :
+  allSupportCases.map((c, idx) => `Case ID: ${c.id} - ${c.systemName} [Severity: ${c.severity}]
+- Title: ${c.title}
+- Criticality: ${c.criticality || "Normal"}
+- Next Action Owner: ${c.nextActionBy || "Under Review"}
+- Latest TAM Notes: ${c.ownerNotes}
+- Status: ${c.status} | Opened: ${c.createdDate} | Updated: ${c.lastUpdated}
+`).join("\n\n")}`;
+  } else if (index === 5) {
+    filename = `os_upgrades_${cleanScope}.txt`;
+    text = `NETAPP RECOMMENDED OS UPGRADES ROADMAP
+Scope: ${scopeTitle}
+
+${allUpgrades.length === 0 ? "✓ All systems are running target version baselines." :
+  allUpgrades.map(u => `System: ${u.systemName} [Urgency: ${u.urgency}]
+- Current OS: ${targetSystems.find(s => s.systemName === u.systemName)?.ontapVersion || "unknown"}
+- Recommended OS Target Version: ${u.targetVersion}
+- Platform Model: ${u.platform}
+- Latest Supported OS Version: ${getLatestSupportedVersion(u.platform)}
+- Expected Upgrade Benefits: ${u.benefits}
+`).join("\n\n")}`;
+  } else if (index === 6) {
+    filename = `switch_validation_${cleanScope}.txt`;
+    text = `NETAPP NETWORK SWITCH & FABRIC VALIDATION CHECKLIST
+Scope: ${scopeTitle}
+
+${switchAlerts.length === 0 ? "✓ All interconnect and storage network fabric switches match validated firmware baselines." :
+  switchAlerts.map(sw => `System: ${sw.systemName} | Switch: ${sw.model} (${sw.type}) [Status: ${sw.status}]
+- Switch S/N: ${sw.serialNumber} | IP: ${sw.ipAddress}
+- Current Firmware: ${sw.firmware} | Target Firmware: ${sw.targetFirmware} | Latest Supported: ${getLatestSupportedVersion(sw.model)}
+- Validation Drift Details: ${sw.validationDetails}
+`).join("\n\n")}`;
+  } else if (index === 7) {
+    filename = `site_logistics_${cleanScope}.txt`;
+    text = `NETAPP SITE LOGISTICS & CUSTOMER HEALTH REPORT
+Scope: ${scopeTitle}
+
+${targetSystems.map(sys => {
+  const l = sys.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None" };
+  const c = sys.contacts || { name: "Not Set", phone: "Not Set", email: "Not Set" };
+  const h = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable" };
+  return `SYSTEM: ${sys.systemName} (S/N: ${sys.serialNumber})
+- Delivery Address: ${l.deliveryAddress}
+- Access restrictions: ${l.accessRestrictions}
+- Primary Contact: ${c.name} (${c.phone} / ${c.email})
+- Sales Rep: AM: ${h.accountManager} | TAM: ${h.supportTam}
+- CSAT Score: ${h.sentimentScore.toFixed(1)}/10 [Status: ${h.healthStatus}]
+`;
+}).join("\n\n")}`;
+  } else if (index === 8) {
+    filename = `operational_guidelines_${cleanScope}.txt`;
+    text = `NETAPP OPERATIONAL GUIDELINES & CHANGE CONTROL
+Scope: ${scopeTitle}
+
+A. CHANGE CONTROL PROCEDURES
+- GENERATE UPGRADE ADVISOR: Always run the Upgrade Advisor script inside Active IQ Digital Advisor.
+- PRE-UPGRADE CHECKLISTS: Run 'system health alert show' and verify replication path stability.
+- SWITCH FIRMWARE: Upgrade switch firmware strictly one switch at a time, validating fabric sync via 'switchshow' before upgrading the partner.
+
+B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
+- VMware Multipathing: Confirm ESXi hosts utilize round robin policies with IOPS limit=1.
+- Astra Trident: Coordinate Trident upgrades alongside Kubernetes API migrations to avoid CSI mount failures.`;
+  }
+  
+  if (filename && text) {
+    triggerFileDownload(filename, text);
+  }
 }
 
 // Download deliverables helper by type and active environment scope
