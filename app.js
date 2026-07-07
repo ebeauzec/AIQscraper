@@ -755,7 +755,7 @@ const MOCK_SYSTEMS = [
             "2. Select affected ESXi host -> Configure -> Storage -> Storage Devices.",
             "3. Select NetApp LUN -> Properties -> Edit Multipathing Policy.",
             "4. Change Path Selection Policy from 'Fixed' to 'Round Robin (VMW_PSP_RR)' and set the IO operation limit to 1.",
-            "5. Alternatively, run CLI script on ESXi shell: 'esxcli storage nmp device set -d <naa_id> -P VMW_PSP_RR' and 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'."
+            "5. Alternatively, run CLI script on ESXi shell: 'esxcli storage nmp device set -d <naa_id> -P VMW_PSP_RR' and either 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops' (for ESXi 6.x) or 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1' (for ESXi 7.0/8.0+)."
           ],
           options: [
             "Option A: Apply manually via vCenter GUI. Suitable for small environments.",
@@ -5484,7 +5484,8 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
 
 * ACTION 3.1: Hypervisor Storage Driver Optimization
   - Standard Practice: Configure VMware ESXi hosts with VMW_PSP_RR Round Robin policies, setting the IOPS limit = 1 to load-balance queue depths.
-  - Run Command: 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'
+  - Run Command (ESXi 6.x): 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'
+  - Run Command (ESXi 7.0/8.0+): 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1'
 
 * ACTION 3.2: Enable SVM Configuration Change Auditing
   - Standard Practice: Activate vserver audit logging for compliance.
@@ -5698,21 +5699,42 @@ SYSTEM ${sysIdx + 1}: CLI RUNBOOK - ${sys.systemName} (S/N: ${sys.serialNumber})
 - Category: ${r.category}
 - Specific Action Plan:
 `;
+        const verStr = sys.ontapVersion || "9.12.1";
+        const parts = verStr.split('.');
+        const major = parseInt(parts[0]) || 9;
+        const minor = parseInt(parts[1]) || 12;
+        const is92OrNewer = (major > 9) || (major === 9 && minor >= 2);
+        const is95OrNewer = (major > 9) || (major === 9 && minor >= 5);
+
         if (r.description.includes("SMBv1")) {
-          implementationPlans += `  * Run command to disable SMBv1 on SVM:
+          if (is92OrNewer) {
+            implementationPlans += `  * [ONTAP ${verStr} - 9.2+ Compliance Command] Run to disable SMBv1 on SVM:
     vserver cifs options modify -vserver <svm_name> -smb1-enabled false
   * Verify the modification:
     vserver cifs options show -fields smb1-enabled\n\n`;
+          } else {
+            implementationPlans += `  * [ONTAP ${verStr} - Legacy <9.2 Command] Run to disable SMBv1 on SVM:
+    vserver cifs options modify -vserver <svm_name> -is-smb1-enabled false
+  * Verify the modification:
+    vserver cifs options show -fields is-smb1-enabled\n\n`;
+          }
         } else if (r.description.includes("NFS export policy") || r.description.includes("root")) {
           implementationPlans += `  * Modify export policy rule index to squash root permissions:
     vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -superuser none
   * Restrict access to secure subnets:
     vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -clientmatch 10.100.0.0/16\n\n`;
         } else if (r.description.includes("NTP")) {
-          implementationPlans += `  * Verify time synchronization status:
-    cluster time-service ntp status show
-  * Reconfigure active NTP servers:
-    cluster time-service ntp server modify -server time.windows.com\n\n`;
+          if (is95OrNewer) {
+            implementationPlans += `  * [ONTAP ${verStr} - 9.5+ Command] Reconfigure active NTP servers:
+    cluster time-service ntp server modify -server time.windows.com
+  * Verify time synchronization status:
+    cluster time-service ntp status show\n\n`;
+          } else {
+            implementationPlans += `  * [ONTAP ${verStr} - Legacy <9.5 Command] Reconfigure active NTP servers:
+    system services ntp server modify -server time.windows.com
+  * Verify time synchronization status:
+    system services ntp status show\n\n`;
+          }
         } else if (r.description.includes("Shelf") || r.description.includes("firmware")) {
           implementationPlans += `  * Download the firmware package to the nodes:
     storage firmware download -node * -package iom12_0260.flw
@@ -6232,7 +6254,7 @@ function generateActionPlan() {
           If systems back VM workloads (VMware ESXi or Kubernetes orchestrators), follow host compliance settings:
         </p>
         <ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-top: 6px;">
-          <li><strong>Multipathing PSP</strong>: Confirm ESXi hosts utilize VMW_PSP_RR Round Robin policies with IOPS limit=1 to distribute workload. Fixed pathing configurations should be corrected immediately using: 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'.</li>
+          <li><strong>Multipathing PSP</strong>: Confirm ESXi hosts utilize VMW_PSP_RR Round Robin policies with IOPS limit=1 to distribute workload. Fixed pathing configurations should be corrected immediately using: 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops' (for ESXi 6.x) or 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1' (for ESXi 7.0/8.0+).</li>
           <li><strong>Trident Upgrades</strong>: Coordinate Astra Trident driver upgrades alongside Kubernetes API migrations to avoid CSI mount failures.</li>
         </ul>
       </div>

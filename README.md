@@ -56,7 +56,7 @@ This reporting tool is aligned to retrieve and map telemetry across the complete
 ### 3rd-Party Platform & Hypervisor Best Practices
 The tool highlights compliance warnings against NetApp storage best practices for virtualization hosts and orchestrators:
 *   **VMware vSphere / ESXi**:
-    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` (via `esxcli storage nmp psp roundrobin device config set -I 1 -t iops`) to balance controller load and prevent latency warnings.
+    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` — executing either `esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops` (for ESXi 6.x) or `esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1` (for ESXi 7.0/8.0+) — to balance controller load and prevent latency warnings.
     *   *Integration Plugins*: Audits connectivity and credentials for **VASA Provider** and **ONTAP Tools for VMware (OTV)** for VVol and datastore provisioning.
 *   **Kubernetes (Astra Trident)**:
     *   *Driver Versioning*: Flags outdated Astra Trident CSI drivers backing Kubernetes Persistent Volumes (PVs) that mismatch host API versions.
