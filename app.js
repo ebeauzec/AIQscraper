@@ -5157,6 +5157,86 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 - Verify active Secret/Biometric clearance criteria with site contacts prior to dispatch.
 - Cross-reference active shipment codes against tracking APIs.`;
 
+  const successPlanRisks = allRisks.map((r, i) => `${i+1}. [Priority ${r.severity.toUpperCase()}] ${r.systemName}: ${r.description}\n   -> Remediation: ${r.recommendation}`).join("\n\n");
+  const successPlanUpgrades = allUpgrades.map(u => `- Upgrade ${u.systemName} from ${u.currentVersion} to ${u.targetVersion} (${u.urgency})\n  -> Benefit: ${u.benefits}`).join("\n");
+
+  const customerSuccessPlanText = `================================================================================
+CUSTOMER SUCCESS PLAN: ENVIRONMENTAL POSTURE & SECURITY OPTIMIZATION
+================================================================================
+TARGET CUSTOMER SCOPE : ${scopeTitle}
+DATE GENERATED        : ${new Date().toISOString().split('T')[0]}
+PREPARED BY           : NetApp Customer Success & TAM Engineering Team
+HEALTH POSTURE STATUS : ${allRisks.length > 0 ? 'WARNING (Action Required)' : 'OPTIMAL / COMPLIANT'}
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE GOAL & VISION
+--------------------------------------------------------------------------------
+The primary objective of this Success Plan is to increase the security compliance, operational resilience, and software/hardware baseline alignment of the customer's storage environment. This is achieved through a structured, phased, and prioritized execution path that minimizes storage disruption, protects active data workloads, and mitigates vulnerabilities (e.g. SMBv1 ransomware vectors, insecure NFS exports).
+
+--------------------------------------------------------------------------------
+2. COMPREHENSIVE ROADMAP & EXECUTION PHASES
+--------------------------------------------------------------------------------
+
+PHASE 1: IMMEDIATE CRITICAL REMEDIATION (DAYS 1 - 7)
+----------------------------------------------------
+Focus: Mitigate critical vulnerabilities and restore hardware redundancy.
+
+* ACTION 1.1: Security Protocol Hardening (CVE Mitigation)
+  - Objective: Disable legacy SMBv1 protocol and restrict superuser NFS exports.
+  - Detail: Prevents remote code execution vectors (e.g. EternalBlue). 
+  - Verification: Run 'vserver cifs options show -fields smb1-enabled' to verify state is 'false'.
+  
+* ACTION 1.2: Restore Hardware Path Redundancy
+  - Objective: Address physical SAS loop failures and bad shelf port connections.
+  - Detail: Recovers dual-path connectivity to prevent shelf outages.
+  - Verification: Run 'storage show path' from the administrative CLI to verify all drives report dual-path status.
+
+${allRisks.length > 0 ? `Active Risks Under Phase 1:\n${successPlanRisks}` : "✓ No critical or high risks currently active in this scope."}
+
+PHASE 2: PLATFORM & FABRIC ALIGNMENT (DAYS 8 - 30)
+--------------------------------------------------
+Focus: Align system software and cluster interconnect fabric with validated baselines.
+
+* ACTION 2.1: Non-Disruptive ONTAP / SANtricity Upgrade
+  - Objective: Upgrade controller software to the recommended target versions.
+  - Detail: Patches stability bugs and optimizes SnapMirror performance.
+  - Verification: Confirm node status via 'cluster show' and check system version.
+
+* ACTION 2.2: Interconnect & Storage Fabric Switch Updates
+  - Objective: Bring Cisco Nexus / Brocade cluster switches to validated firmware baselines.
+  - Detail: Mitigates interface drop counters and packet loss.
+  - Verification: Run ISSU/HCL checks and confirm version compliance post-reload.
+
+${allUpgrades.length > 0 ? `Target Upgrades Under Phase 2:\n${successPlanUpgrades}` : "✓ All systems are running validated operating system baselines."}
+
+PHASE 3: AUDITING, BEST PRACTICES & MODERNIZATION (DAYS 31 - 90)
+----------------------------------------------------------------
+Focus: Drive long-term efficiency, audit logging, and host integration compliance.
+
+* ACTION 3.1: Enforce Host Virtualization Multipathing Settings
+  - Objective: Configure VMware ESXi Round Robin NMP PSP policies with IOPS limit = 1.
+  - Detail: Optimizes controller queue depth load distribution.
+  - Verification: Run 'esxcli storage nmp psp roundrobin device config show'.
+
+* ACTION 3.2: Enable SVM Administration Audit Logging
+  - Objective: Log all SVM configuration change requests.
+  - Detail: Enforces compliance audits for governance rules.
+  - Verification: Verify audit status on all data serving SVMs.
+
+* ACTION 3.3: Support Contract & Lifecycle Management
+  - Objective: Proactively renew expiring support contracts.
+  - Detail: Protects systems against hardware part replacement gaps.
+
+--------------------------------------------------------------------------------
+3. ROLES, RESPONSIBILITIES & CHANGE CONTROL
+--------------------------------------------------------------------------------
+- NetApp TAM / Customer Success Manager: Technical advisory, parts ordering coordination, and upgrade planning.
+- Customer Storage Administrator: Scheduling maintenance windows, executing CLI remediation commands, and verifying port status.
+- Site Operations Contact: Facilitating clearance and physical access for parts delivery.
+
+All modifications must follow NetApp's standard Change Control guidelines. Running health checks ('system health alert show') is required prior to any execution.
+================================================================================`;
+
   let html = `
     <div class="plan-section active" data-section-index="1">
       <div class="plan-document-header">
@@ -5553,6 +5633,15 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Create an internal IT ticket to dispatch technicians or coordinate parts delivery based on logistics rules.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${internalTicketText}</textarea>
       </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">D. Phased Customer Success & Environmental Posture Optimization Plan</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download Success Plan (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">A complete, logical, phased customer success roadmap detailing steps to optimize security and operations.</p>
+        <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${customerSuccessPlanText}</textarea>
+      </div>
     </div>
   `;
 
@@ -5920,6 +6009,93 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 - Cross-reference active shipment codes against tracking APIs.`;
 
     triggerFileDownload(`dispatch_ticket_${cleanScope}.txt`, text);
+
+  } else if (type === 'SUCCESS_PLAN') {
+    const successPlanRisks = allRisks.map((r, i) => `${i+1}. [Priority ${r.severity.toUpperCase()}] ${r.systemName}: ${r.description}\n   -> Remediation: ${r.recommendation}`).join("\n\n");
+    const successPlanUpgrades = allUpgrades.map(u => {
+      const origSys = targetSystems.find(s => s.systemName === u.systemName);
+      const origVer = origSys ? (origSys.santricityVersion ? origSys.santricityVersion : origSys.ontapVersion) : "unknown";
+      return `- Upgrade ${u.systemName} from ${origVer} to ${u.targetVersion} (${u.urgency})\n  -> Benefit: ${u.benefits}`;
+    }).join("\n");
+
+    const text = `================================================================================
+CUSTOMER SUCCESS PLAN: ENVIRONMENTAL POSTURE & SECURITY OPTIMIZATION
+================================================================================
+TARGET CUSTOMER SCOPE : ${scopeTitle.replace(/_/g, ' ')}
+DATE GENERATED        : ${new Date().toISOString().split('T')[0]}
+PREPARED BY           : NetApp Customer Success & TAM Engineering Team
+HEALTH POSTURE STATUS : ${allRisks.length > 0 ? 'WARNING (Action Required)' : 'OPTIMAL / COMPLIANT'}
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE GOAL & VISION
+--------------------------------------------------------------------------------
+The primary objective of this Success Plan is to increase the security compliance, operational resilience, and software/hardware baseline alignment of the customer's storage environment. This is achieved through a structured, phased, and prioritized execution path that minimizes storage disruption, protects active data workloads, and mitigates vulnerabilities (e.g. SMBv1 ransomware vectors, insecure NFS exports).
+
+--------------------------------------------------------------------------------
+2. COMPREHENSIVE ROADMAP & EXECUTION PHASES
+--------------------------------------------------------------------------------
+
+PHASE 1: IMMEDIATE CRITICAL REMEDIATION (DAYS 1 - 7)
+----------------------------------------------------
+Focus: Mitigate critical vulnerabilities and restore hardware redundancy.
+
+* ACTION 1.1: Security Protocol Hardening (CVE Mitigation)
+  - Objective: Disable legacy SMBv1 protocol and restrict superuser NFS exports.
+  - Detail: Prevents remote code execution vectors (e.g. EternalBlue). 
+  - Verification: Run 'vserver cifs options show -fields smb1-enabled' to verify state is 'false'.
+  
+* ACTION 1.2: Restore Hardware Path Redundancy
+  - Objective: Address physical SAS loop failures and bad shelf port connections.
+  - Detail: Recovers dual-path connectivity to prevent shelf outages.
+  - Verification: Run 'storage show path' from the administrative CLI to verify all drives report dual-path status.
+
+${allRisks.length > 0 ? `Active Risks Under Phase 1:\n${successPlanRisks}` : "✓ No critical or high risks currently active in this scope."}
+
+PHASE 2: PLATFORM & FABRIC ALIGNMENT (DAYS 8 - 30)
+--------------------------------------------------
+Focus: Align system software and cluster interconnect fabric with validated baselines.
+
+* ACTION 2.1: Non-Disruptive ONTAP / SANtricity Upgrade
+  - Objective: Upgrade controller software to the recommended target versions.
+  - Detail: Patches stability bugs and optimizes SnapMirror performance.
+  - Verification: Confirm node status via 'cluster show' and check system version.
+
+* ACTION 2.2: Interconnect & Storage Fabric Switch Updates
+  - Objective: Bring Cisco Nexus / Brocade cluster switches to validated firmware baselines.
+  - Detail: Mitigates interface drop counters and packet loss.
+  - Verification: Run ISSU/HCL checks and confirm version compliance post-reload.
+
+${allUpgrades.length > 0 ? `Target Upgrades Under Phase 2:\n${successPlanUpgrades}` : "✓ All systems are running validated operating system baselines."}
+
+PHASE 3: AUDITING, BEST PRACTICES & MODERNIZATION (DAYS 31 - 90)
+----------------------------------------------------------------
+Focus: Drive long-term efficiency, audit logging, and host integration compliance.
+
+* ACTION 3.1: Enforce Host Virtualization Multipathing Settings
+  - Objective: Configure VMware ESXi Round Robin NMP PSP policies with IOPS limit = 1.
+  - Detail: Optimizes controller queue depth load distribution.
+  - Verification: Run 'esxcli storage nmp psp roundrobin device config show'.
+
+* ACTION 3.2: Enable SVM Administration Audit Logging
+  - Objective: Log all SVM configuration change requests.
+  - Detail: Enforces compliance audits for governance rules.
+  - Verification: Verify audit status on all data serving SVMs.
+
+* ACTION 3.3: Support Contract & Lifecycle Management
+  - Objective: Proactively renew expiring support contracts.
+  - Detail: Protects systems against hardware part replacement gaps.
+
+--------------------------------------------------------------------------------
+3. ROLES, RESPONSIBILITIES & CHANGE CONTROL
+--------------------------------------------------------------------------------
+- NetApp TAM / Customer Success Manager: Technical advisory, parts ordering coordination, and upgrade planning.
+- Customer Storage Administrator: Scheduling maintenance windows, executing CLI remediation commands, and verifying port status.
+- Site Operations Contact: Facilitating clearance and physical access for parts delivery.
+
+All modifications must follow NetApp's standard Change Control guidelines. Running health checks ('system health alert show') is required prior to any execution.
+================================================================================`;
+
+    triggerFileDownload(`customer_success_plan_${cleanScope}.txt`, text);
 
   } else if (type === 'CSV') {
     const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Platform Model", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
