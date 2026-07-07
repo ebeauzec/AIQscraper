@@ -68,6 +68,50 @@ const MOCK_SYSTEMS = [
           ],
           thirdParty: "Ensure vSphere Host storage queue depths are configured correctly to absorb transient IO delays (less than 2 seconds) during module reboots."
         }
+      },
+      {
+        id: 103,
+        severity: "critical",
+        category: "Security",
+        description: "Insecure Protocol Enabled: SMBv1 protocol is active on SVM netapp-aff-01-svm-cifs.",
+        recommendation: "Disable SMBv1 protocol to mitigate security threats such as ransomware propagation. Refer to CVE-2017-0144.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_disable_SMBv1_in_ONTAP",
+        remediationPlan: {
+          cause: "Legacy SMBv1 protocol is enabled on SVM netapp-aff-01-svm-cifs to support older client devices, violating corporate security compliance.",
+          impact: "Exposes ONTAP cluster to critical remote code execution exploits (e.g. EternalBlue/WannaCry).",
+          steps: [
+            "1. SSH into the NY-AFF-CLUSTER administrative CLI.",
+            "2. Enforce SMB2/SMB3 communication and disable SMBv1: 'vserver cifs options modify -vserver netapp-aff-01-svm-cifs -smb1-enabled false'.",
+            "3. Verify options state: 'vserver cifs options show -vserver netapp-aff-01-svm-cifs -fields smb1-enabled'."
+          ],
+          options: [
+            "Option A: Disable SMBv1 cluster-wide or per SVM immediately (non-disruptive for modern clients).",
+            "Option B: Retain SMB1 temporarily only if legacy print servers require it (Highly Discouraged)."
+          ],
+          thirdParty: "Windows 10/11 and Windows Server 2016+ clients are unaffected. Legacy Windows XP/2003 clients will lose access."
+        }
+      },
+      {
+        id: 104,
+        severity: "high",
+        category: "Security",
+        description: "Insecure Export Policy Rule: NFS export policy 'default' allows superuser mount permissions to any host.",
+        recommendation: "Modify export policy rules on SVM netapp-aff-01-svm-nfs to restrict superuser access to specific subnets and enable root squashing.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Insecure_NFS_exports_root_squashing",
+        remediationPlan: {
+          cause: "Export policy rule for volume root/shares is configured on SVM netapp-aff-01-svm-nfs with client match '0.0.0.0/0' and superuser access parameter set to 'any'.",
+          impact: "Any anonymous client on the network can mount NFS exports and gain full root permissions over data files.",
+          steps: [
+            "1. Identify offending rules: 'vserver export-policy rule show -vserver netapp-aff-01-svm-nfs'.",
+            "2. Modify rule to squash root permissions (superuser=none): 'vserver export-policy rule modify -vserver netapp-aff-01-svm-nfs -policyname default -ruleindex 1 -superuser none'.",
+            "3. Restrict client matches to trusted subnets: 'vserver export-policy rule modify -vserver netapp-aff-01-svm-nfs -policyname default -ruleindex 1 -clientmatch 10.100.0.0/16'."
+          ],
+          options: [
+            "Option A: Squash root access and lock down clientmatch (Recommended security practice).",
+            "Option B: Create a custom, read-only policy for anonymous mount needs."
+          ],
+          thirdParty: "Ensure client side mount scripts (e.g. Linux autofs or ESXi NFS mounts) do not rely on root access permissions to function."
+        }
       }
     ],
     upgrades: {
@@ -3327,6 +3371,7 @@ function renderTAMTab() {
   // Render active systems list description and physical cabling node layout
   const visualCard = document.getElementById("tamNodeVisualCard");
   const eseriesCard = document.getElementById("tamEseriesVisualCard");
+  const svmCard = document.getElementById("tamSvmCard");
   
   if (selectedSystems.length > 0) {
     if (visualCard) {
@@ -3349,9 +3394,20 @@ function renderTAMTab() {
         eseriesCard.style.display = "none";
       }
     }
+
+    if (svmCard) {
+      const svms = getSystemSvms(activeSys);
+      if (svms && svms.length > 0) {
+        svmCard.style.display = "block";
+        renderSvmSecurityAudit(activeSys);
+      } else {
+        svmCard.style.display = "none";
+      }
+    }
   } else {
     if (visualCard) visualCard.style.display = "none";
     if (eseriesCard) eseriesCard.style.display = "none";
+    if (svmCard) svmCard.style.display = "none";
   }
 
   // Update header text
@@ -7186,6 +7242,57 @@ async function runSandboxGraphQLQuery() {
   }
 }
 
+function getSystemSvms(sys) {
+  // If it is StorageGRID or SANtricity/E-Series, return null (SVMs are an ONTAP feature)
+  if (!sys || !sys.platform || sys.platform.includes("StorageGRID") || sys.platform.includes("E-Series") || sys.platform.includes("EF600") || sys.santricityVersion) {
+    return null;
+  }
+
+  // Base list of SVMs derived dynamically from system serial number
+  const seed = parseInt(sys.serialNumber.replace(/[^0-9]/g, '')) || 1234;
+  return [
+    {
+      name: `${sys.systemName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-svm-nfs`,
+      status: "running",
+      protocols: ["NFS"],
+      volumesCount: (seed % 15) + 5,
+      lifsCount: 4,
+      securitySettings: {
+        smb1Enabled: false,
+        smbEncryption: "N/A",
+        nfsExportSuperuser: seed % 2 === 0 ? "restricted" : "any_host", // Triggers rule security warning
+        auditLogging: seed % 3 === 0 ? "Disabled" : "Enabled"
+      }
+    },
+    {
+      name: `${sys.systemName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-svm-cifs`,
+      status: "running",
+      protocols: ["CIFS"],
+      volumesCount: (seed % 10) + 3,
+      lifsCount: 2,
+      securitySettings: {
+        smb1Enabled: seed % 2 === 0 || sys.systemName.includes("aff-01"), // Triggers Critical SMBv1 warning on netapp-aff-01
+        smbEncryption: seed % 3 === 0 ? "Disabled" : "Required",
+        nfsExportSuperuser: "N/A",
+        auditLogging: "Enabled"
+      }
+    },
+    {
+      name: `${sys.systemName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-svm-san`,
+      status: "running",
+      protocols: ["iSCSI", "FCP"],
+      volumesCount: (seed % 8) + 2,
+      lifsCount: 4,
+      securitySettings: {
+        smb1Enabled: false,
+        smbEncryption: "N/A",
+        nfsExportSuperuser: "N/A",
+        auditLogging: "Disabled"
+      }
+    }
+  ];
+}
+
 // 12. Visual Port Mapping & L1 Topology Representation Helpers
 function getSystemPortMappings(sys) {
   // Check if system has specific risks to dynamically fail/degrade ports
@@ -7688,3 +7795,132 @@ function renderEseriesHardwareAudit(sys) {
     </div>
   `;
 }
+
+function renderSvmSecurityAudit(sys) {
+  const container = document.getElementById("tamSvmContainer");
+  if (!container) return;
+
+  const svms = getSystemSvms(sys);
+  if (!svms || svms.length === 0) {
+    container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">SVM auditing is only available for ONTAP storage arrays.</div>`;
+    return;
+  }
+
+  // Compile SVM rows
+  let svmRowsHtml = "";
+  let anySmb1 = false;
+  let anyInsecureNfs = false;
+  let anyDisabledAudit = false;
+
+  svms.forEach(svm => {
+    const isSmb1 = svm.securitySettings.smb1Enabled === true;
+    const isInsecureNfs = svm.securitySettings.nfsExportSuperuser === "any_host";
+    const isAuditDisabled = svm.securitySettings.auditLogging === "Disabled";
+    
+    if (isSmb1) anySmb1 = true;
+    if (isInsecureNfs) anyInsecureNfs = true;
+    if (isAuditDisabled) anyDisabledAudit = true;
+
+    // Security Status badge
+    let secStatusBadge = `<span class="badge info" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.25); color: var(--status-normal);">✓ Secure</span>`;
+    if (isSmb1 || isInsecureNfs) {
+      secStatusBadge = `<span class="badge critical" style="background: rgba(255, 51, 102, 0.08); border-color: rgba(255, 51, 102, 0.25); color: var(--status-critical);">✗ At Risk</span>`;
+    } else if (isAuditDisabled) {
+      secStatusBadge = `<span class="badge warning" style="background: rgba(255, 152, 0, 0.08); border-color: rgba(255, 152, 0, 0.25); color: var(--status-warning);">⚠️ Warning</span>`;
+    }
+
+    // Protocol label list
+    const protoBadges = svm.protocols.map(p => {
+      let color = "var(--accent-cyan)";
+      if (p === "NFS") color = "#3b82f6";
+      if (p === "CIFS") color = "#10b981";
+      if (p === "iSCSI") color = "#f59e0b";
+      if (p === "FCP") color = "#eab308";
+      return `<span style="background: rgba(255,255,255,0.05); color: ${color}; border: 1px solid rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; margin-right: 4px; font-family: monospace;">${p}</span>`;
+    }).join("");
+
+    svmRowsHtml += `
+      <tr style="border-bottom: 1px solid var(--border-color);">
+        <td style="padding: 10px; font-weight: 700; color: #fff;"><code>${svm.name}</code></td>
+        <td style="padding: 10px;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--status-normal);">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--status-normal);"></span>
+            ${svm.status}
+          </span>
+        </td>
+        <td style="padding: 10px;">${protoBadges}</td>
+        <td style="padding: 10px; text-align: center; color: var(--text-secondary);">${svm.volumesCount}</td>
+        <td style="padding: 10px; text-align: center; color: var(--text-secondary);">${svm.lifsCount}</td>
+        <td style="padding: 10px;">${secStatusBadge}</td>
+      </tr>
+    `;
+  });
+
+  // Build Protocol Hardening Compliance Ticks
+  const smb1StatusHtml = anySmb1
+    ? `<span style="color: var(--status-critical); font-weight: 700;">✗ At Risk (SMB1 Enabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Ransomware vulnerability. Remediation: Run <code>vserver cifs options modify -vserver &lt;svm&gt; -smb1-enabled false</code></div>`
+    : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (SMBv1 Disabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Enforces secure SMB2/SMB3 communication channels.</div>`;
+
+  const nfsStatusHtml = anyInsecureNfs
+    ? `<span style="color: var(--status-critical); font-weight: 700;">✗ At Risk (Superuser root mount allowed)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Anonymous hosts can claim root ownership. Remediation: Squash root (superuser=none) in export policy rules.</div>`
+    : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (NFS Export Controls)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">All NFS root mount superuser mappings are squashed or restricted.</div>`;
+
+  const auditStatusHtml = anyDisabledAudit
+    ? `<span style="color: var(--status-warning); font-weight: 600;">⚠️ Warning (Audit Logging Disabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Config changes and file access auditing are disabled. Enable auditing to meet audit compliance.</div>`
+    : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (SVM Auditing Enabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SVM configuration changes are actively logged.</div>`;
+
+  container.innerHTML = `
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start;">
+      
+      <!-- SVM Inventory Table -->
+      <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto; background: rgba(15,22,38,0.2);">
+        <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+          <thead>
+            <tr style="background: rgba(255, 255, 255, 0.015); border-bottom: 1px solid var(--border-color); text-align: left;">
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">SVM / Vserver</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Status</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Protocols</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary); text-align: center;">Volumes</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary); text-align: center;">LIFs</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Security Level</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${svmRowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Hardening Audit Checklist -->
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 18px 16px;">
+        <h4 style="font-size: 0.82rem; font-weight: 700; color: #fff; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">Protocol Security Checklist</h4>
+        
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="border-left: 3px solid ${anySmb1 ? 'var(--status-critical)' : 'var(--status-normal)'}; padding-left: 10px;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">SMBv1 Protocol Status</div>
+            <div style="font-size: 0.75rem; margin-top: 2px;">${smb1StatusHtml}</div>
+          </div>
+          
+          <div style="border-left: 3px solid ${anyInsecureNfs ? 'var(--status-critical)' : 'var(--status-normal)'}; padding-left: 10px;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">NFS Root Export Access</div>
+            <div style="font-size: 0.75rem; margin-top: 2px;">${nfsStatusHtml}</div>
+          </div>
+
+          <div style="border-left: 3px solid ${anyDisabledAudit ? 'var(--status-warning)' : 'var(--status-normal)'}; padding-left: 10px;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">SVM Configuration Audit Logging</div>
+            <div style="font-size: 0.75rem; margin-top: 2px;">${auditStatusHtml}</div>
+          </div>
+          
+          <div style="border-left: 3px solid var(--status-normal); padding-left: 10px;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">Management Port Security (SSL/TLS)</div>
+            <div style="font-size: 0.75rem; margin-top: 2px;">
+              <span style="color: var(--status-normal); font-weight: 600;">✓ Secure (TLSv1.2, TLSv1.3 only)</span>
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Deprecated SSLv3 and TLSv1.0/1.1 protocols are disabled cluster-wide.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
