@@ -2052,6 +2052,21 @@ const MOCK_WATCHLISTS = [
     id: "wl_cvo",
     name: "Cloud CVO Watchlist",
     systemSerials: ["622002223333"]
+  },
+  {
+    id: "wl_critical",
+    name: "Critical Attention Watchlist",
+    systemSerials: ["622005557777", "622008881111"]
+  },
+  {
+    id: "wl_storagegrid",
+    name: "StorageGRID Infra Watchlist",
+    systemSerials: ["622003334444"]
+  },
+  {
+    id: "wl_metrocluster",
+    name: "MetroCluster DR Watchlist",
+    systemSerials: ["622007771111", "622007772222", "622007773333"]
   }
 ];
 
@@ -2165,6 +2180,9 @@ function loadConfig() {
   if (savedWatchlists) {
     try {
       state.watchlists = JSON.parse(savedWatchlists);
+      if (state.watchlists.length < MOCK_WATCHLISTS.length) {
+        state.watchlists = [...MOCK_WATCHLISTS];
+      }
     } catch (e) {
       console.warn("Failed to parse watchlists, falling back to defaults:", e);
       state.watchlists = [...MOCK_WATCHLISTS];
