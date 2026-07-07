@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] - 2026-07-07
+
+### Added
+*   **Phased Customer Success & Posture Optimization (CSP)**: Integrated standard NetApp TAM/SAM/CSM and ITIL Change Control guidelines into a consolidated Success Plan deliverables module.
+*   **Review-Ready Print Overrides**: Refactored `printActionPlan()` to output complete 9-section consolidated reports in a continuous flow, hiding navigation sidebars, and converting HTML textareas into static pre-wrapped text divs for clean PDF exports.
+*   **Node-Level L1 Port Visualization**: Resolved L1 cabling maps to individual controllers with active slot indicators (Slot A - Top, Slot B - Bottom).
+*   **E-Series & SANtricity Support**: Fully integrated support for block-level EF600 and E5700 hybrid systems. Added custom hardware audits tracking BBUs, DDP volume pools, and drive life grids.
+*   **SVM & Protocol Audits**: Track Storage Virtual Machine (SVM) configurations, flagging SMBv1 ransomware vectors and insecure NFS exports with copy-paste CLI remediations.
+*   **Reordered Watchlist Layout**: Moved watchlists above customer accounts in the sidebar.
+
 ## [1.6.0] - 2026-07-06
 
 ### Added

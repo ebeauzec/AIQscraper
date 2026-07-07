@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -9,14 +9,14 @@ This tool runs **entirely inside your browser** (as a static webpage) from this 
 
 ---
 
-## What's New in Version 1.6.0
+## What's New in Version 1.7.0
 
-*   **L1 Connection & Port Mapping Visualizer**: Audit physical cabling topologies directly inside the Technical Health tab. Displays a rear controller panel interface card with color-coded port indicators and dynamically draws interactive SVG cabling paths to corresponding link partner Core/SAN Switches or Disk Shelves, integrating live LED statuses matching active predictive telemetry warning risks.
-*   **Sub-Tabbed Action Planner**: Refactored the long Action Planner view into clean, tabbed sections. You can easily switch between report areas, each showing active alert-count counts (e.g. *Technical Risks (4)*), with media-print overrides to print the entire sequence to PDF automatically.
-*   **In-Tab Deliverable Downloads**: Download categorized reports and templates directly within each section of the Action Planner. Includes options to export full system inventories as a CSV spreadsheet or download custom customer advisory email drafts, switch firmware checklists, and site dispatch tickets as TXT files.
-*   **GraphQL Query Console Sandbox**: Play with and validate live Active IQ GraphQL queries directly from the Settings page. Includes syntax defaults, variable JSON editors, execution timers, and formatted JSON output blocks.
-*   **Universal Offline file:// Protocol Support**: Wrapped all `localStorage` reads/writes in fail-safe try/catch accessors to prevent DOMException crashes, allowing you to open the dashboard directly from your local filesystem (double-clicking the `index.html` file) in any modern browser.
-*   **Sleek Neon-Cyan Scrollbars**: Overrode default Webkit scrollbar selectors with custom glowing scrollbar themes matching the general dark cyber-aesthetic of the dashboard.
+*   **Phased Customer Success & Environmental Posture Plan (CSP)**: Added a dynamic Customer Success Plan (CSP) roadmap inside Section 9 of the Action Planner, aligned with NetApp TAM/SAM/CSM and ITIL Change Control guidelines. It automates high-level CSM value metrics (storage efficiencies, CSAT metrics, QBR tasks), SAM service logistics (ticket tracks, SLA contract gaps), and TAM deep-dives.
+*   **Consolidated Review-Ready Print Layouts**: Completely refactored the browser-print controller. In print mode, all 9 sections of the Action Plan are rendered in a continuous page-breaking document, hiding sidebar controls and swapping all textareas for pre-wrapped printable blocks showing complete text contents.
+*   **Node-Level L1 Port Visualization**: Cable mapping tables now resolve connections down to individual nodes (e.g. `netapp-aff-01a` and `netapp-aff-01b`) with dynamic active module slot labeling (e.g., Slot A - Top, Slot B - Bottom).
+*   **E-Series & SANtricity OS Support**: Fully integrated support for block-level EF600 and E5700 storage systems. Added a dedicated SANtricity Hardware Health audit card displaying active controllers, battery backup units (BBU), storage pools/volume groups, and a physical drive bay wear-life grid.
+*   **SVM & Protocol Security Hardening**: Added dynamic Storage Virtual Machine (SVM) configuration trackers and compliance verification matrices, flagging SMBv1 ransomware vectors and insecure NFS exports with copy-paste CLI remediations.
+*   **Reordered Watchlist Layout**: Moved activeiq watchlists above customer accounts in the sidebar navigation pane. Added default watchlists for quick monitoring.
 
 ---
 
