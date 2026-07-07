@@ -29,7 +29,7 @@ const MOCK_SYSTEMS = [
         category: "Hardware",
         description: "Single Controller Path Failure detected on SAS loop 1.",
         recommendation: "Inspect SAS cable connections on shelf 2, port 1B. Refer to KB1089201.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Single_controller_path_errors",
+        kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_diagnose_single_controller_path_failures_in_ONTAP",
         remediationPlan: {
           cause: "Signal degradation or physical disconnection on controller SAS port 1b connected to Shelf 2 Module B.",
           impact: "Loss of SAS path redundancy. A secondary failure on SAS port 1a will cause a complete shelf outage, leading to Data Unavailable (DU) status for all aggregates on Shelf 2.",
@@ -53,7 +53,7 @@ const MOCK_SYSTEMS = [
         category: "Software",
         description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
         recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware",
+        kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_update_disk_shelf_firmware_in_ONTAP",
         remediationPlan: {
           cause: "Older firmware baseline (v0240) lacks optimization for SAS signal margins under heavy loads.",
           impact: "Increased risk of soft SAS path resets and packet retries under high transactional workloads.",
@@ -75,7 +75,7 @@ const MOCK_SYSTEMS = [
         category: "Security",
         description: "Insecure Protocol Enabled: SMBv1 protocol is active on SVM netapp-aff-01-svm-cifs.",
         recommendation: "Disable SMBv1 protocol to mitigate security threats such as ransomware propagation. Refer to CVE-2017-0144.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_disable_SMBv1_in_ONTAP",
+        kbLink: "https://kb.netapp.com/onprem/ontap/da/NAS/How_to_disable_SMBv1_in_ONTAP",
         remediationPlan: {
           cause: "Legacy SMBv1 protocol is enabled on SVM netapp-aff-01-svm-cifs to support older client devices, violating corporate security compliance.",
           impact: "Exposes ONTAP cluster to critical remote code execution exploits (e.g. EternalBlue/WannaCry).",
@@ -97,7 +97,7 @@ const MOCK_SYSTEMS = [
         category: "Security",
         description: "Insecure Export Policy Rule: NFS export policy 'default' allows superuser mount permissions to any host.",
         recommendation: "Modify export policy rules on SVM netapp-aff-01-svm-nfs to restrict superuser access to specific subnets and enable root squashing.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Insecure_NFS_exports_root_squashing",
+        kbLink: "https://kb.netapp.com/onprem/ontap/da/NAS/How_to_configure_NFS_root_squashing_in_ONTAP",
         remediationPlan: {
           cause: "Export policy rule for volume root/shares is configured on SVM netapp-aff-01-svm-nfs with client match '0.0.0.0/0' and superuser access parameter set to 'any'.",
           impact: "Any anonymous client on the network can mount NFS exports and gain full root permissions over data files.",
@@ -240,7 +240,7 @@ const MOCK_SYSTEMS = [
         category: "Integration",
         description: "Kubernetes Astra Trident driver (v23.04) is outdated and unsupported.",
         recommendation: "Upgrade Astra Trident driver to v24.02 for full ONTAP 9.14 API support.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/requirements",
+        kbLink: "https://docs.netapp.com/us-en/trident/trident-get-started/requirements.html",
         remediationPlan: {
           cause: "Kubernetes cluster upgraded to v1.28 while Astra Trident version remains at v23.04. API deprecations break storage provisioning.",
           impact: "Inability to dynamically provision new Persistent Volumes (PV) for container workloads. Existing PVs remain mounted but configuration edits fail.",
@@ -263,7 +263,7 @@ const MOCK_SYSTEMS = [
         category: "Cloud",
         description: "Atheros AWS S3 capacity tiering bucket reports connection timeouts.",
         recommendation: "Verify VPC endpoint routing for AWS S3. Refer to NetApp Cloud Manager guide.",
-        kbLink: "https://kb.netapp.com/Cloud/Cloud_Volumes_ONTAP/FabricPool_S3_connection_troubleshooting",
+        kbLink: "https://kb.netapp.com/cloud/cvo/aws/FabricPool_S3_connection_timeouts_in_Cloud_Volumes_ONTAP",
         remediationPlan: {
           cause: "Security Group policy changes in the AWS VPC restricted outbound HTTPS access on Port 443 to S3 IP ranges.",
           impact: "FabricPool tiering stops. Cold data remains on EBS root volumes, causing storage capacity overflow on premium cloud volumes.",
@@ -394,7 +394,7 @@ const MOCK_SYSTEMS = [
         category: "Security",
         description: "Management Interface SSL Certificate expires in 12 days.",
         recommendation: "Renew SSL certificate in StorageGRID Grid Manager. Refer to admin guidelines.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/StorageGRID/How_to_renew_StorageGRID_SSL_certificates",
+        kbLink: "https://kb.netapp.com/onprem/storagegrid/grid/How_to_renew_StorageGRID_management_interface_SSL_certificates",
         remediationPlan: {
           cause: "The user-installed custom certificate authority cert for StorageGRID Management Console (port 9443) is expiring.",
           impact: "Complete loss of S3/Swift client connections using TLS. API calls from backup programs, applications, and dashboards fail due to untrusted certificates.",
@@ -539,7 +539,7 @@ const MOCK_SYSTEMS = [
         category: "MetroCluster",
         description: "MetroCluster IP Inter-Switch Link (ISL) packet loss on port e5a exceeds 2%.",
         recommendation: "Inspect fiber patch cables and SFP+ optical transceivers on Switch A1.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_IP_ISL_link_troubleshooting",
+        kbLink: "https://kb.netapp.com/onprem/ontap/da/MetroCluster/How_to_troubleshoot_MetroCluster_IP_ISL_link_failures",
         remediationPlan: {
           cause: "Optical transceiver (SFP) in Cisco Nexus 3132 MetroCluster switch port e5a is reporting high CRC error rates due to dust contamination.",
           impact: "SyncMirror replication lag between Site A and Site B. Under high write loads, write operations might stall to maintain syncreplication parity.",
@@ -746,7 +746,7 @@ const MOCK_SYSTEMS = [
         category: "Hypervisor Integration",
         description: "VMware ESXi Host multipathing policy is configured to default 'Most Recently Used' (Fixed) instead of Round Robin.",
         recommendation: "Change ESXi Host Native Multipathing (NMP) Path Selection Policy (PSP) to VMW_PSP_RR.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ESXi_multipathing_best_practices_for_ONTAP",
+        kbLink: "https://kb.netapp.com/onprem/ontap/da/SAN/ESXi_multipathing_best_practices_for_ONTAP",
         remediationPlan: {
           cause: "Newly added ESXi hosts did not have the NetApp Host Utilities script executed, leaving default storage path settings active.",
           impact: "Unbalanced storage path utilization. If the active FC/iSCSI path fails, path failover times exceed 30 seconds, causing ESXi datastore disconnect warnings (PDL - Permanent Device Loss) and VM freeze/crash events.",
@@ -1379,7 +1379,7 @@ const MOCK_SYSTEMS = [
         category: "MetroCluster",
         description: "FC Switch ATTO bridges firmware mismatch detected.",
         recommendation: "Align bridge firmware across sites. Refer to NetApp MetroCluster docs.",
-        kbLink: "https://kb.netapp.com",
+        kbLink: "https://kb.netapp.com/onprem/ontap/da/MetroCluster/How_to_update_ATTO_FibreBridge_firmware_in_a_MetroCluster_configuration",
         remediationPlan: {
           cause: "Bridge firmware versions mismatched.",
           impact: "Possible failover stability delays.",
@@ -5330,7 +5330,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     }
   });
 
-  const avgCsat = systemCount > 0 ? (csatScoreSum / systemCount).toFixed(1) : "N/A";
+  const avgCsat = systemCount > 0 ? (csatScoreSum / systemCount).toFixed(1) : "No Data";
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
   const risksText = allRisks.map((r, i) => `${i+1}. [Priority ${r.severity.toUpperCase()}] ${r.systemName}: ${r.description}\n   -> Recommendation: ${r.recommendation}`).join("\n\n");
