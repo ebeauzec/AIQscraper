@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -9,14 +9,12 @@ This tool runs **entirely inside your browser** (as a static webpage) from this 
 
 ---
 
-## What's New in Version 1.7.0
+## What's New in Version 1.8.0
 
-*   **Phased Customer Success & Environmental Posture Plan (CSP)**: Added a dynamic Customer Success Plan (CSP) roadmap inside Section 9 of the Action Planner, aligned with NetApp TAM/SAM/CSM and ITIL Change Control guidelines. It automates high-level CSM value metrics (storage efficiencies, CSAT metrics, QBR tasks), SAM service logistics (ticket tracks, SLA contract gaps), and TAM deep-dives.
-*   **Consolidated Review-Ready Print Layouts**: Completely refactored the browser-print controller. In print mode, all 9 sections of the Action Plan are rendered in a continuous page-breaking document, hiding sidebar controls and swapping all textareas for pre-wrapped printable blocks showing complete text contents.
-*   **Node-Level L1 Port Visualization**: Cable mapping tables now resolve connections down to individual nodes (e.g. `netapp-aff-01a` and `netapp-aff-01b`) with dynamic active module slot labeling (e.g., Slot A - Top, Slot B - Bottom).
-*   **E-Series & SANtricity OS Support**: Fully integrated support for block-level EF600 and E5700 storage systems. Added a dedicated SANtricity Hardware Health audit card displaying active controllers, battery backup units (BBU), storage pools/volume groups, and a physical drive bay wear-life grid.
-*   **SVM & Protocol Security Hardening**: Added dynamic Storage Virtual Machine (SVM) configuration trackers and compliance verification matrices, flagging SMBv1 ransomware vectors and insecure NFS exports with copy-paste CLI remediations.
-*   **Reordered Watchlist Layout**: Moved activeiq watchlists above customer accounts in the sidebar navigation pane. Added default watchlists for quick monitoring.
+*   **Active IQ API Polling & Sync Configurations**: Added API Base URL inputs, selectable synchronization intervals (6, 12, 24 hours or 7 days), and a local synchronization metrics dashboard (tracking last/next sync times) to the settings view. Added an automated background interval timer that checks for sync criteria and triggers data updates without blocking UI operations.
+*   **Watchlist-Only Synchronization**: Added an option to filter and synchronize only systems belonging to your active Active IQ Watchlists, saving API call quotas.
+*   **Fixed Upgrade Path Down-grades**: Corrected version check loops in the pathfinder logic. Targeted OS/firmware upgrades now always guide the user to higher baselines, and up-to-date systems properly report empty hops in both the UI and printed deliverables.
+*   **Resolved Support Article Links**: Replaced dead `/onprem/...` paths on `kb.netapp.com` (which returned 404s and triggered support portal redirects) with correct, working `/Advice_and_Troubleshooting/...` native URL routes.
 
 ---
 

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-07-07
+
+### Added
+*   **Active IQ API Polling & Sync Configs**: Built custom API gateway base URL inputs and auto-polling sync intervals (6h, 12h, 24h, 7d) in the Settings view.
+*   **Watchlist-Only Sync Filter**: Added an option to filter and synchronize only systems belonging to active Active IQ Watchlists.
+*   **Dynamic Synchronization Metrics**: Added a local sync dashboard tracking Last Poll Time, Next Scheduled Poll, and sync status with manual trigger options.
+*   **Automated Background Sync Timer**: Programmed an asynchronous background sync checking interval to maintain telemetry freshness without blocking browser operation.
+*   **Fixed Upgrade Path Down-grades**: Resolved target version generator anomalies to ensure target baselines are always higher than current baselines, and corrected `calculateUpgradePath` to return empty hops for up-to-date systems.
+*   **Valid Support Article Links**: Replaced `/onprem/...` paths on `kb.netapp.com` (which returned 404s and triggered support portal redirects) with correct, working `/Advice_and_Troubleshooting/...` native URL routes.
+
 ## [1.7.0] - 2026-07-07
 
 ### Added
