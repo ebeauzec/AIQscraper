@@ -5041,9 +5041,9 @@ CSAT SENTIMENT RATING: ${avgCsat} / 10.0 (Support & Account Hygiene)
 ENVIRONMENT HEALTH   : ${allRisks.length > 0 ? 'WARNING - Action Required' : 'OPTIMAL / COMPLIANT'}
 
 --------------------------------------------------------------------------------
-1. TAM SUCCESS & VALUE FUNCTION (CUSTOMER SUCCESS & ROI)
+1. EXECUTIVE SUMMARY & VALUE ALIGNMENT (CSM/CSAT PRACTICE)
 --------------------------------------------------------------------------------
-Customer Success, in this consolidated context, is represented as a core proactive function of the TAM. Rather than treating customer success as a separate administrative role, it is integrated directly into the TAM’s engineering duties. The TAM drives customer success by tracking business value realization (deduplication ratios, space savings), identifying tiering ROI (FabricPool metrics), recommending technology refresh lifecycles to prevent technical debt, and leading technical alignment reviews (QBRs). Proactive CSAT and sentiment tracking serve as the validation index for service delivery quality.
+The primary objective of this Customer Success Plan is to secure, optimize, and streamline storage operations in alignment with standard industry frameworks (ITIL Change Control, NIST/SANS Hardening, and NetApp Best Practices). 
 
 * WORKLOAD ADOPTION & EFFICIENCY HYGIENE:
   - Total Physical Used Capacity: ${totalCapTB.toFixed(1)} TB
@@ -5056,7 +5056,7 @@ Customer Success, in this consolidated context, is represented as a core proacti
   - Periodic QBRs (Quarterly Business Reviews) will be scheduled to review hardware lifecycle transitions and cloud integration milestones.
 
 --------------------------------------------------------------------------------
-2. TAM SUPPORT & OPS FUNCTION (INCIDENT & LIFECYCLE HYGIENE)
+2. SUPPORT CASE & SERVICE RESOLUTION HYGIENE (SAM PRACTICE)
 --------------------------------------------------------------------------------
 Maintaining operational hygiene involves tracking and resolving support tickets promptly to prevent support SLA deviations.
 
@@ -5067,7 +5067,7 @@ ${allSupportCases.length > 0 ? casesText : "✓ No active open support cases det
 ${expiringContracts.length > 0 ? contractsText : "✓ All active support contracts have > 90 days remaining. SupportEdge Premium SLA active."}
 
 --------------------------------------------------------------------------------
-3. TAM TECHNICAL AUDIT FUNCTION (RISK & CONFIG REMEDIATION)
+3. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
 --------------------------------------------------------------------------------
 
 PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7)
