@@ -2069,7 +2069,19 @@ let state = {
   activeFilterValue: "",   // Customer Name, Group ID, or Watchlist ID
   sortKey: "systemName",
   sortOrder: "asc",
-  activeKpiFilter: "NONE" // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
+  activeKpiFilter: "NONE", // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
+  
+  // Sort states for sub-tab tables
+  tamRisksSortKey: "severity",
+  tamRisksSortOrder: "desc",
+  tamSwitchesSortKey: "systemName",
+  tamSwitchesSortOrder: "asc",
+  tamSecuritySortKey: "severity",
+  tamSecuritySortOrder: "desc",
+  samCasesSortKey: "severity",
+  samCasesSortOrder: "desc",
+  samFieldActionsSortKey: "id",
+  samFieldActionsSortOrder: "asc"
 };
 window.state = state;
 
@@ -2540,32 +2552,40 @@ function setKpiFilter(filterType) {
   renderOverviewTable();
 }
 
-function sortTable(key) {
-  if (state.sortKey === key) {
-    state.sortOrder = state.sortOrder === "asc" ? "desc" : "asc";
-  } else {
-    state.sortKey = key;
-    state.sortOrder = "asc";
+function sortTable(tableId, key) {
+  if (arguments.length === 1) {
+    key = tableId;
+    tableId = "overview";
   }
-  renderOverviewTable();
+
+  const keyProp = `${tableId}SortKey`;
+  const orderProp = `${tableId}SortOrder`;
+  
+  if (state[keyProp] === key) {
+    state[orderProp] = state[orderProp] === "asc" ? "desc" : "asc";
+  } else {
+    state[keyProp] = key;
+    state[orderProp] = "asc";
+  }
+
+  if (tableId === "overview") {
+    renderOverviewTable();
+  } else if (tableId === "tamRisks" || tableId === "tamSwitches" || tableId === "tamSecurity") {
+    renderTAMTab();
+  } else if (tableId === "samCases" || tableId === "samFieldActions") {
+    renderSAMTab();
+  }
 }
 
-function updateSortIndicators() {
-  const headers = {
-    "systemName": "sort-systemName",
-    "serialNumber": "sort-serialNumber",
-    "clusterName": "sort-clusterName",
-    "customerName": "sort-customerName",
-    "platform": "sort-platform",
-    "status": "sort-status",
-    "contracts.endDate": "sort-contracts-endDate"
-  };
-
-  Object.keys(headers).forEach(key => {
-    const el = document.getElementById(headers[key]);
+function updateSortIndicatorsGeneric(tableId, headersMap) {
+  const activeKey = state[`${tableId}SortKey`] || "";
+  const activeOrder = state[`${tableId}SortOrder`] || "asc";
+  
+  Object.keys(headersMap).forEach(key => {
+    const el = document.getElementById(headersMap[key]);
     if (!el) return;
-    if (state.sortKey === key) {
-      el.innerText = state.sortOrder === "asc" ? " ▲" : " ▼";
+    if (activeKey === key) {
+      el.innerText = activeOrder === "asc" ? " ▲" : " ▼";
       el.style.opacity = "1";
       el.style.color = "var(--accent-cyan)";
     } else {
@@ -2573,6 +2593,91 @@ function updateSortIndicators() {
       el.style.opacity = "0.3";
       el.style.color = "inherit";
     }
+  });
+}
+
+function updateSortIndicators() {
+  updateSortIndicatorsGeneric("overview", {
+    "systemName": "sort-systemName",
+    "serialNumber": "sort-serialNumber",
+    "clusterName": "sort-clusterName",
+    "customerName": "sort-customerName",
+    "platform": "sort-platform",
+    "status": "sort-status",
+    "contracts.endDate": "sort-contracts-endDate"
+  });
+
+  updateSortIndicatorsGeneric("tamRisks", {
+    "severity": "sort-tamRisks-severity",
+    "category": "sort-tamRisks-category",
+    "systemName": "sort-tamRisks-systemName",
+    "description": "sort-tamRisks-description"
+  });
+
+  updateSortIndicatorsGeneric("tamSwitches", {
+    "systemName": "sort-tamSwitches-systemName",
+    "model": "sort-tamSwitches-model",
+    "type": "sort-tamSwitches-type",
+    "firmware": "sort-tamSwitches-firmware",
+    "status": "sort-tamSwitches-status"
+  });
+
+  updateSortIndicatorsGeneric("tamSecurity", {
+    "id": "sort-tamSecurity-id",
+    "title": "sort-tamSecurity-title",
+    "severity": "sort-tamSecurity-severity",
+    "status": "sort-tamSecurity-status"
+  });
+
+  updateSortIndicatorsGeneric("samCases", {
+    "id": "sort-samCases-id",
+    "title": "sort-samCases-title",
+    "severity": "sort-samCases-severity",
+    "status": "sort-samCases-status",
+    "createdDate": "sort-samCases-createdDate"
+  });
+
+  updateSortIndicatorsGeneric("samFieldActions", {
+    "id": "sort-samFieldActions-id",
+    "title": "sort-samFieldActions-title"
+  });
+}
+
+function sortDataList(list, sortKey, sortOrder) {
+  if (!list || !Array.isArray(list)) return;
+  list.sort((a, b) => {
+    let valA = a;
+    let valB = b;
+
+    const keys = sortKey.split(".");
+    keys.forEach(k => {
+      if (valA) valA = valA[k];
+      if (valB) valB = valB[k];
+    });
+
+    if (sortKey === "status" || sortKey === "severity") {
+      const priority = { 
+        "critical": 1, "s1": 1, "s1 - critical": 1,
+        "high": 2, "s2": 2, "s2 - high": 2, "warning": 2,
+        "medium": 3, "s3": 3, "s3 - medium": 3,
+        "low": 4, "s4": 4, "s4 - low": 4, "normal": 4, "healthy": 4, "optimal": 4
+      };
+      const priorityA = priority[valA ? valA.toString().toLowerCase() : ""] || 99;
+      const priorityB = priority[valB ? valB.toString().toLowerCase() : ""] || 99;
+      if (priorityA < priorityB) return sortOrder === "asc" ? -1 : 1;
+      if (priorityA > priorityB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    }
+
+    if (valA === undefined || valA === null) valA = "";
+    if (valB === undefined || valB === null) valB = "";
+
+    if (typeof valA === "string") valA = valA.toLowerCase();
+    if (typeof valB === "string") valB = valB.toLowerCase();
+
+    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
   });
 }
 
@@ -3094,6 +3199,8 @@ function renderTAMTab() {
     });
   });
   
+  sortDataList(allRisks, state.tamRisksSortKey, state.tamRisksSortOrder);
+  
   if (allRisks.length === 0) {
     riskRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active technical risks found. Systems are fully compliant.</td></tr>`;
   } else {
@@ -3182,6 +3289,8 @@ function renderTAMTab() {
     });
   });
 
+  sortDataList(allSwitches, state.tamSwitchesSortKey, state.tamSwitchesSortOrder);
+
   if (allSwitches.length === 0) {
     switchRows = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No switch components monitored for these platforms.</td></tr>`;
   } else {
@@ -3231,6 +3340,8 @@ function renderTAMTab() {
     }
   });
   
+  sortDataList(allBulletins, state.tamSecuritySortKey, state.tamSecuritySortOrder);
+  
   if (allBulletins.length === 0) {
     bulletinRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active security advisories mapped.</td></tr>`;
   } else {
@@ -3256,6 +3367,7 @@ function renderTAMTab() {
     });
   }
   document.getElementById("tamSecurityBulletinsBody").innerHTML = bulletinRows;
+  updateSortIndicators();
 }
 
 function getSystemSwitches(sys) {
@@ -3711,6 +3823,9 @@ function renderSAMTab() {
         });
       }
     });
+    
+    sortDataList(allFAs, state.samFieldActionsSortKey, state.samFieldActionsSortOrder);
+    
     if (allFAs.length === 0) {
       faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. Systems are compliant.</td></tr>`;
     } else {
@@ -3741,6 +3856,9 @@ function renderSAMTab() {
         });
       }
     });
+    
+    sortDataList(allCases, state.samCasesSortKey, state.samCasesSortOrder);
+    
     if (allCases.length === 0) {
       caseRows = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active support cases open.</td></tr>`;
     } else {
@@ -3822,6 +3940,7 @@ function renderSAMTab() {
         });
       }
     }
+    updateSortIndicators();
     return;
   }
 
@@ -4101,10 +4220,12 @@ function renderSAMTab() {
 
   // Field Actions
   let faRows = "";
-  if (sys.fieldActions.length === 0) {
+  const fas = [...(sys.fieldActions || [])];
+  sortDataList(fas, state.samFieldActionsSortKey, state.samFieldActionsSortOrder);
+  if (fas.length === 0) {
     faRows = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No outstanding field actions. System is compliant.</td></tr>`;
   } else {
-    sys.fieldActions.forEach(fa => {
+    fas.forEach(fa => {
       faRows += `
         <tr>
           <td style="font-weight: 600; color: var(--status-warning);"><code>${fa.id}</code></td>
@@ -4119,7 +4240,8 @@ function renderSAMTab() {
   document.getElementById("samFieldActionsBody").innerHTML = faRows;
 
   // Render Open Support Cases Table
-  const cases = sys.supportCases || [];
+  const cases = [...(sys.supportCases || [])];
+  sortDataList(cases, state.samCasesSortKey, state.samCasesSortOrder);
   let caseRows = "";
   if (cases.length === 0) {
     caseRows = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No active technical support cases open.</td></tr>`;
@@ -4154,6 +4276,7 @@ function renderSAMTab() {
     });
   }
   document.getElementById("samSupportCasesBody").innerHTML = caseRows;
+  updateSortIndicators();
 }
 
 function renderCSMTab() {
