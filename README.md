@@ -227,13 +227,15 @@ Create a temporary browser instance that relaxes cross-origin limitations for lo
   open -n -a "Google Chrome" --args --user-data-dir="/tmp/temp_chrome_dev" --disable-web-security
   ```
 
-### Option C: Serve via a Simple Local Web Server
-If your security policies prevent browser modifications, serve the files from a local port rather than `file://`:
-* If you have Python installed, open your command prompt/terminal in this folder and run:
+### Option C: Serve and Proxy via server.py (Best Server-to-Server Practice)
+If your security policies prevent browser extensions/modifications, serve the files and proxy all API calls natively using the included custom Python server:
+* Open your command prompt/terminal in this folder and run:
   ```bash
-  python -m http.server 8080
+  python server.py
   ```
-* Open your browser and navigate to `http://localhost:8080` to access the app with standard local origin permissions.
+* Open your browser and navigate to `http://localhost:8080` to access the dashboard.
+* In the **Settings & Config** tab, change the **Active IQ API Base Endpoint URL** to `/api` and click **Save Configuration**.
+* The server will automatically intercept all `/api/...` calls and forward them to the NetApp API server-to-server, bypassing CORS restrictions without compromising security.
 
 ---
 
