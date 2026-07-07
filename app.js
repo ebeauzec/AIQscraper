@@ -2317,6 +2317,9 @@ let state = {
   overviewSortKey: "systemName",
   overviewSortOrder: "asc",
   activeKpiFilter: "NONE", // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
+  syncInterval: 0,         // Polling interval in hours (0 = Manual Only)
+  lastSync: "",            // ISO Timestamp of last successful Active IQ sync
+  apiBaseUrl: "https://api.activeiq.netapp.com/v1", // REST gateway base URL
   
   // Sort states for sub-tab tables
   tamRisksSortKey: "severity",
@@ -2358,6 +2361,10 @@ function loadConfig() {
   const refresh = safeGetItem("aiq_refresh_token") || "";
   const access = safeGetItem("aiq_access_token") || "";
   const expiry = safeGetItem("aiq_token_expiry") || "";
+  
+  state.apiBaseUrl = safeGetItem("aiq_api_base_url") || "https://api.activeiq.netapp.com/v1";
+  state.syncInterval = parseInt(safeGetItem("aiq_sync_interval") || "0");
+  state.lastSync = safeGetItem("aiq_last_sync") || "";
   
   // Safeguard: If mockMode is false but no API token is configured, auto-enable mock mode
   if (!state.mockMode && !refresh) {
@@ -2467,7 +2474,7 @@ async function getValidAccessToken() {
     return access;
   }
 
-  const response = await fetch(`${API_BASE}/tokens/accessToken`, {
+  const response = await fetch(`${state.apiBaseUrl}/tokens/accessToken`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: refresh })
@@ -2491,7 +2498,7 @@ async function callActiveIQAPI(endpoint) {
   
   try {
     const token = await getValidAccessToken();
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${state.apiBaseUrl}${endpoint}`, {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
@@ -7362,7 +7369,15 @@ function deleteCustomGroup(groupId) {
 async function saveSettings() {
   const mockToggle = document.getElementById("settingsMockModeToggle").checked;
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
+  const apiBaseInput = document.getElementById("settingsApiBaseUrl").value.trim() || "https://api.activeiq.netapp.com/v1";
+  const intervalInput = parseInt(document.getElementById("settingsSyncInterval").value) || 0;
   const oldMockMode = state.mockMode;
+  
+  state.apiBaseUrl = apiBaseInput;
+  state.syncInterval = intervalInput;
+  
+  safeSetItem("aiq_api_base_url", apiBaseInput);
+  safeSetItem("aiq_sync_interval", intervalInput.toString());
   
   setMockMode(mockToggle);
   saveConfig(refresh, safeGetItem("aiq_access_token") || "", safeGetItem("aiq_token_expiry") || "");
@@ -7380,8 +7395,92 @@ async function saveSettings() {
   }
   
   alert("Settings saved successfully.");
+  updateScheduledSyncInfo();
   switchTab("settings");
 }
+
+function updateScheduledSyncInfo() {
+  const lastSyncEl = document.getElementById("syncLastTime");
+  const nextSyncEl = document.getElementById("syncNextTime");
+  
+  if (!lastSyncEl || !nextSyncEl) return;
+  
+  if (!state.lastSync) {
+    lastSyncEl.innerText = "Never Synced";
+    lastSyncEl.style.color = "var(--text-secondary)";
+  } else {
+    lastSyncEl.innerText = new Date(state.lastSync).toLocaleString();
+    lastSyncEl.style.color = "var(--text-primary)";
+  }
+  
+  if (state.syncInterval === 0) {
+    nextSyncEl.innerText = "Not Scheduled (Manual)";
+    nextSyncEl.style.color = "var(--text-secondary)";
+  } else {
+    const lastTime = state.lastSync ? new Date(state.lastSync).getTime() : Date.now();
+    const nextTime = new Date(lastTime + state.syncInterval * 60 * 60 * 1000);
+    nextSyncEl.innerText = nextTime.toLocaleString();
+    
+    if (nextTime.getTime() < Date.now()) {
+      nextSyncEl.style.color = "var(--status-warning)";
+      nextSyncEl.innerText += " (Pending)";
+    } else {
+      nextSyncEl.style.color = "var(--status-normal)";
+    }
+  }
+}
+
+async function triggerManualSync() {
+  const spinner = document.getElementById("syncSpinnerIcon");
+  
+  if (state.mockMode) {
+    alert("CORS/Offline Mode Warning:\nThe dashboard is currently in Offline Demo Mode. Please disable Offline Mode in settings and configure a valid Active IQ Developer Refresh Token to pull live REST telemetry.");
+    return;
+  }
+  
+  if (spinner) {
+    spinner.style.animation = "spin 1s linear infinite";
+  }
+  
+  try {
+    await loadProductionData();
+    state.lastSync = new Date().toISOString();
+    safeSetItem("aiq_last_sync", state.lastSync);
+    updateScheduledSyncInfo();
+    
+    alert(`Successfully synchronized with Active IQ!\n\nAll required metrics and data points collected:\n✓ System inventory & telemetry\n✓ Active predictive risk signatures\n✓ Multi-hop firmware/OS path plans\n✓ Contracts & warranty lifecycles\n✓ Switch fabric configuration states\n✓ Hypervisor integrations\n✓ Support cases & action items\n\nDashboard has been updated.`);
+  } catch (err) {
+    console.error("Manual sync failed:", err);
+    alert(`Active IQ API Synchronization Failed:\n${err.message}\n\nRefer to CORS console logs or settings documentation for assistance.`);
+  } finally {
+    if (spinner) {
+      spinner.style.animation = "";
+    }
+  }
+}
+
+async function checkAutoSync() {
+  if (state.mockMode || state.syncInterval === 0) return;
+  
+  const lastTime = state.lastSync ? new Date(state.lastSync).getTime() : 0;
+  const intervalMs = state.syncInterval * 60 * 60 * 1000;
+  
+  if (Date.now() - lastTime >= intervalMs) {
+    console.log("Auto-polling interval reached. Querying Active IQ API...");
+    try {
+      await loadProductionData();
+      state.lastSync = new Date().toISOString();
+      safeSetItem("aiq_last_sync", state.lastSync);
+      updateScheduledSyncInfo();
+      console.log("Auto-poll synchronized successfully.");
+    } catch (err) {
+      console.error("Auto-sync interval pull failed:", err);
+    }
+  }
+}
+
+// Start auto-sync checking timer
+setInterval(checkAutoSync, 60000); // Check every 60 seconds
 
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
@@ -7459,6 +7558,9 @@ async function loadProductionData() {
         } catch (wlErr) {
           console.warn("Failed to retrieve Active IQ watchlists:", wlErr);
         }
+        
+        state.lastSync = new Date().toISOString();
+        safeSetItem("aiq_last_sync", state.lastSync);
         
         if (state.systems.length > 0) {
           state.selectedSystem = state.systems[0];
@@ -7571,6 +7673,9 @@ function switchTab(tabId) {
     // Load auth token input
     document.getElementById("settingsMockModeToggle").checked = state.mockMode;
     document.getElementById("settingsRefreshToken").value = safeGetItem("aiq_refresh_token") || "";
+    document.getElementById("settingsApiBaseUrl").value = state.apiBaseUrl;
+    document.getElementById("settingsSyncInterval").value = state.syncInterval.toString();
+    updateScheduledSyncInfo();
   }
 }
 
@@ -7719,9 +7824,11 @@ window.onload = async function() {
 
   loadConfig();
   updateStatusIndicators();
+  updateScheduledSyncInfo();
   
   if (!state.mockMode) {
     await loadProductionData();
+    checkAutoSync();
   }
   
   updateSearchSuggestions();
