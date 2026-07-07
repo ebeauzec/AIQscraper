@@ -5202,8 +5202,6 @@ function switchPlanTab(index) {
   });
 }
 
-}
-
 // Download report of a specific Action Plan section as plain text
 function downloadPlanSection(index) {
   const selectValue = document.getElementById("planTargetSelect").value;
