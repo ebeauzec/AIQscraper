@@ -9346,6 +9346,23 @@ function getSystemSvms(sys) {
   ];
 }
 
+function getSystemModelName(sys) {
+  const p = sys.platform || "";
+  if (p.toLowerCase().includes("cloud volumes") || p.toLowerCase().includes("cvo")) {
+    const cloudName = p.includes("AWS") ? "AWS" : (p.includes("Azure") ? "Azure" : "GCP");
+    return `Cloud ONTAP (${cloudName})`;
+  }
+  if (p.toLowerCase().includes("storagegrid")) {
+    if (p.includes("SG100")) return "StorageGRID SG100";
+    if (p.includes("SG6060")) return "StorageGRID SG6060";
+    return "StorageGRID Webscale";
+  }
+  if (p.toLowerCase().includes("metrocluster")) {
+    return p.replace(/\s*\(.*\)\s*/g, "");
+  }
+  return p.replace(/\s*\(.*\)\s*/g, "");
+}
+
 // 12. Visual Port Mapping & L1 Topology Representation Helpers
 function getSystemPortMappings(sys) {
   // Check if system has specific risks to dynamically fail/degrade ports
@@ -9748,7 +9765,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
             ${sys.systemName.toLowerCase().endsWith('b') ? 'E-SERIES CONTROLLER B' : 'E-SERIES CONTROLLER A'}
           </div>
-          <div style="font-size: 0.58rem; color: #f59e0b; font-family: monospace;">${sys.platform.split(' ')[0]}</div>
+          <div style="font-size: 0.58rem; color: #f59e0b; font-family: monospace;">${getSystemModelName(sys)}</div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: var(--radius-sm);">
           ${portsHtml}
@@ -9769,7 +9786,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
             ${sys.systemName.toLowerCase().endsWith('b') ? 'CONTROLLER B (SLOT B - BOTTOM)' : 'CONTROLLER A (SLOT A - TOP)'}
           </div>
-          <div style="font-size: 0.58rem; color: var(--accent-cyan); font-family: monospace;">${sys.platform.split(' ')[0]}</div>
+          <div style="font-size: 0.58rem; color: var(--accent-cyan); font-family: monospace;">${getSystemModelName(sys)}</div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
           ${portsHtml}
