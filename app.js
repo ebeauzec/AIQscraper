@@ -1561,6 +1561,158 @@ const MOCK_SYSTEMS = [
     },
     securityBulletins: [],
     supportCases: []
+  },
+  {
+    serialNumber: "622008886001",
+    systemName: "apex-ef600-01a",
+    clusterName: "apex-ef600-01",
+    customerName: "Apex Global Solutions",
+    santricityVersion: "11.80.3",
+    platform: "EF600 (E-Series)",
+    status: "optimal",
+    risks: [],
+    upgrades: {
+      targetVersion: "11.80.5",
+      urgency: "Recommended",
+      benefits: "Resolves controller cache mirroring latency spikes under burst write loads."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2027-12-15"
+    },
+    logistics: {
+      deliveryAddress: "Apex DC-4 Node A (Physical SANtricity Controller)",
+      eoaDate: "2028-06-30",
+      eosDate: "2033-06-30",
+      isNearEos: false
+    },
+    efficiency: {
+      ratio: "N/A (Block SAN)",
+      logicalUsedTB: 85.0,
+      physicalUsedTB: 85.0,
+      spaceSavedTB: 0,
+      fabricPoolTieredTB: 0
+    },
+    securityBulletins: [],
+    supportCases: [],
+    eseriesHardware: {
+      controllers: [
+        { name: "Controller A", status: "Optimal", batteryStatus: "Optimal", cacheGB: 32, nvsram: "N600-880833-001" },
+        { name: "Controller B", status: "Optimal", batteryStatus: "Optimal", cacheGB: 32, nvsram: "N600-880833-001" }
+      ],
+      shelves: [
+        {
+          id: 0,
+          name: "Chassis Shelf 0",
+          model: "EF600 Controller Shelf",
+          disks: [
+            { bay: 1, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 98 },
+            { bay: 2, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 98 },
+            { bay: 3, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 95 },
+            { bay: 4, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 97 },
+            { bay: 5, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 94 },
+            { bay: 6, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 98 },
+            { bay: 7, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 91 },
+            { bay: 8, type: "NVMe SSD", size: "3.8TB", status: "Optimal", wearLife: 98 }
+          ]
+        }
+      ],
+      storagePools: [
+        { name: "Dynamic Disk Pool 1", raidType: "DDP", capacityTB: 30.4, freeTB: 12.1, status: "Optimal" }
+      ]
+    }
+  },
+  {
+    serialNumber: "622008885001",
+    systemName: "apex-e5700-02a",
+    clusterName: "apex-e5700-02",
+    customerName: "Global Bank Corp",
+    santricityVersion: "11.75.2",
+    platform: "E5700 (E-Series)",
+    status: "warning",
+    risks: [
+      {
+        id: 901,
+        severity: "medium",
+        category: "Hardware",
+        description: "Controller B Backup Battery (BBU) reports replacement required (Near End of Life).",
+        recommendation: "Order replacement battery pack (Part: 271-00221) and swap it online.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/E-Series_Storage/How_to_replace_BBU_on_E5700",
+        remediationPlan: {
+          cause: "Chemical degradation of lithium-ion cells over a 3-year operating period.",
+          impact: "If battery fails completely, write caching will be disabled on Controller B to prevent data loss in a power event, resulting in a 70% decrease in write performance.",
+          steps: [
+            "1. Order replacement battery pack part 271-00221.",
+            "2. Access SANtricity System Manager and select Hardware -> Controller B -> Replace Battery.",
+            "3. Slide out Controller B module slightly, unscrew BBU bracket, swap the battery packs, and slide back the controller.",
+            "4. Verify that SANtricity reports BBU state as 'Learning' or 'Optimal'."
+          ],
+          options: [
+            "Option A: Online replacement (non-disruptive, takes ~15 minutes).",
+            "Option B: Shut down controller for replacement (unnecessary but optional)."
+          ],
+          thirdParty: "No hypervisor impact. SANtricity cache mirroring remains active via Controller A during battery replacement."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "11.75.3",
+      urgency: "Recommended",
+      benefits: "Resolves controller reboot issues under SAN volume failover events."
+    },
+    contracts: {
+      status: "warning",
+      endDate: "2026-11-30"
+    },
+    logistics: {
+      deliveryAddress: "NY Server Farm B (E-Series Cabinet)",
+      eoaDate: "2027-06-30",
+      eosDate: "2032-06-30",
+      isNearEos: false
+    },
+    efficiency: {
+      ratio: "N/A (Hybrid SAN)",
+      logicalUsedTB: 140.0,
+      physicalUsedTB: 140.0,
+      spaceSavedTB: 0,
+      fabricPoolTieredTB: 0
+    },
+    securityBulletins: [],
+    supportCases: [],
+    eseriesHardware: {
+      controllers: [
+        { name: "Controller A", status: "Optimal", batteryStatus: "Optimal", cacheGB: 16, nvsram: "N5700-880833-002" },
+        { name: "Controller B", status: "Optimal", batteryStatus: "Replacement Required", cacheGB: 16, nvsram: "N5700-880833-002" }
+      ],
+      shelves: [
+        {
+          id: 0,
+          name: "Chassis Shelf 0",
+          model: "E5700 Controller Shelf",
+          disks: [
+            { bay: 1, type: "HDD", size: "12TB", status: "Optimal", wearLife: 100 },
+            { bay: 2, type: "HDD", size: "12TB", status: "Optimal", wearLife: 100 },
+            { bay: 3, type: "HDD", size: "12TB", status: "Optimal", wearLife: 100 },
+            { bay: 4, type: "HDD", size: "12TB", status: "Optimal", wearLife: 100 }
+          ]
+        },
+        {
+          id: 1,
+          name: "Expansion Shelf 1",
+          model: "DE224C SAS Shelf",
+          disks: [
+            { bay: 1, type: "SSD", size: "1.6TB", status: "Optimal", wearLife: 88 },
+            { bay: 2, type: "SSD", size: "1.6TB", status: "Optimal", wearLife: 85 },
+            { bay: 3, type: "SSD", size: "1.6TB", status: "Optimal", wearLife: 82 },
+            { bay: 4, type: "SSD", size: "1.6TB", status: "Optimal", wearLife: 89 }
+          ]
+        }
+      ],
+      storagePools: [
+        { name: "Volume Group 1", raidType: "RAID-6", capacityTB: 48.0, freeTB: 10.4, status: "Optimal" },
+        { name: "SSD Cache Pool", raidType: "RAID-1", capacityTB: 6.4, freeTB: 0, status: "Optimal" }
+      ]
+    }
   }
 ];
 
@@ -3069,6 +3221,8 @@ function getLatestSupportedVersion(platform) {
   const p = (platform || "").toLowerCase();
   if (p.includes("storagegrid")) {
     return "StorageGRID 11.9.0";
+  } else if (p.includes("e-series") || p.includes("ef600") || p.includes("e5700") || p.includes("santricity")) {
+    return "SANtricity OS 11.80.5";
   } else if (p.includes("cisco") || p.includes("mds") || p.includes("nexus")) {
     return "NX-OS 9.3(12)";
   } else if (p.includes("brocade") || p.includes("switch")) {
@@ -3172,6 +3326,8 @@ function renderTAMTab() {
   
   // Render active systems list description and physical cabling node layout
   const visualCard = document.getElementById("tamNodeVisualCard");
+  const eseriesCard = document.getElementById("tamEseriesVisualCard");
+  
   if (selectedSystems.length > 0) {
     if (visualCard) {
       visualCard.style.display = "block";
@@ -3183,17 +3339,29 @@ function renderTAMTab() {
     
     const activeSys = selectedSystems.find(s => s.serialNumber === state.activeVisualizerNodeSerial) || selectedSystems[0];
     renderNodeVisualLayout(selectedSystems, activeSys);
-  } else {
-    if (visualCard) {
-      visualCard.style.display = "none";
+    
+    const isEseries = activeSys && (activeSys.santricityVersion !== undefined || activeSys.platform.includes("E-Series"));
+    if (eseriesCard) {
+      if (isEseries) {
+        eseriesCard.style.display = "block";
+        renderEseriesHardwareAudit(activeSys);
+      } else {
+        eseriesCard.style.display = "none";
+      }
     }
+  } else {
+    if (visualCard) visualCard.style.display = "none";
+    if (eseriesCard) eseriesCard.style.display = "none";
   }
 
   // Update header text
   if (selectedSystems.length === 1) {
     const sys = selectedSystems[0];
+    const osLabel = sys.santricityVersion ? "SANtricity OS" : "ONTAP";
+    const osVer = sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion;
+    
     document.getElementById("tamActiveSystem").innerHTML = `
-      <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>ONTAP</strong>: ${sys.ontapVersion}
+      <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>${osLabel}</strong>: ${osVer}
     `;
   } else if (selectedSystems.length > 1) {
     const names = selectedSystems.map(s => s.systemName).join(", ");
@@ -3255,7 +3423,7 @@ function renderTAMTab() {
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       upgradeItems.push({
         systemName: sys.systemName,
-        currentVersion: sys.ontapVersion,
+        currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion,
         targetVersion: sys.upgrades.targetVersion,
         urgency: sys.upgrades.urgency,
         benefits: sys.upgrades.benefits,
@@ -7024,6 +7192,103 @@ function getSystemPortMappings(sys) {
   const hasSasFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("path failure") || r.description.toLowerCase().includes("sas"));
   const hasClusterFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("cluster interconnect") || r.description.toLowerCase().includes("cluster network"));
   const hasMgmtFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("management") || r.description.toLowerCase().includes("mgmt"));
+  const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
+  
+  const isEseries = sys.santricityVersion !== undefined || sys.platform.includes("E-Series");
+  
+  if (isEseries) {
+    const isEf600 = sys.platform.includes("EF600");
+    return [
+      {
+        name: "Mgmt 1",
+        type: "mgmt",
+        status: hasMgmtFailure ? "offline" : "online",
+        partnerType: "mgmt_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-01`,
+        partnerPort: "Fa0/12",
+        cablingStatus: hasMgmtFailure ? "disconnected" : "optimal",
+        details: { speed: "1 Gbps", mtu: 1500, ip: `10.220.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.21` }
+      },
+      {
+        name: "Mgmt 2",
+        type: "mgmt",
+        status: "online",
+        partnerType: "mgmt_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-02`,
+        partnerPort: "Fa0/12",
+        cablingStatus: "optimal",
+        details: { speed: "1 Gbps", mtu: 1500, ip: `10.220.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.22` }
+      },
+      {
+        name: "Host 1",
+        type: isEf600 ? "data" : "fc",
+        status: "online",
+        partnerType: isEf600 ? "core_switch" : "san_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-01' : 'san-sw-A'}`,
+        partnerPort: isEf600 ? "Eth1/5" : "fc1/12",
+        cablingStatus: "optimal",
+        details: isEf600 
+          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.1` }
+          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1b:${sys.serialNumber.slice(-2)}` }
+      },
+      {
+        name: "Host 2",
+        type: isEf600 ? "data" : "fc",
+        status: "online",
+        partnerType: isEf600 ? "core_switch" : "san_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-02' : 'san-sw-B'}`,
+        partnerPort: isEf600 ? "Eth1/5" : "fc1/12",
+        cablingStatus: "optimal",
+        details: isEf600 
+          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.2` }
+          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1c:${sys.serialNumber.slice(-2)}` }
+      },
+      {
+        name: "Host 3",
+        type: isEf600 ? "data" : "fc",
+        status: "online",
+        partnerType: isEf600 ? "core_switch" : "san_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-01' : 'san-sw-A'}`,
+        partnerPort: isEf600 ? "Eth1/6" : "fc1/13",
+        cablingStatus: "optimal",
+        details: isEf600 
+          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.3` }
+          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1d:${sys.serialNumber.slice(-2)}` }
+      },
+      {
+        name: "Host 4",
+        type: isEf600 ? "data" : "fc",
+        status: "online",
+        partnerType: isEf600 ? "core_switch" : "san_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-02' : 'san-sw-B'}`,
+        partnerPort: isEf600 ? "Eth1/6" : "fc1/13",
+        cablingStatus: "optimal",
+        details: isEf600 
+          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.4` }
+          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1e:${sys.serialNumber.slice(-2)}` }
+      },
+      {
+        name: "Exp 1",
+        type: "sas",
+        status: "online",
+        partnerType: "disk_shelf",
+        partnerName: "shelf-de224c-stack-1",
+        partnerPort: "IOM-A-IN",
+        cablingStatus: "optimal",
+        details: { speed: "12 Gbps SAS", shelfStack: "DE224C Module A" }
+      },
+      {
+        name: "Exp 2",
+        type: "sas",
+        status: hasSasFailure ? "offline" : "online",
+        partnerType: "disk_shelf",
+        partnerName: "shelf-de224c-stack-1",
+        partnerPort: "IOM-B-IN",
+        cablingStatus: hasSasFailure ? "disconnected" : "optimal",
+        details: { speed: "12 Gbps SAS", shelfStack: "DE224C Module B" }
+      }
+    ];
+  }
   
   return [
     {
@@ -7212,7 +7477,9 @@ function renderNodeVisualLayout(selectedSystems, sys) {
       <!-- Controller Node rear backplate layout -->
       <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan); position: sticky; top: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #4b5563; padding-bottom: 8px; margin-bottom: 14px;">
-          <div style="font-size: 0.68rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">NETAPP CHASSIS REAR VIEW</div>
+          <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
+            ${sys.systemName.toLowerCase().endsWith('b') ? 'CONTROLLER B (SLOT B - BOTTOM)' : 'CONTROLLER A (SLOT A - TOP)'}
+          </div>
           <div style="font-size: 0.58rem; color: var(--accent-cyan); font-family: monospace;">${sys.platform.split(' ')[0]}</div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
@@ -7291,4 +7558,133 @@ function unhoverCablingPort(portName) {
     row.style.background = "";
     row.style.borderLeft = "";
   }
+}
+
+function renderEseriesHardwareAudit(sys) {
+  const container = document.getElementById("tamEseriesVisualContainer");
+  if (!container) return;
+
+  const hw = sys.eseriesHardware;
+  if (!hw) {
+    container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">No hardware details available for this system.</div>`;
+    return;
+  }
+
+  // 1. Render Controllers
+  let controllersHtml = "";
+  hw.controllers.forEach(ctrl => {
+    const isOptimal = ctrl.status === "Optimal";
+    const bbuOptimal = ctrl.batteryStatus === "Optimal";
+    const statusColor = isOptimal ? "var(--status-normal)" : "var(--status-critical)";
+    const bbuColor = bbuOptimal ? "var(--status-normal)" : "var(--status-warning)";
+    
+    controllersHtml += `
+      <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="font-weight: 600; color: #fff; font-size: 0.9rem; margin: 0;">${ctrl.name}</h4>
+          <span style="font-size: 0.72rem; color: ${statusColor}; font-weight: 700;">● ${ctrl.status}</span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; margin-top: 8px;">
+          <div>Cache Size: <strong>${ctrl.cacheGB} GB</strong></div>
+          <div>NVSRAM: <code>${ctrl.nvsram}</code></div>
+          <div style="margin-top: 4px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Battery Backup (BBU):</span>
+            <span style="color: ${bbuColor}; font-weight: 600;">${ctrl.batteryStatus}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  // 2. Render Storage Pools / Volume Groups
+  let poolsHtml = "";
+  hw.storagePools.forEach(pool => {
+    const usedTB = (pool.capacityTB - pool.freeTB).toFixed(1);
+    const pct = ((usedTB / pool.capacityTB) * 100).toFixed(0);
+    poolsHtml += `
+      <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+          <strong style="color: #fff;">${pool.name}</strong>
+          <span style="color: var(--status-info); font-size: 0.72rem; font-weight: 600;">${pool.raidType}</span>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+          Capacity: ${usedTB} TB / ${pool.capacityTB} TB (${pct}% Used)
+        </div>
+        <div style="background: rgba(255,255,255,0.08); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 6px;">
+          <div style="background: var(--accent-cyan); width: ${pct}%; height: 100%;"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  // 3. Render Shelves & Disks
+  let shelvesHtml = "";
+  hw.shelves.forEach(shelf => {
+    let disksHtml = "";
+    
+    shelf.disks.forEach(disk => {
+      let color = "var(--status-normal)";
+      if (disk.status === "Failed") color = "var(--status-critical)";
+      else if (disk.status === "Reconstructing") color = "var(--status-warning)";
+      
+      const tooltip = `Bay ${disk.bay} | ${disk.type} | ${disk.size}\nStatus: ${disk.status}\nSSD Wear Life Remaining: ${disk.wearLife}%`;
+      const isSSD = disk.type.toLowerCase().includes("ssd");
+      
+      disksHtml += `
+        <div class="eseries-disk-slot" data-tooltip="${tooltip}"
+             style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 3px; padding: 8px 4px; text-align: center; cursor: pointer; transition: all 0.2s;"
+             onmouseenter="this.style.borderColor='var(--accent-cyan)'; this.style.background='rgba(0, 229, 255, 0.05)';"
+             onmouseleave="this.style.borderColor=''; this.style.background='';">
+          <div style="font-size: 0.65rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px;">Bay ${disk.bay}</div>
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin: 4px auto;"></div>
+          <div style="font-size: 0.58rem; color: var(--text-muted); font-family: monospace;">${disk.size}</div>
+          ${isSSD ? `
+            <div style="margin-top: 6px; padding: 0 4px;">
+              <div style="font-size: 0.52rem; color: var(--text-muted); margin-bottom: 2px;">Wear: ${disk.wearLife}%</div>
+              <div style="background: rgba(255,255,255,0.1); height: 3px; border-radius: 1.5px; overflow: hidden;">
+                <div style="background: ${disk.wearLife < 85 ? 'var(--status-warning)' : 'var(--status-normal)'}; width: ${disk.wearLife}%; height: 100%;"></div>
+              </div>
+            </div>
+          ` : `<div style="font-size: 0.52rem; color: var(--text-muted); margin-top: 6px;">HDD</div>`}
+        </div>
+      `;
+    });
+
+    shelvesHtml += `
+      <div style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; background: rgba(15,22,38,0.2); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+          <span style="font-weight: 600; color: #fff; font-size: 0.82rem;">${shelf.name} (${shelf.model})</span>
+          <span style="font-size: 0.72rem; color: var(--text-secondary);">DE224C Multi-Interface SAS</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px;">
+          ${disksHtml}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = `
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px;">
+      <!-- Controller Module Stats -->
+      <div>
+        <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Active-Active Controllers</h4>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${controllersHtml}
+        </div>
+      </div>
+      
+      <!-- Storage Pools Details -->
+      <div>
+        <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Volumes & Disk Pools</h4>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${poolsHtml}
+        </div>
+      </div>
+    </div>
+    
+    <div>
+      <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Storage Shelves & Drive bays</h4>
+      ${shelvesHtml}
+    </div>
+  `;
 }
