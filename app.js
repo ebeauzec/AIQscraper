@@ -2071,24 +2071,42 @@ let state = {
   activeKpiFilter: "NONE" // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
 };
 
+// Safe localStorage wrappers to prevent DOMException under local file:// protocol
+function safeGetItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    console.warn("Storage access blocked:", e);
+    return null;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn("Storage write blocked:", e);
+  }
+}
+
 // 3. Storage & Groups Helpers
 function loadConfig() {
-  const mockModeVal = localStorage.getItem("aiq_mock_mode");
+  const mockModeVal = safeGetItem("aiq_mock_mode");
   state.mockMode = mockModeVal === null ? true : mockModeVal === "true";
   
-  const refresh = localStorage.getItem("aiq_refresh_token") || "";
-  const access = localStorage.getItem("aiq_access_token") || "";
-  const expiry = localStorage.getItem("aiq_token_expiry") || "";
+  const refresh = safeGetItem("aiq_refresh_token") || "";
+  const access = safeGetItem("aiq_access_token") || "";
+  const expiry = safeGetItem("aiq_token_expiry") || "";
   
   // Safeguard: If mockMode is false but no API token is configured, auto-enable mock mode
   if (!state.mockMode && !refresh) {
     state.mockMode = true;
-    localStorage.setItem("aiq_mock_mode", "true");
+    safeSetItem("aiq_mock_mode", "true");
   }
   
   // Load systems db if exists in local storage
-  const schemaVer = localStorage.getItem("aiq_systems_schema_v4");
-  const savedSystems = localStorage.getItem("aiq_systems_db");
+  const schemaVer = safeGetItem("aiq_systems_schema_v4");
+  const savedSystems = safeGetItem("aiq_systems_db");
   
   if (savedSystems && schemaVer === "v4") {
     const parsed = JSON.parse(savedSystems);
@@ -2100,7 +2118,7 @@ function loadConfig() {
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
-    localStorage.setItem("aiq_systems_schema_v4", "v4");
+    safeSetItem("aiq_systems_schema_v4", "v4");
     saveSystems();
   }
 
@@ -2110,7 +2128,7 @@ function loadConfig() {
   }
 
   // Load groups
-  const savedGroups = localStorage.getItem("aiq_custom_groups");
+  const savedGroups = safeGetItem("aiq_custom_groups");
   if (savedGroups) {
     state.groups = JSON.parse(savedGroups);
   } else {
@@ -2118,7 +2136,7 @@ function loadConfig() {
   }
 
   // Load watchlists
-  const savedWatchlists = localStorage.getItem("aiq_watchlists_db");
+  const savedWatchlists = safeGetItem("aiq_watchlists_db");
   if (savedWatchlists) {
     state.watchlists = JSON.parse(savedWatchlists);
   } else {
@@ -2129,27 +2147,27 @@ function loadConfig() {
 }
 
 function saveConfig(refresh, access, expiry) {
-  localStorage.setItem("aiq_refresh_token", refresh);
-  localStorage.setItem("aiq_access_token", access);
-  localStorage.setItem("aiq_token_expiry", expiry);
+  safeSetItem("aiq_refresh_token", refresh);
+  safeSetItem("aiq_access_token", access);
+  safeSetItem("aiq_token_expiry", expiry);
 }
 
 function saveSystems() {
-  localStorage.setItem("aiq_systems_db", JSON.stringify(state.systems));
+  safeSetItem("aiq_systems_db", JSON.stringify(state.systems));
   updateSearchSuggestions();
 }
 
 function saveGroups() {
-  localStorage.setItem("aiq_custom_groups", JSON.stringify(state.groups));
+  safeSetItem("aiq_custom_groups", JSON.stringify(state.groups));
 }
 
 function saveWatchlists() {
-  localStorage.setItem("aiq_watchlists_db", JSON.stringify(state.watchlists));
+  safeSetItem("aiq_watchlists_db", JSON.stringify(state.watchlists));
 }
 
 function setMockMode(val) {
   state.mockMode = val;
-  localStorage.setItem("aiq_mock_mode", val.toString());
+  safeSetItem("aiq_mock_mode", val.toString());
   updateStatusIndicators();
 }
 
@@ -2157,9 +2175,9 @@ function setMockMode(val) {
 async function getValidAccessToken() {
   if (state.mockMode) return "mock-token-abc-123";
   
-  const refresh = localStorage.getItem("aiq_refresh_token");
-  const access = localStorage.getItem("aiq_access_token");
-  const expiry = parseFloat(localStorage.getItem("aiq_token_expiry") || "0");
+  const refresh = safeGetItem("aiq_refresh_token");
+  const access = safeGetItem("aiq_access_token");
+  const expiry = parseFloat(safeGetItem("aiq_token_expiry") || "0");
 
   if (!refresh) {
     throw new Error("API Refresh Token not configured. Please visit the Settings tab.");
@@ -5563,7 +5581,7 @@ function printActionPlan() {
 
 // 8. Collapsible Sidebar Groups Tree Builders
 function loadSavedFilters() {
-  const saved = localStorage.getItem("aiq_saved_filters");
+  const saved = safeGetItem("aiq_saved_filters");
   return saved ? JSON.parse(saved) : [];
 }
 
@@ -5587,7 +5605,7 @@ function starCurrentSearch() {
     name: name.trim(),
     query: query
   });
-  localStorage.setItem("aiq_saved_filters", JSON.stringify(savedFilters));
+  safeSetItem("aiq_saved_filters", JSON.stringify(savedFilters));
   
   renderSidebarGroups();
   alert(`Starred filter "${name}" saved!`);
@@ -5597,7 +5615,7 @@ function deleteSavedFilter(event, id) {
   event.stopPropagation();
   let savedFilters = loadSavedFilters();
   savedFilters = savedFilters.filter(f => f.id !== id);
-  localStorage.setItem("aiq_saved_filters", JSON.stringify(savedFilters));
+  safeSetItem("aiq_saved_filters", JSON.stringify(savedFilters));
   renderSidebarGroups();
 }
 
@@ -6336,7 +6354,7 @@ async function saveSettings() {
   const oldMockMode = state.mockMode;
   
   setMockMode(mockToggle);
-  saveConfig(refresh, localStorage.getItem("aiq_access_token") || "", localStorage.getItem("aiq_token_expiry") || "");
+  saveConfig(refresh, safeGetItem("aiq_access_token") || "", safeGetItem("aiq_token_expiry") || "");
   
   if (!mockToggle && (oldMockMode || refresh)) {
     // User enabled API mode or updated token - let's fetch!
@@ -6541,7 +6559,7 @@ function switchTab(tabId) {
     
     // Load auth token input
     document.getElementById("settingsMockModeToggle").checked = state.mockMode;
-    document.getElementById("settingsRefreshToken").value = localStorage.getItem("aiq_refresh_token") || "";
+    document.getElementById("settingsRefreshToken").value = safeGetItem("aiq_refresh_token") || "";
   }
 }
 

@@ -1,11 +1,22 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
 
 This tool runs **entirely inside your browser** (as a static webpage) from this local folder. It does not require any backend server, Node.js/Python installations, or database engines. It connects directly to the Active IQ Digital Advisor APIs (`activeiq.netapp.com`) and persists credentials in your browser's private local storage.
+
+---
+
+## What's New in Version 1.6.0
+
+*   **L1 Connection & Port Mapping Visualizer**: Audit physical cabling topologies directly inside the Technical Health tab. Displays a rear controller panel interface card with color-coded port indicators and dynamically draws interactive SVG cabling paths to corresponding link partner Core/SAN Switches or Disk Shelves, integrating live LED statuses matching active predictive telemetry warning risks.
+*   **Sub-Tabbed Action Planner**: Refactored the long Action Planner view into clean, tabbed sections. You can easily switch between report areas, each showing active alert-count counts (e.g. *Technical Risks (4)*), with media-print overrides to print the entire sequence to PDF automatically.
+*   **In-Tab Deliverable Downloads**: Download categorized reports and templates directly within each section of the Action Planner. Includes options to export full system inventories as a CSV spreadsheet or download custom customer advisory email drafts, switch firmware checklists, and site dispatch tickets as TXT files.
+*   **GraphQL Query Console Sandbox**: Play with and validate live Active IQ GraphQL queries directly from the Settings page. Includes syntax defaults, variable JSON editors, execution timers, and formatted JSON output blocks.
+*   **Universal Offline file:// Protocol Support**: Wrapped all `localStorage` reads/writes in fail-safe try/catch accessors to prevent DOMException crashes, allowing you to open the dashboard directly from your local filesystem (double-clicking the `index.html` file) in any modern browser.
+*   **Sleek Neon-Cyan Scrollbars**: Overrode default Webkit scrollbar selectors with custom glowing scrollbar themes matching the general dark cyber-aesthetic of the dashboard.
 
 ---
 
