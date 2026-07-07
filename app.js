@@ -946,7 +946,7 @@ const MOCK_SYSTEMS = [
     systemName: "hc-grid-archive",
     clusterName: "GRID-ARCHIVE-100",
     customerName: "HealthCare Solutions Inc",
-    ontapVersion: "11.7.0",
+    ontapVersion: "11.4.0",
     platform: "StorageGRID SG100",
     status: "warning",
     risks: [
@@ -954,19 +954,19 @@ const MOCK_SYSTEMS = [
         id: 701,
         severity: "medium",
         category: "Software",
-        description: "StorageGRID OS version 11.7.0 is reaching End of Version Support.",
-        recommendation: "Plan upgrade to StorageGRID 11.8.x. Refer to NetApp Upgrade Advisor.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/StorageGRID/How_to_upgrade_StorageGRID",
+        description: "StorageGRID OS version 11.4.0 is legacy and unsupported.",
+        recommendation: "Plan sequential upgrade to StorageGRID 11.9.0. Refer to NetApp Upgrade Advisor.",
+        kbLink: "https://kb.netapp.com/onprem/storagegrid/grid/How_to_upgrade_a_StorageGRID_system",
         remediationPlan: {
           cause: "Operating system baseline reaching official support retirement date.",
           impact: "Loss of developer hot-patches and security vulnerability coverage from NetApp engineering after this quarter.",
           steps: [
             "1. Run StorageGRID Pre-Upgrade Validator tool.",
-            "2. Download StorageGRID 11.8 package.",
-            "3. Execute rolling node upgrade starting with the primary Admin Node."
+            "2. Download StorageGRID 11.5 through 11.9 packages.",
+            "3. Execute sequential rolling node upgrades starting with the primary Admin Node."
           ],
           options: [
-            "Option A: Upgrade to 11.8.x (Recommended).",
+            "Option A: Upgrade sequentially to 11.9.0 (Recommended).",
             "Option B: Postpone update under extended support agreement."
           ],
           thirdParty: "Compatible with AWS S3 API v4."
@@ -974,7 +974,7 @@ const MOCK_SYSTEMS = [
       }
     ],
     upgrades: {
-      targetVersion: "11.8.0",
+      targetVersion: "11.9.0",
       urgency: "Recommended",
       benefits: "Resolves multiple open security CVEs and improves object recovery times."
     },
@@ -1134,7 +1134,7 @@ const MOCK_SYSTEMS = [
     systemName: "apex-fas-01",
     clusterName: "DAL-RETAIL-01",
     customerName: "Apex Retail Group",
-    ontapVersion: "9.11.1",
+    ontapVersion: "9.5",
     platform: "FAS2720 (Store Primary)",
     status: "warning",
     risks: [
@@ -1144,7 +1144,7 @@ const MOCK_SYSTEMS = [
         category: "Software",
         description: "Disk Shelf IOM3 firmware is outdated.",
         recommendation: "Upgrade IOM3 firmware. Refer to KB Article.",
-        kbLink: "https://kb.netapp.com",
+        kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_update_disk_shelf_firmware_in_ONTAP",
         remediationPlan: {
           cause: "Outdated firmware baseline.",
           impact: "Soft resets on SAS loops.",
@@ -1155,9 +1155,9 @@ const MOCK_SYSTEMS = [
       }
     ],
     upgrades: {
-      targetVersion: "9.12.1P8",
+      targetVersion: "9.12.1",
       urgency: "Recommended",
-      benefits: "Improves overall storage shelf stability."
+      benefits: "Improves overall storage shelf stability and moves system from legacy 9.5 to modern 9.12 release."
     },
     contracts: {
       status: "warning",
@@ -1671,7 +1671,7 @@ const MOCK_SYSTEMS = [
     systemName: "apex-e5700-02a",
     clusterName: "apex-e5700-02",
     customerName: "Global Bank Corp",
-    santricityVersion: "11.75.2",
+    santricityVersion: "11.30",
     platform: "E5700 (E-Series)",
     status: "warning",
     risks: [
@@ -1681,7 +1681,7 @@ const MOCK_SYSTEMS = [
         category: "Hardware",
         description: "Controller B Backup Battery (BBU) reports replacement required (Near End of Life).",
         recommendation: "Order replacement battery pack (Part: 271-00221) and swap it online.",
-        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/E-Series_Storage/How_to_replace_BBU_on_E5700",
+        kbLink: "https://kb.netapp.com/onprem/e-series/hardware/How_to_replace_a_degraded_Backup_Battery_Unit_BBU_on_E-Series_arrays",
         remediationPlan: {
           cause: "Chemical degradation of lithium-ion cells over a 3-year operating period.",
           impact: "If battery fails completely, write caching will be disabled on Controller B to prevent data loss in a power event, resulting in a 70% decrease in write performance.",
@@ -1700,9 +1700,9 @@ const MOCK_SYSTEMS = [
       }
     ],
     upgrades: {
-      targetVersion: "11.75.3",
+      targetVersion: "11.80.5",
       urgency: "Recommended",
-      benefits: "Resolves controller reboot issues under SAN volume failover events."
+      benefits: "Brings modern SANtricity OS features, security hardening, and stable multipathing."
     },
     contracts: {
       status: "warning",
@@ -1861,7 +1861,7 @@ const MOCK_SYSTEMS = [
           category: "Hardware",
           description: "Multiple disk drive failures detected in Aggregate rg0.",
           recommendation: "Replace disk drives in slots 3 and 7 immediately. Refer to KB990211.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_replace_a_failed_disk_in_ONTAP",
           remediationPlan: {
             cause: "Double disk failure on shelf 1 within RAID-DP group.",
             impact: "Aggregates are currently running in degraded state. A third disk failure will cause complete data loss.",
@@ -1877,7 +1877,7 @@ const MOCK_SYSTEMS = [
           category: "Hardware",
           description: "SAS initiator port reset threshold exceeded on Controller A.",
           recommendation: "Inspect SAS cable connections between controller port 2a and shelf 1 port A. Swap SAS cable if errors persist.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_troubleshoot_SAS_port_resets_in_ONTAP",
           remediationPlan: {
             cause: "Degraded SAS link signaling causing port resets on port 2a.",
             impact: "SAS path redundancy lost. A secondary failure on path B will disrupt active storage access.",
@@ -1893,7 +1893,7 @@ const MOCK_SYSTEMS = [
           category: "Software",
           description: "MetroCluster IP configuration synchronization failed.",
           recommendation: "Force site-to-site configuration sync. Upgrade firmware to resolve sync race condition.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/da/MetroCluster/How_to_troubleshoot_MetroCluster_IP_configuration_sync_issues",
           remediationPlan: {
             cause: "Sync timeout between local and remote site NVRAM logs.",
             impact: "Automatic unplanned switchover disabled. MetroCluster protection is compromised.",
@@ -1909,7 +1909,7 @@ const MOCK_SYSTEMS = [
           category: "Hardware",
           description: "HA interconnect link status degraded (link 1 down).",
           recommendation: "Replace faulty SFP+ module on cluster interconnect switch port 5.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_troubleshoot_degraded_HA_interconnect_links_in_ONTAP",
           remediationPlan: {
             cause: "Faulty physical SFP transceiver module on internal fabric interface.",
             impact: "Loss of HA failover synchronization path. Storage takeover capacity is impaired.",
@@ -1928,7 +1928,7 @@ const MOCK_SYSTEMS = [
           category: "Software",
           description: "ONTAP upgrade advised to address TLS vulnerability.",
           recommendation: "Upgrade ONTAP to version 9.13.1 or newer.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/da/NAS/How_to_disable_TLS_1.0_and_1.1_in_ONTAP",
           remediationPlan: {
             cause: "Older ONTAP version contains vulnerable TLS 1.0/1.1 protocols.",
             impact: "Non-compliance with PCI-DSS security standards.",
@@ -1944,7 +1944,7 @@ const MOCK_SYSTEMS = [
           category: "Configuration",
           description: "NTP server synchronization drift exceeds 500ms.",
           recommendation: "Reconfigure cluster time synchronization with reliable active directory NTP server.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/os/NTP_sync_drift_troubleshooting_in_ONTAP",
           remediationPlan: {
             cause: "Network latency or firewall blocking UDP port 123 to current server.",
             impact: "Disruptions in Kerberos authentication and active directory integration.",
@@ -1960,7 +1960,7 @@ const MOCK_SYSTEMS = [
           category: "Firmware",
           description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
           recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_update_disk_shelf_firmware_in_ONTAP",
           remediationPlan: {
             cause: "Shelf module firmware drift behind validated baseline.",
             impact: "Risk of soft path resets under heavy transactional traffic.",
@@ -1976,7 +1976,7 @@ const MOCK_SYSTEMS = [
           category: "Configuration",
           description: "Aggregates utilization exceeds 85% capacity threshold.",
           recommendation: "Initiate volume relocation to less utilized aggregate or enable thin provisioning.",
-          kbLink: "https://kb.netapp.com",
+          kbLink: "https://kb.netapp.com/onprem/ontap/os/How_to_troubleshoot_space_full_issues_in_ONTAP",
           remediationPlan: {
             cause: "Unplanned storage growth in local snapshot copies.",
             impact: "Potential read-only fail-safes if aggregates fill to 100%.",
@@ -3261,18 +3261,281 @@ function updateTAMSelectLabel() {
   }
 }
 
+const SOFTWARE_VERSION_DATABASES = {
+  ontap: [
+    "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1"
+  ],
+  santricity: [
+    "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5"
+  ],
+  storagegrid: [
+    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0"
+  ]
+};
+
+function getOntapHopInfo(from, to) {
+  let steps = [
+    "1. Download target ONTAP " + to + " image from the NetApp Support site.",
+    "2. Run cluster pre-upgrade validation command: <code>cluster image validate -version " + to + "</code>.",
+    "3. Apply OS update non-disruptively: <code>cluster image update -version " + to + "</code>."
+  ];
+  let recommendations = [
+    "Run <code>system health alert show</code> to verify no active hardware alerts are present.",
+    "Generate a configuration backup: <code>system configuration backup create -node * -backup-name pre_upgrade_" + from.replace(/\./g, "_") + "</code>.",
+    "Verify network path redundancy using <code>network port show</code>."
+  ];
+  let considerations = [
+    "ONTAP upgrades are non-disruptive (NDU) on HA pairs. Node failovers reload controllers sequentially.",
+    "Cross-reference switch and disk shelf firmware compatibility tables on the NetApp Interoperability Matrix Tool (IMT)."
+  ];
+  let docLink = "https://docs.netapp.com/us-en/ontap/upgrade/index.html";
+
+  if (to === "9.7") {
+    recommendations.push("WAFL metadata format upgrade will automatically occur. Ensure aggregates have > 15% free capacity prior to starting.");
+    considerations.push("ONTAP 9.7 enforces secure management protocols by default. Legacy TLS 1.0/1.1 API connections will be rejected.");
+  } else if (to === "9.8") {
+    steps.push("Upgrade cluster switch firmwares to support newer internal link speed configurations.");
+    considerations.push("ONTAP 9.8 introduces simplified volume placement policies and unified interface improvements.");
+  } else if (to === "9.10.1" || to === "9.12.1") {
+    recommendations.push("Confirm that VMware ESXi hosts connecting via iSCSI/FCP use the <code>VMW_PSP_RR</code> round-robin storage path policy with IOPS limit = 1.");
+    considerations.push("Review cipher configurations. All deprecated, weak TLS ciphers are disabled.");
+  } else if (to === "9.14.1" || to === "9.16.1") {
+    steps.push("Verify that all hardware controller node models in the cluster support ONTAP " + to + " (refer to hardware compatibility matrix).");
+    considerations.push("ONTAP REST API v2 endpoints are active. Verify external automation tools or scripts compatibility.");
+  }
+  
+  return { from, to, steps, recommendations, considerations, docLink };
+}
+
+function getStoragegridHopInfo(from, to) {
+  let steps = [
+    "1. Download StorageGRID software update package (version " + to + ") and recovery package from NetApp Support.",
+    "2. Log in to the Primary Admin Node. Navigate to Maintenance > System > Software Update.",
+    "3. Upload the update package and recovery package, then click 'Apply'."
+  ];
+  let recommendations = [
+    "Generate a new grid recovery package before start: select Maintenance > Recovery Package and download the file.",
+    "Ensure all grid storage and API gateway nodes are online and reporting normal telemetry."
+  ];
+  let considerations = [
+    "StorageGRID major upgrades must be performed sequentially. Skipping major versions (e.g. 11.4 to 11.6 directly) is unsupported.",
+    "The software update process is rolling. Services remain active, but API calls might failover between gateway nodes during container restarts."
+  ];
+  let docLink = "https://docs.netapp.com/us-en/storagegrid-" + to.replace(/\./g, "").slice(0, 3) + "/upgrade/index.html";
+  if (to.startsWith("11.9")) docLink = "https://docs.netapp.com/us-en/storagegrid-119/upgrade/index.html";
+  
+  if (to === "11.5") {
+    considerations.push("Underlying Cassandra database schemas are restructured. Storage nodes will consume higher CPU during indexing.");
+  } else if (to === "11.7") {
+    recommendations.push("Verify S3 client API integration compatibility (verify Swift deprecation markers if applicable).");
+  } else if (to.startsWith("11.9")) {
+    considerations.push("Review TLS certificate signing requirements. StorageGRID 11.9 enforces strict client-side cert handshakes.");
+  }
+  
+  return { from, to, steps, recommendations, considerations, docLink };
+}
+
+function getSantricityHopInfo(from, to) {
+  let steps = [
+    "1. Download SANtricity OS controller firmware package " + to + " and NVSRAM file from NetApp Support.",
+    "2. Access SANtricity System Manager or Unified Manager.",
+    "3. Go to Support > Upgrade Center > SANtricity OS Software Upgrade. Upload both firmware and NVSRAM files, then select 'Upgrade'."
+  ];
+  let recommendations = [
+    "Run drive diagnostics to ensure all disk drives in pools/volume groups are in optimal state.",
+    "Ensure both Controller A and Controller B report optimal state and battery units are fully charged."
+  ];
+  let considerations = [
+    "Firmware reload is non-disruptive on dual-controller configurations. Firmware is activated on one controller, reboots, then syncs with the partner.",
+    "Single-controller shelf configurations require scheduling an offline maintenance window."
+  ];
+  let docLink = "https://docs.netapp.com/us-en/e-series/upgrade-santricity.html";
+
+  if (to === "11.50") {
+    steps.push("Note: SANtricity 11.50 implements the embedded REST API server. Legacy Web Services proxy configurations require reconfiguration.");
+  } else if (to === "11.70" || to === "11.75") {
+    considerations.push("Verify BBU backup battery units status. A degraded BBU will disable write caching during update, causing significant latency spikes.");
+  } else if (to.startsWith("11.80")) {
+    recommendations.push("Inspect SSD drive wear life reports to identify any drives nearing 90% write endurance limits prior to reload.");
+  }
+  
+  return { from, to, steps, recommendations, considerations, docLink };
+}
+
+function calculateUpgradePath(platform, currentVersion, targetVersion) {
+  const p = (platform || "").toLowerCase();
+  let type = "ontap";
+  if (p.includes("storagegrid")) type = "storagegrid";
+  else if (p.includes("e-series") || p.includes("ef600") || p.includes("e5700") || p.includes("santricity")) type = "santricity";
+  
+  // Clean versions (remove prefixes)
+  let cleanCurrent = currentVersion.replace(/^(ontap|santricity os|storagegrid|nx-os|fabric os|fos)\s+/i, "").trim();
+  let cleanTarget = targetVersion.replace(/^(ontap|santricity os|storagegrid|nx-os|fabric os|fos)\s+/i, "").trim();
+  
+  // Strip patch designations (like P4) for path finding index matches
+  let currentBase = cleanCurrent.split("P")[0].trim();
+  let targetBase = cleanTarget.split("P")[0].trim();
+  
+  if (currentBase === targetBase) return [];
+  
+  const hops = [];
+  
+  if (type === "ontap") {
+    const vList = SOFTWARE_VERSION_DATABASES.ontap;
+    
+    // Map currentBase/targetBase to closest matching element in database
+    let startIndex = vList.findIndex(v => v === currentBase || currentBase.startsWith(v));
+    let endIndex = vList.findIndex(v => v === targetBase || targetBase.startsWith(v));
+    
+    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+      return [{
+        from: cleanCurrent,
+        to: cleanTarget,
+        steps: [
+          "1. Download target ONTAP OS image from NetApp Support.",
+          "2. Validate cluster readiness: <code>cluster image validate -version " + cleanTarget + "</code>.",
+          "3. Perform non-disruptive upgrade (NDU): <code>cluster image update -version " + cleanTarget + "</code>."
+        ],
+        recommendations: [
+          "Run <code>system health alert show</code> and verify HA status.",
+          "Generate cluster configuration backup prior to start."
+        ],
+        considerations: [
+          "Verify third-party driver compatibility (VMware host PSP round robin settings).",
+          "Ensure switch and shelf firmwares align with NetApp IMT matrix."
+        ],
+        docLink: "https://docs.netapp.com/us-en/ontap/upgrade/index.html"
+      }];
+    }
+    
+    let currentIdx = startIndex;
+    while (currentIdx < endIndex) {
+      let nextIdx = currentIdx;
+      const curVer = vList[currentIdx];
+      
+      if (["9.3", "9.4", "9.5", "9.6"].includes(curVer)) {
+        // Must upgrade through 9.7 first
+        nextIdx = vList.indexOf("9.7");
+      } else if (curVer === "9.7") {
+        // Must go to 9.8
+        nextIdx = vList.indexOf("9.8");
+      } else {
+        // Can skip one release, so max jump of 2 minor versions forward
+        nextIdx = Math.min(endIndex, currentIdx + 2);
+      }
+      
+      // Fallback if index lookup fails
+      if (nextIdx <= currentIdx) nextIdx = currentIdx + 1;
+      
+      const vFrom = vList[currentIdx];
+      const vTo = vList[nextIdx];
+      
+      // Append target patch designator to the last hop if applicable
+      const displayTo = (nextIdx === endIndex) ? cleanTarget : vTo;
+      
+      hops.push(getOntapHopInfo(vFrom, displayTo));
+      currentIdx = nextIdx;
+    }
+  } else if (type === "storagegrid") {
+    const vList = SOFTWARE_VERSION_DATABASES.storagegrid;
+    let startIndex = vList.findIndex(v => v === currentBase || currentBase.startsWith(v));
+    let endIndex = vList.findIndex(v => v === targetBase || targetBase.startsWith(v));
+    
+    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+      return [{
+        from: cleanCurrent,
+        to: cleanTarget,
+        steps: [
+          "1. Download target StorageGRID update file and recovery package from NetApp support.",
+          "2. Upload package in Maintenance > Software Update.",
+          "3. Apply grid-wide rolling updates."
+        ],
+        recommendations: [
+          "Generate and download StorageGRID recovery package before starting software update.",
+          "Verify all storage nodes are online and functioning normally."
+        ],
+        considerations: [
+          "Upgrades must be performed sequentially. You cannot skip major version releases.",
+          "Services remain active, but transient failovers occur as nodes reload."
+        ],
+        docLink: "https://docs.netapp.com/us-en/storagegrid-119/upgrade/index.html"
+      }];
+    }
+    
+    for (let i = startIndex; i < endIndex; i++) {
+      const vFrom = vList[i];
+      const vTo = vList[i+1];
+      const displayTo = (i+1 === endIndex) ? cleanTarget : vTo;
+      hops.push(getStoragegridHopInfo(vFrom, displayTo));
+    }
+  } else if (type === "santricity") {
+    const vList = SOFTWARE_VERSION_DATABASES.santricity;
+    let startIndex = vList.findIndex(v => v === currentBase || currentBase.startsWith(v));
+    let endIndex = vList.findIndex(v => v === targetBase || targetBase.startsWith(v));
+    
+    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+      return [{
+        from: cleanCurrent,
+        to: cleanTarget,
+        steps: [
+          "1. Download SANtricity OS controller firmware package and NVSRAM from NetApp Support.",
+          "2. Go to Support > Upgrade Center > SANtricity OS Software Upgrade.",
+          "3. Upload firmware and NVSRAM and apply update."
+        ],
+        recommendations: [
+          "Check SAN multipathing configuration on client hosts.",
+          "Verify drive health diagnostics."
+        ],
+        considerations: [
+          "Requires dual-controller configuration for non-disruptive execution.",
+          "Verify host compatibility in IMT."
+        ],
+        docLink: "https://docs.netapp.com/us-en/e-series/upgrade-santricity.html"
+      }];
+    }
+    
+    let currentIdx = startIndex;
+    while (currentIdx < endIndex) {
+      let nextIdx = currentIdx;
+      const curVer = vList[currentIdx];
+      
+      if (["11.30", "11.40"].includes(curVer)) {
+        nextIdx = vList.indexOf("11.50");
+      } else if (curVer === "11.50" || curVer === "11.60") {
+        nextIdx = vList.indexOf("11.70");
+      } else {
+        nextIdx = endIndex;
+      }
+      
+      if (nextIdx <= currentIdx) nextIdx = currentIdx + 1;
+      
+      const vFrom = vList[currentIdx];
+      const vTo = vList[nextIdx];
+      const displayTo = (nextIdx === endIndex) ? cleanTarget : vTo;
+      
+      hops.push(getSantricityHopInfo(vFrom, displayTo));
+      currentIdx = nextIdx;
+    }
+  }
+  
+  return hops;
+}
+
 function getLatestSupportedVersion(platform) {
   const p = (platform || "").toLowerCase();
   if (p.includes("storagegrid")) {
-    return "StorageGRID 11.9.0";
+    const db = SOFTWARE_VERSION_DATABASES.storagegrid;
+    return "StorageGRID " + db[db.length - 1];
   } else if (p.includes("e-series") || p.includes("ef600") || p.includes("e5700") || p.includes("santricity")) {
-    return "SANtricity OS 11.80.5";
+    const db = SOFTWARE_VERSION_DATABASES.santricity;
+    return "SANtricity OS " + db[db.length - 1];
   } else if (p.includes("cisco") || p.includes("mds") || p.includes("nexus")) {
     return "NX-OS 9.3(12)";
   } else if (p.includes("brocade") || p.includes("switch")) {
     return "Fabric OS (FOS) 9.2.1";
   } else {
-    return "ONTAP 9.15.1P1";
+    const db = SOFTWARE_VERSION_DATABASES.ontap;
+    return "ONTAP " + db[db.length - 1] + "";
   }
 }
 
@@ -3497,18 +3760,62 @@ function renderTAMTab() {
     let upgradeHtml = `<h3 style="font-size: 1.05rem; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Recommended OS Upgrades</h3>`;
     upgradeItems.forEach(item => {
       const latestVer = getLatestSupportedVersion(item.platform);
+      const hops = calculateUpgradePath(item.platform, item.currentVersion, item.targetVersion);
+      
+      let hopsHtml = "";
+      if (hops.length > 0) {
+        if (hops.length > 1) {
+          hopsHtml += `<div style="margin: 10px 0 6px 0; font-size: 0.78rem; font-weight: 600; color: var(--status-warning); display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            Multi-hop Upgrade Sequence Required:
+          </div>`;
+        }
+        
+        hops.forEach((hop, idx) => {
+          hopsHtml += `
+            <div style="margin-top: 10px; padding: 12px; background: rgba(255, 255, 255, 0.015); border-left: 3px solid var(--accent-cyan); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.03); border-top: none; border-bottom: none; border-right: none;">
+              <div style="font-weight: 700; font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                Hop ${idx + 1}: ${hop.from} &rarr; ${hop.to}
+              </div>
+              <div style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.45;">
+                <div style="margin-bottom: 4px;"><strong style="color: var(--text-primary);">Procedure:</strong></div>
+                <ul style="margin: 0 0 8px 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px;">
+                  ${hop.steps.map(s => `<li>${s}</li>`).join("")}
+                </ul>
+                <div style="margin-bottom: 4px;"><strong style="color: var(--status-warning);">Pre-upgrade Recommendations:</strong></div>
+                <ul style="margin: 0 0 8px 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px;">
+                  ${hop.recommendations.map(r => `<li>${r}</li>`).join("")}
+                </ul>
+                <div style="margin-bottom: 4px;"><strong style="color: var(--text-muted);">Important Considerations:</strong></div>
+                <ul style="margin: 0 0 8px 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px;">
+                  ${hop.considerations.map(c => `<li>${c}</li>`).join("")}
+                </ul>
+                <div style="margin-top: 8px;">
+                  <a href="${hop.docLink}" target="_blank" style="color: var(--accent-cyan); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                    View Upgrade Guide
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+      }
+      
       upgradeHtml += `
-        <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed var(--border-color);">
+        <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px dashed var(--border-color);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: var(--text-primary); font-size: 0.9rem;">${item.systemName}</strong>
+            <strong style="color: var(--text-primary); font-size: 0.9rem;">${item.systemName} (${item.platform})</strong>
             <span class="badge warning">${item.urgency}</span>
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px; line-height: 1.4;">
+          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.4;">
             Current: <strong style="color: var(--text-muted);">${item.currentVersion}</strong> | 
-            Min. Required (To Fix): <strong style="color: var(--accent-cyan);">${item.targetVersion}</strong> | 
-            Latest Supported: <strong style="color: var(--status-normal);">${latestVer}</strong>
+            Target OS Version: <strong style="color: var(--accent-cyan);">${item.targetVersion}</strong> | 
+            Latest Available: <strong style="color: var(--status-normal);">${latestVer}</strong>
           </div>
-          <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0; line-height: 1.4;">${item.benefits}</p>
+          <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 10px 0; line-height: 1.4;">${item.benefits}</p>
+          ${hopsHtml}
         </div>
       `;
     });
@@ -5027,7 +5334,23 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
   const risksText = allRisks.map((r, i) => `${i+1}. [Priority ${r.severity.toUpperCase()}] ${r.systemName}: ${r.description}\n   -> Recommendation: ${r.recommendation}`).join("\n\n");
-  const upgradesText = allUpgrades.map(u => `- Upgrade ${u.systemName} from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n  -> Benefit: ${u.benefits}`).join("\n");
+  const upgradesText = allUpgrades.map(u => {
+    const hops = calculateUpgradePath(u.platform, u.currentVersion || "", u.targetVersion);
+    let hopDetails = "";
+    if (hops.length > 0) {
+      if (hops.length > 1) {
+        hopDetails += `\n     [Multi-Hop Upgrade Sequence Required: ${hops.map(h => h.from + ' -> ' + h.to).join(' | ')}]`;
+      }
+      hops.forEach((h, idx) => {
+        hopDetails += `\n     * Hop ${idx + 1}: ${h.from} -> ${h.to}
+       - Steps: ${h.steps.map(s => s.replace(/<[^>]*>/g, "")).join(" | ")}
+       - Recommendations: ${h.recommendations.map(r => r.replace(/<[^>]*>/g, "")).join(" | ")}
+       - Considerations: ${h.considerations.map(c => c.replace(/<[^>]*>/g, "")).join(" | ")}
+       - Doc Link: ${h.docLink}`;
+      });
+    }
+    return `- Upgrade ${u.systemName} from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n     -> Benefit: ${u.benefits}${hopDetails}`;
+  }).join("\n");
   const casesText = allSupportCases.map(c => `- Case ID: ${c.id} (${c.systemName}) | Severity: ${c.severity} | Next Action Owner: ${c.nextActionBy || "Under Review"}\n  -> Title: ${c.title}`).join("\n");
   const contractsText = expiringContracts.map(e => `- System: ${e.systemName} | Support Level: ${e.supportLevel} | Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)`).join("\n");
 
@@ -5181,7 +5504,7 @@ function generateActionPlan() {
       sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
     }
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
@@ -5215,9 +5538,13 @@ function generateActionPlan() {
   const emailCasesList = allSupportCases.map(c => ` - Case ID: ${c.id} | Subject: ${c.title} | Status: ${c.status}`).join("\n");
   
   const upgradeTargetsList = allUpgrades.map(u => {
-    const origSys = targetSystems.find(s => s.systemName === u.systemName);
-    const origVer = origSys ? origSys.ontapVersion : "unknown";
-    return ` - System: ${u.systemName} | Current OS: ${origVer} | Target OS: ${u.targetVersion}`;
+    const origVer = u.currentVersion || "unknown";
+    const hops = calculateUpgradePath(u.platform, origVer, u.targetVersion);
+    let pathInfo = "";
+    if (hops.length > 1) {
+      pathInfo = ` [Sequence: ${hops.map(h => h.from + " -> " + h.to).join(" | ")}]`;
+    }
+    return ` - System: ${u.systemName} | Current OS: ${origVer} | Target OS: ${u.targetVersion}${pathInfo}`;
   }).join("\n");
   
   const contractExpiryList = expiringContracts.map(e => ` - System: ${e.systemName} | Support Level: ${e.supportLevel} | Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)`).join("\n");
@@ -5792,7 +6119,7 @@ function downloadPlanSection(index) {
       sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
     }
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
@@ -5876,13 +6203,38 @@ ${allSupportCases.length === 0 ? "✓ No active support cases open in the NetApp
 Scope: ${scopeTitle}
 
 ${allUpgrades.length === 0 ? "✓ All systems are running target version baselines." :
-  allUpgrades.map(u => `System: ${u.systemName} [Urgency: ${u.urgency}]
-- Current OS: ${targetSystems.find(s => s.systemName === u.systemName)?.ontapVersion || "unknown"}
+  allUpgrades.map(u => {
+    const origSys = targetSystems.find(s => s.systemName === u.systemName);
+    const currentVer = origSys ? (origSys.santricityVersion ? origSys.santricityVersion : origSys.ontapVersion) : "unknown";
+    const hops = calculateUpgradePath(u.platform, currentVer, u.targetVersion);
+    
+    let hopsText = "";
+    if (hops.length > 0) {
+      if (hops.length > 1) {
+        hopsText += "\n   [WARNING: Direct Upgrade is NOT supported. Sequential multi-hop sequence is required:]\n";
+      }
+      hops.forEach((hop, idx) => {
+        hopsText += `\n   Hop ${idx + 1}: ${hop.from} -> ${hop.to}
+   -------------------------------------------------
+   * Steps:
+${hop.steps.map(s => `     - ${s.replace(/<[^>]*>/g, "")}`).join("\n")}
+   * Pre-upgrade Recommendations:
+${hop.recommendations.map(r => `     - ${r.replace(/<[^>]*>/g, "")}`).join("\n")}
+   * Important Considerations:
+${hop.considerations.map(c => `     - ${c.replace(/<[^>]*>/g, "")}`).join("\n")}
+   * Documentation Link: ${hop.docLink}
+`;
+      });
+    }
+
+    return `System: ${u.systemName} [Urgency: ${u.urgency}]
+- Current OS: ${currentVer}
 - Recommended OS Target Version: ${u.targetVersion}
 - Platform Model: ${u.platform}
 - Latest Supported OS Version: ${getLatestSupportedVersion(u.platform)}
 - Expected Upgrade Benefits: ${u.benefits}
-`).join("\n\n")}`;
+${hopsText}`;
+  }).join("\n\n")}`;
   } else if (index === 6) {
     filename = `switch_validation_${cleanScope}.txt`;
     text = `NETAPP NETWORK SWITCH & FABRIC VALIDATION CHECKLIST
@@ -5978,7 +6330,7 @@ function downloadDeliverable(type) {
       sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
     }
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
@@ -6015,9 +6367,13 @@ Best Regards,
 
   } else if (type === 'PROPOSAL') {
     const upgradeTargetsList = allUpgrades.map(u => {
-      const origSys = targetSystems.find(s => s.systemName === u.systemName);
-      const origVer = origSys ? origSys.ontapVersion : "unknown";
-      return ` - System: ${u.systemName} | Current OS: ${origVer} | Target OS: ${u.targetVersion}`;
+      const origVer = u.currentVersion || "unknown";
+      const hops = calculateUpgradePath(u.platform, origVer, u.targetVersion);
+      let pathInfo = "";
+      if (hops.length > 1) {
+        pathInfo = ` [Sequence: ${hops.map(h => h.from + " -> " + h.to).join(" | ")}]`;
+      }
+      return ` - System: ${u.systemName} | Current OS: ${origVer} | Target OS: ${u.targetVersion}${pathInfo}`;
     }).join("\n");
     const contractExpiryList = expiringContracts.map(e => ` - System: ${e.systemName} | Support Level: ${e.supportLevel} | Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)`).join("\n");
 
