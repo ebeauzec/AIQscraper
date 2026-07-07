@@ -2079,6 +2079,7 @@ let state = {
   watchlists: [],
   selectedSystem: MOCK_SYSTEMS[0],
   selectedTAMSerials: [],
+  activeVisualizerNodeSerial: "",
   activeSearchQuery: "",
   activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP", "WATCHLIST"
   activeFilterValue: "",   // Customer Name, Group ID, or Watchlist ID
@@ -3171,23 +3172,34 @@ function renderTAMTab() {
   
   // Render active systems list description and physical cabling node layout
   const visualCard = document.getElementById("tamNodeVisualCard");
+  if (selectedSystems.length > 0) {
+    if (visualCard) {
+      visualCard.style.display = "block";
+    }
+    
+    if (!state.activeVisualizerNodeSerial || !activeSerials.includes(state.activeVisualizerNodeSerial)) {
+      state.activeVisualizerNodeSerial = selectedSystems[0].serialNumber;
+    }
+    
+    const activeSys = selectedSystems.find(s => s.serialNumber === state.activeVisualizerNodeSerial) || selectedSystems[0];
+    renderNodeVisualLayout(selectedSystems, activeSys);
+  } else {
+    if (visualCard) {
+      visualCard.style.display = "none";
+    }
+  }
+
+  // Update header text
   if (selectedSystems.length === 1) {
     const sys = selectedSystems[0];
     document.getElementById("tamActiveSystem").innerHTML = `
       <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>ONTAP</strong>: ${sys.ontapVersion}
     `;
-    if (visualCard) {
-      visualCard.style.display = "block";
-      renderNodeVisualLayout(sys);
-    }
-  } else {
+  } else if (selectedSystems.length > 1) {
     const names = selectedSystems.map(s => s.systemName).join(", ");
     document.getElementById("tamActiveSystem").innerHTML = `
       <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
     `;
-    if (visualCard) {
-      visualCard.style.display = "none";
-    }
   }
   
   // Compile Combined Risks
@@ -7107,7 +7119,7 @@ function getSystemPortMappings(sys) {
   ];
 }
 
-function renderNodeVisualLayout(sys) {
+function renderNodeVisualLayout(selectedSystems, sys) {
   const container = document.getElementById("tamNodeVisualContainer");
   if (!container) return;
 
@@ -7116,6 +7128,26 @@ function renderNodeVisualLayout(sys) {
   let portsHtml = "";
   let tableRowsHtml = "";
   
+  // Render tabs row if multiple systems/nodes are selected
+  let tabsHtml = "";
+  if (selectedSystems && selectedSystems.length > 1) {
+    tabsHtml = `<div class="node-tabs-row" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; overflow-x: auto;">`;
+    selectedSystems.forEach(s => {
+      const isActive = s.serialNumber === sys.serialNumber;
+      const btnStyle = isActive 
+        ? "background: var(--accent-cyan); color: #0b0f19; border-color: var(--accent-cyan); font-weight: 600; box-shadow: 0 0 8px rgba(0, 229, 255, 0.35);"
+        : "background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border-color);";
+      
+      tabsHtml += `
+        <button class="action-btn" style="${btnStyle} padding: 5px 12px; font-size: 0.72rem; border-radius: var(--radius-sm); transition: all 0.2s;"
+                onclick="selectVisualNode('${s.serialNumber}')">
+          Node: ${s.systemName}
+        </button>
+      `;
+    });
+    tabsHtml += `</div>`;
+  }
+
   ports.forEach(port => {
     let portColor = "#10b981"; // Green (mgmt)
     let typeLabel = "Management";
@@ -7130,7 +7162,7 @@ function renderNodeVisualLayout(sys) {
     // Physical Port Slot
     portsHtml += `
       <div id="port-slot-${port.name}" class="physical-port-slot" 
-           style="background: rgba(0,0,0,0.5); border: 2px solid ${portColor}; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.25s ease;"
+           style="background: rgba(0,0,0,0.4); border: 2px solid ${portColor}; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.25s ease;"
            onmouseenter="hoverCablingPort('${port.name}')" 
            onmouseleave="unhoverCablingPort('${port.name}')">
         <div style="font-size: 0.65rem; color: #fff; margin-bottom: 2px; text-align: center; font-weight: 600;">${port.name}</div>
@@ -7175,6 +7207,7 @@ function renderNodeVisualLayout(sys) {
   });
 
   container.innerHTML = `
+    ${tabsHtml}
     <div style="display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start;">
       <!-- Controller Node rear backplate layout -->
       <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan); position: sticky; top: 12px;">
@@ -7214,6 +7247,16 @@ function renderNodeVisualLayout(sys) {
       </div>
     </div>
   `;
+}
+
+function selectVisualNode(serial) {
+  state.activeVisualizerNodeSerial = serial;
+  const activeSerials = state.selectedTAMSerials || [];
+  const selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
+  const activeSys = selectedSystems.find(s => s.serialNumber === serial) || selectedSystems[0];
+  if (activeSys) {
+    renderNodeVisualLayout(selectedSystems, activeSys);
+  }
 }
 
 function hoverCablingPort(portName) {
