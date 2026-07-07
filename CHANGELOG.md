@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-07-07
+
+### Added
+*   **Role-Aligned Sub-Tabs Redesign**: Redesigned Technical Audit (TAM), Support & Ops (SAM), and CSM Value & ROI (CSM) tab structures with role-aligned, task-based sub-tab navigations to segment dashboard components into logical, readable, and structured sub-panes.
+*   **Context-Aware L1 Visualizers**: Enabled Cloud Volumes ONTAP (AWS/Azure/GCP) virtual network interface subnet maps and StorageGRID network band routing visual layouts, replacing physical cabling chassis representations.
+*   **Platform Model Name Mapping**: Implemented precise model resolutions to display exact models (e.g. `AFF A400`, `StorageGRID SG6060`, `CVO (Azure)`, `EF600`) across L1 visuals.
+*   **Loop Type Safety checks**: Integrated strict checks for custom system configuration JSON objects lacking optional keys like `risks` and `fieldActions` to prevent runtime exceptions.
+
 ## [1.7.0] - 2026-07-07
 
 ### Added
