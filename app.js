@@ -2320,6 +2320,7 @@ let state = {
   syncInterval: 0,         // Polling interval in hours (0 = Manual Only)
   lastSync: "",            // ISO Timestamp of last successful Active IQ sync
   apiBaseUrl: "https://api.activeiq.netapp.com/v1", // REST gateway base URL
+  watchlistOnly: false,    // Synchronize only systems in active watchlists
   
   // Sort states for sub-tab tables
   tamRisksSortKey: "severity",
@@ -2365,6 +2366,8 @@ function loadConfig() {
   state.apiBaseUrl = safeGetItem("aiq_api_base_url") || "https://api.activeiq.netapp.com/v1";
   state.syncInterval = parseInt(safeGetItem("aiq_sync_interval") || "0");
   state.lastSync = safeGetItem("aiq_last_sync") || "";
+  const wlOnlyVal = safeGetItem("aiq_watchlist_only");
+  state.watchlistOnly = wlOnlyVal === "true";
   
   // Safeguard: If mockMode is false but no API token is configured, auto-enable mock mode
   if (!state.mockMode && !refresh) {
@@ -7371,13 +7374,16 @@ async function saveSettings() {
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
   const apiBaseInput = document.getElementById("settingsApiBaseUrl").value.trim() || "https://api.activeiq.netapp.com/v1";
   const intervalInput = parseInt(document.getElementById("settingsSyncInterval").value) || 0;
+  const wlOnlyToggle = document.getElementById("settingsWatchlistOnlyToggle").checked;
   const oldMockMode = state.mockMode;
   
   state.apiBaseUrl = apiBaseInput;
   state.syncInterval = intervalInput;
+  state.watchlistOnly = wlOnlyToggle;
   
   safeSetItem("aiq_api_base_url", apiBaseInput);
   safeSetItem("aiq_sync_interval", intervalInput.toString());
+  safeSetItem("aiq_watchlist_only", wlOnlyToggle ? "true" : "false");
   
   setMockMode(mockToggle);
   saveConfig(refresh, safeGetItem("aiq_access_token") || "", safeGetItem("aiq_token_expiry") || "");
@@ -7511,10 +7517,41 @@ async function loadProductionData() {
     indicator.className = "indicator warning"; // Amber indicator while loading
   }
 
+  // 1. Fetch active watchlists from Active IQ API first
+  let watchlistSerials = new Set();
+  try {
+    const apiWatchlists = await callActiveIQAPI("/watchlists");
+    if (apiWatchlists) {
+      const wlList = Array.isArray(apiWatchlists) ? apiWatchlists : (apiWatchlists.watchlists || []);
+      state.watchlists = wlList.map(wl => {
+        const serials = wl.serialNumbers || wl.systemSerials || [];
+        serials.forEach(sn => watchlistSerials.add(sn.toString().trim()));
+        return {
+          id: wl.watchlistId || wl.id || "wl_" + Date.now(),
+          name: wl.watchListName || wl.name || "Watchlist",
+          systemSerials: serials
+        };
+      });
+      saveWatchlists();
+    }
+  } catch (wlErr) {
+    console.warn("Failed to retrieve Active IQ watchlists:", wlErr);
+  }
+
+  // 2. Fetch systems list
   try {
     const apiSystems = await callActiveIQAPI("/systems");
     if (apiSystems && (Array.isArray(apiSystems) || (typeof apiSystems === 'object' && apiSystems !== null))) {
-      const systemsList = Array.isArray(apiSystems) ? apiSystems : (apiSystems.systems || [apiSystems]);
+      let systemsList = Array.isArray(apiSystems) ? apiSystems : (apiSystems.systems || [apiSystems]);
+      
+      // If Watchlist-Only Sync is active, filter systems
+      if (state.watchlistOnly) {
+        systemsList = systemsList.filter(s => {
+          const sn = (s.serialNumber || s.serial_number || "").toString().trim();
+          return watchlistSerials.has(sn);
+        });
+      }
+      
       if (systemsList.length > 0) {
         state.systems = systemsList.map(s => {
           return {
@@ -7542,22 +7579,6 @@ async function loadProductionData() {
           };
         });
         saveSystems();
-
-        // Try fetching active watchlists from Active IQ API
-        try {
-          const apiWatchlists = await callActiveIQAPI("/watchlists");
-          if (apiWatchlists) {
-            const wlList = Array.isArray(apiWatchlists) ? apiWatchlists : (apiWatchlists.watchlists || []);
-            state.watchlists = wlList.map(wl => ({
-              id: wl.watchlistId || wl.id || "wl_" + Date.now(),
-              name: wl.watchListName || wl.name || "Watchlist",
-              systemSerials: wl.serialNumbers || wl.systemSerials || []
-            }));
-            saveWatchlists();
-          }
-        } catch (wlErr) {
-          console.warn("Failed to retrieve Active IQ watchlists:", wlErr);
-        }
         
         state.lastSync = new Date().toISOString();
         safeSetItem("aiq_last_sync", state.lastSync);
@@ -7672,6 +7693,7 @@ function switchTab(tabId) {
     
     // Load auth token input
     document.getElementById("settingsMockModeToggle").checked = state.mockMode;
+    document.getElementById("settingsWatchlistOnlyToggle").checked = state.watchlistOnly;
     document.getElementById("settingsRefreshToken").value = safeGetItem("aiq_refresh_token") || "";
     document.getElementById("settingsApiBaseUrl").value = state.apiBaseUrl;
     document.getElementById("settingsSyncInterval").value = state.syncInterval.toString();
