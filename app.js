@@ -2057,7 +2057,7 @@ const MOCK_WATCHLISTS = [
 // 2. Global State Variable
 let state = {
   currentTab: "overview",
-  mockMode: false,
+  mockMode: true,
   systems: [...MOCK_SYSTEMS],
   groups: [...DEFAULT_GROUPS],
   watchlists: [],
@@ -2074,11 +2074,17 @@ let state = {
 // 3. Storage & Groups Helpers
 function loadConfig() {
   const mockModeVal = localStorage.getItem("aiq_mock_mode");
-  state.mockMode = mockModeVal === null ? false : mockModeVal === "true";
+  state.mockMode = mockModeVal === null ? true : mockModeVal === "true";
   
   const refresh = localStorage.getItem("aiq_refresh_token") || "";
   const access = localStorage.getItem("aiq_access_token") || "";
   const expiry = localStorage.getItem("aiq_token_expiry") || "";
+  
+  // Safeguard: If mockMode is false but no API token is configured, auto-enable mock mode
+  if (!state.mockMode && !refresh) {
+    state.mockMode = true;
+    localStorage.setItem("aiq_mock_mode", "true");
+  }
   
   // Load systems db if exists in local storage
   const schemaVer = localStorage.getItem("aiq_systems_schema_v4");
