@@ -7114,212 +7114,138 @@ function renderNodeVisualLayout(sys) {
   const ports = getSystemPortMappings(sys);
   
   let portsHtml = "";
-  let targetsHtml = "";
-  
-  const uniquePartners = [];
-  ports.forEach(p => {
-    if (!uniquePartners.some(up => up.name === p.partnerName)) {
-      uniquePartners.push({
-        name: p.partnerName,
-        type: p.partnerType,
-        cablingStatus: p.cablingStatus
-      });
-    }
-  });
+  let tableRowsHtml = "";
   
   ports.forEach(port => {
     let portColor = "#10b981"; // Green (mgmt)
-    if (port.type === "cluster") portColor = "#3b82f6"; // Blue
-    if (port.type === "data") portColor = "#f59e0b"; // Orange
-    if (port.type === "fc") portColor = "#eab308"; // Yellow
-    if (port.type === "sas") portColor = "#a855f7"; // Purple
+    let typeLabel = "Management";
+    if (port.type === "cluster") { portColor = "#3b82f6"; typeLabel = "Cluster Interconnect"; }
+    if (port.type === "data") { portColor = "#f59e0b"; typeLabel = "Data Network"; }
+    if (port.type === "fc") { portColor = "#eab308"; typeLabel = "FC / SAN"; }
+    if (port.type === "sas") { portColor = "#a855f7"; typeLabel = "Storage SAS"; }
 
     const statusLedColor = port.status === "online" ? "#10b981" : "#ef4444";
     const statusLedShadow = port.status === "online" ? "0 0 8px #10b981" : "0 0 8px #ef4444";
     
-    const tooltipText = `Port: ${port.name} (${port.type.toUpperCase()})\nSpeed: ${port.details.speed}\nStatus: ${port.status.toUpperCase()}\nLink Partner: ${port.partnerName} [Port: ${port.partnerPort}]`;
-    
+    // Physical Port Slot
     portsHtml += `
-      <div class="physical-port-slot" 
-           style="background: rgba(0,0,0,0.4); border: 2px solid ${portColor};" 
-           onmouseenter="highlightCablingConnection('${port.name}', '${port.partnerName}')" 
-           onmouseleave="resetCablingHighlight()"
-           data-tooltip="${tooltipText}">
-        <div style="font-size: 0.65rem; color: #fff; margin-bottom: 2px; text-align: center;">${port.name}</div>
+      <div id="port-slot-${port.name}" class="physical-port-slot" 
+           style="background: rgba(0,0,0,0.5); border: 2px solid ${portColor}; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.25s ease;"
+           onmouseenter="hoverCablingPort('${port.name}')" 
+           onmouseleave="unhoverCablingPort('${port.name}')">
+        <div style="font-size: 0.65rem; color: #fff; margin-bottom: 2px; text-align: center; font-weight: 600;">${port.name}</div>
         <div style="width: 16px; height: 16px; background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 2px; display: flex; align-items: center; justify-content: center; margin: 0 auto; position: relative;">
           <div style="width: 4px; height: 4px; border-radius: 50%; background: ${statusLedColor}; box-shadow: ${statusLedShadow}; position: absolute; top: 1px; right: 1px;"></div>
           <div style="width: 8px; height: 6px; background: #fff; opacity: 0.1;"></div>
         </div>
       </div>
     `;
-  });
 
-  uniquePartners.forEach(part => {
-    let typeLabel = "Core Switch";
-    let iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6" y2="6"></line><line x1="18" y1="18" x2="18" y2="18"></line></svg>`;
-    
-    if (part.type === "mgmt_switch") typeLabel = "Mgmt Switch";
-    if (part.type === "cluster_switch") typeLabel = "Cluster Switch";
-    if (part.type === "san_switch") typeLabel = "SAN Switch";
-    if (part.type === "disk_shelf") {
-      typeLabel = "SAS Disk Shelf";
-      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg>`;
+    // Table Row details
+    let configDetail = "";
+    if (port.type === "fc") {
+      configDetail = `<code style="font-size: 0.72rem; color: var(--text-secondary);">${port.details.speed} | WWPN: ${port.details.wwpn}</code>`;
+    } else if (port.type === "sas") {
+      configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${port.details.speed} (${port.details.shelfStack})</span>`;
+    } else {
+      configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${port.details.speed} (MTU: ${port.details.mtu}) | IP: ${port.details.ip}</span>`;
     }
 
-    const boxBorder = part.cablingStatus === "optimal" ? "var(--border-color)" : "rgba(255, 51, 102, 0.4)";
-    const boxBg = part.cablingStatus === "optimal" ? "rgba(255,255,255,0.02)" : "rgba(255, 51, 102, 0.03)";
-    const statusText = part.cablingStatus === "optimal" ? "<span style='color: var(--status-normal);'>✓ Link OK</span>" : "<span style='color: var(--status-critical); font-weight: 700;'>✗ Degraded</span>";
+    const statusBadge = port.status === "online" 
+      ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-normal); border: 1px solid rgba(0, 230, 118, 0.25); background: rgba(0, 230, 118, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">✓ Optimal</span>`
+      : `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`;
 
-    targetsHtml += `
-      <div id="partner-box-${part.name.replace(/[^a-z0-9]/gi, '_')}" class="partner-device-box" 
-           style="background: ${boxBg}; border: 1px solid ${boxBorder}; padding: 10px; border-radius: var(--radius-sm); transition: all 0.3s ease;">
-        <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #fff; font-size: 0.8rem;">
-          ${iconSvg}
-          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${part.name}</span>
-        </div>
-        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; display: flex; justify-content: space-between;">
-          <span>${typeLabel}</span>
-          <span>${statusText}</span>
-        </div>
-      </div>
+    tableRowsHtml += `
+      <tr id="port-row-${port.name}" style="border-bottom: 1px solid var(--border-color); transition: all 0.2s ease; cursor: pointer;"
+          onmouseenter="hoverCablingPort('${port.name}')" 
+          onmouseleave="unhoverCablingPort('${port.name}')">
+        <td style="padding: 10px; font-weight: 700; color: #fff;"><code>${port.name}</code></td>
+        <td style="padding: 10px;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: ${portColor};"></span>
+            ${typeLabel}
+          </span>
+        </td>
+        <td style="padding: 10px;">${configDetail}</td>
+        <td style="padding: 10px; font-weight: 500;">${port.partnerName}</td>
+        <td style="padding: 10px;"><code>${port.partnerPort}</code></td>
+        <td style="padding: 10px;">${statusBadge}</td>
+      </tr>
     `;
   });
 
   container.innerHTML = `
-    <div style="display: grid; grid-template-columns: 240px 1fr 240px; gap: 24px; align-items: center;">
-      <!-- Controller Node rear backplate -->
-      <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan);">
+    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start;">
+      <!-- Controller Node rear backplate layout -->
+      <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan); position: sticky; top: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #4b5563; padding-bottom: 8px; margin-bottom: 14px;">
-          <div style="font-size: 0.68rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">NETAPP SYSTEM PANEL</div>
+          <div style="font-size: 0.68rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">NETAPP CHASSIS REAR VIEW</div>
           <div style="font-size: 0.58rem; color: var(--accent-cyan); font-family: monospace;">${sys.platform.split(' ')[0]}</div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
           ${portsHtml}
         </div>
         <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #4b5563; padding-top: 10px;">
-          <div style="background: #2e353f; height: 16px; border-radius: 1px; font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700;">PSU-1</div>
-          <div style="background: #2e353f; height: 16px; border-radius: 1px; font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700;">PSU-2</div>
+          <div style="background: #2e353f; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">PSU-1</div>
+          <div style="background: #2e353f; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">PSU-2</div>
+        </div>
+        <div style="margin-top: 12px; font-size: 0.62rem; color: var(--text-muted); line-height: 1.35; text-align: center;">
+          Hover over ports or table rows to highlight individual layer-1 link cabling pathways.
         </div>
       </div>
       
-      <!-- Connector Lines SVG -->
-      <div style="height: 180px; position: relative;">
-        <svg id="cablingTopologySvg" width="100%" height="100%" style="overflow: visible; pointer-events: none;">
-        </svg>
-      </div>
-      
-      <!-- Connected Device Targets -->
-      <div style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 4px;">
-        ${targetsHtml}
+      <!-- Detailed Cabling Audit Table -->
+      <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto; background: rgba(15,22,38,0.3);">
+        <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+          <thead>
+            <tr style="background: rgba(255, 255, 255, 0.015); border-bottom: 1px solid var(--border-color); text-align: left;">
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Port</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Type</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Speed / Configuration</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Partner Device</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Target Port</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
-
-  setTimeout(() => {
-    drawCablingTopologyLines(sys);
-  }, 120);
 }
 
-function drawCablingTopologyLines(sys) {
-  const svg = document.getElementById("cablingTopologySvg");
-  if (!svg) return;
-  svg.innerHTML = "";
+function hoverCablingPort(portName) {
+  const slot = document.getElementById(`port-slot-${portName}`);
+  const row = document.getElementById(`port-row-${portName}`);
   
-  const ports = getSystemPortMappings(sys);
-  const slots = document.querySelectorAll(".physical-port-slot");
-  
-  ports.forEach(port => {
-    let slotEl = null;
-    slots.forEach(s => {
-      if (s.textContent.includes(port.name)) {
-        slotEl = s;
-      }
-    });
-    
-    const pBox = document.getElementById(`partner-box-${port.partnerName.replace(/[^a-z0-9]/gi, '_')}`);
-    
-    if (slotEl && pBox) {
-      const svgRect = svg.getBoundingClientRect();
-      const slotRect = slotEl.getBoundingClientRect();
-      const pRect = pBox.getBoundingClientRect();
-      
-      const x1 = slotRect.right - svgRect.left;
-      const y1 = (slotRect.top + slotRect.height / 2) - svgRect.top;
-      
-      const x2 = pRect.left - svgRect.left;
-      const y2 = (pRect.top + pRect.height / 2) - svgRect.top;
-      
-      let cableColor = "#10b981"; 
-      if (port.type === "cluster") cableColor = "#3b82f6"; 
-      if (port.type === "data") cableColor = "#f59e0b"; 
-      if (port.type === "fc") cableColor = "#eab308"; 
-      if (port.type === "sas") cableColor = "#a855f7"; 
-      
-      if (port.status === "offline") {
-        cableColor = "rgba(255, 51, 102, 0.4)"; 
-      }
-      
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      const dx = Math.abs(x2 - x1) * 0.5;
-      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-      
-      path.setAttribute("d", d);
-      path.setAttribute("stroke", cableColor);
-      path.setAttribute("stroke-width", port.status === "online" ? "2" : "1.5");
-      if (port.status === "offline") {
-        path.setAttribute("stroke-dasharray", "4,4");
-      }
-      path.setAttribute("fill", "none");
-      path.setAttribute("class", `cable-line cable-port-${port.name} cable-partner-${port.partnerName.replace(/[^a-z0-9]/gi, '_')}`);
-      path.setAttribute("style", "transition: all 0.3s ease; opacity: 0.65; filter: drop-shadow(0 0 2px " + cableColor + ")");
-      
-      svg.appendChild(path);
-    }
-  });
-}
-
-function highlightCablingConnection(portName, partnerName) {
-  const cables = document.querySelectorAll(".cable-line");
-  cables.forEach(c => {
-    c.style.opacity = "0.15";
-    c.style.strokeWidth = "1.5";
-  });
-  
-  const targetCable = document.querySelector(`.cable-port-${portName}`);
-  if (targetCable) {
-    targetCable.style.opacity = "1";
-    targetCable.style.strokeWidth = "4.5";
+  if (slot) {
+    slot.style.boxShadow = "0 0 12px rgba(0, 229, 255, 0.6)";
+    slot.style.borderColor = "#ffffff";
+    slot.style.transform = "scale(1.04)";
+    slot.style.background = "rgba(0, 229, 255, 0.1)";
   }
   
-  const partnerId = `partner-box-${partnerName.replace(/[^a-z0-9]/gi, '_')}`;
-  const pBox = document.getElementById(partnerId);
-  if (pBox) {
-    pBox.style.borderColor = "var(--accent-cyan)";
-    pBox.style.boxShadow = "0 0 12px rgba(0, 229, 255, 0.2)";
-    pBox.style.background = "rgba(0, 229, 255, 0.05)";
+  if (row) {
+    row.style.background = "rgba(0, 229, 255, 0.04)";
+    row.style.borderLeft = "3px solid var(--accent-cyan)";
   }
 }
 
-function resetCablingHighlight() {
-  const cables = document.querySelectorAll(".cable-line");
-  cables.forEach(c => {
-    c.style.opacity = "0.65";
-    c.style.strokeWidth = "2";
-  });
+function unhoverCablingPort(portName) {
+  const slot = document.getElementById(`port-slot-${portName}`);
+  const row = document.getElementById(`port-row-${portName}`);
   
-  const boxes = document.querySelectorAll(".partner-device-box");
-  boxes.forEach(b => {
-    b.style.borderColor = "";
-    b.style.boxShadow = "";
-    b.style.background = "";
-  });
-}
-
-window.addEventListener("resize", () => {
-  if (state.activeTab === "tam" && state.selectedSystem) {
-    const activeSerials = state.selectedTAMSerials || [];
-    if (activeSerials.length === 1) {
-      drawCablingTopologyLines(state.selectedSystem);
-    }
+  if (slot) {
+    slot.style.boxShadow = "";
+    slot.style.borderColor = "";
+    slot.style.transform = "";
+    slot.style.background = "rgba(0,0,0,0.4)";
   }
-});
+  
+  if (row) {
+    row.style.background = "";
+    row.style.borderLeft = "";
+  }
+}
