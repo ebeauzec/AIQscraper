@@ -7173,6 +7173,60 @@ function switchTab(tabId) {
   }
 }
 
+function switchTamSubTab(subTabId) {
+  // Update sub-tab buttons active state
+  document.querySelectorAll("#tamTab .sub-tab-btn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  const activeBtn = document.getElementById(`btn_tam_sub_${subTabId}`);
+  if (activeBtn) activeBtn.classList.add("active");
+
+  // Show/Hide sub-contents
+  document.querySelectorAll(".tam-sub-content").forEach(el => {
+    el.style.display = "none";
+  });
+  const target = document.getElementById(`tamSubTab_${subTabId}`);
+  if (target) {
+    target.style.display = "block";
+  }
+}
+
+function switchSamSubTab(subTabId) {
+  // Update sub-tab buttons active state
+  document.querySelectorAll("#samTab .sub-tab-btn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  const activeBtn = document.getElementById(`btn_sam_sub_${subTabId}`);
+  if (activeBtn) activeBtn.classList.add("active");
+
+  // Show/Hide sub-contents
+  document.querySelectorAll(".sam-sub-content").forEach(el => {
+    el.style.display = "none";
+  });
+  const target = document.getElementById(`samSubTab_${subTabId}`);
+  if (target) {
+    target.style.display = "block";
+  }
+}
+
+function switchCsmSubTab(subTabId) {
+  // Update sub-tab buttons active state
+  document.querySelectorAll("#csmTab .sub-tab-btn").forEach(btn => {
+    btn.classList.remove("active");
+  });
+  const activeBtn = document.getElementById(`btn_csm_sub_${subTabId}`);
+  if (activeBtn) activeBtn.classList.add("active");
+
+  // Show/Hide sub-contents
+  document.querySelectorAll(".csm-sub-content").forEach(el => {
+    el.style.display = "none";
+  });
+  const target = document.getElementById(`csmSubTab_${subTabId}`);
+  if (target) {
+    target.style.display = "block";
+  }
+}
+
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Platform,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,CSAT Sentiment,Daily Growth (GB),Days to Limit\n";
