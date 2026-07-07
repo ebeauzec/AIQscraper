@@ -7036,14 +7036,18 @@ function generateActionPlan() {
   const allSupportCases = [];
 
   targetSystems.forEach(sys => {
-    sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
-    if (sys.upgrades.targetVersion !== "Up to Date") {
+    if (sys.risks) {
+      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+    }
+    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
     }
-    if (sys.contracts.daysRemaining <= 90) {
+    if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
     }
-    sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
+    if (sys.fieldActions) {
+      sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
+    }
     if (sys.hypervisors) {
       sys.hypervisors.forEach(h => allHypervisors.push({ systemName: sys.systemName, ...h }));
     }
@@ -7643,14 +7647,18 @@ function downloadPlanSection(index) {
   const switchAlerts = [];
   
   targetSystems.forEach(sys => {
-    sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
-    if (sys.upgrades.targetVersion !== "Up to Date") {
+    if (sys.risks) {
+      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+    }
+    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
     }
-    if (sys.contracts.daysRemaining <= 90) {
+    if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
     }
-    sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
+    if (sys.fieldActions) {
+      sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
+    }
     if (sys.securityBulletins) {
       sys.securityBulletins.forEach(sb => allSecurityAdvisories.push({ systemName: sys.systemName, ...sb }));
     }
@@ -7658,11 +7666,13 @@ function downloadPlanSection(index) {
       sys.supportCases.forEach(sc => allSupportCases.push({ systemName: sys.systemName, ...sc }));
     }
     const sws = getSystemSwitches(sys);
-    sws.forEach(sw => {
-      if (sw.status !== "Optimal") {
-        switchAlerts.push({ systemName: sys.systemName, ...sw });
-      }
-    });
+    if (sws) {
+      sws.forEach(sw => {
+        if (sw.status !== "Optimal") {
+          switchAlerts.push({ systemName: sys.systemName, ...sw });
+        }
+      });
+    }
   });
 
   if (index === 1) {
@@ -7823,11 +7833,13 @@ function downloadDeliverable(type) {
   const allSupportCases = [];
 
   targetSystems.forEach(sys => {
-    sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
-    if (sys.upgrades.targetVersion !== "Up to Date") {
+    if (sys.risks) {
+      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+    }
+    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
     }
-    if (sys.contracts.daysRemaining <= 90) {
+    if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
     }
     if (sys.supportCases) {
