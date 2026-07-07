@@ -7623,12 +7623,46 @@ function renderSidebarGroups() {
   if (!container) return;
   container.innerHTML = "";
 
-  // 1. Group by Customers (calculated dynamically)
+  // 1. Watchlists (Fetched from Active IQ API or Mocked)
+  if (state.watchlists && state.watchlists.length > 0) {
+    const wlHeader = document.createElement("div");
+    wlHeader.className = "tree-section-header";
+    wlHeader.innerText = "Active IQ Watchlists";
+    container.appendChild(wlHeader);
+
+    state.watchlists.forEach(wl => {
+      const item = document.createElement("div");
+      item.className = "tree-item";
+      if (state.activeFilterType === "WATCHLIST" && state.activeFilterValue === wl.id) {
+        item.classList.add("active");
+      }
+      item.onclick = (e) => {
+        e.stopPropagation();
+        setFilter("WATCHLIST", wl.id);
+      };
+
+      const wlSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
+      const riskCount = wlSystems.reduce((acc, s) => acc + s.risks.length, 0);
+      const badge = riskCount > 0 ? `<span class="tree-badge ${wlSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
+
+      item.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        <span class="tree-text">${wl.name}</span>
+        <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; position: relative; z-index: 10;">
+          ${badge}
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  // 2. Group by Customers (calculated dynamically)
   const customers = [...new Set(state.systems.map(s => s.customerName))];
   
   if (customers.length > 0) {
     const custHeader = document.createElement("div");
     custHeader.className = "tree-section-header";
+    custHeader.style.marginTop = "16px";
     custHeader.innerText = "Customer Accounts";
     container.appendChild(custHeader);
 
@@ -7663,7 +7697,7 @@ function renderSidebarGroups() {
     });
   }
 
-  // 2. Custom User Defined Groups
+  // 3. Custom User Defined Groups
   if (state.groups.length > 0) {
     const groupHeader = document.createElement("div");
     groupHeader.className = "tree-section-header";
@@ -7701,7 +7735,7 @@ function renderSidebarGroups() {
     });
   }
 
-  // 3. Starred & Dynamic Filters
+  // 4. Starred & Dynamic Filters
   const savedFilters = loadSavedFilters();
   if (savedFilters.length > 0) {
     const filterHeader = document.createElement("div");
@@ -7730,40 +7764,6 @@ function renderSidebarGroups() {
         renderSidebarGroups();
         renderCharts();
       };
-      container.appendChild(item);
-    });
-  }
-
-  // 4. Watchlists (Fetched from Active IQ API or Mocked)
-  if (state.watchlists && state.watchlists.length > 0) {
-    const wlHeader = document.createElement("div");
-    wlHeader.className = "tree-section-header";
-    wlHeader.style.marginTop = "16px";
-    wlHeader.innerText = "Active IQ Watchlists";
-    container.appendChild(wlHeader);
-
-    state.watchlists.forEach(wl => {
-      const item = document.createElement("div");
-      item.className = "tree-item";
-      if (state.activeFilterType === "WATCHLIST" && state.activeFilterValue === wl.id) {
-        item.classList.add("active");
-      }
-      item.onclick = (e) => {
-        e.stopPropagation();
-        setFilter("WATCHLIST", wl.id);
-      };
-
-      const wlSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
-      const riskCount = wlSystems.reduce((acc, s) => acc + s.risks.length, 0);
-      const badge = riskCount > 0 ? `<span class="tree-badge ${wlSystems.some(s => s.status === 'critical') ? 'critical' : 'warning'}">${riskCount}</span>` : '';
-
-      item.innerHTML = `
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-        <span class="tree-text">${wl.name}</span>
-        <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0; position: relative; z-index: 10;">
-          ${badge}
-        </div>
-      `;
       container.appendChild(item);
     });
   }
