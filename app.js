@@ -5590,7 +5590,7 @@ function printActionPlan() {
             window.print();
             window.close();
           }
-        </script>
+        <\/script>
       </body>
     </html>
   `);
