@@ -106,6 +106,61 @@ When presenting the generated **Executive Action Plans** to customers, account t
 3.  **Active IQ Change Advisor**:
     *   Utilize the Change Advisor tool inside the Active IQ portal to validate compatibility metrics for complex upgrades, especially MetroCluster switches or SnapMirror destinations.
 
+## End-to-End Architecture, Data Handling, & Core Use Cases
+
+This section outlines how data is handled behind the scenes and maps out practical operational workflows for TAM, SAM, and Customer Success functions.
+
+### 1. Data Polling Architecture & Data Flows
+
+The application operates on a local client-side polling cycle:
+1. **Authentication Token Exchange**: The app takes your NSS Developer Refresh Token and makes an HTTP `POST` call to the NetApp OAuth endpoint (`/tokens/accessToken`). This returns a short-lived JSON Web Token (JWT) access token (valid for 1 hour).
+2. **Telemetry Harvesting**: The app executes standard HTTP `GET` requests to retrieve telemetry endpoints:
+   * `/systems`: Retrieves cluster inventory, OS/firmware versions, hardware platforms, capacity statistics, and SnapMirror states.
+   * `/watchlists`: Retrieves user-configured cluster groups to enable targeted filtering.
+3. **CORS Bypass Layer**: Because the application runs as a static file, requests are routed either directly to the public API (when a local CORS unblocking extension is active) or through a local reverse-proxy gateway configuration (when deployed on a local server).
+4. **Background Polling Loop**: The application instantiates a 60-second checking interval (`checkAutoSync()`). If automatic synchronization is enabled (e.g., 6 hours, 12 hours, or 24 hours) and the duration since the last sync exceeds the configured threshold, the browser automatically executes a telemetry refresh in the background.
+
+### 2. Zero-Trust Local Storage & Security
+
+Data security is critical when handling enterprise datacenter telemetry. This dashboard runs on a **zero-trust local-only architecture**:
+* **Where Data is Stored**: All credentials, access tokens, customer system databases (`aiq_systems_db`), custom subgroups (`aiq_custom_groups`), watchlists, and custom metadata are persisted **strictly inside the browser's local sandbox (`localStorage`)**.
+* **Zero External Transmission**: No telemetry data, serial numbers, IP addresses, or access tokens are ever transmitted to external servers, cloud databases, or third-party loggers.
+* **Offline Independence**: Because the database resides in `localStorage`, the dashboard can be run fully offline in air-gapped secure rooms without losing access to reports or previous audit logs.
+
+---
+
+### 3. User Role Workflows & Real-World Use Cases
+
+The dashboard consolidates technical metrics to serve three distinct support functions:
+
+#### Use Case A: Technical Account Manager (TAM) - Deep-Dive Engineering & Upgrades
+* **Goal**: Audit a customer's environmental health, identify hardware faults, and plan a major OS upgrade sequence.
+* **End-to-End Steps**:
+  1. Open the **Overview Dashboard** and select the customer's cluster (e.g., `netapp-aff-01`).
+  2. Navigate to the **TAM Tab** and review active risks (e.g., "Single Controller Path Failure").
+  3. Inspect the **L1 Cabling Map** diagram at the bottom of the page to identify the exact physical controller port (e.g., Slot A - Port 1a) and destination shelf port reporting errors.
+  4. Go to **Upgrade Pathfinder** under the actions column. Review the multi-hop OS path (e.g., upgrading a legacy 9.5 system to 9.12.1 requires intermediate hops through 9.7 and 9.11). Copy the sequential command instructions and read-only NetApp support guides.
+  5. Toggle to the **Virtualization & Containers** card to check ESXi Round Robin compliance and Astra Trident CSI driver versions.
+
+#### Use Case B: Support Account Manager (SAM) - Service Operations & Case Escalations
+* **Goal**: Conduct a weekly operational review with a customer, audit open support tickets, and address warranty renewals.
+* **End-to-End Steps**:
+  1. Open the dashboard and filter the sidebar by the customer's account name.
+  2. Navigate to the **SAM Tab** and review the **Support Contracts** grid. Note any systems showing red warnings (warranty expiring in less than 30 days) to prepare renewal quotes.
+  3. Audit the **Open Technical Cases** log. Read case summaries, priority levels, and TAM engineering notes. Highlight critical "S1" or "S2" cases blocking progress.
+  4. Check the **Field Actions** table to see if any outstanding factory recalls or critical firmware bulletins require scheduling cluster maintenance.
+  5. Click **Download Operations Report (CSV)** to export the ticket list into Excel for the customer meeting.
+
+#### Use Case C: Customer Success Manager (CSM) - Adoption, ROI, & QBR Planning
+* **Goal**: Prepare data-backed slides for a Quarterly Business Review (QBR), showing capacity growth runways and software feature adoption rates.
+* **End-to-End Steps**:
+  1. Filter the sidebar by the customer account.
+  2. Navigate to the **CSM Tab** and inspect the **Storage Efficiency & ROI** gauges. Note the overall data reduction ratio (e.g. 3.5:1) and space saved to calculate cost savings.
+  3. Review **FabricPool Cloud Tiering**: Identify how many TBs of cold data have been migrated to AWS S3/Azure Blob to demonstrate hybrid cloud ROI.
+  4. Audit the **Capability Adoption Grid**: Check if SnapMirror replication is enabled to verify disaster recovery compliance.
+  5. Check the **Capacity Runway Projection**: Review the 3-month growth trend graph to estimate when the customer will reach 90% capacity, and generate a preemptive tech refresh recommendation.
+  6. Go to the **Action Planner**, select the customer, click **Generate Consolidated Action Plan**, and print it to a clean PDF report to share during the QBR.
+
 ---
 
 ## Indemnity & License Agreement
