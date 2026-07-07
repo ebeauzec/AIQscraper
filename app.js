@@ -7639,8 +7639,14 @@ function updateScheduledSyncInfo() {
 async function triggerManualSync() {
   const spinner = document.getElementById("syncSpinnerIcon");
   
-  if (state.mockMode) {
+  const mockToggle = document.getElementById("settingsMockModeToggle").checked;
+  if (mockToggle) {
     alert("CORS/Offline Mode Warning:\nThe dashboard is currently in Offline Demo Mode. Please disable Offline Mode in settings and configure a valid Active IQ Developer Refresh Token to pull live REST telemetry.");
+    return;
+  }
+  
+  if (state.mockMode) {
+    await saveSettings();
     return;
   }
   
