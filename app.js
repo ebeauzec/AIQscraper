@@ -7496,7 +7496,90 @@ function getSystemPortMappings(sys) {
   const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
   
   const isEseries = sys.santricityVersion !== undefined || sys.platform.includes("E-Series");
+  const isCloud = sys.platform.toLowerCase().includes("cloud");
+  const isStorageGrid = sys.platform.toLowerCase().includes("storagegrid");
   
+  if (isCloud) {
+    const provider = sys.platform.includes("AWS") ? "AWS VPC" : (sys.platform.includes("Azure") ? "Azure VNet" : "GCP VPC");
+    return [
+      {
+        name: "e0a",
+        type: "mgmt",
+        status: "online",
+        partnerType: "mgmt_switch",
+        partnerName: `${provider} Management Subnet Gateway`,
+        partnerPort: "vNic0",
+        cablingStatus: "optimal",
+        details: { speed: "10 Gbps Virtual", mtu: 1500, ip: `10.240.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.10` }
+      },
+      {
+        name: "e0b",
+        type: "data",
+        status: "online",
+        partnerType: "core_switch",
+        partnerName: `${provider} Data Subnet Route Table`,
+        partnerPort: "vNic1",
+        cablingStatus: "optimal",
+        details: { speed: "25 Gbps Virtual", mtu: 9000, ip: `10.240.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.20` }
+      },
+      {
+        name: "e0c",
+        type: "cluster",
+        status: "online",
+        partnerType: "cluster_switch",
+        partnerName: `${provider} HA Interconnect Peering`,
+        partnerPort: "vNic2",
+        cablingStatus: "optimal",
+        details: { speed: "25 Gbps Virtual", mtu: 9000, ip: "169.254.100.1" }
+      },
+      {
+        name: "e0d",
+        type: "data",
+        status: "online",
+        partnerType: "core_switch",
+        partnerName: `${provider} Intercluster Sync Routing`,
+        partnerPort: "vNic3",
+        cablingStatus: "optimal",
+        details: { speed: "10 Gbps Virtual", mtu: 9000, ip: `10.240.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.30` }
+      }
+    ];
+  }
+
+  if (isStorageGrid) {
+    return [
+      {
+        name: "Grid Network",
+        type: "cluster",
+        status: "online",
+        partnerType: "cluster_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-grid-sw-A`,
+        partnerPort: "Port 1",
+        cablingStatus: "optimal",
+        details: { speed: "10/25 Gbps Bond", mtu: 9000, ip: `172.16.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.2` }
+      },
+      {
+        name: "Admin Network",
+        type: "mgmt",
+        status: "online",
+        partnerType: "mgmt_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-A`,
+        partnerPort: "Port 2",
+        cablingStatus: "optimal",
+        details: { speed: "1 Gbps Active-Backup", mtu: 1500, ip: `10.120.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.2` }
+      },
+      {
+        name: "Client Network",
+        type: "data",
+        status: "online",
+        partnerType: "core_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-A`,
+        partnerPort: "Port 3",
+        cablingStatus: "optimal",
+        details: { speed: "10/25 Gbps Bond", mtu: 9000, ip: `192.168.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.2` }
+      }
+    ];
+  }
+
   if (isEseries) {
     const isEf600 = sys.platform.includes("EF600");
     return [
@@ -7772,10 +7855,56 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     `;
   });
 
-  container.innerHTML = `
-    ${tabsHtml}
-    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start;">
-      <!-- Controller Node rear backplate layout -->
+  let backplateHtml = "";
+  const isEseries = sys.santricityVersion !== undefined || sys.platform.includes("E-Series");
+  const isCloud = sys.platform.toLowerCase().includes("cloud");
+  const isStorageGrid = sys.platform.toLowerCase().includes("storagegrid");
+
+  if (isCloud) {
+    backplateHtml = `
+      <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(30, 64, 175, 0.2)); border: 3px dashed #3b82f6; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; position: sticky; top: 12px; border-left: 8px solid #3b82f6;">
+        <div style="font-size: 0.8rem; font-weight: 700; color: #fff; margin-bottom: 6px;">VIRTUAL APPLIANCE NODE</div>
+        <div style="font-size: 0.65rem; color: var(--accent-cyan); font-family: monospace; text-transform: uppercase; margin-bottom: 12px;">${sys.platform}</div>
+        <div style="font-size: 2.2rem; margin: 15px 0; color: var(--accent-cyan); filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.4));">☁️</div>
+        <div style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.4; text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
+          Cloud Volumes ONTAP represents a virtual appliance deployed in cloud subnets. Layer-1 cabling is managed dynamically by cloud provider hypervisors.
+        </div>
+      </div>
+    `;
+  } else if (isStorageGrid) {
+    backplateHtml = `
+      <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(107, 33, 168, 0.2)); border: 3px solid #a855f7; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; position: sticky; top: 12px; border-left: 8px solid #a855f7;">
+        <div style="font-size: 0.8rem; font-weight: 700; color: #fff; margin-bottom: 6px;">OBJECT APPLIANCE NODE</div>
+        <div style="font-size: 0.65rem; color: var(--accent-cyan); font-family: monospace; text-transform: uppercase; margin-bottom: 12px;">${sys.platform}</div>
+        <div style="font-size: 2.2rem; margin: 15px 0; color: #a855f7; filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4));">⚙️</div>
+        <div style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.4; text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
+          StorageGRID grid networks handle S3/Swift object ingest and replication across nodes. Port profiles map grid, admin, and client subnets.
+        </div>
+      </div>
+    `;
+  } else if (isEseries) {
+    backplateHtml = `
+      <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border: 3px solid #475569; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid #f59e0b; position: sticky; top: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #475569; padding-bottom: 8px; margin-bottom: 14px;">
+          <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
+            ${sys.systemName.toLowerCase().endsWith('b') ? 'E-SERIES CONTROLLER B' : 'E-SERIES CONTROLLER A'}
+          </div>
+          <div style="font-size: 0.58rem; color: #f59e0b; font-family: monospace;">${sys.platform.split(' ')[0]}</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: var(--radius-sm);">
+          ${portsHtml}
+        </div>
+        <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #475569; padding-top: 10px;">
+          <div style="background: #1e293b; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">POWER-A</div>
+          <div style="background: #1e293b; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">POWER-B</div>
+        </div>
+        <div style="margin-top: 12px; font-size: 0.62rem; color: var(--text-muted); line-height: 1.35; text-align: center;">
+          E-Series SANtricity hardware L1 host and storage expansion interface mapping layout.
+        </div>
+      </div>
+    `;
+  } else {
+    backplateHtml = `
       <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan); position: sticky; top: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #4b5563; padding-bottom: 8px; margin-bottom: 14px;">
           <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
@@ -7794,6 +7923,13 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           Hover over ports or table rows to highlight individual layer-1 link cabling pathways.
         </div>
       </div>
+    `;
+  }
+
+  container.innerHTML = `
+    ${tabsHtml}
+    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start;">
+      ${backplateHtml}
       
       <!-- Detailed Cabling Audit Table -->
       <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto; background: rgba(15,22,38,0.3);">
@@ -7822,8 +7958,32 @@ function selectVisualNode(serial) {
   const activeSerials = state.selectedTAMSerials || [];
   const selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
   const activeSys = selectedSystems.find(s => s.serialNumber === serial) || selectedSystems[0];
+  
   if (activeSys) {
     renderNodeVisualLayout(selectedSystems, activeSys);
+    
+    // Dynamically update E-Series visual health panel and SVM security panel to remain context-aware
+    const eseriesCard = document.getElementById("tamEseriesVisualCard");
+    const isEseries = activeSys && (activeSys.santricityVersion !== undefined || activeSys.platform.includes("E-Series"));
+    if (eseriesCard) {
+      if (isEseries) {
+        eseriesCard.style.display = "block";
+        renderEseriesHardwareAudit(activeSys);
+      } else {
+        eseriesCard.style.display = "none";
+      }
+    }
+    
+    const svmCard = document.getElementById("tamSvmCard");
+    if (svmCard) {
+      const svms = getSystemSvms(activeSys);
+      if (svms && svms.length > 0) {
+        svmCard.style.display = "block";
+        renderSvmSecurityAudit(activeSys);
+      } else {
+        svmCard.style.display = "none";
+      }
+    }
   }
 }
 
