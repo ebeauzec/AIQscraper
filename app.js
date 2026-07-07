@@ -5761,7 +5761,7 @@ PREPARED BY: NetApp Account Management & Customer Success
   } else {
     salesProposals += "1. URGENT SUPPORT CONTRACT RENEWALS:\n";
     expiringContracts.forEach(e => {
-      salesProposals += ` - System: ${e.systemName}
+      salesProposals += ` - System: ${e.systemName} (S/N: ${e.serialNumber || "unknown"})
    Support Level: ${e.supportLevel}
    Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)
    Recommendation: Renew support contract immediately to maintain active technical support and hardware replacement services.\n\n`;
@@ -5855,7 +5855,7 @@ function generateActionPlan() {
       allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
-      expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
+      expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
     }
     if (sys.fieldActions) {
       sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
@@ -6422,7 +6422,7 @@ function downloadPlanSection(index) {
       allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
-      expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
+      expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
     }
     if (sys.fieldActions) {
       sys.fieldActions.forEach(fa => activeFAs.push({ systemName: sys.systemName, ...fa }));
@@ -6633,7 +6633,7 @@ function downloadDeliverable(type) {
       allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
-      expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
+      expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
     }
     if (sys.supportCases) {
       sys.supportCases.forEach(sc => allSupportCases.push({ systemName: sys.systemName, ...sc }));
