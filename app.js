@@ -6088,37 +6088,83 @@ function triggerFileDownload(filename, text) {
 }
 
 function printActionPlan() {
-  const printContent = document.getElementById("generatedPlanBody").innerHTML;
+  const originalBody = document.getElementById("generatedPlanBody");
+  if (!originalBody) return;
+
+  // Create temporary clone container to process HTML edits without affecting the user's dashboard view
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = originalBody.innerHTML;
+  
+  // Find all textareas (advisory email, proposal, ticket, success plan) and swap them for pre-wrap divs to display complete texts in printout
+  const textareas = tempDiv.querySelectorAll("textarea");
+  textareas.forEach(ta => {
+    const valText = ta.value || ta.innerText || "";
+    const replacement = document.createElement("div");
+    replacement.className = "print-textarea-replacement";
+    replacement.innerText = valText;
+    ta.parentNode.replaceChild(replacement, ta);
+  });
+  
+  const printHtml = tempDiv.innerHTML;
   const printWindow = window.open("", "_blank");
+  
   printWindow.document.write(`
     <html>
       <head>
-        <title>NetApp Active IQ Action Plan</title>
+        <title>NetApp Active IQ Consolidate Action Plan</title>
         <style>
           body {
             background-color: #ffffff;
-            color: #000000;
-            font-family: 'Segoe UI', -apple-system, sans-serif;
-            padding: 40px;
+            color: #111827;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 30px;
+            line-height: 1.5;
           }
-          h1, h2, h3, h4 { color: #000000; font-family: sans-serif; }
-          h2 { border-bottom: 2px solid #00e5ff; padding-bottom: 8px; }
-          .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; border: 1px solid #333; }
-          .badge.critical { background: #ffe3e3; color: #cc0033; }
-          .badge.warning { background: #fff8e3; color: #cc9900; }
-          .badge.normal { background: #e3ffe3; color: #009933; }
-          .badge.info { background: #e3f8ff; color: #0066cc; }
-          ul, ol { margin-left: 20px; }
-          li { margin-bottom: 6px; font-size: 0.85rem; }
-          .plan-document-header { border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 24px; }
+          h1 { font-size: 1.8rem; font-weight: 700; color: #111827; margin-bottom: 8px; }
+          h2 { font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-top: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
+          h3 { font-size: 1.1rem; font-weight: 600; color: #374151; margin-top: 20px; }
+          h4 { font-size: 0.95rem; font-weight: 600; color: #4b5563; }
+          .badge { display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; border: 1px solid transparent; }
+          .badge.critical { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+          .badge.high { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+          .badge.warning { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+          .badge.medium { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+          .badge.normal { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+          .badge.optimal { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+          .badge.info { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+          ul, ol { margin-left: 20px; margin-top: 6px; }
+          li { margin-bottom: 8px; font-size: 0.85rem; color: #374151; }
+          code { font-family: SFMono-Regular, Consolas, Monaco, monospace; font-size: 0.85rem; background: #f3f4f6; padding: 2px 4px; border-radius: 4px; color: #1f2937; }
+          .plan-document-header { border-bottom: 3px solid #3b82f6; padding-bottom: 16px; margin-bottom: 30px; }
+          .print-textarea-replacement {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-family: SFMono-Regular, Consolas, Monaco, monospace;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            margin-top: 8px;
+            color: #1f2937;
+            line-height: 1.45;
+            border-left: 3px solid #3b82f6;
+          }
+          .plan-section {
+            display: block !important;
+            page-break-after: always;
+            margin-bottom: 40px;
+          }
+          .plan-section:last-child {
+            page-break-after: avoid;
+          }
+          button, .action-btn, .external-link { display: none !important; }
           @media print {
             body { padding: 0; }
-            button { display: none; }
           }
         </style>
       </head>
       <body>
-        ${printContent}
+        ${printHtml}
         <script>
           window.onload = function() {
             window.print();
