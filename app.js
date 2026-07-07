@@ -4706,48 +4706,50 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
 - Cross-reference active shipment codes against tracking APIs.`;
 
   let html = `
-    <div class="plan-document-header">
-      <div style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">NetApp Operations & Advisory Plan</div>
-      <h1 style="font-size: 1.8rem; margin: 8px 0 16px 0; color: #fff;">Executive Action Plan & Best Practices Guide</h1>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px solid var(--border-color); padding-top: 12px;">
-        <div>Scope: <strong>${scopeTitle}</strong></div>
-        <div>Date Generated: <strong>${new Date().toISOString().split('T')[0]}</strong></div>
+    <div class="plan-section active" data-section-index="1">
+      <div class="plan-document-header">
+        <div style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">NetApp Operations & Advisory Plan</div>
+        <h1 style="font-size: 1.8rem; margin: 8px 0 16px 0; color: #fff;">Executive Action Plan & Best Practices Guide</h1>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.85rem; color: var(--text-secondary); border-top: 1px solid var(--border-color); padding-top: 12px;">
+          <div>Scope: <strong>${scopeTitle}</strong></div>
+          <div>Date Generated: <strong>${new Date().toISOString().split('T')[0]}</strong></div>
+        </div>
       </div>
-    </div>
 
-    <!-- Executive Summary Section -->
-    <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">1. Executive Summary</h2>
-      <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 12px;">
-        This document represents the consolidated operational action plan generated from telemetry data analyzed by NetApp Active IQ Digital Advisor. 
-        A total of <strong>${targetSystems.length}</strong> storage configuration(s) were audited.
-      </p>
-      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 20px 0;">
-        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Total Risks</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
-        </div>
-        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
-        </div>
-        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Open Support Cases</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.length}</div>
-        </div>
-        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Expiring</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
-        </div>
-        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
-          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
+      <!-- Executive Summary Section -->
+      <div style="margin-top: 32px;">
+        <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">1. Executive Summary</h2>
+        <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 12px;">
+          This document represents the consolidated operational action plan generated from telemetry data analyzed by NetApp Active IQ Digital Advisor. 
+          A total of <strong>${targetSystems.length}</strong> storage configuration(s) were audited.
+        </p>
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 20px 0;">
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Total Risks</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Open Support Cases</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.length}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Expiring</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Technical Risks Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="2" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">2. Prioritized Technical Risks & Remediation Steps</h2>
   `;
 
@@ -4793,7 +4795,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- Security & Technical Bulletins Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="3" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">3. Security Bulletins & Vulnerability Mitigations</h2>
   `;
 
@@ -4824,7 +4826,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- Open Support Cases Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="4" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">4. Active Support Cases & Milestones</h2>
   `;
 
@@ -4864,7 +4866,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- OS/Firmware Upgrades Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="5" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">5. Recommended OS Upgrade Roadmaps</h2>
   `;
 
@@ -4893,7 +4895,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- Network Switch & Fabric Infrastructure Remediation Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="6" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">6. Network Switch & Fabric Infrastructure Remediation</h2>
   `;
 
@@ -4965,7 +4967,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- Site Logistics, Contacts & Health Details Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="7" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">7. Site Logistics, Contacts, & Customer Health</h2>
   `;
 
@@ -5002,7 +5004,7 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- Guidelines and Proceeding Steps Section -->
-    <div style="margin-top: 32px;">
+    <div class="plan-section" data-section-index="8" style="display: none; margin-top: 32px;">
       <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">8. Operational Guidelines & Proceeding Steps</h2>
       
       <div style="margin-bottom: 18px;">
@@ -5041,8 +5043,8 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
     </div>
 
     <!-- Deliverables and Drafts Section -->
-    <div style="margin-top: 32px;">
-      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">8. Executable Account Deliverables</h2>
+    <div class="plan-section" data-section-index="9" style="display: none; margin-top: 32px;">
+      <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">9. Executable Account Deliverables</h2>
       
       <div style="margin-bottom: 20px;">
         <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Draft Customer Alert Email Notification</h4>
@@ -5065,7 +5067,213 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
   `;
 
   planBody.innerHTML = html;
+  
+  // Render plan sub-tabs bar dynamically
+  const planTabsHeader = document.getElementById("planTabsHeader");
+  if (planTabsHeader) {
+    planTabsHeader.style.display = "flex";
+    planTabsHeader.innerHTML = `
+      <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)">1. Summary</button>
+      <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)">4. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)">5. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)">7. Logistics & Health</button>
+      <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)">8. Guidelines</button>
+      <button class="plan-tab-btn" data-tab-index="9" onclick="switchPlanTab(9)">9. Deliverables Drafts</button>
+    `;
+  }
+
   document.getElementById("planControlsPanel").style.display = "flex";
+}
+
+// Global section switcher inside generated plan
+function switchPlanTab(index) {
+  const sections = document.querySelectorAll(".plan-section");
+  const buttons = document.querySelectorAll(".plan-tab-btn");
+  
+  sections.forEach(sec => {
+    const secIdx = parseInt(sec.getAttribute("data-section-index"));
+    if (secIdx === index) {
+      sec.style.display = "block";
+      sec.classList.add("active");
+    } else {
+      sec.style.display = "none";
+      sec.classList.remove("active");
+    }
+  });
+  
+  buttons.forEach(btn => {
+    const btnIdx = parseInt(btn.getAttribute("data-tab-index"));
+    if (btnIdx === index) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
+}
+
+// Download deliverables helper by type and active environment scope
+function downloadDeliverable(type) {
+  let targetSystems = [];
+  let scopeTitle = "";
+  
+  if (state.activeFilterType === "ALL") {
+    targetSystems = getFilteredSystems();
+    const query = (state.activeSearchQuery || "").trim();
+    scopeTitle = query !== "" ? "Filtered_Portfolio" : "All_Systems";
+  } else if (state.activeFilterType === "CUSTOMER") {
+    const custName = state.activeFilterValue;
+    targetSystems = state.systems.filter(s => s.customerName === custName);
+    scopeTitle = `Customer_${custName}`;
+  } else if (state.activeFilterType === "GROUP") {
+    const groupId = state.activeFilterValue;
+    const grp = state.groups.find(g => g.id === groupId);
+    if (grp) {
+      targetSystems = state.systems.filter(s => grp.systemSerials.includes(s.serialNumber));
+      scopeTitle = `Group_${grp.name}`;
+    }
+  } else if (state.activeFilterType === "WATCHLIST") {
+    const wlId = state.activeFilterValue;
+    const wl = state.watchlists.find(w => w.id === wlId);
+    if (wl) {
+      targetSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber));
+      scopeTitle = `Watchlist_${wl.name}`;
+    }
+  }
+
+  if (targetSystems.length === 0) {
+    alert("No active systems found in the current scope to compile this deliverable. Please adjust your Account Filters.");
+    return;
+  }
+
+  // Sanitize filename scope string
+  const cleanScope = scopeTitle.replace(/[^a-z0-9_]/gi, '_');
+
+  const allRisks = [];
+  const allUpgrades = [];
+  const expiringContracts = [];
+  const allSupportCases = [];
+
+  targetSystems.forEach(sys => {
+    sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+    if (sys.upgrades.targetVersion !== "Up to Date") {
+      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, ...sys.upgrades });
+    }
+    if (sys.contracts.daysRemaining <= 90) {
+      expiringContracts.push({ systemName: sys.systemName, ...sys.contracts });
+    }
+    if (sys.supportCases) {
+      sys.supportCases.forEach(sc => allSupportCases.push({ systemName: sys.systemName, ...sc }));
+    }
+  });
+
+  if (type === 'EMAIL') {
+    const emailRisksList = allRisks.map(r => ` - System: ${r.systemName} | Category: ${r.category} | Issue: ${r.description}`).join("\n");
+    const emailCasesList = allSupportCases.map(c => ` - Case ID: ${c.id} | Subject: ${c.title} | Status: ${c.status}`).join("\n");
+    const text = `Subject: NetApp Operational Health & Risk Advisory Alert - ${scopeTitle.replace(/_/g, ' ')}
+
+Dear Storage Operations Team,
+
+This is a proactive advisory update from your NetApp Account Team regarding the health, stability, and operational risk metrics of your storage systems. Active IQ Digital Advisor has analyzed your configurations and identified items requiring your review:
+
+${allRisks.length > 0 ? `CRITICAL/HIGH TECHNICAL RISKS:\n${emailRisksList}` : "✓ No critical or high technical configuration risks detected."}
+
+${allSupportCases.length > 0 ? `OPEN SUPPORT TICKETS:\n${emailCasesList}` : "✓ No active open technical support cases detected."}
+
+RECOMMENDED ACTION ITEMS:
+1. Review the step-by-step remediation plans in our attached Operations Plan.
+2. Schedule a maintenance window to apply critical firmware upgrades or replace degraded SAS cabling if applicable.
+3. Verify logistics shipping details with site contacts before part dispatch.
+
+If you have any questions or require assistance, please contact your account support leads.
+
+Best Regards,
+[Your Name / NetApp TAM Team]`;
+
+    triggerFileDownload(`advisory_email_${cleanScope}.txt`, text);
+
+  } else if (type === 'PROPOSAL') {
+    const upgradeTargetsList = allUpgrades.map(u => {
+      const origSys = targetSystems.find(s => s.systemName === u.systemName);
+      const origVer = origSys ? origSys.ontapVersion : "unknown";
+      return ` - System: ${u.systemName} | Current OS: ${origVer} | Target OS: ${u.targetVersion}`;
+    }).join("\n");
+    const contractExpiryList = expiringContracts.map(e => ` - System: ${e.systemName} | Support Level: ${e.supportLevel} | Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)`).join("\n");
+
+    const text = `MEMORANDUM OF PROPOSAL: STORAGE OS UPGRADE & PLATFORM REFRESH
+
+CUSTOMER BASE: ${scopeTitle.replace(/_/g, ' ')}
+PREPARED BY: NetApp Technical Account Management (TAM)
+
+1. RECOMMENDED OPERATING SYSTEM UPGRADES
+To align your systems with NetApp's Interoperability Matrix Tool (IMT) and apply critical security/performance microcode updates, we recommend the following target version updates:
+${allUpgrades.length > 0 ? upgradeTargetsList : "✓ All systems in scope are currently running recommended stable releases."}
+
+2. SUPPORT CONTRACT RENEWALS & PLATFORM REFRESH
+The following storage controllers are approaching contract expiration or end-of-support deadlines and require immediate renewal or node swap planning:
+${expiringContracts.length > 0 ? contractExpiryList : "✓ All active contracts have > 90 days remaining."}
+
+3. HARDWARE EXPANSION OPPORTUNITIES
+To maintain performance headroom and address storage growth runway targets, we propose expanding:
+ - FabricPool cloud tiering to offload cold blocks to Object Storage.
+ - Target tech refresh timelines matching upcoming windows.`;
+
+    triggerFileDownload(`upgrade_proposal_${cleanScope}.txt`, text);
+
+  } else if (type === 'TICKET') {
+    const text = `TICKET TITLE: NetApp Dispatch & Parts Coordination - ${scopeTitle.replace(/_/g, ' ')}
+
+TICKET CLASSIFICATION: Infrastructure Operations -> NetApp Storage Maintenance
+TICKET SEVERITY: S2 - Major (Logistics & Maintenance Window Required)
+
+DESCRIPTION:
+Please initiate change control and stage parts coordination for the following NetApp systems:
+
+${targetSystems.map(s => {
+  const l = s.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set" };
+  const c = s.contacts || { name: "Not Set", phone: "Not Set" };
+  return `SYSTEM: ${s.systemName} (S/N: ${s.serialNumber})
+- Delivery Address: ${l.deliveryAddress}
+- Access Rules: ${l.accessRestrictions}
+- Site Contact: ${c.name} (${c.phone})`;
+}).join("\n\n")}
+
+LOGISTICS COMPLIANCE INSTRUCTIONS:
+- Verify active Secret/Biometric clearance criteria with site contacts prior to dispatch.
+- Cross-reference active shipment codes against tracking APIs.`;
+
+    triggerFileDownload(`dispatch_ticket_${cleanScope}.txt`, text);
+
+  } else if (type === 'CSV') {
+    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Platform Model", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
+    const rows = targetSystems.map(sys => [
+      sys.customerName,
+      sys.systemName,
+      sys.clusterName,
+      sys.serialNumber,
+      sys.platform,
+      sys.ontapVersion,
+      sys.status,
+      sys.risks.length,
+      sys.contracts.endDate,
+      sys.salesHealth ? sys.salesHealth.supportTam : "Not Set"
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+    
+    triggerFileDownload(`systems_audit_${cleanScope}.csv`, csvContent);
+  }
+}
+
+function triggerFileDownload(filename, text) {
+  const element = document.createElement('a');
+  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+  element.setAttribute('download', filename);
+  element.style.display = 'none';
+  document.body.appendChild(element);
+  element.click();
+  document.body.removeChild(element);
 }
 
 function printActionPlan() {

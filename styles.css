@@ -886,3 +886,58 @@ input:checked + .slider:before {
 #sandboxGraphQLOutput::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 229, 255, 0.4);
 }
+
+/* Sub-tab navigation under Executive Action Plan */
+.action-plan-tabs-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.action-plan-tabs-nav::-webkit-scrollbar {
+  height: 4px;
+}
+.action-plan-tabs-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.plan-tab-btn {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.plan-tab-btn:hover {
+  background: rgba(0, 229, 255, 0.05);
+  color: var(--accent-cyan);
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.plan-tab-btn.active {
+  background: var(--accent-gradient);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 229, 255, 0.2);
+}
+
+/* Print layout overrides: expand all sub-tabs sequentially and hide navigation */
+@media print {
+  .plan-section {
+    display: block !important;
+    page-break-after: always;
+  }
+  .action-plan-tabs-nav {
+    display: none !important;
+  }
+}

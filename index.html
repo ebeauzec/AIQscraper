@@ -63,6 +63,40 @@
           <!-- JS dynamic groups list -->
         </div>
       </div>
+
+      <!-- Deliverables Section -->
+      <div class="sidebar-groups-section" id="sidebarDeliverablesSection" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700; padding: 0 4px;">Deliverables</span>
+        <div class="tree-menu" style="display: flex; flex-direction: column; gap: 4px;">
+          <!-- Category: Customer Communication -->
+          <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-top: 4px; padding: 0 4px;">Communications</div>
+          <div class="tree-item" onclick="downloadDeliverable('EMAIL')" data-tooltip="Download the proactive customer advisory alert email draft as a TXT file.">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <span class="tree-text">Customer Alert Email (TXT)</span>
+          </div>
+
+          <!-- Category: Business Proposals -->
+          <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-top: 4px; padding: 0 4px;">Proposals</div>
+          <div class="tree-item" onclick="downloadDeliverable('PROPOSAL')" data-tooltip="Download the Storage OS Upgrade & Hardware Refresh proposal draft as a TXT file.">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            <span class="tree-text">OS Upgrade Proposal (TXT)</span>
+          </div>
+
+          <!-- Category: Operational Workflows -->
+          <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-top: 4px; padding: 0 4px;">Operational Workflows</div>
+          <div class="tree-item" onclick="downloadDeliverable('TICKET')" data-tooltip="Download the internal parts dispatch & technician coordination ticket template as a TXT file.">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+            <span class="tree-text">Parts Dispatch Ticket (TXT)</span>
+          </div>
+
+          <!-- Category: Telemetry Reports -->
+          <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-top: 4px; padding: 0 4px;">Reports & Telemetry</div>
+          <div class="tree-item" onclick="downloadDeliverable('CSV')" data-tooltip="Export the systems list in the active filter scope to a CSV spreadsheet.">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span class="tree-text">Systems Audit List (CSV)</span>
+          </div>
+        </div>
+      </div>
       
       <div class="nav-footer">
         NetApp Internal Tool<br>Version 1.6.0
@@ -446,8 +480,13 @@
         </div>
 
         <div id="planControlsPanel" class="card" style="display: none; padding: 14px 24px; margin-bottom: 20px; flex-direction: row; justify-content: space-between; align-items: center;">
-          <div style="font-size: 0.85rem; color: var(--text-secondary);">Action Plan loaded. Ready for distribution.</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary);">Action Plan loaded. Use the tabs below to navigate sections.</div>
           <button class="action-btn" onclick="printActionPlan()" data-tooltip="Print or save the current operational action plan as a PDF file.">Print / Save Action Plan (PDF)</button>
+        </div>
+
+        <!-- Plan Sub-Tabs Navigation (Hidden until generated) -->
+        <div id="planTabsHeader" class="action-plan-tabs-nav" style="display: none;">
+          <!-- Injected dynamically by JS -->
         </div>
 
         <div class="card" style="padding: 32px; background-color: var(--bg-card);">
