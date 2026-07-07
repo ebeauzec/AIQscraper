@@ -2699,7 +2699,7 @@ function getFilteredSystems(excludeKpiFilter = false) {
         sys.serialNumber.toLowerCase().includes(term) ||
         sys.clusterName.toLowerCase().includes(term) ||
         sys.customerName.toLowerCase().includes(term) ||
-        sys.platform.toLowerCase().includes(term)
+        (sys.platform || "").toLowerCase().includes(term)
       );
     });
   }
@@ -5575,10 +5575,10 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
   `;
 
   targetSystems.forEach(sys => {
-    const l = sys.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None" };
-    const c = sys.contacts || { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set" };
-    const h = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review" };
-    const p = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review" };
+    const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
+    const c = { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set", ...sys.contacts };
+    const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review", ...sys.salesHealth };
+    const p = { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", ...sys.projections };
     
     html += `
       <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 0.85rem; line-height: 1.4;">
@@ -5900,9 +5900,9 @@ ${switchAlerts.length === 0 ? "✓ All interconnect and storage network fabric s
 Scope: ${scopeTitle}
 
 ${targetSystems.map(sys => {
-  const l = sys.logistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None" };
-  const c = sys.contacts || { name: "Not Set", phone: "Not Set", email: "Not Set" };
-  const h = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable" };
+  const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
+  const c = { name: "Not Set", phone: "Not Set", email: "Not Set", ...sys.contacts };
+  const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", ...sys.salesHealth };
   return `SYSTEM: ${sys.systemName} (S/N: ${sys.serialNumber})
 - Delivery Address: ${l.deliveryAddress}
 - Access restrictions: ${l.accessRestrictions}
@@ -7566,9 +7566,10 @@ function getSystemPortMappings(sys) {
   const hasMgmtFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("management") || r.description.toLowerCase().includes("mgmt"));
   const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
   
-  const isEseries = sys.santricityVersion !== undefined || sys.platform.includes("E-Series");
-  const isCloud = sys.platform.toLowerCase().includes("cloud");
-  const isStorageGrid = sys.platform.toLowerCase().includes("storagegrid");
+  const platformStr = sys.platform || "";
+  const isEseries = sys.santricityVersion !== undefined || platformStr.includes("E-Series");
+  const isCloud = platformStr.toLowerCase().includes("cloud");
+  const isStorageGrid = platformStr.toLowerCase().includes("storagegrid");
   
   if (isCloud) {
     const provider = sys.platform.includes("AWS") ? "AWS VPC" : (sys.platform.includes("Azure") ? "Azure VNet" : "GCP VPC");
