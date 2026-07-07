@@ -5153,8 +5153,6 @@ LOGISTICS COMPLIANCE INSTRUCTIONS:
       </div>
     </div>
   `;
-    </div>
-  `;
 
   planBody.innerHTML = html;
   
