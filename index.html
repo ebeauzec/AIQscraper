@@ -1888,7 +1888,7 @@ const MOCK_SYSTEMS = [
         category: "Hardware",
         description: "Single Controller Path Failure detected on SAS loop 1.",
         recommendation: "Inspect SAS cable connections on shelf 2, port 1B. Refer to KB1089201.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_diagnose_single_controller_path_failures_in_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Single_controller_path_errors",
         remediationPlan: {
           cause: "Signal degradation or physical disconnection on controller SAS port 1b connected to Shelf 2 Module B.",
           impact: "Loss of SAS path redundancy. A secondary failure on SAS port 1a will cause a complete shelf outage, leading to Data Unavailable (DU) status for all aggregates on Shelf 2.",
@@ -1912,7 +1912,7 @@ const MOCK_SYSTEMS = [
         category: "Software",
         description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
         recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_update_disk_shelf_firmware_in_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware",
         remediationPlan: {
           cause: "Older firmware baseline (v0240) lacks optimization for SAS signal margins under heavy loads.",
           impact: "Increased risk of soft SAS path resets and packet retries under high transactional workloads.",
@@ -1934,7 +1934,7 @@ const MOCK_SYSTEMS = [
         category: "Security",
         description: "Insecure Protocol Enabled: SMBv1 protocol is active on SVM netapp-aff-01-svm-cifs.",
         recommendation: "Disable SMBv1 protocol to mitigate security threats such as ransomware propagation. Refer to CVE-2017-0144.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/da/NAS/How_to_disable_SMBv1_in_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_disable_SMBv1_in_ONTAP",
         remediationPlan: {
           cause: "Legacy SMBv1 protocol is enabled on SVM netapp-aff-01-svm-cifs to support older client devices, violating corporate security compliance.",
           impact: "Exposes ONTAP cluster to critical remote code execution exploits (e.g. EternalBlue/WannaCry).",
@@ -1956,7 +1956,7 @@ const MOCK_SYSTEMS = [
         category: "Security",
         description: "Insecure Export Policy Rule: NFS export policy 'default' allows superuser mount permissions to any host.",
         recommendation: "Modify export policy rules on SVM netapp-aff-01-svm-nfs to restrict superuser access to specific subnets and enable root squashing.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/da/NAS/How_to_configure_NFS_root_squashing_in_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Insecure_NFS_exports_root_squashing",
         remediationPlan: {
           cause: "Export policy rule for volume root/shares is configured on SVM netapp-aff-01-svm-nfs with client match '0.0.0.0/0' and superuser access parameter set to 'any'.",
           impact: "Any anonymous client on the network can mount NFS exports and gain full root permissions over data files.",
@@ -2122,7 +2122,7 @@ const MOCK_SYSTEMS = [
         category: "Cloud",
         description: "Atheros AWS S3 capacity tiering bucket reports connection timeouts.",
         recommendation: "Verify VPC endpoint routing for AWS S3. Refer to NetApp Cloud Manager guide.",
-        kbLink: "https://kb.netapp.com/cloud/cvo/aws/FabricPool_S3_connection_timeouts_in_Cloud_Volumes_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/FabricPool_S3_connection_timeouts_in_Cloud_Volumes_ONTAP",
         remediationPlan: {
           cause: "Security Group policy changes in the AWS VPC restricted outbound HTTPS access on Port 443 to S3 IP ranges.",
           impact: "FabricPool tiering stops. Cold data remains on EBS root volumes, causing storage capacity overflow on premium cloud volumes.",
@@ -2253,7 +2253,7 @@ const MOCK_SYSTEMS = [
         category: "Security",
         description: "Management Interface SSL Certificate expires in 12 days.",
         recommendation: "Renew SSL certificate in StorageGRID Grid Manager. Refer to admin guidelines.",
-        kbLink: "https://kb.netapp.com/onprem/storagegrid/grid/How_to_renew_StorageGRID_management_interface_SSL_certificates",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/StorageGRID/How_to_renew_StorageGRID_SSL_certificates",
         remediationPlan: {
           cause: "The user-installed custom certificate authority cert for StorageGRID Management Console (port 9443) is expiring.",
           impact: "Complete loss of S3/Swift client connections using TLS. API calls from backup programs, applications, and dashboards fail due to untrusted certificates.",
@@ -2398,7 +2398,7 @@ const MOCK_SYSTEMS = [
         category: "MetroCluster",
         description: "MetroCluster IP Inter-Switch Link (ISL) packet loss on port e5a exceeds 2%.",
         recommendation: "Inspect fiber patch cables and SFP+ optical transceivers on Switch A1.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/da/MetroCluster/How_to_troubleshoot_MetroCluster_IP_ISL_link_failures",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_IP_ISL_link_troubleshooting",
         remediationPlan: {
           cause: "Optical transceiver (SFP) in Cisco Nexus 3132 MetroCluster switch port e5a is reporting high CRC error rates due to dust contamination.",
           impact: "SyncMirror replication lag between Site A and Site B. Under high write loads, write operations might stall to maintain syncreplication parity.",
@@ -2605,7 +2605,7 @@ const MOCK_SYSTEMS = [
         category: "Hypervisor Integration",
         description: "VMware ESXi Host multipathing policy is configured to default 'Most Recently Used' (Fixed) instead of Round Robin.",
         recommendation: "Change ESXi Host Native Multipathing (NMP) Path Selection Policy (PSP) to VMW_PSP_RR.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/da/SAN/ESXi_multipathing_best_practices_for_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ESXi_multipathing_best_practices_for_ONTAP",
         remediationPlan: {
           cause: "Newly added ESXi hosts did not have the NetApp Host Utilities script executed, leaving default storage path settings active.",
           impact: "Unbalanced storage path utilization. If the active FC/iSCSI path fails, path failover times exceed 30 seconds, causing ESXi datastore disconnect warnings (PDL - Permanent Device Loss) and VM freeze/crash events.",
@@ -2815,7 +2815,7 @@ const MOCK_SYSTEMS = [
         category: "Software",
         description: "StorageGRID OS version 11.4.0 is legacy and unsupported.",
         recommendation: "Plan sequential upgrade to StorageGRID 11.9.0. Refer to NetApp Upgrade Advisor.",
-        kbLink: "https://kb.netapp.com/onprem/storagegrid/grid/How_to_upgrade_a_StorageGRID_system",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/StorageGRID/How_to_upgrade_StorageGRID",
         remediationPlan: {
           cause: "Operating system baseline reaching official support retirement date.",
           impact: "Loss of developer hot-patches and security vulnerability coverage from NetApp engineering after this quarter.",
@@ -3003,7 +3003,7 @@ const MOCK_SYSTEMS = [
         category: "Software",
         description: "Disk Shelf IOM3 firmware is outdated.",
         recommendation: "Upgrade IOM3 firmware. Refer to KB Article.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_update_disk_shelf_firmware_in_ONTAP",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware",
         remediationPlan: {
           cause: "Outdated firmware baseline.",
           impact: "Soft resets on SAS loops.",
@@ -3238,7 +3238,7 @@ const MOCK_SYSTEMS = [
         category: "MetroCluster",
         description: "FC Switch ATTO bridges firmware mismatch detected.",
         recommendation: "Align bridge firmware across sites. Refer to NetApp MetroCluster docs.",
-        kbLink: "https://kb.netapp.com/onprem/ontap/da/MetroCluster/How_to_update_ATTO_FibreBridge_firmware_in_a_MetroCluster_configuration",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/How_to_update_ATTO_FibreBridge_firmware_in_a_MetroCluster_configuration",
         remediationPlan: {
           cause: "Bridge firmware versions mismatched.",
           impact: "Possible failover stability delays.",
@@ -3540,7 +3540,7 @@ const MOCK_SYSTEMS = [
         category: "Hardware",
         description: "Controller B Backup Battery (BBU) reports replacement required (Near End of Life).",
         recommendation: "Order replacement battery pack (Part: 271-00221) and swap it online.",
-        kbLink: "https://kb.netapp.com/onprem/e-series/hardware/How_to_replace_a_degraded_Backup_Battery_Unit_BBU_on_E-Series_arrays",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/E-Series_Storage/How_to_replace_BBU_on_E5700",
         remediationPlan: {
           cause: "Chemical degradation of lithium-ion cells over a 3-year operating period.",
           impact: "If battery fails completely, write caching will be disabled on Controller B to prevent data loss in a power event, resulting in a 70% decrease in write performance.",
@@ -3720,7 +3720,7 @@ const MOCK_SYSTEMS = [
           category: "Hardware",
           description: "Multiple disk drive failures detected in Aggregate rg0.",
           recommendation: "Replace disk drives in slots 3 and 7 immediately. Refer to KB990211.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_replace_a_failed_disk_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_replace_a_failed_disk_drive_in_ONTAP",
           remediationPlan: {
             cause: "Double disk failure on shelf 1 within RAID-DP group.",
             impact: "Aggregates are currently running in degraded state. A third disk failure will cause complete data loss.",
@@ -3736,7 +3736,7 @@ const MOCK_SYSTEMS = [
           category: "Hardware",
           description: "SAS initiator port reset threshold exceeded on Controller A.",
           recommendation: "Inspect SAS cable connections between controller port 2a and shelf 1 port A. Swap SAS cable if errors persist.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_troubleshoot_SAS_port_resets_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ONTAP",
           remediationPlan: {
             cause: "Degraded SAS link signaling causing port resets on port 2a.",
             impact: "SAS path redundancy lost. A secondary failure on path B will disrupt active storage access.",
@@ -3752,7 +3752,7 @@ const MOCK_SYSTEMS = [
           category: "Software",
           description: "MetroCluster IP configuration synchronization failed.",
           recommendation: "Force site-to-site configuration sync. Upgrade firmware to resolve sync race condition.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/da/MetroCluster/How_to_troubleshoot_MetroCluster_IP_configuration_sync_issues",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_IP_configuration_sync_fails",
           remediationPlan: {
             cause: "Sync timeout between local and remote site NVRAM logs.",
             impact: "Automatic unplanned switchover disabled. MetroCluster protection is compromised.",
@@ -3768,7 +3768,7 @@ const MOCK_SYSTEMS = [
           category: "Hardware",
           description: "HA interconnect link status degraded (link 1 down).",
           recommendation: "Replace faulty SFP+ module on cluster interconnect switch port 5.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_troubleshoot_degraded_HA_interconnect_links_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/HA_interconnect_link_down_troubleshooting",
           remediationPlan: {
             cause: "Faulty physical SFP transceiver module on internal fabric interface.",
             impact: "Loss of HA failover synchronization path. Storage takeover capacity is impaired.",
@@ -3787,7 +3787,7 @@ const MOCK_SYSTEMS = [
           category: "Software",
           description: "ONTAP upgrade advised to address TLS vulnerability.",
           recommendation: "Upgrade ONTAP to version 9.13.1 or newer.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/da/NAS/How_to_disable_TLS_1.0_and_1.1_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_disable_TLS_1.0_and_1.1_in_ONTAP",
           remediationPlan: {
             cause: "Older ONTAP version contains vulnerable TLS 1.0/1.1 protocols.",
             impact: "Non-compliance with PCI-DSS security standards.",
@@ -3803,7 +3803,7 @@ const MOCK_SYSTEMS = [
           category: "Configuration",
           description: "NTP server synchronization drift exceeds 500ms.",
           recommendation: "Reconfigure cluster time synchronization with reliable active directory NTP server.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/os/NTP_sync_drift_troubleshooting_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Troubleshooting_NTP_synchronization_issues_in_ONTAP",
           remediationPlan: {
             cause: "Network latency or firewall blocking UDP port 123 to current server.",
             impact: "Disruptions in Kerberos authentication and active directory integration.",
@@ -3819,7 +3819,7 @@ const MOCK_SYSTEMS = [
           category: "Firmware",
           description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
           recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/How_to_update_disk_shelf_firmware_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware",
           remediationPlan: {
             cause: "Shelf module firmware drift behind validated baseline.",
             impact: "Risk of soft path resets under heavy transactional traffic.",
@@ -3835,7 +3835,7 @@ const MOCK_SYSTEMS = [
           category: "Configuration",
           description: "Aggregates utilization exceeds 85% capacity threshold.",
           recommendation: "Initiate volume relocation to less utilized aggregate or enable thin provisioning.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/os/How_to_troubleshoot_space_full_issues_in_ONTAP",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_troubleshoot_aggregate_space_full_issues_in_ONTAP",
           remediationPlan: {
             cause: "Unplanned storage growth in local snapshot copies.",
             impact: "Potential read-only fail-safes if aggregates fill to 100%.",
@@ -3920,20 +3920,55 @@ const MOCK_SYSTEMS = [
       });
     }
 
+    let currentVer = "9.12.1";
+    let targetVer = "Up to Date";
+    let urgency = "None";
+    let isStorageGRID = platform.includes("StorageGRID") || platform.includes("Webscale");
+    let isESeries = platform.includes("E-Series") || platform.includes("EF600") || platform.includes("E5700") || platform.includes("SANtricity");
+    
+    if (isStorageGRID) {
+      const sgVers = ["11.4.0", "11.6.0", "11.7.0", "11.8.0"];
+      currentVer = sgVers[i % sgVers.length];
+      if (status !== "normal") {
+        targetVer = "11.9.0";
+        urgency = "Recommended";
+      }
+    } else if (isESeries) {
+      const esVers = ["11.30", "11.40", "11.50", "11.70.2", "11.80.3"];
+      currentVer = esVers[i % esVers.length];
+      if (status !== "normal") {
+        targetVer = "11.80.5";
+        urgency = "Recommended";
+      }
+    } else {
+      const otVers = ["9.5", "9.7", "9.9.1P4", "9.11.1P8", "9.12.1P4", "9.14.1P2"];
+      currentVer = otVers[i % otVers.length];
+      if (status !== "normal") {
+        if (currentVer === "9.5" || currentVer === "9.7") {
+          targetVer = "9.12.1";
+        } else if (currentVer === "9.9.1P4" || currentVer === "9.11.1P8") {
+          targetVer = "9.13.1P8";
+        } else {
+          targetVer = "9.16.1";
+        }
+        urgency = "Recommended";
+      }
+    }
+
     const sys = {
       serialNumber: serial,
       systemName: sysName,
       clusterName: clusterName,
       customerName: customer,
-      ontapVersion: ontapVersions[i % ontapVersions.length],
+      ...(isESeries ? { santricityVersion: currentVer } : { ontapVersion: currentVer }),
       platform: platform,
       status: status,
       risks: risks,
       switches: switches,
       upgrades: {
-        targetVersion: status === "normal" ? "Up to Date" : "9.13.1P8",
-        urgency: status === "normal" ? "None" : "Recommended",
-        benefits: "Enhances security standards and fixes multi-path signal checks."
+        targetVersion: targetVer,
+        urgency: urgency,
+        benefits: "Enhances security standards, applies vendor fixes, and ensures stable operations."
       },
       contracts: {
         status: contractsStatus,
@@ -5246,7 +5281,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
     let startIndex = vList.findIndex(v => v === currentBase || currentBase.startsWith(v));
     let endIndex = vList.findIndex(v => v === targetBase || targetBase.startsWith(v));
     
-    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+    if (startIndex === -1 || endIndex === -1) {
       return [{
         from: cleanCurrent,
         to: cleanTarget,
@@ -5265,6 +5300,9 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
         ],
         docLink: "https://docs.netapp.com/us-en/ontap/upgrade/index.html"
       }];
+    }
+    if (startIndex >= endIndex) {
+      return [];
     }
     
     let currentIdx = startIndex;
@@ -5300,7 +5338,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
     let startIndex = vList.findIndex(v => v === currentBase || currentBase.startsWith(v));
     let endIndex = vList.findIndex(v => v === targetBase || targetBase.startsWith(v));
     
-    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+    if (startIndex === -1 || endIndex === -1) {
       return [{
         from: cleanCurrent,
         to: cleanTarget,
@@ -5320,6 +5358,9 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
         docLink: "https://docs.netapp.com/us-en/storagegrid-119/upgrade/index.html"
       }];
     }
+    if (startIndex >= endIndex) {
+      return [];
+    }
     
     for (let i = startIndex; i < endIndex; i++) {
       const vFrom = vList[i];
@@ -5332,7 +5373,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
     let startIndex = vList.findIndex(v => v === currentBase || currentBase.startsWith(v));
     let endIndex = vList.findIndex(v => v === targetBase || targetBase.startsWith(v));
     
-    if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
+    if (startIndex === -1 || endIndex === -1) {
       return [{
         from: cleanCurrent,
         to: cleanTarget,
@@ -5351,6 +5392,10 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
         ],
         docLink: "https://docs.netapp.com/us-en/e-series/upgrade-santricity.html"
       }];
+    }
+    
+    if (startIndex >= endIndex) {
+      return [];
     }
     
     let currentIdx = startIndex;
