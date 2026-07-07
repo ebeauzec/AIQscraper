@@ -1,20 +1,11 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
 
 This tool runs **entirely inside your browser** (as a static webpage) from this local folder. It does not require any backend server, Node.js/Python installations, or database engines. It connects directly to the Active IQ Digital Advisor APIs (`activeiq.netapp.com`) and persists credentials in your browser's private local storage.
-
----
-
-## What's New in Version 1.8.0
-
-*   **Role-Aligned Sub-Tabs Navigation**: Segmented Technical Audit (TAM), Support & Ops (SAM), and CSM Value & ROI (CSM) tab structures with role-aligned, task-based sub-tabs (Cabling/Hardware, Risks/Audits, Security Hardening, Incident Management, SLA Contracts, Site Logistics, Capacity Projections, Capability Adoption), greatly reducing visual clutter.
-*   **Context-Aware Visualizers**: Enabled Cloud Volumes ONTAP (AWS/Azure/GCP) virtual network interface subnet maps and StorageGRID network band routing visual layouts, replacing physical cabling chassis representations.
-*   **Exact Model Resolution**: Programmed precise model parsing (e.g. `AFF A400`, `StorageGRID SG6060`, `CVO (Azure)`, `EF600`) displayed on L1 controller visuals.
-*   **Type Safety Enhancements**: Integrated strict null-checks for custom system configuration JSON objects lacking optional keys like `risks` and `fieldActions` to prevent browser console exceptions.
 
 ---
 
