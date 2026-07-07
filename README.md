@@ -63,6 +63,11 @@ The tool highlights compliance warnings against NetApp storage best practices fo
 *   **Cloud Providers (AWS / Azure / GCP)**:
     *   *VPC Endpoints*: Tracks network latency timeouts between CVO nodes and backing S3/Blob storage, recommending private VPC endpoints to reduce cloud data routing costs.
 
+### 3rd-Party Workload Auto-Detection
+Active IQ automatically identifies specific software workloads running on your cluster storage systems:
+*   **SAP HANA Databases**: Classified by parsing ONTAP export policies (NFSv3/NFSv4.1 mount options such as `rsize=262144`, `wsize=262144`), volume naming patterns (containing `/usr/sap` or `sid`), certified initiator groups (igroups), and performance telemetry signatures (massive sequential 8MB write savepoints vs. low-latency 8KB transaction log commits).
+*   **Kubernetes Container Orchestrators**: Identified via integration with **Astra Trident** and **Astra Control**. Trident writes structured JSON configuration payloads directly into the ONTAP volume comment field upon PVC creation (storing PVC names, namespaces, and cluster identifiers), which are extracted by Active IQ's AutoSupport ingest pipelines to map cluster topologies.
+
 ---
 
 ## Site Logistics & Customer Health Editor
@@ -130,14 +135,18 @@ To see how the dashboard functions immediately:
 3. Turn on the **Enable Offline Demo Mode (Mock Data)** toggle.
 4. Go back to the **Overview Dashboard** to inspect system reports, charts, and metrics. Click on any system row, go to **Technical Audit**, and click **Remediation Plan** on a risk to see the detailed action plan.
 
-### 3. Setting Up Production API Credentials
+### 3. Setting Up Production API Credentials & Polling
 To view your own live customer accounts and clusters:
 1. Open your browser and log in to [activeiq.netapp.com](https://activeiq.netapp.com/) using your NetApp Support Site (NSS) credentials.
 2. In the top navigation bar, click the **Quick Links** icon and select **API Services**.
 3. Under the API Services tab, click **Generate Token**.
 4. Copy the long **Refresh Token** shown on screen.
 5. In your local dashboard application, navigate to the **Settings & Config** tab.
-6. Disable **Offline Demo Mode**, paste the token into the **Refresh Token** input box, and click **Save Configuration**.
+6. Disable **Offline Demo Mode**, paste the token into the **Refresh Token** input box.
+7. Configure the **Active IQ API Base Endpoint URL** (defaults to the public NetApp REST API gateway).
+8. Select an **Auto-Polling / Sync Interval** (Manual Sync, or automatic checks every 6, 12, or 24 hours).
+9. Toggle **Watchlist-Only Synchronization** if you want to only synchronize systems listed in your active Active IQ Watchlists.
+10. Click **Save Configuration** or **Synchronize Data Now** to trigger the initial sync.
 
 ---
 
