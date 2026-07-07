@@ -2067,8 +2067,8 @@ let state = {
   activeSearchQuery: "",
   activeFilterType: "ALL", // "ALL", "CUSTOMER", "GROUP", "WATCHLIST"
   activeFilterValue: "",   // Customer Name, Group ID, or Watchlist ID
-  sortKey: "systemName",
-  sortOrder: "asc",
+  overviewSortKey: "systemName",
+  overviewSortOrder: "asc",
   activeKpiFilter: "NONE", // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
   
   // Sort states for sub-tab tables
@@ -2699,40 +2699,11 @@ function renderOverviewTable() {
 
   const filteredSystems = getFilteredSystems();
 
-  // Sort filteredSystems based on state.sortKey and state.sortOrder
-  const sortKey = state.sortKey || "systemName";
-  const sortOrder = state.sortOrder || "asc";
+  // Sort filteredSystems based on state.overviewSortKey and state.overviewSortOrder
+  const sortKey = state.overviewSortKey || "systemName";
+  const sortOrder = state.overviewSortOrder || "asc";
 
-  filteredSystems.sort((a, b) => {
-    let valA = a;
-    let valB = b;
-
-    // Resolve nested keys if needed (like contracts.endDate)
-    const keys = sortKey.split(".");
-    keys.forEach(k => {
-      if (valA) valA = valA[k];
-      if (valB) valB = valB[k];
-    });
-
-    if (sortKey === "status") {
-      const priority = { "critical": 1, "warning": 2, "normal": 3, "healthy": 3 };
-      const priorityA = priority[valA ? valA.toLowerCase() : ""] || 99;
-      const priorityB = priority[valB ? valB.toLowerCase() : ""] || 99;
-      if (priorityA < priorityB) return sortOrder === "asc" ? -1 : 1;
-      if (priorityA > priorityB) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    }
-
-    // Handle type-specific sorting (strings are case-insensitive)
-    if (typeof valA === "string") {
-      valA = valA.toLowerCase();
-      valB = (valB || "").toLowerCase();
-    }
-
-    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
-    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
-    return 0;
-  });
+  sortDataList(filteredSystems, sortKey, sortOrder);
 
   // Update visual sort indicators on table headers
   updateSortIndicators();
