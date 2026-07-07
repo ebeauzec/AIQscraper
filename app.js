@@ -2073,13 +2073,13 @@ let state = {
   
   // Sort states for sub-tab tables
   tamRisksSortKey: "severity",
-  tamRisksSortOrder: "desc",
+  tamRisksSortOrder: "asc",
   tamSwitchesSortKey: "systemName",
   tamSwitchesSortOrder: "asc",
   tamSecuritySortKey: "severity",
-  tamSecuritySortOrder: "desc",
+  tamSecuritySortOrder: "asc",
   samCasesSortKey: "severity",
-  samCasesSortOrder: "desc",
+  samCasesSortOrder: "asc",
   samFieldActionsSortKey: "id",
   samFieldActionsSortOrder: "asc"
 };
@@ -2655,15 +2655,26 @@ function sortDataList(list, sortKey, sortOrder) {
       if (valB) valB = valB[k];
     });
 
+    const strA = valA ? valA.toString().toLowerCase().trim() : "";
+    const strB = valB ? valB.toString().toLowerCase().trim() : "";
+
+    const priority = { 
+      "critical": 1, "s1": 1, "s1 - critical": 1,
+      "high": 2, "s2": 2, "s2 - high": 2, "warning": 2,
+      "medium": 3, "s3": 3, "s3 - medium": 3,
+      "low": 4, "s4": 4, "s4 - low": 4, "normal": 4, "healthy": 4, "optimal": 4
+    };
+
+    let usePriority = false;
     if (sortKey === "status" || sortKey === "severity") {
-      const priority = { 
-        "critical": 1, "s1": 1, "s1 - critical": 1,
-        "high": 2, "s2": 2, "s2 - high": 2, "warning": 2,
-        "medium": 3, "s3": 3, "s3 - medium": 3,
-        "low": 4, "s4": 4, "s4 - low": 4, "normal": 4, "healthy": 4, "optimal": 4
-      };
-      const priorityA = priority[valA ? valA.toString().toLowerCase() : ""] || 99;
-      const priorityB = priority[valB ? valB.toString().toLowerCase() : ""] || 99;
+      if (priority[strA] !== undefined || priority[strB] !== undefined) {
+        usePriority = true;
+      }
+    }
+
+    if (usePriority) {
+      const priorityA = priority[strA] !== undefined ? priority[strA] : 99;
+      const priorityB = priority[strB] !== undefined ? priority[strB] : 99;
       if (priorityA < priorityB) return sortOrder === "asc" ? -1 : 1;
       if (priorityA > priorityB) return sortOrder === "asc" ? 1 : -1;
       return 0;
