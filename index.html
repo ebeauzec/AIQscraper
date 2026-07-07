@@ -1002,38 +1002,6 @@ input:checked + .slider:before {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Sub-Tab Navigation for SAM/TAM/CSM roles */
-.sub-tabs-nav {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 10px;
-}
-
-.sub-tab-btn {
-  padding: 8px 20px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-}
-
-.sub-tab-btn:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-primary);
-}
-
-.sub-tab-btn.active {
-  background: rgba(0, 229, 255, 0.08);
-  border-color: rgba(0, 229, 255, 0.2);
-  color: var(--accent-cyan);
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.15);
-}
 
 </style>
   
@@ -1218,133 +1186,111 @@ input:checked + .slider:before {
             </div>
           </div>
         </div>
-
-        <!-- TAM Roles-aligned Tasks Sub-Tabs -->
-        <div class="sub-tabs-nav">
-          <button class="sub-tab-btn active" onclick="switchTamSubTab('hardware')" id="btn_tam_sub_hardware">
-            Layer-1 Cabling & Physical Hardware
-          </button>
-          <button class="sub-tab-btn" onclick="switchTamSubTab('risks')" id="btn_tam_sub_risks">
-            Predictive Risks & Configuration Audits
-          </button>
-          <button class="sub-tab-btn" onclick="switchTamSubTab('security')" id="btn_tam_sub_security">
-            Security Hardening & CVE Advisories
-          </button>
-        </div>
-
-        <!-- SUB-TAB CONTENT: HARDWARE -->
-        <div id="tamSubTab_hardware" class="tam-sub-content">
-          <!-- Node Physical Layout & Port Mapping Graphic -->
-          <div id="tamNodeVisualCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-              <span>Controller Node Port Assignments & Link Topology</span>
-              <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Real-time Cabling & Physical Layer (L1) Audit</span>
-            </div>
-            <div id="tamNodeVisualContainer">
-              <!-- Injected dynamically by JS -->
-            </div>
+        
+        <!-- Node Physical Layout & Port Mapping Graphic -->
+        <div id="tamNodeVisualCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>Controller Node Port Assignments & Link Topology</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Real-time Cabling & Physical Layer (L1) Audit</span>
           </div>
-
-          <!-- SANtricity E-Series Hardware Audit Card -->
-          <div id="tamEseriesVisualCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-              <span>SANtricity Hardware & Storage Component Health Audit</span>
-              <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">E-Series Controller, Shelf, Disk, & Pool Status</span>
-            </div>
-            <div id="tamEseriesVisualContainer">
-              <!-- Injected dynamically by JS -->
-            </div>
+          <div id="tamNodeVisualContainer">
+            <!-- Injected dynamically by JS -->
           </div>
         </div>
 
-        <!-- SUB-TAB CONTENT: RISKS & COMPLIANCE -->
-        <div id="tamSubTab_risks" class="tam-sub-content" style="display: none;">
-          <div class="settings-grid">
-            <!-- Main Risks Table -->
-            <div class="card table-card" style="margin-bottom: 0;">
-              <div class="section-title" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                Active Predictive Risk Signatures
-              </div>
-              <div class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th onclick="sortTable('tamRisks', 'severity')" style="cursor: pointer; user-select: none;">Severity <span id="sort-tamRisks-severity" class="sort-icon"> ↕</span></th>
-                      <th onclick="sortTable('tamRisks', 'category')" style="cursor: pointer; user-select: none;">Category <span id="sort-tamRisks-category" class="sort-icon"> ↕</span></th>
-                      <th onclick="sortTable('tamRisks', 'description')" style="cursor: pointer; user-select: none;">Risk Description & Recommended Remediation <span id="sort-tamRisks-description" class="sort-icon"> ↕</span></th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tamRisksTableBody">
-                    <!-- JS injected risks -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
-            <!-- Upgrade advisor sidebar -->
-            <div class="card" id="tamUpgradeContainer">
-              <!-- OS Upgrade Planner UI -->
-            </div>
+        <!-- SANtricity E-Series Hardware Audit Card -->
+        <div id="tamEseriesVisualCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>SANtricity Hardware & Storage Component Health Audit</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">E-Series Controller, Shelf, Disk, & Pool Status</span>
           </div>
+          <div id="tamEseriesVisualContainer">
+            <!-- Injected dynamically by JS -->
+          </div>
+        </div>
 
-          <!-- Network Switch & Fabric Validation Card -->
-          <div class="card table-card" style="margin-top: 24px;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-              <span>Network Switch & Fabric Firmware Validation</span>
-              <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Active IQ IMT Verification</span>
+        <!-- SVM & Protocol Security Audit Card -->
+        <div id="tamSvmCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>Storage Virtual Machine (SVM) & Protocol Security Audit</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Logical Containment, Access Control, & Protocol Compliance</span>
+          </div>
+          <div id="tamSvmContainer">
+            <!-- Injected dynamically by JS -->
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Main Risks Table -->
+          <div class="card table-card" style="margin-bottom: 0;">
+            <div class="section-title" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+              Active Predictive Risk Signatures
             </div>
             <div class="data-table-container">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th onclick="sortTable('tamSwitches', 'systemName')" style="width: 140px; cursor: pointer; user-select: none;">System <span id="sort-tamSwitches-systemName" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSwitches', 'model')" style="width: 220px; cursor: pointer; user-select: none;">Switch Model & S/N <span id="sort-tamSwitches-model" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSwitches', 'type')" style="width: 160px; cursor: pointer; user-select: none;">Role / Type <span id="sort-tamSwitches-type" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSwitches', 'firmware')" style="width: 180px; cursor: pointer; user-select: none;">Firmware <span id="sort-tamSwitches-firmware" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSwitches', 'status')" style="width: 140px; cursor: pointer; user-select: none;">Validation Status <span id="sort-tamSwitches-status" class="sort-icon"> ↕</span></th>
-                    <th>Remediation Action</th>
+                    <th onclick="sortTable('tamRisks', 'severity')" style="cursor: pointer; user-select: none;">Severity <span id="sort-tamRisks-severity" class="sort-icon"> ↕</span></th>
+                    <th onclick="sortTable('tamRisks', 'category')" style="cursor: pointer; user-select: none;">Category <span id="sort-tamRisks-category" class="sort-icon"> ↕</span></th>
+                    <th onclick="sortTable('tamRisks', 'description')" style="cursor: pointer; user-select: none;">Risk Description & Recommended Remediation <span id="sort-tamRisks-description" class="sort-icon"> ↕</span></th>
+                    <th>Action</th>
                   </tr>
                 </thead>
-                <tbody id="tamSwitchesTableBody">
-                  <!-- JS dynamic switches list -->
+                <tbody id="tamRisksTableBody">
+                  <!-- JS injected risks -->
                 </tbody>
               </table>
             </div>
+          </div>
+          
+          <!-- Upgrade advisor sidebar -->
+          <div class="card" id="tamUpgradeContainer">
+            <!-- OS Upgrade Planner UI -->
           </div>
         </div>
 
-        <!-- SUB-TAB CONTENT: SECURITY HARDENING -->
-        <div id="tamSubTab_security" class="tam-sub-content" style="display: none;">
-          <!-- SVM & Protocol Security Audit Card -->
-          <div id="tamSvmCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-              <span>Storage Virtual Machine (SVM) & Protocol Security Audit</span>
-              <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Logical Containment, Access Control, & Protocol Compliance</span>
-            </div>
-            <div id="tamSvmContainer">
-              <!-- Injected dynamically by JS -->
-            </div>
+        <!-- Network Switch & Fabric Validation Card -->
+        <div class="card table-card" style="margin-top: 24px;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>Network Switch & Fabric Firmware Validation</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Active IQ IMT Verification</span>
           </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th onclick="sortTable('tamSwitches', 'systemName')" style="width: 140px; cursor: pointer; user-select: none;">System <span id="sort-tamSwitches-systemName" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSwitches', 'model')" style="width: 220px; cursor: pointer; user-select: none;">Switch Model & S/N <span id="sort-tamSwitches-model" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSwitches', 'type')" style="width: 160px; cursor: pointer; user-select: none;">Role / Type <span id="sort-tamSwitches-type" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSwitches', 'firmware')" style="width: 180px; cursor: pointer; user-select: none;">Firmware <span id="sort-tamSwitches-firmware" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSwitches', 'status')" style="width: 140px; cursor: pointer; user-select: none;">Validation Status <span id="sort-tamSwitches-status" class="sort-icon"> ↕</span></th>
+                  <th>Remediation Action</th>
+                </tr>
+              </thead>
+              <tbody id="tamSwitchesTableBody">
+                <!-- JS dynamic switches list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-          <!-- Security & Technical Bulletins Card -->
-          <div class="card table-card">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Security & Technical Bulletins</div>
-            <div class="data-table-container">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th onclick="sortTable('tamSecurity', 'id')" style="width: 150px; cursor: pointer; user-select: none;">Bulletin ID <span id="sort-tamSecurity-id" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSecurity', 'title')" style="cursor: pointer; user-select: none;">Description / Mitigations & Workarounds <span id="sort-tamSecurity-title" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSecurity', 'severity')" style="width: 120px; cursor: pointer; user-select: none;">Severity <span id="sort-tamSecurity-severity" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('tamSecurity', 'status')" style="width: 120px; cursor: pointer; user-select: none;">Status <span id="sort-tamSecurity-status" class="sort-icon"> ↕</span></th>
-                  </tr>
-                </thead>
-                <tbody id="tamSecurityBulletinsBody">
-                  <!-- JS dynamic bulletins -->
-                </tbody>
-              </table>
-            </div>
+        <!-- Security & Technical Bulletins Card -->
+        <div class="card table-card" style="margin-top: 24px;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Security & Technical Bulletins</div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th onclick="sortTable('tamSecurity', 'id')" style="width: 150px; cursor: pointer; user-select: none;">Bulletin ID <span id="sort-tamSecurity-id" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSecurity', 'title')" style="cursor: pointer; user-select: none;">Description / Mitigations & Workarounds <span id="sort-tamSecurity-title" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSecurity', 'severity')" style="width: 120px; cursor: pointer; user-select: none;">Severity <span id="sort-tamSecurity-severity" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('tamSecurity', 'status')" style="width: 120px; cursor: pointer; user-select: none;">Status <span id="sort-tamSecurity-status" class="sort-icon"> ↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="tamSecurityBulletinsBody">
+                <!-- JS dynamic bulletins -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -1362,116 +1308,94 @@ input:checked + .slider:before {
             </div>
           </div>
         </div>
-
-        <!-- SAM Roles-aligned Tasks Sub-Tabs -->
-        <div class="sub-tabs-nav">
-          <button class="sub-tab-btn active" onclick="switchSamSubTab('incidents')" id="btn_sam_sub_incidents">
-            Incident Management & Open Cases
-          </button>
-          <button class="sub-tab-btn" onclick="switchSamSubTab('contracts')" id="btn_sam_sub_contracts">
-            Support SLA & Contract Renewals
-          </button>
-          <button class="sub-tab-btn" onclick="switchSamSubTab('logistics')" id="btn_sam_sub_logistics">
-            Service Logistics & Site Contacts
-          </button>
-        </div>
-
-        <!-- SUB-TAB CONTENT: INCIDENT MANAGEMENT -->
-        <div id="samSubTab_incidents" class="sam-sub-content">
-          <!-- Active Technical Support Cases Table Card -->
-          <div class="card table-card" style="margin-bottom: 24px;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Technical Support Cases</div>
-            <div class="data-table-container">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th onclick="sortTable('samCases', 'id')" style="width: 140px; cursor: pointer; user-select: none;">Case ID <span id="sort-samCases-id" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('samCases', 'title')" style="cursor: pointer; user-select: none;">Subject & Action Updates <span id="sort-samCases-title" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('samCases', 'severity')" style="width: 120px; cursor: pointer; user-select: none;">Severity <span id="sort-samCases-severity" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('samCases', 'status')" style="width: 120px; cursor: pointer; user-select: none;">Status <span id="sort-samCases-status" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('samCases', 'createdDate')" style="width: 180px; cursor: pointer; user-select: none;">Timestamps <span id="sort-samCases-createdDate" class="sort-icon"> ↕</span></th>
-                  </tr>
-                </thead>
-                <tbody id="samSupportCasesBody">
-                  <!-- JS dynamic cases -->
-                </tbody>
-              </table>
-            </div>
+        
+        <!-- Contract, Lifecycle, and Hypervisor Row -->
+        <div class="kpi-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+          <div class="card" id="samContractCard">
+            <!-- Contract details card -->
           </div>
-          
-          <!-- Field Actions Table -->
-          <div class="card table-card">
-            <div class="section-title" style="margin-bottom: 16px;">Outstanding Field Actions (FA) Bulletins</div>
-            <div class="data-table-container">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th onclick="sortTable('samFieldActions', 'id')" style="width: 150px; cursor: pointer; user-select: none;">FA Reference ID <span id="sort-samFieldActions-id" class="sort-icon"> ↕</span></th>
-                    <th onclick="sortTable('samFieldActions', 'title')" style="cursor: pointer; user-select: none;">Action Required & Impact Scope <span id="sort-samFieldActions-title" class="sort-icon"> ↕</span></th>
-                  </tr>
-                </thead>
-                <tbody id="samFieldActionsBody">
-                  <!-- JS injected field actions -->
-                </tbody>
-              </table>
-            </div>
+          <div class="card" id="samLifecycleCard">
+            <!-- Platform EOS/EOA lifecycle status card -->
+          </div>
+          <div class="card" id="samHypervisorCard">
+            <!-- 3rd-Party Virtualization integration status card -->
           </div>
         </div>
 
-        <!-- SUB-TAB CONTENT: CONTRACTS & SLA -->
-        <div id="samSubTab_contracts" class="sam-sub-content" style="display: none;">
-          <!-- Contract, Lifecycle, and Hypervisor Row -->
-          <div class="kpi-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
-            <div class="card" id="samContractCard">
-              <!-- Contract details card -->
-            </div>
-            <div class="card" id="samLifecycleCard">
-              <!-- Platform EOS/EOA lifecycle status card -->
-            </div>
-            <div class="card" id="samHypervisorCard">
-              <!-- 3rd-Party Virtualization integration status card -->
-            </div>
+        <!-- Logistics, Site Access & Sales Health Row -->
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-bottom: 24px;">
+          <div class="card" id="samLogisticsCard" style="display: flex; flex-direction: column;">
+            <!-- Logistics details card -->
           </div>
-
-          <!-- Workload Alignments & 3rd-Party Integration Audit -->
-          <div class="card" style="margin-bottom: 24px;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-              <span>Enterprise Workload Alignments & 3rd-Party Integrations</span>
-              <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Active IQ Advisor Analytics</span>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
-              <div class="sub-card-details" id="samWorkloadVirtualization" style="background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                <!-- JS injected Virtualization details -->
-              </div>
-              <div class="sub-card-details" id="samWorkloadDatabase" style="background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                <!-- JS injected Database details -->
-              </div>
-              <div class="sub-card-details" id="samWorkloadBackup" style="background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                <!-- JS injected Backup details -->
-              </div>
-            </div>
-            <div style="background: rgba(0, 229, 255, 0.03); border: 1px dashed var(--accent-cyan); border-radius: var(--radius-md); padding: 16px;">
-              <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                Active Workload Recommendations
-              </h4>
-              <ul id="samWorkloadRecommendations" style="font-size: 0.82rem; line-height: 1.6; color: var(--text-secondary); margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px;">
-                <!-- JS injected Best Practice Recommendations -->
-              </ul>
-            </div>
+          <div class="card" id="samSalesHealthCard" style="display: flex; flex-direction: column;">
+            <!-- Customer sales health scorecard -->
           </div>
         </div>
 
-        <!-- SUB-TAB CONTENT: LOGISTICS & ACCESS -->
-        <div id="samSubTab_logistics" class="sam-sub-content" style="display: none;">
-          <!-- Logistics, Site Access & Sales Health Row -->
-          <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-bottom: 24px;">
-            <div class="card" id="samLogisticsCard" style="display: flex; flex-direction: column;">
-              <!-- Logistics details card -->
+        <!-- Workload Alignments & 3rd-Party Integration Audit -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>Enterprise Workload Alignments & 3rd-Party Integrations</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Active IQ Advisor Analytics</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+            <div class="sub-card-details" id="samWorkloadVirtualization" style="background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <!-- JS injected Virtualization details -->
             </div>
-            <div class="card" id="samSalesHealthCard" style="display: flex; flex-direction: column;">
-              <!-- Customer sales health scorecard -->
+            <div class="sub-card-details" id="samWorkloadDatabase" style="background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <!-- JS injected Database details -->
             </div>
+            <div class="sub-card-details" id="samWorkloadBackup" style="background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <!-- JS injected Backup details -->
+            </div>
+          </div>
+          <div style="background: rgba(0, 229, 255, 0.03); border: 1px dashed var(--accent-cyan); border-radius: var(--radius-md); padding: 16px;">
+            <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              Active Workload Recommendations
+            </h4>
+            <ul id="samWorkloadRecommendations" style="font-size: 0.82rem; line-height: 1.6; color: var(--text-secondary); margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px;">
+              <!-- JS injected Best Practice Recommendations -->
+            </ul>
+          </div>
+        </div>
+
+        <!-- Active Technical Support Cases Table Card -->
+        <div class="card table-card" style="margin-bottom: 24px;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">Active Technical Support Cases</div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th onclick="sortTable('samCases', 'id')" style="width: 140px; cursor: pointer; user-select: none;">Case ID <span id="sort-samCases-id" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('samCases', 'title')" style="cursor: pointer; user-select: none;">Subject & Action Updates <span id="sort-samCases-title" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('samCases', 'severity')" style="width: 120px; cursor: pointer; user-select: none;">Severity <span id="sort-samCases-severity" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('samCases', 'status')" style="width: 120px; cursor: pointer; user-select: none;">Status <span id="sort-samCases-status" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('samCases', 'createdDate')" style="width: 180px; cursor: pointer; user-select: none;">Timestamps <span id="sort-samCases-createdDate" class="sort-icon"> ↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="samSupportCasesBody">
+                <!-- JS dynamic cases -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- Field Actions Table -->
+        <div class="card table-card">
+          <div class="section-title" style="margin-bottom: 16px;">Outstanding Field Actions (FA) Bulletins</div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th onclick="sortTable('samFieldActions', 'id')" style="width: 150px; cursor: pointer; user-select: none;">FA Reference ID <span id="sort-samFieldActions-id" class="sort-icon"> ↕</span></th>
+                  <th onclick="sortTable('samFieldActions', 'title')" style="cursor: pointer; user-select: none;">Action Required & Impact Scope <span id="sort-samFieldActions-title" class="sort-icon"> ↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="samFieldActionsBody">
+                <!-- JS injected field actions -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -1490,64 +1414,48 @@ input:checked + .slider:before {
           </div>
         </div>
         
-        <!-- CSM Roles-aligned Tasks Sub-Tabs -->
-        <div class="sub-tabs-nav">
-          <button class="sub-tab-btn active" onclick="switchCsmSubTab('efficiency')" id="btn_csm_sub_efficiency">
-            Storage Efficiency & Deduplication
-          </button>
-          <button class="sub-tab-btn" onclick="switchCsmSubTab('adoption')" id="btn_csm_sub_adoption">
-            Strategic Value & Capability Adoption
-          </button>
+        <div class="kpi-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 32px;">
+          <div class="card" id="csmSavingsCard">
+            <!-- Efficiency Savings Card -->
+          </div>
+          <div class="card" id="csmCloudCard">
+            <!-- FabricPool Cloud Tiering ROI -->
+          </div>
+          <div class="card" id="csmSnapmirrorCard">
+            <!-- SnapMirror Replication Card -->
+          </div>
         </div>
 
-        <!-- SUB-TAB CONTENT: STORAGE EFFICIENCY & DEDUPLICATION -->
-        <div id="csmSubTab_efficiency" class="csm-sub-content">
-          <div class="kpi-row" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 32px;">
-            <div class="card" id="csmSavingsCard">
-              <!-- Efficiency Savings Card -->
-            </div>
-            <div class="card" id="csmCloudCard">
-              <!-- FabricPool Cloud Tiering ROI -->
-            </div>
-            <div class="card" id="csmSnapmirrorCard">
-              <!-- SnapMirror Replication Card -->
-            </div>
+        <!-- Capacity and Performance Projections / Trends line graph -->
+        <div class="card" style="margin-bottom: 32px; display: flex; flex-direction: column;">
+          <div class="table-header-row" style="margin-bottom: 20px;">
+            <div class="section-title" style="color: var(--accent-cyan); font-weight: 700;">Storage Capacity & Performance Forecasting Projections</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;" id="csmGrowthRateText">Average Growth: -</div>
           </div>
-
-          <!-- Capacity and Performance Projections / Trends line graph -->
-          <div class="card" style="margin-bottom: 32px; display: flex; flex-direction: column;">
-            <div class="table-header-row" style="margin-bottom: 20px;">
-              <div class="section-title" style="color: var(--accent-cyan); font-weight: 700;">Storage Capacity & Performance Forecasting Projections</div>
-              <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;" id="csmGrowthRateText">Average Growth: -</div>
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            <div class="chart-wrapper" style="height: 260px;">
+              <canvas id="csmProjectionsChart"></canvas>
             </div>
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
-              <div class="chart-wrapper" style="height: 260px;">
-                <canvas id="csmProjectionsChart"></canvas>
+            <div style="background-color: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 20px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Runway Projection</span>
+                <div style="font-size: 1.6rem; font-weight: 800; margin-top: 6px;" id="csmDaysToLimitText">-</div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;" id="csmLimitDateText">-</div>
               </div>
-              <div style="background-color: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 20px; border-radius: var(--radius-sm); display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Runway Projection</span>
-                  <div style="font-size: 1.6rem; font-weight: 800; margin-top: 6px;" id="csmDaysToLimitText">-</div>
-                  <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;" id="csmLimitDateText">-</div>
-                </div>
-                <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px;">
-                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Peak IOPS Performance</span>
-                  <div style="font-size: 1.3rem; font-weight: 800; margin-top: 6px; color: var(--status-info);" id="csmPeakIopsText">-</div>
-                  <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;" id="csmAvgLatencyText">-</div>
-                </div>
+              <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Peak IOPS Performance</span>
+                <div style="font-size: 1.3rem; font-weight: 800; margin-top: 6px; color: var(--status-info);" id="csmPeakIopsText">-</div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;" id="csmAvgLatencyText">-</div>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- SUB-TAB CONTENT: CAPABILITY ADOPTION -->
-        <div id="csmSubTab_adoption" class="csm-sub-content" style="display: none;">
-          <!-- Adoption Checklist Card -->
-          <div class="card table-card" style="max-width: 600px;">
-            <div class="section-title" style="margin-bottom: 16px;">Strategic Capability Adoption Checklist</div>
-            <div id="csmAdoptionChecklist">
-              <!-- Adoption metrics rows -->
-            </div>
+        
+        <!-- Adoption Checklist Card -->
+        <div class="card table-card" style="max-width: 600px;">
+          <div class="section-title" style="margin-bottom: 16px;">Strategic Capability Adoption Checklist</div>
+          <div id="csmAdoptionChecklist">
+            <!-- Adoption metrics rows -->
           </div>
         </div>
       </div>
@@ -9121,60 +9029,6 @@ function switchTab(tabId) {
     // Load auth token input
     document.getElementById("settingsMockModeToggle").checked = state.mockMode;
     document.getElementById("settingsRefreshToken").value = safeGetItem("aiq_refresh_token") || "";
-  }
-}
-
-function switchTamSubTab(subTabId) {
-  // Update sub-tab buttons active state
-  document.querySelectorAll("#tamTab .sub-tab-btn").forEach(btn => {
-    btn.classList.remove("active");
-  });
-  const activeBtn = document.getElementById(`btn_tam_sub_${subTabId}`);
-  if (activeBtn) activeBtn.classList.add("active");
-
-  // Show/Hide sub-contents
-  document.querySelectorAll(".tam-sub-content").forEach(el => {
-    el.style.display = "none";
-  });
-  const target = document.getElementById(`tamSubTab_${subTabId}`);
-  if (target) {
-    target.style.display = "block";
-  }
-}
-
-function switchSamSubTab(subTabId) {
-  // Update sub-tab buttons active state
-  document.querySelectorAll("#samTab .sub-tab-btn").forEach(btn => {
-    btn.classList.remove("active");
-  });
-  const activeBtn = document.getElementById(`btn_sam_sub_${subTabId}`);
-  if (activeBtn) activeBtn.classList.add("active");
-
-  // Show/Hide sub-contents
-  document.querySelectorAll(".sam-sub-content").forEach(el => {
-    el.style.display = "none";
-  });
-  const target = document.getElementById(`samSubTab_${subTabId}`);
-  if (target) {
-    target.style.display = "block";
-  }
-}
-
-function switchCsmSubTab(subTabId) {
-  // Update sub-tab buttons active state
-  document.querySelectorAll("#csmTab .sub-tab-btn").forEach(btn => {
-    btn.classList.remove("active");
-  });
-  const activeBtn = document.getElementById(`btn_csm_sub_${subTabId}`);
-  if (activeBtn) activeBtn.classList.add("active");
-
-  // Show/Hide sub-contents
-  document.querySelectorAll(".csm-sub-content").forEach(el => {
-    el.style.display = "none";
-  });
-  const target = document.getElementById(`csmSubTab_${subTabId}`);
-  if (target) {
-    target.style.display = "block";
   }
 }
 
