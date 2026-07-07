@@ -841,5 +841,65 @@
 
   <!-- Javascript File -->
   <script src="app.js"></script>
+  <script>
+    // Safe execution sanity check:
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const textLabel = document.getElementById("connectionStatusText");
+        const hasLoaded = window.state && window.state.systems && window.state.systems.length > 0;
+        
+        if (!hasLoaded) {
+          console.error("Dashboard script execution failed or was blocked.");
+          
+          // Render a prominent overlay alert in the main panel
+          const container = document.querySelector(".app-container");
+          if (container) {
+            const overlay = document.createElement("div");
+            overlay.style.position = "fixed";
+            overlay.style.top = "0";
+            overlay.style.left = "0";
+            overlay.style.width = "100vw";
+            overlay.style.height = "100vh";
+            overlay.style.background = "rgba(10, 15, 30, 0.95)";
+            overlay.style.zIndex = "99999";
+            overlay.style.display = "flex";
+            overlay.style.flexDirection = "column";
+            overlay.style.alignItems = "center";
+            overlay.style.justifyContent = "center";
+            overlay.style.color = "#fff";
+            overlay.style.fontFamily = "'Outfit', sans-serif";
+            overlay.style.padding = "40px";
+            overlay.style.textAlign = "center";
+            
+            overlay.innerHTML = `
+              <div style="max-width: 600px; background: #1e293b; padding: 40px; border-radius: 12px; border: 1.5px solid rgba(255, 51, 102, 0.4); box-shadow: 0 20px 45px rgba(0,0,0,0.6);">
+                <div style="font-size: 3rem; margin-bottom: 20px;">⚠️</div>
+                <h1 style="font-size: 1.6rem; color: #fff; margin-bottom: 16px; font-weight: 700;">Script Execution Blocked or Missing File</h1>
+                <p style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px;">
+                  The dashboard was unable to load or execute <strong>app.js</strong>. This typically happens because:<br>
+                  <ol style="text-align: left; color: #94a3b8; font-size: 0.88rem; margin: 16px auto; max-width: 450px; line-height: 1.5;">
+                    <li><strong>app.js is missing</strong>: Ensure both <code>index.html</code> and <code>app.js</code> reside in the same folder.</li>
+                    <li><strong>Enterprise Security Policies</strong>: Your browser is blocking local script file execution under the <code>file://</code> protocol.</li>
+                  </ol>
+                </p>
+                <div style="background: rgba(0,0,0,0.25); padding: 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 0.8rem; color: #38bdf8; margin-bottom: 24px; text-align: left;">
+                  Run using the batch script: <strong>start_dashboard.bat</strong><br>
+                  Or run python local server: <strong>python -m http.server 8080</strong>
+                </div>
+                <button onclick="window.location.reload()" style="background: #00e5ff; color: #0a0f1e; border: none; padding: 12px 24px; font-size: 0.9rem; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);">
+                  Retry Reload
+                </button>
+              </div>
+            `;
+            document.body.appendChild(overlay);
+          }
+          
+          alert("⚠️ SCRIPT EXECUTION BLOCKED:\n\n" +
+                "The browser was unable to execute the application script 'app.js' directly. " +
+                "Please open the tool using 'start_dashboard.bat' or host it on a local port (e.g. python -m http.server 8080) to bypass enterprise security blocks.");
+        }
+      }, 800);
+    });
+  </script>
 </body>
 </html>

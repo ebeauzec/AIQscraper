@@ -9,7 +9,8 @@
 //
 
 // Determine API base dynamically to support zero-config CORS proxying when served locally
-const API_BASE = window.location.origin.startsWith("http") ? "/api" : "https://api.activeiq.netapp.com/v1";
+const locOrigin = window.location && window.location.origin ? window.location.origin : "";
+const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.netapp.com/v1";
 
 // 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins, Support Cases)
 const MOCK_SYSTEMS = [
@@ -2070,6 +2071,7 @@ let state = {
   sortOrder: "asc",
   activeKpiFilter: "NONE" // "NONE", "ALL", "CRITICAL", "WARNING", "CONTRACT"
 };
+window.state = state;
 
 // Safe localStorage wrappers to prevent DOMException under local file:// protocol
 function safeGetItem(key) {
@@ -2109,12 +2111,18 @@ function loadConfig() {
   const savedSystems = safeGetItem("aiq_systems_db");
   
   if (savedSystems && schemaVer === "v4") {
-    const parsed = JSON.parse(savedSystems);
-    if (parsed.length < MOCK_SYSTEMS.length) {
+    try {
+      const parsed = JSON.parse(savedSystems);
+      if (Array.isArray(parsed) && parsed.length >= MOCK_SYSTEMS.length) {
+        state.systems = parsed;
+      } else {
+        state.systems = [...MOCK_SYSTEMS];
+        saveSystems();
+      }
+    } catch (e) {
+      console.warn("Failed to parse saved systems, falling back to mock systems:", e);
       state.systems = [...MOCK_SYSTEMS];
       saveSystems();
-    } else {
-      state.systems = parsed;
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
@@ -2130,7 +2138,12 @@ function loadConfig() {
   // Load groups
   const savedGroups = safeGetItem("aiq_custom_groups");
   if (savedGroups) {
-    state.groups = JSON.parse(savedGroups);
+    try {
+      state.groups = JSON.parse(savedGroups);
+    } catch (e) {
+      console.warn("Failed to parse custom groups, falling back to defaults:", e);
+      state.groups = [...DEFAULT_GROUPS];
+    }
   } else {
     state.groups = [...DEFAULT_GROUPS];
   }
@@ -2138,7 +2151,12 @@ function loadConfig() {
   // Load watchlists
   const savedWatchlists = safeGetItem("aiq_watchlists_db");
   if (savedWatchlists) {
-    state.watchlists = JSON.parse(savedWatchlists);
+    try {
+      state.watchlists = JSON.parse(savedWatchlists);
+    } catch (e) {
+      console.warn("Failed to parse watchlists, falling back to defaults:", e);
+      state.watchlists = [...MOCK_WATCHLISTS];
+    }
   } else {
     state.watchlists = [...MOCK_WATCHLISTS];
   }
