@@ -2661,8 +2661,8 @@ function renderCharts() {
       labels: ['Physical Used Space (TB)', 'Space Saved by Efficiency (TB)'],
       datasets: [{
         data: [physicalSum.toFixed(1), savedSum.toFixed(1)],
-        backgroundColor: ['rgba(0, 229, 255, 0.7)', 'rgba(0, 230, 118, 0.7)'],
-        borderColor: ['#00e5ff', '#00e676'],
+        backgroundColor: ['rgba(0, 115, 230, 0.7)', 'rgba(0, 230, 118, 0.7)'],
+        borderColor: ['#0073e6', '#00e676'],
         borderWidth: 1
       }]
     },
@@ -2686,15 +2686,15 @@ function renderCharts() {
         {
           label: 'On-Prem Flash Storage (TB)',
           data: filteredSystems.map(s => (s.efficiency.physicalUsedTB - s.efficiency.fabricPoolTieredTB).toFixed(1)),
-          backgroundColor: 'rgba(79, 172, 254, 0.7)',
-          borderColor: '#4facfe',
+          backgroundColor: 'rgba(0, 115, 230, 0.7)',
+          borderColor: '#0073e6',
           borderWidth: 1
         },
         {
           label: 'FabricPool Tiered to Cloud (TB)',
           data: filteredSystems.map(s => s.efficiency.fabricPoolTieredTB.toFixed(1)),
-          backgroundColor: 'rgba(0, 229, 255, 0.7)',
-          borderColor: '#00e5ff',
+          backgroundColor: 'rgba(0, 210, 255, 0.7)',
+          borderColor: '#00d2ff',
           borderWidth: 1
         }
       ]
@@ -5272,8 +5272,8 @@ function renderProjectionsChart(proj, systemName) {
         {
           label: 'Historical Storage Utilized (TB)',
           data: histData,
-          borderColor: '#00e5ff',
-          backgroundColor: 'rgba(0, 229, 255, 0.05)',
+          borderColor: '#0073e6',
+          backgroundColor: 'rgba(0, 115, 230, 0.05)',
           borderWidth: 3,
           tension: 0.2,
           fill: true
