@@ -2771,14 +2771,14 @@ const MOCK_SYSTEMS = [
     systemName: "hc-ontap-primary",
     clusterName: "BOS-CLINIC-CLUST",
     customerName: "HealthCare Solutions Inc",
-    ontapVersion: "9.13.1",
-    platform: "AFF A250 (Hospital Core)",
+    ontapVersion: "9.15.1",
+    platform: "ASA A90 (Hospital SAN Core)",
     status: "normal",
     risks: [],
     upgrades: {
-      targetVersion: "9.13.1P8",
+      targetVersion: "9.16.1P2",
       urgency: "None",
-      benefits: "Applies stability fixes for NVMe-over-Fabric setups."
+      benefits: "Applies performance enhancements for NVMe/FC symmetric active-active multipath LUN mappings."
     },
     contracts: {
       status: "normal",
@@ -2793,11 +2793,11 @@ const MOCK_SYSTEMS = [
     },
     fieldActions: [],
     efficiency: {
-      ratio: "3.2:1",
-      logicalUsedTB: 80.0,
-      physicalUsedTB: 25.0,
-      spaceSavedTB: 55.0,
-      fabricPoolTieredTB: 5.0
+      ratio: "4.0:1",
+      logicalUsedTB: 160.0,
+      physicalUsedTB: 40.0,
+      spaceSavedTB: 120.0,
+      fabricPoolTieredTB: 0.0
     },
     snapmirror: {
       enabled: true,
@@ -7047,10 +7047,13 @@ function renderCSMTab() {
     <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>Customer</strong>: ${sys.customerName}
   `;
 
+  const isASA = (sys.platform || "").includes("ASA");
+  const efficiencyLabel = isASA ? "Storage Efficiency Ratio (Block SAN)" : "Storage Efficiency Ratio";
+
   document.getElementById("csmSavingsCard").innerHTML = `
     <div style="display: flex; flex-direction: column; gap: 12px;">
       <div>
-        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Storage Efficiency Ratio</span>
+        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">${efficiencyLabel}</span>
         <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${sys.efficiency.ratio}</div>
       </div>
       <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -7074,7 +7077,10 @@ function renderCSMTab() {
   let fpAdoptionBadge = "";
   let fpStatusText = "";
   
-  if (fpTiered > 0) {
+  if (isASA) {
+    fpAdoptionBadge = `<span class="badge normal" style="background: rgba(255,255,255,0.05); color: var(--text-secondary); border-color: var(--border-color);">N/A (SAN Block Array)</span>`;
+    fpStatusText = `ASA platforms prioritize high-speed symmetric SAN block access. Snapshot copy space optimization is managed directly via local aggregates and active block deduplication/compression.`;
+  } else if (fpTiered > 0) {
     fpAdoptionBadge = `<span class="badge normal">Tiering Active</span>`;
     fpStatusText = `System is tiering <strong>${fpTiered.toFixed(1)} TB</strong> of cold data to public/private cloud object storage. This saves premium flash tier capacity.`;
   } else {
@@ -7087,7 +7093,7 @@ function renderCSMTab() {
       <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
       ${fpAdoptionBadge}
     </div>
-    <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${fpTiered > 0 ? "var(--status-info)" : "var(--status-warning)"};">
+    <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${fpTiered > 0 && !isASA ? "var(--status-info)" : "var(--status-warning)"};">
       Cloud Tiered: ${fpTiered.toFixed(1)} TB
     </div>
     <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
@@ -7664,6 +7670,17 @@ SYSTEM ${sysIdx + 1}: CLI RUNBOOK - ${sys.systemName} (S/N: ${sys.serialNumber})
       });
     } else {
       implementationPlans += "✓ No configuration actions required for this system.\n\n";
+    }
+
+    const isASA = (sys.platform || "").includes("ASA");
+    if (isASA) {
+      implementationPlans += `[ASA SAN Platform Verification]
+  * Verify symmetric active-active multipathing states on hosts:
+    esxcli storage nmp device list
+  * Verify SCSI UNMAP allocation & reclamation options on SVM LUNs:
+    lun show -vserver <svm_name> -fields space-allocation,space-reclamation
+  * Confirm that host igroup mapping paths are balanced across HA nodes:
+    igroup show -vserver <svm_name> -fields ostype,protocol\n\n`;
     }
 
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
