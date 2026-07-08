@@ -1757,6 +1757,222 @@ const MOCK_SYSTEMS = [
         { name: "SSD Cache Pool", raidType: "RAID-1", capacityTB: 6.4, freeTB: 0, status: "Optimal" }
       ]
     }
+  },
+  {
+    serialNumber: "622008883030",
+    systemName: "apex-asa-a30",
+    clusterName: "apex-asa-cluster",
+    customerName: "Apex Global Solutions",
+    ontapVersion: "9.16.1",
+    platform: "ASA A30 (On-Prem NVMe)",
+    status: "critical",
+    risks: [
+      {
+        id: 1701,
+        severity: "critical",
+        category: "Hardware",
+        description: "Outdated cluster interconnect switch firmware detected on Cisco Nexus 9336C-FX2 (current: 9.3(8), target: 9.3(12)).",
+        recommendation: "Schedule a switch firmware update to Cisco NX-OS 9.3(12) to address packet loss warnings. Refer to KB1192901.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/MetroCluster_and_IP_switches/Nexus_9336C_firmware_upgrade",
+        remediationPlan: {
+          cause: "Legacy NX-OS firmware exhibits internal buffer drop anomalies during high RoCE traffic bursts.",
+          impact: "Packet drops on cluster interconnect will trigger node health degradation and temporary failover blocks.",
+          steps: [
+            "1. Download Cisco NX-OS 9.3(12) image from NetApp Support.",
+            "2. Copy image to switch active flash partition.",
+            "3. Execute switch install command: 'install all nxos bootflash:nxos.9.3.12.bin'.",
+            "4. Verify switch health and port status: 'show interface brief'."
+          ],
+          options: [
+            "Option A: Update cluster switches sequentially during maintenance window (non-disruptive, traffic fails over to redundant switch A/B).",
+            "Option B: Delay update (Not recommended, risk of interconnect link failure under spike workloads)."
+          ],
+          thirdParty: "Directly affects cluster interconnect stability. Switch port resets may raise momentary path warning events on ESXi hypervisors."
+        }
+      },
+      {
+        id: 1702,
+        severity: "high",
+        category: "Configuration",
+        description: "Asymmetric storage pathing detected on VMware ESXi hosts mapping to LUNs. Some paths are reporting indirect/non-optimized.",
+        recommendation: "Configure VMware host multipathing to symmetric active-active optimized paths. Refer to ASA Host Utilities Guide.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ASA_symmetric_multipath_alignment",
+        remediationPlan: {
+          cause: "Host mapping igroups do not have symmetric port access enabled on the target SVM, forcing indirect paths.",
+          impact: "Under heavy workloads, indirect paths introduce extra controller hop latency, increasing application response times.",
+          steps: [
+            "1. Verify LUN multipathing configuration in ONTAP CLI: 'lun multipath show'.",
+            "2. Enable active-optimized paths for all mapped igroups: 'igroup modify -vserver apex-svm -igroup esxi_cluster -symmetric-path true'.",
+            "3. Scan storage adapter paths on VMware hosts and verify active-optimized path counts."
+          ],
+          options: [
+            "Option A: Enable symmetric-path attribute online (non-disruptive). Paths immediately transition to optimized.",
+            "Option B: Keep default non-symmetric path settings (Causes 5-15% higher IO latency)."
+          ],
+          thirdParty: "Improves VMware vSphere host datastore performance. Eliminates indirect ALUA path storage logs."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "9.16.1P1",
+      urgency: "None",
+      benefits: "Applies latest security microcode updates and fixes for NVMe over TCP path validation."
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2029-06-30",
+      daysRemaining: 1087,
+      supportLevel: "SupportEdge Premium 4hr"
+    },
+    lifecycle: {
+      eoaDate: "2031-12-31",
+      eosDate: "2036-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "4.2:1",
+      logicalUsedTB: 210.0,
+      physicalUsedTB: 50.0,
+      spaceSavedTB: 160.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [
+      {
+        type: "VMware vSphere",
+        version: "ESXi 8.0 Update 2",
+        plugin: "VASA Provider 10.1 (Active)",
+        multipathing: "VMW_PSP_RR (Symmetric Active-Active)",
+        health: "Normal"
+      }
+    ],
+    logistics: {
+      deliveryAddress: "Apex DC-4 Suite B, San Jose, CA 95134, US",
+      accessRestrictions: "Escort required. Loading dock access needs 24-hr advance notice.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Marcus Aurelius",
+      phone: "+1-408-555-1234",
+      email: "maurelius@apexglobal.com",
+      nssUsername: "maurelius_ap"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 9.0,
+      healthStatus: "Excellent",
+      upsellPotential: "None",
+      refreshWindow: "N/A"
+    },
+    projections: {
+      growthRateGBPerDay: 200,
+      daysToLimit: 140,
+      limitDate: "2026-11-25",
+      peakIops: 65000,
+      avgLatencyMs: 0.8,
+      historicalCapacityMonths: [40, 42, 44, 46, 48, 50],
+      projectedCapacityMonths: [52, 54, 56]
+    },
+    securityBulletins: [],
+    supportCases: []
+  },
+  {
+    serialNumber: "622009996160",
+    systemName: "fed-sg6160-01",
+    clusterName: "DC-SECURE-GRID",
+    customerName: "Federal Aero Systems",
+    ontapVersion: "11.9.0",
+    platform: "StorageGRID SG6160",
+    status: "warning",
+    risks: [
+      {
+        id: 1703,
+        severity: "warning",
+        category: "Hardware",
+        description: "StorageGRID SSD firmware is outdated on 24 drives (current: NA02, target: NA05).",
+        recommendation: "Perform a non-disruptive drive firmware update through StorageGRID Console. Refer to SG-KB39102.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/StorageGRID_Appliance/How_to_update_drive_firmware_on_StorageGRID_appliances",
+        remediationPlan: {
+          cause: "Drives are running outdated NA02 firmware which has been superseded due to write endurance improvements.",
+          impact: "Accelerated wear-out rate on storage node SSDs under continuous write ingestion.",
+          steps: [
+            "1. Download SSD firmware package from NetApp Support.",
+            "2. Upload to StorageGRID Console: Maintenance > Software Update > Drive Firmware.",
+            "3. Select firmware package and trigger non-disruptive update.",
+            "4. Monitor drive upgrade progress via the grid dashboard."
+          ],
+          options: [
+            "Option A: Perform rolling non-disruptive update via StorageGRID console (recommended).",
+            "Option B: Defer drive firmware update (Increases SSD failure risk over time)."
+          ],
+          thirdParty: "No external hypervisor impact. StorageGRID node service remains active."
+        }
+      }
+    ],
+    upgrades: {
+      targetVersion: "Up to Date",
+      urgency: "None",
+      benefits: ""
+    },
+    contracts: {
+      status: "normal",
+      endDate: "2030-05-15",
+      daysRemaining: 1409,
+      supportLevel: "SupportEdge GovSecure"
+    },
+    lifecycle: {
+      eoaDate: "2031-12-31",
+      eosDate: "2036-12-31",
+      isNearEos: false
+    },
+    fieldActions: [],
+    efficiency: {
+      ratio: "1.0:1",
+      logicalUsedTB: 1100.0,
+      physicalUsedTB: 1100.0,
+      spaceSavedTB: 0.0,
+      fabricPoolTieredTB: 0.0
+    },
+    snapmirror: {
+      enabled: false,
+      relationships: []
+    },
+    hypervisors: [],
+    logistics: {
+      deliveryAddress: "740 Broadway, Floor 8, New York, NY 10003, US",
+      accessRestrictions: "Escort required. 24-hr advance notification to security lobby for loading dock B access.",
+      shippingAlert: "None"
+    },
+    contacts: {
+      name: "Sarah Jenkins",
+      phone: "+1-212-555-0182",
+      email: "sarah.jenkins@globalbank.com",
+      nssUsername: "sjenkins_gb"
+    },
+    salesHealth: {
+      accountManager: "David Vance (Senior AE)",
+      supportTam: "Marcus Vance (CSM)",
+      sentimentScore: 8.5,
+      healthStatus: "High Satisfaction",
+      upsellPotential: "AFF A900 hardware refresh upgrade",
+      refreshWindow: "Q3 2026"
+    },
+    projections: {
+      growthRateGBPerDay: 400,
+      daysToLimit: 280,
+      limitDate: "2027-04-15",
+      peakIops: 25000,
+      avgLatencyMs: 1.5,
+      historicalCapacityMonths: [900, 940, 980, 1020, 1060, 1100],
+      projectedCapacityMonths: [1140, 1180, 1220]
+    },
+    securityBulletins: [],
+    supportCases: []
   }
 ];
 
