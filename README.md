@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.8.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -8,6 +8,13 @@ A zero-dependency, browser-based report builder and dashboard tailored for NetAp
 This tool runs **entirely inside your browser** (as a static webpage) from this local folder. It does not require any backend server, Node.js/Python installations, or database engines. It connects directly to the Active IQ Digital Advisor APIs (`activeiq.netapp.com`) and persists credentials in your browser's private local storage.
 
 ---
+
+## What's New in Version 1.9.0
+
+*   **Next-Gen Hardware & Software Platform Support**: Added native support for **AFF A1K** (flagship), **AFF A90**, **AFF A70**, **AFF C80** (capacity flash), **ASA A90**, **ASA A30** (all-flash SAN), **StorageGRID SG6160** object appliance, and **EF600 (E-Series NVMe)**.
+*   **FAS/AFF vs. ASA Platform Differentiation**: Fully integrated ASA block SAN array features into capacity reporting widgets (Block SAN Storage Efficiency Ratios), FabricPool Cloud Tiering statuses (identifying N/A bypasses), and generated CLI Runbooks (including `esxcli storage nmp` symmetric multipathing checks and SCSI UNMAP space reclamation states).
+*   **TAM Port Layout Upgrades**: Added dynamic mapping for **100 Gbps RoCE** cluster interconnects, **100 Gbps host ports**, **64 Gbps Fibre Channel SAN**, and **NS224 NVMe storage shelves** (via 100 Gbps NVMe links and NSM shelf module firmware upgrades).
+*   **Self-Contained Local Code Updater**: Integrated an "Update Application" action button in the settings panel that triggers local `git pull` updates via the Python server proxy backend.
 
 ## What's New in Version 1.8.0
 
@@ -47,16 +54,21 @@ SAMs and customer leads can review active technical assistance cases directly in
 ## Supported Platforms & Technologies
 
 This reporting tool is aligned to retrieve and map telemetry across the complete NetApp product portfolio:
-*   **ONTAP (FAS & AFF Systems)**: On-premises primary flash storage.
+*   **ONTAP (FAS & AFF Systems)**: On-premises unified primary flash/hybrid storage, including next-gen flagship models (**AFF A1K**, **AFF A90**, **AFF A70**, and **AFF C80** capacity flash) and legacy platforms.
+*   **All SAN Array (ASA Systems)**: Dedicated block-only SAN storage platforms (including **ASA A90** and **ASA A30**), optimized for symmetric active-active multipathing workloads.
 *   **Cloud Volumes ONTAP (CVO)**: Software-defined storage deployed in AWS, Azure, or GCP.
-*   **StorageGRID**: Webscale S3/Swift object storage.
+*   **StorageGRID**: Webscale S3/Swift object storage, including high-capacity hardware appliances like the **SG6160**.
+*   **E-Series & EF-Series**: High-performance block storage platforms, including NVMe-native **EF600** controllers.
 *   **MetroCluster IP/FC**: High-availability synchronous multi-site disaster recovery configurations.
 *   **SnapMirror & SyncMirror**: Asynchronous and synchronous remote data replication paths.
 
 ### 3rd-Party Platform & Hypervisor Best Practices
 The tool highlights compliance warnings against NetApp storage best practices for virtualization hosts and orchestrators:
 *   **VMware vSphere / ESXi**:
-    *   *Multipathing*: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` — executing either `esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops` (for ESXi 6.x) or `esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1` (for ESXi 7.0/8.0+) — to balance controller load and prevent latency warnings.
+    *   *Multipathing*: 
+        *   **Standard AFF/FAS**: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` — executing either `esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops` (for ESXi 6.x) or `esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1` (for ESXi 7.0/8.0+).
+        *   **ASA Arrays**: Enforces symmetric active-active pathing profiles where all paths are active-optimized to bypass ALUA non-optimized transit port latency.
+    *   *SCSI UNMAP (Space Reclamation)*: Audits SVM LUN configurations to ensure host space reclamation is active, returning deleted hypervisor capacity back to the storage aggregates.
     *   *Integration Plugins*: Audits connectivity and credentials for **VASA Provider** and **ONTAP Tools for VMware (OTV)** for VVol and datastore provisioning.
 *   **Kubernetes (Astra Trident)**:
     *   *Driver Versioning*: Flags outdated Astra Trident CSI drivers backing Kubernetes Persistent Volumes (PVs) that mismatch host API versions.
