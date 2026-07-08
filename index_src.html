@@ -579,10 +579,11 @@
                 </button>
               </div>
 
-              <div style="display: flex; gap: 12px; margin-top: 24px;">
+              <div style="display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;">
                 <button class="action-btn" onclick="saveSettings()" data-tooltip="Save general configuration settings (like Offline Mode or API refresh tokens).">Save Configuration</button>
                 <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database configuration from a JSON file.">Import Config (JSON)</button>
                 <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export local database configuration to a JSON file.">Export Config (JSON)</button>
+                <button class="action-btn secondary" id="appUpdateButton" onclick="updateApplicationCode()" data-tooltip="Pull the latest version of the dashboard code from Git.">Update Application</button>
               </div>
             </div>
 

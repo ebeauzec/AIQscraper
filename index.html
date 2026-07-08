@@ -1568,10 +1568,11 @@ input:checked + .slider:before {
                 </button>
               </div>
 
-              <div style="display: flex; gap: 12px; margin-top: 24px;">
+              <div style="display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;">
                 <button class="action-btn" onclick="saveSettings()" data-tooltip="Save general configuration settings (like Offline Mode or API refresh tokens).">Save Configuration</button>
                 <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database configuration from a JSON file.">Import Config (JSON)</button>
                 <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export local database configuration to a JSON file.">Export Config (JSON)</button>
+                <button class="action-btn secondary" id="appUpdateButton" onclick="updateApplicationCode()" data-tooltip="Pull the latest version of the dashboard code from Git.">Update Application</button>
               </div>
             </div>
 
@@ -9517,6 +9518,36 @@ async function saveSettings() {
   alert("Settings saved successfully.");
   updateScheduledSyncInfo();
   switchTab("settings");
+}
+
+async function updateApplicationCode() {
+  if (window.location.protocol === "file:") {
+    alert("Application Update Unavailable:\nUpdating code via Git is only supported when running the local Python server (server.py).\n\nIf you are running the dashboard as a file, please open a terminal in the folder and run 'git pull' manually.");
+    return;
+  }
+  
+  const btn = document.getElementById("appUpdateButton");
+  if (!btn) return;
+  const origText = btn.innerText;
+  btn.disabled = true;
+  btn.innerText = "Updating...";
+  
+  try {
+    const response = await fetch("/api/app/update", { method: "POST" });
+    const data = await response.json();
+    if (response.ok && data.status === "success") {
+      alert(`Success: ${data.message}`);
+      window.location.reload();
+    } else {
+      throw new Error(data.message || "Failed to execute git update.");
+    }
+  } catch (err) {
+    console.error("Update failed:", err);
+    alert(`Update Failed:\n${err.message}\n\nEnsure that you have Git installed, the project directory is a valid git repository, and the local server is running with write permissions.`);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = origText;
+  }
 }
 
 function updateScheduledSyncInfo() {

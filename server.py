@@ -25,10 +25,40 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith('/api/') or self.path == '/graphql':
+        if self.path == '/api/app/update':
+            self.handle_app_update()
+        elif self.path.startswith('/api/') or self.path == '/graphql':
             self.handle_proxy('POST')
         else:
             self.send_error(404, "Not Found")
+
+    def handle_app_update(self):
+        import subprocess
+        import json
+        try:
+            res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=15)
+            if res.returncode == 0:
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                res_json = {"status": "success", "message": "Application code updated from Git repository successfully!"}
+                self.wfile.write(json.dumps(res_json).encode('utf-8'))
+            else:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                err_msg = res.stderr or res.stdout or "Git pull command failed."
+                res_json = {"status": "error", "message": f"Git update failed: {err_msg.strip()}"}
+                self.wfile.write(json.dumps(res_json).encode('utf-8'))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            res_json = {"status": "error", "message": f"Server error: {str(e)}"}
+            self.wfile.write(json.dumps(res_json).encode('utf-8'))
 
     def handle_proxy(self, method):
         if self.path == '/graphql':

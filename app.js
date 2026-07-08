@@ -7608,6 +7608,36 @@ async function saveSettings() {
   switchTab("settings");
 }
 
+async function updateApplicationCode() {
+  if (window.location.protocol === "file:") {
+    alert("Application Update Unavailable:\nUpdating code via Git is only supported when running the local Python server (server.py).\n\nIf you are running the dashboard as a file, please open a terminal in the folder and run 'git pull' manually.");
+    return;
+  }
+  
+  const btn = document.getElementById("appUpdateButton");
+  if (!btn) return;
+  const origText = btn.innerText;
+  btn.disabled = true;
+  btn.innerText = "Updating...";
+  
+  try {
+    const response = await fetch("/api/app/update", { method: "POST" });
+    const data = await response.json();
+    if (response.ok && data.status === "success") {
+      alert(`Success: ${data.message}`);
+      window.location.reload();
+    } else {
+      throw new Error(data.message || "Failed to execute git update.");
+    }
+  } catch (err) {
+    console.error("Update failed:", err);
+    alert(`Update Failed:\n${err.message}\n\nEnsure that you have Git installed, the project directory is a valid git repository, and the local server is running with write permissions.`);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = origText;
+  }
+}
+
 function updateScheduledSyncInfo() {
   const lastSyncEl = document.getElementById("syncLastTime");
   const nextSyncEl = document.getElementById("syncNextTime");
