@@ -1825,6 +1825,7 @@ const MOCK_SYSTEMS = [
   
   const platforms = [
     "AFF A90 (On-Prem NVMe)",
+    "AFF A1K (On-Prem NVMe Flagship)",
     "AFF A70 (On-Prem NVMe)",
     "AFF C80 (Capacity Flash)",
     "ASA A90 (All-Flash SAN Array)",
@@ -8285,7 +8286,7 @@ function getSystemPortMappings(sys) {
   const isEseries = sys.santricityVersion !== undefined || platformStr.includes("E-Series") || platformStr.includes("EF600");
   const isCloud = platformStr.toLowerCase().includes("cloud");
   const isStorageGrid = platformStr.toLowerCase().includes("storagegrid");
-  const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("ASA");
+  const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA");
   
   if (isCloud) {
     const provider = sys.platform.includes("AWS") ? "AWS VPC" : (sys.platform.includes("Azure") ? "Azure VNet" : "GCP VPC");
