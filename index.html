@@ -1930,30 +1930,30 @@ const MOCK_SYSTEMS = [
     systemName: "netapp-aff-01",
     clusterName: "NY-AFF-CLUSTER",
     customerName: "Global Bank Corp",
-    ontapVersion: "9.12.1P4",
-    platform: "AFF A400 (On-Prem)",
+    ontapVersion: "9.15.1P2",
+    platform: "AFF A90 (On-Prem NVMe)",
     status: "warning",
     risks: [
       {
         id: 101,
         severity: "high",
         category: "Hardware",
-        description: "Single Controller Path Failure detected on SAS loop 1.",
-        recommendation: "Inspect SAS cable connections on shelf 2, port 1B. Refer to KB1089201.",
+        description: "Single Controller Path Failure detected on NVMe loop 1.",
+        recommendation: "Inspect NVMe-oF cable connections on shelf 2, port 1B. Refer to KB1089201.",
         kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Single_controller_path_errors",
         remediationPlan: {
-          cause: "Signal degradation or physical disconnection on controller SAS port 1b connected to Shelf 2 Module B.",
-          impact: "Loss of SAS path redundancy. A secondary failure on SAS port 1a will cause a complete shelf outage, leading to Data Unavailable (DU) status for all aggregates on Shelf 2.",
+          cause: "Signal degradation or physical disconnection on controller NVMe port 1b connected to Shelf 2 NSM B.",
+          impact: "Loss of NVMe path redundancy. A secondary failure on NVMe port 1a will cause a complete shelf outage, leading to Data Unavailable (DU) status for all aggregates on Shelf 2.",
           steps: [
             "1. SSH into the NY-AFF-CLUSTER-01 node controller CLI.",
-            "2. Run: 'storage show path' to view disk path map and confirm the offline controller port.",
-            "3. Locate Shelf 2 at the rack. Verify the status LED on the SAS connector at port 1B (Module B).",
-            "4. Gently reseat the SAS cable. If the LED remains amber or off, replace the SAS cable (Part: 112-00234) under active warranty.",
-            "5. Run: 'storage show path -fields disk-count,path-link-status' to confirm all disk drives report dual-path status."
+            "2. Run: 'storage path show' to view NVMe path map and confirm the offline controller port.",
+            "3. Locate Shelf 2 at the rack. Verify the status LED on the NVMe connector at port 1B (NSM B).",
+            "4. Gently reseat the NVMe-oF cable. If the LED remains amber or off, replace the NVMe copper cable (Part: 112-00456) under active warranty.",
+            "5. Run: 'storage path show -fields disk-count,path-link-status' to confirm all NVMe drives report dual-path status."
           ],
           options: [
-            "Option A (Online): Reseat/replace SAS cable online (non-disruptive). ONTAP multipathing protects data availability via the active path.",
-            "Option B (Schedule Maintenance): If IOM shelf controller module replacement is required, schedule a maintenance window. Although hot-swappable, doing it off-peak minimizes IO latency risks."
+            "Option A (Online): Reseat/replace NVMe-oF cable online (non-disruptive). ONTAP multipathing protects data availability via the active path.",
+            "Option B (Schedule Maintenance): If NSM shelf controller module replacement is required, schedule a maintenance window. Although hot-swappable, doing it off-peak minimizes IO latency risks."
           ],
           thirdParty: "No direct hypervisor impacts. However, VMware ESXi storage paths might generate temporary ScsiDeviceIO path failure alerts which can be ignored during hot-swap."
         }
@@ -1962,16 +1962,16 @@ const MOCK_SYSTEMS = [
         id: 102,
         severity: "medium",
         category: "Software",
-        description: "Disk Shelf IOM12 firmware is outdated (current: 0240, target: 0260).",
+        description: "Disk Shelf NSM100 firmware is outdated (current: 0210, target: 0220).",
         recommendation: "Schedule a non-disruptive shelf firmware upgrade using ONTAP System Manager.",
         kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/Disk_Shelves_and_Storage_Storage_Media/How_to_update_shelf_firmware",
         remediationPlan: {
-          cause: "Older firmware baseline (v0240) lacks optimization for SAS signal margins under heavy loads.",
-          impact: "Increased risk of soft SAS path resets and packet retries under high transactional workloads.",
+          cause: "Older firmware baseline (v0210) lacks optimization for NVMe-oF signal margins under heavy loads.",
+          impact: "Increased risk of soft NVMe path resets and packet retries under high transactional workloads.",
           steps: [
-            "1. Download the IOM12 firmware bundle (version 0260) from the NetApp Support Site.",
-            "2. Upload the bundle to the ONTAP cluster. Run CLI command: 'storage firmware download -node * -package iom12_0260.web'.",
-            "3. Monitor progress: 'storage firmware show -package iom12'. The update installs background/non-disruptively, updating one module (A or B) at a time."
+            "1. Download the NSM100 firmware bundle (version 0220) from the NetApp Support Site.",
+            "2. Upload the bundle to the ONTAP cluster. Run CLI command: 'storage firmware download -node * -package nsm100_0220.web'.",
+            "3. Monitor progress: 'storage firmware show -package nsm100'. The update installs background/non-disruptively, updating one module (A or B) at a time."
           ],
           options: [
             "Option A: Automated update via NetApp Active IQ Unified Manager (AIQUM) or System Manager GUI.",
@@ -2026,7 +2026,7 @@ const MOCK_SYSTEMS = [
       }
     ],
     upgrades: {
-      targetVersion: "9.13.1P8",
+      targetVersion: "9.16.1P2",
       urgency: "Recommended",
       benefits: "Provides critical patches for MetroCluster IP stability and snapmirror engine multi-stream optimizations."
     },
@@ -3377,7 +3377,7 @@ const MOCK_SYSTEMS = [
     clusterName: "DC-SECURE-CLUST",
     customerName: "Federal Aero Systems",
     ontapVersion: "9.12.1P8",
-    platform: "AFF A900 (High-Security)",
+    platform: "AFF A90 (High-Security NVMe)",
     status: "normal",
     risks: [],
     upgrades: {
@@ -3454,7 +3454,7 @@ const MOCK_SYSTEMS = [
     clusterName: "DC-SECURE-GRID",
     customerName: "Federal Aero Systems",
     ontapVersion: "11.8.0",
-    platform: "StorageGRID SG6060",
+    platform: "StorageGRID SG6160",
     status: "normal",
     risks: [],
     upgrades: {
@@ -3735,21 +3735,24 @@ const MOCK_SYSTEMS = [
   ];
   
   const platforms = [
-    "AFF A400 (On-Prem)",
-    "FAS8700 (On-Prem)",
+    "AFF A90 (On-Prem NVMe)",
+    "AFF A70 (On-Prem NVMe)",
+    "AFF C80 (Capacity Flash)",
+    "ASA A90 (All-Flash SAN Array)",
     "Cloud Volumes ONTAP (AWS)",
     "Cloud Volumes ONTAP (Azure)",
-    "StorageGRID SG6060",
+    "StorageGRID SG6160",
+    "AFF A400 (On-Prem)",
+    "FAS8700 (On-Prem)",
     "AFF A900 (On-Prem)",
-    "FAS2750 (On-Prem)",
-    "AFF A250 (On-Prem)",
     "AFF A400 (MetroCluster IP)",
-    "FAS8700 (MetroCluster FC)"
+    "FAS8700 (MetroCluster FC)",
+    "EF600 (E-Series NVMe)"
   ];
   
   const statuses = ["normal", "normal", "normal", "normal", "warning", "warning", "critical"];
   
-  const ontapVersions = ["9.12.1P4", "9.11.1P8", "9.13.1P8", "9.10.1P12", "11.8.0", "9.14.1P2"];
+  const ontapVersions = ["9.15.1P2", "9.14.1P4", "9.16.1P1", "9.13.1P10", "11.9.0", "9.16.1P2"];
 
   for (let i = 1; i <= 54; i++) {
     const custIndex = i % extraCustomers.length;
@@ -5222,7 +5225,7 @@ const SOFTWARE_VERSION_DATABASES = {
     "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1"
   ],
   santricity: [
-    "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5"
+    "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1"
   ],
   storagegrid: [
     "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0"
@@ -10160,9 +10163,10 @@ function getSystemPortMappings(sys) {
   const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
   
   const platformStr = sys.platform || "";
-  const isEseries = sys.santricityVersion !== undefined || platformStr.includes("E-Series");
+  const isEseries = sys.santricityVersion !== undefined || platformStr.includes("E-Series") || platformStr.includes("EF600");
   const isCloud = platformStr.toLowerCase().includes("cloud");
   const isStorageGrid = platformStr.toLowerCase().includes("storagegrid");
+  const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("ASA");
   
   if (isCloud) {
     const provider = sys.platform.includes("AWS") ? "AWS VPC" : (sys.platform.includes("Azure") ? "Azure VNet" : "GCP VPC");
@@ -10358,7 +10362,7 @@ function getSystemPortMappings(sys) {
       partnerName: `${sys.clusterName.toLowerCase()}-clus-sw-01`,
       partnerPort: "Eth1/1",
       cablingStatus: "optimal",
-      details: { speed: "40 Gbps", mtu: 9000, ip: "169.254.1.10" }
+      details: { speed: isNextGen ? "100 Gbps" : "40 Gbps", mtu: 9000, ip: "169.254.1.10" }
     },
     {
       name: "e0b",
@@ -10368,7 +10372,7 @@ function getSystemPortMappings(sys) {
       partnerName: `${sys.clusterName.toLowerCase()}-clus-sw-02`,
       partnerPort: "Eth1/1",
       cablingStatus: hasClusterFailure ? "disconnected" : "optimal",
-      details: { speed: "40 Gbps", mtu: 9000, ip: "169.254.2.10" }
+      details: { speed: isNextGen ? "100 Gbps" : "40 Gbps", mtu: 9000, ip: "169.254.2.10" }
     },
     {
       name: "e0c",
@@ -10378,7 +10382,7 @@ function getSystemPortMappings(sys) {
       partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-01`,
       partnerPort: "Eth1/41",
       cablingStatus: "optimal",
-      details: { speed: "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.11` }
+      details: { speed: isNextGen ? "100 Gbps" : "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.11` }
     },
     {
       name: "e0d",
@@ -10388,7 +10392,7 @@ function getSystemPortMappings(sys) {
       partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-02`,
       partnerPort: "Eth1/41",
       cablingStatus: "optimal",
-      details: { speed: "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.12` }
+      details: { speed: isNextGen ? "100 Gbps" : "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.12` }
     },
     {
       name: "0a",
@@ -10398,7 +10402,7 @@ function getSystemPortMappings(sys) {
       partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-san-sw-A`,
       partnerPort: "fc1/5",
       cablingStatus: "optimal",
-      details: { speed: "32 Gbps", wwpn: `50:0a:09:80:30:1a:2b:${sys.serialNumber.slice(-2)}` }
+      details: { speed: isNextGen ? "64 Gbps" : "32 Gbps", wwpn: `50:0a:09:80:30:1a:2b:${sys.serialNumber.slice(-2)}` }
     },
     {
       name: "0b",
@@ -10408,27 +10412,31 @@ function getSystemPortMappings(sys) {
       partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-san-sw-B`,
       partnerPort: "fc1/5",
       cablingStatus: "optimal",
-      details: { speed: "32 Gbps", wwpn: `50:0a:09:80:30:1a:2c:${sys.serialNumber.slice(-2)}` }
+      details: { speed: isNextGen ? "64 Gbps" : "32 Gbps", wwpn: `50:0a:09:80:30:1a:2c:${sys.serialNumber.slice(-2)}` }
     },
     {
       name: "0c",
-      type: "sas",
+      type: isNextGen ? "nvme" : "sas",
       status: "online",
       partnerType: "disk_shelf",
-      partnerName: `shelf-ds224c-stack-1`,
-      partnerPort: "IOM-A-IN",
+      partnerName: isNextGen ? "shelf-ns224-stack-1" : "shelf-ds224c-stack-1",
+      partnerPort: isNextGen ? "NSM-A-IN" : "IOM-A-IN",
       cablingStatus: "optimal",
-      details: { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module A" }
+      details: isNextGen 
+        ? { speed: "100 Gbps NVMe", shelfStack: "NS224 NVMe Shelf Stack 1 Module A" }
+        : { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module A" }
     },
     {
       name: "0d",
-      type: "sas",
+      type: isNextGen ? "nvme" : "sas",
       status: hasSasFailure ? "offline" : "online",
       partnerType: "disk_shelf",
-      partnerName: `shelf-ds224c-stack-1`,
-      partnerPort: "IOM-B-IN",
+      partnerName: isNextGen ? "shelf-ns224-stack-1" : "shelf-ds224c-stack-1",
+      partnerPort: isNextGen ? "NSM-B-IN" : "IOM-B-IN",
       cablingStatus: hasSasFailure ? "disconnected" : "optimal",
-      details: { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module B" }
+      details: isNextGen 
+        ? { speed: "100 Gbps NVMe", shelfStack: "NS224 NVMe Shelf Stack 1 Module B" }
+        : { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module B" }
     }
   ];
 }
