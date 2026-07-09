@@ -4612,6 +4612,33 @@ function renderSAMTab() {
       </div>
     `;
 
+    // 3.5 AutoSupport aggregate
+    let asupHealthy = 0, asupFailed = 0, asupDisabled = 0;
+    targetSAMSystems.forEach(s => {
+      const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+      if (!asup.enabled) asupDisabled++;
+      else if (asup.status === "failed" || asup.lastReceivedDays > 7) asupFailed++;
+      else asupHealthy++;
+    });
+    let asupBadge = `<span class="badge normal">Healthy</span>`;
+    if (asupFailed > 0) asupBadge = `<span class="badge critical">${asupFailed} Failed</span>`;
+    else if (asupDisabled > 0) asupBadge = `<span class="badge warning">${asupDisabled} Disabled</span>`;
+    
+    document.getElementById("samAutoSupportCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">AutoSupport Status</h4>
+        ${asupBadge}
+      </div>
+      <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px;">
+        Telemetry Health
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 2px;">
+        <span style="color: var(--status-normal);">Healthy: ${asupHealthy} nodes</span>
+        <span style="color: var(--status-warning);">Stopped/Failed: ${asupFailed} nodes</span>
+        <span style="color: var(--status-critical);">Disabled: ${asupDisabled} nodes</span>
+      </div>
+    `;
+
     // 4. 3rd-party Workload Alignment cards
     let hypervisorAgg = {}, databaseAgg = {}, backupAgg = {};
     targetSAMSystems.forEach(s => {
@@ -4941,6 +4968,34 @@ function renderSAMTab() {
   } else if (hypContainer) {
     hypContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding-top: 12px;">No hypervisor integrations tracked on this appliance.</div>`;
   }
+
+  // AutoSupport Details
+  const asup = sys.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+  let asupBadge = `<span class="badge normal">Healthy</span>`;
+  let asupColor = "var(--status-normal)";
+  if (!asup.enabled) {
+    asupBadge = `<span class="badge critical">Disabled</span>`;
+    asupColor = "var(--status-critical)";
+  } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
+    asupBadge = `<span class="badge warning">Stopped</span>`;
+    asupColor = "var(--status-warning)";
+  }
+
+  document.getElementById("samAutoSupportCard").innerHTML = `
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">AutoSupport Status</h4>
+      ${asupBadge}
+    </div>
+    <div style="font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; color: ${asupColor};">
+      ${asup.enabled ? (asup.status === 'failed' ? 'Connection Failed' : 'Telemetry Active') : 'Disabled'}
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 4px;">
+      Last Received: <strong>${asup.lastReceivedDays !== null ? `${asup.lastReceivedDays} days ago` : 'Never'}</strong>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; max-height: 38px;" title="${asup.failureReason || 'None'}">
+      ${asup.failureReason || 'None'}
+    </div>
+  `;
 
   // 3rd-Party Integrations & Workloads Audit
   const ints = getSystemIntegrations(sys);
@@ -5807,6 +5862,34 @@ function enrichSystemTelemetry(s) {
     return r;
   });
 
+  // Dynamic AutoSupport Telemetry Status
+  let autosupport = s.autosupport;
+  if (!autosupport) {
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes("cvo")) {
+      autosupport = {
+        enabled: true,
+        status: "failed",
+        lastReceivedDays: 14,
+        failureReason: "Outbound HTTPS (port 443) connectivity to support.netapp.com is blocked by VPC Security Group egress policies."
+      };
+    } else if (nameLower.includes("fed") || model.includes("EF600") || model.includes("E5700")) {
+      autosupport = {
+        enabled: false,
+        status: "disabled",
+        lastReceivedDays: null,
+        failureReason: "AutoSupport disabled intentionally in accordance with secure dark site compliance protocols."
+      };
+    } else {
+      autosupport = {
+        enabled: true,
+        status: "healthy",
+        lastReceivedDays: 1,
+        failureReason: "None"
+      };
+    }
+  }
+
   // Sourced from 2026-07-09 Reference Library updates:
   // A. Check for SnapMirror Synchronous zero-RPO policy alignment
   if (s.snapmirror && s.snapmirror.enabled && s.snapmirror.relationships) {
@@ -5926,7 +6009,8 @@ function enrichSystemTelemetry(s) {
     salesHealth: salesHealth,
     projections: projections,
     securityBulletins: s.securityBulletins || [],
-    supportCases: s.supportCases || []
+    supportCases: s.supportCases || [],
+    autosupport: autosupport
   };
 }
 
@@ -6302,6 +6386,17 @@ All operations under this plan must comply with standard ITIL Change Control pro
 
 function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
+
+  // Parse AutoSupport issues dynamically Sourced from NetApp Reference Library
+  const asupIssues = [];
+  targetSystems.forEach(s => {
+    const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+    if (!asup.enabled) {
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled intentionally." });
+    } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Connection Failed / Stopped", detail: `No telemetry received for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify outbound HTTPS (443) path."}` });
+    }
+  });
   
   // 1. Problem Statements & Business Impacts
   let problemStatements = `================================================================================
@@ -6313,15 +6408,15 @@ DATE: ${new Date().toISOString().split('T')[0]}
 
 `;
 
-  if (allRisks.length === 0 && expiringContracts.length === 0) {
-    problemStatements += "✓ No critical operational issues or expiring contracts identified in the active scope.\n";
+  if (allRisks.length === 0 && expiringContracts.length === 0 && asupIssues.length === 0) {
+    problemStatements += "✓ No critical operational issues, telemetry issues, or expiring contracts identified in the active scope.\n";
   } else {
     allRisks.forEach((r, idx) => {
       let bizImpact = "High risk of data unavailability, application slowdowns, or critical security vulnerabilities leading to compliance violations.";
       if (r.category === "Security") {
-        bizImpact = "CRITICAL SECURITY EXPOSURE: Exposes storage controllers to unauthorized data access, remote code executions, or potential ransomware propagation (e.g. WannaCry, EternalBlue).";
+         bizImpact = "CRITICAL SECURITY EXPOSURE: Exposes storage controllers to unauthorized data access, remote code executions, or potential ransomware propagation (e.g. WannaCry, EternalBlue).";
       } else if (r.category === "Hardware") {
-        bizImpact = "HARDWARE FAILURE OUTAGE: Loss of SAS loop redundancy or aggregate failures could lead to Data Unavailable (DU) status, crashing VMs and enterprise applications.";
+         bizImpact = "HARDWARE FAILURE OUTAGE: Loss of SAS loop redundancy or aggregate failures could lead to Data Unavailable (DU) status, crashing VMs and enterprise applications.";
       }
       
       problemStatements += `${idx + 1}. PROBLEM IDENTIFIED ON SYSTEM: ${r.systemName}
@@ -6330,6 +6425,18 @@ DATE: ${new Date().toISOString().split('T')[0]}
    - Business & Financial Impact: ${bizImpact}
    - Operational Analysis: ${r.remediationPlan ? r.remediationPlan.impact : "System path degradation or microcode inconsistencies require immediate intervention to protect active LUNs/Shares."}
 \n`;
+    });
+  }
+
+  if (asupIssues.length > 0) {
+    problemStatements += `\n================================================================================
+AUTOSUPPORT TELEMETRY INTEGRITY WARN STATE
+================================================================================\n`;
+    asupIssues.forEach((a, aIdx) => {
+      problemStatements += `${aIdx + 1}. TELEMETRY EXPOSURE ON SYSTEM: ${a.name} (S/N: ${a.serial})
+   - Issue Type: ${a.issue}
+   - Business & Operational Impact: LOSS OF ACTIVE IQ PREDICTIVE SUPPORT. NetApp support cannot receive proactive alerts or system health heartbeat logs. Any disk failures, panic dumps, or controller faults will go unnoticed in Active IQ and won't auto-generate support tickets.
+   - Remediation Action: ${a.detail}\n\n`;
     });
   }
 
@@ -6353,6 +6460,8 @@ A summary of the items is detailed below:
 
 ${allRisks.length > 0 ? `CRITICAL SECURITY & HARDWARE RISKS:\n` + allRisks.map(r => ` - [System: ${r.systemName}] [Severity: ${r.severity.toUpperCase()}] ${r.description}`).join("\n") : "✓ No critical configuration risks identified."}
 
+${asupIssues.length > 0 ? `DEGRADED TELEMETRY / AUTOSUPPORT CONNECTIONS:\n` + asupIssues.map(a => ` - [System: ${a.name}] [Issue: ${a.issue}] ${a.detail}`).join("\n") : "✓ All systems have active AutoSupport connections."}
+
 ${allSupportCases.length > 0 ? `ACTIVE SERVICE CASES IN PROGRESS:\n` + allSupportCases.map(c => ` - Case ID: ${c.id} | Subject: ${c.title} | Current Status: ${c.status}`).join("\n") : "✓ No active open technical support cases."}
 
 We have compiled complete runbooks, CLI rollback commands, and parts dispatch details inside the attached Solution Proposal. Please review and advise on your next Change Advisory Board (CAB) window so we can allocate engineering resources.
@@ -6369,11 +6478,13 @@ TEMPLATE B: QBR EXECUTIVE SUMMARIES (FOR CSM SLIDES)
   - Total Risks Flagged: ${allRisks.length} (${allRisks.filter(r=>r.severity==='critical').length} Critical, ${allRisks.filter(r=>r.severity==='high').length} High)
   - Open Support Cases: ${allSupportCases.length}
   - Upgrades Recommended: ${allUpgrades.length} systems
+  - Degraded AutoSupport Nodes: ${asupIssues.length} system(s) require telemetry check
   
 * ROADMAP RECOMMENDATION:
   1. Remediate critical protocol vulnerability issues (disable legacy SMB1 / enable root squashing).
-  2. Implement sequential OS upgrades to move legacy controllers to stable ONTAP releases.
-  3. Swap degraded SAS cabling components to restore backend network redundancy.
+  2. Restore outbound AutoSupport connectivity on firewall-blocked storage controllers.
+  3. Implement sequential OS upgrades to move legacy controllers to stable ONTAP releases.
+  4. Swap degraded SAS cabling components to restore backend network redundancy.
 `;
 
   // 3. Change Control & Dispatch Tickets
@@ -6469,6 +6580,14 @@ B. BACK-END SAS FABRIC REDUNDANCY
 C. ONTAP OS & SOFTWARE COMPLIANCE LIFECYCLE
    - Recommendation: Perform sequential, non-disruptive rolling upgrades to validated OS baselines.
    - Design Principle: Ensure storage controllers are updated to release targets that support modern TLS 1.3 encryption, patch microcode vulnerabilities, and align with NetApp Interoperability Matrix guidelines.
+`;
+  }
+
+  if (asupIssues.length > 0) {
+    solutionProposals += `
+D. AUTOSUPPORT TELEMETRY INFRASTRUCTURE INTEGRITY
+   - Recommendation: Restore outbound HTTP/HTTPS telemetry connections to support.netapp.com (or configure local proxies).
+   - Design Principle: Telemetry is the cornerstone of proactive support. Restoring AutoSupport connectivity ensures immediate alert routing and active risk auditing.
 `;
   }
 
@@ -6715,6 +6834,62 @@ function generateActionPlan() {
     });
   });
 
+  // Helper to compile AutoSupport verification sub-sections in Action Plan
+  function renderAutoSupportExecutiveSummary(systems) {
+    const issues = [];
+    systems.forEach(s => {
+      const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+      if (!asup.enabled) {
+        issues.push({
+          name: s.systemName,
+          serial: s.serialNumber,
+          type: "Disabled",
+          detail: asup.failureReason || "AutoSupport turned off intentionally or disabled in node configurations."
+        });
+      } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
+        issues.push({
+          name: s.systemName,
+          serial: s.serialNumber,
+          type: "Stopped Sending",
+          detail: `No payload received in ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify network routing path or proxy settings."}`
+        });
+      }
+    });
+
+    if (issues.length === 0) {
+      return `<div style="color: var(--status-normal); font-weight: 600;">✓ All ${systems.length} systems in scope have healthy, active AutoSupport connections.</div>`;
+    }
+
+    let html = `
+      <div style="color: var(--status-warning); font-weight: 600; margin-bottom: 8px;">⚠ Identified ${issues.length} system(s) with degraded or disabled AutoSupport configuration:</div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--border-color); text-align: left; font-size: 0.78rem; color: var(--text-muted);">
+            <th style="padding: 6px 0; width: 25%;">System Name</th>
+            <th style="padding: 6px 0; width: 25%;">Serial Number</th>
+            <th style="padding: 6px 0; width: 20%;">Telemetry Issue</th>
+            <th style="padding: 6px 0; width: 30%;">Root Cause / Mitigation Action</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    issues.forEach(iss => {
+      html += `
+        <tr style="border-bottom: 1px dashed rgba(255,255,255,0.05); font-size: 0.8rem;">
+          <td style="padding: 8px 0; font-weight: 600; color: #fff;">${iss.name}</td>
+          <td style="padding: 8px 0; font-family: monospace;">${iss.serial}</td>
+          <td style="padding: 8px 0;"><span class="badge ${iss.type === 'Disabled' ? 'critical' : 'warning'}" style="font-size: 0.65rem; padding: 2px 6px;">${iss.type}</span></td>
+          <td style="padding: 8px 0; color: var(--text-secondary); font-size: 0.78rem;">${iss.detail}</td>
+        </tr>
+      `;
+    });
+    html += `
+        </tbody>
+      </table>
+    `;
+    return html;
+  }
+
   // 8. Compile Executable Deliverables (Draft Email, Upgrade Proposal, and Internal Dispatch Ticket)
   const docs = compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
 
@@ -6762,6 +6937,19 @@ function generateActionPlan() {
           <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
+          </div>
+        </div>
+        <!-- AutoSupport Telemetry Status Sub-Section -->
+        <div style="background: rgba(0, 229, 255, 0.02); border: 1px dashed var(--accent-cyan); padding: 16px; border-radius: var(--radius-sm); margin-top: 20px;">
+          <h3 style="font-size: 0.95rem; margin: 0 0 10px 0; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Telemetry & AutoSupport (ASUP) Health Verification
+          </h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 12px;">
+            AutoSupport is the critical telemetry channel feeding active predictive risk analysis, security bulletins, and automated case support. Inactive or disabled ASUP feeds blind spots in account posture management.
+          </p>
+          <div style="font-size: 0.85rem; color: var(--text-secondary);">
+            ${renderAutoSupportExecutiveSummary(targetSystems)}
           </div>
         </div>
       </div>
