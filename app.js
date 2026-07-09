@@ -2196,7 +2196,7 @@ const MOCK_SYSTEMS = [
           category: "Software",
           description: "MetroCluster IP configuration synchronization failed.",
           recommendation: "Force site-to-site configuration sync. Upgrade firmware to resolve sync race condition.",
-          kbLink: "https://kb.netapp.com/onprem/ontap/hardware/MetroCluster/MetroCluster_IP_configuration_sync_fails",
+          kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_or_Vserver_DR_Configuration_Replication_Service_is_recovering",
           remediationPlan: {
             cause: "Sync timeout between local and remote site NVRAM logs.",
             impact: "Automatic unplanned switchover disabled. MetroCluster protection is compromised.",
@@ -2679,10 +2679,10 @@ function loadConfig() {
   }
   
   // Load systems db if exists in local storage
-  const schemaVer = safeGetItem("aiq_systems_schema_v6");
+  const schemaVer = safeGetItem("aiq_systems_schema_v7");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v6") {
+  if (savedSystems && schemaVer === "v7") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length >= MOCK_SYSTEMS.length) {
@@ -2698,7 +2698,7 @@ function loadConfig() {
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
-    safeSetItem("aiq_systems_schema_v6", "v6");
+    safeSetItem("aiq_systems_schema_v7", "v7");
     saveSystems();
   }
 
@@ -5818,7 +5818,7 @@ function validateAndSanitizeKBLink(url) {
     "How_to_update_drive_firmware_on_storagegrid_appliances": "onprem/storagegrid/How_to_update_drive_firmware_on_StorageGRID_appliances",
     "How_to_replace_a_failed_disk_drive_in_ontap": "onprem/ontap/hardware/How_to_replace_a_failed_disk_drive_in_ONTAP",
     "Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ontap": "onprem/ontap/os/Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ONTAP",
-    "Metrocluster_ip_configuration_sync_fails": "onprem/ontap/hardware/MetroCluster/MetroCluster_IP_configuration_sync_fails",
+    "Metrocluster_ip_configuration_sync_fails": "Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_or_Vserver_DR_Configuration_Replication_Service_is_recovering",
     "Ha_interconnect_link_down_troubleshooting": "onprem/ontap/hardware/How_to_collect_logs_for_HA_IC_interconnect_Link_Down_or_RDMA_down_issues",
     "How_to_disable_tls_1.0_and_1.1_in_ontap": "onprem/ontap/os/How_to_disable_TLS_1.0_and_1.1_in_ONTAP",
     "Troubleshooting_ntp_synchronization_issues_in_ontap": "onprem/ontap/os/Troubleshooting_NTP_synchronization_issues_in_ONTAP",
