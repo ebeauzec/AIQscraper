@@ -7971,7 +7971,7 @@ function enrichSystemTelemetry(s) {
         category: "Network",
         description: "Legacy firewall policies configuration detected (deprecated in ONTAP 9.10.1+).",
         recommendation: "Transition existing legacy firewall-policy settings to LIF service-policy parameters to ensure active firewall management.",
-        kbLink: "https://kb.netapp.com/on-prem/ontap/da/Network/ONTAP_LIF_service_policies_and_firewall_rules",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/ONTAP_LIF_service_policies_and_firewall_rules",
         remediationPlan: {
           cause: "The system runs ONTAP 9.10.1+ where legacy firewall policies are deprecated and ignored. Port-level rules must transition to LIF service policies.",
           impact: "Exposes ONTAP management interfaces to unauthorized connection attempts if legacy firewall rules fail to apply.",
