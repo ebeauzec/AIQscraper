@@ -2679,26 +2679,31 @@ function loadConfig() {
   }
   
   // Load systems db if exists in local storage
-  const schemaVer = safeGetItem("aiq_systems_schema_v8");
+  // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
+  // fully populated regardless of source (API, import, or previous cached version).
+  const schemaVer = safeGetItem("aiq_systems_schema_v9");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v8") {
+  if (savedSystems && schemaVer === "v9") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length >= MOCK_SYSTEMS.length) {
-        state.systems = parsed;
+        // Re-run enrichment on load: fills any fields missing since last schema version
+        // and normalises any raw API data that was stored without full enrichment.
+        state.systems = parsed.map(s => enrichSystemTelemetry(s));
       } else {
-        state.systems = [...MOCK_SYSTEMS];
+        state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
         saveSystems();
       }
     } catch (e) {
       console.warn("Failed to parse saved systems, falling back to mock systems:", e);
-      state.systems = [...MOCK_SYSTEMS];
+      state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
       saveSystems();
     }
   } else {
-    state.systems = [...MOCK_SYSTEMS];
-    safeSetItem("aiq_systems_schema_v8", "v8");
+    // Fresh start or schema version upgrade — load defaults and save
+    state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
+    safeSetItem("aiq_systems_schema_v9", "v9");
     saveSystems();
   }
 
@@ -3984,7 +3989,9 @@ function openRemediationModal(riskId) {
   }
 
   const kbBtn = document.getElementById("modalKbLink");
-  kbBtn.href = risk.kbLink;
+  // Generate a live KB search URL from the risk description so any new condition
+  // discovered via the AIQ API always produces a working, relevant search link.
+  kbBtn.href = buildKBSearchURL(risk.description, risk.category);
 
   modal.style.display = "flex";
 }
@@ -4107,7 +4114,7 @@ function renderTAMTab() {
           <td>
             <div style="display: flex; gap: 8px;">
               <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})" data-tooltip="View detailed step-by-step remediation procedures, action paths, and third-party environment considerations for this risk.">Remediation Plan</button>
-              <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${r.kbLink}" target="_blank" onclick="window.open(this.href, '_blank'); return false;">KB Art</a>
+              <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${buildKBSearchURL(r.description, r.category)}" target="_blank" onclick="window.open(this.href, '_blank'); return false;">Search KB</a>
             </div>
           </td>
         </tr>
@@ -5788,72 +5795,52 @@ function convertToNetAppFiscal(windowStr) {
 }
 
 // Validate and sanitize NetApp Support Site / Knowledge Base URLs to ensure working paths at runtime
-function validateAndSanitizeKBLink(url) {
-  if (!url || typeof url !== 'string') {
-    return "https://kb.netapp.com";
-  }
-  
-  let cleanUrl = url.trim();
-
-  // Correct legacy /on-prem/ path to active /onprem/ path
-  cleanUrl = cleanUrl.replace(/kb\.netapp\.com\/on-prem\//gi, "kb.netapp.com/onprem/");
-
-  // Match common invalid links to their active validated equivalents
-  const mapping = {
-    "Single_controller_path_errors": "onprem/ontap/hardware/Active_IQ_Alert:_SinglePathToDiskShelf_Alert",
-    "How_to_update_shelf_firmware": "onprem/ontap/hardware/How_to_update_shelf_firmware",
-    "How_to_disable_smbv1_in_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_disable_SMB_1.0_in_ONTAP_9",
-    "Insecure_nfs_exports_root_squashing": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_configure_no_root_squash_for_NFS_clients",
-    "Fabricpool_s3_connection_timeouts_in_cloud_volumes_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Cannot_verify_availability_of_the_object_store",
-    "Troubleshooting_outbound_autosupport_connectivity_issues_in_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_troubleshoot_AutoSupport_delivery_failures_over_HTTPS",
-    "How_to_renew_storagegrid_ssl_certificates": "onprem/storagegrid/How_to_renew_StorageGRID_SSL_certificates",
-    "Metrocluster_ip_isl_link_troubleshooting": "onprem/ontap/hardware/MetroCluster/MetroCluster_IP_ISL_link_troubleshooting",
-    "Esxi_multipathing_best_practices_for_ontap": "onprem/ontap/os/ESXi_multipathing_best_practices_for_ONTAP",
-    "How_to_upgrade_storagegrid": "onprem/storagegrid/How_to_upgrade_StorageGRID",
-    "How_to_manually_upload_autosupport_telemetry_payloads_in_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_manually_upload_AutoSupport_messages_to_NetApp",
-    "How_to_update_atto_fibrebridge_firmware_in_a_metrocluster_configuration": "onprem/ontap/hardware/MetroCluster/How_to_update_ATTO_FibreBridge_firmware_in_a_MetroCluster_configuration",
-    "How_to_replace_bbu_on_e5700": "onprem/eseries/hardware/How_to_replace_BBU_on_E5700",
-    "Nexus_9336c_firmware_upgrade": "onprem/ontap/hardware/MetroCluster/Nexus_9336C_firmware_upgrade",
-    "Asa_symmetric_multipath_alignment": "onprem/ontap/os/ASA_symmetric_multipath_alignment",
-    "How_to_update_drive_firmware_on_storagegrid_appliances": "onprem/storagegrid/How_to_update_drive_firmware_on_StorageGRID_appliances",
-    "How_to_replace_a_failed_disk_drive_in_ontap": "onprem/ontap/hardware/How_to_replace_a_failed_disk_drive_in_ONTAP",
-    "Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ontap": "onprem/ontap/os/Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ONTAP",
-    "Metrocluster_ip_configuration_sync_fails": "Advice_and_Troubleshooting/Data_Protection_and_Security/MetroCluster/MetroCluster_KBs",
-    "Ha_interconnect_link_down_troubleshooting": "onprem/ontap/hardware/How_to_collect_logs_for_HA_IC_interconnect_Link_Down_or_RDMA_down_issues",
-    "How_to_disable_tls_1.0_and_1.1_in_ontap": "onprem/ontap/os/How_to_disable_TLS_1.0_and_1.1_in_ONTAP",
-    "Troubleshooting_ntp_synchronization_issues_in_ontap": "onprem/ontap/os/Troubleshooting_NTP_synchronization_issues_in_ONTAP",
-    "How_to_troubleshoot_aggregate_space_full_issues_in_ontap": "onprem/ontap/os/How_to_troubleshoot_aggregate_space_full_issues_in_ONTAP",
-    "Snapmirror_synchronous_policies": "onprem/ontap/os/SnapMirror_Synchronous_policies",
-    "Varonis_fpolicy_integration_best_practices": "onprem/ontap/os/Varonis_FPolicy_integration_best_practices",
-    "Ontap_lif_service_policies_and_firewall_rules": "onprem/ontap/os/ONTAP_LIF_service_policies_and_firewall_rules"
-  };
-
-  const urlLower = cleanUrl.toLowerCase();
-  for (const [key, replacement] of Object.entries(mapping)) {
-    if (urlLower.includes(key.toLowerCase())) {
-      return `https://kb.netapp.com/${replacement}`;
-    }
-  }
-
-  return cleanUrl;
+// Build a live NetApp KB search URL from a risk description and optional category.
+// This approach is immune to NetApp's redirect system which breaks all deep links:
+// instead of linking to a specific article path that may 404, we open the KB search
+// with the right keywords — which always resolves and shows all relevant articles.
+// Works for any new condition discovered via the AIQ API, including conditions never
+// seen before by this tool.
+function buildKBSearchURL(description, category) {
+  // Compose search terms from the first meaningful sentence of the description
+  // combined with the category label for context.
+  const rawDesc = (description || "").split(/[.!?]/)[0].trim();
+  const rawCat = (category && category !== "General") ? category : "";
+  const combined = [rawCat, rawDesc].filter(Boolean).join(" ");
+  // Strip special characters that break URL encoding, cap at 120 chars
+  const searchTerms = combined.replace(/["'<>]/g, "").substring(0, 120).trim();
+  return `https://kb.netapp.com/?q=${encodeURIComponent(searchTerms)}`;
 }
 
+// Central normalization function called on EVERY system regardless of source:
+// API pull, JSON import, localStorage load, or mock data. Guarantees the system
+// object always has every field the UI expects, with sensible defaults for missing
+// data. Safe to call multiple times (only fills absent fields, never overwrites
+// user-edited values). New customers and conditions from AIQ are automatically
+// handled without any code changes.
 function enrichSystemTelemetry(s) {
-  const serial = s.serialNumber || s.serial_number || "unknown";
-  const name = s.systemName || s.system_name || "unknown";
-  const cluster = s.clusterName || s.cluster_name || "unknown";
-  const customer = s.customerName || s.customer_name || "customer";
-  const osVer = s.ontapVersion || s.ontap_version || s.osVersion || "9.12.1";
-  const model = s.platform || s.model || "AFF A400";
-  const status = s.status || "normal";
+  // --- Field normalization: accept both camelCase (API) and snake_case (legacy) ---
+  const serial = s.serialNumber || s.serial_number || s.id || "unknown";
+  const name = s.systemName || s.system_name || s.name || "unknown";
+  const cluster = s.clusterName || s.cluster_name || s.clusterUuid || "unknown";
+  const customer = s.customerName || s.customer_name || s.accountName || s.account_name || "customer";
+  const osVer = s.ontapVersion || s.ontap_version || s.osVersion || s.os_version || s.softwareVersion || "9.12.1";
+  const model = s.platform || s.platformModel || s.platform_model || s.model || s.systemType || "AFF A400";
+  // Normalize status: API may send 'NORMAL', 'WARNING', 'CRITICAL' in uppercase
+  const status = (s.status || "normal").toLowerCase();
 
-  // Mapped platform categories
+  // --- Platform family detection ---
+  // Handles all current and future NetApp platforms; unknown models default to AFF behaviour.
   const modelLower = model.toLowerCase();
-  const isAFF = modelLower.includes("aff");
+  const isAFF = modelLower.includes("aff") || modelLower.includes("a1k") || modelLower.includes("a90") || modelLower.includes("a70") || modelLower.includes("a50") || modelLower.includes("a30") || modelLower.includes("c80") || modelLower.includes("c60");
   const isASA = modelLower.includes("asa");
   const isFAS = modelLower.includes("fas");
+  const isCVO = modelLower.includes("cloud volumes ontap") || modelLower.includes("cvo") || (name || "").toLowerCase().includes("cvo");
   const isStorageGrid = modelLower.includes("storagegrid") || modelLower.includes("sg60") || modelLower.includes("sg61") || modelLower.includes("sg10");
-  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300");
+  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800");
+  // Unknown platform — treat as generic ONTAP (AFF-equivalent) so dashboard remains functional
+  const isKnownPlatform = isAFF || isASA || isFAS || isCVO || isStorageGrid || isEseries;
+  const isONTAPBased = !isStorageGrid && !isEseries; // All AFF/ASA/FAS/CVO and unknown
 
   // 1. Dynamic Upgrade Recommendations
   let upgrades = s.upgrades;
@@ -5971,12 +5958,26 @@ function enrichSystemTelemetry(s) {
     projectedCapacityMonths: [44.8, 46.2, 48.0]
   };
 
-  // 7. Dynamic Risks Remediation Planning
-  const risks = (s.risks || []).map(r => {
-    if (!r.remediationPlan) {
-      r.remediationPlan = generateDynamicRemediationPlan(r, { clusterName: cluster });
+  // 7. Normalise incoming risks: handle API field name variants, severity casing,
+  // missing remediationPlan, and strip any stored kbLink (search URLs are generated
+  // at render time so they always work for both known and new conditions).
+  const risks = (s.risks || []).map((r, idx) => {
+    // Accept API risk field variants
+    const normRisk = {
+      id:             r.id             || r.riskId          || (9000 + idx),
+      severity:       (r.severity      || r.riskSeverity    || "medium").toLowerCase(),
+      category:       r.category       || r.riskCategory    || "General",
+      description:    r.description    || r.riskDescription || r.title || "Unknown risk identified.",
+      recommendation: r.recommendation || r.riskRecommendation || r.mitigationAction || "Review system telemetry and consult NetApp support.",
+      remediationPlan: r.remediationPlan || null
+      // Note: kbLink is intentionally excluded — search URLs are built dynamically
+      // at render time from description+category via buildKBSearchURL(), ensuring
+      // any new condition from the AIQ API gets a working, relevant search link.
+    };
+    if (!normRisk.remediationPlan) {
+      normRisk.remediationPlan = generateDynamicRemediationPlan(normRisk, { clusterName: cluster });
     }
-    return r;
+    return normRisk;
   });
 
   // Dynamic AutoSupport Telemetry Status
@@ -6105,42 +6106,55 @@ function enrichSystemTelemetry(s) {
     }
   }
 
-  // Sanitize all KB links to ensure they are fully validated at runtime
-  if (risks && risks.length > 0) {
-    risks.forEach(r => {
-      if (r.kbLink) r.kbLink = validateAndSanitizeKBLink(r.kbLink);
-    });
-  }
-  
-  if (s.securityBulletins) {
-    s.securityBulletins.forEach(b => {
-      if (b.kbLink) b.kbLink = validateAndSanitizeKBLink(b.kbLink);
-    });
-  }
+  // KB links: no sanitization needed — search URLs are generated at render time
+  // by buildKBSearchURL(). Any kbLink fields in raw API data are ignored.
+
+  // Normalise security bulletins from API (may use different field names)
+  const securityBulletins = (s.securityBulletins || s.security_bulletins || s.cveBulletins || []).map(b => ({
+    id:         b.id         || b.cveId      || b.bulletinId  || "NTAP-UNKNOWN",
+    title:      b.title      || b.cveTitle   || b.description || "Security advisory",
+    severity:   (b.severity  || b.cvssScore  || "medium").toString().toLowerCase(),
+    status:     b.status     || "Review Required",
+    mitigation: b.mitigation || b.mitigationAction || "Consult NetApp Security Advisory for patch details."
+  }));
+
+  // Normalise support cases from API
+  const supportCases = (s.supportCases || s.support_cases || s.cases || []).map(c => ({
+    id:           c.id           || c.caseId     || c.caseNumber || "CASE-UNKNOWN",
+    title:        c.title        || c.subject    || c.description || "Open support case",
+    severity:     c.severity     || c.priority   || "S3 - Medium",
+    status:       c.status       || c.caseStatus || "Open",
+    criticality:  c.criticality  || c.impact     || "Under review.",
+    nextActionBy: c.nextActionBy || c.owner      || "NetApp Support",
+    createdDate:  c.createdDate  || c.created    || new Date().toISOString().split('T')[0],
+    lastUpdated:  c.lastUpdated  || c.updated    || new Date().toISOString().split('T')[0],
+    ownerNotes:   c.ownerNotes   || c.notes      || ""
+  }));
 
   return {
-    serialNumber: serial,
-    systemName: name,
-    clusterName: cluster,
-    customerName: customer,
-    ontapVersion: osVer,
-    platform: model,
-    status: status,
-    risks: risks,
-    upgrades: upgrades,
-    contracts: contracts,
-    lifecycle: lifecycle,
-    fieldActions: s.fieldActions || [],
-    efficiency: efficiency,
-    snapmirror: s.snapmirror || { enabled: false, relationships: [] },
-    hypervisors: s.hypervisors || [],
-    logistics: logistics,
-    contacts: contacts,
-    salesHealth: salesHealth,
-    projections: projections,
-    securityBulletins: s.securityBulletins || [],
-    supportCases: s.supportCases || [],
-    autosupport: autosupport
+    serialNumber:      serial,
+    systemName:        name,
+    clusterName:       cluster,
+    customerName:      customer,
+    ontapVersion:      osVer,
+    platform:          model,
+    status:            status,
+    risks:             risks,
+    upgrades:          upgrades,
+    contracts:         contracts,
+    lifecycle:         lifecycle,
+    fieldActions:      s.fieldActions || s.field_actions || [],
+    efficiency:        efficiency,
+    snapmirror:        s.snapmirror   || { enabled: false, relationships: [] },
+    hypervisors:       s.hypervisors  || [],
+    switches:          s.switches     || [],
+    logistics:         logistics,
+    contacts:          contacts,
+    salesHealth:       salesHealth,
+    projections:       projections,
+    securityBulletins: securityBulletins,
+    supportCases:      supportCases,
+    autosupport:       autosupport
   };
 }
 
