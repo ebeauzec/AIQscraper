@@ -7815,13 +7815,18 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Standard Practice: Activate vserver audit logging for compliance.
   - Run Command: 'vserver audit create -vserver <svm_name> -destination /audit_log'
 
+* ACTION 3.3: Third-Party Backup Snapshot Scheduling Compliance
+  - Standard Practice: Avoid schedule collision between third-party snapshot orchestration (Veeam, Commvault, Rubrik) and native ONTAP snapshot policies. Disable native ONTAP snapshot schedules on volumes managed by third-party backup platforms to prevent reaching the 255-snapshot-per-volume ceiling.
+  - Run Command: 'volume modify -vserver <svm_name> -volume <vol_name> -snapshot-policy none'
+
 --------------------------------------------------------------------------------
 4. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES
 --------------------------------------------------------------------------------
 All operations under this plan must comply with standard ITIL Change Control procedures:
-1. PRE-CHANGE VERIFICATION: Execute 'system health alert show' and 'storage failover show' to verify cluster stability.
-2. MAINTENANCE WINDOWS: Schedule hardware spares replacement during off-peak windows to absorb transient latency spikes.
-3. CHANGE ROLLBACK PLAN: Document rollback CLI commands for all upgrades (e.g. reverting to fallback boot partitions if post-upgrade checks fail).
+1. PRE-CHANGE VERIFICATION: Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state prior to any change.
+2. SAFETY CLASSIFICATION: Verify command safety tiers (Non-Disruptive, Disruptive but Data-Safe, Destructive or Irreversible) prior to execution. For destructive actions, ensure a valid backup or Snapshot exists.
+3. MAINTENANCE WINDOWS: Schedule hardware spares replacement during off-peak windows to absorb transient latency spikes.
+4. CHANGE ROLLBACK PLAN: Document rollback CLI commands for all upgrades (e.g. reverting to fallback boot partitions if post-upgrade checks fail).
 ================================================================================`;
 }
 
@@ -7931,8 +7936,9 @@ TICKET ${sidx + 1}: LOGISTICS DISPATCH & CHANGE RUNBOOK - ${sys.systemName}
 * PRE-REQUISITES (SAFETY CHECKLIST):
   1. Validate aggregate health: 'storage aggregate show -state online'
   2. Confirm cluster failover status: 'storage failover show'
-  3. Verify current active paths: 'storage path show'
-  4. Perform configuration backup: 'system configuration backup create'
+  3. Verify cluster quorum and node health: 'cluster show' and 'system health alert show'
+  4. Verify current active paths: 'storage path show'
+  5. Perform configuration backup: 'system configuration backup create'
 
 * IMPLEMENTATION RUNBOOK:
 ${sys.risks && sys.risks.length > 0 ? sys.risks.map((r, rIdx) => `  [Sub-Task ${rIdx + 1}] ${r.description}
