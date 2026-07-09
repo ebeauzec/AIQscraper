@@ -2839,31 +2839,51 @@ async function getValidAccessToken() {
   return newAccess;
 }
 
-// Global API Fetch wrapper with auto-rotation
+// Global API Fetch wrapper — logs every call in detail to the console
 async function callActiveIQAPI(endpoint) {
   if (state.mockMode) {
     return simulateMockAPIResponse(endpoint);
   }
-  
-  try {
-    const token = await getValidAccessToken();
-    const response = await fetch(`${getEffectiveApiBaseUrl()}${endpoint}`, {
-      headers: {
-        // NetApp Active IQ uses 'AuthorizationToken' (not 'Authorization: Bearer')
-        "AuthorizationToken": token,
-        "Content-Type": "application/json"
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API returned error: ${response.status} ${response.statusText}`);
+
+  const token   = await getValidAccessToken();
+  const fullUrl = `${getEffectiveApiBaseUrl()}${endpoint}`;
+  console.log(`[AIQ CALL] → ${fullUrl}`);
+
+  const response = await fetch(fullUrl, {
+    headers: {
+      // NetApp Active IQ uses 'AuthorizationToken' (not 'Authorization: Bearer')
+      "AuthorizationToken": token,
+      "Content-Type": "application/json"
     }
-    return await response.json();
-  } catch (error) {
-    console.error("Active IQ API Fetch Error: ", error);
-    throw error;
+  });
+
+  console.log(`[AIQ CALL] ← HTTP ${response.status} (${endpoint})`);
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    console.warn(`[AIQ CALL] Error body (${endpoint}):`, body.slice(0, 300));
+    throw new Error(`HTTP ${response.status} from ${endpoint}`);
   }
+
+  const data = await response.json();
+  // Log the top-level keys and first 200 chars so we can diagnose empty responses
+  if (data && typeof data === "object") {
+    const keys = Object.keys(data);
+    console.log(`[AIQ CALL] Response keys (${endpoint}):`, keys);
+    if (keys.length > 0) {
+      const firstVal = data[keys[0]];
+      const preview  = Array.isArray(firstVal)
+        ? `Array[${firstVal.length}]`
+        : JSON.stringify(firstVal).slice(0, 150);
+      console.log(`[AIQ CALL]   ${keys[0]}: ${preview}`);
+    }
+  } else {
+    console.log(`[AIQ CALL] Raw response (${endpoint}):`, String(data).slice(0, 200));
+  }
+  return data;
 }
+
+
 
 // Global GraphQL fetch client dispatcher
 async function callActiveIQGraphQL(query, variables = {}) {
@@ -8833,7 +8853,103 @@ function deleteCustomGroup(groupId) {
   renderSidebarGroups();
 }
 
+// ── API Diagnostics ───────────────────────────────────────────────────────────
+// Probes all key endpoints and shows results in a visible modal (no DevTools needed)
+async function runAPIDiagnostics() {
+  if (state.mockMode) {
+    alert("Diagnostics unavailable in Offline Demo Mode.\nPlease disable 'Enable Offline Demo Mode' and configure a Refresh Token, then try again.");
+    return;
+  }
+
+  const results = [];
+  const probe   = async (label, ep) => {
+    try {
+      const t0   = Date.now();
+      const data = await callActiveIQAPI(ep);
+      const ms   = Date.now() - t0;
+      const keys = data && typeof data === "object" ? Object.keys(data) : [];
+      let preview = "";
+      if (Array.isArray(data))         preview = `Array[${data.length}]`;
+      else if (keys.length > 0) {
+        const v = data[keys[0]];
+        preview = Array.isArray(v)
+          ? `{ ${keys[0]}: Array[${v.length}] ... }`
+          : `{ ${keys.slice(0,3).join(", ")} }`;
+      }
+      results.push({ label, ep, status: "200 OK", ms, preview, ok: true });
+    } catch (e) {
+      results.push({ label, ep, status: e.message, ms: 0, preview: "", ok: false });
+    }
+  };
+
+  results.push({ label: "─── Token ───", ep: "", status: "", ms: 0, preview: `Token prefix: ${(await getValidAccessToken().catch(() => "ERROR")).slice(0,20)}…`, ok: true });
+
+  await probe("Watchlist All",            "/watchlist/all");
+  await probe("Search System v3",         "/v3/search/system?searchText=&limit=10");
+  await probe("Search System v2 customer","/v2/search/system/level/customer?searchText=&limit=10");
+  await probe("Search System v1 customer","/v1/search/system/level/customer?searchText=&limit=10");
+  await probe("EoS Details",              "/eos/details");
+  await probe("EoS Summary",              "/eos/summary");
+  await probe("Health Risks v2",          "/v2/health/risks");
+  await probe("API Registration",         "/api/registration");
+  await probe("API Subscription",         "/api/catalogSubscription");
+  await probe("Health-check ASUP Details","/health-check/asup/asup_details");
+  await probe("ASUP Adoption",            "/health-check/asup/asup_adoption");
+  await probe("Capacity2 Usage",          "/capacity2/usage");
+
+  // For each watchlist ID found, probe its system search
+  if (state.watchlists && state.watchlists.length > 0) {
+    for (const wl of state.watchlists.slice(0, 3)) {
+      await probe(`Search watchlist ${wl.name}`, `/v1/search/system/level/watchlist?id=${wl.id}&limit=10`);
+      await probe(`Health watchlist ${wl.name}`,  `/health/details/level/watchlist/id/${wl.id}`);
+    }
+  }
+
+  showDiagnosticsModal(results);
+}
+
+function showDiagnosticsModal(results) {
+  // Remove any existing diagnostic modal
+  document.getElementById("diagModal")?.remove();
+
+  const rows = results.map(r => {
+    const color  = !r.ep ? "#7ee8fa" : r.ok ? "#4ade80" : "#f87171";
+    const bg     = !r.ep ? "rgba(126,232,250,0.08)" : "";
+    return `<tr style="background:${bg}">
+      <td style="padding:4px 8px;color:${color};font-weight:${!r.ep?700:400}">${r.label}</td>
+      <td style="padding:4px 8px;color:#94a3b8;font-size:11px;word-break:break-all">${r.ep}</td>
+      <td style="padding:4px 8px;color:${color}">${r.status}${r.ms ? " ("+r.ms+"ms)" : ""}</td>
+      <td style="padding:4px 8px;color:#cbd5e1;font-size:11px">${r.preview}</td>
+    </tr>`;
+  }).join("");
+
+  const modal = document.createElement("div");
+  modal.id    = "diagModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;display:flex;align-items:center;justify-content:center";
+  modal.innerHTML = `
+    <div style="background:#0f1729;border:1px solid #334155;border-radius:12px;padding:24px;max-width:900px;width:95%;max-height:85vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="color:#7ee8fa;margin:0;font-size:16px">🔬 API Diagnostics Report</h3>
+        <button onclick="document.getElementById('diagModal').remove()" style="background:#1e3a5f;color:#7ee8fa;border:none;border-radius:6px;padding:6px 14px;cursor:pointer">Close</button>
+      </div>
+      <p style="color:#94a3b8;font-size:12px;margin-bottom:16px">
+        Green = data returned. Red = error/empty. Share this table if you need support.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;font-family:monospace">
+        <thead><tr style="color:#475569;border-bottom:1px solid #1e3a5f">
+          <th style="text-align:left;padding:4px 8px">Endpoint</th>
+          <th style="text-align:left;padding:4px 8px">Path</th>
+          <th style="text-align:left;padding:4px 8px">Result</th>
+          <th style="text-align:left;padding:4px 8px">Response Shape</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
 // 10. Global active status visual indicators & Settings Saves
+
 async function saveSettings() {
   const mockToggle = document.getElementById("settingsMockModeToggle").checked;
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
