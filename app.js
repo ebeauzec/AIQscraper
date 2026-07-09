@@ -9087,21 +9087,77 @@ async function loadProductionData() {
     }
     
     console.warn("Active IQ API returned no clusters or systems.");
-    alert("Warning: The Active IQ API endpoint connected successfully, but returned an empty system listing. Falling back to cached data.");
+    alert("Warning: The Active IQ API endpoint connected successfully, but returned an empty system listing.");
   } catch (error) {
     console.error("Failed to fetch from Active IQ API:", error);
-    alert(`Failed to load data from Active IQ API.
-Reason: ${error.message}
 
-⚠️ CORS / ORIGIN RESTRICTION:
+    // Determine context: are we running through the local proxy (desktop app)?
+    const viaProxy = state.isRunningViaProxy;
+    const errMsg   = error.message || String(error);
+
+    // Classify the error type for a more helpful message
+    const isFetchFail  = errMsg.toLowerCase().includes("failed to fetch") ||
+                         errMsg.toLowerCase().includes("networkerror");
+    const is404        = errMsg.includes("404");
+    const is401or403   = errMsg.includes("401") || errMsg.includes("403");
+
+    let detail = "";
+
+    if (viaProxy) {
+      // Running via desktop launcher — CORS is not the issue
+      if (is401or403) {
+        detail = `🔑 Authentication Failed (${errMsg})
+
+Your Refresh Token has expired or is invalid.
+
+Steps to fix:
+1. Go to the NetApp Active IQ portal and generate a new Developer Token.
+2. Paste the new token into Settings → Active IQ Developer Refresh Token.
+3. Click Save Configuration, then try Synchronize again.`;
+      } else if (is404) {
+        detail = `🔍 API Endpoint Not Found (${errMsg})
+
+The NetApp Active IQ API returned 404 for one of the sync endpoints.
+This usually means:
+  • The API endpoint path has changed (NetApp occasionally revisions their API)
+  • The Refresh Token doesn't have permission to access this resource
+  • The token belongs to a different region/environment
+
+Steps to fix:
+1. Verify your Refresh Token is a current Active IQ Developer token.
+2. Check that the API Base URL is: https://api.activeiq.netapp.com/v1
+3. If the issue persists, contact your NetApp account team to confirm API access.`;
+      } else if (isFetchFail) {
+        detail = `🌐 Network Error — Cannot Reach the Local Proxy (${errMsg})
+
+The proxy server appears to have stopped. Try:
+1. Close and relaunch the app via the Desktop shortcut.
+2. If the error persists, check that no firewall is blocking localhost.`;
+      } else {
+        detail = `⚠️ API Error: ${errMsg}
+
+The request went through the local CORS proxy successfully but the
+NetApp Active IQ API returned an error.
+
+Check:
+• Your Refresh Token is valid and not expired.
+• The API Base URL in Settings is correct.
+• Your network can reach api.activeiq.netapp.com.`;
+      }
+    } else {
+      // Running in a plain browser — CORS really is the issue
+      detail = `⚠️ CORS / ORIGIN RESTRICTION:
 Even though the dashboard is served via a local web server (http://localhost:8080), browser CORS (Cross-Origin Resource Sharing) security policies will block direct API calls from localhost/file origins to NetApp's API servers.
 
 To resolve this:
 1. Re-enable "Offline Demo Mode (Mock Data)" in Settings to load the demo database.
-2. Install a developer browser extension (e.g., search the Chrome Web Store for "CORS Unblock" or "Allow CORS") and toggle it ON to bypass browser CORS origin checks.
-3. Or launch Chrome with disabled web security.
+2. Launch the app via the Desktop shortcut ("NetApp AIQ Advisor") instead of the browser — the desktop version uses a built-in CORS proxy.
+3. Or install a browser extension such as "CORS Unblock" and enable it.
 
-See the README.md file for detailed CORS bypass guidelines.`);
+See the README.md file for detailed CORS bypass guidelines.`;
+    }
+
+    alert(`Failed to load data from Active IQ API.\nReason: ${errMsg}\n\n${detail}`);
   }
 
   updateStatusIndicators();

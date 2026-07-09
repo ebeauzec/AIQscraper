@@ -85,10 +85,12 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             headers['Content-Type'] = 'application/json'
 
         # Query NetApp API using standard urllib
+        print(f"  → PROXY {method} {target_url}", flush=True)
         req = urllib.request.Request(target_url, data=req_data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req) as response:
                 res_data = response.read()
+                print(f"  ← {response.status} ({len(res_data)} bytes)", flush=True)
                 self.send_response(response.status)
                 
                 # Forward remote response headers
@@ -100,6 +102,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(res_data)
         except urllib.error.HTTPError as e:
             res_data = e.read()
+            body_preview = res_data[:200].decode('utf-8', errors='replace')
+            print(f"  ← HTTP {e.code} ERROR: {body_preview}", flush=True)
             self.send_response(e.code)
             for key, val in e.headers.items():
                 if key.lower() not in ['transfer-encoding', 'content-encoding', 'access-control-allow-origin']:
@@ -107,6 +111,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(res_data)
         except Exception as e:
+            print(f"  ← PROXY EXCEPTION: {e}", flush=True)
             self.send_response(500)
             self.end_headers()
             self.wfile.write(str(e).encode('utf-8'))
