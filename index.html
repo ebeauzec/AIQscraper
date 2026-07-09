@@ -10795,10 +10795,16 @@ function deleteCustomGroup(groupId) {
 // ── API Diagnostics ───────────────────────────────────────────────────────────
 // Probes all key endpoints and shows results in a visible modal (no DevTools needed)
 async function runAPIDiagnostics() {
-  if (state.mockMode) {
-    alert("Diagnostics unavailable in Offline Demo Mode.\nPlease disable 'Enable Offline Demo Mode' and configure a Refresh Token, then try again.");
+  const { refresh } = loadConfig();
+  if (!refresh) {
+    alert("No API refresh token found.\n\nPaste your Active IQ refresh token into the field above and click 'Save Configuration', then run diagnostics again.");
     return;
   }
+
+  // Temporarily force mock mode OFF so we always test the real API,
+  // regardless of what the toggle currently says or what state.mockMode is.
+  const savedMock = state.mockMode;
+  state.mockMode  = false;
 
   const results = [];
   const probe   = async (label, ep) => {
@@ -10808,44 +10814,52 @@ async function runAPIDiagnostics() {
       const ms   = Date.now() - t0;
       const keys = data && typeof data === "object" ? Object.keys(data) : [];
       let preview = "";
-      if (Array.isArray(data))         preview = `Array[${data.length}]`;
+      if (Array.isArray(data))    preview = `Array[${data.length}]`;
       else if (keys.length > 0) {
         const v = data[keys[0]];
         preview = Array.isArray(v)
           ? `{ ${keys[0]}: Array[${v.length}] ... }`
           : `{ ${keys.slice(0,3).join(", ")} }`;
-      }
+      } else { preview = "(empty object)"; }
       results.push({ label, ep, status: "200 OK", ms, preview, ok: true });
     } catch (e) {
       results.push({ label, ep, status: e.message, ms: 0, preview: "", ok: false });
     }
   };
 
-  results.push({ label: "─── Token ───", ep: "", status: "", ms: 0, preview: `Token prefix: ${(await getValidAccessToken().catch(() => "ERROR")).slice(0,20)}…`, ok: true });
+  try {
+    const tok = await getValidAccessToken().catch(() => "ERROR");
+    results.push({ label: "─── Token ───", ep: "", status: "", ms: 0,
+      preview: tok === "ERROR" ? "⚠ Token exchange failed!" : `Prefix: ${tok.slice(0,25)}…`, ok: tok !== "ERROR" });
 
-  await probe("Watchlist All",            "/watchlist/all");
-  await probe("Search System v3",         "/v3/search/system?searchText=&limit=10");
-  await probe("Search System v2 customer","/v2/search/system/level/customer?searchText=&limit=10");
-  await probe("Search System v1 customer","/v1/search/system/level/customer?searchText=&limit=10");
-  await probe("EoS Details",              "/eos/details");
-  await probe("EoS Summary",              "/eos/summary");
-  await probe("Health Risks v2",          "/v2/health/risks");
-  await probe("API Registration",         "/api/registration");
-  await probe("API Subscription",         "/api/catalogSubscription");
-  await probe("Health-check ASUP Details","/health-check/asup/asup_details");
-  await probe("ASUP Adoption",            "/health-check/asup/asup_adoption");
-  await probe("Capacity2 Usage",          "/capacity2/usage");
+    await probe("Watchlist All",              "/watchlist/all");
+    await probe("Search System v3",           "/v3/search/system?searchText=&limit=10");
+    await probe("Search System v2 customer",  "/v2/search/system/level/customer?searchText=&limit=10");
+    await probe("Search System v1 customer",  "/v1/search/system/level/customer?searchText=&limit=10");
+    await probe("EoS Details",                "/eos/details");
+    await probe("EoS Summary",                "/eos/summary");
+    await probe("Health Risks v2",            "/v2/health/risks");
+    await probe("API Registration",           "/api/registration");
+    await probe("API Subscription",           "/api/catalogSubscription");
+    await probe("ASUP Details",               "/health-check/asup/asup_details");
+    await probe("ASUP Adoption",              "/health-check/asup/asup_adoption");
+    await probe("Capacity2 Usage",            "/capacity2/usage");
+    await probe("EoS Contracts Details",      "/eos/contracts/details");
+    await probe("Keystone Customers",         "/keystone/customers");
 
-  // For each watchlist ID found, probe its system search
-  if (state.watchlists && state.watchlists.length > 0) {
-    for (const wl of state.watchlists.slice(0, 3)) {
-      await probe(`Search watchlist ${wl.name}`, `/v1/search/system/level/watchlist?id=${wl.id}&limit=10`);
-      await probe(`Health watchlist ${wl.name}`,  `/health/details/level/watchlist/id/${wl.id}`);
+    if (state.watchlists && state.watchlists.length > 0) {
+      for (const wl of state.watchlists.slice(0, 3)) {
+        await probe(`Search watchlist: ${wl.name}`, `/v1/search/system/level/watchlist?id=${wl.id}&limit=10`);
+        await probe(`Health watchlist: ${wl.name}`,  `/health/details/level/watchlist/id/${wl.id}`);
+      }
     }
+  } finally {
+    state.mockMode = savedMock; // Always restore
   }
 
   showDiagnosticsModal(results);
 }
+
 
 function showDiagnosticsModal(results) {
   // Remove any existing diagnostic modal
