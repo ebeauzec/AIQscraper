@@ -3,6 +3,7 @@
 NetApp Active IQ Advisor - Setup Installer
 ==========================================
 A self-contained GUI installer written in Python.
+v1.11.1 - Fixed: Launch Now uses subprocess.Popen directly.
 
 Why Python instead of a .bat or .exe?
   - Runs through python.exe, which is a digitally-signed, trusted
@@ -322,9 +323,26 @@ class InstallerApp:
         self.root.after(0, _do)
 
     def _launch_and_exit(self):
-        if self._vbs_path and self._vbs_path.exists():
-            os.startfile(str(self._vbs_path))
-            time.sleep(1)
+        """Launch the dashboard directly via subprocess so we don't race with root.destroy()."""
+        # Find pythonw and launcher.py from the stored vbs path's directory
+        if self._vbs_path:
+            app_dir = self._vbs_path.parent
+            launcher = app_dir / "launcher.py"
+            pythonw  = find_pythonw()
+            if launcher.exists():
+                try:
+                    subprocess.Popen(
+                        [pythonw, str(launcher)],
+                        cwd=str(app_dir),
+                        # Detach completely so it survives after we destroy the window
+                        creationflags=0x00000008,  # DETACHED_PROCESS
+                        close_fds=True,
+                    )
+                    time.sleep(1.5)  # give OS time to spawn the process
+                except Exception as e:
+                    self._log(f"Launch error: {e}  —  Try double-clicking the shortcut on your Desktop.", "warn")
+            else:
+                self._log(f"launcher.py not found at {launcher}", "err")
         self.root.destroy()
 
     def _on_close(self):
@@ -363,16 +381,19 @@ class InstallerApp:
         # ── Step 2: pywebview ─────────────────────────────────────────────────
         self._mark_step("step2", "active")
         self._set_status("Installing pywebview...")
-        self._log("\n[2/4] Installing pywebview...", "info")
+        self._log("\n[2/4] Installing pywebview + Windows backends...", "info")
         try:
+            # pywebview on Windows needs pythonnet + pywin32 for the WinForms/WebView2 backend.
+            # Installing them explicitly ensures fresh machines work without manual intervention.
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "--upgrade",
-                 "pywebview", "--quiet", "--no-warn-script-location"],
+                 "pywebview", "pythonnet", "pywin32",
+                 "--quiet", "--no-warn-script-location"],
                 capture_output=True, text=True
             )
             if result.returncode != 0:
                 raise RuntimeError(result.stderr or "pip failed")
-            self._log("      pywebview ready.", "ok")
+            self._log("      pywebview + pythonnet + pywin32 ready.", "ok")
             self._mark_step("step2", "done")
         except Exception as e:
             self._log(f"      ERROR: {e}", "err")
