@@ -4779,48 +4779,48 @@ async function getValidAccessToken() {
 }
 
 // Global API Fetch wrapper — logs every call in detail to the console
-async function callActiveIQAPI(endpoint) {
+async function callActiveIQAPI(endpoint, method = "GET", body = null) {
   if (state.mockMode) {
     return simulateMockAPIResponse(endpoint);
   }
 
   const token   = await getValidAccessToken();
   const fullUrl = `${getEffectiveApiBaseUrl()}${endpoint}`;
-  console.log(`[AIQ CALL] → ${fullUrl}`);
+  console.log(`[AIQ CALL] → ${method} ${fullUrl}`);
 
-  const response = await fetch(fullUrl, {
-    headers: {
-      // NetApp Active IQ uses 'AuthorizationToken' (not 'Authorization: Bearer')
-      "AuthorizationToken": token,
-      "Content-Type": "application/json"
-    }
-  });
+  // IMPORTANT: do NOT send Content-Type on GET requests — some NetApp endpoints
+  // return HTTP 500 when Content-Type is present on a GET (it's technically invalid).
+  const headers = {
+    "AuthorizationToken": token,
+    "Accept": "application/json",
+    ...(method !== "GET" ? { "Content-Type": "application/json" } : {})
+  };
 
+  const fetchOpts = { method, headers };
+  if (body && method !== "GET") fetchOpts.body = JSON.stringify(body);
+
+  const response = await fetch(fullUrl, fetchOpts);
   console.log(`[AIQ CALL] ← HTTP ${response.status} (${endpoint})`);
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.warn(`[AIQ CALL] Error body (${endpoint}):`, body.slice(0, 300));
+    const text = await response.text().catch(() => "");
+    console.warn(`[AIQ CALL] Error body (${endpoint}):`, text.slice(0, 400));
     throw new Error(`HTTP ${response.status} from ${endpoint}`);
   }
 
   const data = await response.json();
-  // Log the top-level keys and first 200 chars so we can diagnose empty responses
   if (data && typeof data === "object") {
     const keys = Object.keys(data);
     console.log(`[AIQ CALL] Response keys (${endpoint}):`, keys);
     if (keys.length > 0) {
-      const firstVal = data[keys[0]];
-      const preview  = Array.isArray(firstVal)
-        ? `Array[${firstVal.length}]`
-        : JSON.stringify(firstVal).slice(0, 150);
-      console.log(`[AIQ CALL]   ${keys[0]}: ${preview}`);
+      const v = data[keys[0]];
+      console.log(`[AIQ CALL]   ${keys[0]}:`, Array.isArray(v) ? `Array[${v.length}]` : JSON.stringify(v).slice(0, 150));
     }
-  } else {
-    console.log(`[AIQ CALL] Raw response (${endpoint}):`, String(data).slice(0, 200));
   }
   return data;
 }
+
+
 
 
 
@@ -10833,26 +10833,39 @@ async function runAPIDiagnostics() {
       preview: tok === "ERROR" ? "⚠ Token exchange failed!" : `Prefix: ${tok.slice(0,25)}…`, ok: tok !== "ERROR" });
 
     await probe("Watchlist All",              "/watchlist/all");
-    await probe("Search System v3",           "/v3/search/system?searchText=&limit=10");
-    await probe("Search System v2 customer",  "/v2/search/system/level/customer?searchText=&limit=10");
-    await probe("Search System v1 customer",  "/v1/search/system/level/customer?searchText=&limit=10");
-    await probe("EoS Details",                "/eos/details");
-    await probe("EoS Summary",                "/eos/summary");
-    await probe("Health Risks v2",            "/v2/health/risks");
-    await probe("API Registration",           "/api/registration");
-    await probe("API Subscription",           "/api/catalogSubscription");
-    await probe("ASUP Details",               "/health-check/asup/asup_details");
-    await probe("ASUP Adoption",              "/health-check/asup/asup_adoption");
-    await probe("Capacity2 Usage",            "/capacity2/usage");
-    await probe("EoS Contracts Details",      "/eos/contracts/details");
-    await probe("Keystone Customers",         "/keystone/customers");
+    await probe("Search System v3 (wildcard)", "/v3/search/system?searchText=*&limit=10");
+    await probe("Search System v3 (blank)",    "/v3/search/system?limit=10");
+    await probe("Search v2 customer (wild)",   "/v2/search/system/level/customer?searchText=*&limit=10");
+    await probe("Search v1 customer (wild)",   "/v1/search/system/level/customer?searchText=*&limit=10");
+    await probe("Search v1 watchlist (wild)",  "/v1/search/system/level/watchlist?searchText=*&limit=10");
+    await probe("Health Summary v1 customer",  "/v1/health/summary/level/customer?searchText=*&limit=10");
+    await probe("Health Details v1 customer",  "/v1/health/details/level/customer?searchText=*&limit=10");
+    await probe("EoS Details",                 "/eos/details");
+    await probe("EoS Contracts Details",       "/eos/contracts/details");
+    await probe("Health Risks v2",             "/v2/health/risks");
+    await probe("API Registration",            "/api/registration");
+    await probe("API Subscription",            "/api/catalogSubscription");
+    await probe("Capacity2 Usage",             "/capacity2/usage");
+    await probe("Keystone Customers",          "/keystone/customers");
+    await probe("Firmware Details",            "/firmware/details");
+    await probe("Upgrade Summary v1",          "/upgrade/summary/level/customer?searchText=*");
 
-    if (state.watchlists && state.watchlists.length > 0) {
-      for (const wl of state.watchlists.slice(0, 3)) {
+    // Only probe watchlist-scoped endpoints if we have REAL watchlist IDs
+    // (IDs starting with 'wl_' are stale mock data — skip them)
+    const realWatchlists = (state.watchlists || []).filter(
+      wl => wl.id && !String(wl.id).startsWith("wl_")
+    );
+    if (realWatchlists.length > 0) {
+      results.push({ label: "─── Watchlists ───", ep: "", status: "", ms: 0, preview: `${realWatchlists.length} real watchlist(s) found`, ok: true });
+      for (const wl of realWatchlists.slice(0, 3)) {
         await probe(`Search watchlist: ${wl.name}`, `/v1/search/system/level/watchlist?id=${wl.id}&limit=10`);
         await probe(`Health watchlist: ${wl.name}`,  `/health/details/level/watchlist/id/${wl.id}`);
       }
+    } else {
+      results.push({ label: "─── Watchlists ───", ep: "", status: "", ms: 0,
+        preview: "No real watchlists loaded yet (run Sync first, or /watchlist/all returned error)", ok: false });
     }
+
   } finally {
     state.mockMode = savedMock; // Always restore
   }
