@@ -2679,10 +2679,10 @@ function loadConfig() {
   }
   
   // Load systems db if exists in local storage
-  const schemaVer = safeGetItem("aiq_systems_schema_v4");
+  const schemaVer = safeGetItem("aiq_systems_schema_v5");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v4") {
+  if (savedSystems && schemaVer === "v5") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length >= MOCK_SYSTEMS.length) {
@@ -2698,7 +2698,7 @@ function loadConfig() {
     }
   } else {
     state.systems = [...MOCK_SYSTEMS];
-    safeSetItem("aiq_systems_schema_v4", "v4");
+    safeSetItem("aiq_systems_schema_v5", "v5");
     saveSystems();
   }
 
