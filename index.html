@@ -1592,6 +1592,10 @@ input:checked + .slider:before {
                 <button class="action-btn secondary" style="flex: 1; border-color: rgba(255,51,102,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()" data-tooltip="Completely remove the selected system from the database.">Delete Selected System</button>
               </div>
 
+              <div id="editorCurrentValuesSummary" style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border-color); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: 0.8rem; display: none; line-height: 1.4;">
+                <!-- Injected by JS -->
+              </div>
+
               <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 20px;">
                 <h4 style="font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">System Core Identity</h4>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -7518,6 +7522,94 @@ function populateActionPlanSelector() {
   }
 }
 
+function getLogisticsUpdateTicketsAndDiffs(sys) {
+  const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
+  const c = { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set", ...sys.contacts };
+  
+  const origL = sys.originalLogistics || { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None" };
+  const origC = sys.originalContacts || { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set" };
+  
+  const changes = [];
+  if (l.deliveryAddress !== origL.deliveryAddress) {
+    changes.push({ field: "Delivery Address", oldVal: origL.deliveryAddress, newVal: l.deliveryAddress });
+  }
+  if (l.accessRestrictions !== origL.accessRestrictions) {
+    changes.push({ field: "Access Restrictions", oldVal: origL.accessRestrictions, newVal: l.accessRestrictions });
+  }
+  if (l.shippingAlert !== origL.shippingAlert) {
+    changes.push({ field: "Shipping Alert", oldVal: origL.shippingAlert, newVal: l.shippingAlert });
+  }
+  if (c.name !== origC.name) {
+    changes.push({ field: "Contact Name", oldVal: origC.name, newVal: c.name });
+  }
+  if (c.phone !== origC.phone) {
+    changes.push({ field: "Contact Phone", oldVal: origC.phone, newVal: c.phone });
+  }
+  if (c.email !== origC.email) {
+    changes.push({ field: "Contact Email", oldVal: origC.email, newVal: c.email });
+  }
+  if (c.nssUsername !== origC.nssUsername) {
+    changes.push({ field: "NSS Username", oldVal: origC.nssUsername, newVal: c.nssUsername });
+  }
+  
+  const hasChanges = changes.length > 0;
+  
+  let diffsHTML = "";
+  let diffsTXT = "";
+  let ticketTXT = "";
+  
+  if (hasChanges) {
+    diffsHTML = `
+      <div style="margin-top: 16px; background-color: rgba(0, 188, 212, 0.03); border: 1px solid rgba(0, 188, 212, 0.15); padding: 16px; border-radius: var(--radius-sm);">
+        <div style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px; font-size: 0.82rem; text-transform: uppercase;">Detected Local Edits (Pending Official Active IQ Update)</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left; margin-bottom: 12px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted);">
+              <th style="padding: 6px 0;">Field Name</th>
+              <th style="padding: 6px 12px;">Old Value (DB)</th>
+              <th style="padding: 6px 0;">New Value (Local Edit)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${changes.map(ch => `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                <td style="padding: 6px 0; font-weight: 600;">${ch.field}</td>
+                <td style="padding: 6px 12px; color: var(--text-muted); font-style: italic;">${ch.oldVal || '(Not Configured)'}</td>
+                <td style="padding: 6px 0; color: var(--status-normal); font-weight: 600;">${ch.newVal || '(Cleared)'}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+    `;
+    
+    diffsTXT = `DETECTED LOGISTICS CHANGES (PENDING OFFICIAL ACTIVE IQ UPDATE):\n` + 
+      changes.map(ch => ` * ${ch.field}:\n   - Old: ${ch.oldVal || '(Not Configured)'}\n   - New: ${ch.newVal || '(Cleared)'}`).join("\n") + "\n";
+    
+    const changeLines = changes.map(ch => `* ${ch.field}:\n  - Old: ${ch.oldVal || '(Not Configured)'}\n  - New: ${ch.newVal || '(Cleared)'}`).join("\n");
+    
+    ticketTXT = `To: NetApp Support (Install Base & Serial Registration Group)
+Subject: Non-Technical Install Base Record Update Request - S/N: ${sys.serialNumber}
+
+Please update the install site records and contact directory for the following system:
+* Serial Number: ${sys.serialNumber}
+* Platform Model: ${sys.platform}
+* Customer Account: ${sys.customerName}
+
+REQUESTED SYSTEM CHANGES:
+${changeLines}
+
+Reason for Change: Updating local datacenter access restrictions and primary site contact records to prevent parts delivery shipment delays. Please notify once records have updated in NetApp CRM and Active IQ.`;
+
+    diffsHTML += `
+        <div style="font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; font-size: 0.78rem;">Non-Technical Ticket Copy-Paste Template:</div>
+        <textarea readonly class="form-input" rows="8" style="font-family: monospace; font-size: 0.74rem; background: rgba(0,0,0,0.3); border-color: var(--border-color); color: var(--text-secondary); cursor: text;" onclick="this.select()">${ticketTXT}</textarea>
+      </div>
+    `;
+  }
+  
+  return { hasChanges, diffsHTML, diffsTXT, ticketTXT };
+}
+
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases) {
   let totalCapTB = 0;
   let logicalCapTB = 0;
@@ -8368,6 +8460,8 @@ function generateActionPlan() {
     const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review", ...sys.salesHealth };
     const p = { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", ...sys.projections };
     
+    const logisticsDiffs = getLogisticsUpdateTicketsAndDiffs(sys);
+    
     html += `
       <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 0.85rem; line-height: 1.4;">
         <div style="font-weight: 700; font-size: 0.95rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px; margin-bottom: 10px; color: var(--accent-cyan);">${sys.systemName} (S/N: ${sys.serialNumber})</div>
@@ -8379,13 +8473,25 @@ function generateActionPlan() {
             <div style="margin-top: 8px;"><strong>Storage Growth Runway:</strong><br><span style="color: ${p.daysToLimit < 90 ? 'var(--status-critical)' : 'var(--status-normal)'}; font-weight: 600;">${p.daysToLimit} Days remaining</span> (Est. limit date: ${p.limitDate})</div>
           </div>
           <div>
-            <div><strong>Primary Site Contact:</strong><br><span style="color: var(--text-secondary);">${c.name} (${c.phone} / ${c.email})</span></div>
+            <div><strong>Primary Site Contact:</strong><br><span style="color: var(--text-secondary);">${c.name} (${c.phone} / ${c.email} / NSS: ${c.nssUsername})</span></div>
             <div style="margin-top: 8px;"><strong>Sales Lead & Support TAM:</strong><br><span style="color: var(--text-secondary);">AM: ${h.accountManager} | TAM: ${h.supportTam}</span></div>
             <div style="margin-top: 8px; display: flex; gap: 20px;">
               <div><strong>CSAT Score:</strong> <span style="font-weight: 700; color: var(--accent-cyan);">${h.sentimentScore.toFixed(1)}/10</span></div>
               <div><strong>Tech Refresh window:</strong> <span style="font-weight: 700; color: var(--status-warning);">${h.refreshWindow}</span></div>
             </div>
           </div>
+        </div>
+        
+        ${logisticsDiffs.diffsHTML}
+        
+        <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+          <strong>How to Update Active IQ Install Base Records Officially:</strong>
+          <ol style="margin-left: 16px; margin-top: 4px; color: var(--text-secondary);">
+            <li>Log in to the <strong>NetApp Support Site (support.netapp.com)</strong>.</li>
+            <li>Navigate to <strong>Resources > Register Products / Install Base</strong>.</li>
+            <li>Click <strong>Open a Non-Technical Ticket</strong>. Select the <strong>"Install Base Update / Serial Number Move"</strong> category.</li>
+            <li>Copy-paste the template above or detail your changes, then submit the ticket. NetApp's Install Base Group (IBG) typically processes updates within 24-48 hours, automatically syncing changes to the customer's Active IQ portal.</li>
+          </ol>
         </div>
       </div>
     `;
@@ -8738,19 +8844,51 @@ ${switchAlerts.length === 0 ? "✓ All interconnect and storage network fabric s
     filename = `site_logistics_${cleanScope}.txt`;
     text = `NETAPP SITE LOGISTICS & CUSTOMER HEALTH REPORT
 Scope: ${scopeTitle}
+Date Generated: ${new Date().toISOString().split('T')[0]}
 
-${targetSystems.map(sys => {
-  const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
-  const c = { name: "Not Set", phone: "Not Set", email: "Not Set", ...sys.contacts };
-  const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", ...sys.salesHealth };
-  return `SYSTEM: ${sys.systemName} (S/N: ${sys.serialNumber})
+`;
+    targetSystems.forEach(sys => {
+      const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
+      const c = { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set", ...sys.contacts };
+      const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", ...sys.salesHealth };
+      const p = { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", ...sys.projections };
+      
+      const logisticsDiffs = getLogisticsUpdateTicketsAndDiffs(sys);
+      
+      text += `================================================================================
+SYSTEM: ${sys.systemName} (S/N: ${sys.serialNumber})
+================================================================================
 - Delivery Address: ${l.deliveryAddress}
-- Access restrictions: ${l.accessRestrictions}
-- Primary Contact: ${c.name} (${c.phone} / ${c.email})
+- Access Restrictions: ${l.accessRestrictions}
+- Logistics Alerts: ${l.shippingAlert}
+- Storage Growth Runway: ${p.daysToLimit} Days remaining (Est. limit date: ${p.limitDate})
+- Primary Contact: ${c.name} (${c.phone} / ${c.email} / NSS: ${c.nssUsername})
 - Sales Rep: AM: ${h.accountManager} | TAM: ${h.supportTam}
 - CSAT Score: ${h.sentimentScore.toFixed(1)}/10 [Status: ${h.healthStatus}]
+
 `;
-}).join("\n\n")}`;
+
+      if (logisticsDiffs.hasChanges) {
+        text += `${logisticsDiffs.diffsTXT}
+--------------------------------------------------------------------------------
+TICKET SUBMISSION TEMPLATE:
+--------------------------------------------------------------------------------
+${logisticsDiffs.ticketTXT}
+--------------------------------------------------------------------------------
+
+`;
+      }
+      
+      text += `OFFICIAL ACTIVE IQ UPDATE STEPS:
+To officially update the installation address or system contacts in the central NetApp databases:
+1. Log in to support.netapp.com using your NetApp Support Site (NSS) credentials.
+2. Go to "Resources" -> "Register Products / Install Base".
+3. Open a Non-Technical Ticket under the "Install Base Update / Serial Number Move" category.
+4. Copy-paste the ticket details provided above into the case description.
+5. NetApp's Install Base Group (IBG) will process the database updates within 24-48 hours.
+
+\n\n`;
+    });
   } else if (index === 8) {
     filename = `operational_guidelines_${cleanScope}.txt`;
     text = `NETAPP OPERATIONAL GUIDELINES & CHANGE CONTROL
@@ -9535,6 +9673,18 @@ function loadSelectedSystemMetadataForEdit() {
   const bulletins = sys.securityBulletins || [];
   const cases = sys.supportCases || [];
 
+  // Inject current saved values summary for clear comparison
+  const currentSummaryEl = document.getElementById("editorCurrentValuesSummary");
+  if (currentSummaryEl) {
+    currentSummaryEl.style.display = "block";
+    currentSummaryEl.innerHTML = `
+      <div style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 6px; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px;">Current Saved Logistics (Active Database)</div>
+      <div style="margin-bottom: 2px;"><strong>Site Address</strong>: <span style="color: var(--text-secondary); font-style: italic;">${logistics.deliveryAddress || '(Not Set)'}</span></div>
+      <div style="margin-bottom: 2px;"><strong>Access Rules</strong>: <span style="color: var(--text-secondary);">${logistics.accessRestrictions || '(Not Set)'}</span></div>
+      <div style="margin-bottom: 2px;"><strong>Tech Contact</strong>: <span style="color: var(--text-secondary);">${contacts.name || '(Not Set)'} (${contacts.email || 'No email'})</span></div>
+    `;
+  }
+
   document.getElementById("editSystemName").value = sys.systemName || "";
   document.getElementById("editSerialNumber").value = sys.serialNumber || "";
   document.getElementById("editCustomerName").value = sys.customerName || "";
@@ -9601,6 +9751,14 @@ function saveSystemMetadata() {
     state.groups.forEach(g => {
       g.systemSerials = g.systemSerials.map(sn => sn === serial ? newSerial : sn);
     });
+  }
+
+  // Store original telemetry parameters to generate difference mapping if modified
+  if (!state.systems[idx].originalLogistics) {
+    state.systems[idx].originalLogistics = JSON.parse(JSON.stringify(state.systems[idx].logistics || { deliveryAddress: "", accessRestrictions: "", shippingAlert: "None" }));
+  }
+  if (!state.systems[idx].originalContacts) {
+    state.systems[idx].originalContacts = JSON.parse(JSON.stringify(state.systems[idx].contacts || { name: "", phone: "", email: "", nssUsername: "" }));
   }
 
   state.systems[idx].serialNumber = newSerial;
