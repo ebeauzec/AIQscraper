@@ -10973,95 +10973,144 @@ async function loadProductionData() {
   if (textLabel) textLabel.innerText = "Connecting & Authenticating...";
   if (indicator) indicator.className = "indicator warning";
 
-  // ── Step 1: Fetch watchlists (/v1/watchlist/all) ──────────────────────────
+  // ── CONFIRMED NetApp API endpoint structure (from woutercoppens/netapp-activeiq-api) ──
+  //
+  //  GET /v1/watchlist/all
+  //      → returns all watchlists for the authenticated user (includes watchListId)
+  //
+  //  GET /v1/system/inventory/details/level/{level}/id/{id}[?start=0&limit=100]
+  //      → {level}: customer | site | group | watchlist | serialNumbers
+  //      → {id}:    customerId | siteId | groupName | watchlistId | serialNumber(s)
+  //
+  //  GET /v1/system/list/level/{level}
+  //      → {level}: customers | sites | groups
+  //      → returns the top-level org list (no id needed)
+  //
+  // Response shape: { systemDetailsByInventory: [ { serialNumber, systemName,
+  //   clusterName, customerName, customerId, platform, osVersion, ... } ] }
+
+  // ── Step 1: Fetch all watchlists ──────────────────────────────────────────
   let watchlistSerials = new Set();
-  let watchlistIds = [];
+  let watchlistIds     = [];
   try {
     if (textLabel) textLabel.innerText = "Loading Watchlists...";
-    const apiWatchlists = await callActiveIQAPI("/watchlist/all");
-    if (apiWatchlists) {
-      const wlList = Array.isArray(apiWatchlists)
-        ? apiWatchlists
-        : (apiWatchlists.watchListData || apiWatchlists.watchlists || []);
+    const raw = await callActiveIQAPI("/watchlist/all");
+    if (raw) {
+      const wlList = Array.isArray(raw)
+        ? raw
+        : (raw.watchListData || raw.watchlists || []);
       state.watchlists = wlList.map(wl => {
         const serials = wl.serialNumbers || wl.systemSerials || wl.systems || [];
-        serials.forEach(sn => watchlistSerials.add(sn.toString().trim()));
-        watchlistIds.push(wl.watchListId || wl.watchlistId || wl.id);
+        serials.forEach(sn => watchlistSerials.add(String(sn).trim()));
+        const wlId = wl.watchListId || wl.watchlistId || wl.id;
+        if (wlId) watchlistIds.push(String(wlId));
         return {
-          id:            wl.watchListId  || wl.watchlistId  || wl.id  || "wl_" + Date.now(),
+          id:            wlId || "wl_" + Date.now(),
           name:          wl.watchListName || wl.watchlistName || wl.name || "Watchlist",
           systemSerials: serials
         };
       });
       saveWatchlists();
-      console.log(`[AIQ] Watchlists: ${state.watchlists.length} loaded, ${watchlistSerials.size} serials.`);
+      console.log(`[AIQ] Watchlists: ${state.watchlists.length}, IDs: ${watchlistIds.join(", ")}`);
     }
   } catch (wlErr) {
     console.warn("[AIQ] /watchlist/all failed:", wlErr.message);
   }
 
-  // ── Step 2: Fetch systems ─────────────────────────────────────────────────
-  //
-  // NetApp has several possible endpoints. We try them in order:
-  //   a) /v1/system          — standard single-system or system-list endpoint
-  //   b) /v1/system/list     — explicit list variant
-  //   c) /v1/cluster         — cluster-based inventory
-  // If Watchlist-Only mode is on and we got watchlist IDs, also try per-watchlist:
-  //   d) /v1/watchlist/details/watchlistId/{id}
-  //
-  const SYSTEM_ENDPOINTS = [
-    "/system",
-    "/system/list",
-    "/cluster",
-    "/clusters",
-    "/storage-systems",
-  ];
+  // Helper: fetch paginated inventory from a single confirmed endpoint
+  // GET /v1/system/inventory/details/level/{level}/id/{id}
+  async function fetchInventory(level, id) {
+    const pageSize = 100;
+    let allSystems = [];
+    let start = 0;
+    while (true) {
+      const ep = `/system/inventory/details/level/${level}/id/${id}?start=${start}&limit=${pageSize}`;
+      const data = await callActiveIQAPI(ep);
+      // Response key can be systemDetailsByInventory or systemList or similar
+      const page = data?.systemDetailsByInventory
+        || data?.systemList
+        || data?.systems
+        || (Array.isArray(data) ? data : []);
+      allSystems = allSystems.concat(page);
+      console.log(`[AIQ] ${ep} → ${page.length} systems (total ${allSystems.length})`);
+      if (page.length < pageSize) break;  // last page
+      start += pageSize;
+    }
+    return allSystems;
+  }
 
-  let systemsList = [];
+  // ── Step 2: Fetch system inventory ────────────────────────────────────────
+  if (textLabel) textLabel.innerText = "Loading System Inventory...";
+  let systemsList  = [];
   let usedEndpoint = null;
 
-  if (textLabel) textLabel.innerText = "Loading System Inventory...";
-
-  // 2a. Try standard REST inventory endpoints
-  for (const ep of SYSTEM_ENDPOINTS) {
-    try {
-      const data = await callActiveIQAPI(ep);
-      const parsed = Array.isArray(data) ? data
-        : (data?.systems || data?.clusters || data?.storageSystemList || [data]);
-      if (parsed.length > 0 && parsed[0].serialNumber !== undefined) {
-        systemsList = parsed;
-        usedEndpoint = ep;
-        console.log(`[AIQ] Systems found via REST ${ep}: ${parsed.length}`);
-        break;
+  // 2a. Watchlist-scoped (preferred when watchlist IDs available)
+  //     Confirmed path: GET /v1/system/inventory/details/level/watchlist/id/{watchlistId}
+  if (watchlistIds.length > 0) {
+    for (const wlId of watchlistIds) {
+      try {
+        const systems = await fetchInventory("watchlist", wlId);
+        if (systems.length > 0) {
+          systemsList.push(...systems);
+          usedEndpoint = `/system/inventory/details/level/watchlist/id/${wlId}`;
+          console.log(`[AIQ] Watchlist ${wlId}: ${systems.length} systems`);
+        }
+      } catch (e) {
+        console.warn(`[AIQ] Watchlist inventory ${wlId} failed: ${e.message}`);
       }
-    } catch (e) {
-      console.warn(`[AIQ] ${ep} → ${e.message}`);
     }
   }
 
-  // 2b. If no systems yet and we have watchlist IDs, try per-watchlist system endpoint
-  if (systemsList.length === 0 && watchlistIds.length > 0) {
-    console.log("[AIQ] Trying watchlist-scoped system endpoints...");
-    const WL_PATTERNS = [
-      id => `/watchlist/systems/watchlistId/${id}`,
-      id => `/watchlist/details/watchlistId/${id}`,
-      id => `/watchlist/${id}/systems`,
-    ];
-    outer: for (const id of watchlistIds.filter(Boolean)) {
-      for (const pattern of WL_PATTERNS) {
+  // 2b. Customer-level fallback: get list of customers, then inventory per customer
+  //     GET /v1/system/list/level/customers → then
+  //     GET /v1/system/inventory/details/level/customer/id/{customerId}
+  if (systemsList.length === 0) {
+    try {
+      if (textLabel) textLabel.innerText = "Loading Customer Fleet...";
+      const custData = await callActiveIQAPI("/system/list/level/customers");
+      const customers = custData?.customers
+        || custData?.customerList
+        || (Array.isArray(custData) ? custData : []);
+      console.log(`[AIQ] Customers found: ${customers.length}`);
+
+      for (const cust of customers) {
+        const custId = cust.customerId || cust.id;
+        if (!custId) continue;
         try {
-          const data = await callActiveIQAPI(pattern(id));
-          const parsed = Array.isArray(data) ? data
-            : (data?.systems || data?.storageSystemList || []);
-          if (parsed.length > 0) {
-            systemsList = [...systemsList, ...parsed];
-            usedEndpoint = pattern(id);
-            console.log(`[AIQ] Systems via watchlist ${id}: ${parsed.length}`);
-            break outer;
-          }
+          const systems = await fetchInventory("customer", custId);
+          systemsList.push(...systems);
+          usedEndpoint = `/system/inventory/details/level/customer/id/${custId}`;
         } catch (e) {
-          console.warn(`[AIQ] watchlist ${id} pattern failed: ${e.message}`);
+          console.warn(`[AIQ] Customer ${custId} inventory failed: ${e.message}`);
         }
+      }
+    } catch (e) {
+      console.warn("[AIQ] /system/list/level/customers failed:", e.message);
+    }
+  }
+
+  // 2c. Last resort: try the site and group level lists
+  if (systemsList.length === 0) {
+    for (const listLevel of ["sites", "groups"]) {
+      try {
+        const listData = await callActiveIQAPI(`/system/list/level/${listLevel}`);
+        const items = listData?.[listLevel]
+          || listData?.siteList
+          || listData?.groupList
+          || (Array.isArray(listData) ? listData : []);
+        for (const item of items) {
+          const itemId = item.siteId || item.groupId || item.id;
+          if (!itemId) continue;
+          const level = listLevel === "sites" ? "site" : "group";
+          try {
+            const systems = await fetchInventory(level, itemId);
+            systemsList.push(...systems);
+            usedEndpoint = `/system/inventory/details/level/${level}/id/${itemId}`;
+          } catch (e) { /* skip */ }
+        }
+        if (systemsList.length > 0) break;
+      } catch (e) {
+        console.warn(`[AIQ] /system/list/level/${listLevel} failed: ${e.message}`);
       }
     }
   }
@@ -11070,47 +11119,48 @@ async function loadProductionData() {
   if (systemsList.length === 0) {
     if (textLabel) textLabel.innerText = "No Systems Found";
     if (indicator) indicator.className = "indicator disconnected";
-
-    // Build a helpful diagnostic message listing what worked/failed
-    const viaProxy = state.isRunningViaProxy;
     alert(
-      "Active IQ API connected successfully but returned no systems.\n\n" +
-      "Endpoints tried: " + SYSTEM_ENDPOINTS.join(", ") + "\n\n" +
-      "This usually means one of:\n" +
-      "  • The system list requires a different endpoint path\n" +
-      "  • Your API token does not have fleet/system-list access\n" +
-      "  • Watchlist-Only mode is active but no watchlists contain systems\n\n" +
-      "To diagnose: look up the system list endpoint in the Active IQ API Catalog\n" +
-      "(activeiq.netapp.com → Quick Links → API Services)\n" +
-      "and paste the path into the API Base URL override in Settings."
+      "Active IQ API connected but returned no systems.\n\n" +
+      "Endpoints tried:\n" +
+      "  • /v1/watchlist/all → /v1/system/inventory/details/level/watchlist/id/{id}\n" +
+      "  • /v1/system/list/level/customers → /v1/system/inventory/details/level/customer/id/{id}\n\n" +
+      "Possible causes:\n" +
+      "  • Your API token does not have access to any customer fleet\n" +
+      "  • Your watchlists have no systems assigned\n" +
+      "  • Your account requires a specific customer/site ID\n\n" +
+      "Check: activeiq.netapp.com → Quick Links → API Services → System Inventory"
     );
     updateStatusIndicators();
     return;
   }
 
-  // Normalise field names (API uses camelCase; enrichment handles snake_case too)
+  // Normalise field names — confirmed from API library model definitions
   const normalise = s => ({
     serialNumber:    s.serialNumber    || s.serial_number    || "",
-    systemName:      s.systemName      || s.system_name      || s.name || "",
-    model:           s.model           || "",
-    osVersion:       s.osVersion       || s.os_version       || "",
+    systemName:      s.systemName      || s.system_name      || s.hostName || s.hostname || "",
+    model:           s.model           || s.platformType     || "",
+    osVersion:       s.osVersion       || s.os_version       || s.ontapVersion || "",
     customerName:    s.customerName    || s.customer_name    || "",
     customerId:      s.customerId      || s.customer_id      || "",
     clusterName:     s.clusterName     || s.cluster_name     || "",
-    location:        s.location        || "",
-    platform:        s.platform        || "",
+    siteName:        s.siteName        || s.site_name        || "",
+    siteId:          s.siteId          || s.site_id          || "",
+    location:        s.location        || s.siteName         || "",
+    platform:        s.platform        || s.platformType     || "",
+    systemType:      s.systemType      || s.system_type      || "",
     productFamily:   s.productFamily   || s.product_family   || "",
     contractEndDate: s.contractEndDate || s.contract_end_date || "",
     riskCount:       s.riskCount       || s.risk_count       || 0,
     warningCount:    s.warningCount    || s.warning_count    || 0,
     criticalCount:   s.criticalCount   || s.critical_count   || 0,
-    ...s  // keep any extra fields the API sends
+    ...s  // keep any extra fields the API returns
   });
 
-  // Apply watchlist filter if enabled
-  if (state.watchlistOnly && watchlistSerials.size > 0) {
+  // Apply watchlist serial filter if watchlist-only mode enabled
+  if (state.watchlistOnly && watchlistSerials.size > 0 && watchlistIds.length === 0) {
+    // Only filter by serials if we couldn't filter by watchlist ID at query time
     systemsList = systemsList.filter(s => {
-      const sn = (s.serialNumber || s.serial_number || "").toString().trim();
+      const sn = String(s.serialNumber || s.serial_number || "").trim();
       return watchlistSerials.has(sn);
     });
   }
@@ -11118,7 +11168,7 @@ async function loadProductionData() {
   // Deduplicate by serial number
   const seen = new Set();
   systemsList = systemsList.filter(s => {
-    const sn = (s.serialNumber || s.serial_number || "").trim();
+    const sn = String(s.serialNumber || s.serial_number || "").trim();
     if (!sn || seen.has(sn)) return false;
     seen.add(sn);
     return true;
@@ -11129,7 +11179,7 @@ async function loadProductionData() {
   state.lastSync = new Date().toISOString();
   safeSetItem("aiq_last_sync", state.lastSync);
   if (state.systems.length > 0) state.selectedSystem = state.systems[0];
-  console.log(`[AIQ] Sync complete via '${usedEndpoint}': ${state.systems.length} systems.`);
+  console.log(`[AIQ] ✓ Sync complete via '${usedEndpoint}': ${state.systems.length} systems.`);
   updateStatusIndicators();
   refreshUIState();
 }
