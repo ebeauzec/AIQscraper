@@ -7599,6 +7599,106 @@ function convertToNetAppFiscal(windowStr) {
   return `FY${fyShort} Q${fyQ} (${monthsStr} ${yrRange})`;
 }
 
+function generateDynamicRemediationPlan(risk, sys) {
+  const desc = (risk.description || "").toLowerCase();
+  const cat = risk.category || "General";
+  const catLower = cat.toLowerCase();
+  
+  let cause = "Undetermined configuration deviation identified in telemetry sync.";
+  let impact = "Potential compliance degradation or risk of localized performance instability.";
+  let steps = ["1. Review the configuration using standard ONTAP show command templates.", "2. Consult target platform documentation guidelines.", "3. Request technical assistance if baseline deviations require custom adjustment."];
+  let options = ["Option A: Apply recommended changes under next change control window.", "Option B: Retain current parameters if business exceptions mandate legacy settings."];
+  let thirdParty = "No direct third-party virtualization or backup hypervisor dependencies identified.";
+
+  if (catLower.includes("security") || desc.includes("insecure") || desc.includes("vulnerability") || desc.includes("cve")) {
+    if (desc.includes("smb") || desc.includes("cifs")) {
+      cause = "Legacy SMBv1 protocol is enabled on target SVM parameters, violating security hardening policy.";
+      impact = "Exposes CIFS exports to interception, credential spoofing, or legacy ransomware attacks (CVE-2017-0144).";
+      steps = [
+        `1. Access administrative CLI for cluster: ${sys.clusterName || 'cluster'}.`,
+        "2. Disable legacy SMB1: 'vserver cifs options modify -vserver <svm_name> -smb1-enabled false'",
+        "3. Verify configuration state: 'vserver cifs options show -vserver <svm_name> -fields smb1-enabled'"
+      ];
+      options = [
+        "Option A: Disable SMBv1 cluster-wide immediately (Recommended).",
+        "Option B: Isolate legacy clients to dedicated, firewalled network segments if SMBv1 is mandatory."
+      ];
+      thirdParty = "Modern Windows and Linux clients are fully compatible. Legacy Windows XP/2003 clients will lose access.";
+    } else if (desc.includes("export") || desc.includes("nfs") || desc.includes("policy")) {
+      cause = "NFS export policy rule allows superuser mounts to unauthorized subnets (root-squashing disabled).";
+      impact = "Unrestricted hosts on matching networks can mount volumes and write files with full root authority.";
+      steps = [
+        "1. Identify offending policy rules: 'vserver export-policy rule show -vserver <svm_name>'.",
+        "2. Restrict rule to secure clients: 'vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -clientmatch <trusted_subnet>'",
+        "3. Squash root privileges: 'vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -superuser none'"
+      ];
+      options = [
+        "Option A: Restrict client match to target subnet and disable superuser authority (Recommended).",
+        "Option B: Configure Kerberos (krb5/krb5i) if strong cryptographic authentication is required."
+      ];
+      thirdParty = "VMware ESXi hosts mounting NFS datastores require root access. Ensure client matches are limited specifically to ESXi VMkernel IP addresses.";
+    } else {
+      cause = "Security parameter setting deviates from the ONTAP Security Hardening baseline.";
+      impact = "Increased administrative attack surface and reduction in active compliance validation scores.";
+      steps = [
+        "1. Consult ONTAP Security Hardening Guidelines (TR-4569).",
+        "2. Locate configuration parameter inside SVM settings.",
+        "3. Apply target hardening modifications under a standard change control window."
+      ];
+      options = [
+        "Option A: Harden configuration settings online (non-disruptive).",
+        "Option B: Register a security policy exception in corporate risk log."
+      ];
+      thirdParty = "Verify that third-party infrastructure management dashboards continue to authenticate normally.";
+    }
+  } else if (catLower.includes("hardware") || desc.includes("path") || desc.includes("cable") || desc.includes("fan") || desc.includes("battery") || desc.includes("bbu")) {
+    if (desc.includes("path") || desc.includes("sas") || desc.includes("nvme") || desc.includes("cable")) {
+      cause = "Degraded connection, interface errors, or disconnected physical cable path.";
+      impact = "Loss of storage path redundancy. A secondary failure on the redundant loop triggers localized data unavailability.";
+      steps = [
+        "1. Verify active device path states: 'storage path show'.",
+        "2. Check status LEDs on physical shelf modules and transceivers.",
+        "3. Reseat copper or optical cable connections.",
+        "4. Replace cable or transceiver module if diagnostics report persistent CRC errors."
+      ];
+      options = [
+        "Option A: Perform reseat or cabling swap online. Active multipathing protects active I/O flows.",
+        "Option B: Schedule maintenance window if replacing shelf interface modules (IOM/NSM)."
+      ];
+      thirdParty = "Hypervisors (ESXi/AHV) may report SCSI device path degradation alerts which resolve automatically upon link restore.";
+    } else {
+      cause = "Hardware component fault or sensor reading outside target operational limits.";
+      impact = "Risk of localized hardware failure leading to performance degradation or controller reboots.";
+      steps = [
+        "1. Query cluster hardware health: 'system health alert show'.",
+        "2. Retrieve detailed component status logs.",
+        "3. Coordinate module replacement (FRU) with NetApp Support."
+      ];
+      options = [
+        "Option A: Hot-swap replacement online (non-disruptive for hot-pluggable fans/power supplies).",
+        "Option B: Schedule off-peak maintenance window if the component requires node takeover/failover."
+      ];
+      thirdParty = "Monitor virtualization console logs for physical chassis alarm notifications.";
+    }
+  } else if (catLower.includes("software") || catLower.includes("firmware") || desc.includes("version") || desc.includes("upgrade") || desc.includes("outdated")) {
+    cause = "Node or component software/firmware version runs below the target validated release baseline.";
+    impact = "Exposure to resolved software bugs, microcode errors, or compatibility boundaries.";
+    steps = [
+      "1. Download target software package from NetApp support site.",
+      "2. Upload package to local node web servers.",
+      "3. Trigger rolling upgrade: 'storage firmware download' or standard software upgrade sequence.",
+      "4. Verify post-upgrade version state."
+    ];
+    options = [
+      "Option A: Perform rolling non-disruptive update (NDU) during off-peak hours.",
+      "Option B: Perform update during standard scheduled hardware lifecycle maintenance."
+    ];
+    thirdParty = "Ensure upstream hypervisors and backup engines are fully qualified for the target version in the Interoperability Matrix (IMT).";
+  }
+
+  return { cause, impact, steps, options, thirdParty };
+}
+
 function getLogisticsUpdateTicketsAndDiffs(sys) {
   const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
   const c = { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set", ...sys.contacts };
@@ -10218,7 +10318,12 @@ async function loadProductionData() {
             ontapVersion: s.ontapVersion || s.ontap_version || s.osVersion || "9.12.1",
             platform: s.platform || s.model || "AFF A400",
             status: s.status || "normal",
-            risks: s.risks || [],
+            risks: (s.risks || []).map(r => {
+              if (!r.remediationPlan) {
+                r.remediationPlan = generateDynamicRemediationPlan(r, s);
+              }
+              return r;
+            }),
             upgrades: s.upgrades || { targetVersion: "Up to Date", urgency: "None", benefits: "" },
             contracts: s.contracts || { status: "normal", endDate: "2027-01-01", daysRemaining: 180, supportLevel: "SupportEdge Premium" },
             lifecycle: s.lifecycle || { eoaDate: "2026-01-01", eosDate: "2031-01-01", isNearEos: false },
@@ -10699,10 +10804,10 @@ function getSystemPortMappings(sys) {
   const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
   
   const platformStr = sys.platform || "";
-  const isEseries = sys.santricityVersion !== undefined || platformStr.includes("E-Series") || platformStr.includes("EF600");
+  const isEseries = sys.santricityVersion !== undefined || platformStr.toLowerCase().includes("e-series") || platformStr.toLowerCase().includes("ef600") || platformStr.toLowerCase().includes("e5700") || platformStr.toLowerCase().includes("ef300");
   const isCloud = platformStr.toLowerCase().includes("cloud");
-  const isStorageGrid = platformStr.toLowerCase().includes("storagegrid");
-  const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA");
+  const isStorageGrid = platformStr.toLowerCase().includes("storagegrid") || platformStr.toLowerCase().includes("sg60") || platformStr.toLowerCase().includes("sg61") || platformStr.toLowerCase().includes("sg10") || platformStr.toLowerCase().includes("sg57");
+  const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA") || platformStr.includes("AFX") || /A[0-9]{2,3}/.test(platformStr) || /C[0-9]{2,3}/.test(platformStr) || /r2/i.test(platformStr);
   const isAFX = platformStr.toLowerCase().includes("afx");
   
   if (isAFX) {
