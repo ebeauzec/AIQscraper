@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.0] - 2026-07-09
+
+### Added
+*   **Next-Gen Hardware & Software Platform Support**: Added native support for **AFF A1K** (flagship), **AFF A90**, **AFF A70**, **AFF C80** (capacity flash), **ASA A90**, **ASA A30** (all-flash SAN), **StorageGRID SG6160** object appliance, and **EF600 (E-Series NVMe)**.
+*   **FAS/AFF vs. ASA Platform Differentiation**: Fully integrated ASA block SAN array features into capacity reporting widgets (Block SAN Storage Efficiency Ratios), FabricPool Cloud Tiering statuses (identifying N/A bypasses), and generated CLI Runbooks (including `esxcli storage nmp` symmetric multipathing checks and SCSI UNMAP space reclamation states).
+*   **TAM Port Layout Upgrades**: Added dynamic mapping for **100 Gbps RoCE** cluster interconnects, **100 Gbps host ports**, **64 Gbps Fibre Channel SAN**, and **NS224 NVMe storage shelves** (via 100 Gbps NVMe links and NSM shelf module firmware upgrades).
+*   **Self-Contained Local Code Updater**: Integrated an "Update Application" action button in the settings panel that triggers local `git pull` updates via the Python server proxy backend.
+*   **Data Security, Sovereignty & AI Compliance**: Embedded dedicated disclaimers inside the Settings view and repository documentation detailing the 100% AI-free, self-contained, browser-local data sovereignty of the application.
+*   **NSS Non-Technical Logistics Tickets**: Programmed a site logistics comparison visualizer tracking local session edits and auto-generating NSS non-technical support tickets with copy-pasteable change mappings.
+*   **NetApp Fiscal Calendar Alignment**: Built quarter-to-fiscal date transformation logic (`convertToNetAppFiscal`) aligning all tech refresh windows with NetApp's fiscal cycle (May-April).
+
 ## [1.8.0] - 2026-07-07
 
 ### Added
