@@ -10807,20 +10807,25 @@ async function runAPIDiagnostics() {
   state.mockMode  = false;
 
   const results = [];
-  const probe   = async (label, ep) => {
+  const probe   = async (label, ep, showFullJson = false) => {
     try {
       const t0   = Date.now();
       const data = await callActiveIQAPI(ep);
       const ms   = Date.now() - t0;
       const keys = data && typeof data === "object" ? Object.keys(data) : [];
       let preview = "";
-      if (Array.isArray(data))    preview = `Array[${data.length}]`;
+      if (Array.isArray(data))    preview = `Array[${data.length}]${data.length ? ": " + JSON.stringify(data[0]).slice(0,120) : ""}`;
       else if (keys.length > 0) {
-        const v = data[keys[0]];
-        preview = Array.isArray(v)
-          ? `{ ${keys[0]}: Array[${v.length}] ... }`
-          : `{ ${keys.slice(0,3).join(", ")} }`;
-      } else { preview = "(empty object)"; }
+        if (showFullJson) {
+          // Show the full JSON response for this endpoint
+          preview = JSON.stringify(data).slice(0, 600);
+        } else {
+          const v = data[keys[0]];
+          preview = Array.isArray(v)
+            ? `{ ${keys[0]}: Array[${v.length}]${v.length ? " → " + JSON.stringify(v[0]).slice(0,100) : ""} }`
+            : `{ ${JSON.stringify(data).slice(0, 200)} }`;
+        }
+      } else { preview = "(empty object — {})" ; }
       results.push({ label, ep, status: "200 OK", ms, preview, ok: true });
     } catch (e) {
       results.push({ label, ep, status: e.message, ms: 0, preview: "", ok: false });
@@ -10830,25 +10835,68 @@ async function runAPIDiagnostics() {
   try {
     const tok = await getValidAccessToken().catch(() => "ERROR");
     results.push({ label: "─── Token ───", ep: "", status: "", ms: 0,
-      preview: tok === "ERROR" ? "⚠ Token exchange failed!" : `Prefix: ${tok.slice(0,25)}…`, ok: tok !== "ERROR" });
+      preview: tok === "ERROR" ? "⚠ Token exchange failed!" : `JWT prefix: ${tok.slice(0,30)}…`, ok: tok !== "ERROR" });
+
 
     await probe("Watchlist All",              "/watchlist/all");
-    await probe("Search System v3 (wildcard)", "/v3/search/system?searchText=*&limit=10");
-    await probe("Search System v3 (blank)",    "/v3/search/system?limit=10");
+
+    // ── Search System variants ──────────────────────────────────────────────
+    await probe("Search v3 system (wildcard)", "/v3/search/system?searchText=*&limit=10");
+    await probe("Search v3 system (no text)",  "/v3/search/system?limit=10");
     await probe("Search v2 customer (wild)",   "/v2/search/system/level/customer?searchText=*&limit=10");
     await probe("Search v1 customer (wild)",   "/v1/search/system/level/customer?searchText=*&limit=10");
     await probe("Search v1 watchlist (wild)",  "/v1/search/system/level/watchlist?searchText=*&limit=10");
+
+    // ── Search Aggregate / Parent (returns customer/site IDs) ───────────────
+    await probe("v3 Search Aggregate",         "/v3/search/aggregate?searchText=*&limit=10");
+    await probe("v3 Search Parent",            "/v3/search/parent?searchText=*&limit=10");
+    await probe("v3 Search Location",          "/v3/search/location?searchText=*&limit=10");
+    await probe("v3 Count Aggregate",          "/v3/search/count/aggregate");
+    await probe("v3 Count Parent",             "/v3/search/count/parent");
+    await probe("v1 Aggregate customer",       "/v1/search/aggregate/level/customer?searchText=*&limit=10");
+    await probe("v1 Parent customer",          "/v1/search/parent/level/customer?searchText=*&limit=10");
+    await probe("v1 Location customer",        "/v1/search/location/level/customer?searchText=*&limit=10");
+    await probe("v1 Count Agg customer",       "/v1/search/count/aggregate/level/customer");
+
+    // ── Health ──────────────────────────────────────────────────────────────
     await probe("Health Summary v1 customer",  "/v1/health/summary/level/customer?searchText=*&limit=10");
     await probe("Health Details v1 customer",  "/v1/health/details/level/customer?searchText=*&limit=10");
+    await probe("Health Risks v2",             "/v2/health/risks");
+
+    // ── Breadth endpoints (no level/id needed) ──────────────────────────────
     await probe("EoS Details",                 "/eos/details");
     await probe("EoS Contracts Details",       "/eos/contracts/details");
-    await probe("Health Risks v2",             "/v2/health/risks");
-    await probe("API Registration",            "/api/registration");
-    await probe("API Subscription",            "/api/catalogSubscription");
     await probe("Capacity2 Usage",             "/capacity2/usage");
-    await probe("Keystone Customers",          "/keystone/customers");
     await probe("Firmware Details",            "/firmware/details");
-    await probe("Upgrade Summary v1",          "/upgrade/summary/level/customer?searchText=*");
+    await probe("Keystone Customers",          "/keystone/customers");
+    await probe("Upgrade Summary (customer)",  "/upgrade/summary/level/customer?searchText=*");
+
+    // ── API Registration & Subscription (show FULL response to see account type) ─
+    await probe("API Registration",            "/api/registration",      true);
+    await probe("API Subscription",            "/api/catalogSubscription", true);
+
+    // ── GraphQL ──────────────────────────────────────────────────────────────
+    // Try GraphQL endpoint (may work even when REST data endpoints fail)
+    try {
+      const t0  = Date.now();
+      const tok = await getValidAccessToken();
+      const gqlUrl = `${getEffectiveApiBaseUrl().replace(/\/v\d+$/, "")}/graphql`;
+      const gqlRes = await fetch(gqlUrl, {
+        method: "POST",
+        headers: { "AuthorizationToken": tok, "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ query: "{ __typename }" })
+      });
+      const ms = Date.now() - t0;
+      if (gqlRes.ok) {
+        const gqlData = await gqlRes.json();
+        results.push({ label: "GraphQL endpoint", ep: gqlUrl, status: `200 OK (${ms}ms)`, preview: JSON.stringify(gqlData).slice(0,200), ok: true });
+      } else {
+        results.push({ label: "GraphQL endpoint", ep: gqlUrl, status: `HTTP ${gqlRes.status}`, preview: "", ok: false });
+      }
+    } catch (ge) {
+      results.push({ label: "GraphQL endpoint", ep: "/graphql", status: ge.message, preview: "", ok: false });
+    }
+
 
     // Only probe watchlist-scoped endpoints if we have REAL watchlist IDs
     // (IDs starting with 'wl_' are stale mock data — skip them)
@@ -10863,8 +10911,9 @@ async function runAPIDiagnostics() {
       }
     } else {
       results.push({ label: "─── Watchlists ───", ep: "", status: "", ms: 0,
-        preview: "No real watchlists loaded yet (run Sync first, or /watchlist/all returned error)", ok: false });
+        preview: "/watchlist/all returned error — no real IDs available. Check error above.", ok: false });
     }
+
 
   } finally {
     state.mockMode = savedMock; // Always restore
