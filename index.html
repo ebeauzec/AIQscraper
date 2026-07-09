@@ -10915,15 +10915,24 @@ async function runAPIDiagnostics() {
     await probe("Agg v3: Telkom",              `/v3/search/aggregate?searchText=${encodeURIComponent("Telkom SA")}&limit=20`);
     await probe("Agg v3: Liberty",             `/v3/search/aggregate?searchText=${encodeURIComponent("Liberty Group")}&limit=20`);
 
-    // ── System search by KNOWN SERIAL NUMBER ────────────────────────────────
-    await probe(`System v3: serial ${diagSerial}`,  `/v3/search/system?searchText=${diagSerial}&limit=10`);
-    await probe(`System v1: serial ${diagSerial}`,  `/v1/search/system/level/customer?searchText=${diagSerial}&limit=10`);
-    await probe(`Cluster view: ${diagSerial}`,      `/v1/clusterview/get-cluster-summary/${diagSerial}`);
-    await probe(`Cluster resolver: ${diagSerial}`,  `/v1/clusterview/resolver/${diagSerial}`);
-    await probe(`Health summary: ${diagSerial}`,    `/v1/health/summary/level/system/id/${diagSerial}`);
-    await probe(`Health details: ${diagSerial}`,    `/v1/health/details/level/system/id/${diagSerial}`);
-    await probe(`EoS by serial: ${diagSerial}`,     `/eos/details?serialNumbers=${diagSerial}`);
-    await probe(`Upgrade by serial: ${diagSerial}`, `/upgrade/details/level/system/id/${diagSerial}`);
+    // ── System search by KNOWN SERIAL NUMBERS ───────────────────────────────
+    const knownSerials = [
+      "211839000195",   // Confirmed registered (Vodacom South Africa)
+      "952239002356",   // Cluster node serial
+      "952239002659",
+      "952239002236",
+      "952239002406"
+    ];
+
+    for (const sn of knownSerials) {
+      await probe(`Cluster view: ${sn}`,     `/v1/clusterview/get-cluster-summary/${sn}`, true);
+      await probe(`System v3 search: ${sn}`, `/v3/search/system?searchText=${sn}&limit=10`);
+      await probe(`System v1 search: ${sn}`, `/v1/search/system/level/customer?searchText=${sn}&limit=10`);
+      await probe(`EoS serial: ${sn}`,       `/eos/details?serialNumbers=${sn}`);
+      await probe(`Health sys: ${sn}`,       `/v1/health/summary/level/system/id/${sn}`, true);
+    }
+    // Also try cluster resolver for the first serial (most complete info)
+    await probe(`Cluster resolver: 211839000195`, `/v1/clusterview/resolver/211839000195`, true);
 
     // ── Breadth endpoints ─────────────────────────────────────────────────────
     await probe("EoS Details",                 "/eos/details");
@@ -11342,7 +11351,43 @@ async function loadProductionData() {
     }
   }
 
-  // 3d. Breadth endpoints (return data for ALL accessible systems — no ID needed)
+  // 3d. Serial bootstrap — use known serials to discover customer ID, then pull full fleet
+  // Works even when /watchlist/all is broken. Cluster view returns customerId we can reuse.
+  if (systemsList.length === 0) {
+    if (textLabel) textLabel.innerText = "Serial Bootstrap Discovery...";
+    const seedSerials = [
+      "211839000195", "952239002356", "952239002659", "952239002236", "952239002406"
+    ];
+    for (const sn of seedSerials) {
+      try {
+        const clData = await callActiveIQAPI(`/v1/clusterview/get-cluster-summary/${sn}`);
+        console.log(`[AIQ] Cluster view ${sn}:`, JSON.stringify(clData).slice(0, 300));
+        // Extract customer ID from cluster summary
+        const custId = clData?.customerId || clData?.customer_id ||
+                       clData?.customerInfo?.customerId || clData?.clusterInfo?.customerId;
+        if (custId) {
+          console.log(`[AIQ] Bootstrap found customerId=${custId} via serial ${sn}`);
+          // Now get ALL systems for this customer
+          for (const ver of ["v1", "v2"]) {
+            try {
+              const ep   = `/${ver}/search/system/level/customer?id=${custId}&searchText=*&limit=1000`;
+              const data = await callActiveIQAPI(ep);
+              const page = extractList(data);
+              if (page.length > 0) { systemsList = page; usedEndpoint = ep; break; }
+            } catch (_) { /* skip */ }
+          }
+        }
+        // Even if no customer ID, the cluster summary itself is a system record
+        if (systemsList.length === 0 && clData && Object.keys(clData).length > 0) {
+          systemsList = [clData];
+          usedEndpoint = `/v1/clusterview/get-cluster-summary/${sn}`;
+        }
+      } catch (e) { console.warn(`[AIQ] cluster bootstrap ${sn}:`, e.message); }
+      if (systemsList.length > 0) break;
+    }
+  }
+
+  // 3e. Breadth endpoints (return data for ALL accessible systems — no ID needed)
   if (systemsList.length === 0) {
     for (const ep of ["/eos/details", "/eos/contracts/details",
                        "/v2/health/risks", "/capacity2/usage",
@@ -11356,6 +11401,7 @@ async function loadProductionData() {
       } catch (e) { console.warn(`[AIQ] breadth ${ep}:`, e.message); }
     }
   }
+
 
   // ── Step 4: Handle empty result ──────────────────────────────────────────
   if (systemsList.length === 0) {
