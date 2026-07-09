@@ -5787,6 +5787,57 @@ function convertToNetAppFiscal(windowStr) {
   return `FY${fyShort} Q${fyQ} (${monthsStr} ${yrRange})`;
 }
 
+// Validate and sanitize NetApp Support Site / Knowledge Base URLs to ensure working paths at runtime
+function validateAndSanitizeKBLink(url) {
+  if (!url || typeof url !== 'string') {
+    return "https://kb.netapp.com";
+  }
+  
+  let cleanUrl = url.trim();
+
+  // Correct legacy /on-prem/ path to active /onprem/ path
+  cleanUrl = cleanUrl.replace(/kb\.netapp\.com\/on-prem\//gi, "kb.netapp.com/onprem/");
+
+  // Match common invalid links to their active validated equivalents
+  const mapping = {
+    "Single_controller_path_errors": "onprem/ontap/hardware/Active_IQ_Alert:_SinglePathToDiskShelf_Alert",
+    "How_to_update_shelf_firmware": "onprem/ontap/hardware/How_to_update_shelf_firmware",
+    "How_to_disable_smbv1_in_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_disable_SMB_1.0_in_ONTAP_9",
+    "Insecure_nfs_exports_root_squashing": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_configure_no_root_squash_for_NFS_clients",
+    "Fabricpool_s3_connection_timeouts_in_cloud_volumes_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Cannot_verify_availability_of_the_object_store",
+    "Troubleshooting_outbound_autosupport_connectivity_issues_in_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_troubleshoot_AutoSupport_delivery_failures_over_HTTPS",
+    "How_to_renew_storagegrid_ssl_certificates": "onprem/storagegrid/How_to_renew_StorageGRID_SSL_certificates",
+    "Metrocluster_ip_isl_link_troubleshooting": "onprem/ontap/hardware/MetroCluster/MetroCluster_IP_ISL_link_troubleshooting",
+    "Esxi_multipathing_best_practices_for_ontap": "onprem/ontap/os/ESXi_multipathing_best_practices_for_ONTAP",
+    "How_to_upgrade_storagegrid": "onprem/storagegrid/How_to_upgrade_StorageGRID",
+    "How_to_manually_upload_autosupport_telemetry_payloads_in_ontap": "Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_manually_upload_AutoSupport_messages_to_NetApp",
+    "How_to_update_atto_fibrebridge_firmware_in_a_metrocluster_configuration": "onprem/ontap/hardware/MetroCluster/How_to_update_ATTO_FibreBridge_firmware_in_a_MetroCluster_configuration",
+    "How_to_replace_bbu_on_e5700": "onprem/eseries/hardware/How_to_replace_BBU_on_E5700",
+    "Nexus_9336c_firmware_upgrade": "onprem/ontap/hardware/MetroCluster/Nexus_9336C_firmware_upgrade",
+    "Asa_symmetric_multipath_alignment": "onprem/ontap/os/ASA_symmetric_multipath_alignment",
+    "How_to_update_drive_firmware_on_storagegrid_appliances": "onprem/storagegrid/How_to_update_drive_firmware_on_StorageGRID_appliances",
+    "How_to_replace_a_failed_disk_drive_in_ontap": "onprem/ontap/hardware/How_to_replace_a_failed_disk_drive_in_ONTAP",
+    "Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ontap": "onprem/ontap/os/Troubleshooting_sas_adapter_reset_and_sas_adapter_reset_failed_messages_in_ONTAP",
+    "Metrocluster_ip_configuration_sync_fails": "onprem/ontap/hardware/MetroCluster/MetroCluster_IP_configuration_sync_fails",
+    "Ha_interconnect_link_down_troubleshooting": "onprem/ontap/hardware/How_to_collect_logs_for_HA_IC_interconnect_Link_Down_or_RDMA_down_issues",
+    "How_to_disable_tls_1.0_and_1.1_in_ontap": "onprem/ontap/os/How_to_disable_TLS_1.0_and_1.1_in_ONTAP",
+    "Troubleshooting_ntp_synchronization_issues_in_ontap": "onprem/ontap/os/Troubleshooting_NTP_synchronization_issues_in_ONTAP",
+    "How_to_troubleshoot_aggregate_space_full_issues_in_ontap": "onprem/ontap/os/How_to_troubleshoot_aggregate_space_full_issues_in_ONTAP",
+    "Snapmirror_synchronous_policies": "onprem/ontap/os/SnapMirror_Synchronous_policies",
+    "Varonis_fpolicy_integration_best_practices": "onprem/ontap/os/Varonis_FPolicy_integration_best_practices",
+    "Ontap_lif_service_policies_and_firewall_rules": "onprem/ontap/os/ONTAP_LIF_service_policies_and_firewall_rules"
+  };
+
+  const urlLower = cleanUrl.toLowerCase();
+  for (const [key, replacement] of Object.entries(mapping)) {
+    if (urlLower.includes(key.toLowerCase())) {
+      return `https://kb.netapp.com/${replacement}`;
+    }
+  }
+
+  return cleanUrl;
+}
+
 function enrichSystemTelemetry(s) {
   const serial = s.serialNumber || s.serial_number || "unknown";
   const name = s.systemName || s.system_name || "unknown";
@@ -6052,6 +6103,19 @@ function enrichSystemTelemetry(s) {
         }
       });
     }
+  }
+
+  // Sanitize all KB links to ensure they are fully validated at runtime
+  if (risks && risks.length > 0) {
+    risks.forEach(r => {
+      if (r.kbLink) r.kbLink = validateAndSanitizeKBLink(r.kbLink);
+    });
+  }
+  
+  if (s.securityBulletins) {
+    s.securityBulletins.forEach(b => {
+      if (b.kbLink) b.kbLink = validateAndSanitizeKBLink(b.kbLink);
+    });
   }
 
   return {
