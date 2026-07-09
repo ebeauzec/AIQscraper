@@ -7812,8 +7812,8 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Run Command (ESXi 7.0/8.0+): 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1'
 
 * ACTION 3.2: Enable SVM Configuration Change Auditing
-  - Standard Practice: Activate vserver audit logging for compliance.
-  - Run Command: 'vserver audit create -vserver <svm_name> -destination /audit_log'
+  - Standard Practice: Configure and enable vserver audit logging for compliance.
+  - Run Commands: 'vserver audit create -vserver <svm_name> -destination /audit_log -format json' and 'vserver audit enable -vserver <svm_name>'
 
 * ACTION 3.3: Third-Party Backup Snapshot Scheduling Compliance
   - Standard Practice: Avoid schedule collision between third-party snapshot orchestration (Veeam, Commvault, Rubrik) and native ONTAP snapshot policies. Disable native ONTAP snapshot schedules on volumes managed by third-party backup platforms to prevent reaching the 255-snapshot-per-volume ceiling.
