@@ -223,7 +223,13 @@ const MOCK_SYSTEMS = [
         lastUpdated: "2026-07-05",
         ownerNotes: "Replacement drive sent to site. Estimated delivery tomorrow morning. Site contact Samantha Ross notified."
       }
-    ]
+    ],
+    autosupport: {
+      enabled: true,
+      status: "healthy",
+      lastReceivedDays: 1,
+      failureReason: "None"
+    }
   },
   {
     serialNumber: "622002223333",
@@ -278,6 +284,30 @@ const MOCK_SYSTEMS = [
             "Option B: Open NAT Gateway outbound routing if VPC endpoints are not desired in the subnet."
           ],
           thirdParty: "Affects CVO nodes running inside AWS subnets. No physical hypervisor dependencies."
+        }
+      },
+      {
+        id: 203,
+        severity: "high",
+        category: "Network",
+        description: "AutoSupport telemetry transmission has failed. Outbound connectivity to support.netapp.com is blocked.",
+        recommendation: "Update the AWS Security Group egress rules for the CVO node to permit HTTPS traffic on port 443 outbound to support.netapp.com.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/Troubleshooting_outbound_AutoSupport_connectivity_issues_in_ONTAP",
+        remediationPlan: {
+          cause: "The outbound VPC Security Group egress policies were modified, blocking access to NetApp Support Site IP subnets over port 443.",
+          impact: "Proactive telemetry sync is lost. The system is blinded to automated risk analysis and security CVE advisor updates in Active IQ.",
+          steps: [
+            "1. Access the AWS EC2 Management Console.",
+            "2. Select the Cloud Volumes ONTAP node instances.",
+            "3. Under 'Security' tab, click the egress Security Group.",
+            "4. Add an Outbound Rule: Protocol=TCP, Port Range=443, Destination=support.netapp.com (or 0.0.0.0/0 if proxying is not used).",
+            "5. Execute a manual AutoSupport transmission test from ONTAP CLI: 'system node autosupport invoke -node * -type test -message \"testing telemetry\"'"
+          ],
+          options: [
+            "Option A: Open direct HTTPS outbound access to the NetApp Support Site (Recommended).",
+            "Option B: Route AutoSupport through an HTTP proxy: 'system node autosupport modify -node * -proxy-url http://proxy.corporate.local:8080'"
+          ],
+          thirdParty: "No hypervisor impact. Outbound telemetry runs over VPC internet gateways."
         }
       }
     ],
@@ -377,7 +407,13 @@ const MOCK_SYSTEMS = [
         lastUpdated: "2026-07-06",
         ownerNotes: "Escalated to SaaS subscription billing team. Waiting for verification check."
       }
-    ]
+    ],
+    autosupport: {
+      enabled: true,
+      status: "failed",
+      lastReceivedDays: 15,
+      failureReason: "Outbound HTTPS (port 443) connectivity to support.netapp.com is blocked by VPC Security Group egress policies."
+    }
   },
   {
     serialNumber: "622003334444",
@@ -1057,7 +1093,31 @@ const MOCK_SYSTEMS = [
     ontapVersion: "9.14.1",
     platform: "Cloud Volumes ONTAP (Azure)",
     status: "normal",
-    risks: [],
+    risks: [
+      {
+        id: 901,
+        severity: "medium",
+        category: "Security",
+        description: "AutoSupport telemetry is disabled, preventing proactive monitoring and alert delivery.",
+        recommendation: "If this dark-site system is subject to security mandates, configure AutoSupport on-demand or schedule periodic manual support uploads.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_manually_upload_AutoSupport_telemetry_payloads_in_ONTAP",
+        remediationPlan: {
+          cause: "AutoSupport telemetry has been disabled to prevent out-of-boundary connections in a high-security environment.",
+          impact: "The cluster receives no automatic security patches, CVE checks, or system health validations from Active IQ.",
+          steps: [
+            "1. Access the ONTAP command-line interface.",
+            "2. Verify ASUP status: 'system node autosupport show -fields state'.",
+            "3. If policy permits, enable HTTPS transport: 'system node autosupport modify -node * -state enable'.",
+            "4. Alternatively, export the AutoSupport payload file locally: 'system node autosupport invoke -node * -type all -uri file:///mdisk/asup_export.zip'"
+          ],
+          options: [
+            "Option A: Safely enable secure HTTPS telemetry transfer to NetApp.",
+            "Option B: Establish manual offline diagnostic bundle uploads on a weekly cadence."
+          ],
+          thirdParty: "No hypervisor impact. Diagnostics are handled out-of-band."
+        }
+      }
+    ],
     upgrades: {
       targetVersion: "Up to Date",
       urgency: "None",
@@ -1126,7 +1186,13 @@ const MOCK_SYSTEMS = [
       projectedCapacityMonths: [52.1, 54.0, 56.0]
     },
     securityBulletins: [],
-    supportCases: []
+    supportCases: [],
+    autosupport: {
+      enabled: false,
+      status: "disabled",
+      lastReceivedDays: null,
+      failureReason: "AutoSupport disabled intentionally in accordance with secure dark site compliance protocols."
+    }
   },
   // NEW CUSTOMER: Apex Retail Group
   {
