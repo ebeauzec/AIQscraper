@@ -115,22 +115,98 @@ def create_vbs_launcher(install_dir: Path, pythonw: str) -> Path:
     return vbs
 
 
-def create_desktop_shortcut(vbs_path: Path, install_dir: Path):
-    """Create a .lnk on the Desktop pointing to Launch.vbs."""
-    desktop = Path.home() / "Desktop"
-    lnk = desktop / "NetApp AIQ Advisor.lnk"
-    ps = (
+def get_real_desktop() -> Path:
+    """Return the actual Desktop path, correctly resolving OneDrive-synced Desktops."""
+    # Method 1: SHGetFolderPath (most reliable on all Windows versions)
+    try:
+        import ctypes, ctypes.wintypes
+        buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+        # CSIDL_DESKTOPDIRECTORY = 0x0010
+        ctypes.windll.shell32.SHGetFolderPathW(None, 0x0010, None, 0, buf)
+        p = Path(buf.value)
+        if p.exists():
+            return p
+    except Exception:
+        pass
+    # Method 2: winreg
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+        val, _ = winreg.QueryValueEx(key, "Desktop")
+        winreg.CloseKey(key)
+        p = Path(val)
+        if p.exists():
+            return p
+    except Exception:
+        pass
+    # Method 3: Environment fallback
+    return Path.home() / "Desktop"
+
+
+def create_launchers(vbs_path: Path, install_dir: Path, pythonw: str, log_fn) -> None:
+    """Create Desktop shortcut, Start Menu entry, and a plain .bat fallback."""
+    ws_script = (
         f'$ws = New-Object -ComObject WScript.Shell;'
-        f'$sc = $ws.CreateShortcut("{lnk}");'
-        f'$sc.TargetPath = "{vbs_path}";'
-        f'$sc.WorkingDirectory = "{install_dir}";'
-        f'$sc.Description = "NetApp Active IQ Advisor - Open Dashboard";'
-        f'$sc.Save()'
     )
-    subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps],
-        capture_output=True
-    )
+
+    # --- 1. Desktop .lnk ---
+    desktop = get_real_desktop()
+    lnk = desktop / "NetApp AIQ Advisor.lnk"
+    try:
+        ps = (
+            f'$ws = New-Object -ComObject WScript.Shell;'
+            f'$sc = $ws.CreateShortcut(\'{lnk}\');'
+            f'$sc.TargetPath = \'{vbs_path}\';'
+            f'$sc.WorkingDirectory = \'{install_dir}\';'
+            f'$sc.Description = \'NetApp Active IQ Advisor - Open Dashboard\';'
+            f'$sc.Save()'
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps],
+            capture_output=True, text=True
+        )
+        if lnk.exists():
+            log_fn(f"      Desktop shortcut: {lnk}", "ok")
+        else:
+            raise RuntimeError(result.stderr or "lnk not created")
+    except Exception as e:
+        log_fn(f"      Desktop shortcut failed: {e}", "warn")
+
+    # --- 2. Start Menu .lnk ---
+    try:
+        start_menu = Path(os.environ.get("APPDATA", "")) / \
+            "Microsoft" / "Windows" / "Start Menu" / "Programs"
+        start_lnk = start_menu / "NetApp AIQ Advisor.lnk"
+        ps2 = (
+            f'$ws = New-Object -ComObject WScript.Shell;'
+            f'$sc = $ws.CreateShortcut(\'{start_lnk}\');'
+            f'$sc.TargetPath = \'{vbs_path}\';'
+            f'$sc.WorkingDirectory = \'{install_dir}\';'
+            f'$sc.Description = \'NetApp Active IQ Advisor\';'
+            f'$sc.Save()'
+        )
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps2],
+                       capture_output=True)
+        if start_lnk.exists():
+            log_fn(f"      Start Menu entry created.", "ok")
+    except Exception as e:
+        log_fn(f"      Start Menu entry failed: {e}", "warn")
+
+    # --- 3. Plain .bat fallback in install folder ---
+    try:
+        bat = install_dir / "Start App.bat"
+        bat.write_text(
+            f'@echo off\r\ntitle NetApp Active IQ Advisor\r\n'
+            f'cd /d "%~dp0"\r\n'
+            f'start "" "{pythonw}" "%~dp0launcher.py"\r\n'
+            f'timeout /t 2 >nul\r\n',
+            encoding="ascii"
+        )
+        log_fn(f"      Fallback launcher: {bat}", "ok")
+    except Exception as e:
+        log_fn(f"      Fallback launcher failed: {e}", "warn")
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -448,22 +524,20 @@ class InstallerApp:
         # VBS silent launcher
         vbs = create_vbs_launcher(INSTALL_DIR, pythonw)
         self._vbs_path = vbs
-        self._log(f"      Launcher: {vbs}", "ok")
+        self._log(f"      Silent launcher created.", "ok")
         self._set_progress(85)
 
-        # Desktop shortcut
-        try:
-            create_desktop_shortcut(vbs, INSTALL_DIR)
-            self._log("      Desktop shortcut created: 'NetApp AIQ Advisor'", "ok")
-        except Exception as e:
-            self._log(f"      Shortcut skipped ({e}). Manually link to: {vbs}", "warn")
+        # Desktop shortcut + Start Menu + .bat fallback
+        create_launchers(vbs, INSTALL_DIR, pythonw, self._log)
 
         self._mark_step("step4", "done")
         self._set_progress(100)
 
         self._log("\n━━━ Installation complete! ━━━", "ok")
-        self._log(f"  App folder:  {INSTALL_DIR}\\", "dim")
-        self._log("  Shortcut:    'NetApp AIQ Advisor' on your Desktop", "dim")
+        self._log(f"  App folder:    {INSTALL_DIR}\\", "dim")
+        self._log( "  Desktop:       'NetApp AIQ Advisor' shortcut", "dim")
+        self._log( "  Start Menu:    Search 'NetApp AIQ Advisor'", "dim")
+        self._log(f"  Inside folder: double-click 'Start App.bat'", "dim")
         self._log("\nClick 'Launch Now' to open the dashboard.", "info")
         self._done = True
         self._set_done_ui(True)
@@ -506,7 +580,7 @@ def console_install():
             shutil.copy2(fp, INSTALL_DIR / f)
     pythonw = find_pythonw()
     vbs = create_vbs_launcher(INSTALL_DIR, pythonw)
-    create_desktop_shortcut(vbs, INSTALL_DIR)
+    create_launchers(vbs, INSTALL_DIR, pythonw, print)
     print("       Complete.")
 
     print(f"\n Installation complete!")
