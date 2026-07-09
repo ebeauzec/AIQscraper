@@ -251,5 +251,26 @@ If your security policies prevent browser extensions/modifications, serve the fi
 
 ---
 
+## Data Security, Sovereignty & AI Compliance Statement
+
+This reporting tool was designed from the ground up to comply with strict corporate security baselines, air-gapped environments, and data protection guidelines. 
+
+### 1. 100% AI-Free Processing (No LLMs)
+* **Zero AI/ML Dependencies**: This application does **not** make calls to, communicate with, or use any generative AI, Machine Learning (ML), or Large Language Model (LLM) services (internally or externally). 
+* **Deterministic Logic**: All risk calculations, remediation schedules, and action control runbooks are derived locally using deterministic, standard JavaScript algorithms. There is no risk of hallucinated commands or unauthorized data leaks to public/private AI model training pipelines.
+
+### 2. Complete Data Sovereignty & Privacy
+* **Self-Contained Local Execution**: The dashboard compiles into a single, zero-dependency HTML file (`index.html`). It runs fully inside your browser sandbox and can be executed completely offline.
+* **No External Data Leakage**: The application does not utilize tracking cookies, analytics modules, Google Analytics, or external web beacons.
+* **Browser-Private Storage**: Your configuration files, Active IQ tokens, site logistics details, custom subgroups, and cases databases are stored directly in your browser's private local storage space (`localStorage`) and never leave your machine.
+* **Authorized TLS Endpoint Polling**: When running in online mode, the application only contacts NetApp's official, TLS-encrypted REST API gateway (`https://api.activeiq.netapp.com`).
+
+### 3. NetApp Security Policy Adherence
+* **Read-Only Telemetry Ingest**: The dashboard does not run execution commands against active production storage nodes (e.g. cluster updates or volume wipes). Telemetry ingestion is strictly read-only.
+* **Change Control Enforcement**: Rather than applying changes itself, the dashboard outputs standard ITIL-aligned change tickets and version-aware step-by-step CLI runbooks for review and execution by authorized system engineers during scheduled maintenance windows.
+* **Corporate IT Compliance**: Since no installation is required (simply launch `index.html` in any modern browser) and no external data shares are initiated, this application conforms fully with NetApp's data security classifications and standard corporate computer policies.
+
+---
+
 ## Change History
 See the [CHANGELOG.md](CHANGELOG.md) for version release details.
