@@ -8442,6 +8442,7 @@ async function triggerManualSync() {
     state.lastSync = new Date().toISOString();
     safeSetItem("aiq_last_sync", state.lastSync);
     updateScheduledSyncInfo();
+    refreshUIState();
     
     alert(`Successfully synchronized with Active IQ!\n\nAll required metrics and data points collected:\n✓ System inventory & telemetry\n✓ Active predictive risk signatures\n✓ Multi-hop firmware/OS path plans\n✓ Contracts & warranty lifecycles\n✓ Switch fabric configuration states\n✓ Hypervisor integrations\n✓ Support cases & action items\n\nDashboard has been updated.`);
   } catch (err) {
@@ -8467,6 +8468,7 @@ async function checkAutoSync() {
       state.lastSync = new Date().toISOString();
       safeSetItem("aiq_last_sync", state.lastSync);
       updateScheduledSyncInfo();
+      refreshUIState();
       console.log("Auto-poll synchronized successfully.");
     } catch (err) {
       console.error("Auto-sync interval pull failed:", err);
@@ -8495,6 +8497,29 @@ function updateStatusIndicators() {
       if (textLabel) textLabel.innerText = "No Credentials Configured";
     }
   });
+}
+
+function refreshUIState() {
+  // 1. Redraw sidebar groups and filter menus
+  renderSidebarGroups();
+  
+  // 2. Validate and adjust current selected system reference
+  if (state.systems && state.systems.length > 0) {
+    const exists = state.systems.some(s => s.serialNumber === (state.selectedSystem ? state.selectedSystem.serialNumber : ""));
+    if (!exists) {
+      state.selectedSystem = state.systems[0];
+    }
+  }
+
+  // 3. Rebuild global search parameters
+  updateSearchSuggestions();
+
+  // 4. Force redraw layout of the active tab view
+  if (state.activeTab) {
+    switchTab(state.activeTab);
+  } else {
+    switchTab("overview");
+  }
 }
 
 async function loadProductionData() {
@@ -8552,6 +8577,7 @@ async function loadProductionData() {
           state.selectedSystem = state.systems[0];
         }
         updateStatusIndicators();
+        refreshUIState();
         return;
       }
     }
