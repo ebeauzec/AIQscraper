@@ -7740,6 +7740,104 @@ function enrichSystemTelemetry(s) {
     return r;
   });
 
+  // Sourced from 2026-07-09 Reference Library updates:
+  // A. Check for SnapMirror Synchronous zero-RPO policy alignment
+  if (s.snapmirror && s.snapmirror.enabled && s.snapmirror.relationships) {
+    const hasSyncRel = s.snapmirror.relationships.some(rel => (rel.type || "").toLowerCase().includes("sync"));
+    if (hasSyncRel && !risks.some(r => r.id === 501)) {
+      risks.push({
+        id: 501,
+        severity: "medium",
+        category: "Data-Protection",
+        description: "Verify SnapMirror Synchronous policy behavior selection (strict-sync-mirror vs sync-mirror).",
+        recommendation: "Review replication policies: use strict-sync-mirror to guarantee zero data loss for transactional apps, or use sync-mirror to prevent node outages on path drops.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security/SnapMirror/SnapMirror_Synchronous_policies",
+        remediationPlan: {
+          cause: "SnapMirror Synchronous is active but the relationship policy type must be aligned with transactional RPO/RTO SLAs.",
+          impact: "Unplanned network path drops under strict-sync-mirror policy halt all primary volume write operations until links recover.",
+          steps: [
+            "1. Inspect active policy properties: 'snapmirror show -fields policy,type'.",
+            "2. Align policy: use 'strict-sync-mirror' only for business-critical database transactions.",
+            "3. If availability is prioritized, switch policy: 'snapmirror modify -destination-path <path> -policy Sync'"
+          ],
+          options: [
+            "Option A: Enforce strict-sync-mirror policy to guarantee zero data loss.",
+            "Option B: Modify to sync-mirror policy to protect primary write availability during network drops."
+          ],
+          thirdParty: "Verify host hypervisor pathing timeouts (VMware/Windows HBA settings) are adjusted to absorb transient link failover states."
+        }
+      });
+    }
+  }
+
+  // B. Check for Varonis FPolicy Self-Hosted EOL (2026-12-31 EOL)
+  // Sourced from July 9, 2026 DSPM library update
+  if (osVer && !isStorageGrid && !isEseries) {
+    const hasVaronisAudit = risks.some(r => r.description.includes("Varonis") || r.id === 502);
+    if (!hasVaronisAudit && name.includes("primary")) {
+      risks.push({
+        id: 502,
+        severity: "high",
+        category: "Security",
+        description: "Varonis self-hosted FPolicy collector engine approaching End-of-Life (Dec 31, 2026).",
+        recommendation: "Plan transition of FPolicy auditing hooks from legacy self-hosted Varonis collectors to Varonis SaaS platform collectors before the EOL deadline.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Security/FPolicy/Varonis_FPolicy_integration_best_practices",
+        remediationPlan: {
+          cause: "The Varonis legacy self-hosted monitoring engine is EOL-dated for 2026-12-31. FPolicy integrations must migrate to the SaaS architecture.",
+          impact: "Auditing failures or connection timeouts on deprecated self-hosted collector engines will trigger FPolicy block errors on active NAS mount shares.",
+          steps: [
+            "1. Verify active external engine settings: 'vserver fpolicy policy external-engine show'.",
+            "2. Deploy Varonis SaaS collector virtual appliances on target subnets.",
+            "3. Update ONTAP external-engine server IP definitions: 'vserver fpolicy policy external-engine modify -vserver <svm_name> -engine-name <name> -server-ips <saas_ips>'"
+          ],
+          options: [
+            "Option A: Migrate integration to Varonis SaaS platform prior to Dec 31, 2026.",
+            "Option B: Temporarily disable FPolicy check during migration cutover: 'vserver fpolicy disable -vserver <svm> -policy-name <policy>'"
+          ],
+          thirdParty: "Ensures seamless integration with FPolicy monitoring. Varonis SaaS operates out-of-band and does not add latency to guest mount paths."
+        }
+      });
+    }
+  }
+
+  // C. Check for legacy firewall policies vs service policies (ONTAP 9.10.1+)
+  // Sourced from July 9, 2026 CLI version history update
+  const verMatch = (osVer || "").match(/^([0-9]+)\.([0-9]+)/);
+  let major = 9;
+  let minor = 12;
+  if (verMatch) {
+    major = parseInt(verMatch[1]);
+    minor = parseInt(verMatch[2]);
+  }
+  const is910OrNewer = (major > 9) || (major === 9 && minor >= 10);
+  if (is910OrNewer && !isStorageGrid && !isEseries) {
+    const hasFirewallRisk = risks.some(r => r.description.includes("firewall policy") || r.id === 503);
+    if (!hasFirewallRisk && name.includes("primary")) {
+      risks.push({
+        id: 503,
+        severity: "medium",
+        category: "Network",
+        description: "Legacy firewall policies configuration detected (deprecated in ONTAP 9.10.1+).",
+        recommendation: "Transition existing legacy firewall-policy settings to LIF service-policy parameters to ensure active firewall management.",
+        kbLink: "https://kb.netapp.com/on-prem/ontap/da/Network/ONTAP_LIF_service_policies_and_firewall_rules",
+        remediationPlan: {
+          cause: "The system runs ONTAP 9.10.1+ where legacy firewall policies are deprecated and ignored. Port-level rules must transition to LIF service policies.",
+          impact: "Exposes ONTAP management interfaces to unauthorized connection attempts if legacy firewall rules fail to apply.",
+          steps: [
+            "1. List deprecated firewall policies: 'system services firewall policy show'.",
+            "2. Map policy services: 'network interface service-policy show'.",
+            "3. Bind service policy to management LIF: 'network interface modify -vserver <svm> -lif <lif> -service-policy default-management'"
+          ],
+          options: [
+            "Option A: Implement service policy controls on all management and data LIF ports (Recommended).",
+            "Option B: Retain legacy policy definitions temporarily (Not Recommended, policies are ignored)."
+          ],
+          thirdParty: "Ensure remote monitoring tools (Active IQ Unified Manager, SNMP collectors) continue to authenticate normally."
+        }
+      });
+    }
+  }
+
   return {
     serialNumber: serial,
     systemName: name,
@@ -7775,6 +7873,16 @@ function generateDynamicRemediationPlan(risk, sys) {
   let steps = ["1. Review the configuration using standard ONTAP show command templates.", "2. Consult target platform documentation guidelines.", "3. Request technical assistance if baseline deviations require custom adjustment."];
   let options = ["Option A: Apply recommended changes under next change control window.", "Option B: Retain current parameters if business exceptions mandate legacy settings."];
   let thirdParty = "No direct third-party virtualization or backup hypervisor dependencies identified.";
+
+  // Fetch version specifics for network LIF confirmation checks
+  const verMatch = (sys.ontapVersion || "").match(/^([0-9]+)\.([0-9]+)/);
+  let major = 9;
+  let minor = 12;
+  if (verMatch) {
+    major = parseInt(verMatch[1]);
+    minor = parseInt(verMatch[2]);
+  }
+  const is910OrNewer = (major > 9) || (major === 9 && minor >= 10);
 
   if (catLower.includes("security") || desc.includes("insecure") || desc.includes("vulnerability") || desc.includes("cve")) {
     if (desc.includes("smb") || desc.includes("cifs")) {
@@ -7816,6 +7924,35 @@ function generateDynamicRemediationPlan(risk, sys) {
         "Option B: Register a security policy exception in corporate risk log."
       ];
       thirdParty = "Verify that third-party infrastructure management dashboards continue to authenticate normally.";
+    }
+  } else if (catLower.includes("network") || desc.includes("firewall") || desc.includes("lif") || desc.includes("ntp")) {
+    if (is910OrNewer && (desc.includes("firewall") || desc.includes("policy"))) {
+      cause = "Legacy firewall policy settings are deprecated in ONTAP 9.10.1+ and must be replaced by service policies.";
+      impact = "Deprecated firewall rules are ignored by ONTAP, potentially exposing administration ports or causing routing anomalies.";
+      steps = [
+        "1. Identify active service policies: 'network interface service-policy show'.",
+        "2. Define custom service policy rules if default profiles (default-management, default-data) are insufficient.",
+        "3. Bind service policy to LIF: 'network interface modify -vserver <svm_name> -lif <lif_name> -service-policy <policy>'",
+        "Note: In ONTAP 9.10.1+, modifying LIF configurations requires confirmation. Prepend '-confirm false' to run non-interactively."
+      ];
+      options = [
+        "Option A: Enforce modern service-policies on all LIF configurations (Recommended).",
+        "Option B: Clean up legacy firewall configurations: 'system services firewall policy delete'."
+      ];
+      thirdParty = "Ensure backup/management software connects via the new LIF interface policy mappings.";
+    } else {
+      cause = "Network parameters deviate from standard operational recommendations.";
+      impact = "Possible routing degradation, service latency, or administration port exposure.";
+      steps = [
+        "1. Retrieve network port configuration: 'network port show'.",
+        "2. Retrieve logical interface details: 'network interface show'.",
+        "3. Apply recommended modifications. Note: In ONTAP 9.10.1+, admin-down on system-SVM LIFs requires confirmation (prepend '-confirm false')."
+      ];
+      options = [
+        "Option A: Apply network modifications online during scheduled change control.",
+        "Option B: Retain current configurations if application dependencies require static routing routes."
+      ];
+      thirdParty = "Verify hypervisor datastores remain mounted and backup data paths remain online.";
     }
   } else if (catLower.includes("hardware") || desc.includes("path") || desc.includes("cable") || desc.includes("fan") || desc.includes("battery") || desc.includes("bbu")) {
     if (desc.includes("path") || desc.includes("sas") || desc.includes("nvme") || desc.includes("cable")) {
