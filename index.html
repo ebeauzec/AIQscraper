@@ -4810,7 +4810,11 @@ async function callActiveIQGraphQL(query, variables = {}) {
   
   try {
     const token = await getValidAccessToken();
-    const response = await fetch("/graphql", {
+    // Route through proxy: /api/v2/graphql → https://api.activeiq.netapp.com/v2/graphql
+    const graphqlUrl = state.isRunningViaProxy
+      ? `${window.location.protocol}//${window.location.host}/api/v2/graphql`
+      : "https://api.activeiq.netapp.com/v2/graphql";
+    const response = await fetch(graphqlUrl, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -10965,17 +10969,171 @@ function refreshUIState() {
 async function loadProductionData() {
   const textLabel = document.getElementById("connectionStatusText");
   const indicator = document.querySelector(".indicator");
-  
-  if (textLabel) textLabel.innerText = "Connecting & Loading Telemetry...";
-  if (indicator) {
-    indicator.className = "indicator warning"; // Amber indicator while loading
+
+  if (textLabel) textLabel.innerText = "Connecting & Authenticating...";
+  if (indicator) indicator.className = "indicator warning";
+
+  // ── Step 1: Fetch watchlists (/v1/watchlist/all) ──────────────────────────
+  let watchlistSerials = new Set();
+  let watchlistIds = [];
+  try {
+    if (textLabel) textLabel.innerText = "Loading Watchlists...";
+    const apiWatchlists = await callActiveIQAPI("/watchlist/all");
+    if (apiWatchlists) {
+      const wlList = Array.isArray(apiWatchlists)
+        ? apiWatchlists
+        : (apiWatchlists.watchListData || apiWatchlists.watchlists || []);
+      state.watchlists = wlList.map(wl => {
+        const serials = wl.serialNumbers || wl.systemSerials || wl.systems || [];
+        serials.forEach(sn => watchlistSerials.add(sn.toString().trim()));
+        watchlistIds.push(wl.watchListId || wl.watchlistId || wl.id);
+        return {
+          id:            wl.watchListId  || wl.watchlistId  || wl.id  || "wl_" + Date.now(),
+          name:          wl.watchListName || wl.watchlistName || wl.name || "Watchlist",
+          systemSerials: serials
+        };
+      });
+      saveWatchlists();
+      console.log(`[AIQ] Watchlists: ${state.watchlists.length} loaded, ${watchlistSerials.size} serials.`);
+    }
+  } catch (wlErr) {
+    console.warn("[AIQ] /watchlist/all failed:", wlErr.message);
   }
 
-  // 1. Fetch watchlists — confirmed endpoint: GET /v1/watchlist/all
-  //    (Note: /watchlists plural returned 404; the correct path is /watchlist/all)
-  let watchlistSerials = new Set();
-  try {
-    const apiWatchlists = await callActiveIQAPI("/watchlist/all");
+  // ── Step 2: Fetch systems ─────────────────────────────────────────────────
+  //
+  // NetApp has several possible endpoints. We try them in order:
+  //   a) /v1/system          — standard single-system or system-list endpoint
+  //   b) /v1/system/list     — explicit list variant
+  //   c) /v1/cluster         — cluster-based inventory
+  // If Watchlist-Only mode is on and we got watchlist IDs, also try per-watchlist:
+  //   d) /v1/watchlist/details/watchlistId/{id}
+  //
+  const SYSTEM_ENDPOINTS = [
+    "/system",
+    "/system/list",
+    "/cluster",
+    "/clusters",
+    "/storage-systems",
+  ];
+
+  let systemsList = [];
+  let usedEndpoint = null;
+
+  if (textLabel) textLabel.innerText = "Loading System Inventory...";
+
+  // 2a. Try standard REST inventory endpoints
+  for (const ep of SYSTEM_ENDPOINTS) {
+    try {
+      const data = await callActiveIQAPI(ep);
+      const parsed = Array.isArray(data) ? data
+        : (data?.systems || data?.clusters || data?.storageSystemList || [data]);
+      if (parsed.length > 0 && parsed[0].serialNumber !== undefined) {
+        systemsList = parsed;
+        usedEndpoint = ep;
+        console.log(`[AIQ] Systems found via REST ${ep}: ${parsed.length}`);
+        break;
+      }
+    } catch (e) {
+      console.warn(`[AIQ] ${ep} → ${e.message}`);
+    }
+  }
+
+  // 2b. If no systems yet and we have watchlist IDs, try per-watchlist system endpoint
+  if (systemsList.length === 0 && watchlistIds.length > 0) {
+    console.log("[AIQ] Trying watchlist-scoped system endpoints...");
+    const WL_PATTERNS = [
+      id => `/watchlist/systems/watchlistId/${id}`,
+      id => `/watchlist/details/watchlistId/${id}`,
+      id => `/watchlist/${id}/systems`,
+    ];
+    outer: for (const id of watchlistIds.filter(Boolean)) {
+      for (const pattern of WL_PATTERNS) {
+        try {
+          const data = await callActiveIQAPI(pattern(id));
+          const parsed = Array.isArray(data) ? data
+            : (data?.systems || data?.storageSystemList || []);
+          if (parsed.length > 0) {
+            systemsList = [...systemsList, ...parsed];
+            usedEndpoint = pattern(id);
+            console.log(`[AIQ] Systems via watchlist ${id}: ${parsed.length}`);
+            break outer;
+          }
+        } catch (e) {
+          console.warn(`[AIQ] watchlist ${id} pattern failed: ${e.message}`);
+        }
+      }
+    }
+  }
+
+  // ── Step 3: Handle results ────────────────────────────────────────────────
+  if (systemsList.length === 0) {
+    if (textLabel) textLabel.innerText = "No Systems Found";
+    if (indicator) indicator.className = "indicator disconnected";
+
+    // Build a helpful diagnostic message listing what worked/failed
+    const viaProxy = state.isRunningViaProxy;
+    alert(
+      "Active IQ API connected successfully but returned no systems.\n\n" +
+      "Endpoints tried: " + SYSTEM_ENDPOINTS.join(", ") + "\n\n" +
+      "This usually means one of:\n" +
+      "  • The system list requires a different endpoint path\n" +
+      "  • Your API token does not have fleet/system-list access\n" +
+      "  • Watchlist-Only mode is active but no watchlists contain systems\n\n" +
+      "To diagnose: look up the system list endpoint in the Active IQ API Catalog\n" +
+      "(activeiq.netapp.com → Quick Links → API Services)\n" +
+      "and paste the path into the API Base URL override in Settings."
+    );
+    updateStatusIndicators();
+    return;
+  }
+
+  // Normalise field names (API uses camelCase; enrichment handles snake_case too)
+  const normalise = s => ({
+    serialNumber:    s.serialNumber    || s.serial_number    || "",
+    systemName:      s.systemName      || s.system_name      || s.name || "",
+    model:           s.model           || "",
+    osVersion:       s.osVersion       || s.os_version       || "",
+    customerName:    s.customerName    || s.customer_name    || "",
+    customerId:      s.customerId      || s.customer_id      || "",
+    clusterName:     s.clusterName     || s.cluster_name     || "",
+    location:        s.location        || "",
+    platform:        s.platform        || "",
+    productFamily:   s.productFamily   || s.product_family   || "",
+    contractEndDate: s.contractEndDate || s.contract_end_date || "",
+    riskCount:       s.riskCount       || s.risk_count       || 0,
+    warningCount:    s.warningCount    || s.warning_count    || 0,
+    criticalCount:   s.criticalCount   || s.critical_count   || 0,
+    ...s  // keep any extra fields the API sends
+  });
+
+  // Apply watchlist filter if enabled
+  if (state.watchlistOnly && watchlistSerials.size > 0) {
+    systemsList = systemsList.filter(s => {
+      const sn = (s.serialNumber || s.serial_number || "").toString().trim();
+      return watchlistSerials.has(sn);
+    });
+  }
+
+  // Deduplicate by serial number
+  const seen = new Set();
+  systemsList = systemsList.filter(s => {
+    const sn = (s.serialNumber || s.serial_number || "").trim();
+    if (!sn || seen.has(sn)) return false;
+    seen.add(sn);
+    return true;
+  });
+
+  state.systems = systemsList.map(s => enrichSystemTelemetry(normalise(s)));
+  saveSystems();
+  state.lastSync = new Date().toISOString();
+  safeSetItem("aiq_last_sync", state.lastSync);
+  if (state.systems.length > 0) state.selectedSystem = state.systems[0];
+  console.log(`[AIQ] Sync complete via '${usedEndpoint}': ${state.systems.length} systems.`);
+  updateStatusIndicators();
+  refreshUIState();
+}
+
     if (apiWatchlists) {
       // API returns: { watchListData: [...] } or an array directly
       const wlList = Array.isArray(apiWatchlists)
