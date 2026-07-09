@@ -1,0 +1,17 @@
+# Desktop packaging dependencies
+# Install with: pip install -r requirements_desktop.txt
+
+# Core desktop windowing (no browser needed, no CORS restrictions)
+pywebview>=4.4.1
+
+# Build tool to create the distributable executable
+pyinstaller>=6.0
+
+# Windows-specific: pywebview WinForms backend (auto-installed on Windows)
+# pythonnet>=3.0.3
+# pywin32>=306
+
+# macOS-specific: pywebview Cocoa backend (auto-installed on macOS)
+# pyobjc-core>=9.0
+# pyobjc-framework-Cocoa>=9.0
+# pyobjc-framework-WebKit>=9.0

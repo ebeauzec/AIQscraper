@@ -7,3 +7,9 @@
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# PyInstaller build artefacts
+build/
+dist/
+__pycache__/
+*.pyc
