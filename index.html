@@ -10971,59 +10971,114 @@ async function loadProductionData() {
     indicator.className = "indicator warning"; // Amber indicator while loading
   }
 
-  // 1. Fetch active watchlists from Active IQ API first
+  // 1. Fetch watchlists — confirmed endpoint: GET /v1/watchlist/all
+  //    (Note: /watchlists plural returned 404; the correct path is /watchlist/all)
   let watchlistSerials = new Set();
   try {
-    const apiWatchlists = await callActiveIQAPI("/watchlists");
+    const apiWatchlists = await callActiveIQAPI("/watchlist/all");
     if (apiWatchlists) {
-      const wlList = Array.isArray(apiWatchlists) ? apiWatchlists : (apiWatchlists.watchlists || []);
+      // API returns: { watchListData: [...] } or an array directly
+      const wlList = Array.isArray(apiWatchlists)
+        ? apiWatchlists
+        : (apiWatchlists.watchListData || apiWatchlists.watchlists || []);
       state.watchlists = wlList.map(wl => {
-        const serials = wl.serialNumbers || wl.systemSerials || [];
+        // Field names vary between API versions
+        const serials = wl.serialNumbers || wl.systemSerials || wl.systems || [];
         serials.forEach(sn => watchlistSerials.add(sn.toString().trim()));
         return {
-          id: wl.watchlistId || wl.id || "wl_" + Date.now(),
-          name: wl.watchListName || wl.name || "Watchlist",
+          id:            wl.watchListId  || wl.watchlistId  || wl.id  || "wl_" + Date.now(),
+          name:          wl.watchListName || wl.watchlistName || wl.name || "Watchlist",
           systemSerials: serials
         };
       });
       saveWatchlists();
+      console.log(`[AIQ] Watchlists loaded: ${state.watchlists.length}`);
     }
   } catch (wlErr) {
-    console.warn("Failed to retrieve Active IQ watchlists:", wlErr);
+    console.warn("[AIQ] /watchlist/all failed:", wlErr.message);
   }
 
-  // 2. Fetch systems list
+  // 2. Fetch system inventory via GraphQL
+  //    NetApp has migrated most REST inventory endpoints to GraphQL.
+  //    The query below fetches all storage systems visible to the authenticated user.
   try {
-    const apiSystems = await callActiveIQAPI("/systems");
-    if (apiSystems && (Array.isArray(apiSystems) || (typeof apiSystems === 'object' && apiSystems !== null))) {
-      let systemsList = Array.isArray(apiSystems) ? apiSystems : (apiSystems.systems || [apiSystems]);
-      
-      // If Watchlist-Only Sync is active, filter systems
-      if (state.watchlistOnly) {
-        systemsList = systemsList.filter(s => {
-          const sn = (s.serialNumber || s.serial_number || "").toString().trim();
-          return watchlistSerials.has(sn);
-        });
-      }
-      
-      if (systemsList.length > 0) {
-        state.systems = systemsList.map(s => enrichSystemTelemetry(s));
-        saveSystems();
-        
-        state.lastSync = new Date().toISOString();
-        safeSetItem("aiq_last_sync", state.lastSync);
-        
-        if (state.systems.length > 0) {
-          state.selectedSystem = state.systems[0];
+    const inventoryQuery = `
+      query GetSystemInventory {
+        systemInventory {
+          serialNumber
+          systemName
+          model
+          osVersion
+          customerName
+          customerId
+          clusterName
+          location
+          platform
+          productFamily
+          contractEndDate
+          riskCount
+          warningCount
+          criticalCount
         }
-        updateStatusIndicators();
-        refreshUIState();
-        return;
+      }
+    `;
+    const gqlData = await callActiveIQGraphQL(inventoryQuery);
+    const rawSystems = gqlData?.systemInventory || [];
+
+    // Fall back to REST /v1/system if GraphQL returns nothing
+    let systemsList = rawSystems;
+    if (systemsList.length === 0) {
+      console.warn("[AIQ] GraphQL returned no systems, trying REST /v1/system...");
+      try {
+        const restData = await callActiveIQAPI("/system");
+        systemsList = Array.isArray(restData) ? restData : (restData?.systems || []);
+      } catch (restErr) {
+        console.warn("[AIQ] REST /v1/system also failed:", restErr.message);
       }
     }
-    
-    console.warn("Active IQ API returned no clusters or systems.");
-    alert("Warning: The Active IQ API endpoint connected successfully, but returned an empty system listing.");
+
+    if (systemsList.length === 0) {
+      console.warn("[AIQ] Active IQ API returned no systems.");
+      alert("Warning: The Active IQ API connected successfully, but returned no systems.\n\nThis may mean:\n• Your token doesn't have fleet access\n• All systems are filtered by watchlist\n• The API account has no associated systems");
+      return;
+    }
+
+    // Normalise field names — the API uses camelCase; our enrichment function
+    // accepts both camelCase and snake_case, but let's map any stray fields here.
+    const normalise = s => ({
+      serialNumber:    s.serialNumber    || s.serial_number    || "",
+      systemName:      s.systemName      || s.system_name      || s.name || "",
+      model:           s.model           || "",
+      osVersion:       s.osVersion       || s.os_version       || "",
+      customerName:    s.customerName    || s.customer_name    || "",
+      customerId:      s.customerId      || s.customer_id      || "",
+      clusterName:     s.clusterName     || s.cluster_name     || "",
+      location:        s.location        || "",
+      platform:        s.platform        || "",
+      productFamily:   s.productFamily   || s.product_family   || "",
+      contractEndDate: s.contractEndDate || s.contract_end_date || "",
+      riskCount:       s.riskCount       || s.risk_count       || 0,
+      warningCount:    s.warningCount    || s.warning_count    || 0,
+      criticalCount:   s.criticalCount   || s.critical_count   || 0,
+    });
+
+    // If Watchlist-Only filter is active, restrict to known serials
+    if (state.watchlistOnly && watchlistSerials.size > 0) {
+      systemsList = systemsList.filter(s => {
+        const sn = (s.serialNumber || s.serial_number || "").toString().trim();
+        return watchlistSerials.has(sn);
+      });
+    }
+
+    state.systems = systemsList.map(s => enrichSystemTelemetry(normalise(s)));
+    saveSystems();
+    state.lastSync = new Date().toISOString();
+    safeSetItem("aiq_last_sync", state.lastSync);
+    if (state.systems.length > 0) state.selectedSystem = state.systems[0];
+    console.log(`[AIQ] Sync complete: ${state.systems.length} systems loaded.`);
+    updateStatusIndicators();
+    refreshUIState();
+    return;
   } catch (error) {
     console.error("Failed to fetch from Active IQ API:", error);
 

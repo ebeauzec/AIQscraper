@@ -67,9 +67,16 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         if self.path == '/graphql':
             target_url = "https://api.activeiq.netapp.com/graphql"
         else:
-            # Convert local proxy endpoint (/api/systems -> https://api.activeiq.netapp.com/v1/systems)
-            endpoint = self.path[4:]
-            target_url = f"https://api.activeiq.netapp.com/v1{endpoint}"
+            # Strip /api prefix, leaving e.g. /watchlist/all or /v2/watchlist/action
+            endpoint = self.path[4:]  # removes leading /api
+
+            # If the endpoint already carries an explicit version (/v2/...), use it
+            # as-is on the base domain. Otherwise, default to /v1.
+            import re
+            if re.match(r'^/v\d+/', endpoint):
+                target_url = f"https://api.activeiq.netapp.com{endpoint}"
+            else:
+                target_url = f"https://api.activeiq.netapp.com/v1{endpoint}"
         
         # Read request body data for POST
         content_length = int(self.headers.get('Content-Length', 0))
