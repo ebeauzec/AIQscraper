@@ -8904,28 +8904,69 @@ async function runAPIDiagnostics() {
     const diagTerm    = state.searchTerm || "vodacom south africa";
     const diagTermEnc  = encodeURIComponent(diagTerm);
     const diagSerial   = "211839000195"; // Known registered serial
+    const wlNames      = ["Vodacom South Africa", "Telkom SA", "Liberty Group"];
 
-    results.push({ label: "─── Search Term ───", ep: "", status: "", ms: 0,
-      preview: `Using: "${diagTerm}" | Serial: ${diagSerial}`, ok: true });
+    results.push({ label: "─── Known Data ───", ep: "", status: "", ms: 0,
+      preview: `Term: "${diagTerm}" | Serial: ${diagSerial} | Watchlists: ${wlNames.join(", ")}`, ok: true });
 
-    await probe("Watchlist All",              "/watchlist/all");
+    // ── Watchlist endpoints (multiple formats to find what works) ────────────
+    await probe("Watchlist All (v1)",          "/watchlist/all");
+    await probe("Watchlist All (v2)",          "/v2/watchlist/all");
 
-    // ── Targeted: Aggregate/Parent search with REAL customer names ───────────
-    await probe("Agg v3: Vodacom",             `/v3/search/aggregate?searchText=${diagTermEnc}&limit=20`);
-    await probe("Agg v1 customer: Vodacom",    `/v1/search/aggregate/level/customer?searchText=${diagTermEnc}&limit=20`);
-    await probe("Parent v3: Vodacom",          `/v3/search/parent?searchText=${diagTermEnc}&limit=20`);
-    await probe("Parent v1 customer: Vodacom", `/v1/search/parent/level/customer?searchText=${diagTermEnc}&limit=20`);
-    await probe("Location v3: Vodacom",        `/v3/search/location?searchText=${diagTermEnc}&limit=20`);
-    await probe("Agg v3: Telkom",              `/v3/search/aggregate?searchText=${encodeURIComponent("Telkom SA Ltd.")}&limit=20`);
-    await probe("Agg v1 customer: Telkom",     `/v1/search/aggregate/level/customer?searchText=${encodeURIComponent("Telkom SA Ltd.")}&limit=20`);
+    // Try /v2/watchlist/action — user-confirmed real endpoint
+    try {
+      const t0 = Date.now();
+      const tok = await getValidAccessToken();
+      // Try as GET first
+      const r = await fetch(`${getEffectiveApiBaseUrl()}/v2/watchlist/action`, {
+        headers: { "AuthorizationToken": tok, "Accept": "application/json" }
+      });
+      const ms = Date.now() - t0;
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        results.push({ label: "v2/watchlist/action (GET)", ep: "/v2/watchlist/action",
+          status: `200 OK (${ms}ms)`, preview: JSON.stringify(d).slice(0,300), ok: true });
+      } else {
+        results.push({ label: "v2/watchlist/action (GET)", ep: "/v2/watchlist/action",
+          status: `HTTP ${r.status}`, preview: "", ok: false });
+      }
+    } catch(e) {
+      results.push({ label: "v2/watchlist/action (GET)", ep: "/v2/watchlist/action", status: e.message, preview: "", ok: false });
+    }
 
-    // ── Targeted: System search with REAL customer names ─────────────────────
-    await probe("System v3: Vodacom",          `/v3/search/system?searchText=${diagTermEnc}&limit=20`);
-    await probe("System v1 customer: Vodacom", `/v1/search/system/level/customer?searchText=${diagTermEnc}&limit=20`);
-    await probe("System v2 customer: Vodacom", `/v2/search/system/level/customer?searchText=${diagTermEnc}&limit=20`);
-    await probe("System v1 customer: Telkom",  `/v1/search/system/level/customer?searchText=${encodeURIComponent("Telkom SA Ltd.")}&limit=20`);
+    // Try watchlist/all with Authorization: Bearer (old format)
+    try {
+      const t0 = Date.now();
+      const tok = await getValidAccessToken();
+      const r = await fetch(`${getEffectiveApiBaseUrl()}/watchlist/all`, {
+        headers: { "Authorization": `Bearer ${tok}`, "Accept": "application/json" }
+      });
+      const ms = Date.now() - t0;
+      const d  = r.ok ? await r.json().catch(() => ({})) : {};
+      results.push({ label: "Watchlist All (Bearer auth)", ep: "/watchlist/all (Bearer)",
+        status: r.ok ? `200 OK (${ms}ms)` : `HTTP ${r.status}`,
+        preview: r.ok ? JSON.stringify(d).slice(0,300) : "", ok: r.ok });
+    } catch(e) {
+      results.push({ label: "Watchlist All (Bearer auth)", ep: "/watchlist/all (Bearer)", status: e.message, preview: "", ok: false });
+    }
 
-    // ── Targeted: System search by KNOWN SERIAL NUMBER ───────────────────────
+    // ── System search BY WATCHLIST NAME (may search by name, not id) ─────────
+    for (const wl of wlNames) {
+      await probe(`System v1 watchlist: "${wl}"`, `/v1/search/system/level/watchlist?searchText=${encodeURIComponent(wl)}&limit=20`);
+    }
+    await probe("System v3: Vodacom",          `/v3/search/system?searchText=${encodeURIComponent("Vodacom South Africa")}&limit=20`);
+    await probe("System v1 customer: Vodacom", `/v1/search/system/level/customer?searchText=${encodeURIComponent("Vodacom South Africa")}&limit=20`);
+    await probe("System v1 customer: Telkom",  `/v1/search/system/level/customer?searchText=${encodeURIComponent("Telkom SA")}&limit=20`);
+    await probe("System v1 customer: Liberty", `/v1/search/system/level/customer?searchText=${encodeURIComponent("Liberty Group")}&limit=20`);
+
+    // ── Aggregate/Parent with real customer names ────────────────────────────
+    await probe("Agg v3: Vodacom",             `/v3/search/aggregate?searchText=${encodeURIComponent("Vodacom South Africa")}&limit=20`);
+    await probe("Agg v1 customer: Vodacom",    `/v1/search/aggregate/level/customer?searchText=${encodeURIComponent("Vodacom South Africa")}&limit=20`);
+    await probe("Parent v3: Vodacom",          `/v3/search/parent?searchText=${encodeURIComponent("Vodacom South Africa")}&limit=20`);
+    await probe("Agg v3: Telkom",              `/v3/search/aggregate?searchText=${encodeURIComponent("Telkom SA")}&limit=20`);
+    await probe("Agg v3: Liberty",             `/v3/search/aggregate?searchText=${encodeURIComponent("Liberty Group")}&limit=20`);
+
+    // ── System search by KNOWN SERIAL NUMBER ────────────────────────────────
     await probe(`System v3: serial ${diagSerial}`,  `/v3/search/system?searchText=${diagSerial}&limit=10`);
     await probe(`System v1: serial ${diagSerial}`,  `/v1/search/system/level/customer?searchText=${diagSerial}&limit=10`);
     await probe(`Cluster view: ${diagSerial}`,      `/v1/clusterview/get-cluster-summary/${diagSerial}`);
