@@ -197,18 +197,18 @@ const MOCK_SYSTEMS = [
     },
     securityBulletins: [
       {
-        id: "NTAP-SA-2024-0002",
-        title: "NetApp ONTAP Web UI Multi-vector Denial of Service (DoS) vulnerability",
-        severity: "high",
+        id: "CVE-2026-22050",
+        title: "ONTAP snapshot-lock bypass (Locked Snapshot vulnerability)",
+        severity: "critical",
         status: "Vulnerable - Action Required",
-        mitigation: "Upgrade to ONTAP 9.13.1P8 or restrict HTTP access on admin interface."
+        mitigation: "Upgrade to ONTAP 9.16.1P9 or 9.17.1P2 to patch snapshot volume lock checks."
       },
       {
-        id: "NTAP-SA-2023-0914",
-        title: "OpenSSL Vulnerabilities in ONTAP cryptographic modules",
+        id: "CVE-2026-20833",
+        title: "Microsoft Kerberos encryption-type change compatibility (KB5073381)",
         severity: "medium",
-        status: "Workaround Applied",
-        mitigation: "Workaround applied: Disabled TLS 1.0/1.1 protocols. Upgrade recommended."
+        status: "Vulnerable - Action Required",
+        mitigation: "Verify AES encryption is active for SVM AD accounts and disable RC4/DES fallback."
       }
     ],
     supportCases: [
@@ -238,23 +238,23 @@ const MOCK_SYSTEMS = [
         id: 201,
         severity: "high",
         category: "Integration",
-        description: "Kubernetes Astra Trident driver (v23.04) is outdated and unsupported.",
-        recommendation: "Upgrade Astra Trident driver to v24.02 for full ONTAP 9.14 API support.",
+        description: "Kubernetes Astra Trident driver (v24.02) is outdated and vulnerable (CVE-2026-24051 PATH hijacking).",
+        recommendation: "Upgrade Astra Trident driver to v26.02 to mitigate CVE-2026-24051 and ensure compatibility with newer Kubernetes APIs.",
         kbLink: "https://docs.netapp.com/us-en/trident/trident-get-started/requirements.html",
         remediationPlan: {
-          cause: "Kubernetes cluster upgraded to v1.28 while Astra Trident version remains at v23.04. API deprecations break storage provisioning.",
+          cause: "Kubernetes cluster upgraded to v1.31 while Astra Trident version remains at v24.02. Vulnerable OpenTelemetry-Go dependencies trigger security scan flags.",
           impact: "Inability to dynamically provision new Persistent Volumes (PV) for container workloads. Existing PVs remain mounted but configuration edits fail.",
           steps: [
             "1. Backup active Trident state: 'tridentctl get backend -n trident'.",
-            "2. Download the Trident installer bundle v24.02.",
-            "3. Run the installer upgrade command: 'tridentctl upgrade -n trident --to-image netapp/trident:24.02.0'.",
-            "4. Verify Pod status: 'kubectl get pods -n trident' and verify all pods are running version 24.02.0."
+            "2. Download the Trident installer bundle v26.02.",
+            "3. Run the installer upgrade command: 'tridentctl upgrade -n trident --to-image netapp/trident:26.02.0'.",
+            "4. Verify Pod status: 'kubectl get pods -n trident' and verify all pods are running version 26.02.0."
           ],
           options: [
-            "Option A (Helm Upgrade - Recommended): Use Helm package manager: 'helm upgrade trident netapp-trident/trident-operator --version 24.02.0'.",
+            "Option A (Helm Upgrade - Recommended): Use Helm package manager: 'helm upgrade trident netapp-trident/trident-operator --version 26.02.0'.",
             "Option B (Operator Upgrade): Apply the updated Trident Operator manifests manually."
           ],
-          thirdParty: "Compatible with Kubernetes v1.26 through v1.29. Ensure downstream apps are prepared for dynamic PV mounts."
+          thirdParty: "Compatible with Kubernetes v1.29 through v1.32. Ensure downstream apps are prepared for dynamic PV mounts."
         }
       },
       {
@@ -358,11 +358,11 @@ const MOCK_SYSTEMS = [
     },
     securityBulletins: [
       {
-        id: "NTAP-SA-2024-0015",
-        title: "Astra Trident CSI provisioning unauthorized API validation bypass",
-        severity: "high",
+        id: "CVE-2026-22052",
+        title: "ONTAP S3 NAS bucket information disclosure vulnerability",
+        severity: "medium",
         status: "Vulnerable - Action Required",
-        mitigation: "Upgrade Astra Trident driver to version 24.02.0."
+        mitigation: "Upgrade to ONTAP 9.16.1P7+ or restrict S3 API access policies on NAS bucket exports."
       }
     ],
     supportCases: [
@@ -503,11 +503,11 @@ const MOCK_SYSTEMS = [
     },
     securityBulletins: [
       {
-        id: "NTAP-SA-2024-0012",
-        title: "StorageGRID Webscale Management Interface Remote Code Execution (RCE)",
+        id: "CVE-2026-22050",
+        title: "ONTAP snapshot-lock bypass (Locked Snapshot vulnerability)",
         severity: "critical",
         status: "Vulnerable - Action Required",
-        mitigation: "Apply security patch StorageGRID 11.8.0.2 or disable Management port 9443 access to untrusted networks."
+        mitigation: "Upgrade to ONTAP 9.16.1P9 or 9.17.1P2 to patch snapshot volume lock checks."
       }
     ],
     supportCases: [
@@ -1878,7 +1878,22 @@ const MOCK_SYSTEMS = [
       historicalCapacityMonths: [40, 42, 44, 46, 48, 50],
       projectedCapacityMonths: [52, 54, 56]
     },
-    securityBulletins: [],
+    securityBulletins: [
+      {
+        id: "CVE-2026-22051",
+        title: "StorageGRID authenticated metrics query information disclosure vulnerability",
+        severity: "medium",
+        status: "Vulnerable - Action Required",
+        mitigation: "Upgrade StorageGRID to 11.9.0.13 or 12.0.0.6+ to patch metrics access restrictions."
+      },
+      {
+        id: "NTAP-20260217-0001",
+        title: "StorageGRID Server-Side Request Forgery (SSRF) via Entra ID SSO integration",
+        severity: "high",
+        status: "Mitigated",
+        mitigation: "SSO certificate validation policies enforced. Upgrade advised for permanent patch."
+      }
+    ],
     supportCases: []
   },
   {
@@ -2053,7 +2068,9 @@ const MOCK_SYSTEMS = [
     "AFF A900 (On-Prem)",
     "AFF A400 (MetroCluster IP)",
     "FAS8700 (MetroCluster FC)",
-    "EF600 (E-Series NVMe)"
+    "EF600 (E-Series NVMe)",
+    "AFX 1K (AI-Scale Disaggregated)",
+    "ASA A90 r2 (Next-Gen Block)"
   ];
   
   const statuses = ["normal", "normal", "normal", "normal", "warning", "warning", "critical"];
@@ -3528,13 +3545,13 @@ function updateTAMSelectLabel() {
 
 const SOFTWARE_VERSION_DATABASES = {
   ontap: [
-    "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1"
+    "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1", "9.17.1", "9.18.1", "9.19.1"
   ],
   santricity: [
     "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1"
   ],
   storagegrid: [
-    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0"
+    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0"
   ]
 };
 
@@ -3814,6 +3831,20 @@ function getLatestSupportedVersion(platform) {
   }
 }
 
+function getRiskSafetyTier(r) {
+  const desc = (r.description || "").toLowerCase();
+  const cat = (r.category || "").toLowerCase();
+  const rec = (r.recommendation || "").toLowerCase();
+  
+  if (desc.includes("delete") || desc.includes("destroy") || desc.includes("sanitize") || desc.includes("remove volume") || desc.includes("disable arp") || desc.includes("disable mav") || rec.includes("delete") || rec.includes("destroy")) {
+    return "Destructive or Irreversible";
+  }
+  if (desc.includes("upgrade") || desc.includes("firmware") || desc.includes("takeover") || desc.includes("giveback") || desc.includes("reboot") || desc.includes("switchover") || desc.includes("switchback") || desc.includes("replace") || rec.includes("upgrade") || rec.includes("firmware") || rec.includes("reboot") || rec.includes("replace")) {
+    return "Disruptive but Data-Safe";
+  }
+  return "Non-Disruptive";
+}
+
 function openRemediationModal(riskId) {
   let risk = null;
   let ownerSys = null;
@@ -3831,8 +3862,19 @@ function openRemediationModal(riskId) {
   const modal = document.getElementById("remediationModal");
   if (!modal) return;
 
+  const safetyTier = getRiskSafetyTier(risk);
+  let safetyColor = "var(--status-normal)";
+  if (safetyTier.includes("Destructive")) safetyColor = "var(--status-critical)";
+  else if (safetyTier.includes("Disruptive")) safetyColor = "var(--status-warning)";
+
   document.getElementById("modalRiskTitle").innerText = `Remediation Plan: ${risk.category} Risk`;
-  document.getElementById("modalRiskDesc").innerText = risk.description;
+  
+  // Display safety tier in description
+  document.getElementById("modalRiskDesc").innerHTML = `${risk.description}
+    <div style="margin-top: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 0.8rem; display: flex; align-items: center; gap: 8px;">
+      <span style="color: var(--text-muted); font-weight: 600;">Safety Tier:</span>
+      <span style="background: ${safetyColor}; color: #fff; font-size: 0.68rem; padding: 2px 6px; border-radius: var(--radius-sm); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${safetyTier}</span>
+    </div>`;
 
   document.getElementById("modalDetailCause").innerText = risk.remediationPlan.cause;
   document.getElementById("modalDetailImpact").innerText = risk.remediationPlan.impact;
@@ -5961,6 +6003,7 @@ TICKET ${sidx + 1}: LOGISTICS DISPATCH & CHANGE RUNBOOK - ${sys.systemName}
 
 * IMPLEMENTATION RUNBOOK:
 ${sys.risks && sys.risks.length > 0 ? sys.risks.map((r, rIdx) => `  [Sub-Task ${rIdx + 1}] ${r.description}
+  Safety Classification: ${getRiskSafetyTier(r).toUpperCase()}
   remediation: ${r.remediationPlan ? r.remediationPlan.steps.join("\n  ") : "Follow NetApp Support KB guidelines."}`).join("\n\n") : "  ✓ No configuration risks require remediation."}
 
 * CHANGE VERIFICATION:
@@ -6337,6 +6380,12 @@ function generateActionPlan() {
             <strong style="font-size: 0.95rem; color: #fff;">Item 2.${idx + 1}: ${r.category} Risk - ${r.systemName}</strong>
             <span class="badge ${r.severity}" style="font-size: 0.7rem;">${r.severity}</span>
           </div>
+          
+          <div style="font-size: 0.78rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--text-muted); font-weight: 500;">Safety Tier:</span>
+            <span style="background: ${getRiskSafetyTier(r) === 'Destructive or Irreversible' ? 'var(--status-critical)' : (getRiskSafetyTier(r) === 'Disruptive but Data-Safe' ? 'var(--status-warning)' : 'var(--status-normal)')}; color: #fff; font-size: 0.68rem; padding: 2px 6px; border-radius: var(--radius-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${getRiskSafetyTier(r)}</span>
+          </div>
+
           <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;"><strong>Issue</strong>: ${r.description}</div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: var(--radius-sm);">
             <strong>Root Cause Analysis:</strong><br>${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
@@ -6861,6 +6910,7 @@ Scope: ${scopeTitle}
 
 ${allRisks.length === 0 ? "✓ No technical risk signatures identified across the monitored scope." : 
   allRisks.map((r, idx) => `Item 2.${idx + 1}: ${r.category} Risk - ${r.systemName} [Severity: ${r.severity.toUpperCase()}]
+- Safety Classification: ${getRiskSafetyTier(r).toUpperCase()}
 - Issue: ${r.description}
 - Root Cause: ${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
 - Operations Impact: ${r.remediationPlan ? r.remediationPlan.impact : "Undetermined"}
@@ -8714,6 +8764,82 @@ function getSystemPortMappings(sys) {
   const isCloud = platformStr.toLowerCase().includes("cloud");
   const isStorageGrid = platformStr.toLowerCase().includes("storagegrid");
   const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA");
+  const isAFX = platformStr.toLowerCase().includes("afx");
+  
+  if (isAFX) {
+    return [
+      {
+        name: "e0M",
+        type: "mgmt",
+        status: hasMgmtFailure ? "offline" : "online",
+        partnerType: "mgmt_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-01`,
+        partnerPort: "Fa0/24",
+        cablingStatus: hasMgmtFailure ? "disconnected" : "optimal",
+        details: { speed: "1 Gbps", mtu: 1500, ip: `10.250.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.5` }
+      },
+      {
+        name: "Slot 1 (HA)",
+        type: "cluster",
+        status: "online",
+        partnerType: "cluster_switch",
+        partnerName: `HA replication peer`,
+        partnerPort: "Dedicated HA Link",
+        cablingStatus: "optimal",
+        details: { speed: "100 Gbps RoCE", mtu: 9000 }
+      },
+      {
+        name: "Slot 7 (Clus)",
+        type: "cluster",
+        status: hasClusterFailure ? "offline" : "online",
+        partnerType: "cluster_switch",
+        partnerName: `${sys.clusterName.toLowerCase()}-afx-clus-sw-01`,
+        partnerPort: "Eth1/7",
+        cablingStatus: hasClusterFailure ? "disconnected" : "optimal",
+        details: { speed: "100 Gbps (400GbE Breakout)", mtu: 9000, ip: "169.254.1.10" }
+      },
+      {
+        name: "Slot 10 (Store A)",
+        type: "nvme",
+        status: "online",
+        partnerType: "disk_shelf",
+        partnerName: "shelf-nx224-saz-1",
+        partnerPort: "NSM140-A-IN",
+        cablingStatus: "optimal",
+        details: { speed: "100 Gbps NVMe", shelfStack: "SAZ Shared Storage Pool Module A" }
+      },
+      {
+        name: "Slot 11 (Store B)",
+        type: "nvme",
+        status: hasSasFailure ? "offline" : "online",
+        partnerType: "disk_shelf",
+        partnerName: "shelf-nx224-saz-1",
+        partnerPort: "NSM140-B-IN",
+        cablingStatus: hasSasFailure ? "disconnected" : "optimal",
+        details: { speed: "100 Gbps NVMe", shelfStack: "SAZ Shared Storage Pool Module B" }
+      },
+      {
+        name: "Slot 12 (Data 1)",
+        type: "data",
+        status: "online",
+        partnerType: "core_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-01`,
+        partnerPort: "Eth1/1",
+        cablingStatus: "optimal",
+        details: { speed: "100 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.11` }
+      },
+      {
+        name: "Slot 12 (Data 2)",
+        type: "data",
+        status: "online",
+        partnerType: "core_switch",
+        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-02`,
+        partnerPort: "Eth1/1",
+        cablingStatus: "optimal",
+        details: { speed: "100 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.12` }
+      }
+    ];
+  }
   
   if (isCloud) {
     const provider = sys.platform.includes("AWS") ? "AWS VPC" : (sys.platform.includes("Azure") ? "Azure VNet" : "GCP VPC");
