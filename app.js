@@ -2667,6 +2667,20 @@ function loadConfig() {
   const expiry = safeGetItem("aiq_token_expiry") || "";
   
   state.apiBaseUrl = safeGetItem("aiq_api_base_url") || "https://api.activeiq.netapp.com/v1";
+
+  // When running via the desktop launcher (localhost/127.0.0.1), automatically
+  // route all API calls through the local CORS proxy server instead of calling
+  // api.activeiq.netapp.com directly (which WebView2 and browsers both block).
+  // The proxy is started by launcher.py on the same port as this page.
+  const isLocalhost = (window.location.hostname === 'localhost' ||
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname === '');
+  state.isRunningViaProxy = isLocalhost;
+  if (isLocalhost) {
+    // Derive proxy base from current page origin: same host:port, /api path
+    state.proxyApiBaseUrl = `${window.location.protocol}//${window.location.host}/api`;
+    console.log('[Proxy Mode] API calls routed through local CORS proxy:', state.proxyApiBaseUrl);
+  }
   state.syncInterval = parseInt(safeGetItem("aiq_sync_interval") || "0");
   state.lastSync = safeGetItem("aiq_last_sync") || "";
   const wlOnlyVal = safeGetItem("aiq_watchlist_only");
@@ -2770,6 +2784,27 @@ function setMockMode(val) {
 }
 
 // 4. Token & API Client Logic
+
+/**
+ * Returns the base URL to use for all Active IQ API calls.
+ *
+ * When the dashboard is running via the desktop launcher (served from
+ * http://localhost or http://127.0.0.1), every fetch must go through the
+ * local CORS proxy server (launcher.py / server.py) rather than calling
+ * api.activeiq.netapp.com directly. Both the browser and WebView2 enforce
+ * CORS and will block the direct call — but a same-origin call to /api/ is
+ * forwarded by the proxy without any browser-level CORS restriction.
+ *
+ * When running from any other origin (e.g., GitHub Pages, corporate intranet)
+ * the configured apiBaseUrl is used as-is.
+ */
+function getEffectiveApiBaseUrl() {
+  if (state.isRunningViaProxy && state.proxyApiBaseUrl) {
+    return state.proxyApiBaseUrl;   // e.g.  http://127.0.0.1:8080/api
+  }
+  return state.apiBaseUrl;          // e.g.  https://api.activeiq.netapp.com/v1
+}
+
 async function getValidAccessToken() {
   if (state.mockMode) return "mock-token-abc-123";
   
@@ -2785,7 +2820,7 @@ async function getValidAccessToken() {
     return access;
   }
 
-  const response = await fetch(`${state.apiBaseUrl}/tokens/accessToken`, {
+  const response = await fetch(`${getEffectiveApiBaseUrl()}/tokens/accessToken`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: refresh })
@@ -2809,7 +2844,7 @@ async function callActiveIQAPI(endpoint) {
   
   try {
     const token = await getValidAccessToken();
-    const response = await fetch(`${state.apiBaseUrl}${endpoint}`, {
+    const response = await fetch(`${getEffectiveApiBaseUrl()}${endpoint}`, {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
