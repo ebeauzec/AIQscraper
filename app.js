@@ -2831,9 +2831,12 @@ async function getValidAccessToken() {
   }
 
   const data = await response.json();
-  const newExpiry = (Date.now() / 1000) + 3600;
-  saveConfig(data.refresh_token, data.access_token, newExpiry.toString());
-  return data.access_token;
+  // NetApp returns accessToken (camelCase) and refresh_token
+  const newAccess  = data.accessToken  || data.access_token  || "";
+  const newRefresh = data.refreshToken || data.refresh_token || refresh;
+  const newExpiry  = (Date.now() / 1000) + 3600;
+  saveConfig(newRefresh, newAccess, newExpiry.toString());
+  return newAccess;
 }
 
 // Global API Fetch wrapper with auto-rotation
@@ -2846,7 +2849,8 @@ async function callActiveIQAPI(endpoint) {
     const token = await getValidAccessToken();
     const response = await fetch(`${getEffectiveApiBaseUrl()}${endpoint}`, {
       headers: {
-        "Authorization": `Bearer ${token}`,
+        // NetApp Active IQ uses 'AuthorizationToken' (not 'Authorization: Bearer')
+        "AuthorizationToken": token,
         "Content-Type": "application/json"
       }
     });
@@ -2881,7 +2885,7 @@ async function callActiveIQGraphQL(query, variables = {}) {
     const response = await fetch(graphqlUrl, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
+        "AuthorizationToken": token,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ query, variables })
