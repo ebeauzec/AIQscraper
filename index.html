@@ -1542,6 +1542,16 @@ input:checked + .slider:before {
               </div>
 
               <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label" for="settingsSearchTerm">Customer / Account Search Term</label>
+                <input type="text" id="settingsSearchTerm" class="form-input" placeholder="e.g. vodacom, acme, mycompany...">
+                <div class="form-helper">
+                  The name or partial name of your customer account in Active IQ. This is used to search for
+                  and discover all systems registered under that account. Enter the same term you would type
+                  in the Active IQ portal search box to find your systems.
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: 16px;">
                 <label class="form-label" for="settingsSyncInterval">Auto-Polling / Sync Interval</label>
                 <select id="settingsSyncInterval" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer;" onchange="updateScheduledSyncInfo()">
                   <option value="0">Manual Sync Only</option>
@@ -4563,6 +4573,7 @@ let state = {
   lastSync: "",            // ISO Timestamp of last successful Active IQ sync
   apiBaseUrl: "https://api.activeiq.netapp.com/v1", // REST gateway base URL
   watchlistOnly: false,    // Synchronize only systems in active watchlists
+  searchTerm: "",          // Customer/account search term for API discovery (e.g. 'Vodacom South Africa')
   
   // Sort states for sub-tab tables
   tamRisksSortKey: "severity",
@@ -4624,7 +4635,8 @@ function loadConfig() {
   state.lastSync = safeGetItem("aiq_last_sync") || "";
   const wlOnlyVal = safeGetItem("aiq_watchlist_only");
   state.watchlistOnly = wlOnlyVal === "true";
-  
+  state.searchTerm    = safeGetItem("aiq_search_term") || "";
+
   // Safeguard: If mockMode is false but no API token is configured, auto-enable mock mode
   if (!state.mockMode && !refresh) {
     state.mockMode = true;
@@ -10838,38 +10850,48 @@ async function runAPIDiagnostics() {
       preview: tok === "ERROR" ? "⚠ Token exchange failed!" : `JWT prefix: ${tok.slice(0,30)}…`, ok: tok !== "ERROR" });
 
 
+    const diagTerm    = state.searchTerm || "vodacom south africa";
+    const diagTermEnc  = encodeURIComponent(diagTerm);
+    const diagSerial   = "211839000195"; // Known registered serial
+
+    results.push({ label: "─── Search Term ───", ep: "", status: "", ms: 0,
+      preview: `Using: "${diagTerm}" | Serial: ${diagSerial}`, ok: true });
+
     await probe("Watchlist All",              "/watchlist/all");
 
-    // ── Search System variants ──────────────────────────────────────────────
-    await probe("Search v3 system (wildcard)", "/v3/search/system?searchText=*&limit=10");
-    await probe("Search v3 system (no text)",  "/v3/search/system?limit=10");
-    await probe("Search v2 customer (wild)",   "/v2/search/system/level/customer?searchText=*&limit=10");
-    await probe("Search v1 customer (wild)",   "/v1/search/system/level/customer?searchText=*&limit=10");
-    await probe("Search v1 watchlist (wild)",  "/v1/search/system/level/watchlist?searchText=*&limit=10");
+    // ── Targeted: Aggregate/Parent search with REAL customer names ───────────
+    await probe("Agg v3: Vodacom",             `/v3/search/aggregate?searchText=${diagTermEnc}&limit=20`);
+    await probe("Agg v1 customer: Vodacom",    `/v1/search/aggregate/level/customer?searchText=${diagTermEnc}&limit=20`);
+    await probe("Parent v3: Vodacom",          `/v3/search/parent?searchText=${diagTermEnc}&limit=20`);
+    await probe("Parent v1 customer: Vodacom", `/v1/search/parent/level/customer?searchText=${diagTermEnc}&limit=20`);
+    await probe("Location v3: Vodacom",        `/v3/search/location?searchText=${diagTermEnc}&limit=20`);
+    await probe("Agg v3: Telkom",              `/v3/search/aggregate?searchText=${encodeURIComponent("Telkom SA Ltd.")}&limit=20`);
+    await probe("Agg v1 customer: Telkom",     `/v1/search/aggregate/level/customer?searchText=${encodeURIComponent("Telkom SA Ltd.")}&limit=20`);
 
-    // ── Search Aggregate / Parent (returns customer/site IDs) ───────────────
-    await probe("v3 Search Aggregate",         "/v3/search/aggregate?searchText=*&limit=10");
-    await probe("v3 Search Parent",            "/v3/search/parent?searchText=*&limit=10");
-    await probe("v3 Search Location",          "/v3/search/location?searchText=*&limit=10");
-    await probe("v3 Count Aggregate",          "/v3/search/count/aggregate");
-    await probe("v3 Count Parent",             "/v3/search/count/parent");
-    await probe("v1 Aggregate customer",       "/v1/search/aggregate/level/customer?searchText=*&limit=10");
-    await probe("v1 Parent customer",          "/v1/search/parent/level/customer?searchText=*&limit=10");
-    await probe("v1 Location customer",        "/v1/search/location/level/customer?searchText=*&limit=10");
-    await probe("v1 Count Agg customer",       "/v1/search/count/aggregate/level/customer");
+    // ── Targeted: System search with REAL customer names ─────────────────────
+    await probe("System v3: Vodacom",          `/v3/search/system?searchText=${diagTermEnc}&limit=20`);
+    await probe("System v1 customer: Vodacom", `/v1/search/system/level/customer?searchText=${diagTermEnc}&limit=20`);
+    await probe("System v2 customer: Vodacom", `/v2/search/system/level/customer?searchText=${diagTermEnc}&limit=20`);
+    await probe("System v1 customer: Telkom",  `/v1/search/system/level/customer?searchText=${encodeURIComponent("Telkom SA Ltd.")}&limit=20`);
 
-    // ── Health ──────────────────────────────────────────────────────────────
-    await probe("Health Summary v1 customer",  "/v1/health/summary/level/customer?searchText=*&limit=10");
-    await probe("Health Details v1 customer",  "/v1/health/details/level/customer?searchText=*&limit=10");
-    await probe("Health Risks v2",             "/v2/health/risks");
+    // ── Targeted: System search by KNOWN SERIAL NUMBER ───────────────────────
+    await probe(`System v3: serial ${diagSerial}`,  `/v3/search/system?searchText=${diagSerial}&limit=10`);
+    await probe(`System v1: serial ${diagSerial}`,  `/v1/search/system/level/customer?searchText=${diagSerial}&limit=10`);
+    await probe(`Cluster view: ${diagSerial}`,      `/v1/clusterview/get-cluster-summary/${diagSerial}`);
+    await probe(`Cluster resolver: ${diagSerial}`,  `/v1/clusterview/resolver/${diagSerial}`);
+    await probe(`Health summary: ${diagSerial}`,    `/v1/health/summary/level/system/id/${diagSerial}`);
+    await probe(`Health details: ${diagSerial}`,    `/v1/health/details/level/system/id/${diagSerial}`);
+    await probe(`EoS by serial: ${diagSerial}`,     `/eos/details?serialNumbers=${diagSerial}`);
+    await probe(`Upgrade by serial: ${diagSerial}`, `/upgrade/details/level/system/id/${diagSerial}`);
 
-    // ── Breadth endpoints (no level/id needed) ──────────────────────────────
+    // ── Breadth endpoints ─────────────────────────────────────────────────────
     await probe("EoS Details",                 "/eos/details");
     await probe("EoS Contracts Details",       "/eos/contracts/details");
     await probe("Capacity2 Usage",             "/capacity2/usage");
     await probe("Firmware Details",            "/firmware/details");
+    await probe("Health Risks v2",             "/v2/health/risks");
     await probe("Keystone Customers",          "/keystone/customers");
-    await probe("Upgrade Summary (customer)",  "/upgrade/summary/level/customer?searchText=*");
+    await probe("Upgrade (customer, Vodacom)", `/upgrade/summary/level/customer?searchText=${diagTermEnc}`);
 
     // ── API Registration & Subscription (show FULL response to see account type) ─
     await probe("API Registration",            "/api/registration",      true);
@@ -10970,16 +10992,19 @@ async function saveSettings() {
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
   const apiBaseInput = document.getElementById("settingsApiBaseUrl").value.trim() || "https://api.activeiq.netapp.com/v1";
   const intervalInput = parseInt(document.getElementById("settingsSyncInterval").value) || 0;
-  const wlOnlyToggle = document.getElementById("settingsWatchlistOnlyToggle").checked;
+  const wlOnlyToggle  = document.getElementById("settingsWatchlistOnlyToggle").checked;
+  const searchTermInput = (document.getElementById("settingsSearchTerm")?.value || "").trim();
   const oldMockMode = state.mockMode;
   
-  state.apiBaseUrl = apiBaseInput;
+  state.apiBaseUrl  = apiBaseInput;
   state.syncInterval = intervalInput;
   state.watchlistOnly = wlOnlyToggle;
+  state.searchTerm  = searchTermInput;
   
-  safeSetItem("aiq_api_base_url", apiBaseInput);
-  safeSetItem("aiq_sync_interval", intervalInput.toString());
+  safeSetItem("aiq_api_base_url",   apiBaseInput);
+  safeSetItem("aiq_sync_interval",  intervalInput.toString());
   safeSetItem("aiq_watchlist_only", wlOnlyToggle ? "true" : "false");
+  safeSetItem("aiq_search_term",    searchTermInput);
   
   setMockMode(mockToggle);
   saveConfig(refresh, safeGetItem("aiq_access_token") || "", safeGetItem("aiq_token_expiry") || "");
@@ -11166,6 +11191,190 @@ function refreshUIState() {
 }
 
 async function loadProductionData() {
+  const textLabel = document.getElementById("connectionStatusText");
+  const indicator  = document.querySelector(".indicator");
+
+  if (textLabel) textLabel.innerText = "Connecting & Authenticating...";
+  if (indicator)  indicator.className = "indicator warning";
+
+  // Helper: robustly extract a list from any API response shape
+  function extractList(data) {
+    if (!data || typeof data !== "object") return [];
+    if (Array.isArray(data)) return data;
+    for (const key of ["results","data","hits","items","records",
+                        "systemDetailsByInventory","systemList","systems",
+                        "customers","watchListData","watchlists",
+                        "customerList","aggregates","clusterDetails"]) {
+      if (Array.isArray(data[key]) && data[key].length > 0) return data[key];
+    }
+    const vals = Object.values(data).filter(v => Array.isArray(v) && v.length > 0);
+    return vals.length > 0 ? vals[0] : [];
+  }
+
+  const term    = (state.searchTerm || "").trim();
+  const termEnc = encodeURIComponent(term);
+
+  // ── Step 1: Watchlists ───────────────────────────────────────────────────
+  let watchlistIds = [];
+  try {
+    if (textLabel) textLabel.innerText = "Loading Watchlists...";
+    const raw    = await callActiveIQAPI("/watchlist/all");
+    const wlList = extractList(raw);
+    state.watchlists = wlList.map(wl => {
+      const wlId = wl.watchListId || wl.watchlistId || wl.id;
+      if (wlId && !String(wlId).startsWith("wl_")) watchlistIds.push(String(wlId));
+      return { id: wlId, name: wl.watchListName || wl.watchlistName || wl.name || "Watchlist" };
+    }).filter(w => w.id);
+    saveWatchlists();
+    console.log(`[AIQ] Watchlists: ${watchlistIds.length} IDs`);
+  } catch (e) { console.warn("[AIQ] /watchlist/all:", e.message); }
+
+  // ── Step 2: Resolve customer IDs from search term ────────────────────────
+  if (textLabel) textLabel.innerText = term ? `Searching for "${term}"...` : "Discovering Customers...";
+  let customerIds = [];
+
+  if (term) {
+    for (const ep of [
+      `/v3/search/aggregate?searchText=${termEnc}&limit=200`,
+      `/v1/search/aggregate/level/customer?searchText=${termEnc}&limit=200`,
+      `/v3/search/parent?searchText=${termEnc}&limit=200`,
+      `/v1/search/parent/level/customer?searchText=${termEnc}&limit=200`,
+      `/v3/search/location?searchText=${termEnc}&limit=200`,
+    ]) {
+      try {
+        const data = await callActiveIQAPI(ep);
+        const list = extractList(data);
+        list.forEach(c => {
+          const id = c.customerId || c.id || c.aggregateId || c.parentId || c.locationId;
+          if (id) customerIds.push(String(id));
+        });
+        if (customerIds.length > 0) {
+          console.log(`[AIQ] ${ep} → ${customerIds.length} customer IDs`);
+          break;
+        }
+      } catch (e) { console.warn(`[AIQ] aggregate ${ep}:`, e.message); }
+    }
+  }
+
+  // ── Step 3: System search ────────────────────────────────────────────────
+  if (textLabel) textLabel.innerText = "Loading System Inventory...";
+  let systemsList  = [];
+  let usedEndpoint = null;
+
+  // 3a. By customer ID + term
+  for (const custId of customerIds.slice(0, 30)) {
+    for (const searchStr of [term ? termEnc : "*", "*"]) {
+      try {
+        const ep   = `/v1/search/system/level/customer?id=${custId}&searchText=${searchStr}&limit=1000`;
+        const data = await callActiveIQAPI(ep);
+        const page = extractList(data);
+        if (page.length > 0) { systemsList.push(...page); usedEndpoint = ep; }
+      } catch (e) { /* skip */ }
+    }
+    if (systemsList.length > 0) break;
+  }
+
+  // 3b. Direct system search by term (no ID needed)
+  if (systemsList.length === 0 && term) {
+    for (const ep of [
+      `/v1/search/system/level/customer?searchText=${termEnc}&limit=1000`,
+      `/v2/search/system/level/customer?searchText=${termEnc}&limit=1000`,
+      `/v3/search/system?searchText=${termEnc}&limit=1000`,
+    ]) {
+      try {
+        const data = await callActiveIQAPI(ep);
+        const page = extractList(data);
+        if (page.length > 0) { systemsList = page; usedEndpoint = ep; break; }
+      } catch (e) { console.warn(`[AIQ] system search ${ep}:`, e.message); }
+    }
+  }
+
+  // 3c. By watchlist ID
+  if (systemsList.length === 0) {
+    for (const wlId of watchlistIds) {
+      try {
+        const ep   = `/v1/search/system/level/watchlist?id=${wlId}&searchText=${term ? termEnc : "*"}&limit=1000`;
+        const data = await callActiveIQAPI(ep);
+        const page = extractList(data);
+        if (page.length > 0) { systemsList.push(...page); usedEndpoint = ep; }
+      } catch (e) { /* skip */ }
+    }
+  }
+
+  // 3d. Breadth endpoints (return data for ALL accessible systems — no ID needed)
+  if (systemsList.length === 0) {
+    for (const ep of ["/eos/details", "/eos/contracts/details",
+                       "/v2/health/risks", "/capacity2/usage",
+                       "/firmware/details",
+                       `/v1/health/summary/level/customer?searchText=${term ? termEnc : "*"}&limit=1000`,
+                       `/v1/health/details/level/customer?searchText=${term ? termEnc : "*"}&limit=1000`]) {
+      try {
+        const data = await callActiveIQAPI(ep);
+        const page = extractList(data);
+        if (page.length > 0) { systemsList = page; usedEndpoint = ep; break; }
+      } catch (e) { console.warn(`[AIQ] breadth ${ep}:`, e.message); }
+    }
+  }
+
+  // ── Step 4: Handle empty result ──────────────────────────────────────────
+  if (systemsList.length === 0) {
+    if (textLabel) textLabel.innerText = "No Systems Found";
+    if (indicator)  indicator.className = "indicator disconnected";
+
+    const termHint = term
+      ? `Search term used: "${term}"\n  (Change in Settings → Customer / Account Search Term)`
+      : `No search term configured.\n  Go to Settings → Customer / Account Search Term\n  and enter your customer name (e.g. "Vodacom South Africa")`;
+
+    alert(
+      "Active IQ API: Connected ✓   Authentication: Valid ✓   Data: Empty\n\n" +
+      termHint + "\n\n" +
+      "Tip: Run 'API Diagnostics' to see full endpoint status.\n" +
+      "Tip: Check activeiq.netapp.com to confirm systems are visible in the web portal."
+    );
+    updateStatusIndicators();
+    return;
+  }
+
+  // ── Step 5: Normalise & store ────────────────────────────────────────────
+  const normalise = s => ({
+    serialNumber:    s.serialNumber    || s.serial_number    || s.systemSerialNumber || "",
+    systemName:      s.systemName      || s.system_name      || s.hostName           || s.clusterName || "",
+    model:           s.model           || s.platformType     || s.platform           || "",
+    osVersion:       s.osVersion       || s.os_version       || s.ontapVersion       || s.swVersion   || "",
+    customerName:    s.customerName    || s.customer_name    || "",
+    customerId:      s.customerId      || s.customer_id      || "",
+    clusterName:     s.clusterName     || s.cluster_name     || "",
+    siteName:        s.siteName        || s.site_name        || s.location           || "",
+    siteId:          s.siteId          || s.site_id          || "",
+    location:        s.location        || s.siteName         || s.site_name          || "",
+    platform:        s.platform        || s.platformType     || "",
+    systemType:      s.systemType      || s.system_type      || "",
+    productFamily:   s.productFamily   || s.product_family   || "",
+    contractEndDate: s.contractEndDate || s.contract_end_date || s.supportEndDate    || s.eosDate     || "",
+    riskCount:       Number(s.riskCount    || s.risk_count    || 0),
+    warningCount:    Number(s.warningCount || s.warning_count || 0),
+    criticalCount:   Number(s.criticalCount|| s.critical_count|| 0),
+    ...s
+  });
+
+  // Deduplicate by serial number
+  const seen = new Set();
+  systemsList = systemsList.filter(s => {
+    const sn = String(s.serialNumber || s.serial_number || s.systemSerialNumber || "").trim();
+    if (!sn || seen.has(sn)) return false;
+    seen.add(sn); return true;
+  });
+
+  state.systems    = systemsList.map(s => enrichSystemTelemetry(normalise(s)));
+  saveSystems();
+  state.lastSync   = new Date().toISOString();
+  safeSetItem("aiq_last_sync", state.lastSync);
+  if (state.systems.length > 0) state.selectedSystem = state.systems[0];
+  console.log(`[AIQ] Sync via "${usedEndpoint}": ${state.systems.length} systems.`);
+  updateStatusIndicators();
+  refreshUIState();
+}
+ync function loadProductionData() {
   const textLabel = document.getElementById("connectionStatusText");
   const indicator  = document.querySelector(".indicator");
 
@@ -11496,6 +11705,7 @@ function switchTab(tabId) {
     document.getElementById("settingsRefreshToken").value = safeGetItem("aiq_refresh_token") || "";
     document.getElementById("settingsApiBaseUrl").value = state.apiBaseUrl;
     document.getElementById("settingsSyncInterval").value = state.syncInterval.toString();
+    if (document.getElementById("settingsSearchTerm")) document.getElementById("settingsSearchTerm").value = state.searchTerm || "";
     updateScheduledSyncInfo();
   }
 }

@@ -553,6 +553,16 @@
               </div>
 
               <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label" for="settingsSearchTerm">Customer / Account Search Term</label>
+                <input type="text" id="settingsSearchTerm" class="form-input" placeholder="e.g. vodacom, acme, mycompany...">
+                <div class="form-helper">
+                  The name or partial name of your customer account in Active IQ. This is used to search for
+                  and discover all systems registered under that account. Enter the same term you would type
+                  in the Active IQ portal search box to find your systems.
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top: 16px;">
                 <label class="form-label" for="settingsSyncInterval">Auto-Polling / Sync Interval</label>
                 <select id="settingsSyncInterval" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer;" onchange="updateScheduledSyncInfo()">
                   <option value="0">Manual Sync Only</option>
