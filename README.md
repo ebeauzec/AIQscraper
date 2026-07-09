@@ -1,6 +1,6 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.9.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
@@ -8,6 +8,13 @@ A zero-dependency, browser-based report builder and dashboard tailored for NetAp
 This tool runs **entirely inside your browser** (as a static webpage) from this local folder. It does not require any backend server, Node.js/Python installations, or database engines. It connects directly to the Active IQ Digital Advisor APIs (`activeiq.netapp.com`) and persists credentials in your browser's private local storage.
 
 ---
+
+## What's New in Version 1.10.0
+
+*   **ITIL Safety Tiers (`OPERATING-PROTOCOL.md`)**: Automatically classifies all technical risk resolutions and CLI implementation commands into safety levels (*Non-Disruptive*, *Disruptive but Data-Safe*, and *Destructive or Irreversible*). Displayed dynamically inside the technical risk cards, details modals, and ITIL Change Tickets.
+*   **Dynamic Telemetry Profiler (`enrichSystemTelemetry`)**: Configured a dynamic parsing wrapper that detects hardware platform families (AFF, ASA, FAS, StorageGRID, E-Series) and dynamically computes validated firmware upgrade targets, support contract lifecycles, and storage efficiency metrics.
+*   **CLI Command & Compliance Corrections**: Fixed `vserver audit create` mandatory parameters (`-format json`) and added the `vserver audit enable` command. Integrated native ONTAP volume snapshot disablement command (`volume modify -snapshot-policy none`) for volumes managed by Veeam, Commvault, or Rubrik to prevent schedule collisions.
+*   **Automatic UI State Refresh**: Hooks `refreshUIState` into all manual or scheduled Active IQ API sync operations to immediately redraw the dashboard layout, sidebar filters, and selectors without page reloads.
 
 ## What's New in Version 1.9.0
 
