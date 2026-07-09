@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.9.1] - 2026-07-09
+## [1.10.0] - 2026-07-09
 
 ### Added
 *   **ITIL Safety Tiers (`OPERATING-PROTOCOL.md`)**: Automatically classifies all technical risk resolutions and CLI implementation commands into safety levels (*Non-Disruptive*, *Disruptive but Data-Safe*, and *Destructive or Irreversible*). Displayed dynamically inside the technical risk cards, details modals, and ITIL Change Tickets.
