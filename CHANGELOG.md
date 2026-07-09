@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.0] - 2026-07-09
+
+### Fixed
+*   **KB Links — Permanent Fix (`buildKBSearchURL`)**: Removed the broken `validateAndSanitizeKBLink()` sanitizer (which tried to guess internal NetApp portal redirect paths) and replaced it with a `buildKBSearchURL(description, category)` function. Instead of deep-linking to a specific KB article URL that may 404 due to NetApp's internal redirect system, the tool now opens a live KB search pre-populated with the risk description and category keywords. This always works, never 404s, and actually returns more relevant results. Works for any condition — including new ones discovered via the AIQ API that have never been seen before.
+
+### Improved
+*   **Universal System Normalization (`enrichSystemTelemetry`)**: Overhauled the enrichment function to be a true ingestion gateway called on every system from every source (API, import, localStorage, mock). Key changes:
+    *   Accepts both camelCase and snake_case API field names (`serialNumber`/`serial_number`, `ontapVersion`/`ontap_version`, etc.)
+    *   Normalizes risk `severity` to lowercase regardless of how the API delivers it (`HIGH` → `high`)
+    *   Strips any incoming `kbLink` fields from risks — search URLs are generated at render time, not stored
+    *   Normalizes `securityBulletins` and `supportCases` from API field name variants (`cveId`, `bulletinId`, `caseNumber`, `subject`, etc.)
+    *   Detects CVO systems by name pattern in addition to model string
+    *   Adds `switches: []` as a guaranteed field in the returned object to prevent renderer crashes
+    *   Handles unknown/future platform models gracefully (treated as AFF-equivalent ONTAP)
+*   **localStorage Enrichment on Load (Schema v9)**: Systems loaded from localStorage are now re-run through `enrichSystemTelemetry()` on every startup. This ensures any system stored from a previous API pull that was missing fields (e.g. `switches`, `autosupport`, `salesHealth`) automatically gets those fields populated without wiping user-edited data.
+
 ## [1.10.0] - 2026-07-09
 
 ### Added
