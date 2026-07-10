@@ -75,7 +75,7 @@
 
       
       <div class="nav-footer">
-        NetApp Internal Tool<br>Version 1.10.0
+        NetApp Internal Tool<br>Version 2.0.0-GraphQL
       </div>
     </div>
     
@@ -550,6 +550,12 @@
                 <label class="form-label" for="settingsApiBaseUrl">Active IQ API Base Endpoint URL</label>
                 <input type="text" id="settingsApiBaseUrl" class="form-input" placeholder="https://api.activeiq.netapp.com/v1">
                 <div class="form-helper">The REST API gateway URL for NetApp Active IQ endpoints.</div>
+              </div>
+
+              <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label" for="settingsSerialNumbers">System Serial Numbers</label>
+                <textarea id="settingsSerialNumbers" class="form-input" rows="4" placeholder="Enter serial numbers (one per line, or comma-separated)&#10;e.g. 211839000195, 952239002356" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
+                <div class="form-helper">Serial numbers of NetApp systems to monitor. The app queries each serial via the Active IQ cluster view API. Add more serials to expand your inventory.</div>
               </div>
 
               <div class="form-group" style="margin-top: 16px;">

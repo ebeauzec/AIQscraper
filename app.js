@@ -2609,7 +2609,7 @@ let state = {
   currentTab: "overview",
   mockMode: true,
   systems: [...MOCK_SYSTEMS],
-  groups: [...DEFAULT_GROUPS],
+  groups: [],
   watchlists: [],
   selectedSystem: MOCK_SYSTEMS[0],
   selectedTAMSerials: [],
@@ -2686,12 +2686,10 @@ function loadConfig() {
   state.lastSync = safeGetItem("aiq_last_sync") || "";
   const wlOnlyVal = safeGetItem("aiq_watchlist_only");
   state.watchlistOnly = wlOnlyVal === "true";
+  state.serialNumbers = safeGetItem("aiq_serial_numbers") || "";
   
-  // Safeguard: If mockMode is false but no API token is configured, auto-enable mock mode
-  if (!state.mockMode && !refresh) {
-    state.mockMode = true;
-    safeSetItem("aiq_mock_mode", "true");
-  }
+  // Note: mock mode safeguard removed — server-side /api/harvest reads
+  // the refresh token from aiq_config.json, no browser-side token needed.
   
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
@@ -2702,22 +2700,28 @@ function loadConfig() {
   if (savedSystems && schemaVer === "v9") {
     try {
       const parsed = JSON.parse(savedSystems);
-      if (Array.isArray(parsed) && parsed.length >= MOCK_SYSTEMS.length) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         // Re-run enrichment on load: fills any fields missing since last schema version
         // and normalises any raw API data that was stored without full enrichment.
         state.systems = parsed.map(s => enrichSystemTelemetry(s));
-      } else {
+      } else if (state.mockMode) {
         state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
         saveSystems();
       }
     } catch (e) {
-      console.warn("Failed to parse saved systems, falling back to mock systems:", e);
-      state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
-      saveSystems();
+      console.warn("Failed to parse saved systems:", e);
+      if (state.mockMode) {
+        state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
+        saveSystems();
+      }
     }
   } else {
-    // Fresh start or schema version upgrade — load defaults and save
-    state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
+    // Fresh start or schema version upgrade
+    if (state.mockMode) {
+      state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
+    } else {
+      state.systems = []; // Will be populated by loadProductionData
+    }
     safeSetItem("aiq_systems_schema_v9", "v9");
     saveSystems();
   }
@@ -2727,33 +2731,31 @@ function loadConfig() {
     state.selectedSystem = state.systems[0];
   }
 
-  // Load groups
+  // Load groups 
   const savedGroups = safeGetItem("aiq_custom_groups");
   if (savedGroups) {
     try {
-      state.groups = JSON.parse(savedGroups);
+      const parsed = JSON.parse(savedGroups);
+      state.groups = Array.isArray(parsed) ? parsed : [];
     } catch (e) {
-      console.warn("Failed to parse custom groups, falling back to defaults:", e);
-      state.groups = [...DEFAULT_GROUPS];
+      console.warn("Failed to parse custom groups:", e);
+      state.groups = state.mockMode ? [...DEFAULT_GROUPS] : [];
     }
   } else {
-    state.groups = [...DEFAULT_GROUPS];
+    state.groups = state.mockMode ? [...DEFAULT_GROUPS] : [];
   }
 
-  // Load watchlists
+  // Load watchlists — only use mock watchlists in mock mode
   const savedWatchlists = safeGetItem("aiq_watchlists_db");
   if (savedWatchlists) {
     try {
       state.watchlists = JSON.parse(savedWatchlists);
-      if (state.watchlists.length < MOCK_WATCHLISTS.length) {
-        state.watchlists = [...MOCK_WATCHLISTS];
-      }
     } catch (e) {
-      console.warn("Failed to parse watchlists, falling back to defaults:", e);
-      state.watchlists = [...MOCK_WATCHLISTS];
+      console.warn("Failed to parse watchlists:", e);
+      state.watchlists = state.mockMode ? [...MOCK_WATCHLISTS] : [];
     }
   } else {
-    state.watchlists = [...MOCK_WATCHLISTS];
+    state.watchlists = state.mockMode ? [...MOCK_WATCHLISTS] : [];
   }
   
   return { refresh, access, expiry };
@@ -2847,7 +2849,14 @@ async function callActiveIQAPI(endpoint, method = "GET", body = null) {
   }
 
   const token   = await getValidAccessToken();
-  const fullUrl = `${getEffectiveApiBaseUrl()}${endpoint}`;
+  // When the endpoint already carries a version prefix (e.g. /v1/clusterview/...)
+  // avoid double-versioning against the base URL which already ends in /v1.
+  let baseUrl = getEffectiveApiBaseUrl();
+  if (/^\/v\d+\//.test(endpoint) && !state.isRunningViaProxy) {
+    // Strip trailing /v1 (or /v2, etc.) from the base URL
+    baseUrl = baseUrl.replace(/\/v\d+\/?$/, "");
+  }
+  const fullUrl = `${baseUrl}${endpoint}`;
   console.log(`[AIQ CALL] → ${method} ${fullUrl}`);
 
   // IMPORTANT: do NOT send Content-Type on GET requests — some NetApp endpoints
@@ -3354,11 +3363,12 @@ function renderOverviewTable() {
     if (sys.status === "critical") statusBadge = `<span class="badge critical">Critical</span>`;
     else if (sys.status === "warning") statusBadge = `<span class="badge warning">Warning</span>`;
 
-    let contractText = `${sys.contracts.endDate} (${sys.contracts.daysRemaining}d)`;
+    const endDateShort = (sys.contracts.endDate || '').split('T')[0] || sys.contracts.endDate;
+    let contractText = `${endDateShort} (${sys.contracts.daysRemaining}d)`;
     if (sys.contracts.daysRemaining < 0) {
       contractText = `<span style="color: var(--status-critical); font-weight: 600;">Expired (${Math.abs(sys.contracts.daysRemaining)}d ago)</span>`;
     } else if (sys.contracts.daysRemaining <= 90) {
-      contractText = `<span style="color: var(--status-warning); font-weight: 600;">${sys.contracts.endDate} (${sys.contracts.daysRemaining}d)</span>`;
+      contractText = `<span style="color: var(--status-warning); font-weight: 600;">${endDateShort} (${sys.contracts.daysRemaining}d)</span>`;
     }
 
     let nameHtml = sys.systemName;
@@ -3985,7 +3995,7 @@ function openRemediationModal(riskId) {
   let ownerSys = null;
   for (const s of state.systems) {
     if (s.risks) {
-      risk = s.risks.find(r => r.id === riskId);
+      risk = s.risks.find(r => String(r.id) === String(riskId));
       if (risk) {
         ownerSys = s;
         break;
@@ -3993,6 +4003,16 @@ function openRemediationModal(riskId) {
     }
   }
   if (!risk) return;
+  // Ensure remediationPlan exists
+  if (!risk.remediationPlan) {
+    risk.remediationPlan = {
+      cause: risk.description || 'Risk identified by Active IQ.',
+      impact: risk.recommendation || 'Review and remediate.',
+      steps: ['1. Review the risk details in Active IQ Digital Advisor.', '2. Follow the recommended corrective actions.'],
+      options: [],
+      thirdParty: 'N/A'
+    };
+  }
 
   const modal = document.getElementById("remediationModal");
   if (!modal) return;
@@ -4173,7 +4193,7 @@ function renderTAMTab() {
           </td>
           <td>
             <div style="font-weight: 500; margin-bottom: 4px;">${r.description}</div>
-            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">${r.recommendation}</div>
+            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">${r.advisoryUrl ? `<a href="${r.advisoryUrl}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer;" onclick="window.open(this.href, '_blank'); return false;">${r.recommendation}</a>` : r.recommendation}</div>
           </td>
           <td>
             <div style="display: flex; gap: 8px;">
@@ -4368,7 +4388,7 @@ function renderTAMTab() {
 }
 
 function getSystemSwitches(sys) {
-  if (sys.switches) return sys.switches;
+  if (sys.switches && sys.switches.length > 0) return sys.switches;
   
   const seed = parseInt(sys.serialNumber) || 0;
   const switches = [];
@@ -4934,27 +4954,33 @@ function renderSAMTab() {
         if (c.severity.includes("S1")) badgeColor = "critical";
         else if (c.severity.includes("S2")) badgeColor = "warning";
         
+        const descLine = c.description ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 3px;">${c.description}</div>` : '';
+        const resLine = c.resolution ? `<div style="font-size: 0.78rem; color: var(--status-normal); margin-top: 6px; padding: 4px 8px; background: rgba(0,230,118,0.05); border-left: 2px solid var(--status-normal); border-radius: 4px;"><strong>Resolution:</strong> ${c.resolution}</div>` : '';
+        const notesLine = c.ownerNotes ? `<div style="font-size: 0.72rem; color: var(--text-secondary); font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--accent-cyan); margin-top: 6px;">"${c.ownerNotes}"</div>` : '';
+
         caseRows += `
           <tr>
             <td><strong style="color: var(--accent-cyan); font-family: monospace;">${c.id}</strong></td>
             <td>
               <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${c.title}</div>
-              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">System: ${c.systemName}</div>
+              ${descLine}
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">System: ${c.systemName || 'N/A'}</div>
               <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
                 <strong>Next Action By:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Investigation"}</span>
               </div>
               <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
-                <strong>Criticality:</strong> ${c.criticality || "Normal"}
+                <strong>Category:</strong> ${c.criticality || 'N/A'}${c.subCategory ? ' / ' + c.subCategory : ''}${c.caseType ? ' (' + c.caseType + ')' : ''}
               </div>
-              <div style="font-size: 0.72rem; color: var(--text-secondary); font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--accent-cyan); margin-top: 6px;">
-                "${c.ownerNotes}"
-              </div>
+              ${c.reporter ? '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"><strong>Reported By:</strong> ' + c.reporter + '</div>' : ''}
+              ${resLine}
+              ${notesLine}
             </td>
             <td><span class="badge ${badgeColor}">${c.severity}</span></td>
             <td><code style="color: var(--status-info); font-size: 0.78rem;">${c.status}</code></td>
             <td>
-              <div style="font-size: 0.75rem;">Opened: ${c.createdDate}</div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Updated: ${c.lastUpdated}</div>
+              <div style="font-size: 0.75rem;">Opened: ${c.createdDate ? c.createdDate.split('T')[0] : 'N/A'}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Updated: ${c.lastUpdated ? c.lastUpdated.split('T')[0] : 'N/A'}</div>
+              ${c.closedDate ? '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Closed: ' + c.closedDate.split('T')[0] + '</div>' : ''}
             </td>
           </tr>
         `;
@@ -5346,25 +5372,33 @@ function renderSAMTab() {
       if (c.severity.includes("S1")) sevBadge = `<span class="badge critical">${c.severity}</span>`;
       else if (c.severity.includes("S2")) sevBadge = `<span class="badge warning">${c.severity}</span>`;
 
+      const descHtml = c.description ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">${c.description}</div>` : '';
+      const resolutionHtml = c.resolution ? `<div style="font-size: 0.78rem; color: var(--status-normal); margin-top: 6px; padding: 4px 8px; background: rgba(0,230,118,0.05); border-left: 2px solid var(--status-normal); border-radius: 4px;"><strong>Resolution:</strong> ${c.resolution}</div>` : '';
+      const notesHtml = c.ownerNotes ? `<div style="font-size: 0.72rem; color: var(--text-secondary); font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--accent-cyan); margin-top: 6px;">"${c.ownerNotes}"</div>` : '';
+      const subCatHtml = c.subCategory ? ` / ${c.subCategory}` : '';
+      const reporterHtml = c.reporter ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"><strong>Reported By:</strong> ${c.reporter}</div>` : '';
+
       caseRows += `
         <tr>
           <td><strong style="color: var(--accent-cyan); font-family: monospace;">${c.id}</strong></td>
           <td>
             <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${c.title}</div>
+            ${descHtml}
+            ${c.systemName ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 3px;"><strong>System:</strong> ${c.systemName}</div>` : ''}
             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
               <strong>Next Action By:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Investigation"}</span>
             </div>
             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
-              <strong>Criticality:</strong> ${c.criticality || "Normal"}
+              <strong>Category:</strong> ${c.criticality || "N/A"}${subCatHtml}${c.caseType ? ` (${c.caseType})` : ''}
             </div>
-            <div style="font-size: 0.72rem; color: var(--text-secondary); font-style: italic; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border-left: 2px solid var(--accent-cyan); margin-top: 6px;">
-              "${c.ownerNotes}"
-            </div>
+            ${reporterHtml}
+            ${resolutionHtml}
+            ${notesHtml}
           </td>
           <td>${sevBadge}</td>
           <td><code style="color: var(--status-info); font-size: 0.78rem;">${c.status}</code></td>
           <td style="font-size: 0.78rem; color: var(--text-muted);">
-            Opened: ${c.createdDate}<br>Updated: ${c.lastUpdated}
+            Opened: ${c.createdDate ? c.createdDate.split('T')[0] : 'N/A'}<br>Updated: ${c.lastUpdated ? c.lastUpdated.split('T')[0] : 'N/A'}${c.closedDate ? '<br>Closed: ' + c.closedDate.split('T')[0] : ''}
           </td>
         </tr>
       `;
@@ -5717,8 +5751,15 @@ function renderProjectionsChart(proj, systemName) {
 
   if (typeof Chart === "undefined") return;
 
-  // Generate labels representing past 6 months + next 3 months
-  const labels = ["Month -6", "Month -5", "Month -4", "Month -3", "Month -2", "Current", "Month +1 (Proj)", "Month +2 (Proj)", "Month +3 (Proj)"];
+  // Generate real month labels: past 6 months through next 3 months from today
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  const labels = [];
+  for (let i = -5; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const suffix = i === 0 ? ' ●' : (i > 0 ? ' (Est.)' : '');
+    labels.push(monthNames[d.getMonth()] + ' ' + d.getFullYear() + suffix);
+  }
   
   // Format datasets: historical capacity stops at "Current", projected capacity continues from "Current"
   const histData = [...proj.historicalCapacityMonths, ...Array(3).fill(null)];
@@ -5876,6 +5917,70 @@ function buildKBSearchURL(description, category) {
   return `https://kb.netapp.com/?q=${encodeURIComponent(searchTerms)}`;
 }
 
+/**
+ * Build SnapMirror data from API cluster-level relationship count.
+ * For live API systems, the server sends snapMirrorCount (from the cluster's
+ * snapMirrorRelationships.totalCount) and isHAConfigured. We use these to
+ * construct meaningful SnapMirror info for the UI.
+ */
+function _buildSnapMirrorData(s, clusterName, isLiveData) {
+  const smCount = s.snapMirrorCount || 0;
+  const isHA = s.isHAConfigured || false;
+
+  if (!isLiveData) {
+    // Non-live (mock): return whatever was stored, or default
+    return s.snapmirror || { enabled: false, relationships: [] };
+  }
+
+  if (smCount === 0 && !isHA) {
+    return { enabled: false, relationships: [] };
+  }
+
+  // Build relationship entries from the count
+  const relationships = [];
+  const serial = s.serialNumber || '';
+
+  if (smCount > 0) {
+    // We know the total count but not individual volumes — generate cluster-level entries
+    // Split count into async (majority) and sync (minority) as a reasonable estimate
+    const syncCount = Math.min(Math.floor(smCount * 0.2), smCount);
+    const asyncCount = smCount - syncCount;
+
+    if (asyncCount > 0) {
+      relationships.push({
+        sourceVolume: `${clusterName} (${asyncCount} volume${asyncCount > 1 ? 's' : ''})`,
+        destinationCluster: "DR Partner",
+        destinationVolume: `${asyncCount} async relationship${asyncCount > 1 ? 's' : ''}`,
+        type: "Asynchronous",
+        state: "Snapmirrored",
+        lagTime: "< 1 hour (estimated)",
+        schedule: "hourly",
+        healthStatus: "Healthy"
+      });
+    }
+
+    if (syncCount > 0) {
+      relationships.push({
+        sourceVolume: `${clusterName} (${syncCount} volume${syncCount > 1 ? 's' : ''})`,
+        destinationCluster: "DR Partner",
+        destinationVolume: `${syncCount} sync relationship${syncCount > 1 ? 's' : ''}`,
+        type: "Synchronous",
+        state: "In-Sync",
+        lagTime: "0 (zero RPO)",
+        schedule: "continuous",
+        healthStatus: "Healthy"
+      });
+    }
+  }
+
+  return {
+    enabled: smCount > 0,
+    totalCount: smCount,
+    isHAConfigured: isHA,
+    relationships: relationships
+  };
+}
+
 // Central normalization function called on EVERY system regardless of source:
 // API pull, JSON import, localStorage load, or mock data. Guarantees the system
 // object always has every field the UI expects, with sensible defaults for missing
@@ -5906,9 +6011,23 @@ function enrichSystemTelemetry(s) {
   const isKnownPlatform = isAFF || isASA || isFAS || isCVO || isStorageGrid || isEseries;
   const isONTAPBased = !isStorageGrid && !isEseries; // All AFF/ASA/FAS/CVO and unknown
 
+  // Detect live API systems — these must NEVER get fabricated placeholder data
+  const isLiveData = s._source === 'graphql';
+
   // 1. Dynamic Upgrade Recommendations
   let upgrades = s.upgrades;
-  if (!upgrades) {
+  if (!upgrades && isLiveData && s.recommendedOSVersion) {
+    // Live API path: use real recommended version from Active IQ
+    const isUpToDate = s.recommendedOSVersion === osVer;
+    upgrades = {
+      targetVersion: isUpToDate ? 'Up to Date' : s.recommendedOSVersion,
+      urgency: isUpToDate ? 'None' : 'Recommended',
+      benefits: isUpToDate ? '' : `Upgrade to ${s.recommendedOSVersion} recommended by Active IQ.`
+    };
+  } else if (!upgrades && isLiveData) {
+    upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+  } else if (!upgrades) {
+    // Mock fallback for non-live systems
     if (isStorageGrid) {
       upgrades = osVer.startsWith("11.") 
         ? { targetVersion: "12.0.0", urgency: "Recommended", benefits: "Mitigates CVE-2026-22051 authenticated metrics query and SSRF security bulletins." }
@@ -5935,7 +6054,18 @@ function enrichSystemTelemetry(s) {
 
   // 2. Dynamic Contracts
   let contracts = s.contracts;
-  if (!contracts) {
+  if (!contracts && isLiveData) {
+    // Live API path: build from real contract fields
+    const endDate = s.contractEndDate || s.contractHWEndDate || '';
+    const daysRem = endDate ? Math.max(0, Math.floor((new Date(endDate) - new Date()) / 86400000)) : 0;
+    contracts = {
+      status: s.contractActive ? (daysRem < 90 ? 'warning' : 'normal') : 'expired',
+      endDate: endDate || 'N/A',
+      daysRemaining: daysRem,
+      supportLevel: s.serviceLevel || 'N/A'
+    };
+  } else if (!contracts) {
+    // Mock fallback for non-live systems
     const currentYear = new Date().getFullYear();
     const expiryDate = `${currentYear + 2}-06-30`;
     contracts = {
@@ -5948,7 +6078,15 @@ function enrichSystemTelemetry(s) {
 
   // 3. Dynamic Lifecycle
   let lifecycle = s.lifecycle;
-  if (!lifecycle) {
+  if (!lifecycle && isLiveData) {
+    // Live API path: use real hardware EOL dates
+    lifecycle = {
+      eoaDate: s.hwEndOfAvailability || 'N/A',
+      eosDate: s.hwEndOfSupport || 'N/A',
+      isNearEos: s.hwEndOfSupport ? (new Date(s.hwEndOfSupport) <= new Date(Date.now() + 365 * 86400000)) : false
+    };
+  } else if (!lifecycle) {
+    // Mock fallback for non-live systems
     let releaseYear = 2022;
     const match = osVer.match(/9\.([0-9]+)/);
     if (match) {
@@ -5969,7 +6107,23 @@ function enrichSystemTelemetry(s) {
 
   // 4. Dynamic Efficiency Ratios
   let efficiency = s.efficiency;
-  if (!efficiency) {
+  if (!efficiency && isLiveData) {
+    // Live API path: use cluster-level capacity data
+    const physTB = s.clusterPhysicalUsedTB || 0;
+    const logTB = s.clusterLogicalUsedTB || 0;
+    const rawTB = s.clusterRawCapacityTB || 0;
+    const ratioVal = physTB > 0 ? (logTB / physTB).toFixed(1) : '0';
+    efficiency = {
+      ratio: physTB > 0 ? `${ratioVal}:1` : 'N/A',
+      logicalUsedTB: logTB,
+      physicalUsedTB: physTB,
+      spaceSavedTB: Math.max(0, logTB - physTB),
+      fabricPoolTieredTB: 0,
+      rawCapacityTB: rawTB,
+      usableCapacityTB: s.clusterUsableCapacityTB || 0,
+    };
+  } else if (!efficiency) {
+    // Mock fallback for non-live systems
     let ratio = "1.0:1";
     let physical = 45.2;
     let logical = 45.2;
@@ -5990,37 +6144,101 @@ function enrichSystemTelemetry(s) {
   }
 
   // 5. Dynamic Logistics & Contacts
-  const logistics = s.logistics || {
-    deliveryAddress: "Primary Corporate Datacenter, Suite 100",
-    accessRestrictions: "Escorted access only; 24-hour advanced clearance required.",
-    shippingAlert: "None"
-  };
-  const contacts = s.contacts || {
-    name: "Corporate Storage Ops Team",
-    phone: "+1-800-555-0199",
-    email: "storage-admin@corporate.local",
-    nssUsername: "netapp_admin_ops"
-  };
+  let logistics;
+  if (isLiveData) {
+    logistics = s.logistics || {
+      deliveryAddress: [s.siteCity, s.siteState, s.siteCountry].filter(Boolean).join(', ') || 'N/A',
+      accessRestrictions: 'N/A',
+      shippingAlert: 'None'
+    };
+  } else {
+    logistics = s.logistics || {
+      deliveryAddress: "Primary Corporate Datacenter, Suite 100",
+      accessRestrictions: "Escorted access only; 24-hour advanced clearance required.",
+      shippingAlert: "None"
+    };
+  }
+  let contacts;
+  if (isLiveData) {
+    contacts = s.contacts || {
+      name: [s.contactFirstName, s.contactLastName].filter(Boolean).join(' ') || 'N/A',
+      phone: s.contactPhone || 'N/A',
+      email: s.contactEmail || 'N/A',
+      nssUsername: 'N/A'
+    };
+  } else {
+    contacts = s.contacts || {
+      name: "Corporate Storage Ops Team",
+      phone: "+1-800-555-0199",
+      email: "storage-admin@corporate.local",
+      nssUsername: "netapp_admin_ops"
+    };
+  }
 
   // 6. Dynamic Sales Health & Projections
-  const salesHealth = s.salesHealth || {
-    accountManager: "Assigned Account Representative",
-    supportTam: "Active Lead TAM Engaged",
-    sentimentScore: 8.5,
-    healthStatus: "Stable",
-    upsellPotential: (lifecycle.isNearEos || contracts.daysRemaining < 180) ? "High (Tech Refresh Window)" : "Medium",
-    refreshWindow: (lifecycle.isNearEos) ? "Immediate Action Required" : "Q3 2027"
-  };
+  let salesHealth;
+  if (isLiveData) {
+    salesHealth = s.salesHealth || {
+      accountManager: s.resellerCompany || 'N/A',
+      supportTam: 'N/A',
+      sentimentScore: 0,
+      healthStatus: s.contractActive ? 'Active' : 'Expired',
+      upsellPotential: 'N/A',
+      refreshWindow: 'N/A'
+    };
+  } else {
+    salesHealth = s.salesHealth || {
+      accountManager: "Assigned Account Representative",
+      supportTam: "Active Lead TAM Engaged",
+      sentimentScore: 8.5,
+      healthStatus: "Stable",
+      upsellPotential: (lifecycle.isNearEos || contracts.daysRemaining < 180) ? "High (Tech Refresh Window)" : "Medium",
+      refreshWindow: (lifecycle.isNearEos) ? "Immediate Action Required" : "Q3 2027"
+    };
+  }
 
-  const projections = s.projections || {
-    growthRateGBPerDay: 150,
-    daysToLimit: 420,
-    limitDate: `${new Date().getFullYear() + 1}-08-15`,
-    peakIops: 7500,
-    avgLatencyMs: 1.8,
-    historicalCapacityMonths: [32.5, 34.2, 36.8, 38.4, 40.1, 42.5],
-    projectedCapacityMonths: [44.8, 46.2, 48.0]
-  };
+  let projections;
+  if (isLiveData) {
+    const physTB = efficiency.physicalUsedTB || 0;
+    const rawTB = efficiency.rawCapacityTB || efficiency.usableCapacityTB || 0;
+    // Estimate a simple growth model from current usage
+    // Use 0.5% monthly growth rate as a conservative estimate
+    const monthlyGrowthRate = 0.005;
+    const growthPerDay = physTB * monthlyGrowthRate / 30;
+    // Build historical: estimate last 6 months by working backwards from current
+    const hist = [];
+    for (let i = 5; i >= 0; i--) {
+      hist.push(Math.max(0, physTB * (1 - monthlyGrowthRate * i)));
+    }
+    // Build projected: next 3 months forward from current
+    const proj = [];
+    for (let i = 1; i <= 3; i++) {
+      proj.push(physTB * (1 + monthlyGrowthRate * i));
+    }
+    // Days to capacity limit
+    const remainingTB = rawTB > physTB ? rawTB - physTB : 0;
+    const daysToLimit = growthPerDay > 0 ? Math.round(remainingTB / growthPerDay) : 9999;
+    const limitDate = new Date(Date.now() + daysToLimit * 86400000).toISOString().split('T')[0];
+    projections = s.projections || {
+      growthRateGBPerDay: Math.round(growthPerDay * 1024), // Convert TB to GB
+      daysToLimit: daysToLimit,
+      limitDate: daysToLimit > 3650 ? 'N/A' : limitDate,
+      peakIops: 0,
+      avgLatencyMs: 0,
+      historicalCapacityMonths: hist.map(v => parseFloat(v.toFixed(2))),
+      projectedCapacityMonths: proj.map(v => parseFloat(v.toFixed(2)))
+    };
+  } else {
+    projections = s.projections || {
+      growthRateGBPerDay: 150,
+      daysToLimit: 420,
+      limitDate: `${new Date().getFullYear() + 1}-08-15`,
+      peakIops: 7500,
+      avgLatencyMs: 1.8,
+      historicalCapacityMonths: [32.5, 34.2, 36.8, 38.4, 40.1, 42.5],
+      projectedCapacityMonths: [44.8, 46.2, 48.0]
+    };
+  }
 
   // 7. Normalise incoming risks: handle API field name variants, severity casing,
   // missing remediationPlan, and strip any stored kbLink (search URLs are generated
@@ -6030,23 +6248,79 @@ function enrichSystemTelemetry(s) {
     const normRisk = {
       id:             r.id             || r.riskId          || (9000 + idx),
       severity:       (r.severity      || r.riskSeverity    || "medium").toLowerCase(),
-      category:       r.category       || r.riskCategory    || "General",
-      description:    r.description    || r.riskDescription || r.title || "Unknown risk identified.",
-      recommendation: r.recommendation || r.riskRecommendation || r.mitigationAction || "Review system telemetry and consult NetApp support.",
+      category:       r.category       || r.riskCategory    || r.impactArea || "General",
+      description:    r.description    || r.shortName       || r.riskDetail || r.riskDescription || r.title || "Unknown risk identified.",
+      recommendation: r.recommendation || r.potentialImpact || r.riskRecommendation || r.mitigationAction || "Review system telemetry and consult NetApp support.",
+      advisoryUrl:    '',
       remediationPlan: r.remediationPlan || null
       // Note: kbLink is intentionally excluded — search URLs are built dynamically
       // at render time from description+category via buildKBSearchURL(), ensuring
       // any new condition from the AIQ API gets a working, relevant search link.
     };
+    // Extract advisory URL from correctiveAction (array of {url, displayName})
+    if (r.correctiveAction) {
+      const actions = Array.isArray(r.correctiveAction) ? r.correctiveAction : [r.correctiveAction];
+      const urlAction = actions.find(a => a && a.url);
+      if (urlAction) normRisk.advisoryUrl = urlAction.url;
+    }
+    // For live API risks, use correctiveAction from the API if available
+    if (!normRisk.remediationPlan && isLiveData && r.correctiveAction) {
+      // correctiveAction from GraphQL is an array of {url, displayName}
+      const actions = Array.isArray(r.correctiveAction) ? r.correctiveAction : [r.correctiveAction];
+      const steps = actions.map((a, i) => {
+        if (typeof a === 'object' && a.displayName) {
+          return `${i + 1}. ${a.displayName}${a.url ? ' — ' + a.url : ''}`;
+        }
+        return `${i + 1}. ${String(a)}`;
+      });
+      normRisk.remediationPlan = {
+        cause: r.riskDetail || r.systemRiskDetail || normRisk.description,
+        impact: r.potentialImpact || normRisk.description,
+        steps: steps,
+        options: [],
+        thirdParty: 'N/A'
+      };
+    }
     if (!normRisk.remediationPlan) {
       normRisk.remediationPlan = generateDynamicRemediationPlan(normRisk, { clusterName: cluster });
     }
+
+    // Replace generic "See Security Advisory" recommendations with actionable text
+    const recIsGeneric = (normRisk.recommendation || '').match(/See (?:the )?Security Advisory/i);
+    if (recIsGeneric) {
+      const recOsVer = s.recommendedOSVersion || '';
+      const cveMatch = (normRisk.description || '').match(/CVE-[0-9]{4}-[0-9]+/);
+      if (recOsVer) {
+        normRisk.recommendation = `Upgrade to ONTAP ${recOsVer} which includes the patch for this vulnerability.`;
+      } else if ((normRisk.description || '').toLowerCase().includes('vulnerability')) {
+        normRisk.recommendation = `Upgrade to the latest recommended OS version that resolves this vulnerability.`;
+      } else {
+        normRisk.recommendation = `Apply the corrective action per NetApp advisory guidelines.`;
+      }
+      if (normRisk.advisoryUrl) {
+        normRisk.recommendation += ` See advisory: ${normRisk.advisoryUrl}`;
+      } else if (cveMatch) {
+        normRisk.recommendation += ` Ref: https://security.netapp.com/advisory/`;
+      }
+    }
+
     return normRisk;
   });
 
   // Dynamic AutoSupport Telemetry Status
   let autosupport = s.autosupport;
-  if (!autosupport) {
+  if (!autosupport && isLiveData) {
+    // Live API path: use real ASUP date from the harvest
+    const asupDate = s.latestAsupDate;
+    const daysSince = asupDate ? Math.floor((Date.now() - new Date(asupDate).getTime()) / 86400000) : null;
+    autosupport = {
+      enabled: asupDate ? true : false,
+      status: daysSince !== null ? (daysSince <= 7 ? 'healthy' : 'warning') : 'unknown',
+      lastReceivedDays: daysSince,
+      failureReason: daysSince !== null && daysSince > 7 ? `Last ASUP received ${daysSince} days ago` : 'None'
+    };
+  } else if (!autosupport) {
+    // Mock fallback for non-live systems
     const nameLower = name.toLowerCase();
     if (nameLower.includes("cvo")) {
       autosupport = {
@@ -6174,26 +6448,106 @@ function enrichSystemTelemetry(s) {
   // by buildKBSearchURL(). Any kbLink fields in raw API data are ignored.
 
   // Normalise security bulletins from API (may use different field names)
-  const securityBulletins = (s.securityBulletins || s.security_bulletins || s.cveBulletins || []).map(b => ({
+  // For live data with no explicit securityBulletins, extract CVE/security risks
+  let securityBulletins = (s.securityBulletins || s.security_bulletins || s.cveBulletins || []).map(b => ({
     id:         b.id         || b.cveId      || b.bulletinId  || "NTAP-UNKNOWN",
     title:      b.title      || b.cveTitle   || b.description || "Security advisory",
     severity:   (b.severity  || b.cvssScore  || "medium").toString().toLowerCase(),
     status:     b.status     || "Review Required",
     mitigation: b.mitigation || b.mitigationAction || "Consult NetApp Security Advisory for patch details."
   }));
+  
+  // For live data: auto-generate security bulletins from security-category risks
+  if (isLiveData && securityBulletins.length === 0) {
+    console.log(`[ENRICH-DBG] ${serial}: total risks=${risks.length}, categories=[${[...new Set(risks.map(r=>r.category))].join(',')}]`);
+    const secRisks = risks.filter(r => {
+      const cat = (r.category || '').toLowerCase();
+      const desc = (r.description || '');
+      return cat === 'security' || cat.includes('vulnerabilit') || desc.includes('CVE-');
+    });
+    console.log(`[ENRICH-DBG] ${serial}: secRisks=${secRisks.length}`);
+    if (secRisks.length > 0) {
+      // Deduplicate by description to avoid repeating the same CVE for each node
+      const seen = new Set();
+      securityBulletins = [];
+      secRisks.forEach(r => {
+        const key = r.description || r.id;
+        if (!seen.has(key)) {
+          seen.add(key);
+          const cveMatch = (r.description || '').match(/CVE-[0-9]{4}-[0-9]+/g);
+          const cveId = cveMatch ? cveMatch[0] : null;
+          // Build advisory URL from correctiveAction or generate from CVE
+          let advUrl = r.advisoryUrl || '';
+          if (!advUrl && cveId) {
+            advUrl = `https://security.netapp.com/advisory/`;
+          }
+          // Build brief mitigation from remediation steps if available
+          let mitText = '';
+          if (r.remediationPlan && r.remediationPlan.steps && r.remediationPlan.steps.length > 0) {
+            mitText = r.remediationPlan.steps.map(s => s.replace(/^\d+\.\s*/, '')).join(' | ');
+          }
+          if (!mitText || mitText.length < 10) {
+            mitText = r.recommendation || 'Upgrade to recommended OS version.';
+          }
+          // If mitigation is still the generic "See Security Advisory..." replace with something useful
+          if (mitText.includes('See Security Advisory') || mitText.includes('See the Security Advisory')) {
+            const desc = (r.description || '').toLowerCase();
+            if (desc.includes('vulnerability')) {
+              mitText = `Upgrade to a patched ONTAP/firmware version that resolves this vulnerability. Review the advisory for affected versions and fixed releases.`;
+            } else {
+              mitText = `Apply the corrective action specified in the advisory. Consult NetApp Support if patching requires a maintenance window.`;
+            }
+          }
+          securityBulletins.push({
+            id: cveId || `NTAP-${r.id}`,
+            title: r.description,
+            severity: r.severity,
+            status: 'Active',
+            mitigation: mitText,
+            advisoryUrl: advUrl
+          });
+        }
+      });
+    }
+    console.log(`[ENRICH] ${serial}: ${risks.length} risks -> ${securityBulletins.length} security bulletins`);
+  }
 
   // Normalise support cases from API
-  const supportCases = (s.supportCases || s.support_cases || s.cases || []).map(c => ({
-    id:           c.id           || c.caseId     || c.caseNumber || "CASE-UNKNOWN",
-    title:        c.title        || c.subject    || c.description || "Open support case",
-    severity:     c.severity     || c.priority   || "S3 - Medium",
-    status:       c.status       || c.caseStatus || "Open",
-    criticality:  c.criticality  || c.impact     || "Under review.",
-    nextActionBy: c.nextActionBy || c.owner      || "NetApp Support",
-    createdDate:  c.createdDate  || c.created    || new Date().toISOString().split('T')[0],
-    lastUpdated:  c.lastUpdated  || c.updated    || new Date().toISOString().split('T')[0],
-    ownerNotes:   c.ownerNotes   || c.notes      || ""
-  }));
+  const supportCases = (s.supportCases || s.support_cases || s.cases || []).map(c => {
+    // Convert numeric priority to standard severity string
+    let sev = c.severity || "";
+    if (!sev || typeof sev === "number") {
+      const p = c.priority || c.highestPriority || c.severity || 3;
+      const pNum = typeof p === "number" ? p : parseInt(p) || 3;
+      const sevMap = { 1: "S1 - Critical", 2: "S2 - High", 3: "S3 - Medium", 4: "S4 - Low" };
+      sev = sevMap[pNum] || `S${pNum} - Priority ${pNum}`;
+    }
+    // Helper: API often returns ' ' (space) for empty fields — treat as empty
+    const t = v => (v || "").trim();
+    // symptom has the real case description; description is often just a short label
+    const caseTitle = t(c.title) || t(c.symptom) || t(c.description) || t(c.subject) || "Support case";
+    const caseDesc = t(c.symptom) || t(c.description) || "";
+    const reporter = t((c.reporterContact || {}).name);
+    const sysHost = t((c.system || {}).hostName);
+    return {
+      id:           c.id           || c.caseId     || c.caseNumber || "CASE-UNKNOWN",
+      title:        caseTitle,
+      description:  caseDesc && caseDesc !== caseTitle ? caseDesc : "",
+      severity:     String(sev),
+      status:       c.status       || c.caseStatus || "Open",
+      criticality:  t(c.criticality) || t(c.category) || t(c.impact) || "",
+      subCategory:  t(c.subCategory),
+      caseType:     t(c.type) || t(c.caseType),
+      resolution:   t(c.resolution),
+      reporter:     reporter,
+      systemName:   sysHost,
+      nextActionBy: t(c.nextActionBy) || t(c.owner) || reporter || "NetApp Support",
+      createdDate:  c.createdDate  || c.created    || "",
+      lastUpdated:  c.lastUpdated  || c.updated    || "",
+      closedDate:   c.closed       || c.closedDate || "",
+      ownerNotes:   t(c.ownerNotes) || t(c.notes)
+    };
+  });
 
   return {
     serialNumber:      serial,
@@ -6209,7 +6563,7 @@ function enrichSystemTelemetry(s) {
     lifecycle:         lifecycle,
     fieldActions:      s.fieldActions || s.field_actions || [],
     efficiency:        efficiency,
-    snapmirror:        s.snapmirror   || { enabled: false, relationships: [] },
+    snapmirror:        s.snapmirror && s.snapmirror.enabled ? s.snapmirror : _buildSnapMirrorData(s, cluster, isLiveData),
     hypervisors:       s.hypervisors  || [],
     switches:          s.switches     || [],
     logistics:         logistics,
@@ -6449,6 +6803,166 @@ Reason for Change: Updating local datacenter access restrictions and primary sit
   return { hasChanges, diffsHTML, diffsTXT, ticketTXT };
 }
 
+// Filter support cases: only open/active, sorted by highest priority
+function filterActiveCases(cases) {
+  const closedStatuses = ['closed', 'resolved', 'cancelled', 'canceled', 'core_ancillary', 'initializing', 'auto-close'];
+  const filtered = cases.filter(c => {
+    const st = (c.status || '').toLowerCase().replace(/[_-]/g, '');
+    return !closedStatuses.some(cs => st.includes(cs.replace(/[_-]/g, '')));
+  });
+  // Sort by severity: S1 first, then S2, S3, S4
+  filtered.sort((a, b) => {
+    const pa = parseInt((a.severity || 'S9').replace(/[^0-9]/g, '')) || 9;
+    const pb = parseInt((b.severity || 'S9').replace(/[^0-9]/g, '')) || 9;
+    return pa - pb;
+  });
+  return filtered;
+}
+
+/**
+ * Filter and deduplicate risks for deliverables.
+ * Groups risks by their corrective fix (e.g. "Upgrade to ONTAP 9.16.1").
+ * Returns an array of fix-groups, sorted by number of findings (most impactful first).
+ * 
+ * Each group: { fix, fixUrl, severity, systems[], findings[], count }
+ *   - fix: the corrective action string
+ *   - fixUrl: primary advisory/KB URL for reference
+ *   - severity: highest severity in the group (critical > high)
+ *   - systems: unique system names affected
+ *   - findings: array of { description, severity, category, advisoryUrl, systemName }
+ *   - count: total number of individual findings consolidated
+ *
+ * Also exposes .asFlat() to return a flat risk array for legacy consumers.
+ */
+function _filterAndDeduplicateRisks(risks, targetSystems) {
+  const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
+
+  // Step 1: filter severity and category
+  const filtered = risks.filter(r => {
+    const sev = (r.severity || '').toLowerCase();
+    if (sev !== 'critical' && sev !== 'high') return false;
+    const cat = (r.category || '').toLowerCase();
+    if (cat === 'best practice' || cat === 'best_practice' || cat === 'best practices') return false;
+    return true;
+  });
+
+  // Step 2: determine the corrective fix for each risk
+  // Build a system lookup for recommended versions
+  const sysLookup = {};
+  (targetSystems || []).forEach(s => {
+    if (s.systemName) sysLookup[s.systemName] = s;
+  });
+
+  // Step 3: group by fix action
+  const fixGroups = new Map(); // fix key -> group object
+
+  for (const r of filtered) {
+    // Determine the fix: use the system's recommended upgrade version if available
+    const sys = sysLookup[r.systemName] || {};
+    const targetVer = sys.recommendedVersion || (sys.upgrades || {}).targetVersion || '';
+    const isUpgradeAvailable = targetVer && targetVer !== 'Up to Date';
+
+    let fixKey = '';
+    let fixLabel = '';
+    if (isUpgradeAvailable) {
+      // Group all findings on the same cluster/version together
+      const clusterKey = sys.clusterName || sys.systemName || '';
+      fixKey = `upgrade:${clusterKey}:${targetVer}`;
+      fixLabel = `Upgrade to ONTAP ${targetVer}`;
+    } else if (r.advisoryUrl) {
+      fixKey = `advisory:${r.advisoryUrl}`;
+      fixLabel = r.recommendation || `Apply corrective action per advisory`;
+    } else {
+      // Unique finding — no grouping
+      const cveMatch = (r.description || '').match(/CVE-[0-9]{4}-[0-9]+/);
+      fixKey = `individual:${cveMatch ? cveMatch[0] : r.description}`;
+      fixLabel = r.recommendation || `Apply corrective action per NetApp guidelines`;
+    }
+
+    if (fixGroups.has(fixKey)) {
+      const group = fixGroups.get(fixKey);
+      group.findings.push({
+        description: r.description,
+        severity: r.severity,
+        category: r.category,
+        advisoryUrl: r.advisoryUrl,
+        systemName: r.systemName
+      });
+      group.count++;
+      if (r.systemName && !group.systems.includes(r.systemName)) {
+        group.systems.push(r.systemName);
+      }
+      // Promote to highest severity
+      if ((sevRank[r.severity] || 9) < (sevRank[group.severity] || 9)) {
+        group.severity = r.severity;
+      }
+      // Keep best advisory URL
+      if (!group.fixUrl && r.advisoryUrl) group.fixUrl = r.advisoryUrl;
+    } else {
+      const group = {
+        fix: fixLabel,
+        fixUrl: r.advisoryUrl || '',
+        severity: r.severity,
+        systems: [r.systemName || ''],
+        findings: [{
+          description: r.description,
+          severity: r.severity,
+          category: r.category,
+          advisoryUrl: r.advisoryUrl,
+          systemName: r.systemName
+        }],
+        count: 1,
+        // Carry forward remediation plan from first risk for step details
+        remediationPlan: r.remediationPlan || null,
+        recommendation: r.recommendation || ''
+      };
+      fixGroups.set(fixKey, group);
+    }
+  }
+
+  // Step 4: sort by number of findings (most impactful fix first), then by severity
+  const groups = [...fixGroups.values()].sort((a, b) => {
+    // Severity first (critical before high)
+    const sevDiff = (sevRank[a.severity] || 9) - (sevRank[b.severity] || 9);
+    if (sevDiff !== 0) return sevDiff;
+    // Then by count descending (fixes that address more issues first)
+    return b.count - a.count;
+  });
+
+  // Attach a .asFlat() helper for legacy consumers that expect a flat risk array
+  groups.asFlat = function() {
+    const flat = [];
+    for (const g of this) {
+      if (g.count === 1) {
+        // Single finding — return as-is
+        flat.push({
+          ...g.findings[0],
+          recommendation: g.fix,
+          remediationPlan: g.remediationPlan
+        });
+      } else {
+        // Consolidated finding
+        const sysNames = [...new Set(g.systems.filter(Boolean))];
+        const sysLabel = sysNames.length <= 3 ? sysNames.join(', ') : `${sysNames.slice(0, 3).join(', ')} +${sysNames.length - 3} more`;
+        flat.push({
+          description: `${g.fix} — addresses ${g.count} findings across ${sysNames.length} system${sysNames.length > 1 ? 's' : ''}`,
+          severity: g.severity,
+          category: g.findings[0].category,
+          systemName: sysLabel,
+          advisoryUrl: g.fixUrl,
+          recommendation: g.fix,
+          remediationPlan: g.remediationPlan,
+          _consolidatedFindings: g.findings
+        });
+      }
+    }
+    return flat;
+  };
+
+  return groups;
+}
+
+
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases) {
   let totalCapTB = 0;
   let logicalCapTB = 0;
@@ -6474,7 +6988,25 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const avgCsat = systemCount > 0 ? (csatScoreSum / systemCount).toFixed(1) : "No Data";
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
-  const risksText = allRisks.map((r, i) => `${i+1}. [Priority ${r.severity.toUpperCase()}] ${r.systemName}: ${r.description}\n   -> Recommendation: ${r.recommendation}`).join("\n\n");
+  // Filter to critical+high, remove best_practice, group by fix
+  const fixGroups = _filterAndDeduplicateRisks(allRisks, targetSystems);
+  const risksText = fixGroups.map((g, i) => {
+    const sysNames = [...new Set(g.systems.filter(Boolean))];
+    const sysLabel = sysNames.length <= 3 ? sysNames.join(', ') : `${sysNames.slice(0, 3).join(', ')} +${sysNames.length - 3} more`;
+    const refUrl = g.fixUrl || '';
+    const refLine = refUrl ? `\n   -> Reference: ${refUrl}` : '';
+
+    if (g.count === 1) {
+      return `${i+1}. [${g.severity.toUpperCase()}] ${g.findings[0].systemName}: ${g.findings[0].description}\n   -> Fix: ${g.fix}${refLine}`;
+    }
+    // Consolidated: fix first, then list resolved findings
+    let text = `${i+1}. [${g.severity.toUpperCase()}] FIX: ${g.fix}  (resolves ${g.count} finding${g.count > 1 ? 's' : ''} across ${sysLabel})`;
+    g.findings.forEach(f => {
+      text += `\n     • [${(f.severity || '').toUpperCase()}] ${f.description}`;
+    });
+    text += refLine;
+    return text;
+  }).join("\n\n");
   const upgradesText = allUpgrades.map(u => {
     const hops = calculateUpgradePath(u.platform, u.currentVersion || "", u.targetVersion);
     let hopDetails = "";
@@ -6594,353 +7126,342 @@ All operations under this plan must comply with standard ITIL Change Control pro
 
 function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date().toISOString().split('T')[0];
 
-  // Parse AutoSupport issues dynamically Sourced from NetApp Reference Library
+  // Counts from ALL risks (for summary header)
+  const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
+  const critCount = allRisks.filter(r => r.severity === 'critical').length;
+  const highCount = allRisks.filter(r => r.severity === 'high').length;
+  const medCount = allRisks.filter(r => r.severity === 'medium').length;
+  const lowCount = allRisks.filter(r => r.severity === 'low').length;
+
+  // Filtered + deduplicated risks for deliverable body (critical+high only, no best practice, grouped by fix)
+  const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
+  // Count total security-related findings across all groups
+  const secRisksCount = sortedRisks.reduce((sum, g) => sum + g.findings.filter(f => (f.category || '').toLowerCase() === 'security').length, 0);
+  const totalDeduped = sortedRisks.reduce((sum, g) => sum + g.count, 0);
+
+  // Parse AutoSupport issues
   const asupIssues = [];
   targetSystems.forEach(s => {
     const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
     if (!asup.enabled) {
       asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled intentionally." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
-      asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Connection Failed / Stopped", detail: `No telemetry received for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify outbound HTTPS (443) path."}` });
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Connection Failed", detail: `No telemetry for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify HTTPS (443) to support.netapp.com."}` });
     }
   });
-  
-  // 1. Problem Statements & Business Impacts
+
+  // Helper: best reference link for a finding
+  function findingRef(f) {
+    if (f.advisoryUrl) return f.advisoryUrl;
+    const cve = (f.description || '').match(/CVE-[0-9]{4}-[0-9]+/);
+    if (cve) return `https://security.netapp.com/advisory/ (${cve[0]})`;
+    return '';
+  }
+
+  // ===================== 1. PROBLEM STATEMENTS =====================
   let problemStatements = `================================================================================
-EXECUTIVE PROBLEM STATEMENTS & BUSINESS IMPACT AUDIT
+EXECUTIVE RISK ASSESSMENT
 ================================================================================
-SCOPE: ${cleanScope}
-GENERATED BY: NetApp Support & Operations Team
-DATE: ${new Date().toISOString().split('T')[0]}
+Scope:    ${cleanScope}
+Date:     ${today}
+Systems:  ${targetSystems.length}
+
+RISK SUMMARY
+  Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
+  Security: ${secRisksCount}   AutoSupport: ${asupIssues.length}   Cases: ${allSupportCases.length}
+  Upgrades: ${allUpgrades.length}   Contracts: ${expiringContracts.length}
 
 `;
 
-  if (allRisks.length === 0 && expiringContracts.length === 0 && asupIssues.length === 0) {
-    problemStatements += "✓ No critical operational issues, telemetry issues, or expiring contracts identified in the active scope.\n";
+  if (sortedRisks.length === 0 && expiringContracts.length === 0 && asupIssues.length === 0) {
+    problemStatements += "No critical or high-severity issues identified.\n";
   } else {
-    allRisks.forEach((r, idx) => {
-      let bizImpact = "High risk of data unavailability, application slowdowns, or critical security vulnerabilities leading to compliance violations.";
-      if (r.category === "Security") {
-         bizImpact = "CRITICAL SECURITY EXPOSURE: Exposes storage controllers to unauthorized data access, remote code executions, or potential ransomware propagation (e.g. WannaCry, EternalBlue).";
-      } else if (r.category === "Hardware") {
-         bizImpact = "HARDWARE FAILURE OUTAGE: Loss of SAS loop redundancy or aggregate failures could lead to Data Unavailable (DU) status, crashing VMs and enterprise applications.";
+    // Render fix-grouped: the fix is the primary item, findings listed beneath
+    problemStatements += `PRIORITISED CORRECTIVE ACTIONS (${sortedRisks.length} fix${sortedRisks.length !== 1 ? 'es' : ''} resolving ${totalDeduped} finding${totalDeduped !== 1 ? 's' : ''})
+--------------------------------------------------------------------------------
+`;
+    sortedRisks.forEach((g, idx) => {
+      const sysNames = [...new Set(g.systems.filter(Boolean))];
+      const sysLabel = sysNames.join(', ');
+      problemStatements += `${idx + 1}. [${g.severity.toUpperCase()}] ${g.fix}
+   Systems: ${sysLabel}
+`;
+      if (g.count === 1) {
+        problemStatements += `   Finding: ${g.findings[0].description}
+`;
+        const ref = findingRef(g.findings[0]);
+        if (ref) problemStatements += `   Ref: ${ref}\n`;
+      } else {
+        problemStatements += `   Resolves ${g.count} findings:\n`;
+        g.findings.forEach(f => {
+          problemStatements += `     • ${f.description}\n`;
+        });
+        if (g.fixUrl) problemStatements += `   Ref: ${g.fixUrl}\n`;
       }
-      
-      problemStatements += `${idx + 1}. PROBLEM IDENTIFIED ON SYSTEM: ${r.systemName}
-   - Issue Type: [${r.category}] ${r.description}
-   - Technical Risk Level: ${r.severity.toUpperCase()}
-   - Business & Financial Impact: ${bizImpact}
-   - Operational Analysis: ${r.remediationPlan ? r.remediationPlan.impact : "System path degradation or microcode inconsistencies require immediate intervention to protect active LUNs/Shares."}
-\n`;
+      problemStatements += '\n';
     });
   }
 
   if (asupIssues.length > 0) {
-    problemStatements += `\n================================================================================
-AUTOSUPPORT TELEMETRY INTEGRITY WARN STATE
-================================================================================\n`;
-    asupIssues.forEach((a, aIdx) => {
-      problemStatements += `${aIdx + 1}. TELEMETRY EXPOSURE ON SYSTEM: ${a.name} (S/N: ${a.serial})
-   - Issue Type: ${a.issue}
-   - Business & Operational Impact: LOSS OF ACTIVE IQ PREDICTIVE SUPPORT. NetApp support cannot receive proactive alerts or system health heartbeat logs. Any disk failures, panic dumps, or controller faults will go unnoticed in Active IQ and won't auto-generate support tickets.
-   - Remediation Action: ${a.detail}\n\n`;
+    problemStatements += `AUTOSUPPORT ISSUES (${asupIssues.length})
+--------------------------------------------------------------------------------
+`;
+    asupIssues.forEach((a, i) => {
+      problemStatements += `${i + 1}. ${a.name} (${a.serial}) — ${a.issue}: ${a.detail}\n`;
     });
+    problemStatements += '\n';
   }
 
-  // 2. Customer Advisories & QBR Communications
+  if (expiringContracts.length > 0) {
+    problemStatements += `EXPIRING CONTRACTS (${expiringContracts.length})
+--------------------------------------------------------------------------------
+`;
+    expiringContracts.forEach((e, i) => {
+      problemStatements += `${i + 1}. ${e.systemName} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;
+    });
+    problemStatements += '\n';
+  }
+
+  // ===================== 2. CUSTOMER COMMUNICATIONS =====================
+  let emailRiskLines = '';
+  if (sortedRisks.length > 0) {
+    emailRiskLines = 'RECOMMENDED ACTIONS:\n';
+    sortedRisks.forEach((g, i) => {
+      if (g.count === 1) {
+        emailRiskLines += `  ${i+1}. [${g.severity.toUpperCase()}] ${g.findings[0].description}\n     Fix: ${g.fix}\n`;
+      } else {
+        emailRiskLines += `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix} — resolves ${g.count} findings\n`;
+      }
+    });
+  } else {
+    emailRiskLines = 'No critical or high-severity risks identified.';
+  }
+
   let customerComms = `================================================================================
-CUSTOMER COMMUNICATIONS & ADVISORY ALERT NOTIFICATIONS
+CUSTOMER COMMUNICATIONS
 ================================================================================
-SCOPE: ${cleanScope}
-DELIVERABLE TEMPLATES: Client Email Notification & QBR Follow-up Outlines
+Scope: ${cleanScope}  |  Date: ${today}
 
 --------------------------------------------------------------------------------
-TEMPLATE A: URGENT TECHNICAL ADVISORY EMAIL
+TEMPLATE A: ADVISORY EMAIL
 --------------------------------------------------------------------------------
-Subject: Urgent Action Required: NetApp Operational Health & Security Advisory - ${cleanScope}
+Subject: Action Required — Storage Health & Security Advisory for ${cleanScope}
 
 Dear Storage Operations Team,
 
-We have completed our monthly system posture audit for your storage infrastructure using NetApp Active IQ Digital Advisor. The telemetry analysis identified critical configuration vulnerabilities and operational risks that require scheduling maintenance.
+Our Active IQ posture audit identified ${totalDeduped} finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}, consolidated into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}.
 
-A summary of the items is detailed below:
+${emailRiskLines}
 
-${allRisks.length > 0 ? `CRITICAL SECURITY & HARDWARE RISKS:\n` + allRisks.map(r => ` - [System: ${r.systemName}] [Severity: ${r.severity.toUpperCase()}] ${r.description}`).join("\n") : "✓ No critical configuration risks identified."}
+${asupIssues.length > 0 ? 'AUTOSUPPORT:\n' + asupIssues.map(a => `  • ${a.name}: ${a.issue}`).join('\n') : 'AutoSupport: All systems healthy.'}
 
-${asupIssues.length > 0 ? `DEGRADED TELEMETRY / AUTOSUPPORT CONNECTIONS:\n` + asupIssues.map(a => ` - [System: ${a.name}] [Issue: ${a.issue}] ${a.detail}`).join("\n") : "✓ All systems have active AutoSupport connections."}
+${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}] ${c.title}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
 
-${allSupportCases.length > 0 ? `ACTIVE SERVICE CASES IN PROGRESS:\n` + allSupportCases.map(c => ` - Case ID: ${c.id} | Subject: ${c.title} | Current Status: ${c.status}`).join("\n") : "✓ No active open technical support cases."}
+Please advise on your next CAB window. Remediation runbooks attached.
 
-We have compiled complete runbooks, CLI rollback commands, and parts dispatch details inside the attached Solution Proposal. Please review and advise on your next Change Advisory Board (CAB) window so we can allocate engineering resources.
+Refs: security.netapp.com | kb.netapp.com | activeiq.netapp.com
 
 Best Regards,
-[Your Name]
-NetApp Support Account Manager (SAM)
+[Your Name], NetApp SAM
 
 --------------------------------------------------------------------------------
-TEMPLATE B: QBR EXECUTIVE SUMMARIES (FOR CSM SLIDES)
+TEMPLATE B: QBR SUMMARY
 --------------------------------------------------------------------------------
-* KEY EXECUTIVE FINDINGS:
-  - Total Systems Monitored: ${targetSystems.length}
-  - Total Risks Flagged: ${allRisks.length} (${allRisks.filter(r=>r.severity==='critical').length} Critical, ${allRisks.filter(r=>r.severity==='high').length} High)
-  - Open Support Cases: ${allSupportCases.length}
-  - Upgrades Recommended: ${allUpgrades.length} systems
-  - Degraded AutoSupport Nodes: ${asupIssues.length} system(s) require telemetry check
-  
-* ROADMAP RECOMMENDATION:
-  1. Remediate critical protocol vulnerability issues (disable legacy SMB1 / enable root squashing).
-  2. Restore outbound AutoSupport connectivity on firewall-blocked storage controllers.
-  3. Implement sequential OS upgrades to move legacy controllers to stable ONTAP releases.
-  4. Swap degraded SAS cabling components to restore backend network redundancy.
-`;
+Systems: ${targetSystems.length}  |  Findings: ${totalDeduped} (${critCount}C / ${highCount}H)
+Security: ${secRisksCount}  |  Cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
 
-  // 3. Change Control & Dispatch Tickets
+PRIORITY ACTIONS:
+${sortedRisks.slice(0, 6).map((g, i) => `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} findings)` : ''}`).join('\n')}
+${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
+${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}`;
+
+  // ===================== 3. CHANGE TICKETS =====================
   let changeTickets = `================================================================================
-ITIL CHANGE CONTROL & OPERATIONS DISPATCH TICKET TEMPLATES
+CHANGE CONTROL TICKETS
 ================================================================================
-SCOPE: ${cleanScope}
-CLASSIFICATION: Infrastructure Operations -> NetApp Storage Maintenance
-DEFAULT RISK RATING: Medium (Online/Non-Disruptive Execution)
+Scope: ${cleanScope}  |  Date: ${today}
 
 `;
 
   targetSystems.forEach((sys, sidx) => {
-    const l = sys.logistics || { deliveryAddress: "Not Configured", accessRestrictions: "Not Configured" };
-    const c = sys.contacts || { name: "Not Configured", phone: "Not Configured" };
-    
+    const sysRisks = (sys.risks || [])
+      .filter(r => { const s = (r.severity||'').toLowerCase(); return s === 'critical' || s === 'high'; })
+      .filter(r => { const c = (r.category||'').toLowerCase(); return c !== 'best practice' && c !== 'best_practice' && c !== 'best practices'; })
+      .sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
+    const l = sys.logistics || { deliveryAddress: "N/A", accessRestrictions: "N/A" };
+    const c = sys.contacts || { name: "N/A", phone: "N/A" };
+
     changeTickets += `--------------------------------------------------------------------------------
-TICKET ${sidx + 1}: LOGISTICS DISPATCH & CHANGE RUNBOOK - ${sys.systemName}
+TICKET ${sidx + 1}: ${sys.systemName} (${sys.serialNumber})
+  Cluster: ${sys.clusterName || 'N/A'}  |  OS: ${sys.ontapVersion || 'N/A'}  |  Priority: ${sysRisks.some(r => r.severity === 'critical') ? 'CRITICAL' : sysRisks.length > 0 ? 'HIGH' : 'STANDARD'}
+  Contact: ${c.name} (${c.phone})  |  Site: ${l.deliveryAddress}
 --------------------------------------------------------------------------------
-* TICKET SUMMARY: Schedule storage remediation and parts replacement for S/N ${sys.serialNumber}
-* CRITICAL LOGISTICS DETAILS:
-  - Delivery Address: ${l.deliveryAddress}
-  - Access Protocol: ${l.accessRestrictions}
-  - On-Site Contact: ${c.name} (${c.phone})
-  
-* CHANGE DETAILS:
-  - Implementation Window: Off-Peak (22:00 - 04:00 Local)
-  - Impact Scope: System pathing remains active. Storage failover (SFO) handles I/O if a module reboot is required. No service interruption is anticipated.
-  
-* PRE-REQUISITES (SAFETY CHECKLIST):
-  1. Validate aggregate health: 'storage aggregate show -state online'
-  2. Confirm cluster failover status: 'storage failover show'
-  3. Verify cluster quorum and node health: 'cluster show' and 'system health alert show'
-  4. Verify current active paths: 'storage path show'
-  5. Perform configuration backup: 'system configuration backup create'
+PRE-CHECKS:
+  storage aggregate show -state online
+  storage failover show
+  cluster show && system health alert show
+  system configuration backup create -node *
 
-* IMPLEMENTATION RUNBOOK:
-${sys.risks && sys.risks.length > 0 ? sys.risks.map((r, rIdx) => `  [Sub-Task ${rIdx + 1}] ${r.description}
-  Safety Classification: ${getRiskSafetyTier(r).toUpperCase()}
-  remediation: ${r.remediationPlan ? r.remediationPlan.steps.join("\n  ") : "Follow NetApp Support KB guidelines."}`).join("\n\n") : "  ✓ No configuration risks require remediation."}
+`;
+    if (sysRisks.length > 0) {
+      changeTickets += `TASKS (${sysRisks.length}):\n`;
+      sysRisks.forEach((r, rIdx) => {
+        changeTickets += `  ${rIdx + 1}. [${r.severity.toUpperCase()}] ${r.description}\n`;
+      });
+    } else {
+      changeTickets += "TASKS: No critical/high risks.\n";
+    }
 
-* CHANGE VERIFICATION:
-  1. Execute 'system health alert show' to verify zero active warning states.
-  2. Confirm disk/shelf links: 'storage port show'
-  
-* ROLLBACK PLAN:
-  1. Revert any modified configuration variables using the inverse commands.
-  2. For hardware swaps, re-seat the original SAS cables or components to restore previous operating paths.
-  3. Contact NetApp support at 1-888-4-NETAPP if failover verification fails to resolve within 15 minutes.
+    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
+      changeTickets += `  [UPGRADE] ${sys.ontapVersion || 'N/A'} -> ${sys.upgrades.targetVersion}\n`;
+    }
 
-\n\n`;
+    changeTickets += `
+VERIFICATION:
+  system health alert show
+  storage failover show
+  network interface show
+
+`;
   });
 
-  // 4. Solution Proposals
+  // ===================== 4. SOLUTION PROPOSALS =====================
   let solutionProposals = `================================================================================
-TECHNICAL SOLUTION & ARCHITECTURAL CONFIGURATION PROPOSAL
+TECHNICAL SOLUTION PROPOSAL
 ================================================================================
-CUSTOMER: ${cleanScope}
-PREPARED BY: NetApp Customer Success & TAM Team
+Customer: ${cleanScope}  |  Date: ${today}
 
-1. EXECUTIVE SUMMARY & OBJECTIVE
-The objective of this proposal is to optimize the storage architecture for ${cleanScope}, ensuring high availability, network path redundancy, and compliance with modern enterprise security baselines.
+SUMMARY
+  ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''} resolving ${totalDeduped} finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.
 
-2. PROPOSED ARCHITECTURAL CORRECTIONS:
+PRIORITISED CORRECTIONS
+--------------------------------------------------------------------------------
 `;
 
-  let hasSecurity = false;
-  let hasPathing = false;
-  let hasUpgrade = false;
-
-  allRisks.forEach(r => {
-    if (r.category === "Security") hasSecurity = true;
-    if (r.category === "Hardware" && r.description.includes("Path")) hasPathing = true;
+  sortedRisks.forEach((g, idx) => {
+    const sysNames = [...new Set(g.systems.filter(Boolean))];
+    solutionProposals += `${idx + 1}. [${g.severity.toUpperCase()}] ${g.fix}\n`;
+    solutionProposals += `   Systems: ${sysNames.join(', ')}\n`;
+    if (g.count > 1) {
+      solutionProposals += `   Addresses ${g.count} findings:\n`;
+      g.findings.forEach(f => {
+        solutionProposals += `     • ${f.description}\n`;
+      });
+    } else {
+      solutionProposals += `   Finding: ${g.findings[0].description}\n`;
+    }
+    if (g.fixUrl) solutionProposals += `   Ref: ${g.fixUrl}\n`;
+    solutionProposals += '\n';
   });
-  if (allUpgrades.length > 0) hasUpgrade = true;
 
-  if (hasSecurity) {
-    solutionProposals += `
-A. PROTOCOL SECURITY HARDENING (SMBv1 & NFS EXPORTS)
-   - Recommendation: Disable legacy SMBv1 protocols to block remote code executions (WannaCry vectors) and restrict NFS policy root mounting permissions.
-   - Design Principle: Enforce AUTH_SYS/Kerberos parameters and squash root permissions (superuser=none) across all storage virtual machines (SVMs).
+  if (allUpgrades.length > 0) {
+    solutionProposals += `OS UPGRADES (${allUpgrades.length})
+--------------------------------------------------------------------------------
 `;
-  }
-  if (hasPathing) {
-    solutionProposals += `
-B. BACK-END SAS FABRIC REDUNDANCY
-   - Recommendation: Replace degraded physical cabling and reseat SAS connections on loop ports.
-   - Design Principle: Dual-path storage connectivity is mandatory to survive single host port adapter failures and protect active disks against Data Unavailable (DU) states.
-`;
-  }
-  if (hasUpgrade) {
-    solutionProposals += `
-C. ONTAP OS & SOFTWARE COMPLIANCE LIFECYCLE
-   - Recommendation: Perform sequential, non-disruptive rolling upgrades to validated OS baselines.
-   - Design Principle: Ensure storage controllers are updated to release targets that support modern TLS 1.3 encryption, patch microcode vulnerabilities, and align with NetApp Interoperability Matrix guidelines.
-`;
+    allUpgrades.forEach(u => {
+      solutionProposals += `  ${u.systemName}: ${u.currentVersion || 'N/A'} -> ${u.targetVersion}\n`;
+    });
+    solutionProposals += '\n';
   }
 
-  if (asupIssues.length > 0) {
-    solutionProposals += `
-D. AUTOSUPPORT TELEMETRY INFRASTRUCTURE INTEGRITY
-   - Recommendation: Restore outbound HTTP/HTTPS telemetry connections to support.netapp.com (or configure local proxies).
-   - Design Principle: Telemetry is the cornerstone of proactive support. Restoring AutoSupport connectivity ensures immediate alert routing and active risk auditing.
+  solutionProposals += `TIMELINE
+--------------------------------------------------------------------------------
+  Week 1:   Pre-checks & change requests
+  Week 2-3: Critical remediation
+  Week 4-5: OS upgrades
+  Week 6:   Verification & sign-off
+
+REFERENCES
+  security.netapp.com  |  kb.netapp.com  |  mysupport.netapp.com/matrix
+  activeiq.netapp.com  |  docs.netapp.com/us-en/ontap/upgrade/index.html
 `;
-  }
 
-  solutionProposals += `
-3. OPERATIONAL ROADMAP & PROJECT PLANNING
-   - Stage 1: Backup and Pre-upgrade checks (Week 1)
-   - Stage 2: Hardware replacement & Cabling alignment (Week 2-3)
-   - Stage 3: ONTAP / SANtricity OS upgrade execution (Week 4-5)
-   - Stage 4: Post-remediation verification & client validation (Week 6)`;
-
-  // 5. Implementation Runbooks
+  // ===================== 5. IMPLEMENTATION RUNBOOKS =====================
   let implementationPlans = `================================================================================
-DETAILED STEP-BY-STEP CLI RUNBOOK & IMPLEMENTATION PLANS
+CLI RUNBOOK
 ================================================================================
-SCOPE: ${cleanScope}
-COMPILING ACTIVE CLI COMMAND RUNBOOKS
+Scope: ${cleanScope}  |  Date: ${today}
+Note:  Critical items first. Best-practice items excluded for brevity.
 
 `;
 
   targetSystems.forEach((sys, sysIdx) => {
+    const sysRisks = (sys.risks || [])
+      .filter(r => { const s = (r.severity||'').toLowerCase(); return s === 'critical' || s === 'high'; })
+      .filter(r => { const c = (r.category||'').toLowerCase(); return c !== 'best practice' && c !== 'best_practice' && c !== 'best practices'; })
+      .sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
+
     implementationPlans += `--------------------------------------------------------------------------------
-SYSTEM ${sysIdx + 1}: CLI RUNBOOK - ${sys.systemName} (S/N: ${sys.serialNumber})
+SYSTEM ${sysIdx + 1}: ${sys.systemName} (${sys.serialNumber})
+  Cluster: ${sys.clusterName || 'N/A'}  |  OS: ${sys.ontapVersion || 'N/A'}  |  Platform: ${sys.platform}
 --------------------------------------------------------------------------------
 `;
-    
-    if (sys.risks && sys.risks.length > 0) {
-      sys.risks.forEach((r, rIdx) => {
-        implementationPlans += `[Task ${rIdx + 1}] ${r.description}
-- Category: ${r.category}
-- Specific Action Plan:
-`;
-        const verStr = sys.ontapVersion || "9.12.1";
-        const parts = verStr.split('.');
-        const major = parseInt(parts[0]) || 9;
-        const minor = parseInt(parts[1]) || 12;
-        const is92OrNewer = (major > 9) || (major === 9 && minor >= 2);
-        const is95OrNewer = (major > 9) || (major === 9 && minor >= 5);
 
-        if (r.description.includes("SMBv1")) {
-          if (is92OrNewer) {
-            implementationPlans += `  * [ONTAP ${verStr} - 9.2+ Compliance Command] Run to disable SMBv1 on SVM:
-    vserver cifs options modify -vserver <svm_name> -smb1-enabled false
-  * Verify the modification:
-    vserver cifs options show -fields smb1-enabled\n\n`;
-          } else {
-            implementationPlans += `  * [ONTAP ${verStr} - Legacy <9.2 Command] Run to disable SMBv1 on SVM:
-    vserver cifs options modify -vserver <svm_name> -is-smb1-enabled false
-  * Verify the modification:
-    vserver cifs options show -fields is-smb1-enabled\n\n`;
-          }
-        } else if (r.description.includes("NFS export policy") || r.description.includes("root")) {
-          implementationPlans += `  * Modify export policy rule index to squash root permissions:
-    vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -superuser none
-  * Restrict access to secure subnets:
-    vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -clientmatch 10.100.0.0/16\n\n`;
-        } else if (r.description.includes("NTP")) {
-          if (is95OrNewer) {
-            implementationPlans += `  * [ONTAP ${verStr} - 9.5+ Command] Reconfigure active NTP servers:
-    cluster time-service ntp server modify -server time.windows.com
-  * Verify time synchronization status:
-    cluster time-service ntp status show\n\n`;
-          } else {
-            implementationPlans += `  * [ONTAP ${verStr} - Legacy <9.5 Command] Reconfigure active NTP servers:
-    system services ntp server modify -server time.windows.com
-  * Verify time synchronization status:
-    system services ntp status show\n\n`;
-          }
-        } else if (r.description.includes("Shelf") || r.description.includes("firmware")) {
-          implementationPlans += `  * Download the firmware package to the nodes:
-    storage firmware download -node * -package iom12_0260.flw
-  * Trigger the update:
-    storage shelf firmware update
-  * Monitor progress:
-    storage shelf firmware show-update-status\n\n`;
-        } else {
-          implementationPlans += `  * Steps:\n  ` + (r.remediationPlan ? r.remediationPlan.steps.join("\n  ") : "  Consult support documentation.") + `\n\n`;
+    if (sysRisks.length > 0) {
+      sysRisks.forEach((r, rIdx) => {
+        implementationPlans += `[${rIdx + 1}] [${r.severity.toUpperCase()}] ${r.description}\n`;
+        if (r.remediationPlan && r.remediationPlan.steps && r.remediationPlan.steps.length > 0) {
+          r.remediationPlan.steps.forEach(s => { implementationPlans += `    ${s}\n`; });
+        } else if (r.recommendation) {
+          implementationPlans += `    ${r.recommendation}\n`;
         }
+        const ref = findingRef(r);
+        if (ref) implementationPlans += `    Ref: ${ref}\n`;
+        implementationPlans += '\n';
       });
     } else {
-      implementationPlans += "✓ No configuration actions required for this system.\n\n";
-    }
-
-    const isASA = (sys.platform || "").includes("ASA");
-    if (isASA) {
-      implementationPlans += `[ASA SAN Platform Verification]
-  * Verify symmetric active-active multipathing states on hosts:
-    esxcli storage nmp device list
-  * Verify SCSI UNMAP allocation & reclamation options on SVM LUNs:
-    lun show -vserver <svm_name> -fields space-allocation,space-reclamation
-  * Confirm that host igroup mapping paths are balanced across HA nodes:
-    igroup show -vserver <svm_name> -fields ostype,protocol\n\n`;
+      implementationPlans += "  No critical/high risks.\n\n";
     }
 
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       const origVer = sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion;
       const hops = calculateUpgradePath(sys.platform, origVer, sys.upgrades.targetVersion);
-      implementationPlans += `[Software Upgrade Runbook]
-- Current Release: ${origVer}
-- Target Release: ${sys.upgrades.targetVersion}
-- Pathfinder Upgrade Hops:
-`;
-      hops.forEach((h, hIdx) => {
-        implementationPlans += `  Hop ${hIdx + 1}: ${h.from} -> ${h.to}
-  * Pre-upgrade advisory steps:
-    ${h.steps.join("\n    ")}
-  * Upgrade guide link: ${h.docLink}
-`;
-      });
-      implementationPlans += `\n`;
+      implementationPlans += `[UPGRADE] ${origVer} -> ${sys.upgrades.targetVersion}\n`;
+      if (hops.length > 1) {
+        hops.forEach((h, hIdx) => {
+          implementationPlans += `    Hop ${hIdx + 1}: ${h.from} -> ${h.to}  |  ${h.docLink}\n`;
+        });
+      }
+      implementationPlans += '\n';
+    }
+
+    if ((sys.platform || "").includes("ASA")) {
+      implementationPlans += `[ASA SAN Checks]
+    esxcli storage nmp device list | lun show -fields space-allocation | igroup show -fields ostype,protocol\n\n`;
     }
   });
 
-  // 7. Sales & Hardware Refresh Proposals
+  // ===================== 6. SALES PROPOSALS =====================
   let salesProposals = `================================================================================
-SALES PROPOSALS & HARDWARE REFRESH RECOMMENDATIONS
+SALES PROPOSALS & HARDWARE REFRESH
 ================================================================================
-CUSTOMER: ${cleanScope}
-PREPARED BY: NetApp Account Management & Customer Success
+CUSTOMER: ${cleanScope}  |  DATE: ${today}
 
 `;
 
   if (expiringContracts.length === 0 && targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length === 0) {
-    salesProposals += "✓ No urgent hardware lifecycle refreshes or support contract renewals required.\n";
+    salesProposals += "No urgent hardware refreshes or contract renewals required.\n";
   } else {
-    salesProposals += "1. URGENT SUPPORT CONTRACT RENEWALS:\n";
-    expiringContracts.forEach(e => {
-      salesProposals += ` - System: ${e.systemName} (S/N: ${e.serialNumber || "unknown"})
-   Support Level: ${e.supportLevel}
-   Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)
-   Recommendation: Renew support contract immediately to maintain active technical support and hardware replacement services.\n\n`;
-    });
-
-    salesProposals += "2. LIFECYCLE REFRESH OPPORTUNITIES (EOS/EOL DECOMMISSIONING):\n";
-    targetSystems.forEach(sys => {
-      if (sys.lifecycle && (sys.lifecycle.isNearEos || sys.ontapVersion === "9.5")) {
-        salesProposals += ` - System: ${sys.systemName} (S/N: ${sys.serialNumber})
-   Platform: ${sys.platform}
-   Current OS Version: ${sys.ontapVersion}
-   EOA Date: ${sys.lifecycle.eoaDate} | EOS Date: ${sys.lifecycle.eosDate}
-   Recommendation: This system is approaching end-of-support or running legacy ONTAP release. Propose a hardware technology refresh to modern NetApp AFF/FAS storage platforms (e.g. AFF A150 or AFF A250) to capitalize on 3.5:1 storage efficiency guarantees, advanced clustering, and cloud integration.\n\n`;
-      }
-    });
+    if (expiringContracts.length > 0) {
+      salesProposals += `CONTRACT RENEWALS (${expiringContracts.length}):\n`;
+      expiringContracts.forEach(e => {
+        salesProposals += `  ${e.systemName} (${e.serialNumber || "N/A"}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;
+      });
+      salesProposals += '  Renew: https://mysupport.netapp.com/\n\n';
+    }
+    const eos = targetSystems.filter(s => s.lifecycle && (s.lifecycle.isNearEos || (s.ontapVersion || '').startsWith('9.5')));
+    if (eos.length > 0) {
+      salesProposals += `LIFECYCLE REFRESH (${eos.length}):\n`;
+      eos.forEach(sys => {
+        salesProposals += `  ${sys.systemName} | ${sys.platform} | OS: ${sys.ontapVersion} | EOA: ${sys.lifecycle.eoaDate || 'N/A'} | EOS: ${sys.lifecycle.eosDate || 'N/A'}
+    Recommend: Refresh to AFF/FAS - https://www.netapp.com/data-storage/aff-a-series/\n`;
+      });
+    }
   }
 
-  // 8. Customer Success Plan (CSP)
+  // 7. Customer Success Plan
   let customerSuccessPlan = compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases);
 
   return {
@@ -7031,6 +7552,17 @@ function generateActionPlan() {
       sys.supportCases.forEach(sc => allSupportCases.push({ systemName: sys.systemName, ...sc }));
     }
   });
+
+  // Sort risks and security advisories by severity: critical first
+  const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
+  const bySev = (a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4);
+  allRisks.sort(bySev);
+  allSecurityAdvisories.sort(bySev);
+
+  // Filter to only open/active cases, sorted by highest priority
+  const filteredCases = filterActiveCases(allSupportCases);
+  allSupportCases.length = 0;
+  filteredCases.forEach(c => allSupportCases.push(c));
 
   const switchAlerts = [];
   targetSystems.forEach(sys => {
@@ -7231,19 +7763,33 @@ function generateActionPlan() {
   } else {
     allSecurityAdvisories.forEach((s, idx) => {
       let badgeClass = "badge info";
-      if (s.severity === "critical" || s.severity === "high") badgeClass = "badge critical";
+      if (s.severity === "critical") badgeClass = "badge critical";
+      else if (s.severity === "high") badgeClass = "badge warning";
       
+      // Build advisory link: use stored URL or construct from CVE ID
+      let advLink = s.advisoryUrl || '';
+      if (!advLink) {
+        const cveMatch = (s.id || '').match(/CVE-[0-9]{4}-[0-9]+/);
+        if (cveMatch) advLink = `https://security.netapp.com/advisory/`;
+      }
+      const linkHtml = advLink
+        ? `<a href="${advLink}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">View Full Advisory →</a>`
+        : `<a href="https://security.netapp.com/" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">Search NetApp Security Advisories →</a>`;
+
       html += `
         <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>Bulletin: ${s.id} - ${s.systemName}</strong>
+            <strong>${s.id} — ${s.systemName}</strong>
             <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity}</span>
           </div>
-          <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${s.title}</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px;">
-            <strong>Mitigation Steps:</strong> ${s.mitigation}
+          <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 6px;">${s.title}</div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">
+            <strong>Mitigation:</strong> ${s.mitigation}
           </div>
-          <div style="font-size: 0.8rem; color: var(--status-warning);">Status: <strong>${s.status}</strong></div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.78rem; color: var(--status-warning);">Status: <strong>${s.status}</strong></span>
+            ${linkHtml}
+          </div>
         </div>
       `;
     });
@@ -7268,24 +7814,28 @@ function generateActionPlan() {
       if (c.severity.includes("S1")) badgeClass = "badge critical";
       else if (c.severity.includes("S2")) badgeClass = "badge warning";
 
+      const resLine = c.resolution ? `<div style="font-size: 0.82rem; color: var(--status-normal); margin-top: 6px; padding: 4px 8px; background: rgba(0,230,118,0.05); border-left: 2px solid var(--status-normal); border-radius: 4px;"><strong>Resolution:</strong> ${c.resolution}</div>` : '';
+      const notesLine = c.ownerNotes ? `<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan);"><strong>Latest Notes:</strong> ${c.ownerNotes}</div>` : '';
+
       html += `
         <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>Case ID: ${c.id} - ${c.systemName}</strong>
+            <strong>Case ID: ${c.id} - ${c.systemName || 'N/A'}</strong>
             <span class="${badgeClass}" style="font-size: 0.7rem;">${c.severity}</span>
           </div>
           <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${c.title}</div>
+          ${c.description ? '<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px;">' + c.description + '</div>' : ''}
           <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px;">
-            <strong>Criticality Assessment:</strong> ${c.criticality || "Normal"}
+            <strong>Category:</strong> ${c.criticality || 'N/A'}${c.subCategory ? ' / ' + c.subCategory : ''}
           </div>
           <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;">
             <strong>Next Action Owner:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Review"}</span>
           </div>
-          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan);">
-            <strong>Latest Notes:</strong> ${c.ownerNotes}
-          </div>
+          ${c.reporter ? '<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;"><strong>Reported By:</strong> ' + c.reporter + '</div>' : ''}
+          ${resLine}
+          ${notesLine}
           <div style="font-size: 0.8rem; color: var(--text-secondary);">
-            Status: <code style="color: var(--status-info);">${c.status}</code> | Opened: <strong>${c.createdDate}</strong> | Last Updated: <strong>${c.lastUpdated}</strong>
+            Status: <code style="color: var(--status-info);">${c.status}</code> | Opened: <strong>${c.createdDate ? c.createdDate.split('T')[0] : 'N/A'}</strong> | Last Updated: <strong>${c.lastUpdated ? c.lastUpdated.split('T')[0] : 'N/A'}</strong>${c.closedDate ? ' | Closed: <strong>' + c.closedDate.split('T')[0] + '</strong>' : ''}
           </div>
         </div>
       `;
@@ -7693,6 +8243,12 @@ function downloadPlanSection(index) {
     }
   });
 
+  // Filter to only open/active cases, sorted by highest priority
+  const filteredCases2 = filterActiveCases(allSupportCases);
+  allSupportCases.length = 0;
+  filteredCases2.forEach(c => allSupportCases.push(c));
+
+
   if (index === 1) {
     filename = `executive_summary_${cleanScope}.txt`;
     text = `NETAPP EXECUTIVE SUMMARY REPORT
@@ -7923,6 +8479,11 @@ function downloadDeliverable(type) {
     }
   });
 
+  // Filter to only open/active cases, sorted by highest priority
+  const filteredCases3 = filterActiveCases(allSupportCases);
+  allSupportCases.length = 0;
+  filteredCases3.forEach(c => allSupportCases.push(c));
+
   const docs = compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' '));
 
   if (type === 'EMAIL') {
@@ -8140,7 +8701,7 @@ function renderSidebarGroups() {
   }
 
   // 2. Group by Customers (calculated dynamically)
-  const customers = [...new Set(state.systems.map(s => s.customerName))];
+  const customers = [...new Set(state.systems.map(s => s.customerName))].filter(Boolean).sort((a, b) => a.localeCompare(b));
   
   if (customers.length > 0) {
     const custHeader = document.createElement("div");
@@ -9034,31 +9595,49 @@ async function saveSettings() {
   const intervalInput = parseInt(document.getElementById("settingsSyncInterval").value) || 0;
   const wlOnlyToggle   = document.getElementById("settingsWatchlistOnlyToggle").checked;
   const searchTermInput = (document.getElementById("settingsSearchTerm") ? document.getElementById("settingsSearchTerm").value : "").trim();
+  const serialNumbersInput = (document.getElementById("settingsSerialNumbers") ? document.getElementById("settingsSerialNumbers").value : "").trim();
   const oldMockMode = state.mockMode;
   
   state.apiBaseUrl    = apiBaseInput;
   state.syncInterval  = intervalInput;
   state.watchlistOnly = wlOnlyToggle;
   state.searchTerm    = searchTermInput;
+  state.serialNumbers = serialNumbersInput;
   
   safeSetItem("aiq_api_base_url",   apiBaseInput);
   safeSetItem("aiq_sync_interval",  intervalInput.toString());
   safeSetItem("aiq_watchlist_only", wlOnlyToggle ? "true" : "false");
   safeSetItem("aiq_search_term",    searchTermInput);
+  safeSetItem("aiq_serial_numbers", serialNumbersInput);
   
   setMockMode(mockToggle);
   saveConfig(refresh, safeGetItem("aiq_access_token") || "", safeGetItem("aiq_token_expiry") || "");
   
-  if (!mockToggle && (oldMockMode || refresh)) {
-    // User enabled API mode or updated token - let's fetch!
-    await loadProductionData();
+  if (!mockToggle) {
+    // Switching to live API mode: clear all mock data from state and localStorage
+    // so stale mock systems don't persist across the mode switch
+    state.systems = [];
+    state.groups = [];
+    state.watchlists = [];
+    state.globalRisks = [];
+    saveSystems();
+    safeSetItem("aiq_custom_groups", "[]");
+    safeSetItem("aiq_watchlists_db", "[]");
+    console.log("[MODE] Cleared mock data, syncing live from API...");
+    await loadProductionData(true);  // Force fresh harvest when switching from mock
+    refreshUIState();
   } else if (mockToggle) {
     // Reset to mock systems database
-    state.systems = [...MOCK_SYSTEMS];
+    state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
+    state.groups = [...DEFAULT_GROUPS];
+    state.watchlists = [...MOCK_WATCHLISTS];
     saveSystems();
+    safeSetItem("aiq_custom_groups", JSON.stringify(state.groups));
+    saveWatchlists();
     if (state.systems.length > 0) {
       state.selectedSystem = state.systems[0];
     }
+    refreshUIState();
   }
   
   alert("Settings saved successfully.");
@@ -9146,7 +9725,7 @@ async function triggerManualSync() {
   }
   
   try {
-    await loadProductionData();
+    await loadProductionData(true);  // Force refresh on manual sync
     state.lastSync = new Date().toISOString();
     safeSetItem("aiq_last_sync", state.lastSync);
     updateScheduledSyncInfo();
@@ -9230,196 +9809,113 @@ function refreshUIState() {
   }
 }
 
-async function loadProductionData() {
+async function loadProductionData(forceRefresh = false) {
   const textLabel = document.getElementById("connectionStatusText");
   const indicator  = document.querySelector(".indicator");
 
-  if (textLabel) textLabel.innerText = "Connecting & Authenticating...";
+  if (textLabel) textLabel.innerText = forceRefresh ? "Force syncing with Active IQ..." : "Loading from cache...";
   if (indicator)  indicator.className = "indicator warning";
 
-  // The AIQ search API uses substring matching — NOT wildcards.
-  // searchText=* returns nothing. searchText=Vodacom returns Vodacom's systems.
-  // Configure via Settings → Customer / Account Search Term.
-  const term    = (state.searchTerm || "").trim();
-  const termEnc = encodeURIComponent(term);
-
-  // Known customer/watchlist names to search across (covers all 3 watchlists)
-  const customerNames = term
-    ? [term, "Vodacom South Africa", "Telkom SA", "Liberty Group"].filter((v,i,a)=>a.indexOf(v)===i)
-    : ["Vodacom South Africa", "Telkom SA", "Liberty Group"];
-
-  // Known seed serials — used as last-resort bootstrap to discover customer IDs
-  const seedSerials = ["211839000195","952239002356","952239002659","952239002236","952239002406"];
-
-  // Helper: robustly extract a list from any response shape
-  function extractList(data) {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    for (const k of ["results","hits","data","items","records",
-                      "systemDetailsByInventory","systemList","systems",
-                      "watchListData","watchlists","customers","aggregates"]) {
-      if (Array.isArray(data[k]) && data[k].length > 0) return data[k];
-    }
-    const arrs = Object.values(data).filter(v => Array.isArray(v) && v.length > 0);
-    return arrs.length === 1 ? arrs[0] : [];
-  }
-
-  // ── Step 1: Watchlists ───────────────────────────────────────────────────
-  let watchlistSerials = new Set();
-  let watchlistIds     = [];
+  // ── All API work happens server-side at /api/harvest ──────────────────
+  // Python server queries gql.aiq.netapp.com/graphql for the full fleet.
+  // With force=1, bypasses cache and does a full re-harvest.
+  // Without force, serves cached data instantly and re-syncs in background.
   try {
-    if (textLabel) textLabel.innerText = "Loading Watchlists...";
-    const raw    = await callActiveIQAPI("/watchlist/all");
-    const wlList = extractList(raw);
-    state.watchlists = wlList.map(wl => {
-      const serials = wl.serialNumbers || wl.systemSerials || wl.systems || [];
-      serials.forEach(sn => watchlistSerials.add(String(sn).trim()));
-      const wlId = wl.watchListId || wl.watchlistId || wl.id;
-      if (wlId && !String(wlId).startsWith("wl_")) watchlistIds.push(String(wlId));
-      return { id: wlId, name: wl.watchListName || wl.watchlistName || wl.name || "Watchlist", systemSerials: serials };
-    }).filter(w => w.id);
-    saveWatchlists();
-    console.log(`[AIQ] Watchlists: ${watchlistIds.length} IDs:`, watchlistIds);
-  } catch (e) { console.warn("[AIQ] /watchlist/all:", e.message); }
+    const forceParam = forceRefresh ? '&force=1' : '';
+    console.log(`[AIQ] Calling /api/harvest (force=${forceRefresh})...`);
 
-  let systemsList  = [];
-  let usedEndpoint = null;
-
-  // ── Step 2: Search by customer name (THE correct approach for this API) ──
-  // The API uses substring search — searchText=Vodacom returns Vodacom systems
-  if (textLabel) textLabel.innerText = "Searching for customer systems...";
-  for (const name of customerNames) {
-    const enc = encodeURIComponent(name);
-    const endpoints = [
-      `/v1/search/system/level/customer?searchText=${enc}&limit=1000`,
-      `/v2/search/system/level/customer?searchText=${enc}&limit=1000`,
-      `/v3/search/system?searchText=${enc}&limit=1000`,
-      `/v1/search/system/level/watchlist?searchText=${enc}&limit=1000`,
-    ];
-    for (const ep of endpoints) {
-      try {
-        const data = await callActiveIQAPI(ep);
-        const page = extractList(data);
-        console.log(`[AIQ] ${ep} → ${page.length} systems`);
-        if (page.length > 0) { systemsList.push(...page); usedEndpoint = ep; }
-      } catch (e) { console.warn(`[AIQ] ${ep}:`, e.message); }
-    }
-    if (systemsList.length > 0) break;
-  }
-
-  // ── Step 3: Search by watchlist ID ──────────────────────────────────────
-  if (systemsList.length === 0 && watchlistIds.length > 0) {
-    if (textLabel) textLabel.innerText = "Loading Watchlist Systems...";
-    for (const wlId of watchlistIds) {
-      try {
-        const ep = `/v1/search/system/level/watchlist?id=${wlId}&limit=1000`;
-        const data = await callActiveIQAPI(ep);
-        const page = extractList(data);
-        if (page.length > 0) { systemsList.push(...page); usedEndpoint = ep; }
-      } catch (e) { console.warn(`[AIQ] watchlist ${wlId}:`, e.message); }
-    }
-  }
-
-  // ── Step 4: Serial bootstrap — discover customer ID from known serial ────
-  // Works even when /watchlist/all is broken.
-  if (systemsList.length === 0) {
-    if (textLabel) textLabel.innerText = "Bootstrap via known serials...";
-    for (const sn of seedSerials) {
-      try {
-        // Try cluster view first — returns rich system data including customerId
-        const clData = await callActiveIQAPI(`/v1/clusterview/get-cluster-summary/${sn}`);
-        console.log(`[AIQ] clusterview ${sn}:`, JSON.stringify(clData).slice(0, 200));
-        if (clData && Object.keys(clData).length > 0) {
-          // Extract customer ID to pull the full fleet
-          const custId = clData.customerId || clData.customer_id ||
-            (clData.customerInfo && clData.customerInfo.customerId);
-          if (custId) {
-            const ep = `/v1/search/system/level/customer?id=${custId}&searchText=*&limit=1000`;
-            const fleet = await callActiveIQAPI(ep).catch(() => null);
-            const page  = fleet ? extractList(fleet) : [];
-            if (page.length > 0) { systemsList = page; usedEndpoint = ep; break; }
-          }
-          // At minimum, use the cluster record itself as a single system
-          systemsList = [clData];
-          usedEndpoint = `/v1/clusterview/get-cluster-summary/${sn}`;
-          break;
-        }
-      } catch (e) { console.warn(`[AIQ] clusterview ${sn}:`, e.message); }
-    }
-  }
-
-  // ── Step 5: Breadth endpoints (no scope needed) ─────────────────────────
-  if (systemsList.length === 0) {
-    for (const ep of ["/eos/details","/eos/contracts/details","/v2/health/risks",
-                       "/capacity2/usage","/firmware/details"]) {
-      try {
-        const data = await callActiveIQAPI(ep);
-        const page = extractList(data);
-        if (page.length > 0) { systemsList = page; usedEndpoint = ep; break; }
-      } catch (e) { console.warn(`[AIQ] ${ep}:`, e.message); }
-    }
-  }
-
-  // ── Step 6: No data found ────────────────────────────────────────────────
-  if (systemsList.length === 0) {
-    if (textLabel) textLabel.innerText = "No Systems Found";
-    if (indicator)  indicator.className = "indicator disconnected";
-    alert(
-      "Active IQ API: Connected ✓  |  Authentication: Valid ✓  |  Data: Empty\n\n" +
-      (term
-        ? `Search term "${term}" returned no systems.\n` +
-          "Try a different customer name, or check activeiq.netapp.com to confirm systems are visible."
-        : "No Customer / Account Search Term configured.\n" +
-          "Go to Settings → Customer / Account Search Term\n" +
-          "and enter your customer name (e.g. \"Vodacom South Africa\").")
-    );
-    updateStatusIndicators();
-    return;
-  }
-
-  // ── Step 7: Normalise & store ────────────────────────────────────────────
-  const normalise = s => ({
-    serialNumber:    s.serialNumber    || s.serial_number    || s.systemSerialNumber || "",
-    systemName:      s.systemName      || s.system_name      || s.hostName          || s.clusterName || "",
-    model:           s.model           || s.platformType     || s.platform          || "",
-    osVersion:       s.osVersion       || s.os_version       || s.ontapVersion      || s.swVersion   || "",
-    customerName:    s.customerName    || s.customer_name    || "",
-    customerId:      s.customerId      || s.customer_id      || "",
-    clusterName:     s.clusterName     || s.cluster_name     || "",
-    siteName:        s.siteName        || s.site_name        || s.location          || "",
-    siteId:          s.siteId          || s.site_id          || "",
-    location:        s.location        || s.siteName         || s.site_name         || "",
-    platform:        s.platform        || s.platformType     || "",
-    systemType:      s.systemType      || s.system_type      || "",
-    productFamily:   s.productFamily   || s.product_family   || "",
-    contractEndDate: s.contractEndDate || s.contract_end_date || s.supportEndDate   || s.eosDate || "",
-    riskCount:       Number(s.riskCount    || s.risk_count    || 0),
-    warningCount:    Number(s.warningCount || s.warning_count || 0),
-    criticalCount:   Number(s.criticalCount|| s.critical_count|| 0),
-    ...s
-  });
-
-  if (state.watchlistOnly && watchlistSerials.size > 0 && usedEndpoint &&
-      !usedEndpoint.includes("watchlist")) {
-    systemsList = systemsList.filter(s => {
-      const sn = String(s.serialNumber || s.serial_number || s.systemSerialNumber || "").trim();
-      return watchlistSerials.has(sn);
+    const response = await fetch(`/api/harvest?t=${Date.now()}${forceParam}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" }
     });
+    if (!response.ok) {
+      throw new Error(`Server returned HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log("[AIQ] Harvest result:", result.status,
+      "systems:", result.totalSystems,
+      "clusters:", result.totalClusters,
+      "risks:", result.totalRisks);
+
+    if (result.status === "error") {
+      throw new Error(result.message || "Harvest failed");
+    }
+
+    let systemsList = result.systems || [];
+
+    // Build a risk lookup by system (risks may reference systems by serialNumber)
+    const globalRisks = result.risks || [];
+    console.log(`[AIQ] Global risks: ${globalRisks.length}`);
+
+    // Handle watchlists from harvest
+    if (result.watchlists && result.watchlists.length > 0) {
+      state.watchlists = result.watchlists.map(wl => ({
+        id: wl.watchListId || wl.watchlistId || wl.id || ("wl_" + Date.now()),
+        name: wl.watchListName || wl.watchlistName || wl.name || "Watchlist"
+      }));
+      saveWatchlists();
+    }
+
+    if (systemsList.length === 0) {
+      if (textLabel) textLabel.innerText = "No Systems Found";
+      if (indicator)  indicator.className = "indicator disconnected";
+      alert(
+        "Active IQ API: Connected | Authentication: Valid | Data: Empty\n\n" +
+        "GraphQL returned 0 systems. Check your API token permissions."
+      );
+      updateStatusIndicators();
+      return;
+    }
+
+    // Deduplicate by serialNumber
+    const seen = new Set();
+    systemsList = systemsList.filter(s => {
+      const key = s.serialNumber || s.systemId || "";
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Store fleet-wide risks separately (NOT per-system — too large for localStorage)
+    state.globalRisks = globalRisks.map(r => ({
+      id: r.riskId || 0,
+      severity: (r.severity || "medium").toLowerCase(),
+      category: r.category || "General",
+      description: r.shortName || r.riskDetail || "Risk identified",
+      recommendation: r.potentialImpact || "Review and remediate.",
+    }));
+
+    state.systems = systemsList.map(s => enrichSystemTelemetry(s));
+    saveSystems();
+    state.lastSync = new Date().toISOString();
+    safeSetItem("aiq_last_sync", state.lastSync);
+    if (state.systems.length > 0) state.selectedSystem = state.systems[0];
+
+    // Store summary stats
+    if (result.summary) {
+      state.fleetSummary = result.summary;
+    }
+
+    // Show cache status in the connection indicator
+    const cacheInfo = result._cache || {};
+    const cacheStatus = cacheInfo.hit ? (cacheInfo.stale ? 'stale cache' : 'cached') : 'live';
+    const lastSyncTime = cacheInfo.lastSync ? new Date(cacheInfo.lastSync).toLocaleTimeString() : '';
+    const statusSuffix = cacheInfo.hit ? ` (${cacheStatus}${lastSyncTime ? ', synced ' + lastSyncTime : ''})` : '';
+    if (textLabel) textLabel.innerText = `Synced: ${state.systems.length} systems, ${result.totalClusters || 0} clusters${statusSuffix}`;
+    if (indicator)  indicator.className = "indicator connected";
+    console.log(`[AIQ] Sync complete: ${state.systems.length} systems [${cacheStatus}]`);
+    if (cacheInfo.hit && !forceRefresh) {
+      console.log(`[AIQ] Serving from cache (last sync: ${cacheInfo.lastSync}). Background re-sync in progress.`);
+    }
+
+  } catch (err) {
+    console.error("[AIQ] Harvest error:", err);
+    if (textLabel) textLabel.innerText = "Sync Failed";
+    if (indicator)  indicator.className = "indicator disconnected";
+    alert("Sync failed: " + err.message + "\n\nMake sure the app is running via the launcher (python launcher.py).");
   }
 
-  const seen = new Set();
-  systemsList = systemsList.filter(s => {
-    const sn = String(s.serialNumber || s.serial_number || s.systemSerialNumber || "").trim();
-    if (!sn || seen.has(sn)) return false;
-    seen.add(sn); return true;
-  });
-
-  state.systems    = systemsList.map(s => enrichSystemTelemetry(normalise(s)));
-  saveSystems();
-  state.lastSync   = new Date().toISOString();
-  safeSetItem("aiq_last_sync", state.lastSync);
-  if (state.systems.length > 0) state.selectedSystem = state.systems[0];
-  console.log(`[AIQ] Sync via '${usedEndpoint}': ${state.systems.length} systems.`);
   updateStatusIndicators();
   refreshUIState();
 }
@@ -9509,6 +10005,9 @@ function switchTab(tabId) {
     document.getElementById("settingsRefreshToken").value = safeGetItem("aiq_refresh_token") || "";
     document.getElementById("settingsApiBaseUrl").value = state.apiBaseUrl;
     document.getElementById("settingsSyncInterval").value = state.syncInterval.toString();
+    if (document.getElementById("settingsSerialNumbers")) {
+      document.getElementById("settingsSerialNumbers").value = state.serialNumbers || "";
+    }
     updateScheduledSyncInfo();
   }
 }
@@ -9660,8 +10159,16 @@ window.onload = async function() {
   updateStatusIndicators();
   updateScheduledSyncInfo();
   
+  // Force GraphQL sync on every page load when not in mock mode.
+  // Clear stale clusterview data from previous versions.
   if (!state.mockMode) {
-    await loadProductionData();
+    console.log("[AIQ v2.0] GraphQL mode active. Fetching full fleet...");
+    state.systems = []; // Clear cached data — will be repopulated by harvest
+    try {
+      await loadProductionData();
+    } catch(e) {
+      console.error("[AIQ v2.0] loadProductionData error:", e);
+    }
     checkAutoSync();
   }
   

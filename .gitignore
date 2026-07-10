@@ -13,3 +13,14 @@ build/
 dist/
 __pycache__/
 *.pyc
+
+# Runtime data (user-specific, not tracked)
+aiq_cache.db
+aiq_config.json
+aiq_harvested_systems.json
+aiq_scraped_data.json
+aiq_scraped_endpoints.json
+aiq_format_report.json
+
+# Generated report documents
+*.docx

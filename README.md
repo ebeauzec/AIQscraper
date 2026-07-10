@@ -1,34 +1,29 @@
 # NetApp Active IQ Account Report Dashboard
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A zero-dependency, browser-based report builder and dashboard tailored for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
+A report builder and operational dashboard for NetApp Support Account Managers (SAM), Technical Account Managers (TAM), and Customer Success Managers (CSM).
 
-This tool runs **entirely inside your browser** (as a static webpage) from this local folder. It does not require any backend server, Node.js/Python installations, or database engines. It connects directly to the Active IQ Digital Advisor APIs (`activeiq.netapp.com`) and persists credentials in your browser's private local storage.
+This tool can run as a **standalone browser page** for demo/offline use, or with the included **Python server** (`server.py`) for full API connectivity, persistent SQLite storage, and CORS-free operation. It connects to the Active IQ Digital Advisor APIs via both REST and GraphQL endpoints (`activeiq.netapp.com`, `gql.aiq.netapp.com`).
 
 ---
 
-## What's New in Version 1.10.0
+## What's New in Version 2.0.0
 
-*   **ITIL Safety Tiers (`OPERATING-PROTOCOL.md`)**: Automatically classifies all technical risk resolutions and CLI implementation commands into safety levels (*Non-Disruptive*, *Disruptive but Data-Safe*, and *Destructive or Irreversible*). Displayed dynamically inside the technical risk cards, details modals, and ITIL Change Tickets.
-*   **Dynamic Telemetry Profiler (`enrichSystemTelemetry`)**: Configured a dynamic parsing wrapper that detects hardware platform families (AFF, ASA, FAS, StorageGRID, E-Series) and dynamically computes validated firmware upgrade targets, support contract lifecycles, and storage efficiency metrics.
-*   **CLI Command & Compliance Corrections**: Fixed `vserver audit create` mandatory parameters (`-format json`) and added the `vserver audit enable` command. Integrated native ONTAP volume snapshot disablement command (`volume modify -snapshot-policy none`) for volumes managed by Veeam, Commvault, or Rubrik to prevent schedule collisions.
-*   **Automatic UI State Refresh**: Hooks `refreshUIState` into all manual or scheduled Active IQ API sync operations to immediately redraw the dashboard layout, sidebar filters, and selectors without page reloads.
+This is a **major release** introducing a persistent server backend, GraphQL API integration, and redesigned deliverables.
 
-## What's New in Version 1.9.0
+*   **Python Server Backend (`server.py`)**: Full reverse-proxy and API gateway that handles OAuth token exchange, GraphQL harvesting, SQLite persistence, and serves the dashboard. Eliminates the need for CORS browser extensions.
+*   **SQLite Persistent Database**: All system telemetry, risks, and metadata now persist in a local `aiq_cache.db` database across browser sessions and machines. Browser localStorage remains as a fast client-side cache.
+*   **GraphQL API Integration**: Migrated from REST-only polling to NetApp's GraphQL API for richer data including cluster-level capacity, SnapMirror relationship counts, HA configuration, contacts, contracts, and security advisories.
+*   **Fix-Grouped Deliverables**: All report templates now group findings by their corrective fix (e.g. "Upgrade to ONTAP 9.16.1"). A single upgrade that resolves 8 CVEs shows as one prioritised action with all addressed findings listed beneath it. Reports filter to **Critical and High only** for executive brevity.
+*   **SnapMirror Relationship Mapping**: Cluster-level SnapMirror counts mapped to individual systems with async/sync breakdown in the CSM module.
+*   **Chronological Chart Labels**: Capacity projection charts now display real calendar months instead of generic offset labels.
+*   **Actionable Remediation Text**: Security advisories include specific upgrade targets (e.g. "Upgrade to ONTAP 9.16.1") instead of generic "See Security Advisory".
 
-*   **Next-Gen Hardware & Software Platform Support**: Added native support for **AFF A1K** (flagship), **AFF A90**, **AFF A70**, **AFF C80** (capacity flash), **ASA A90**, **ASA A30** (all-flash SAN), **StorageGRID SG6160** object appliance, and **EF600 (E-Series NVMe)**.
-*   **FAS/AFF vs. ASA Platform Differentiation**: Fully integrated ASA block SAN array features into capacity reporting widgets (Block SAN Storage Efficiency Ratios), FabricPool Cloud Tiering statuses (identifying N/A bypasses), and generated CLI Runbooks (including `esxcli storage nmp` symmetric multipathing checks and SCSI UNMAP space reclamation states).
-*   **TAM Port Layout Upgrades**: Added dynamic mapping for **100 Gbps RoCE** cluster interconnects, **100 Gbps host ports**, **64 Gbps Fibre Channel SAN**, and **NS224 NVMe storage shelves** (via 100 Gbps NVMe links and NSM shelf module firmware upgrades).
-*   **Self-Contained Local Code Updater**: Integrated an "Update Application" action button in the settings panel that triggers local `git pull` updates via the Python server proxy backend.
+### Previous Releases
 
-## What's New in Version 1.8.0
-
-*   **Active IQ API Polling & Sync Configurations**: Added API Base URL inputs, selectable synchronization intervals (6, 12, 24 hours or 7 days), and a local synchronization metrics dashboard (tracking last/next sync times) to the settings view. Added an automated background interval timer that checks for sync criteria and triggers data updates without blocking UI operations.
-*   **Watchlist-Only Synchronization**: Added an option to filter and synchronize only systems belonging to your active Active IQ Watchlists, saving API call quotas.
-*   **Fixed Upgrade Path Down-grades**: Corrected version check loops in the pathfinder logic. Targeted OS/firmware upgrades now always guide the user to higher baselines, and up-to-date systems properly report empty hops in both the UI and printed deliverables.
-*   **Resolved Support Article Links**: Replaced dead `/onprem/...` paths on `kb.netapp.com` (which returned 404s and triggered support portal redirects) with correct, working `/Advice_and_Troubleshooting/...` native URL routes.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history (v1.0.0 – v1.11.0).
 
 ---
 
@@ -69,192 +64,63 @@ This reporting tool is aligned to retrieve and map telemetry across the complete
 *   **MetroCluster IP/FC**: High-availability synchronous multi-site disaster recovery configurations.
 *   **SnapMirror & SyncMirror**: Asynchronous and synchronous remote data replication paths.
 
-### 3rd-Party Platform & Hypervisor Best Practices
-The tool highlights compliance warnings against NetApp storage best practices for virtualization hosts and orchestrators:
-*   **VMware vSphere / ESXi**:
-    *   *Multipathing*: 
-        *   **Standard AFF/FAS**: Verifies that Native Multipathing (NMP) Path Selection Policy (PSP) is configured to **Round Robin (VMW_PSP_RR)** instead of default Fixed/MRU, and that the IOPS limit is modified to `1` — executing either `esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops` (for ESXi 6.x) or `esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1` (for ESXi 7.0/8.0+).
-        *   **ASA Arrays**: Enforces symmetric active-active pathing profiles where all paths are active-optimized to bypass ALUA non-optimized transit port latency.
-    *   *SCSI UNMAP (Space Reclamation)*: Audits SVM LUN configurations to ensure host space reclamation is active, returning deleted hypervisor capacity back to the storage aggregates.
-    *   *Integration Plugins*: Audits connectivity and credentials for **VASA Provider** and **ONTAP Tools for VMware (OTV)** for VVol and datastore provisioning.
-*   **Kubernetes (Astra Trident)**:
-    *   *Driver Versioning*: Flags outdated Astra Trident CSI drivers backing Kubernetes Persistent Volumes (PVs) that mismatch host API versions.
-*   **Cloud Providers (AWS / Azure / GCP)**:
-    *   *VPC Endpoints*: Tracks network latency timeouts between CVO nodes and backing S3/Blob storage, recommending private VPC endpoints to reduce cloud data routing costs.
-
-### 3rd-Party Workload Auto-Detection
-Active IQ automatically identifies specific software workloads running on your cluster storage systems:
-*   **SAP HANA Databases**: Classified by parsing ONTAP export policies (NFSv3/NFSv4.1 mount options such as `rsize=262144`, `wsize=262144`), volume naming patterns (containing `/usr/sap` or `sid`), certified initiator groups (igroups), and performance telemetry signatures (massive sequential 8MB write savepoints vs. low-latency 8KB transaction log commits).
-*   **Kubernetes Container Orchestrators**: Identified via integration with **Astra Trident** and **Astra Control**. Trident writes structured JSON configuration payloads directly into the ONTAP volume comment field upon PVC creation (storing PVC names, namespaces, and cluster identifiers), which are extracted by Active IQ's AutoSupport ingest pipelines to map cluster topologies.
-
 ---
-
-## Site Logistics & Customer Health Editor
-
-SAMs and TAMs can manage account-specific details directly inside the application:
-1. Go to the **Settings & Config** tab.
-2. Select a system from the **Select System to Edit** dropdown.
-3. Edit the following sections:
-   *   *Logistics*: Delivery addresses, site access requirements (security clearances, escorts), and courier alerts.
-   *   *Contacts*: Site engineer name, telephone, email, and NSS username.
-   *   *Account Health*: CSAT score, AM/TAM representatives, upsell opportunities, and refresh timeline dates.
-   *   *Projections*: Forecasted storage runway days, daily growth rates, peak IOPS performance, and historical capacity CSV strings.
-   *   *Security Bulletins*: Enter technical vulnerabilities directly as a JSON array.
-   *   *Support Cases*: Enter active case listings as a JSON array.
-4. Click **Save System Metadata** to commit changes to local storage.
-
----
-
-## Exporting & Importing Report Configurations
-
-To share customer environments or preserve custom report states:
-1.  **Exporting**: Click **Export Config (JSON)** on the Overview page or Settings page. This downloads a local JSON file containing your active systems list, risk profiles, contract lifecycles, and efficiency telemetry.
-2.  **Importing**: Click **Import Config (JSON)** and select a previously exported `.json` configuration file. The webpage will immediately parse the schema and refresh all modules (TAM, SAM, CSM, Planner) with the new data.
-
----
-
-## Action Plan Guidelines & Best Practices
-
-When presenting the generated **Executive Action Plans** to customers, account teams should align next steps with NetApp change standards:
-
-1.  **Change Management Windows**: 
-    *   All hardware swaps (SAS cables, failed sparing drives, chassis fans) and firmware upgrades should be routed through internal Change Advisory Boards (CAB).
-    *   Even if actions are designated as online/non-disruptive, schedule them during off-peak windows to absorb transient controller failovers or path resets without impacting production apps.
-2.  **Firmware Updates**:
-    *   Disk and shelf firmware updates should be applied before attempting major ONTAP OS upgrades to ensure complete driver compatibility.
-3.  **Active IQ Change Advisor**:
-    *   Utilize the Change Advisor tool inside the Active IQ portal to validate compatibility metrics for complex upgrades, especially MetroCluster switches or SnapMirror destinations.
 
 ## End-to-End Architecture, Data Handling, & Core Use Cases
 
-This section outlines how data is handled behind the scenes and maps out practical operational workflows for TAM, SAM, and Customer Success functions.
-
 ### 1. Data Polling Architecture & Data Flows
 
-The application operates on a local client-side polling cycle:
-1. **Authentication Token Exchange**: The app takes your NSS Developer Refresh Token and makes an HTTP `POST` call to the NetApp OAuth endpoint (`/tokens/accessToken`). This returns a short-lived JSON Web Token (JWT) access token (valid for 1 hour).
-2. **Telemetry Harvesting**: The app executes standard HTTP `GET` requests to retrieve telemetry endpoints:
-   * `/systems`: Retrieves cluster inventory, OS/firmware versions, hardware platforms, capacity statistics, and SnapMirror states.
-   * `/watchlists`: Retrieves user-configured cluster groups to enable targeted filtering.
-3. **CORS Bypass Layer**: Because the application runs as a static file, requests are routed either directly to the public API (when a local CORS unblocking extension is active) or through a local reverse-proxy gateway configuration (when deployed on a local server).
-4. **Background Polling Loop**: The application instantiates a 60-second checking interval (`checkAutoSync()`). If automatic synchronization is enabled (e.g., 6 hours, 12 hours, or 24 hours) and the duration since the last sync exceeds the configured threshold, the browser automatically executes a telemetry refresh in the background.
+The application supports two data flow modes:
+
+**Server Mode (Recommended)** — using `server.py`:
+1. **Authentication**: The server exchanges your NSS Refresh Token for a short-lived JWT access token via the NetApp OAuth endpoint.
+2. **GraphQL Harvesting**: The server queries `gql.aiq.netapp.com/graphql` for systems, clusters, risks, cases, contracts, contacts, and site data in a single batch. This provides significantly richer data than the REST API alone.
+3. **SQLite Persistence**: Harvested data is stored in `aiq_cache.db` — a local SQLite database that persists across browser sessions and machine reboots.
+4. **Dashboard Serving**: The server serves the dashboard at `http://localhost:8080` and proxies all `/api/...` requests server-to-server, eliminating CORS restrictions entirely.
+
+**Browser-Only Mode** — opening `index.html` directly:
+1. **Authentication Token Exchange**: The app takes your NSS Developer Refresh Token and makes an HTTP `POST` call to the NetApp OAuth endpoint (`/tokens/accessToken`).
+2. **REST Telemetry Harvesting**: Standard HTTP `GET` requests to `/systems` and `/watchlists` endpoints.
+3. **CORS Bypass Required**: Requires a browser CORS extension or Chrome launched with `--disable-web-security`.
+4. **Background Polling Loop**: A 60-second checking interval (`checkAutoSync()`) triggers automatic telemetry refreshes based on your configured sync interval.
 
 ### 2. Zero-Trust Local Storage & Security
 
 Data security is critical when handling enterprise datacenter telemetry. This dashboard runs on a **zero-trust local-only architecture**:
-* **Where Data is Stored**: All credentials, access tokens, customer system databases (`aiq_systems_db`), custom subgroups (`aiq_custom_groups`), watchlists, and custom metadata are persisted **strictly inside the browser's local sandbox (`localStorage`)**.
-* **Zero External Transmission**: No telemetry data, serial numbers, IP addresses, or access tokens are ever transmitted to external servers, cloud databases, or third-party loggers.
-* **Offline Independence**: Because the database resides in `localStorage`, the dashboard can be run fully offline in air-gapped secure rooms without losing access to reports or previous audit logs.
+* **Where Data is Stored**: In browser-only mode, all data persists in `localStorage`. When using `server.py`, data is additionally stored in a local SQLite database (`aiq_cache.db`) which remains on your local machine.
+* **Zero External Transmission**: No telemetry data, serial numbers, IP addresses, or access tokens are ever transmitted to external servers, cloud databases, or third-party loggers. The server only communicates with official NetApp API endpoints.
+* **Offline Independence**: The SQLite database and localStorage cache both support fully offline operation after initial sync. The dashboard can be used in air-gapped secure rooms without losing access to reports or audit logs.
 
 ---
 
-### 3. User Role Workflows & Real-World Use Cases
+## Setup & Deployment
 
-The dashboard consolidates technical metrics to serve three distinct support functions:
+### Quick Start
+1. Install **Python 3.8+**.
+2. Install dependencies: `pip install -r requirements_desktop.txt`
+3. Run: `python server.py`
+4. Open `http://localhost:8080` in your browser.
+5. In **Settings**, paste your **Active IQ Refresh Token** and click **Sync**.
 
-#### Use Case A: Technical Account Manager (TAM) - Deep-Dive Engineering & Upgrades
-* **Goal**: Audit a customer's environmental health, identify hardware faults, and plan a major OS upgrade sequence.
-* **End-to-End Steps**:
-  1. Open the **Overview Dashboard** and select the customer's cluster (e.g., `netapp-aff-01`).
-  2. Navigate to the **TAM Tab** and review active risks (e.g., "Single Controller Path Failure").
-  3. Inspect the **L1 Cabling Map** diagram at the bottom of the page to identify the exact physical controller port (e.g., Slot A - Port 1a) and destination shelf port reporting errors.
-  4. Go to **Upgrade Pathfinder** under the actions column. Review the multi-hop OS path (e.g., upgrading a legacy 9.5 system to 9.12.1 requires intermediate hops through 9.7 and 9.11). Copy the sequential command instructions and read-only NetApp support guides.
-  5. Toggle to the **Virtualization & Containers** card to check ESXi Round Robin compliance and Astra Trident CSI driver versions.
-
-#### Use Case B: Support Account Manager (SAM) - Service Operations & Case Escalations
-* **Goal**: Conduct a weekly operational review with a customer, audit open support tickets, and address warranty renewals.
-* **End-to-End Steps**:
-  1. Open the dashboard and filter the sidebar by the customer's account name.
-  2. Navigate to the **SAM Tab** and review the **Support Contracts** grid. Note any systems showing red warnings (warranty expiring in less than 30 days) to prepare renewal quotes.
-  3. Audit the **Open Technical Cases** log. Read case summaries, priority levels, and TAM engineering notes. Highlight critical "S1" or "S2" cases blocking progress.
-  4. Check the **Field Actions** table to see if any outstanding factory recalls or critical firmware bulletins require scheduling cluster maintenance.
-  5. Click **Download Operations Report (CSV)** to export the ticket list into Excel for the customer meeting.
-
-#### Use Case C: Customer Success Manager (CSM) - Adoption, ROI, & QBR Planning
-* **Goal**: Prepare data-backed slides for a Quarterly Business Review (QBR), showing capacity growth runways and software feature adoption rates.
-* **End-to-End Steps**:
-  1. Filter the sidebar by the customer account.
-  2. Navigate to the **CSM Tab** and inspect the **Storage Efficiency & ROI** gauges. Note the overall data reduction ratio (e.g. 3.5:1) and space saved to calculate cost savings.
-  3. Review **FabricPool Cloud Tiering**: Identify how many TBs of cold data have been migrated to AWS S3/Azure Blob to demonstrate hybrid cloud ROI.
-  4. Audit the **Capability Adoption Grid**: Check if SnapMirror replication is enabled to verify disaster recovery compliance.
-  5. Check the **Capacity Runway Projection**: Review the 3-month growth trend graph to estimate when the customer will reach 90% capacity, and generate a preemptive tech refresh recommendation.
-  6. Go to the **Action Planner**, select the customer, click **Generate Consolidated Action Plan**, and print it to a clean PDF report to share during the QBR.
+### Setting Up API Credentials
+1. Log in to [activeiq.netapp.com](https://activeiq.netapp.com/).
+2. Click **Quick Links** > **API Services**.
+3. Click **Generate Token** to create your **Refresh Token**.
+4. Paste this token into the dashboard **Settings & Config** tab.
 
 ---
 
-## Indemnity & License Agreement
+## Troubleshooting
 
-This tool is distributed under the **MIT License**. 
-
-> [vanity badge](LICENSE)
-> **Operational Responsibility & Indemnity Disclaimer:**
-> This is an unofficial utility script. Users are solely responsible for verifying the accuracy of the risks, field actions, contract states, and ONTAP upgrade targets in this dashboard before scheduling maintenance or making configuration changes to production clusters. The developers and contributors of this tool assume no liability for system downtime, data corruption, or service disruptions.
-> 
-> For full details, see the [LICENSE](LICENSE) file.
-
-### Strict Read-Only Design
-This dashboard is designed to be **strictly read-only** under all circumstances. It retrieves read-only telemetry data using HTTP `GET` requests. It contains no forms, endpoints, scripts, or interfaces that can execute mutating requests (`POST` for configuration, `PUT`, `PATCH`, or `DELETE`) against the Active IQ portal or any customer storage systems. The only `POST` call in the application is strictly for the initial authentication token swap.
-
----
-
-## Instructions
-
-### 1. Launch the Application
-Simply double-click the **`index.html`** file in this directory to open the dashboard in your default web browser (Chrome, Edge, or Firefox).
-
-### 2. Testing with Demo Data (Offline Mode)
-To see how the dashboard functions immediately:
-1. Open the dashboard.
-2. Click the **Settings & Config** tab in the sidebar.
-3. Turn on the **Enable Offline Demo Mode (Mock Data)** toggle.
-4. Go back to the **Overview Dashboard** to inspect system reports, charts, and metrics. Click on any system row, go to **Technical Audit**, and click **Remediation Plan** on a risk to see the detailed action plan.
-
-### 3. Setting Up Production API Credentials & Polling
-To view your own live customer accounts and clusters:
-1. Open your browser and log in to [activeiq.netapp.com](https://activeiq.netapp.com/) using your NetApp Support Site (NSS) credentials.
-2. In the top navigation bar, click the **Quick Links** icon and select **API Services**.
-3. Under the API Services tab, click **Generate Token**.
-4. Copy the long **Refresh Token** shown on screen.
-5. In your local dashboard application, navigate to the **Settings & Config** tab.
-6. Disable **Offline Demo Mode**, paste the token into the **Refresh Token** input box.
-7. Configure the **Active IQ API Base Endpoint URL** (defaults to the public NetApp REST API gateway).
-8. Select an **Auto-Polling / Sync Interval** (Manual Sync, or automatic checks every 6, 12, or 24 hours).
-9. Toggle **Watchlist-Only Synchronization** if you want to only synchronize systems listed in your active Active IQ Watchlists.
-10. Click **Save Configuration** or **Synchronize Data Now** to trigger the initial sync.
-
----
-
-## Bypassing Browser CORS Checks
-
-Because the page is loaded directly as a local file (`file:///.../index.html`), browser security rules (CORS) may block direct JavaScript `fetch` calls to the public Active IQ API domain. 
-
-If you encounter connection errors when trying to connect to the live API, choose one of these options:
-
-### Option A: Use a Developer Browser Extension (Easiest)
-Install a standard, browser-approved developer extension that toggles CORS headers for local files:
-* **Chrome**: Search the Chrome Web Store for **"CORS Unblock"** or **"Allow CORS"** and enable it.
-* **Firefox/Edge**: Search their respective add-on stores for **"CORS Bypass"** or **"CORS Access Control"**.
-
-### Option B: Launch Chrome with Web Security Disabled
-Create a temporary browser instance that relaxes cross-origin limitations for local testing:
-* **Windows (PowerShell/Run CMD)**:
-  ```cmd
-  chrome.exe --disable-web-security --user-data-dir="C:/temp_chrome_dev"
-  ```
-* **macOS (Terminal)**:
-  ```bash
-  open -n -a "Google Chrome" --args --user-data-dir="/tmp/temp_chrome_dev" --disable-web-security
-  ```
-
-### Option C: Serve and Proxy via server.py (Best Server-to-Server Practice)
-If your security policies prevent browser extensions/modifications, serve the files and proxy all API calls natively using the included custom Python server:
-* Open your command prompt/terminal in this folder and run:
-  ```bash
-  python server.py
-  ```
-* Open your browser and navigate to `http://localhost:8080` to access the dashboard.
-* In the **Settings & Config** tab, change the **Active IQ API Base Endpoint URL** to `/api` and click **Save Configuration**.
-* The server will automatically intercept all `/api/...` calls and forward them to the NetApp API server-to-server, bypassing CORS restrictions without compromising security.
+| Problem | Solution |
+|---|---|
+| **Server won't start** | Verify Python 3.8+ is installed (`python --version`). Check that port 8080 is not in use (`netstat -an | findstr 8080`). |
+| **No data after sync** | Verify your Refresh Token is valid and not expired. Check the `server.py` terminal output for API error messages. |
+| **Empty dashboard** | Ensure you've clicked **Sync** in Settings. Try enabling **Demo Mode** first to confirm the UI works. |
+| **CORS errors** | Use `server.py` instead of opening `index.html` directly. Set the API Base URL to `/api`. |
+| **Charts show wrong dates** | Hard refresh with `Ctrl+Shift+R` to clear cached JavaScript. |
+| **Stale or outdated data** | The SQLite database persists data indefinitely. Use **Force Full Resync** in Settings to re-harvest all systems. |
+| **Database locked errors** | Close any other programs accessing `aiq_cache.db`. Restart `server.py`. |
 
 ---
 
@@ -267,15 +133,16 @@ This reporting tool was designed from the ground up to comply with strict corpor
 * **Deterministic Logic**: All risk calculations, remediation schedules, and action control runbooks are derived locally using deterministic, standard JavaScript algorithms. There is no risk of hallucinated commands or unauthorized data leaks to public/private AI model training pipelines.
 
 ### 2. Complete Data Sovereignty & Privacy
-* **Self-Contained Local Execution**: The dashboard compiles into a single, zero-dependency HTML file (`index.html`). It runs fully inside your browser sandbox and can be executed completely offline.
+* **Self-Contained Local Execution**: The dashboard compiles into a single HTML file (`index.html`). It runs fully inside your browser sandbox and can be executed completely offline.
+* **Local SQLite Persistence**: When using `server.py`, all harvested data is stored in a local SQLite database (`aiq_cache.db`) that remains strictly on your local machine. No data is transmitted to external databases or cloud services.
 * **No External Data Leakage**: The application does not utilize tracking cookies, analytics modules, Google Analytics, or external web beacons.
-* **Browser-Private Storage**: Your configuration files, Active IQ tokens, site logistics details, custom subgroups, and cases databases are stored directly in your browser's private local storage space (`localStorage`) and never leave your machine.
-* **Authorized TLS Endpoint Polling**: When running in online mode, the application only contacts NetApp's official, TLS-encrypted REST API gateway (`https://api.activeiq.netapp.com`).
+* **Browser-Private Storage**: Configuration, tokens, and custom metadata are stored in the browser's `localStorage` and/or the local SQLite database — both remain on your machine.
+* **Authorized TLS Endpoint Polling**: The application only contacts NetApp's official, TLS-encrypted endpoints (`https://api.activeiq.netapp.com` and `https://gql.aiq.netapp.com`).
 
 ### 3. NetApp Security Policy Adherence
-* **Read-Only Telemetry Ingest**: The dashboard does not run execution commands against active production storage nodes (e.g. cluster updates or volume wipes). Telemetry ingestion is strictly read-only.
+* **Read-Only Telemetry Ingest**: The dashboard does not run execution commands against active production storage nodes. Telemetry ingestion is strictly read-only.
 * **Change Control Enforcement**: Rather than applying changes itself, the dashboard outputs standard ITIL-aligned change tickets and version-aware step-by-step CLI runbooks for review and execution by authorized system engineers during scheduled maintenance windows.
-* **Corporate IT Compliance**: Since no installation is required (simply launch `index.html` in any modern browser) and no external data shares are initiated, this application conforms fully with NetApp's data security classifications and standard corporate computer policies.
+* **Corporate IT Compliance**: Minimal footprint — run `server.py` or open `index.html` directly. No installation, no external data shares, fully compliant with NetApp's data security classifications and standard corporate computer policies.
 
 ---
 

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-07-10
+
+### Added
+*   **SQLite Persistent Database (`aiq_cache.db`)**: Replaced volatile browser-only localStorage with a server-side SQLite database. All system telemetry, enrichment data, risks, and metadata persist across browser sessions and machines. The browser localStorage is still used as a fast client-side cache, but the authoritative store is now the database.
+*   **Python Server Backend (`server.py`)**: Full reverse-proxy and API gateway server that handles OAuth token exchange, GraphQL API harvesting, SQLite persistence, and serves the dashboard. Eliminates the need for CORS browser extensions.
+*   **GraphQL API Integration**: Migrated from REST-only polling to NetApp's GraphQL API for richer data harvesting including cluster-level capacity, SnapMirror relationship counts, HA configuration status, and security advisory details.
+*   **SnapMirror Relationship Mapping**: Server now maps `snapMirrorRelationships.totalCount` and `isHAConfigured` from each cluster to every system. Frontend `_buildSnapMirrorData()` function constructs meaningful relationship entries (async/sync split) for the UI.
+*   **Fix-Grouped Deliverables (`_filterAndDeduplicateRisks`)**: All deliverable templates (Problem Statements, Advisory Email, QBR Summary, Solution Proposal, CLI Runbook) now group findings by their corrective fix (e.g. "Upgrade to ONTAP 9.16.1"). A single fix that addresses 8 CVEs shows as one prioritised action with all resolved findings listed beneath it.
+*   **Chronological Capacity Charts**: Chart X-axis labels now show real calendar months (e.g. "Jan 2026", "Feb 2026") instead of generic "Month -6" labels.
+*   **Actionable Remediation Text**: Security advisory recommendations now include specific upgrade version targets (e.g. "Upgrade to ONTAP 9.16.1") instead of generic "See Security Advisory" text.
+*   **Alphabetical Customer Account Sorting**: Sidebar customer account groups are now sorted A-Z.
+
+### Changed
+*   **Deliverable Brevity**: All generated reports now filter to **Critical and High severity only**, excluding medium/low and best-practice category items. Duplicate advisories resolved by the same OS upgrade are consolidated into a single entry.
+*   **Deliverable Format Overhaul**: All 5 text templates completely rewritten for executive presentation: concise headers, clean alignment, fix-first structure, no redundant boilerplate.
+
+### Fixed
+*   **`ReferenceError: recommendedOSVersion`**: Fixed scope issue in enrichment stage where the recommended OS version variable was not accessible in the remediation text builder.
+*   **Stale `secRisks.length` references**: Replaced broken references to a now-renamed variable throughout the deliverables function.
+
 ## [1.11.0] - 2026-07-09
 
 ### Fixed
