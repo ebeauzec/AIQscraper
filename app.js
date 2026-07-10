@@ -11915,113 +11915,118 @@ async function saveSettings() {
   switchTab("settings");
 }
 
-// ── Watchlist Scope Management ─────────────────────────────────────────
-// Allows users to scope harvest to a specific watchlist (recommended for
-// internal NetApp users to avoid pulling the entire fleet).
+// ── Watchlist Import via ID Resolution ────────────────────────────────
+// The Active IQ watchlist REST API requires session-based SSO auth that
+// isn't available via the public developer API token.  Instead, users
+// paste watchlist IDs (from the AIQ web UI URL bar) and we resolve the
+// member systems via the GraphQL systems(watchlistId: "xxx") query.
 
-async function loadWatchlistsForPicker() {
-  const select = document.getElementById("settingsWatchlistId");
+async function resolveAndImportWatchlists() {
+  const textarea = document.getElementById("settingsWatchlistIds");
   const status = document.getElementById("watchlistScopeStatus");
-  if (!select) return;
+  if (!textarea) return;
 
-  // Show loading state
-  const origLen = select.options.length;
-  if (status) status.innerHTML = '<span style="color: var(--accent-amber);">⏳ Fetching watchlists from Active IQ...</span>';
-
-  try {
-    const resp = await fetch("/api/watchlists?t=" + Date.now(), { cache: "no-store" });
-    const data = await resp.json();
-
-    if (data.error) throw new Error(data.error);
-
-    const watchlists = data.watchlists || [];
-    if (watchlists.length === 0) {
-      if (status) status.innerHTML = '<span style="color: var(--accent-amber);">⚠ No watchlists found. Create one at <a href="https://activeiq.netapp.com" target="_blank" style="color: var(--accent-cyan);">activeiq.netapp.com</a> → Watchlists.</span>';
-      return;
-    }
-
-    // Preserve current selection
-    const currentId = select.value;
-
-    // Clear and rebuild options
-    select.innerHTML = '<option value="">All Systems (Full Fleet)</option>';
-    watchlists.forEach(wl => {
-      const opt = document.createElement("option");
-      opt.value = wl.id;
-      opt.textContent = wl.name + (wl.systemCount ? ` (${wl.systemCount} systems)` : "");
-      select.appendChild(opt);
-    });
-
-    // Restore selection
-    if (currentId) select.value = currentId;
-
-    // Update status
-    const selected = select.options[select.selectedIndex];
-    if (select.value) {
-      if (status) status.innerHTML = `Current scope: <strong style="color: var(--accent-green);">📋 ${selected.textContent}</strong> — only systems in this watchlist will be harvested on next sync.`;
-    } else {
-      if (status) status.innerHTML = `Loaded <strong>${watchlists.length}</strong> watchlist(s). Select one to scope your harvest, or keep "All Systems".`;
-    }
-
-    console.log(`[AIQ] Loaded ${watchlists.length} watchlists for scope picker.`);
-  } catch (err) {
-    console.error("[AIQ] Failed to load watchlists:", err);
-    if (status) status.innerHTML = `<span style="color: var(--accent-red);">❌ Failed to load watchlists: ${err.message}</span>`;
+  const raw = textarea.value.trim();
+  if (!raw) {
+    if (status) status.innerHTML = '<span style="color: var(--accent-amber);">⚠ Paste at least one watchlist ID in the text area above.</span>';
+    return;
   }
-}
 
-async function onWatchlistScopeChange() {
-  const select = document.getElementById("settingsWatchlistId");
-  const status = document.getElementById("watchlistScopeStatus");
-  if (!select) return;
-
-  const watchlistId = select.value;
-  const watchlistName = select.options[select.selectedIndex]?.textContent || "";
-
-  try {
-    // Save to server config
-    await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watchlistId, watchlistName })
-    });
-
-    // Also save locally
-    safeSetItem("aiq_watchlist_id", watchlistId);
-    safeSetItem("aiq_watchlist_name", watchlistName);
-
-    if (watchlistId) {
-      if (status) status.innerHTML = `Scope set to: <strong style="color: var(--accent-green);">📋 ${watchlistName}</strong> — <em>re-sync to apply</em>. Click "Synchronize Data Now" to fetch only this watchlist's systems.`;
-    } else {
-      if (status) status.innerHTML = 'Scope set to: <strong style="color: var(--accent-cyan);">All Systems</strong> — all systems visible to your API token will be harvested.';
+  // Parse lines: "Name = ID" or just "ID"
+  const entries = raw.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+    const eqIdx = line.indexOf("=");
+    if (eqIdx > 0) {
+      return { name: line.substring(0, eqIdx).trim(), id: line.substring(eqIdx + 1).trim() };
     }
+    return { name: line, id: line };
+  }).filter(e => e.id.length > 5);
 
-    console.log(`[AIQ] Watchlist scope saved: ${watchlistId || "(all systems)"} = ${watchlistName}`);
-  } catch (err) {
-    console.error("[AIQ] Failed to save watchlist scope:", err);
-    if (status) status.innerHTML = `<span style="color: var(--accent-red);">❌ Failed to save scope: ${err.message}</span>`;
+  if (entries.length === 0) {
+    if (status) status.innerHTML = '<span style="color: var(--accent-amber);">⚠ No valid watchlist IDs found. Use format: Name = ID (one per line).</span>';
+    return;
   }
-}
 
-async function initWatchlistScope() {
-  // Load current scope from server config on page init
-  try {
-    const resp = await fetch("/api/config?t=" + Date.now(), { cache: "no-store" });
-    const cfg = await resp.json();
-    const select = document.getElementById("settingsWatchlistId");
-    const status = document.getElementById("watchlistScopeStatus");
+  if (status) status.innerHTML = `<span style="color: var(--accent-amber);">⏳ Resolving ${entries.length} watchlist(s) via GraphQL...</span>`;
 
-    if (cfg.watchlistId && select) {
-      // We have a saved watchlist — auto-load watchlists to populate dropdown
-      await loadWatchlistsForPicker();
-      select.value = cfg.watchlistId;
-      if (status) {
-        const name = cfg.watchlistName || select.options[select.selectedIndex]?.textContent || cfg.watchlistId;
-        status.innerHTML = `Current scope: <strong style="color: var(--accent-green);">📋 ${name}</strong> — only systems in this watchlist are harvested.`;
+  // Resolve each watchlist by querying the server
+  const resolved = [];
+  for (const entry of entries) {
+    try {
+      if (status) status.innerHTML = `<span style="color: var(--accent-amber);">⏳ Resolving "${entry.name}"...</span>`;
+      
+      // Use the harvest endpoint with watchlistId to get just serial numbers
+      const resp = await fetch(`/api/resolve-watchlist?watchlistId=${encodeURIComponent(entry.id)}&t=${Date.now()}`, {
+        cache: "no-store"
+      });
+      const data = await resp.json();
+      
+      if (data.error) {
+        console.warn(`[AIQ] Watchlist "${entry.name}" (${entry.id}) resolve failed:`, data.error);
+        resolved.push({ id: entry.id, name: entry.name, systemSerials: [], error: data.error });
+      } else {
+        const serials = data.systemSerials || [];
+        console.log(`[AIQ] Watchlist "${entry.name}" resolved: ${serials.length} systems`);
+        resolved.push({ id: entry.id, name: entry.name, systemSerials: serials });
       }
+    } catch (err) {
+      console.error(`[AIQ] Watchlist "${entry.name}" resolve error:`, err);
+      resolved.push({ id: entry.id, name: entry.name, systemSerials: [], error: err.message });
     }
-  } catch (err) {
-    console.log("[AIQ] Config load skipped (file mode or server not running):", err.message);
+  }
+
+  // Store in state
+  const successful = resolved.filter(w => w.systemSerials.length > 0);
+  const failed = resolved.filter(w => w.systemSerials.length === 0);
+
+  if (successful.length > 0) {
+    state.watchlists = successful;
+    saveWatchlists();
+    // Also persist the watchlist IDs text
+    safeSetItem("aiq_watchlist_ids_text", raw);
+    renderSidebarGroups();
+
+    const summary = successful.map(w => `${w.name} (${w.systemSerials.length})`).join(", ");
+    let msg = `✅ Imported <strong>${successful.length}</strong> watchlist(s): ${summary}`;
+    if (failed.length > 0) {
+      msg += `<br><span style="color: var(--accent-amber);">⚠ ${failed.length} watchlist(s) had 0 systems (invalid ID?): ${failed.map(w => w.name).join(", ")}</span>`;
+    }
+    if (status) status.innerHTML = msg;
+  } else {
+    if (status) status.innerHTML = '<span style="color: var(--accent-red);">❌ No watchlists resolved successfully. Check your IDs and try again.</span>';
+  }
+}
+
+function clearImportedWatchlists() {
+  state.watchlists = [];
+  saveWatchlists();
+  safeSetItem("aiq_watchlist_ids_text", "");
+  const textarea = document.getElementById("settingsWatchlistIds");
+  const status = document.getElementById("watchlistScopeStatus");
+  if (textarea) textarea.value = "";
+  if (status) status.innerHTML = 'Watchlists cleared. Showing all systems.';
+  renderSidebarGroups();
+}
+
+function initWatchlistScope() {
+  // Restore saved watchlist IDs text on page init
+  const savedText = safeGetItem("aiq_watchlist_ids_text") || "";
+  const textarea = document.getElementById("settingsWatchlistIds");
+  if (textarea && savedText) textarea.value = savedText;
+  
+  // Restore saved watchlists from localStorage
+  const savedWL = safeGetItem("aiq_watchlists_db");
+  if (savedWL) {
+    try {
+      const parsed = JSON.parse(savedWL);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].systemSerials) {
+        state.watchlists = parsed;
+        const status = document.getElementById("watchlistScopeStatus");
+        if (status) {
+          const summary = parsed.map(w => `${w.name} (${w.systemSerials.length})`).join(", ");
+          status.innerHTML = `📋 Active watchlists: ${summary}`;
+        }
+      }
+    } catch (e) { /* ignore */ }
   }
 }
 

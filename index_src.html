@@ -571,22 +571,23 @@
               </div>
 
               <div class="form-group" style="margin-top: 16px;">
-                <label class="form-label">Harvest Scope</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <select id="settingsWatchlistId" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer; flex: 1;" onchange="onWatchlistScopeChange()">
-                    <option value="">All Systems (Full Fleet)</option>
-                  </select>
-                  <button class="action-btn secondary" style="font-size: 0.75rem; padding: 6px 14px; white-space: nowrap;" onclick="loadWatchlistsForPicker()" data-tooltip="Fetch your Active IQ watchlists to populate the dropdown.">
-                    Load Watchlists
+                <label class="form-label">Watchlist Import</label>
+                <textarea id="settingsWatchlistIds" class="form-input" rows="4" placeholder="Paste your watchlist entries (one per line):&#10;My TAM Accounts = abc123-def456-ghi789&#10;Priority Customers = xyz987-uvw654-rst321&#10;&#10;Find IDs at activeiq.netapp.com → Watchlists → URL" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
+                <div id="watchlistScopeStatus" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px;">
+                  No watchlists imported. Showing all systems.
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                  <button class="action-btn" style="font-size: 0.78rem; padding: 6px 16px;" onclick="resolveAndImportWatchlists()" data-tooltip="Query Active IQ GraphQL to resolve which systems belong to each watchlist ID, then show them in the sidebar.">
+                    📋 Resolve & Import Watchlists
+                  </button>
+                  <button class="action-btn secondary" style="font-size: 0.78rem; padding: 6px 16px;" onclick="clearImportedWatchlists()" data-tooltip="Remove all imported watchlists and show the full fleet again.">
+                    Clear
                   </button>
                 </div>
-                <div id="watchlistScopeStatus" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px;">
-                  Current scope: <strong style="color: var(--accent-cyan);">All Systems</strong> — all systems visible to your API token will be harvested.
-                </div>
                 <div class="form-helper" style="margin-top: 4px;">
-                  <strong>Recommended for internal NetApp users:</strong> Select a specific watchlist to scope your data harvest.
-                  This avoids pulling the entire NetApp fleet (thousands of systems) and instead fetches only the systems in your chosen watchlist.
-                  Create watchlists at <a href="https://activeiq.netapp.com" target="_blank" style="color: var(--accent-cyan);">activeiq.netapp.com</a> → Watchlists.
+                  <strong>How to find your watchlist IDs:</strong> Go to <a href="https://activeiq.netapp.com" target="_blank" style="color: var(--accent-cyan);">activeiq.netapp.com</a> → click a watchlist → copy the ID from the URL bar (the UUID after <code>/watchlist/</code>).
+                  Enter one watchlist per line in the format: <code>Name = ID</code> (or just the ID alone).
+                  After resolving, your watchlists appear in the sidebar under "Active IQ Watchlists" as filters.
                 </div>
               </div>
 

@@ -974,6 +974,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_harvest()
         elif self.path.startswith('/api/sync-status'):
             self.handle_sync_status()
+        elif self.path.startswith('/api/resolve-watchlist'):
+            self.handle_resolve_watchlist()
         elif self.path.startswith('/api/config'):
             self.handle_config_get()
         elif self.path.startswith('/api/watchlists'):
@@ -982,6 +984,77 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_proxy('GET')
         else:
             super().do_GET()
+
+    def handle_resolve_watchlist(self):
+        """GET /api/resolve-watchlist?watchlistId=xxx — resolve system serials for a watchlist via GQL."""
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        watchlist_id = params.get("watchlistId", [None])[0]
+
+        if not watchlist_id:
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "watchlistId parameter required"}).encode("utf-8"))
+            return
+
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+            refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
+            if not refresh_token:
+                raise Exception("No refresh token configured")
+
+            # Get access token
+            status, raw = _http("POST", f"{REST_BASE}/v1/tokens/accessToken",
+                {"Content-Type": "application/json", "Accept": "application/json"},
+                {"refresh_token": refresh_token})
+            if status != 200:
+                raise Exception(f"Token exchange failed: HTTP {status}")
+            token_data = json.loads(raw.decode("utf-8", errors="replace"))
+            token = token_data.get("access_token")
+            if not token:
+                raw_s = raw.decode("utf-8", errors="replace").strip().strip('"')
+                token = raw_s if len(raw_s) > 30 else None
+            if not token:
+                raise Exception("No access token")
+
+            # Query systems for this watchlist
+            serials = []
+            cursor = None
+            for page in range(50):  # Max 5000 systems per watchlist
+                after_arg = f', after: "{cursor}"' if cursor else ""
+                _, sys_resp = _gql(token, """{
+                  systems(pageSize: 100, watchlistId: \"""" + watchlist_id + """\" """ + after_arg + """) {
+                    totalCount cursor
+                    systems { serialNumber }
+                  }
+                }""")
+                sys_data = (sys_resp.get("data") or {}).get("systems", {})
+                systems_page = sys_data.get("systems") or []
+                for s in systems_page:
+                    sn = s.get("serialNumber") or ""
+                    if sn:
+                        serials.append(sn)
+                new_cursor = sys_data.get("cursor")
+                total = sys_data.get("totalCount", 0)
+                if not systems_page or not new_cursor or new_cursor == cursor:
+                    break
+                cursor = new_cursor
+
+            print(f"  [RESOLVE] Watchlist {watchlist_id}: {len(serials)} systems (totalCount: {total})", flush=True)
+
+            res_bytes = json.dumps({"watchlistId": watchlist_id, "systemSerials": serials, "totalCount": total}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(res_bytes)
+        except Exception as e:
+            print(f"  [RESOLVE] Error: {e}", flush=True)
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e), "systemSerials": []}).encode("utf-8"))
 
     def handle_sync_status(self):
         """Return sync metadata as JSON."""
