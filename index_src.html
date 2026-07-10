@@ -75,7 +75,7 @@
 
       
       <div class="nav-footer">
-        NetApp Internal Tool<br>Version 3.0.0-TAM
+        NetApp Internal Tool<br>Version 3.1.0-TAM
       </div>
     </div>
     
@@ -568,6 +568,26 @@
                   <option value="168">Every 7 Days</option>
                 </select>
                 <div class="form-helper">Controls how often the app polls Active IQ API in the background.</div>
+              </div>
+
+              <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label">Harvest Scope</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <select id="settingsWatchlistId" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer; flex: 1;" onchange="onWatchlistScopeChange()">
+                    <option value="">All Systems (Full Fleet)</option>
+                  </select>
+                  <button class="action-btn secondary" style="font-size: 0.75rem; padding: 6px 14px; white-space: nowrap;" onclick="loadWatchlistsForPicker()" data-tooltip="Fetch your Active IQ watchlists to populate the dropdown.">
+                    Load Watchlists
+                  </button>
+                </div>
+                <div id="watchlistScopeStatus" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px;">
+                  Current scope: <strong style="color: var(--accent-cyan);">All Systems</strong> — all systems visible to your API token will be harvested.
+                </div>
+                <div class="form-helper" style="margin-top: 4px;">
+                  <strong>Recommended for internal NetApp users:</strong> Select a specific watchlist to scope your data harvest.
+                  This avoids pulling the entire NetApp fleet (thousands of systems) and instead fetches only the systems in your chosen watchlist.
+                  Create watchlists at <a href="https://activeiq.netapp.com" target="_blank" style="color: var(--accent-cyan);">activeiq.netapp.com</a> → Watchlists.
+                </div>
               </div>
 
               <div id="syncStatusPanel" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-top: 16px;">

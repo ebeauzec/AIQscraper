@@ -936,7 +936,45 @@ input:checked + .slider:before {
   box-shadow: 0 4px 12px rgba(0, 229, 255, 0.2);
 }
 
-/* Print layout overrides: expand all sub-tabs sequentially and hide navigation/buttons */
+/* Featured/highlighted tab (Deliverables) */
+.plan-tab-btn.featured {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(255, 165, 0, 0.06));
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  color: #ffd700;
+  font-weight: 600;
+  position: relative;
+  animation: featured-pulse 3s ease-in-out infinite;
+}
+.plan-tab-btn.featured:hover {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 165, 0, 0.12));
+  border-color: rgba(255, 215, 0, 0.6);
+  color: #ffe44d;
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.15);
+}
+.plan-tab-btn.featured.active {
+  background: linear-gradient(135deg, #ffd700, #ff9500);
+  color: #0a0e14;
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.35);
+  animation: none;
+}
+@keyframes featured-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255, 215, 0, 0.1); }
+  50% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.2); }
+}
+
+/* Vertical divider between tab groups */
+.plan-tab-divider {
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.15), transparent);
+  align-self: center;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+
 @media print {
   .plan-section {
     display: block !important;

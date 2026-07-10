@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.0] - 2026-07-10
+
+### Added — NetApp Reference Library Enrichment Engine
+- **EOA Platform Flagging** — Automatic detection of systems running End-of-Availability hardware. Complete EOA list from docs.netapp.com (AFF A200/A220/A300/A320/A700/A700s/C190/C800, ASA C250/C400/C800, FAS2600/FAS500f/FAS8200/FAS9000) plus EOA switches (BES-53248, Cisco 9336C-FX2, NVIDIA SN2100)
+- **CVE/Security Advisory Database** — 7 tracked CVEs with version-range matching (CVE-2026-22050 ONTAP snapshot lock bypass, CVE-2026-22052 S3 NAS info disclosure, CVE-2026-20833 Kerberos AES enforcement, CVE-2026-22054 Config Advisor hard-coded creds, CVE-2025-26512 SnapCenter privilege escalation CVSS 9.9, CVE-2026-22051 StorageGRID metrics disclosure, CVE-2026-24051 Trident PATH hijacking)
+- **ONTAP Version Highlights Database** — Per-version feature summaries (9.10.1 through 9.19.1) for upgrade justification in deliverables
+- **MetroCluster ISL Requirements Database** — Distance limits (300 km FC Brocade, 700 km IP), packet loss/jitter thresholds, MTU 9216, feature-version matrix (9.9.1→9.18.1)
+- **Firmware Baselines Database** — Recommended minimums for NSM100 (0220), IOM12 (0260), Cisco NX-OS (9.3(12)), Brocade FOS (9.2.1), Broadcom EFOS (3.8.0.2)
+- **SnapCenter Version Chain** — Added SnapCenter to SOFTWARE_VERSION_DATABASES (4.5→6.2.1)
+- **StorageGRID 12.1.0** — Added to version database
+
+### Fixed — Support Cases (Critical)
+- **Tab 4 support cases wiped to zero** — `filterActiveCases()` returns the same array reference, so `allSupportCases.length = 0` was destroying data before re-push. Fixed in all 3 call sites by calling `filterActiveCases()` as an in-place sort without the destructive length-reset pattern
+- **GraphQL cases query returning HTTP 400** — Fixed enum syntax (`"FILER"` → `FILER`) and field names (`caseTitle` → `symptom`, `caseStatus` → `status`, etc.) in server.py
+- **`isActiveCase: true` filter hiding all cases** — Removed restrictive filter; now fetches ALL cases and tags active/closed on the client side
+- **Cases showing in overview but not in Action Planner** — Same root cause as the `filterActiveCases` wipe bug above
+
+### Changed
+- **Support Cases UI (Tab 4)** — Redesigned with summary bar (Active/Processing/Closed/Total counters), color-coded left borders (cyan=active, orange=processing, dim=closed), human-readable status labels (e.g. `WAIT_TSE` → "Open — Awaiting TSE")
+- **KPI Card** — Support cases KPI now shows `active / total` (e.g. `3 / 28`)
+- **Schema bumped to v13** — Forces cache regeneration with corrected cases data
+- **Comments updated** — All `filterActiveCases` call sites updated to reflect in-place sort behavior
+
 ## [3.0.0] - 2026-07-10
 
 ### Added — TAM Account Intelligence Suite (Tabs 10–15)

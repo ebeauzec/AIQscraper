@@ -592,6 +592,79 @@ const MOCK_SYSTEMS = [
           ],
           thirdParty: "No hypervisor impact. Managed entirely by the back-end MetroCluster IP fabric switch layers."
         }
+      },
+      {
+        id: 402,
+        severity: "high",
+        category: "MetroCluster",
+        description: "MC-MED mediator unreachable",
+        recommendation: "Verify ONTAP Mediator service connectivity and certificate validity.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security",
+        remediationPlan: {
+          cause: "ONTAP Mediator service on the designated mediator host (10.10.50.25) is not responding to health probes from either MetroCluster site. SSL certificate may have expired or network ACL is blocking port 31784.",
+          impact: "Automatic unplanned switchover (AUSO/MAUSO) cannot be triggered. If the primary site experiences a failure, manual intervention is required to perform a forced switchover — increasing RTO from seconds to hours.",
+          steps: [
+            "1. Verify mediator host is online: 'ping 10.10.50.25' from both cluster management LIFs.",
+            "2. Check mediator service status: 'ssh admin@10.10.50.25 systemctl status ontap_mediator'.",
+            "3. Validate SSL certificates: 'metrocluster configuration-settings mediator show' on each cluster.",
+            "4. If certificate expired, re-initialize: 'metrocluster configuration-settings mediator remove' then 'metrocluster configuration-settings mediator add -mediator-address 10.10.50.25'.",
+            "5. Confirm mediator is reachable: 'metrocluster configuration-settings mediator show -instance'."
+          ],
+          options: [
+            "Option A: Restart ONTAP Mediator service and renew SSL certificates.",
+            "Option B: Deploy a secondary mediator host for redundancy.",
+            "Option C: If mediator cannot be restored, consider MetroCluster Tiebreaker software as an alternative."
+          ],
+          thirdParty: "ONTAP Mediator runs on a separate Linux host. Coordinate with Linux/network administration for host and firewall access."
+        }
+      },
+      {
+        id: 403,
+        severity: "high",
+        category: "MetroCluster",
+        description: "MC-MED individual node has MAUSO disabled",
+        recommendation: "Re-enable automatic unplanned switchover on all MetroCluster nodes.",
+        kbLink: "https://docs.netapp.com/ontap-9/topic/com.netapp.doc.dot-mcc-inst-cnfg-ip",
+        remediationPlan: {
+          cause: "Automatic unplanned switchover (MAUSO) is configured but manually disabled on node FAS9000-A-01. This was likely disabled during a previous maintenance window and not re-enabled.",
+          impact: "If the local site fails, the surviving site will NOT automatically take over. This defeats the purpose of MetroCluster as a zero-RPO DR solution and requires manual 'metrocluster switchover -forced-on-disaster true' command.",
+          steps: [
+            "1. Check current MAUSO status: 'metrocluster show' — look for 'Automatic switchover: disabled'.",
+            "2. Enable MAUSO on the affected node: 'metrocluster modify -node FAS9000-A-01 -automatic-switchover-onfailure true'.",
+            "3. Verify both nodes show enabled: 'metrocluster show -fields automatic-switchover-onfailure'.",
+            "4. Test with 'metrocluster check run' and verify 'Result: ok' for all components.",
+            "5. Document the change in the customer's change management system."
+          ],
+          options: [
+            "Option A: Re-enable MAUSO immediately — this is a non-disruptive configuration change.",
+            "Option B: Schedule during next maintenance window and perform a controlled switchover test."
+          ],
+          thirdParty: "No third-party impact. This is an ONTAP-level configuration change."
+        }
+      },
+      {
+        id: 404,
+        severity: "high",
+        category: "MetroCluster",
+        description: "System is susceptible to Bug CONTAP-490324",
+        recommendation: "Upgrade ONTAP to a version containing the fix for CONTAP-490324 to prevent unexpected node reboots.",
+        kbLink: "https://kb.netapp.com/on-prem/ontap/Ontap_OS/NW_Issues/CONTAP-490324",
+        remediationPlan: {
+          cause: "Bug CONTAP-490324 affects platforms using T6-based network interface cards in MetroCluster IP configurations. A race condition in the NIC driver can cause an unexpected node reboot under specific traffic patterns.",
+          impact: "An unexpected node reboot will trigger a MetroCluster switchover. While data remains protected, the unplanned switchover causes I/O disruption and requires a manual switchback operation.",
+          steps: [
+            "1. Verify current ONTAP version: 'system node image show'.",
+            "2. Check if the fix version (9.13.1P5 or later) is available in the NetApp Support Site.",
+            "3. Plan a rolling non-disruptive upgrade (NDU) to the patched version.",
+            "4. Follow the MetroCluster upgrade procedure: upgrade DR partner first, perform switchover, upgrade local nodes, switchback.",
+            "5. Verify cluster health post-upgrade: 'metrocluster check run'."
+          ],
+          options: [
+            "Option A: Perform NDU to ONTAP 9.13.1P5+ during next maintenance window.",
+            "Option B: Apply workaround (disable specific NIC offload features) as an interim measure — consult KB article."
+          ],
+          thirdParty: "No hypervisor impact. The NIC driver fix is internal to the ONTAP kernel."
+        }
       }
     ],
     upgrades: {
@@ -688,7 +761,78 @@ const MOCK_SYSTEMS = [
     ontapVersion: "9.12.1P10",
     platform: "FAS9000 MetroCluster IP",
     status: "normal",
-    risks: [],
+    risks: [
+      {
+        id: 411,
+        severity: "high",
+        category: "MetroCluster",
+        description: "MC-MED mediator unreachable",
+        recommendation: "Verify ONTAP Mediator service connectivity and certificate validity.",
+        kbLink: "https://kb.netapp.com/Advice_and_Troubleshooting/Data_Protection_and_Security",
+        remediationPlan: {
+          cause: "ONTAP Mediator service on the designated mediator host (10.10.50.25) is not responding to health probes from Site B. This mirrors the same issue reported on Site A — the mediator host may be offline.",
+          impact: "Automatic unplanned switchover (AUSO/MAUSO) cannot be triggered from Site B. If Site A fails, manual intervention is required.",
+          steps: [
+            "1. Verify mediator host is online: 'ping 10.10.50.25' from cluster management LIF.",
+            "2. Check mediator service: 'ssh admin@10.10.50.25 systemctl status ontap_mediator'.",
+            "3. Validate certificates: 'metrocluster configuration-settings mediator show'.",
+            "4. Re-initialize if needed: 'metrocluster configuration-settings mediator remove' then re-add.",
+            "5. Confirm connectivity: 'metrocluster configuration-settings mediator show -instance'."
+          ],
+          options: [
+            "Option A: Restart ONTAP Mediator service and renew SSL certificates.",
+            "Option B: Deploy a secondary mediator for redundancy."
+          ],
+          thirdParty: "ONTAP Mediator runs on a separate Linux host. Coordinate with Linux/network team."
+        }
+      },
+      {
+        id: 412,
+        severity: "high",
+        category: "MetroCluster",
+        description: "MC-MED individual node has MAUSO disabled",
+        recommendation: "Re-enable automatic unplanned switchover on this node.",
+        kbLink: "https://docs.netapp.com/ontap-9/topic/com.netapp.doc.dot-mcc-inst-cnfg-ip",
+        remediationPlan: {
+          cause: "Automatic unplanned switchover is configured but disabled on node FAS9000-B-01 (Site B).",
+          impact: "If Site A fails, Site B will not automatically take over storage services. Manual switchover required.",
+          steps: [
+            "1. Check MAUSO status: 'metrocluster show'.",
+            "2. Enable: 'metrocluster modify -node FAS9000-B-01 -automatic-switchover-onfailure true'.",
+            "3. Verify: 'metrocluster show -fields automatic-switchover-onfailure'.",
+            "4. Run health check: 'metrocluster check run'."
+          ],
+          options: [
+            "Option A: Re-enable MAUSO immediately (non-disruptive).",
+            "Option B: Schedule with controlled switchover test."
+          ],
+          thirdParty: "No third-party impact."
+        }
+      },
+      {
+        id: 413,
+        severity: "best_practice",
+        category: "MetroCluster",
+        description: "MetroCluster IP system doesn't utilize ONTAP Mediator or Tiebreaker",
+        recommendation: "Deploy ONTAP Mediator or MetroCluster Tiebreaker for automatic disaster recovery.",
+        kbLink: "https://docs.netapp.com/us-en/ontap-metrocluster/install-ip/",
+        remediationPlan: {
+          cause: "Although MetroCluster is configured, no ONTAP Mediator or Tiebreaker software is deployed to monitor site health and trigger automatic switchover.",
+          impact: "Without Mediator/Tiebreaker, if a disaster occurs at one site, manual recovery is required — increasing RTO significantly.",
+          steps: [
+            "1. Review the differences between ONTAP Mediator and Tiebreaker.",
+            "2. Deploy ONTAP Mediator on a third site (recommended for MCC-IP).",
+            "3. Configure: 'metrocluster configuration-settings mediator add'.",
+            "4. Verify: 'metrocluster configuration-settings mediator show'."
+          ],
+          options: [
+            "Option A: Deploy ONTAP Mediator (recommended for MCC-IP configurations).",
+            "Option B: Deploy MetroCluster Tiebreaker on a separate host."
+          ],
+          thirdParty: "Requires a dedicated Linux host at a third site for the mediator service."
+        }
+      }
+    ],
     upgrades: {
       targetVersion: "9.13.1P8",
       urgency: "Recommended",
@@ -2484,40 +2628,56 @@ const MOCK_SYSTEMS = [
         historicalCapacityMonths: [10, 11, 12, 13, 14, 15],
         projectedCapacityMonths: [16, 17, 18]
       },
-      securityBulletins: [],
-      supportCases: (i % 7 === 2) ? [
-        (i % 3 === 0) ? {
-          id: `200982${1000 + i}`,
-          title: "S3 API Bucket read timeout errors in Grid node 3",
-          severity: "S2 - Major",
-          status: "Open - NetApp Engineering",
-          criticality: "High risk - read latency spikes impacting Hadoop/Spark analytic processing speed.",
-          nextActionBy: "NetApp Software Engineering Team",
-          createdDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          lastUpdated: new Date().toISOString().split('T')[0],
-          ownerNotes: "Investigating StorageGRID heap allocation limits for S3 metadata servers."
-        } : (i % 3 === 1 ? {
-          id: `200982${2000 + i}`,
-          title: "NVMe over Fabrics (NVMe/FC) target port link flap",
-          severity: "S1 - Critical",
-          status: "Open - Customer Action",
-          criticality: "Critical risk - host path failover occurred. A secondary link flap on port 1b will drop storage paths.",
-          nextActionBy: "Customer SAN/Switch Operations Desk",
-          createdDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          lastUpdated: new Date().toISOString().split('T')[0],
-          ownerNotes: "Advised customer to inspect fibre channel port alignments and clean transceivers."
-        } : {
-          id: `200982${3000 + i}`,
-          title: "Volume snapshot autodelete rule failure",
-          severity: "S3 - Medium",
-          status: "Open - NetApp Support",
-          criticality: "Low risk - volume has 18% remaining capacity, no immediate read-only lock threat.",
-          nextActionBy: "NetApp Support Core Team Specialist",
-          createdDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          lastUpdated: new Date().toISOString().split('T')[0],
-          ownerNotes: "Evaluating ONTAP snapshot retention policy to check for active SnapMirror locks."
-        })
-      ] : []
+      securityBulletins: (i % 5 !== 0) ? (() => {
+        const cveBulletins = [
+          { id: "CVE-2024-0450", title: "Python Vulnerability in NetApp Products", severity: "medium", status: "Active", mitigation: "Upgrade ONTAP to 9.15.1 or later which includes the patched Python runtime. Review NTAP-20250411-0005." },
+          { id: "CVE-2024-25062", title: "Libxml2 Use-After-Free Vulnerability in NetApp Products", severity: "high", status: "Active", mitigation: "Apply ONTAP patch P8 or later. Alternatively restrict XML-based management API access to trusted networks." },
+          { id: "CVE-2025-1736", title: "PHP Vulnerability in NetApp Management Frameworks", severity: "medium", status: "Active", mitigation: "Upgrade to the latest recommended ONTAP version. Limit HTTPS management access to jump hosts." },
+          { id: "CVE-2024-36904", title: "Linux Kernel TCP Race Condition in NetApp Products", severity: "high", status: "Active", mitigation: "Upgrade SP/BMC firmware. Monitor for kernel panics. Apply ONTAP patch addressing kernel subsystem." },
+          { id: "CVE-2026-22795", title: "OpenSSL Buffer Overflow Vulnerability in NetApp Products", severity: "critical", status: "Active", mitigation: "Urgent: Upgrade to ONTAP 9.15.1P2+ or 9.16.1+. Disable SSLv3 fallback on management interfaces immediately." },
+          { id: "CVE-2022-29824", title: "Libxml2 Integer Overflow in NetApp Products", severity: "medium", status: "Active", mitigation: "Upgrade ONTAP to a version that bundles libxml2 >= 2.9.14. Review NTAP-20220624-0001." },
+          { id: "CVE-2023-44487", title: "HTTP/2 Rapid Reset DoS Vulnerability (Disclosed Oct 2023)", severity: "high", status: "Active", mitigation: "Apply HTTP/2 rate limiting on management LIFs. Upgrade to ONTAP version with HTTP/2 connection throttling patch." },
+          { id: "CVE-2024-6387", title: "OpenSSH regreSSHion Remote Code Execution", severity: "critical", status: "Active", mitigation: "Upgrade SSH subsystem via SP/BMC firmware update. Restrict SSH access to bastion hosts only. Review NTAP-20240701-0001." }
+        ];
+        // Select 2-4 bulletins based on system index for variety
+        const count = 2 + (i % 3);
+        const start = i % cveBulletins.length;
+        const selected = [];
+        for (let j = 0; j < count; j++) {
+          selected.push({...cveBulletins[(start + j) % cveBulletins.length]});
+        }
+        return selected;
+      })() : [],
+      supportCases: (i % 5 < 2) ? (() => {
+        const caseTemplates = [
+          { title: "NVMe over Fabrics (NVMe/FC) target port link flap causing path failover", severity: "S1 - Critical", status: "Open - Customer Action", criticality: "Critical risk - host path failover occurred. A secondary link flap on port 1b will drop all storage paths.", nextActionBy: "Customer SAN/Switch Operations Desk", ownerNotes: "Advised customer to inspect fibre channel port alignments and clean transceivers. Awaiting confirmation of cable reseat." },
+          { title: "S3 API Bucket read timeout errors under high concurrency", severity: "S2 - High", status: "Open - NetApp Engineering", criticality: "High risk - read latency spikes impacting Hadoop/Spark analytic workloads.", nextActionBy: "NetApp Software Engineering Team", ownerNotes: "Investigating StorageGRID heap allocation limits for S3 metadata servers. RCA in progress." },
+          { title: "Volume snapshot autodelete rule failure causing aggregate space pressure", severity: "S3 - Medium", status: "Open - NetApp Support", criticality: "Medium risk - volume has 18% remaining capacity. No immediate read-only lock threat.", nextActionBy: "NetApp Support Core Team", ownerNotes: "Evaluating ONTAP snapshot retention policy to check for active SnapMirror locks preventing autodelete." },
+          { title: "SnapMirror relationship lag exceeds 4-hour RPO threshold", severity: "S2 - High", status: "Open - NetApp Support", criticality: "High risk - DR site lag exceeds RPO SLA. Potential data loss window of 6+ hours if primary fails.", nextActionBy: "NetApp Replication Specialist", ownerNotes: "Identified network bottleneck on intercluster LIF. Recommend dedicated replication VLAN with QoS marking." },
+          { title: "CIFS share intermittent access denied errors for domain users", severity: "S3 - Medium", status: "Open - Customer Action", criticality: "Medium risk - affecting 12 users in finance department. Kerberos ticket delegation issue suspected.", nextActionBy: "Customer Active Directory Team", ownerNotes: "Clock skew between SVM and domain controller detected at 6 minutes. Customer needs to fix NTP on DC." },
+          { title: "MetroCluster IP switchover failure during disaster recovery test", severity: "S1 - Critical", status: "Open - NetApp Engineering", criticality: "Critical risk - MetroCluster DR protection compromised. Automatic unplanned switchover is disabled.", nextActionBy: "NetApp MetroCluster Specialist", ownerNotes: "NVRAM mirroring timeout between sites. Investigating ISL latency between data centers." },
+          { title: "Disk qualification package (DQP) out-of-date preventing new drive recognition", severity: "S4 - Low", status: "Open - Customer Action", criticality: "Low risk - newly installed expansion shelf drives not recognized. Capacity expansion blocked.", nextActionBy: "Customer Storage Admin", ownerNotes: "Provided DQP download link and CLI update procedure. Customer scheduling maintenance window." },
+          { title: "FabricPool tiering policy not moving cold data to S3 object store", severity: "S3 - Medium", status: "Open - NetApp Support", criticality: "Medium risk - performance tier at 82% capacity. Cold data not being tiered as expected.", nextActionBy: "NetApp Cloud Tiering Specialist", ownerNotes: "FabricPool license confirmed. Investigating object store connectivity and tiering scan interval settings." },
+          { title: "Controller firmware upgrade failed — node stuck in waiting-for-giveback", severity: "S1 - Critical", status: "Open - NetApp Support", criticality: "Critical risk - node is in takeover state. HA pair running single-controller. No redundancy.", nextActionBy: "NetApp Escalation Team", ownerNotes: "Firmware update to 9.16.1P1 failed during boot phase. Remote SP access confirmed. Planning manual boot intervention." },
+          { title: "iSCSI LUN alignment mismatch causing 30% write amplification", severity: "S3 - Medium", status: "Open - Customer Action", criticality: "Medium risk - write latency elevated at 4.2ms vs 1.1ms baseline. VMware VMFS misalignment suspected.", nextActionBy: "Customer VMware Team", ownerNotes: "Recommended ESXi storage multipathing policy change from MRU to Round Robin with 1 IOPS rotation." },
+          { title: "Anti-ransomware autonomous detection triggered false positive", severity: "S2 - High", status: "Open - NetApp Support", criticality: "High risk - ARP snapshot locked 2.4TB of production data. Users reporting read-only access.", nextActionBy: "NetApp ARP Specialist", ownerNotes: "Confirmed false positive triggered by automated PDF batch processing. Providing CLI to clear ARP state and restore write access." },
+          { title: "Shelf IOM module showing intermittent errors on SAS path B", severity: "S3 - Medium", status: "Open - Pending Parts", criticality: "Medium risk - single path to shelf 3. Replacement IOM ordered under warranty.", nextActionBy: "NetApp Logistics / Field Service", ownerNotes: "Dispatch created for IOM12 module replacement. ETA 2 business days. System running on path A only." }
+        ];
+        // Select 1-3 cases based on index
+        const caseCount = 1 + (i % 3);
+        const start = i % caseTemplates.length;
+        const cases = [];
+        for (let j = 0; j < caseCount; j++) {
+          const tmpl = caseTemplates[(start + j) % caseTemplates.length];
+          cases.push({
+            id: `200982${(i * 100) + j + 1000}`,
+            ...tmpl,
+            createdDate: new Date(Date.now() - ((j + 1) * 3 + i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            lastUpdated: new Date(Date.now() - j * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          });
+        }
+        return cases;
+      })() : []
     };
 
     MOCK_SYSTEMS.push(sys);
@@ -2694,10 +2854,10 @@ function loadConfig() {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
-  const schemaVer = safeGetItem("aiq_systems_schema_v10");
+  const schemaVer = safeGetItem("aiq_systems_schema_v13");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v10") {
+  if (savedSystems && schemaVer === "v13") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -2722,7 +2882,7 @@ function loadConfig() {
     } else {
       state.systems = []; // Will be populated by loadProductionData
     }
-    safeSetItem("aiq_systems_schema_v10", "v10");
+    safeSetItem("aiq_systems_schema_v13", "v13");
     saveSystems();
   }
 
@@ -3696,8 +3856,166 @@ const SOFTWARE_VERSION_DATABASES = {
     "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1"
   ],
   storagegrid: [
-    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0"
+    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0", "12.1.0"
+  ],
+  snapcenter: [
+    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1"
   ]
+};
+
+// ── NetApp Reference Library Data (synced 2026-07-10) ─────────────────────
+// Source: G:\My Drive\Cowork\NetApp\NetApp Reference Library
+// All data verified against docs.netapp.com primary sources.
+
+// EOA Platform List — confirmed by direct fetch of docs.netapp.com/us-en/ontap-systems/endofavail/ 2026-07-09
+// EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA
+const REFERENCE_LIBRARY_EOA_PLATFORMS = [
+  // AFF
+  "A200", "A220", "A300", "A320", "A700", "A700s", "C190", "C800",
+  // ASA
+  "ASA C250", "ASA C400", "ASA C800",
+  // FAS
+  "FAS2600", "FAS500f", "FAS8200", "FAS9000"
+];
+
+const REFERENCE_LIBRARY_EOA_SWITCHES = [
+  "BES-53248", "Cisco 9336C-FX2", "NVIDIA SN2100"
+];
+
+// CVE/Advisory Database — from Security-Advisories/ADVISORY-LOG.md (daily-refreshed)
+const REFERENCE_LIBRARY_ADVISORIES = [
+  {
+    id: "CVE-2026-22050",
+    ntapId: "NTAP-20260112-0001",
+    title: "ONTAP Snapshot Lock Bypass Vulnerability",
+    product: "ONTAP",
+    severity: "high",
+    cvss: 7.5,
+    affectedVersions: { min: "9.14.1", max: "9.17.1" },
+    fixedIn: ["9.16.1P9", "9.17.1P2"],
+    description: "Locked Snapshot copies can be bypassed, potentially allowing unauthorized deletion of tamperproof snapshots.",
+    remediation: "Upgrade to ONTAP 9.16.1P9 or 9.17.1P2+. Verify snapshot lock status: 'snapshot show -fields is-locked'.",
+    url: "https://security.netapp.com/advisory/ntap-20260112-0001"
+  },
+  {
+    id: "CVE-2026-22052",
+    title: "ONTAP S3 NAS Bucket Information Disclosure",
+    product: "ONTAP",
+    severity: "medium",
+    cvss: 5.3,
+    affectedVersions: { min: "9.12.1" },
+    description: "S3 NAS bucket configuration may disclose internal path information to authenticated users with limited access.",
+    remediation: "Review S3 NAS bucket ACLs and upgrade to latest ONTAP patch release.",
+    url: "https://security.netapp.com/advisory/"
+  },
+  {
+    id: "CVE-2026-20833",
+    title: "Microsoft Kerberos AES-Only Enforcement (KB5073381)",
+    product: "ONTAP CIFS/SMB",
+    severity: "medium",
+    cvss: 5.9,
+    affectedVersions: { min: "9.3" },
+    description: "Microsoft phased Kerberos AES enforcement (Apr–Jul 2026) may break CIFS authentication on ONTAP systems with RC4/DES encryption still enabled.",
+    remediation: "Confirm AES enabled for Kerberos auth (default since 9.13.1). Disable RC4/DES: 'vserver cifs security modify -vserver <svm> -kerberos-clock-skew 5 -is-aes-encryption-enabled true'. Verify AD attribute: msds-SupportedEncryptionTypes.",
+    url: "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/ONTAP_Guidance_for_Microsoft_Security_Update_KB5073381_CVE_2026_20833",
+    isCIFSOnly: true
+  },
+  {
+    id: "CVE-2026-22054",
+    ntapId: "NTAP-20260603-0001",
+    title: "Active IQ Config Advisor 6.7.3 Hard-Coded Credentials",
+    product: "Config Advisor",
+    severity: "medium",
+    cvss: 5.3,
+    description: "Hard-coded credentials in Config Advisor 6.7.3 allow unauthorized AutoSupport operations by authenticated low-privilege users.",
+    remediation: "Update Active IQ Config Advisor to the latest version.",
+    url: "https://security.netapp.com/advisory/ntap-20260603-0001"
+  },
+  {
+    id: "CVE-2025-26512",
+    title: "SnapCenter Privilege Escalation",
+    product: "SnapCenter",
+    severity: "critical",
+    cvss: 9.9,
+    fixedIn: ["6.0.1P1", "6.1P1"],
+    description: "SnapCenter privilege escalation vulnerability allows a low-privilege user to gain administrative access.",
+    remediation: "Upgrade SnapCenter to 6.0.1P1 or 6.1P1+.",
+    url: "https://security.netapp.com/advisory/"
+  },
+  {
+    id: "CVE-2026-22051",
+    ntapId: "NTAP-20260420-0001",
+    title: "StorageGRID Information Disclosure via Metrics Queries",
+    product: "StorageGRID",
+    severity: "medium",
+    cvss: 4.3,
+    affectedVersions: { max: "11.9.0.12" },
+    fixedIn: ["11.9.0.13", "12.0.0.6"],
+    description: "Authenticated low-privilege attacker can execute arbitrary metrics queries and view results outside their access scope.",
+    remediation: "Upgrade to StorageGRID 11.9.0.13 or 12.0.0.6+.",
+    url: "https://security.netapp.com/advisory/ntap-20260420-0001"
+  },
+  {
+    id: "CVE-2026-24051",
+    title: "Astra Trident PATH Hijacking",
+    product: "Trident",
+    severity: "high",
+    cvss: 7.0,
+    fixedIn: ["26.02.0"],
+    description: "OpenTelemetry-Go PATH hijacking vulnerability in Trident allows local privilege escalation.",
+    remediation: "Upgrade Trident to v26.02.0+.",
+    url: "https://security.netapp.com/advisory/"
+  }
+];
+
+// Firmware Baselines — recommended minimum versions for shelf/switch components
+const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
+  "NSM100":       { recommended: "0220", label: "NSM100 Shelf Module" },
+  "IOM12":        { recommended: "0260", label: "IOM12 SAS Module" },
+  "IOM3":         { recommended: "0200", label: "IOM3 SAS Module" },
+  "Cisco NX-OS":  { recommended: "9.3(12)", label: "Cisco Nexus Switch" },
+  "Cisco MDS":    { recommended: "9.2(2)", label: "Cisco MDS Switch" },
+  "Brocade FOS":  { recommended: "9.2.1", label: "Brocade FC Switch" },
+  "Broadcom EFOS":{ recommended: "3.8.0.2", label: "Broadcom Ethernet Switch" }
+};
+
+// MetroCluster ISL Requirements — from Data-Protection/MetroCluster-Deep-Dive.md
+const REFERENCE_LIBRARY_MC_REQUIREMENTS = {
+  maxDistance: { fc_brocade: 300, fc_other: 200, ip: 700 },  // km
+  isl: {
+    maxPacketLoss: 0.01,       // percent
+    maxJitter: 3,              // ms
+    maxFabricAsymmetry: 0.2,   // ms (20km equivalent)
+    requiredMTU: 9216          // bytes
+  },
+  minOntapForMCIP: "9.9.1",
+  featureVersions: {
+    "8-node MC": "9.9.1",
+    "L3 IP-routed backend": "9.9.1",
+    "MAV": "9.11.1",
+    "FC-to-IP transition (shared switch)": "9.13.1",
+    "MAUSO env shutdown": "9.13.1",
+    "S3 on unmirrored agg": "9.12.1",
+    "NVMe/FC in MC-IP": "9.12.1",
+    "IPsec front-end": "9.12.1",
+    "NVMe/TCP front-end": "9.15.1",
+    "E2E encryption": "9.15.1",
+    "SVM data mobility": "9.16.1",
+    "MD5 BGP auth": "9.16.1",
+    "SnapMirror cloud FlexGroup": "9.18.1",
+    "100Gbps ISL minimum": "9.18.1"
+  }
+};
+
+// ONTAP Version Highlights — key features per version for upgrade justification
+const REFERENCE_LIBRARY_ONTAP_HIGHLIGHTS = {
+  "9.19.1": "Current GA (~2026-06-11). SnapMirror active sync transparent failover for AIX; SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror synchronous; direct-attach FC; active-active multipathing on AFF; per-SVM System Manager dashboard.",
+  "9.18.1": "SnapMirror cloud for MC FlexGroup; new controller replace combos (A70→A90, FAS70→FAS90) in MC-IP; 100Gbps ISL minimum for high-speed MC-IP platforms.",
+  "9.17.1": "MC-IP E2E encryption extended to AFF A20/A30/C30/A50/C60/A70/A90/A1K/C80, FAS50/70/90; MC-IP limit increases. AFX platform requires 9.17.1+.",
+  "9.16.1": "GA 2026-04-01. IPsec HW offload; NVMe space dealloc default-on; ARP/AI (99% precision, no learning period on FlexVol); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA for System Manager.",
+  "9.14.1": "CLI support for consistency groups; FlexCache unencrypted-from-encrypted; NVMe/TCP auto-discovery; TSSE physical-used semantics change; OAuth 2.0 ADFS.",
+  "9.12.1": "SnapMirror Sync max FlexVol 300TB, file/LUN 128TB; System Manager integrated with NetApp Console; TSSE default-on for AFF C-Series; tamper-proof logging default.",
+  "9.10.1": "ARP introduced; firewall policies deprecated → LIF service policies (BREAKING); admin-down confirmation (BREAKING); SnapLock+non-SnapLock coexistence; NVMe/TCP support."
 };
 
 function getOntapHopInfo(from, to) {
@@ -6444,6 +6762,167 @@ function enrichSystemTelemetry(s) {
     }
   }
 
+  // D. EOA Platform Detection (risk 504)
+  // Sourced from 2026-07-10 Reference Library: Platforms-Hardware/README.md
+  if (!isStorageGrid && !isEseries) {
+    const platformStr = (s.platform || s.model || s.platformModel || name || "").toUpperCase();
+    const matchedEOA = REFERENCE_LIBRARY_EOA_PLATFORMS.find(eoa => {
+      const eoaUpper = eoa.toUpperCase();
+      // Match "A700" in "AFF A700", "FAS9000" in "FAS9000 (SAS)", etc.
+      return platformStr.includes(eoaUpper) || (name || "").toUpperCase().includes(eoaUpper);
+    });
+    if (matchedEOA && !risks.some(r => r.id === 504)) {
+      risks.push({
+        id: 504,
+        severity: "high",
+        category: "Lifecycle",
+        description: `Platform ${matchedEOA} has reached End-of-Availability (EOA). EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA.`,
+        recommendation: `Initiate tech-refresh evaluation. Current generation replacements: AFF A-Series (A20/A30/A50/A70/A90/A1K), AFF C-Series (C30/C60/C80), or ASA A-Series for SAN-only workloads.`,
+        kbLink: "https://docs.netapp.com/us-en/ontap-systems/endofavail/",
+        remediationPlan: {
+          cause: `The ${matchedEOA} platform is listed on NetApp's official End-of-Availability page. No new orders can be placed, and the EOS clock is ticking.`,
+          impact: "Post-EOS, no further security patches or bug fixes will ship. Any CVE affecting this platform may have no vendor-supplied remediation path other than hardware refresh.",
+          steps: [
+            "1. Verify EOA/EOS dates for this specific serial: check Hardware Universe (hwu.netapp.com) or NetApp Support Site.",
+            "2. Assess workload migration path: SnapMirror data migration to new platform or volume move within cluster.",
+            "3. Engage NetApp account team for tech-refresh quotation and trade-in credits.",
+            "4. Plan non-disruptive controller upgrade if cluster allows (system controller replace)."
+          ],
+          options: [
+            "Option A: In-place controller upgrade via 'system controller replace' (non-disruptive, if supported for this platform pair).",
+            "Option B: SnapMirror-based migration to a new cluster with current-generation controllers.",
+            "Option C: Extend support contract while planning refresh (delays EOS but does not address EOA)."
+          ],
+          thirdParty: "Verify VMware/hypervisor HCL compatibility with new platform before migration. Check NetApp IMT for protocol/OS support on target hardware."
+        }
+      });
+    }
+  }
+
+  // E. CVE/Advisory Version-Range Matching (risks 510+)
+  // Sourced from 2026-07-10 Reference Library: Security-Advisories/ADVISORY-LOG.md
+  if (osVer && !isEseries) {
+    const sysProduct = isStorageGrid ? "StorageGRID" : "ONTAP";
+    REFERENCE_LIBRARY_ADVISORIES.forEach((adv, idx) => {
+      // Skip if product doesn't match
+      if (adv.product === "SnapCenter" || adv.product === "Config Advisor" || adv.product === "Trident") return;
+      if (adv.product === "StorageGRID" && !isStorageGrid) return;
+      if (adv.product !== "StorageGRID" && !adv.product.includes("ONTAP") && adv.product !== sysProduct) return;
+      // Skip CIFS-only advisories for systems that clearly aren't NAS
+      if (adv.isCIFSOnly) return; // Kerberos handled separately below as risk 525
+
+      const riskId = 510 + idx;
+      if (risks.some(r => r.id === riskId)) return;
+
+      // Version range check
+      const ver = osVer;
+      if (adv.affectedVersions) {
+        const compareVer = (a, b) => {
+          const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const va = pa[i] || 0, vb = pb[i] || 0;
+            if (va !== vb) return va - vb;
+          }
+          return 0;
+        };
+        const baseVer = ver.replace(/P\d+$/, ''); // Strip patch level for comparison
+        if (adv.affectedVersions.min && compareVer(baseVer, adv.affectedVersions.min) < 0) return;
+        if (adv.affectedVersions.max && compareVer(baseVer, adv.affectedVersions.max) > 0) return;
+      }
+
+      // Check if system is already on a fixed version
+      if (adv.fixedIn) {
+        const isFixed = adv.fixedIn.some(fix => osVer.includes(fix.replace(/P\d+$/, '')));
+        if (isFixed) return;
+      }
+
+      risks.push({
+        id: riskId,
+        severity: adv.severity,
+        category: "Security",
+        description: `${adv.id}: ${adv.title}` + (adv.cvss ? ` (CVSS ${adv.cvss})` : ''),
+        recommendation: adv.remediation,
+        kbLink: adv.url,
+        remediationPlan: {
+          cause: adv.description,
+          impact: `Security vulnerability with ${adv.severity.toUpperCase()} severity${adv.cvss ? ` (CVSS ${adv.cvss})` : ''}. ${adv.fixedIn ? 'Fixed in: ' + adv.fixedIn.join(', ') : 'See advisory for remediation.'}`,
+          steps: [
+            `1. Review advisory details: ${adv.url}`,
+            adv.fixedIn ? `2. Plan upgrade to ${adv.fixedIn[adv.fixedIn.length - 1]}+.` : "2. Review advisory for specific remediation steps.",
+            "3. Validate fix in test environment before production rollout."
+          ],
+          options: [],
+          thirdParty: ""
+        }
+      });
+    });
+  }
+
+  // F. Kerberos AES Enforcement Detection (risk 525)
+  // Sourced from 2026-07-10 Reference Library: Security-Advisories/docs/ontap-guidance-for-microsoft-security-update-kb5073381-cve-2026-20833.md
+  // Affects ALL ONTAP systems with CIFS/SMB + AD (Microsoft phased enforcement Apr-Jul 2026)
+  if (osVer && !isStorageGrid && !isEseries) {
+    const hasCIFS = (s.protocols || []).some(p => (p || "").toLowerCase().includes("cifs") || (p || "").toLowerCase().includes("smb"));
+    const hasNAS = (s.platform || "").toLowerCase().includes("nas") || (s.protocols || []).some(p => (p || "").toLowerCase().includes("nfs"));
+    // Flag if system has CIFS protocols or is a NAS platform (likely has CIFS SVMs)
+    if ((hasCIFS || hasNAS || !(s.protocols && s.protocols.length > 0)) && !risks.some(r => r.id === 525)) {
+      risks.push({
+        id: 525,
+        severity: "medium",
+        category: "Security",
+        description: "CVE-2026-20833: Microsoft Kerberos AES-Only Enforcement — verify CIFS/SMB authentication compatibility.",
+        recommendation: "Confirm AES encryption enabled for Kerberos auth (default since ONTAP 9.13.1). Disable RC4/DES if still configured. Microsoft phased enforcement active Apr–Jul 2026.",
+        kbLink: "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/ONTAP_Guidance_for_Microsoft_Security_Update_KB5073381_CVE_2026_20833",
+        remediationPlan: {
+          cause: "Microsoft Security Update KB5073381 phases out RC4 and DES Kerberos encryption. ONTAP CIFS servers joined to AD without an explicit msds-SupportedEncryptionTypes value may lose authentication.",
+          impact: "CIFS/SMB shares may become inaccessible if the AD domain controller enforces AES-only Kerberos and the ONTAP SVM still uses RC4/DES.",
+          steps: [
+            "1. Check current Kerberos encryption config: 'vserver cifs security show -fields kerberos-clock-skew,is-aes-encryption-enabled'.",
+            "2. Enable AES if not already: 'vserver cifs security modify -vserver <svm> -is-aes-encryption-enabled true'.",
+            "3. Verify AD attribute msds-SupportedEncryptionTypes is set (check with AD admin).",
+            "4. Test authentication after changes: 'vserver cifs session show'."
+          ],
+          options: [
+            "Option A: Enable AES encryption on all CIFS SVMs proactively (Recommended — non-disruptive).",
+            "Option B: Wait for Microsoft enforcement and remediate reactively (Not Recommended — may cause outage)."
+          ],
+          thirdParty: "Coordinate with Active Directory administrators to verify msds-SupportedEncryptionTypes on computer objects for ONTAP CIFS server accounts."
+        }
+      });
+    }
+  }
+
+  // G. EOA Switch Detection (risk 505)
+  // Sourced from 2026-07-10 Reference Library: Platforms-Hardware/README.md
+  if (s.switches && s.switches.length > 0) {
+    const switchNames = s.switches.map(sw => (sw.name || sw.model || "").toUpperCase());
+    const matchedSwitch = REFERENCE_LIBRARY_EOA_SWITCHES.find(eoaSw =>
+      switchNames.some(sn => sn.includes(eoaSw.toUpperCase()))
+    );
+    if (matchedSwitch && !risks.some(r => r.id === 505)) {
+      risks.push({
+        id: 505,
+        severity: "medium",
+        category: "Lifecycle",
+        description: `Cluster/MetroCluster switch ${matchedSwitch} has reached End-of-Availability. Plan switch refresh alongside controller upgrade.`,
+        recommendation: "Replace with current-generation switch. For cluster interconnect: Cisco Nexus 9336C-FX2 or BES-53248 replacement models. For MetroCluster IP: check MetroCluster-compliant switch list.",
+        kbLink: "https://docs.netapp.com/us-en/ontap-systems/endofavail/",
+        remediationPlan: {
+          cause: `The ${matchedSwitch} switch is listed on NetApp's official End-of-Availability page.`,
+          impact: "EOA switches will eventually reach End-of-Support with no further firmware patches. A controller refresh often coincides with the switch generation qualified for it going EOA.",
+          steps: [
+            "1. Verify current switch firmware: 'system cluster-switch show'.",
+            "2. Check MetroCluster-compliant switch list if MC-IP: docs.netapp.com/us-en/ontap-metrocluster/install-ip/concept-requirement-and-limitations-mcc-compliant-switches.html",
+            "3. Plan switch replacement during next maintenance window.",
+            "4. Validate new switch firmware against NetApp Hardware Universe."
+          ],
+          options: [],
+          thirdParty: ""
+        }
+      });
+    }
+  }
+
   // KB links: no sanitization needed — search URLs are generated at render time
   // by buildKBSearchURL(). Any kbLink fields in raw API data are ignored.
 
@@ -6457,15 +6936,15 @@ function enrichSystemTelemetry(s) {
     mitigation: b.mitigation || b.mitigationAction || "Consult NetApp Security Advisory for patch details."
   }));
   
-  // For live data: auto-generate security bulletins from security-category risks
-  if (isLiveData && securityBulletins.length === 0) {
-    console.log(`[ENRICH-DBG] ${serial}: total risks=${risks.length}, categories=[${[...new Set(risks.map(r=>r.category))].join(',')}]`);
+  // Auto-generate security bulletins from security-category risks when none exist
+  // Works for both live API data and cached/reloaded data (not just _source === 'graphql')
+  if (securityBulletins.length === 0 && !state.mockMode) {
     const secRisks = risks.filter(r => {
       const cat = (r.category || '').toLowerCase();
       const desc = (r.description || '');
       return cat === 'security' || cat.includes('vulnerabilit') || desc.includes('CVE-');
     });
-    console.log(`[ENRICH-DBG] ${serial}: secRisks=${secRisks.length}`);
+
     if (secRisks.length > 0) {
       // Deduplicate by description to avoid repeating the same CVE for each node
       const seen = new Set();
@@ -6509,54 +6988,93 @@ function enrichSystemTelemetry(s) {
         }
       });
     }
-    console.log(`[ENRICH] ${serial}: ${risks.length} risks -> ${securityBulletins.length} security bulletins`);
   }
 
   // Normalise support cases from API
+  // Active IQ GraphQL Case fields: caseId, symptom, description, status (enum),
+  // priority (int 1-4), highestPriority, created, lastUpdated, closed, type,
+  // category, subCategory, caseReceivedVia, reporterContact { name }, system { serialNumber hostName }
   const supportCases = (s.supportCases || s.support_cases || s.cases || []).map(c => {
     // Convert numeric priority to standard severity string
     let sev = c.severity || "";
     if (!sev || typeof sev === "number") {
-      const p = c.priority || c.highestPriority || c.severity || 3;
+      const p = c.priority || c.casePriority || c.highestPriority || c.severity || 3;
       const pNum = typeof p === "number" ? p : parseInt(p) || 3;
       const sevMap = { 1: "S1 - Critical", 2: "S2 - High", 3: "S3 - Medium", 4: "S4 - Low" };
       sev = sevMap[pNum] || `S${pNum} - Priority ${pNum}`;
     }
     // Helper: API often returns ' ' (space) for empty fields — treat as empty
     const t = v => (v || "").trim();
-    // symptom has the real case description; description is often just a short label
-    const caseTitle = t(c.title) || t(c.symptom) || t(c.description) || t(c.subject) || "Support case";
-    const caseDesc = t(c.symptom) || t(c.description) || "";
+    // symptom is the primary descriptive field; description is often just "Core for the Case-XXXX"
+    const caseTitle = t(c.symptom) || t(c.title) || t(c.caseTitle) || t(c.description) || t(c.subject) || "Support case";
+    const caseDesc = t(c.description) || t(c.symptom) || "";
     const reporter = t((c.reporterContact || {}).name);
     const sysHost = t((c.system || {}).hostName);
+    // Map CaseStatus enum values to human-readable display
+    const statusRaw = c.status || c.caseStatus || "Open";
+    const statusMap = {
+      "ACTIVE": "Open - Active",
+      "PENDING_CUSTOMER": "Open - Customer Action",
+      "PENDING_CUSTOMER_DATA": "Open - Awaiting Data",
+      "PENDING_BUG_FIX": "Open - Pending Bug Fix",
+      "PENDING_ESCALATION": "Open - Escalated",
+      "PENDING_FSE": "Open - Field Service",
+      "PENDING_SOLUTION_PROPOSED": "Open - Solution Proposed",
+      "SOLUTION_PROPOSED": "Solution Proposed",
+      "RESEARCH": "Open - Under Research",
+      "WAIT_TSE": "Open - Awaiting TSE",
+      "UNASSIGNED": "Open - Unassigned",
+      "INITIALIZING": "Initializing",
+      "CORE_REQUESTED": "Core Requested",
+      "CORE_RECEIVED": "Core Received",
+      "CORE_ANCILLARY": "Core Ancillary",
+      "CORE_INCOMPLETE": "Core Incomplete",
+      "CORE_UNDER_ANALYSIS": "Core Under Analysis",
+      "DUPLICATE_CORE": "Duplicate Core",
+      "CLOSED": "Closed",
+      "CANCELLED": "Cancelled",
+      "PENDING_CLOSED": "Pending Close",
+      "INTERNAL_USER_REQ_CLOSED": "Closed (Internal)",
+      "PENDING_OTHER": "Open - Pending"
+    };
     return {
-      id:           c.id           || c.caseId     || c.caseNumber || "CASE-UNKNOWN",
+      id:           c.caseId       || c.id         || c.caseNumber || "CASE-UNKNOWN",
       title:        caseTitle,
       description:  caseDesc && caseDesc !== caseTitle ? caseDesc : "",
       severity:     String(sev),
-      status:       c.status       || c.caseStatus || "Open",
+      status:       statusMap[statusRaw] || String(statusRaw),
       criticality:  t(c.criticality) || t(c.category) || t(c.impact) || "",
       subCategory:  t(c.subCategory),
-      caseType:     t(c.type) || t(c.caseType),
+      caseType:     t(c.type) || t(c.caseType) || t(c.caseReceivedVia) || "",
       resolution:   t(c.resolution),
       reporter:     reporter,
       systemName:   sysHost,
       nextActionBy: t(c.nextActionBy) || t(c.owner) || reporter || "NetApp Support",
-      createdDate:  c.createdDate  || c.created    || "",
-      lastUpdated:  c.lastUpdated  || c.updated    || "",
-      closedDate:   c.closed       || c.closedDate || "",
+      createdDate:  c.created || c.caseCreateDate || c.createdDate || "",
+      lastUpdated:  c.lastUpdated || c.lastModifiedDate || c.updated || "",
+      closedDate:   c.closed   || c.closedDate     || "",
       ownerNotes:   t(c.ownerNotes) || t(c.notes)
     };
   });
 
+  // Compute health status from actual telemetry data (not from missing API field)
+  const hasCritRisk = risks.some(r => r.severity === 'critical');
+  const hasHighRisk = risks.some(r => r.severity === 'high');
+  const asupFailed = autosupport && (autosupport.status === 'failed' || autosupport.status === 'disabled' || (autosupport.lastReceivedDays != null && autosupport.lastReceivedDays > 7));
+  const contractExpired = contracts && (contracts.status === 'expired' || contracts.daysRemaining < 0);
+  let computedStatus = 'normal';
+  if (hasCritRisk || contractExpired) computedStatus = 'critical';
+  else if (hasHighRisk || asupFailed || (contracts && contracts.daysRemaining <= 90)) computedStatus = 'warning';
+
   return {
+    _source:           s._source || (isLiveData ? 'graphql' : undefined),
     serialNumber:      serial,
     systemName:        name,
     clusterName:       cluster,
     customerName:      customer,
     ontapVersion:      osVer,
     platform:          model,
-    status:            status,
+    status:            computedStatus,
     risks:             risks,
     upgrades:          upgrades,
     contracts:         contracts,
@@ -6902,18 +7420,32 @@ Reason for Change: Updating local datacenter access restrictions and primary sit
 
 // Filter support cases: only open/active, sorted by highest priority
 function filterActiveCases(cases) {
-  const closedStatuses = ['closed', 'resolved', 'cancelled', 'canceled', 'core_ancillary', 'initializing', 'auto-close'];
-  const filtered = cases.filter(c => {
-    const st = (c.status || '').toLowerCase().replace(/[_-]/g, '');
-    return !closedStatuses.some(cs => st.includes(cs.replace(/[_-]/g, '')));
+  // Classify each case as active or inactive/closed
+  const closedStatuses = ['closed', 'resolved', 'cancelled', 'canceled', 'auto-close', 'pendingclose', 'pendingclosed', 'internaluserreqclosed'];
+  const inactiveStatuses = ['coreancillary', 'corereceived', 'coreincomplete', 'duplicatecore', 'coreunderanalysis', 'initializing'];
+  
+  cases.forEach(c => {
+    const st = (c.status || '').toLowerCase().replace(/[\s_-]/g, '');
+    const isClosed = closedStatuses.some(cs => st.includes(cs.replace(/[\s_-]/g, '')));
+    const isInactive = inactiveStatuses.some(cs => st.includes(cs.replace(/[\s_-]/g, '')));
+    c._isActive = !isClosed && !isInactive;
+    c._isClosed = isClosed;
   });
-  // Sort by severity: S1 first, then S2, S3, S4
-  filtered.sort((a, b) => {
+  
+  // Sort: active first (by severity), then inactive (by severity), then closed (by date)
+  cases.sort((a, b) => {
+    // Active cases first
+    if (a._isActive && !b._isActive) return -1;
+    if (!a._isActive && b._isActive) return 1;
+    // Closed cases last
+    if (a._isClosed && !b._isClosed) return 1;
+    if (!a._isClosed && b._isClosed) return -1;
+    // Within same group, sort by severity
     const pa = parseInt((a.severity || 'S9').replace(/[^0-9]/g, '')) || 9;
     const pb = parseInt((b.severity || 'S9').replace(/[^0-9]/g, '')) || 9;
     return pa - pb;
   });
-  return filtered;
+  return cases;
 }
 
 /**
@@ -7221,6 +7753,585 @@ All operations under this plan must comply with standard ITIL Change Control pro
 ================================================================================`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// TAM / MSP Deliverable Compilers (QBR, MSP Report, Account Handover)
+// ═══════════════════════════════════════════════════════════════════════
+
+function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
+  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date().toISOString().split('T')[0];
+  const total = targetSystems.length;
+
+  // ── Personnel: first system with each field ──
+  const salesRep = (targetSystems.find(s => s.salesRepName) || {}).salesRepName || 'Account Team';
+  const csmName  = (targetSystems.find(s => s.csmName) || {}).csmName || '—';
+  const samName  = (targetSystems.find(s => s.samName) || {}).samName || '—';
+  const aspName  = (targetSystems.find(s => s.aspName) || {}).aspName || '—';
+
+  // ── Sites ──
+  const uniqueSites = [...new Set(targetSystems.map(s => s.siteName).filter(Boolean))];
+
+  // ── ASUP Health: received within 7 days ──
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const asupCompliant = targetSystems.filter(s => {
+    if (!s.latestAsupDate) return false;
+    const d = new Date(s.latestAsupDate);
+    return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
+  }).length;
+  const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
+
+  // ── ARP Coverage ──
+  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+
+  // ── Firmware Currency ──
+  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
+
+  // ── Contract Coverage ──
+  const contractActive = targetSystems.filter(s => s.contractActive === true).length;
+  const contractPct = total > 0 ? ((contractActive / total) * 100).toFixed(0) : 0;
+
+  // ── Health Grade ──
+  const avgPct = (parseFloat(asupPct) + parseFloat(arpPct) + parseFloat(fwPct) + parseFloat(contractPct)) / 4;
+  const grade = avgPct > 90 ? 'A' : avgPct > 75 ? 'B' : avgPct > 60 ? 'C' : avgPct > 40 ? 'D' : 'F';
+
+  // ── Risks ──
+  const critCount = allRisks.filter(r => r.severity === 'critical').length;
+  const highCount = allRisks.filter(r => r.severity === 'high').length;
+  const medCount  = allRisks.filter(r => r.severity === 'medium').length;
+  const lowCount  = allRisks.filter(r => r.severity === 'low').length;
+  const secCount  = allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length;
+
+  const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
+  const topActions = sortedRisks.slice(0, 5).map((g, i) => {
+    const sysLabel = g.systems.filter(Boolean).slice(0, 3).join(', ');
+    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
+  }).join('\n');
+
+  // ── Sustainability ──
+  const scores = state.tamSustainability || [];
+  const latest = scores[0] || {};
+  let sustainSection = '  No sustainability data available. Run a data refresh to load fleet scores.\n';
+  if (latest.scorePercentage != null) {
+    const wowChange = (latest.percentageChange || 0) >= 0 ? `+${latest.percentageChange || 0}` : `${latest.percentageChange}`;
+    let physTotal = 0, logTotal = 0, savedTotal = 0;
+    targetSystems.forEach(s => {
+      if (s.efficiency) {
+        physTotal += s.efficiency.physicalUsedTB || 0;
+        logTotal  += s.efficiency.logicalUsedTB || 0;
+        savedTotal += s.efficiency.spaceSavedTB || 0;
+      }
+    });
+    const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '—';
+    sustainSection = `  Sustainability Score:   ${latest.scorePercentage}%
+  Week-over-Week Change:  ${wowChange}%
+
+  Storage Efficiency:
+    Total Physical Used:  ${physTotal.toFixed(1)} TB
+    Logical Represented:  ${logTotal.toFixed(1)} TB
+    Data Reduction Ratio: ${drr}:1
+    Space Saved:          ${savedTotal.toFixed(1)} TB\n`;
+  }
+
+  // ── Lifecycle / Renewal Pipeline ──
+  const exp90  = expiringContracts.filter(e => e.daysRemaining <= 90).length;
+  const exp180 = expiringContracts.filter(e => e.daysRemaining <= 180).length;
+  const nearEos = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
+  const contractLines = expiringContracts.map(e =>
+    `  • ${e.systemName} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  (${e.daysRemaining} days)`
+  ).join('\n') || '  No expiring contracts within scope.';
+
+  // ── Recommendations ──
+  const recs = state.tamRecommendations || [];
+  let recsSection = '  No recommendations available.\n';
+  if (recs.length > 0) {
+    const byCat = {};
+    recs.forEach(r => {
+      const cat = r.category || 'OTHER';
+      if (!byCat[cat]) byCat[cat] = [];
+      byCat[cat].push(r);
+    });
+    recsSection = Object.keys(byCat).map(cat => {
+      const items = byCat[cat];
+      const lines = items.slice(0, 5).map(r => `    • [Score ${r.score || 0}%] ${(r.recommendation || '').substring(0, 120)}`).join('\n');
+      return `  ${cat.replace(/_/g, ' ')} (${items.length}):\n${lines}`;
+    }).join('\n\n') + '\n';
+  }
+
+  // ── Action Items ──
+  const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const staleAsup = total - asupCompliant;
+  const unprotectedArp = total - arpCount;
+  const correctiveCount = sortedRisks.length;
+  const renewCount = exp90;
+
+  return `================================================================================
+QUARTERLY BUSINESS REVIEW (QBR) — ACCOUNT INTELLIGENCE PACK
+================================================================================
+Account:  ${cleanScope}
+Date:     ${today}
+Prepared: ${salesRep}
+
+--------------------------------------------------------------------------------
+1. ACCOUNT OVERVIEW
+--------------------------------------------------------------------------------
+  Customer:       ${cleanScope}
+  Systems:        ${total}
+  Sites:          ${uniqueSites.length}
+  Account Team:
+    Sales Rep:    ${salesRep}
+    CSM:          ${csmName}
+    SAM:          ${samName}
+    ASP:          ${aspName}
+
+--------------------------------------------------------------------------------
+2. OPERATIONAL HEALTH SCORECARD
+--------------------------------------------------------------------------------
+  AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
+  ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled
+  Firmware Currency:        ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
+  Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
+
+  Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
+
+--------------------------------------------------------------------------------
+3. RISK POSTURE
+--------------------------------------------------------------------------------
+  Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
+  Security Advisories: ${secCount}
+  Open Support Cases:  ${allSupportCases.length}
+
+  TOP CORRECTIVE ACTIONS:
+${topActions || '  No critical or high-severity corrective actions identified.'}
+
+--------------------------------------------------------------------------------
+4. SUSTAINABILITY & EFFICIENCY
+--------------------------------------------------------------------------------
+${sustainSection}
+--------------------------------------------------------------------------------
+5. LIFECYCLE & RENEWAL PIPELINE
+--------------------------------------------------------------------------------
+  Contracts Expiring < 90 Days:  ${exp90}
+  Contracts Expiring < 180 Days: ${exp180}
+  Systems Near EOS:              ${nearEos}
+
+${contractLines}
+
+--------------------------------------------------------------------------------
+6. RECOMMENDATIONS (Active IQ)
+--------------------------------------------------------------------------------
+${recsSection}
+--------------------------------------------------------------------------------
+7. ACTION ITEMS & NEXT STEPS
+--------------------------------------------------------------------------------
+  □ Schedule follow-up meeting for ${followUp}
+  □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
+  □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
+  □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}
+  □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
+================================================================================`;
+}
+
+
+function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const thirtyAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const total = targetSystems.length;
+
+  // ── Contract Coverage ──
+  const activeContracts  = targetSystems.filter(s => s.contractActive === true).length;
+  const expiredContracts = targetSystems.filter(s => s.contractActive === false).length;
+  const unknownContracts = targetSystems.filter(s => s.contractActive == null).length;
+  const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
+
+  // ── ASUP Compliance ──
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const asupCompliant = targetSystems.filter(s => {
+    if (!s.latestAsupDate) return false;
+    const d = new Date(s.latestAsupDate);
+    return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
+  }).length;
+  const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
+
+  // ── ARP ──
+  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+
+  // ── Firmware Currency ──
+  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
+
+  // ── Critical risk count ──
+  const critCount = allRisks.filter(r => r.severity === 'critical').length;
+
+  // ── Average System Age ──
+  const ages = targetSystems.map(s => {
+    if (!s.originalShipDate) return null;
+    const d = new Date(s.originalShipDate);
+    if (isNaN(d)) return null;
+    return (now - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  }).filter(a => a !== null);
+  const avgAge = ages.length > 0 ? (ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1) : '—';
+
+  // ── SLA helpers ──
+  function slaStatus(actual, target) { return parseFloat(actual) >= target ? 'MET' : 'MISSED'; }
+
+  // ── Cases ──
+  const casesLines = allSupportCases.length > 0
+    ? allSupportCases.map(c =>
+        `    • Case ${c.id} [${c.severity}] ${c.systemName}\n      Title: ${c.title}\n      Next Action: ${c.nextActionBy || 'Under Review'}`
+      ).join('\n')
+    : '    No open support cases.';
+
+  // ── Contract tiers ──
+  const tierMap = {};
+  targetSystems.forEach(s => {
+    const tier = s.serviceLevel || s.serviceTier || 'Unknown';
+    tierMap[tier] = (tierMap[tier] || 0) + 1;
+  });
+  const tierLines = Object.keys(tierMap).map(t => `    ${t}: ${tierMap[t]} system${tierMap[t] > 1 ? 's' : ''}`).join('\n') || '    No tier data available.';
+
+  // ── Expiring ──
+  const exp90 = expiringContracts.filter(e => e.daysRemaining <= 90).length;
+
+  // ── Capacity ──
+  let physTotal = 0, logTotal = 0, savedTotal = 0;
+  targetSystems.forEach(s => {
+    if (s.efficiency) {
+      physTotal += s.efficiency.physicalUsedTB || 0;
+      logTotal  += s.efficiency.logicalUsedTB || 0;
+      savedTotal += s.efficiency.spaceSavedTB || 0;
+    }
+  });
+  const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '—';
+
+  // ── Improvement Backlog ──
+  const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
+  const backlogLines = sortedRisks.map((g, i) => {
+    const sysLabel = g.systems.filter(Boolean).slice(0, 3).join(', ');
+    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
+  }).join('\n') || '  No outstanding corrective actions.';
+
+  // ── Next Period ──
+  const staleAsup = total - asupCompliant;
+  const unprotectedArp = total - arpCount;
+  const fwBehind = total - fwCurrent;
+
+  return `================================================================================
+MANAGED SERVICE PROVIDER — SERVICE DELIVERY REPORT
+================================================================================
+Customer:      ${cleanScope}
+Report Date:   ${todayStr}
+Report Period: ${thirtyAgo} to ${todayStr}
+
+--------------------------------------------------------------------------------
+1. SERVICE SUMMARY
+--------------------------------------------------------------------------------
+  Systems Under Management:  ${total}
+  Contract Coverage:         ${activeContracts}/${total} (${contractPct}%) active contracts
+  ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
+  Average System Age:        ${avgAge} years
+
+--------------------------------------------------------------------------------
+2. SLA COMPLIANCE MATRIX
+--------------------------------------------------------------------------------
+  Metric                    Target    Actual    Status
+  ─────────────────────────────────────────────────────
+  ASUP Compliance           100%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, 100)}
+  ARP Enablement            100%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, 100)}
+  Firmware Currency         100%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, 100)}
+  Contract Coverage         100%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, 100)}
+  Risk Posture (Crit=0)     0         ${String(critCount).padStart(3)}       ${critCount === 0 ? 'MET' : 'MISSED'}
+
+--------------------------------------------------------------------------------
+3. INCIDENT & CASE MANAGEMENT
+--------------------------------------------------------------------------------
+  Open Cases:     ${allSupportCases.length}
+${casesLines}
+
+--------------------------------------------------------------------------------
+4. CONTRACT PORTFOLIO
+--------------------------------------------------------------------------------
+  Active:    ${activeContracts} systems
+  Expiring:  ${exp90} systems (within 90 days)
+  Expired:   ${expiredContracts} systems
+  Unknown:   ${unknownContracts} systems
+
+  Service Tier Breakdown:
+${tierLines}
+
+--------------------------------------------------------------------------------
+5. CAPACITY & EFFICIENCY
+--------------------------------------------------------------------------------
+  Total Physical Capacity Used: ${physTotal.toFixed(1)} TB
+  Total Logical Capacity:       ${logTotal.toFixed(1)} TB
+  Data Reduction Ratio:         ${drr}:1
+  Space Saved via Efficiency:   ${savedTotal.toFixed(1)} TB
+
+--------------------------------------------------------------------------------
+6. IMPROVEMENT BACKLOG
+--------------------------------------------------------------------------------
+${backlogLines}
+
+--------------------------------------------------------------------------------
+7. NEXT PERIOD OBJECTIVES
+--------------------------------------------------------------------------------
+  □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
+  □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
+  □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}
+  □ Restore ASUP on ${staleAsup} stale system${staleAsup !== 1 ? 's' : ''}
+  □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
+================================================================================`;
+}
+
+
+function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
+  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date().toISOString().split('T')[0];
+  const total = targetSystems.length;
+
+  // ── Domestic Parent ──
+  const domesticParent = (targetSystems.find(s => s.domesticParentName) || {}).domesticParentName || '—';
+
+  // ── Sites ──
+  const siteMap = {};
+  targetSystems.forEach(s => {
+    const name = s.siteName || 'Unknown';
+    if (!siteMap[name]) siteMap[name] = { city: s.siteCity || '', country: s.siteCountry || '' };
+  });
+  const uniqueSiteNames = Object.keys(siteMap);
+  const siteLines = uniqueSiteNames.map(name => {
+    const loc = [siteMap[name].city, siteMap[name].country].filter(Boolean).join(', ');
+    return `    • ${name}${loc ? ' — ' + loc : ''}`;
+  }).join('\n') || '    No site data available.';
+
+  // ── Personnel ──
+  const salesRepSys = targetSystems.find(s => s.salesRepName) || {};
+  const csmSys      = targetSystems.find(s => s.csmName) || {};
+  const samSys      = targetSystems.find(s => s.samName) || {};
+  const aspSys      = targetSystems.find(s => s.aspName) || {};
+
+  const salesRepName  = salesRepSys.salesRepName || '—';
+  const salesRepEmail = salesRepSys.salesRepEmail || '—';
+  const csmName       = csmSys.csmName || '—';
+  const csmEmail      = csmSys.csmEmail || '—';
+  const samName       = samSys.samName || '—';
+  const samEmail      = samSys.samEmail || '—';
+  const aspName       = aspSys.aspName || '—';
+  const aspEndDate    = aspSys.aspEndDate || '—';
+
+  // ── Propensity ──
+  const propSystems = targetSystems.filter(s => s.propensityCategory);
+  const propLines = propSystems.length > 0
+    ? propSystems.map(s => `    • ${s.systemName}: ${s.propensityCategory}${s.nextBestAction ? ' — ' + s.nextBestAction : ''}`).join('\n')
+    : '    No propensity data available.';
+
+  // ── Inventory Table ──
+  const invHeader = '  System               | Cluster             | Platform                    | OS Version   | Serial         | Site              | Contract';
+  const invSep    = '  ' + '─'.repeat(145);
+  const invRows = targetSystems.map(s => {
+    const sysN = (s.systemName || '').padEnd(20).substring(0, 20);
+    const clN  = (s.clusterName || '').padEnd(19).substring(0, 19);
+    const plat = (s.platform || '').padEnd(27).substring(0, 27);
+    const osV  = (s.osVersion || s.ontapVersion || '').padEnd(12).substring(0, 12);
+    const ser  = (s.serialNumber || '').padEnd(14).substring(0, 14);
+    const site = (s.siteName || '').padEnd(17).substring(0, 17);
+    const cSt  = s.contractActive === true ? 'Active' : s.contractActive === false ? 'Expired' : 'Unknown';
+    return `  ${sysN} | ${clN} | ${plat} | ${osV} | ${ser} | ${site} | ${cSt}`;
+  }).join('\n');
+
+  // ── Risk & Compliance ──
+  const critCount = allRisks.filter(r => r.severity === 'critical').length;
+  const highCount = allRisks.filter(r => r.severity === 'high').length;
+  const secCount  = allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length;
+
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const asupCompliant = targetSystems.filter(s => {
+    if (!s.latestAsupDate) return false;
+    const d = new Date(s.latestAsupDate);
+    return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
+  }).length;
+  const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
+
+  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+
+  const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
+  const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
+
+  const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
+  const topIssues = sortedRisks.slice(0, 10).map((g, i) => {
+    const sysLabel = g.systems.filter(Boolean).slice(0, 3).join(', ');
+    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
+  }).join('\n') || '  No critical or high-severity issues.';
+
+  // ── Contract & Lifecycle ──
+  const exp90 = expiringContracts.filter(e => e.daysRemaining <= 90).length;
+  const expiredCount = targetSystems.filter(s => s.contractActive === false).length;
+  const warrantyActive = targetSystems.filter(s => {
+    if (!s.warrantyEndDate) return false;
+    return new Date(s.warrantyEndDate) > new Date();
+  }).length;
+
+  const contractDetailLines = targetSystems.map(s => {
+    const cEnd = (s.contractEndDate || s.contractExpiry || '—').split('T')[0];
+    const svc  = s.serviceLevel || s.serviceTier || '—';
+    const wEnd = (s.warrantyEndDate || '—').split('T')[0];
+    return `  • ${s.systemName} (${s.serialNumber || 'N/A'}) — Contract End: ${cEnd} | Service: ${svc} | Warranty End: ${wEnd}`;
+  }).join('\n');
+
+  // ── Recent Activity ──
+  const caseLines = allSupportCases.length > 0
+    ? allSupportCases.map(c =>
+        `  • Case ${c.id} [${c.severity}] ${c.systemName}: ${c.title}\n    Next Action: ${c.nextActionBy || 'Under Review'}`
+      ).join('\n')
+    : '  No open support cases.';
+
+  const upgradeLines = allUpgrades.length > 0
+    ? allUpgrades.map(u =>
+        `  • ${u.systemName}: ${u.currentVersion || 'current'} → ${u.targetVersion} (${u.urgency})`
+      ).join('\n')
+    : '  No pending upgrades.';
+
+  // Field actions from systems
+  const fieldActions = [];
+  targetSystems.forEach(s => {
+    if (s.fieldActions) s.fieldActions.forEach(fa => fieldActions.push({ systemName: s.systemName, ...fa }));
+  });
+  const faLines = fieldActions.length > 0
+    ? fieldActions.map(fa =>
+        `  • ${fa.systemName}: ${fa.title || fa.description || 'Field Action'} [${fa.status || 'Active'}]`
+      ).join('\n')
+    : '  No active field actions.';
+
+  // ── Key Talking Points ──
+  const talkingPoints = [];
+
+  // Propensity observations
+  const propCategories = [...new Set(propSystems.map(s => s.propensityCategory).filter(Boolean))];
+  if (propCategories.length > 0) {
+    talkingPoints.push(`Propensity categories in scope: ${propCategories.join(', ')}. Review next-best-action recommendations for upsell/cross-sell alignment.`);
+  }
+
+  // Contract urgency
+  if (exp90 > 0) {
+    talkingPoints.push(`${exp90} contract${exp90 > 1 ? 's' : ''} expiring within 90 days — renewal engagement is time-sensitive.`);
+  }
+
+  // ASUP / ARP gaps
+  const staleAsup = total - asupCompliant;
+  const unprotectedArp = total - arpCount;
+  if (staleAsup > 0) {
+    talkingPoints.push(`${staleAsup} system${staleAsup > 1 ? 's' : ''} with stale or missing AutoSupport telemetry — proactive monitoring gap.`);
+  }
+  if (unprotectedArp > 0) {
+    talkingPoints.push(`${unprotectedArp} system${unprotectedArp > 1 ? 's' : ''} without Anti-Ransomware Protection — cyber resilience exposure.`);
+  }
+
+  // EOS concerns
+  const eosCount = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
+  if (eosCount > 0) {
+    talkingPoints.push(`${eosCount} system${eosCount > 1 ? 's' : ''} approaching End-of-Support — hardware refresh planning recommended.`);
+  }
+
+  // Sustainability
+  const scores = state.tamSustainability || [];
+  const latestScore = scores[0] || {};
+  if (latestScore.scorePercentage != null) {
+    talkingPoints.push(`Fleet sustainability score: ${latestScore.scorePercentage}%. Highlight environmental efficiency achievements with incoming account team.`);
+  }
+
+  const talkingPointsText = talkingPoints.length > 0
+    ? talkingPoints.map(t => `  • ${t}`).join('\n')
+    : '  • No specific talking points generated — review account data for context.';
+
+  return `================================================================================
+ACCOUNT HANDOVER & TRANSITION BRIEF
+================================================================================
+Account:     ${cleanScope}
+Date:        ${today}
+Classification: INTERNAL — ACCOUNT TRANSITION DOCUMENT
+
+--------------------------------------------------------------------------------
+1. ACCOUNT PROFILE
+--------------------------------------------------------------------------------
+  Customer Name:      ${cleanScope}
+  Domestic Parent:    ${domesticParent}
+  Total Systems:      ${total}
+  Total Sites:        ${uniqueSiteNames.length}
+  Site Locations:
+${siteLines}
+
+--------------------------------------------------------------------------------
+2. ACCOUNT TEAM (CURRENT)
+--------------------------------------------------------------------------------
+  Sales Representative: ${salesRepName} (${salesRepEmail})
+  CSM:                  ${csmName} (${csmEmail})
+  SAM:                  ${samName} (${samEmail})
+  ASP:                  ${aspName}
+  ASP End Date:         ${aspEndDate}
+
+  Propensity Categories:
+${propLines}
+
+--------------------------------------------------------------------------------
+3. ENVIRONMENT INVENTORY
+--------------------------------------------------------------------------------
+${invHeader}
+${invSep}
+${invRows}
+
+--------------------------------------------------------------------------------
+4. RISK & COMPLIANCE POSTURE
+--------------------------------------------------------------------------------
+  Total Risks:          ${allRisks.length} (Critical: ${critCount}, High: ${highCount})
+  Security Advisories:  ${secCount}
+  Open Support Cases:   ${allSupportCases.length}
+  ASUP Compliance:      ${asupPct}%
+  ARP Coverage:         ${arpPct}%
+  Contract Coverage:    ${contractPct}%
+
+  Top Issues Requiring Attention:
+${topIssues}
+
+--------------------------------------------------------------------------------
+5. CONTRACT & LIFECYCLE STATUS
+--------------------------------------------------------------------------------
+  Active Contracts:     ${activeContracts}
+  Expiring (< 90 days): ${exp90}
+  Expired:              ${expiredCount}
+  Warranty Active:      ${warrantyActive}
+
+${contractDetailLines}
+
+--------------------------------------------------------------------------------
+6. RECENT ACTIVITY
+--------------------------------------------------------------------------------
+  Open Support Cases:
+${caseLines}
+
+  Pending Upgrades:
+${upgradeLines}
+
+  Active Field Actions:
+${faLines}
+
+--------------------------------------------------------------------------------
+7. KEY TALKING POINTS & CONTEXT
+--------------------------------------------------------------------------------
+${talkingPointsText}
+
+  TRANSITION NOTES:
+  [  — Add handover-specific context, relationship notes, and pending commitments here —  ]
+================================================================================`;
+}
+
 function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
@@ -7257,18 +8368,86 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
     return '';
   }
 
+  // ── TAM Enrichment Data for deliverables ──
+  const now = new Date();
+  const _p = {};
+  targetSystems.forEach(s => {
+    if (s.salesRepName && !_p.sr) _p.sr = s.salesRepName;
+    if (s.salesRepEmail && !_p.sre) _p.sre = s.salesRepEmail;
+    if (s.csmName && !_p.csm) _p.csm = s.csmName;
+    if (s.csmEmail && !_p.csme) _p.csme = s.csmEmail;
+    if (s.samName && !_p.sam) _p.sam = s.samName;
+    if (s.samEmail && !_p.same) _p.same = s.samEmail;
+    if (s.aspName && !_p.asp) _p.asp = s.aspName;
+    if (s.aspEndDate && !_p.aspEnd) _p.aspEnd = s.aspEndDate;
+    if (s.domesticParentName && !_p.parent) _p.parent = s.domesticParentName;
+  });
+  const personnel = {
+    salesRep: _p.sr || 'Not Assigned', salesRepEmail: _p.sre || '',
+    csm: _p.csm || 'Not Assigned', csmEmail: _p.csme || '',
+    sam: _p.sam || 'Not Assigned', samEmail: _p.same || '',
+    asp: _p.asp || 'Not Assigned', aspEnd: _p.aspEnd || '',
+    parent: _p.parent || cleanScope
+  };
+  const siteSet = new Set();
+  const siteDetails = [];
+  targetSystems.forEach(s => {
+    if (s.siteName && !siteSet.has(s.siteName)) {
+      siteSet.add(s.siteName);
+      siteDetails.push({ name: s.siteName, city: s.siteCity || '', country: s.siteCountry || '' });
+    }
+  });
+  const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
+  const arpEnabledCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const fwCurrentCount = targetSystems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
+  const sysCount = targetSystems.length;
+  const pctAsup = sysCount > 0 ? Math.round(asupCompliant / sysCount * 100) : 0;
+  const pctArp = sysCount > 0 ? Math.round(arpEnabledCount / sysCount * 100) : 0;
+  const pctFw = sysCount > 0 ? Math.round(fwCurrentCount / sysCount * 100) : 0;
+  const pctContract = sysCount > 0 ? Math.round(contractActiveCount / sysCount * 100) : 0;
+  const sustScores = state.tamSustainability || [];
+  const sustLatest = sustScores[0] || {};
+  let totalPhysTB = 0, totalLogTB = 0, totalSavedTBd = 0;
+  targetSystems.forEach(s => {
+    if (s.efficiency) {
+      totalPhysTB += s.efficiency.physicalUsedTB || 0;
+      totalLogTB += s.efficiency.logicalUsedTB || 0;
+      totalSavedTBd += s.efficiency.spaceSavedTB || 0;
+    }
+  });
+  const reductionRatio = totalPhysTB > 0 ? (totalLogTB / totalPhysTB).toFixed(1) : '1.0';
+  // Contracts expiring within windows
+  const exp90 = expiringContracts.filter(e => e.daysRemaining <= 90);
+  const exp180 = expiringContracts.filter(e => e.daysRemaining <= 180);
+  // TAM renewals filtered to scope
+  const scopeHosts = new Set(targetSystems.map(s => (s.systemName || '').toLowerCase()));
+  const scopedRenewals = (state.tamRenewals || []).filter(r => scopeHosts.has((r.hostName || '').toLowerCase()));
+
   // ===================== 1. PROBLEM STATEMENTS =====================
   let problemStatements = `================================================================================
 EXECUTIVE RISK ASSESSMENT
 ================================================================================
-Scope:    ${cleanScope}
-Date:     ${today}
-Systems:  ${targetSystems.length}
+Scope:        ${cleanScope}
+Date:         ${today}
+Systems:      ${targetSystems.length}
+Sites:        ${siteDetails.length}${siteDetails.length > 0 ? ' (' + siteDetails.map(s => s.name + (s.city ? ', ' + s.city : '')).join('; ') + ')' : ''}
+
+ACCOUNT TEAM
+  Sales Rep:  ${personnel.salesRep}
+  CSM:        ${personnel.csm}
+  SAM:        ${personnel.sam}
 
 RISK SUMMARY
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
   Security: ${secRisksCount}   AutoSupport: ${asupIssues.length}   Cases: ${allSupportCases.length}
   Upgrades: ${allUpgrades.length}   Contracts: ${expiringContracts.length}
+
+OPERATIONAL HEALTH
+  ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
+  ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
+  Firmware Currency:  ${fwCurrentCount}/${sysCount} (${pctFw}%)
+  Contract Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%)
 
 `;
 
@@ -7350,29 +8529,51 @@ Dear Storage Operations Team,
 
 Our Active IQ posture audit identified ${totalDeduped} finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}, consolidated into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}.
 
+OPERATIONAL HEALTH SNAPSHOT:
+  ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
+  ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
+  Firmware Currency:  ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
+  Contract Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
+
 ${emailRiskLines}
 
-${asupIssues.length > 0 ? 'AUTOSUPPORT:\n' + asupIssues.map(a => `  • ${a.name}: ${a.issue}`).join('\n') : 'AutoSupport: All systems healthy.'}
+${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • ${a.name}: ${a.issue}`).join('\n') : 'AutoSupport: All systems reporting healthy.'}
 
 ${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}] ${c.title}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
 
-Please advise on your next CAB window. Remediation runbooks attached.
+${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => `  • ${e.systemName} — ${e.supportLevel} — Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)`).join('\n') : ''}
+${sustLatest.overallScore ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score: ${sustLatest.overallScore}%` : ''}
 
-Refs: security.netapp.com | kb.netapp.com | activeiq.netapp.com
+Please advise on your preferred CAB window for remediation. Detailed runbooks are attached.
+
+References: security.netapp.com | kb.netapp.com | activeiq.netapp.com
 
 Best Regards,
-[Your Name], NetApp SAM
+${personnel.sam !== 'Not Assigned' ? personnel.sam + ', NetApp SAM' : personnel.salesRep !== 'Not Assigned' ? personnel.salesRep + ', NetApp Account Team' : '[Your Name], NetApp Account Team'}
 
 --------------------------------------------------------------------------------
-TEMPLATE B: QBR SUMMARY
+TEMPLATE B: QBR EXECUTIVE SUMMARY
 --------------------------------------------------------------------------------
-Systems: ${targetSystems.length}  |  Findings: ${totalDeduped} (${critCount}C / ${highCount}H)
-Security: ${secRisksCount}  |  Cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
+Account:  ${cleanScope}
+Period:   ${today}
+Systems:  ${targetSystems.length}  |  Sites: ${siteDetails.length}
+
+HEALTH METRICS:
+  ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
+  ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
+  Firmware Currency:  ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
+  Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
+
+RISK POSTURE:
+  Findings: ${totalDeduped} (${critCount}C / ${highCount}H / ${medCount}M)
+  Security: ${secRisksCount}  |  Cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
+${sustLatest.overallScore ? `\nSUSTAINABILITY: ${sustLatest.overallScore}%` : ''}
 
 PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} findings)` : ''}`).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
-${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}`;
+${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}
+${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}`;
 
   // ===================== 3. CHANGE TICKETS =====================
   let changeTickets = `================================================================================
@@ -7535,31 +8736,85 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName} (${sys.serialNumber})
 SALES PROPOSALS & HARDWARE REFRESH
 ================================================================================
 CUSTOMER: ${cleanScope}  |  DATE: ${today}
+Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CSM: ' + personnel.csm : ''}
 
 `;
 
-  if (expiringContracts.length === 0 && targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length === 0) {
-    salesProposals += "No urgent hardware refreshes or contract renewals required.\n";
-  } else {
-    if (expiringContracts.length > 0) {
-      salesProposals += `CONTRACT RENEWALS (${expiringContracts.length}):\n`;
-      expiringContracts.forEach(e => {
-        salesProposals += `  ${e.systemName} (${e.serialNumber || "N/A"}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;
+  // Contract renewals
+  if (expiringContracts.length > 0) {
+    salesProposals += `CONTRACT RENEWALS (${expiringContracts.length})
+--------------------------------------------------------------------------------
+`;
+    expiringContracts.forEach((e, i) => {
+      salesProposals += `  ${i+1}. ${e.systemName} (${e.serialNumber || 'N/A'})
+     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)
+`;
+    });
+    salesProposals += `  Portal: https://mysupport.netapp.com/\n\n`;
+  }
+
+  // TAM renewal pipeline
+  if (scopedRenewals.length > 0) {
+    salesProposals += `RENEWAL PIPELINE (${scopedRenewals.length} systems from TAM data)
+--------------------------------------------------------------------------------
+`;
+    const refreshGroups = {};
+    scopedRenewals.forEach(r => {
+      const cat = r.techRefreshStatus || 'Unknown';
+      if (!refreshGroups[cat]) refreshGroups[cat] = [];
+      refreshGroups[cat].push(r);
+    });
+    Object.entries(refreshGroups).forEach(([cat, items]) => {
+      salesProposals += `  ${cat}: ${items.length} system(s)\n`;
+      items.slice(0, 5).forEach(r => {
+        salesProposals += `    • ${r.hostName || 'N/A'} | ${r.hwServiceLevel || ''} | HW EOA: ${(r.hwEndOfAvailability || 'N/A').substring(0,10)} | EOS: ${(r.hwEndOfSupport || 'N/A').substring(0,10)}\n`;
       });
-      salesProposals += '  Renew: https://mysupport.netapp.com/\n\n';
-    }
-    const eos = targetSystems.filter(s => s.lifecycle && (s.lifecycle.isNearEos || (s.ontapVersion || '').startsWith('9.5')));
-    if (eos.length > 0) {
-      salesProposals += `LIFECYCLE REFRESH (${eos.length}):\n`;
-      eos.forEach(sys => {
-        salesProposals += `  ${sys.systemName} | ${sys.platform} | OS: ${sys.ontapVersion} | EOA: ${sys.lifecycle.eoaDate || 'N/A'} | EOS: ${sys.lifecycle.eosDate || 'N/A'}
-    Recommend: Refresh to AFF/FAS - https://www.netapp.com/data-storage/aff-a-series/\n`;
-      });
-    }
+      if (items.length > 5) salesProposals += `    ... and ${items.length - 5} more\n`;
+    });
+    salesProposals += '\n';
+  }
+
+  // Lifecycle refresh
+  const eos = targetSystems.filter(s => s.lifecycle && (s.lifecycle.isNearEos || (s.ontapVersion || '').startsWith('9.5')));
+  if (eos.length > 0) {
+    salesProposals += `LIFECYCLE REFRESH CANDIDATES (${eos.length})
+--------------------------------------------------------------------------------
+`;
+    eos.forEach((sys, i) => {
+      salesProposals += `  ${i+1}. ${sys.systemName} | ${sys.platform} | OS: ${sys.ontapVersion}
+     EOA: ${sys.lifecycle.eoaDate || 'N/A'}  |  EOS: ${sys.lifecycle.eosDate || 'N/A'}
+     Recommendation: Refresh to AFF A-Series or C-Series
+     Reference: https://www.netapp.com/data-storage/aff-a-series/
+`;
+    });
+  }
+
+  // Security posture upsell
+  const arpGap = sysCount - arpEnabledCount;
+  const fwGap = sysCount - fwCurrentCount;
+  if (arpGap > 0 || fwGap > 0) {
+    salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES
+--------------------------------------------------------------------------------
+`;
+    if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} system(s) without Anti-Ransomware Protection\n    → ONTAP ARP licensing or upgrade engagement\n`;
+    if (fwGap > 0) salesProposals += `  • Firmware Currency: ${fwGap} system(s) behind recommended OS version\n    → Professional Services upgrade engagement\n`;
+  }
+
+  if (expiringContracts.length === 0 && eos.length === 0 && scopedRenewals.length === 0 && arpGap === 0) {
+    salesProposals += `No urgent hardware refreshes, contract renewals, or security gaps identified.\n`;
   }
 
   // 7. Customer Success Plan
   let customerSuccessPlan = compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases);
+
+  // 8. TAM QBR Pack
+  let qbrPack = compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
+
+  // 9. MSP Service Delivery Report
+  let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+
+  // 10. Account Handover Brief
+  let handoverBrief = compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
 
   return {
     problemStatements,
@@ -7568,7 +8823,10 @@ CUSTOMER: ${cleanScope}  |  DATE: ${today}
     solutionProposals,
     implementationPlans,
     salesProposals,
-    customerSuccessPlan
+    customerSuccessPlan,
+    qbrPack,
+    mspReport,
+    handoverBrief
   };
 }
 
@@ -8277,10 +9535,23 @@ function generateActionPlan() {
   allRisks.sort(bySev);
   allSecurityAdvisories.sort(bySev);
 
-  // Filter to only open/active cases, sorted by highest priority
-  const filteredCases = filterActiveCases(allSupportCases);
-  allSupportCases.length = 0;
-  filteredCases.forEach(c => allSupportCases.push(c));
+  // Extract MetroCluster risks for dedicated MC health reporting
+  const mcRisks = allRisks.filter(r => {
+    const cat = (r.category || '').toLowerCase();
+    const desc = (r.description || r.shortName || '').toLowerCase();
+    return cat === 'metrocluster' || cat.includes('metrocluster') || 
+           desc.includes('mc-med') || desc.includes('mauso') || 
+           desc.includes('metrocluster') || desc.includes('mediator');
+  });
+  const mcSystems = [...new Set(mcRisks.map(r => r.systemName))];
+  const mcCritical = mcRisks.filter(r => r.severity === 'critical' || r.severity === 'high');
+  const mcBestPractice = mcRisks.filter(r => r.severity === 'best_practice' || (r.description || '').includes('Mediator or Tiebreaker'));
+  const hasMediatorIssue = mcRisks.some(r => (r.description || '').toLowerCase().includes('mediator unreachable'));
+  const hasMausoDisabled = mcRisks.some(r => (r.description || '').toLowerCase().includes('mauso disabled'));
+  const hasMcBug = mcRisks.some(r => (r.description || '').toLowerCase().includes('contap-') || (r.description || '').toLowerCase().includes('bug'));
+
+  // Sort all cases: active first, then processing, then closed — each group by severity
+  filterActiveCases(allSupportCases);
 
   const switchAlerts = [];
   targetSystems.forEach(sys => {
@@ -8384,9 +9655,9 @@ function generateActionPlan() {
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Active support cases open with NetApp Support (P1-P4). Includes cases auto-created by AutoSupport and manually raised by the customer.">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Open Support Cases</div>
-            <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.length}</div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Support cases from NetApp Support portal. Shows active cases prominently; total includes closed/processing cases.">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Cases</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.filter(c => c._isActive).length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.filter(c => c._isActive).length}<span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400;"> / ${allSupportCases.length}</span></div>
           </div>
           <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Systems whose HW/SW support contract expires within 90 days. Requires proactive renewal engagement to avoid service coverage gaps.">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Expiring</div>
@@ -8397,6 +9668,42 @@ function generateActionPlan() {
             <div style="font-size: 1.3rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
           </div>
         </div>
+
+        ${mcRisks.length > 0 ? `
+        <!-- MetroCluster Health Section -->
+        <div style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.06), rgba(255, 87, 34, 0.04)); border: 1px solid rgba(255, 152, 0, 0.3); padding: 20px; border-radius: var(--radius-sm); margin-top: 20px;">
+          <h3 style="font-size: 0.95rem; margin: 0 0 12px 0; color: #ff9800; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            MetroCluster Infrastructure Health
+          </h3>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.5;">
+            MetroCluster provides continuous data availability through synchronous replication across geographically separated sites.
+            <strong>${mcSystems.length}</strong> system(s) have MetroCluster-related findings requiring attention.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${mcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'}">
+              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">MC Findings</div>
+              <div style="font-size: 1.2rem; font-weight: 700; color: #ff9800;">${mcRisks.length}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'}">
+              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Mediator</div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'};">${hasMediatorIssue ? '⚠ UNREACHABLE' : '✓ OK'}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMausoDisabled ? 'var(--status-critical)' : 'var(--status-normal)'}">
+              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">MAUSO</div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: ${hasMausoDisabled ? 'var(--status-critical)' : 'var(--status-normal)'};">${hasMausoDisabled ? '⚠ DISABLED' : '✓ ENABLED'}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMcBug ? 'var(--status-warning)' : 'var(--status-normal)'}">
+              <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Known Bugs</div>
+              <div style="font-size: 0.85rem; font-weight: 700; color: ${hasMcBug ? 'var(--status-warning)' : 'var(--status-normal)'};">${hasMcBug ? '⚠ ACTIVE' : '✓ CLEAR'}</div>
+            </div>
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-muted);">
+            Affected systems: <strong>${mcSystems.join(', ') || 'N/A'}</strong>
+          </div>
+        </div>
+        ` : ''}
+
         <!-- AutoSupport Telemetry Status Sub-Section -->
         <div style="background: rgba(0, 229, 255, 0.02); border: 1px dashed var(--accent-cyan); padding: 16px; border-radius: var(--radius-sm); margin-top: 20px;">
           <h3 style="font-size: 0.95rem; margin: 0 0 10px 0; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
@@ -8420,6 +9727,67 @@ function generateActionPlan() {
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(2)" data-tooltip="Download Section 2 prioritized risks report as a TXT file.">Download Risks (TXT)</button>
       </div>
   `;
+
+  // MetroCluster dedicated subsection at top of Tab 2
+  if (mcRisks.length > 0) {
+    html += `
+      <div style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.05), rgba(255, 87, 34, 0.03)); border: 1px solid rgba(255, 152, 0, 0.25); padding: 20px; border-radius: var(--radius-sm); margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 style="font-size: 1rem; margin: 0; color: #ff9800; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            MetroCluster Configuration &amp; DR Readiness
+          </h3>
+          <span class="badge ${mcCritical.length > 0 ? 'critical' : 'warning'}" style="font-size: 0.7rem;">${mcCritical.length} HIGH / ${mcRisks.length} TOTAL</span>
+        </div>
+        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5;">
+          MetroCluster provides zero RPO disaster recovery through synchronous mirroring. The following findings affect DR readiness across <strong>${mcSystems.length}</strong> node(s).
+        </p>
+    `;
+    // Deduplicate by risk description (same risk across multiple nodes)
+    const mcSeenDescs = new Set();
+    const mcUnique = [];
+    mcRisks.forEach(r => {
+      const key = r.description || r.shortName || r.id;
+      if (!mcSeenDescs.has(key)) {
+        mcSeenDescs.add(key);
+        const affectedSys = mcRisks.filter(mr => (mr.description || mr.shortName) === (r.description || r.shortName)).map(mr => mr.systemName);
+        mcUnique.push({ ...r, affectedSystems: [...new Set(affectedSys)] });
+      }
+    });
+    mcUnique.forEach((r, idx) => {
+      const isHigh = r.severity === 'critical' || r.severity === 'high';
+      const borderColor = isHigh ? 'var(--status-critical)' : 'var(--status-warning)';
+      // Build corrective action link
+      let actionHtml = '';
+      if (r.remediationPlan && r.remediationPlan.steps) {
+        r.remediationPlan.steps.forEach(step => {
+          const urlMatch = step.match(/(https?:\/\/[^\s]+)/);
+          if (urlMatch) {
+            const labelMatch = step.match(/^\d+\.\s*(.+?)\s*(?:—|->|→)/);
+            const label = labelMatch ? labelMatch[1].trim() : 'View corrective action';
+            actionHtml += `<a href="${urlMatch[1]}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; font-size: 0.78rem; cursor: pointer;" onclick="window.open(this.href,'_blank');return false;">${label} →</a> `;
+          }
+        });
+      }
+      if (!actionHtml && r.advisoryUrl) {
+        actionHtml = `<a href="${r.advisoryUrl}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; font-size: 0.78rem; cursor: pointer;" onclick="window.open(this.href,'_blank');return false;">View advisory →</a>`;
+      }
+      html += `
+        <div style="background: rgba(0,0,0,0.15); border-left: 4px solid ${borderColor}; padding: 14px 16px; border-radius: var(--radius-sm); margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+            <strong style="font-size: 0.88rem; color: #fff;">MC-${idx + 1}: ${r.description || r.shortName || 'MetroCluster Finding'}</strong>
+            <span class="badge ${isHigh ? 'critical' : 'warning'}" style="font-size: 0.65rem; flex-shrink: 0; margin-left: 8px;">${r.severity}</span>
+          </div>
+          ${r.remediationPlan ? `<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;"><strong>Impact:</strong> ${r.remediationPlan.impact || r.recommendation || ''}</div>` : ''}
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Nodes: ${r.affectedSystems.join(', ')}</span>
+            ${actionHtml ? `<div>${actionHtml}</div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
 
   if (allRisks.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No technical risk signatures identified across the monitored scope.</p>`;
@@ -8519,26 +9887,63 @@ function generateActionPlan() {
     <!-- Open Support Cases Section -->
     <div class="plan-section" data-section-index="4" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Active Support Cases & Milestones</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 open support cases report as a TXT file.">Download Cases (TXT)</button>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Support Cases & Service Activity</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 support cases report as a TXT file.">Download Cases (TXT)</button>
       </div>
   `;
 
   if (allSupportCases.length === 0) {
-    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No active technical support cases open in the NetApp Support portal.</p>`;
+    html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No support cases found in the NetApp Support portal for systems in scope.</p>`;
   } else {
+    // Count active vs closed
+    const activeCases = allSupportCases.filter(c => c._isActive);
+    const closedCases = allSupportCases.filter(c => c._isClosed);
+    const inactiveCases = allSupportCases.filter(c => !c._isActive && !c._isClosed);
+
+    html += `
+      <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div style="background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.3); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
+          <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Active</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${activeCases.length > 0 ? 'var(--accent-cyan)' : 'var(--status-normal)'};">${activeCases.length}</div>
+        </div>
+        <div style="background: rgba(255,152,0,0.06); border: 1px solid rgba(255,152,0,0.2); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
+          <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Processing</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${inactiveCases.length > 0 ? '#ff9800' : 'var(--status-normal)'};">${inactiveCases.length}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
+          <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Closed</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-muted);">${closedCases.length}</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
+          <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Total</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary);">${allSupportCases.length}</div>
+        </div>
+      </div>
+    `;
+
     allSupportCases.forEach((c, idx) => {
+      const isActive = c._isActive;
+      const isClosed = c._isClosed;
+
       let badgeClass = "badge info";
       if (c.severity.includes("S1")) badgeClass = "badge critical";
       else if (c.severity.includes("S2")) badgeClass = "badge warning";
+
+      const borderColor = isActive ? 'var(--accent-cyan)' : (isClosed ? 'var(--border-color)' : 'rgba(255,152,0,0.4)');
+      const opacity = isClosed ? '0.6' : '1';
+      const statusColor = isActive ? 'var(--accent-cyan)' : (isClosed ? 'var(--text-muted)' : '#ff9800');
+      const statusLabel = isActive ? '● ACTIVE' : (isClosed ? '○ CLOSED' : '◐ PROCESSING');
 
       const resLine = c.resolution ? `<div style="font-size: 0.82rem; color: var(--status-normal); margin-top: 6px; padding: 4px 8px; background: rgba(0,230,118,0.05); border-left: 2px solid var(--status-normal); border-radius: 4px;"><strong>Resolution:</strong> ${c.resolution}</div>` : '';
       const notesLine = c.ownerNotes ? `<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan);"><strong>Latest Notes:</strong> ${c.ownerNotes}</div>` : '';
 
       html += `
-        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>Case ID: ${c.id} - ${c.systemName || 'N/A'}</strong>
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-left: 4px solid ${borderColor}; padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px; opacity: ${opacity};">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <strong>Case ID: ${c.id} - ${c.systemName || 'N/A'}</strong>
+              <span style="font-size: 0.65rem; font-weight: 700; color: ${statusColor}; letter-spacing: 0.5px;">${statusLabel}</span>
+            </div>
             <span class="${badgeClass}" style="font-size: 0.7rem;">${c.severity}</span>
           </div>
           <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${c.title}</div>
@@ -8546,14 +9951,12 @@ function generateActionPlan() {
           <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px;">
             <strong>Category:</strong> ${c.criticality || 'N/A'}${c.subCategory ? ' / ' + c.subCategory : ''}
           </div>
-          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;">
-            <strong>Next Action Owner:</strong> <span style="color: var(--status-warning); font-weight: 600;">${c.nextActionBy || "Under Review"}</span>
-          </div>
+          ${c.caseType ? '<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px;"><strong>Type:</strong> ' + c.caseType + '</div>' : ''}
           ${c.reporter ? '<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;"><strong>Reported By:</strong> ' + c.reporter + '</div>' : ''}
           ${resLine}
           ${notesLine}
           <div style="font-size: 0.8rem; color: var(--text-secondary);">
-            Status: <code style="color: var(--status-info);">${c.status}</code> | Opened: <strong>${c.createdDate ? c.createdDate.split('T')[0] : 'N/A'}</strong> | Last Updated: <strong>${c.lastUpdated ? c.lastUpdated.split('T')[0] : 'N/A'}</strong>${c.closedDate ? ' | Closed: <strong>' + c.closedDate.split('T')[0] + '</strong>' : ''}
+            Status: <code style="color: ${statusColor};">${c.status}</code> | Opened: <strong>${c.createdDate ? c.createdDate.split('T')[0] : 'N/A'}</strong> | Last Updated: <strong>${c.lastUpdated ? c.lastUpdated.split('T')[0] : 'N/A'}</strong>${c.closedDate ? ' | Closed: <strong>' + c.closedDate.split('T')[0] + '</strong>' : ''}
           </div>
         </div>
       `;
@@ -8768,71 +10171,132 @@ function generateActionPlan() {
 
     <!-- Deliverables and Drafts Section -->
     <div class="plan-section" data-section-index="9" style="display: none; margin-top: 32px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">9. Executable Account Deliverables Suite</h2>
+      <div style="background: linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,165,0,0.03)); border: 1px solid rgba(255,215,0,0.25); border-radius: var(--radius-sm); padding: 20px 24px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+              <h2 style="font-size: 1.25rem; margin: 0; border: none; padding: 0; color: #ffd700;">★ Executable Account Deliverables Suite</h2>
+              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">10 DELIVERABLES</span>
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; max-width: 700px;">
+              Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT file for distribution to stakeholders.
+            </p>
+          </div>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 10 deliverables as individual TXT files">⬇ Download All</button>
+        </div>
+        <div style="display: flex; gap: 16px; margin-top: 8px;">
+          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C)</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--accent-cyan);">Customer &amp; Sales</span> (D–F)</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-normal);">TAM / MSP Operations</span> (G–J)</span>
+        </div>
       </div>
-      
+
+      <!-- Category 1: Risk & Remediation -->
+      <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--status-critical); white-space: nowrap;">&#x2B25; Risk &amp; Remediation</span>
+        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, var(--status-critical), transparent);"></div>
+      </div>
+
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">A. Problem Statements & Business Impact Summaries</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">A. Executive Risk Assessment</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('PROBLEM_STATEMENTS')">Download Draft (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Technical problem statements translating identified risks into business, financial, and operational risk contexts.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Consolidated risk posture with account team context, operational health scorecard (ASUP/ARP/firmware/contract compliance), and prioritized corrective actions grouped by fix.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.problemStatements}</textarea>
       </div>
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">B. Customer Advisories & QBR Communications</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('EMAIL')">Download Draft (TXT)</button>
-        </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Proactive advisory notification emails and slides content to share during Quarterly Business Reviews.</p>
-        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerComms}</textarea>
-      </div>
-
-      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">C. ITIL-Aligned Change Control & Dispatch Ticket Templates</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">B. ITIL Change Control &amp; Dispatch Tickets</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('TICKET')">Download Draft (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Pre-formatted change control tickets specifying pre-requisites, impact scope, implementation plans, and rollback runbooks.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.changeTickets}</textarea>
       </div>
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">D. Technical Solution & Architecture Proposals</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">C. CLI Runbooks &amp; Upgrade Execution Plans</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('IMPLEMENTATION')">Download Runbook (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Step-by-step remediation runbooks with exact ONTAP CLI syntax, multi-hop upgrade paths, and platform-specific checks (ASA SAN, E-Series).</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.implementationPlans}</textarea>
+      </div>
+
+      <!-- Category 2: Customer & Sales -->
+      <div style="margin-bottom: 8px; margin-top: 32px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent-cyan); white-space: nowrap;">&#x2B25; Customer &amp; Sales</span>
+        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, var(--accent-cyan), transparent);"></div>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">D. Customer Advisory &amp; QBR Communications</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('EMAIL')">Download Draft (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Advisory email template with health snapshot, sustainability score, and lifecycle milestones. QBR executive summary with compliance indicators and priority actions.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerComms}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">E. Technical Solution &amp; Architecture Proposals</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SOLUTION_PROPOSAL')">Download Draft (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Formal solution design architectures detailing the rationale behind SAN/NAS and upgrade remediation practices.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Solution design with prioritized corrections, OS upgrade targets, and a phased implementation timeline (6-week remediation roadmap).</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.solutionProposals}</textarea>
       </div>
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">E. Step-by-Step CLI Runbooks & Upgrade Execution Plans</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('IMPLEMENTATION')">Download Runbook (TXT)</button>
-        </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Detailed, command-level runbooks showing exact CLI syntax to disable SMB1, modify exports, execute shelf upgrades, and run OS updates.</p>
-        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.implementationPlans}</textarea>
-      </div>
-
-      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">F. Sales Refresh & Hardware Renewal Proposals</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">F. Sales Refresh &amp; Renewal Proposals</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SALES_PROPOSAL')">Download Draft (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Pre-sales recommendations for hardware upgrades (EOS/EOL controllers) and aggregate expansion plans.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Contract renewals, TAM renewal pipeline with tech refresh status, lifecycle refresh candidates, and security/compliance upsell opportunities.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.salesProposals}</textarea>
       </div>
 
+      <!-- Category 3: TAM/MSP Operations -->
+      <div style="margin-bottom: 8px; margin-top: 32px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--status-normal); white-space: nowrap;">&#x2B25; TAM / MSP Operations</span>
+        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, var(--status-normal), transparent);"></div>
+      </div>
+
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. Phased Customer Success & Posture Optimization Plan</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. Customer Success &amp; Posture Optimization Plan</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download Success Plan (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Roadmap detailing CSM checkpoints, storage ROI optimization runs, and CSAT alignment schedules.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Phased CSM roadmap (Phase 1: critical mitigation, Phase 2: OS upgrades, Phase 3: compliance audits) with ITIL governance guidelines.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerSuccessPlan}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">H. TAM Quarterly Business Review (QBR) Pack</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('QBR_PACK')">Download QBR Pack (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Structured QBR document with account overview, operational health scorecard (A-F grade), sustainability metrics, lifecycle pipeline, AIQ recommendations, and templated action items.</p>
+        <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.qbrPack}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. MSP Service Delivery Report</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MSP_REPORT')">Download MSP Report (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Managed services SLA compliance matrix (ASUP/ARP/firmware/contracts with MET/MISSED indicators), incident management, contract portfolio, and capacity efficiency analysis.</p>
+        <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.mspReport}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">J. Account Handover &amp; Transition Brief</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('HANDOVER_BRIEF')">Download Handover Brief (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Comprehensive account profile for SAM/CSM transitions &mdash; environment inventory, personnel, risk posture, contract status, recent activity, and auto-generated talking points.</p>
+        <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.handoverBrief}</textarea>
       </div>
     </div>
 
@@ -8914,7 +10378,9 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)">7. Logistics &amp; Health</button>
       <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)">8. Guidelines</button>
-      <button class="plan-tab-btn" data-tab-index="9" onclick="switchPlanTab(9)">9. Deliverables Drafts</button>
+      <span class="plan-tab-divider"></span>
+      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)">★ 9. Deliverables Suite (10)</button>
+      <span class="plan-tab-divider"></span>
       <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)">10. Contracts &amp; Lifecycle</button>
       <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)">11. Sustainability</button>
       <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)">12. Recommendations</button>
@@ -9030,10 +10496,8 @@ function downloadPlanSection(index) {
     }
   });
 
-  // Filter to only open/active cases, sorted by highest priority
-  const filteredCases2 = filterActiveCases(allSupportCases);
-  allSupportCases.length = 0;
-  filteredCases2.forEach(c => allSupportCases.push(c));
+  // Sort all cases: active first, then processing, then closed
+  filterActiveCases(allSupportCases);
 
 
   if (index === 1) {
@@ -9209,6 +10673,20 @@ B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
   }
 }
 
+// Download all 10 deliverables at once (staggered to avoid browser popup blockers)
+function downloadAllDeliverables() {
+  const types = [
+    'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
+    'EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL',
+    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF'
+  ];
+  let delay = 0;
+  types.forEach(type => {
+    setTimeout(() => downloadDeliverable(type), delay);
+    delay += 200;
+  });
+}
+
 // Download deliverables helper by type and active environment scope
 function downloadDeliverable(type) {
   let targetSystems = [];
@@ -9266,10 +10744,8 @@ function downloadDeliverable(type) {
     }
   });
 
-  // Filter to only open/active cases, sorted by highest priority
-  const filteredCases3 = filterActiveCases(allSupportCases);
-  allSupportCases.length = 0;
-  filteredCases3.forEach(c => allSupportCases.push(c));
+  // Sort all cases: active first, then processing, then closed
+  filterActiveCases(allSupportCases);
 
   const docs = compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' '));
 
@@ -9289,6 +10765,12 @@ function downloadDeliverable(type) {
     triggerFileDownload(`sales_refresh_proposal_${cleanScope}.txt`, docs.salesProposals);
   } else if (type === 'SOLUTION_PROPOSAL') {
     triggerFileDownload(`solution_architecture_proposal_${cleanScope}.txt`, docs.solutionProposals);
+  } else if (type === 'QBR_PACK') {
+    triggerFileDownload(`tam_qbr_pack_${cleanScope}.txt`, docs.qbrPack);
+  } else if (type === 'MSP_REPORT') {
+    triggerFileDownload(`msp_service_report_${cleanScope}.txt`, docs.mspReport);
+  } else if (type === 'HANDOVER_BRIEF') {
+    triggerFileDownload(`account_handover_brief_${cleanScope}.txt`, docs.handoverBrief);
   } else if (type === 'CSV') {
     const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Platform Model", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
@@ -10418,6 +11900,7 @@ async function saveSettings() {
     state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
     state.groups = [...DEFAULT_GROUPS];
     state.watchlists = [...MOCK_WATCHLISTS];
+    state.globalRisks = [];
     saveSystems();
     safeSetItem("aiq_custom_groups", JSON.stringify(state.groups));
     saveWatchlists();
@@ -10430,6 +11913,116 @@ async function saveSettings() {
   alert("Settings saved successfully.");
   updateScheduledSyncInfo();
   switchTab("settings");
+}
+
+// ── Watchlist Scope Management ─────────────────────────────────────────
+// Allows users to scope harvest to a specific watchlist (recommended for
+// internal NetApp users to avoid pulling the entire fleet).
+
+async function loadWatchlistsForPicker() {
+  const select = document.getElementById("settingsWatchlistId");
+  const status = document.getElementById("watchlistScopeStatus");
+  if (!select) return;
+
+  // Show loading state
+  const origLen = select.options.length;
+  if (status) status.innerHTML = '<span style="color: var(--accent-amber);">⏳ Fetching watchlists from Active IQ...</span>';
+
+  try {
+    const resp = await fetch("/api/watchlists?t=" + Date.now(), { cache: "no-store" });
+    const data = await resp.json();
+
+    if (data.error) throw new Error(data.error);
+
+    const watchlists = data.watchlists || [];
+    if (watchlists.length === 0) {
+      if (status) status.innerHTML = '<span style="color: var(--accent-amber);">⚠ No watchlists found. Create one at <a href="https://activeiq.netapp.com" target="_blank" style="color: var(--accent-cyan);">activeiq.netapp.com</a> → Watchlists.</span>';
+      return;
+    }
+
+    // Preserve current selection
+    const currentId = select.value;
+
+    // Clear and rebuild options
+    select.innerHTML = '<option value="">All Systems (Full Fleet)</option>';
+    watchlists.forEach(wl => {
+      const opt = document.createElement("option");
+      opt.value = wl.id;
+      opt.textContent = wl.name + (wl.systemCount ? ` (${wl.systemCount} systems)` : "");
+      select.appendChild(opt);
+    });
+
+    // Restore selection
+    if (currentId) select.value = currentId;
+
+    // Update status
+    const selected = select.options[select.selectedIndex];
+    if (select.value) {
+      if (status) status.innerHTML = `Current scope: <strong style="color: var(--accent-green);">📋 ${selected.textContent}</strong> — only systems in this watchlist will be harvested on next sync.`;
+    } else {
+      if (status) status.innerHTML = `Loaded <strong>${watchlists.length}</strong> watchlist(s). Select one to scope your harvest, or keep "All Systems".`;
+    }
+
+    console.log(`[AIQ] Loaded ${watchlists.length} watchlists for scope picker.`);
+  } catch (err) {
+    console.error("[AIQ] Failed to load watchlists:", err);
+    if (status) status.innerHTML = `<span style="color: var(--accent-red);">❌ Failed to load watchlists: ${err.message}</span>`;
+  }
+}
+
+async function onWatchlistScopeChange() {
+  const select = document.getElementById("settingsWatchlistId");
+  const status = document.getElementById("watchlistScopeStatus");
+  if (!select) return;
+
+  const watchlistId = select.value;
+  const watchlistName = select.options[select.selectedIndex]?.textContent || "";
+
+  try {
+    // Save to server config
+    await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ watchlistId, watchlistName })
+    });
+
+    // Also save locally
+    safeSetItem("aiq_watchlist_id", watchlistId);
+    safeSetItem("aiq_watchlist_name", watchlistName);
+
+    if (watchlistId) {
+      if (status) status.innerHTML = `Scope set to: <strong style="color: var(--accent-green);">📋 ${watchlistName}</strong> — <em>re-sync to apply</em>. Click "Synchronize Data Now" to fetch only this watchlist's systems.`;
+    } else {
+      if (status) status.innerHTML = 'Scope set to: <strong style="color: var(--accent-cyan);">All Systems</strong> — all systems visible to your API token will be harvested.';
+    }
+
+    console.log(`[AIQ] Watchlist scope saved: ${watchlistId || "(all systems)"} = ${watchlistName}`);
+  } catch (err) {
+    console.error("[AIQ] Failed to save watchlist scope:", err);
+    if (status) status.innerHTML = `<span style="color: var(--accent-red);">❌ Failed to save scope: ${err.message}</span>`;
+  }
+}
+
+async function initWatchlistScope() {
+  // Load current scope from server config on page init
+  try {
+    const resp = await fetch("/api/config?t=" + Date.now(), { cache: "no-store" });
+    const cfg = await resp.json();
+    const select = document.getElementById("settingsWatchlistId");
+    const status = document.getElementById("watchlistScopeStatus");
+
+    if (cfg.watchlistId && select) {
+      // We have a saved watchlist — auto-load watchlists to populate dropdown
+      await loadWatchlistsForPicker();
+      select.value = cfg.watchlistId;
+      if (status) {
+        const name = cfg.watchlistName || select.options[select.selectedIndex]?.textContent || cfg.watchlistId;
+        status.innerHTML = `Current scope: <strong style="color: var(--accent-green);">📋 ${name}</strong> — only systems in this watchlist are harvested.`;
+      }
+    }
+  } catch (err) {
+    console.log("[AIQ] Config load skipped (file mode or server not running):", err.message);
+  }
 }
 
 async function updateApplicationCode() {
@@ -10674,6 +12267,10 @@ async function loadProductionData(forceRefresh = false) {
     }));
 
     state.systems = systemsList.map(s => enrichSystemTelemetry(s));
+    // Debug: log cases stats after normalization
+    const totalCasesLoaded = state.systems.reduce((sum, s) => sum + (s.supportCases ? s.supportCases.length : 0), 0);
+    const sysWithCases = state.systems.filter(s => s.supportCases && s.supportCases.length > 0).length;
+    console.log(`[AIQ] Cases loaded: ${totalCasesLoaded} across ${sysWithCases} systems (of ${state.systems.length} total)`);
     saveSystems();
     state.lastSync = new Date().toISOString();
     safeSetItem("aiq_last_sync", state.lastSync);
@@ -10953,6 +12550,7 @@ window.onload = async function() {
   loadConfig();
   updateStatusIndicators();
   updateScheduledSyncInfo();
+  initWatchlistScope(); // Load saved watchlist scope from server config
   
   // Force GraphQL sync on every page load when not in mock mode.
   // Clear stale clusterview data from previous versions.

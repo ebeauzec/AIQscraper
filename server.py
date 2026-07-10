@@ -171,10 +171,13 @@ def _gql(token, query, variables=None):
     return status, json.loads(raw.decode("utf-8", errors="replace"))
 
 
-def _do_full_harvest():
+def _do_full_harvest(watchlist_id=None):
     """Execute the full AIQ GraphQL harvest. Returns the result dict.
     This is the core logic extracted from handle_harvest, now reusable
-    for both synchronous and background calls."""
+    for both synchronous and background calls.
+    
+    If watchlist_id is provided, only systems in that watchlist are fetched.
+    """
     global _is_syncing, _last_sync_error
 
     with _sync_lock:
@@ -287,8 +290,9 @@ def _do_full_harvest():
             while True:
                 page += 1
                 after_arg = f', after: "{cursor}"' if cursor else ""
+                wl_arg = f', watchlistId: "{watchlist_id}"' if watchlist_id else ""
                 query_text = """{
-                  systems(pageSize: 100""" + after_arg + """) {
+                  systems(pageSize: 100""" + after_arg + wl_arg + """) {
                     totalCount cursor
                     systems {""" + fields + """
                     }
@@ -321,7 +325,7 @@ def _do_full_harvest():
                 print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
 
 
-        # 5. Fetch clusters with full details
+        # 5. Fetch clusters with full details (including switches and shelves)
         print("  [HARVEST] Fetching clusters...", flush=True)
         all_clusters = []
         cursor = None
@@ -340,6 +344,21 @@ def _do_full_harvest():
                   osRecommendation { recommendedVersion }
                   snapMirrorRelationships { totalCount }
                   systems { serialNumber }
+                  switches {
+                    switchSerialNumber
+                    deviceName
+                    role
+                    vendor
+                    model
+                    ipAddress
+                    isDiscovered
+                    isMonitored
+                    versionInfo { fwVersion rcfVersion }
+                  }
+                  shelves {
+                    serialNumber
+                    hardwareModel { name endOfAvailability endOfHwSupport }
+                  }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB }
                     logical { usedKiB }
@@ -394,18 +413,24 @@ def _do_full_harvest():
             cursor = new_cursor
         print(f"  [HARVEST] Total risk instances: {len(all_risk_instances)}", flush=True)
 
-        # 7. Fetch cases (first 500)
-        print("  [HARVEST] Fetching cases...", flush=True)
+        # 7. Fetch all support cases (active + closed — client will sort/highlight)
+        print("  [HARVEST] Fetching support cases...", flush=True)
         _, cases_resp = _gql(token, """{
-          cases(pageSize: 500) {
+          cases(pageSize: 500, productTypes: [FILER, SWApp]) {
+            totalCount
             cases {
               caseId
-              caseTitle
-              caseStatus
-              caseCreateDate
-              casePriority
+              symptom
+              description
+              status
+              priority
               highestPriority
-              productFamily
+              created
+              lastUpdated
+              closed
+              type
+              category
+              subCategory
               caseReceivedVia
               reporterContact { name }
               system { serialNumber hostName }
@@ -414,7 +439,7 @@ def _do_full_harvest():
         }""")
         cases_data = (cases_resp.get("data") or {}).get("cases", {})
         all_cases = cases_data.get("cases") or []
-        print(f"  [HARVEST] Cases: {len(all_cases)}", flush=True)
+        print(f"  [HARVEST] Cases: {len(all_cases)} (totalCount={cases_data.get('totalCount','?')})", flush=True)
 
         # 8. Fetch customers (with sustainability)
         _, cust_resp = _gql(token, """{ customers(pageSize: 100) { customers {
@@ -527,6 +552,8 @@ def _do_full_harvest():
         serial_to_cluster_cap = {}
         serial_to_cluster_sm = {}   # serial → snapMirror relationship count
         serial_to_cluster_ha = {}   # serial → HA configured flag
+        serial_to_cluster_switches = {}  # serial → switches list from cluster
+        serial_to_cluster_shelves = {}   # serial → shelves list from cluster
         for cl in all_clusters:
             cl_id = cl.get("id") or cl.get("name")
             cl_name = cl.get("name", "")
@@ -546,6 +573,8 @@ def _do_full_harvest():
             is_ha = cl.get("isHAConfigured", False)
             cl_os = cl.get("osVersion", "")
             cl_rec = ((cl.get("osRecommendation") or {}).get("recommendedVersion")) or ""
+            cl_switches = cl.get("switches") or []
+            cl_shelves = cl.get("shelves") or []
             for cs in cl_systems:
                 cs_serial = cs.get("serialNumber")
                 if cs_serial:
@@ -553,6 +582,11 @@ def _do_full_harvest():
                     serial_to_cluster_cap[cs_serial] = cap_data
                     serial_to_cluster_sm[cs_serial] = sm_count
                     serial_to_cluster_ha[cs_serial] = is_ha
+                    serial_to_cluster_switches[cs_serial] = cl_switches
+                    serial_to_cluster_shelves[cs_serial] = cl_shelves
+        
+        total_sw = sum(len(v) for v in serial_to_cluster_switches.values())
+        print(f"  [HARVEST] Switch instances mapped: {total_sw // max(len(serial_to_cluster_switches), 1)} unique across clusters", flush=True)
 
         # 13. Build final systems output (with full TAM enrichment)
         systems_out = []
@@ -583,7 +617,7 @@ def _do_full_harvest():
             cl_name = serial_to_cluster.get(serial, "")
             cl_cap = serial_to_cluster_cap.get(serial, {})
 
-            # Extract switches from port connectivity
+            # Extract switches from port connectivity (device names + port types)
             switches = []
             seen_devs = set()
             pi = s.get("portInterface") or {}
@@ -605,6 +639,53 @@ def _do_full_harvest():
                         "portState": p.get("portState", ""),
                         "sourcePort": p.get("portName", ""),
                     })
+
+            # Merge cluster-level switches (with model, firmware, validation data)
+            cl_switches = serial_to_cluster_switches.get(serial, [])
+            for csw in cl_switches:
+                sw_serial = csw.get("switchSerialNumber", "")
+                vi = csw.get("versionInfo") or {}
+                fw = vi.get("fwVersion", "")
+                rcf = vi.get("rcfVersion", "")
+                is_monitored = csw.get("isMonitored", False)
+                sw_model = csw.get("model") or ""
+                sw_vendor = csw.get("vendor") or ""
+                sw_name = csw.get("deviceName") or ""
+                sw_role = csw.get("role") or "Cluster Interconnect"
+                
+                status = "Optimal"
+                validation = "Switch firmware validated."
+                if not is_monitored:
+                    status = "Warning"
+                    validation = f"Switch '{sw_name}' is not monitored. Enable CSHM for proactive alerting."
+                if sw_model == "OTHER" or not sw_model:
+                    validation = f"Discovered switch: {sw_name}. Model not recognized by Active IQ — verify IMT compatibility."
+                
+                switches.append({
+                    "type": sw_role,
+                    "model": sw_model if sw_model != "OTHER" else sw_vendor or sw_name,
+                    "serialNumber": sw_serial,
+                    "firmware": fw,
+                    "targetFirmware": rcf or fw,
+                    "status": status,
+                    "ipAddress": csw.get("ipAddress") or "",
+                    "validationDetails": validation,
+                    "deviceName": sw_name,
+                    "vendor": sw_vendor,
+                    "isMonitored": is_monitored,
+                })
+
+            # Merge cluster-level shelves
+            cl_shelves = serial_to_cluster_shelves.get(serial, [])
+            shelves_out = s.get("shelves") or []
+            for csh in cl_shelves:
+                hm = csh.get("hardwareModel") or {}
+                shelves_out.append({
+                    "serialNumber": csh.get("serialNumber", ""),
+                    "model": hm.get("name", ""),
+                    "endOfAvailability": hm.get("endOfAvailability", ""),
+                    "endOfHwSupport": hm.get("endOfHwSupport", ""),
+                })
 
             systems_out.append({
                 # ── Core identity ──
@@ -729,7 +810,7 @@ def _do_full_harvest():
                 "snapMirrorCount": serial_to_cluster_sm.get(serial, 0),
                 "isHAConfigured": serial_to_cluster_ha.get(serial, False),
                 # ── Shelves, drives, ports, switches ──
-                "shelves": s.get("shelves") or [],
+                "shelves": shelves_out,
                 "portInterface": s.get("portInterface") or {},
                 "networkPorts": s.get("networkPorts") or {},
                 "switches": switches,
@@ -812,8 +893,16 @@ def _do_full_harvest():
 def _background_sync():
     """Run a full harvest in the background. Errors are logged, not raised."""
     try:
-        print("  [BACKGROUND] Starting background re-sync...", flush=True)
-        _do_full_harvest()
+        # Read watchlistId from config for background sync
+        wl_id = None
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+            wl_id = cfg.get("watchlistId") or cfg.get("watchlist_id") or None
+        except Exception:
+            pass
+        scope_msg = f" (watchlist: {wl_id})" if wl_id else " (all systems)"
+        print(f"  [BACKGROUND] Starting background re-sync{scope_msg}...", flush=True)
+        _do_full_harvest(watchlist_id=wl_id)
         print("  [BACKGROUND] Background re-sync complete.", flush=True)
     except Exception as e:
         import traceback
@@ -851,6 +940,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_harvest()
         elif self.path.startswith('/api/sync-status'):
             self.handle_sync_status()
+        elif self.path.startswith('/api/config'):
+            self.handle_config_get()
+        elif self.path.startswith('/api/watchlists'):
+            self.handle_watchlists()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -880,12 +973,22 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         force = params.get("force", ["0"])[0] == "1"
+        watchlist_id = params.get("watchlistId", [None])[0]
+
+        # If no watchlistId in query params, check config
+        if not watchlist_id:
+            try:
+                cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                watchlist_id = cfg.get("watchlistId") or cfg.get("watchlist_id") or None
+            except Exception:
+                pass
 
         try:
             if force:
                 # Force mode: full synchronous harvest, bypass cache
-                print("  [HARVEST] Force sync requested", flush=True)
-                result = _do_full_harvest()
+                scope_msg = f" (watchlist: {watchlist_id})" if watchlist_id else " (all systems)"
+                print(f"  [HARVEST] Force sync requested{scope_msg}", flush=True)
+                result = _do_full_harvest(watchlist_id=watchlist_id)
                 res_bytes = json.dumps(result, default=str).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -933,8 +1036,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             # No cache — do full synchronous harvest
-            print("  [CACHE] No cached data — doing full harvest", flush=True)
-            result = _do_full_harvest()
+            scope_msg = f" (watchlist: {watchlist_id})" if watchlist_id else " (all systems)"
+            print(f"  [CACHE] No cached data — doing full harvest{scope_msg}", flush=True)
+            result = _do_full_harvest(watchlist_id=watchlist_id)
             res_bytes = json.dumps(result, default=str).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -986,6 +1090,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/api/app/update':
             self.handle_app_update()
+        elif self.path == '/api/config':
+            self.handle_config_post()
         elif self.path.startswith('/api/') or self.path == '/graphql':
             self.handle_proxy('POST')
         else:
@@ -996,6 +1102,107 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_proxy('PUT')
         else:
             self.send_error(404, "Not Found")
+
+    def handle_config_get(self):
+        """GET /api/config — return current config (without sensitive tokens)."""
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+            # Return only non-sensitive fields
+            safe_cfg = {
+                "watchlistId": cfg.get("watchlistId") or cfg.get("watchlist_id") or "",
+                "watchlistName": cfg.get("watchlistName", ""),
+                "hasToken": bool(cfg.get("refreshToken") or cfg.get("refresh_token")),
+            }
+            res_bytes = json.dumps(safe_cfg).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(res_bytes)
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_config_post(self):
+        """POST /api/config — update config fields (merges with existing)."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            # Read existing config
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+            # Merge allowed fields
+            if "watchlistId" in body:
+                cfg["watchlistId"] = body["watchlistId"] or ""
+            if "watchlistName" in body:
+                cfg["watchlistName"] = body["watchlistName"] or ""
+            # Write back
+            CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            print(f"  [CONFIG] Updated: watchlistId={cfg.get('watchlistId', '')}, watchlistName={cfg.get('watchlistName', '')}", flush=True)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_watchlists(self):
+        """GET /api/watchlists — fetch available watchlists from AIQ REST API."""
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+            refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
+            if not refresh_token:
+                raise Exception("No refresh token configured")
+
+            # Get access token
+            status, raw = _http("POST", f"{REST_BASE}/v1/tokens/accessToken",
+                {"Content-Type": "application/json", "Accept": "application/json"},
+                {"refresh_token": refresh_token})
+            if status != 200:
+                raise Exception(f"Token exchange failed: HTTP {status}")
+            token_data = json.loads(raw.decode("utf-8", errors="replace"))
+            token = token_data.get("access_token")
+            if not token:
+                raw_s = raw.decode("utf-8", errors="replace").strip().strip('"')
+                token = raw_s if len(raw_s) > 30 else None
+            if not token:
+                raise Exception("No access token")
+
+            # Fetch watchlists
+            watchlists = []
+            for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action"]:
+                try:
+                    wl_status, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
+                        {"Authorization": f"Bearer {token}", "Accept": "application/json"})
+                    if wl_status == 200:
+                        wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
+                        wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", []))
+                        if isinstance(wl_list, list) and len(wl_list) > 0:
+                            for wl in wl_list:
+                                if isinstance(wl, dict):
+                                    watchlists.append({
+                                        "id": wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", ""),
+                                        "name": wl.get("watchListName") or wl.get("watchlistName") or wl.get("name", "Watchlist"),
+                                        "systemCount": wl.get("systemCount") or wl.get("system_count") or 0,
+                                    })
+                            if watchlists:
+                                break
+                except Exception:
+                    pass
+
+            res_bytes = json.dumps({"watchlists": watchlists}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(res_bytes)
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e), "watchlists": []}).encode("utf-8"))
 
     def handle_app_update(self):
         import subprocess
