@@ -837,6 +837,7 @@ def _do_full_harvest(watchlist_id=None):
                                     watchlists_out.append({
                                         "id": wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", ""),
                                         "name": wl.get("watchListName") or wl.get("watchlistName") or wl.get("name", "Watchlist"),
+                                        "systemSerials": [],
                                     })
                             if watchlists_out:
                                 print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from {wl_path}", flush=True)
@@ -845,6 +846,39 @@ def _do_full_harvest(watchlist_id=None):
                     pass
         except Exception as e:
             print(f"  [HARVEST] Watchlist fetch skipped: {e}", flush=True)
+
+        # 14b. Resolve system serial numbers for each watchlist via GraphQL
+        if watchlists_out:
+            print(f"  [HARVEST] Resolving system serials for {len(watchlists_out)} watchlist(s)...", flush=True)
+            for wl in watchlists_out[:20]:  # Limit to 20 watchlists to avoid excessive API calls
+                wl_id = wl.get("id", "")
+                if not wl_id:
+                    continue
+                try:
+                    serials = []
+                    wl_cursor = None
+                    for wl_page in range(50):  # Max 5000 systems per watchlist
+                        after_arg = f', after: "{wl_cursor}"' if wl_cursor else ""
+                        _, wl_sys_resp = _gql(token, """{
+                          systems(pageSize: 100, watchlistId: \"""" + wl_id + """\" """ + after_arg + """) {
+                            totalCount cursor
+                            systems { serialNumber }
+                          }
+                        }""")
+                        wl_sys_data = (wl_sys_resp.get("data") or {}).get("systems", {})
+                        wl_systems = wl_sys_data.get("systems") or []
+                        for ws in wl_systems:
+                            sn = ws.get("serialNumber") or ""
+                            if sn:
+                                serials.append(sn)
+                        new_cursor = wl_sys_data.get("cursor")
+                        if not wl_systems or not new_cursor or new_cursor == wl_cursor:
+                            break
+                        wl_cursor = new_cursor
+                    wl["systemSerials"] = serials
+                    print(f"    Watchlist '{wl['name']}': {len(serials)} systems", flush=True)
+                except Exception as wl_err:
+                    print(f"    Watchlist '{wl.get('name', wl_id)}' serial resolve failed: {wl_err}", flush=True)
 
         duration_ms = int((time.time() - start_time) * 1000)
 

@@ -12232,8 +12232,10 @@ async function loadProductionData(forceRefresh = false) {
     if (result.watchlists && result.watchlists.length > 0) {
       state.watchlists = result.watchlists.map(wl => ({
         id: wl.watchListId || wl.watchlistId || wl.id || ("wl_" + Date.now()),
-        name: wl.watchListName || wl.watchlistName || wl.name || "Watchlist"
+        name: wl.watchListName || wl.watchlistName || wl.name || "Watchlist",
+        systemSerials: wl.systemSerials || wl.system_serials || []
       }));
+      console.log(`[AIQ] Loaded ${state.watchlists.length} watchlist(s):`, state.watchlists.map(w => `${w.name} (${w.systemSerials.length} systems)`));
       saveWatchlists();
     }
 
