@@ -220,64 +220,106 @@ def _do_full_harvest():
         print(f"  [HARVEST] Fleet: {total_sys} systems, {total_cl} clusters, {total_sites} sites", flush=True)
 
         # 4. Fetch ALL systems with full details (pagination)
+        #    Strategy: try the expanded TAM query first; if GraphQL rejects any
+        #    field the whole response comes back with 0 systems.  In that case
+        #    fall back to the proven minimal query.
         print("  [HARVEST] Fetching systems (full details)...", flush=True)
-        all_systems = []
-        cursor = None
-        page = 0
-        while True:
-            page += 1
-            after_arg = f', after: "{cursor}"' if cursor else ""
-            _, sys_resp = _gql(token, """{
-              systems(pageSize: 100""" + after_arg + """) {
-                totalCount
-                cursor
-                systems {
-                  hostName
-                  systemId
-                  serialNumber
-                  osVersion
-                  recommendedOSVersion
-                  type
-                  platformType
-                  ageInYears
-                  serviceTier
-                  incumbentResellerCompany
+
+
+        # ── ORIGINAL (proven, from git commit b318118) ──
+        SYSTEMS_FIELDS_MINIMAL = """
+                  hostName systemId serialNumber osVersion recommendedOSVersion
+                  type platformType ageInYears serviceTier incumbentResellerCompany
                   customer { id name }
                   site { id name city countryCode postalCode state }
                   hardwareModel { name endOfAvailability endOfSupport }
                   contactPerson { firstName lastName phone email }
                   contract {
-                    softwareContractStartDate
-                    hardwareContractStartDate
-                    expiryDate
-                    softwareContractEndDate
-                    hardwareContractEndDate
-                    overallContractEndDate
-                    isContractActive
-                    hardwareServiceLevel
-                    hardwareWarrantyEndDate
+                    softwareContractStartDate hardwareContractStartDate
+                    expiryDate softwareContractEndDate hardwareContractEndDate
+                    overallContractEndDate isContractActive
+                    hardwareServiceLevel hardwareWarrantyEndDate
                   }
-                  latestAsup {
-                    asupId
-                    generatedDate
-                    receivedDate
-                    subject
-                    type
+                  latestAsup { asupId generatedDate receivedDate subject type }"""
+
+        # ── Extended: original + safe additional fields ──
+        SYSTEMS_FIELDS_TAM = """
+                  hostName systemId serialNumber osVersion recommendedOSVersion
+                  type platformType productType ageInYears serviceTier
+                  techRefreshStatus incumbentResellerCompany
+                  isFabricPool hasPvr
+                  customer { id name }
+                  site { id name city countryCode postalCode state }
+                  nagp { id name }
+                  hardwareModel { name modelRevision endOfAvailability endOfSupport }
+                  contactPerson { firstName lastName phone email }
+                  salesRepresentative { name emailAddress managerEmailAddress }
+                  csm { name emailAddress }
+                  sam { name emailAddress }
+                  gard { worldwide geo area region district territory }
+                  authorizedSupportPartner { name endDate }
+                  domesticParent { id name }
+                  contract {
+                    softwareContractId hardwareContractId
+                    softwareContractStartDate hardwareContractStartDate
+                    expiryDate softwareContractEndDate hardwareContractEndDate
+                    nrdContractEndDate overallContractEndDate isContractActive
+                    hardwareServiceLevel hardwareWarrantyEndDate hardwareWarrantyStartDate
                   }
-                }
-              }
-            }""")
+                  autoSupportConfig { autoSupportStatus isAutoSupportOnDemandEnabled isAutoSupportOnDemandCapable autoSupportTransport systemDomain }
+                  latestAsup { asupId generatedDate receivedDate subject type }
+                  ... on ONTAPSystem {
+                    isMetroCluster isAllFlashOptimized operatingMode
+                    propensityCategory serviceProcessorIPAddress
+                    isARPEnabled autoUpdateEnabled nextBestAction
+                    lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
+                    swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
+                    systemFirmware { type currentVersion recommendedVersion }
+                  }"""
 
-            sys_data = (sys_resp.get("data") or {}).get("systems", {})
-            systems_page = sys_data.get("systems") or []
-            all_systems.extend(systems_page)
-            new_cursor = sys_data.get("cursor")
+        # Try expanded first, fall back to minimal
+        all_systems = []
+        used_tam_query = False
+        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
+            all_systems = []
+            cursor = None
+            page = 0
+            while True:
+                page += 1
+                after_arg = f', after: "{cursor}"' if cursor else ""
+                query_text = """{
+                  systems(pageSize: 100""" + after_arg + """) {
+                    totalCount cursor
+                    systems {""" + fields + """
+                    }
+                  }
+                }"""
+                if page == 1:
+                    print(f"  [HARVEST] Query attempt {attempt+1} first 300 chars: {query_text[:300]}", flush=True)
+                _, sys_resp = _gql(token, query_text)
+                sys_data = (sys_resp.get("data") or {}).get("systems", {})
+                # Log GraphQL errors if present
+                if sys_resp.get("errors") and page == 1:
+                    err_msg = sys_resp["errors"][0].get("message", "")[:200]
+                    print(f"  [HARVEST] GraphQL errors: {err_msg}", flush=True)
+                systems_page = sys_data.get("systems") or []
+                all_systems.extend(systems_page)
+                new_cursor = sys_data.get("cursor")
+                print(f"  [HARVEST] Page {page}: {len(systems_page)} systems (total so far: {len(all_systems)})", flush=True)
+                if not systems_page or not new_cursor or new_cursor == cursor:
+                    break
+                cursor = new_cursor
 
-            print(f"  [HARVEST] Page {page}: {len(systems_page)} systems (total so far: {len(all_systems)})", flush=True)
-
-            if not systems_page or not new_cursor or new_cursor == cursor:
+            if len(all_systems) > 0:
+                if attempt == 0:
+                    used_tam_query = True
+                    print(f"  [HARVEST] Expanded TAM query succeeded: {len(all_systems)} systems", flush=True)
+                else:
+                    print(f"  [HARVEST] Minimal query succeeded: {len(all_systems)} systems", flush=True)
                 break
-            cursor = new_cursor
+            elif attempt == 0:
+                print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
+
 
         # 5. Fetch clusters with full details
         print("  [HARVEST] Fetching clusters...", flush=True)
@@ -374,9 +416,83 @@ def _do_full_harvest():
         all_cases = cases_data.get("cases") or []
         print(f"  [HARVEST] Cases: {len(all_cases)}", flush=True)
 
-        # 8. Fetch customers
-        _, cust_resp = _gql(token, "{ customers { customers { id name } } }")
+        # 8. Fetch customers (with sustainability)
+        _, cust_resp = _gql(token, """{ customers(pageSize: 100) { customers {
+            id cmatId name
+            sustainabilityScorePercentage { overall }
+        } } }""")
         customers = ((cust_resp.get("data") or {}).get("customers", {}).get("customers")) or []
+
+        # ── TAM: Recommendations ──
+        tam_recommendations = []
+        try:
+            print("  [HARVEST] Fetching TAM recommendations...", flush=True)
+            _, rec_resp = _gql(token, """{ recommendations(isTopKeyRecommendation: true, limit: 50) {
+                recommendation rank category subCategory score
+            } }""")
+            tam_recommendations = (rec_resp.get("data") or {}).get("recommendations") or []
+            print(f"  [HARVEST] Recommendations: {len(tam_recommendations)}", flush=True)
+        except Exception as e:
+            print(f"  [HARVEST] WARNING: Recommendations failed: {e}", flush=True)
+
+        # ── TAM: Sites ──
+        tam_sites = []
+        try:
+            print("  [HARVEST] Fetching TAM sites...", flush=True)
+            _, sites_resp = _gql(token, """{ sites(pageSize: 100) { sites {
+                id cmatId name countryCode postalCode city state streetAddress
+                vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
+                operationalDate ageInYears
+            } } }""")
+            tam_sites = ((sites_resp.get("data") or {}).get("sites", {}).get("sites")) or []
+            print(f"  [HARVEST] Sites: {len(tam_sites)}", flush=True)
+        except Exception as e:
+            print(f"  [HARVEST] WARNING: Sites failed: {e}", flush=True)
+
+        # ── TAM: Sustainability Score ──
+        tam_sustainability = []
+        try:
+            print("  [HARVEST] Fetching sustainability score...", flush=True)
+            _, sust_resp = _gql(token, """{ sustainabilityScore { sustainabilityScores {
+                scorePercentage percentageChange generatedDate changeFactors
+            } } }""")
+            tam_sustainability = ((sust_resp.get("data") or {}).get("sustainabilityScore", {}).get("sustainabilityScores")) or []
+            print(f"  [HARVEST] Sustainability scores: {len(tam_sustainability)}", flush=True)
+        except Exception as e:
+            print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
+
+        # ── TAM: OS Version Catalog ──
+        tam_os_versions = []
+        try:
+            print("  [HARVEST] Fetching OS version catalog...", flush=True)
+            _, osv_resp = _gql(token, """{ osVersions(pageSize: 500) { osVersions {
+                osVersion majorOsVersion osType operatingMode
+                releaseDate endOfVersionFullSupport endOfVersionLimitedSupport endOfSelfServiceSupport
+                supportState progressionPath
+                bundledSystemFirmwares { type version biosVersion systemModel }
+                bundledDriveFirmwares { driveModel version }
+                bundledShelfFirmwares { shelfName shelfModuleName firmwareType shelfModuleFirmwareVersion sysShelfModuleFirmwareVersion }
+                bundledSecurityFiles { fileType version }
+            } } }""")
+            tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or []
+            print(f"  [HARVEST] OS versions: {len(tam_os_versions)}", flush=True)
+        except Exception as e:
+            print(f"  [HARVEST] WARNING: OS versions failed: {e}", flush=True)
+
+        # ── TAM: Contract Renewals with Lifecycle Events ──
+        tam_renewals = []
+        try:
+            print("  [HARVEST] Fetching contract renewals...", flush=True)
+            _, ren_resp = _gql(token, """{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31") { systems {
+                serialNumber hostName platformType serviceTier techRefreshStatus
+                contract { expiryDate isContractActive hardwareServiceLevel hardwareContractEndDate softwareContractEndDate overallContractEndDate hardwareWarrantyEndDate }
+                hardwareModel { name endOfAvailability endOfSupport }
+                endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
+            } } }""")
+            tam_renewals = ((ren_resp.get("data") or {}).get("systemContractRenewals", {}).get("systems")) or []
+            print(f"  [HARVEST] Renewals with lifecycle events: {len(tam_renewals)}", flush=True)
+        except Exception as e:
+            print(f"  [HARVEST] WARNING: Contract renewals failed: {e}", flush=True)
 
         # 9. Build risksBySerial lookup from riskInstances
         risks_by_serial = {}
@@ -438,7 +554,7 @@ def _do_full_harvest():
                     serial_to_cluster_sm[cs_serial] = sm_count
                     serial_to_cluster_ha[cs_serial] = is_ha
 
-        # 13. Build final systems output
+        # 13. Build final systems output (with full TAM enrichment)
         systems_out = []
         for s in all_systems:
             cust = s.get("customer") or {}
@@ -447,12 +563,51 @@ def _do_full_harvest():
             contact = s.get("contactPerson") or {}
             contract = s.get("contract") or {}
             asup = s.get("latestAsup") or {}
+            nagp = s.get("nagp") or {}
+            sr = s.get("salesRepresentative") or {}
+            csm_d = s.get("csm") or {}
+            sam_d = s.get("sam") or {}
+            gard = s.get("gard") or {}
+            asp = s.get("authorizedSupportPartner") or {}
+            dp = s.get("domesticParent") or {}
+            asup_cfg = s.get("autoSupportConfig") or {}
+            sv = s.get("softwareVersion") or {}
+            evd = sv.get("endOfVersionDetails") or {}
+            eos = s.get("endOfSupport") or {}
+            srd = s.get("swRecommendationDetails") or {}
+            cap = s.get("capacity") or {}
+            cap_phys = cap.get("physical") or {}
+            cap_eff = cap.get("efficiency") or {}
             serial = s.get("serialNumber", "")
 
             cl_name = serial_to_cluster.get(serial, "")
             cl_cap = serial_to_cluster_cap.get(serial, {})
 
+            # Extract switches from port connectivity
+            switches = []
+            seen_devs = set()
+            pi = s.get("portInterface") or {}
+            all_ports = list(pi.get("onboardPorts") or [])
+            for card in (pi.get("adapterCards") or []):
+                all_ports.extend(card.get("ports") or [])
+            for p in all_ports:
+                dev = p.get("connectedDevice", "")
+                if dev and dev not in seen_devs:
+                    seen_devs.add(dev)
+                    pt = (p.get("portType") or "").lower()
+                    sw_type = "Data"
+                    if "cluster" in pt: sw_type = "Cluster Interconnect"
+                    elif "intercluster" in pt: sw_type = "Intercluster"
+                    switches.append({
+                        "deviceName": dev, "type": sw_type,
+                        "connectedPort": p.get("connectedPort", ""),
+                        "portSpeed": p.get("portSpeed", ""),
+                        "portState": p.get("portState", ""),
+                        "sourcePort": p.get("portName", ""),
+                    })
+
             systems_out.append({
+                # ── Core identity ──
                 "serialNumber": serial,
                 "systemName": s.get("hostName", ""),
                 "clusterName": cl_name,
@@ -463,34 +618,123 @@ def _do_full_harvest():
                 "siteCity": site.get("city", ""),
                 "siteCountry": site.get("countryCode", ""),
                 "siteState": site.get("state", ""),
+                "nagpId": nagp.get("id", ""),
+                "nagpName": nagp.get("name", ""),
                 "model": hw.get("name", ""),
+                "modelRevision": hw.get("modelRevision", ""),
                 "osVersion": s.get("osVersion", ""),
                 "platform": s.get("platformType", ""),
                 "systemType": s.get("type", ""),
+                "productType": s.get("productType", ""),
+                "systemState": s.get("systemState", ""),
                 "systemId": s.get("systemId", ""),
                 "ageInYears": s.get("ageInYears"),
                 "serviceTier": s.get("serviceTier", ""),
                 "recommendedOSVersion": s.get("recommendedOSVersion", ""),
                 "resellerCompany": s.get("incumbentResellerCompany", ""),
+                "techRefreshStatus": s.get("techRefreshStatus", ""),
+                "lastRebootTime": s.get("lastRebootTime", ""),
+                "originalShipDate": s.get("originalShipDate", ""),
+                "marketingType": s.get("marketingType", ""),
+                "storageConfiguration": s.get("storageConfiguration", ""),
+                "isFabricPool": s.get("isFabricPool"),
+                "hasPvr": s.get("hasPvr"),
+                # ── Contacts & personnel ──
                 "contactFirstName": contact.get("firstName", ""),
                 "contactLastName": contact.get("lastName", ""),
                 "contactPhone": contact.get("phone", ""),
                 "contactEmail": contact.get("email", ""),
+                "salesRepName": sr.get("name", ""),
+                "salesRepEmail": sr.get("emailAddress", ""),
+                "csmName": csm_d.get("name", ""),
+                "csmEmail": csm_d.get("emailAddress", ""),
+                "samName": sam_d.get("name", ""),
+                "samEmail": sam_d.get("emailAddress", ""),
+                "gard": gard,
+                "aspName": asp.get("name", ""),
+                "aspEndDate": asp.get("endDate", ""),
+                "domesticParentName": dp.get("name", ""),
+                # ── Contract ──
                 "contractActive": contract.get("isContractActive"),
                 "contractEndDate": contract.get("overallContractEndDate", ""),
                 "contractHWEndDate": contract.get("hardwareContractEndDate", ""),
                 "contractSWEndDate": contract.get("softwareContractEndDate", ""),
+                "contractNRDEndDate": contract.get("nrdContractEndDate", ""),
+                "contractExpiry": contract.get("expiryDate", ""),
                 "warrantyEndDate": contract.get("hardwareWarrantyEndDate", ""),
+                "warrantyStartDate": contract.get("hardwareWarrantyStartDate", ""),
                 "serviceLevel": contract.get("hardwareServiceLevel", ""),
+                "contractSWId": contract.get("softwareContractId", ""),
+                "contractHWId": contract.get("hardwareContractId", ""),
+                # ── Hardware lifecycle ──
                 "hwEndOfAvailability": hw.get("endOfAvailability", ""),
                 "hwEndOfSupport": hw.get("endOfSupport", ""),
+                "eosEarliest": eos.get("earliestEndOfSupportDate", ""),
+                "eosShelf": eos.get("earliestShelfEndOfSupportDate", ""),
+                "eosDisk": eos.get("earliestDiskEndOfSupportDate", ""),
+                "eosPVR": eos.get("latestPVRDate", ""),
+                "eosLatest": eos.get("latestEndOfSupportDate", ""),
+                # ── Software version details ──
+                "softwareVersionFull": sv.get("fullVersionString", ""),
+                "swReleaseDate": evd.get("releaseDate", ""),
+                "swEndOfFullSupport": evd.get("endOfVersionFullSupport", ""),
+                "swEndOfLimitedSupport": evd.get("endOfVersionLimitedSupport", ""),
+                "swEndOfSelfService": evd.get("endOfSelfServiceSupport", ""),
+                "swRecMin": srd.get("minRecommendedVersion", ""),
+                "swRecLatest": srd.get("latestRecommendedVersion", ""),
+                "swCQV": (srd.get("cqvDetails") or {}).get("qualifiedVersion", ""),
+                # ── ONTAP flags ──
+                "isMetroCluster": s.get("isMetroCluster"),
+                "isAllFlashOptimized": s.get("isAllFlashOptimized"),
+                "isFlexPod": s.get("isFlexPod"),
+                "isARPEnabled": s.get("isARPEnabled"),
+                "operatingMode": s.get("operatingMode", ""),
+                "propensityCategory": s.get("propensityCategory", ""),
+                "nextBestAction": s.get("nextBestAction", ""),
+                "belongsToMixModelCluster": s.get("belongsToMixModelCluster"),
+                "serviceProcessorIP": s.get("serviceProcessorIPAddress", ""),
+                "autoUpdateEnabled": s.get("autoUpdateEnabled"),
+                # ── AutoSupport ──
                 "latestAsupDate": asup.get("receivedDate") or asup.get("generatedDate", ""),
+                "asupStatus": asup_cfg.get("autoSupportStatus", ""),
+                "asupTransport": asup_cfg.get("autoSupportTransport", ""),
+                "asupOnDemand": asup_cfg.get("isAutoSupportOnDemandEnabled"),
+                "asupDomain": asup_cfg.get("systemDomain", ""),
+                # ── Firmware ──
+                "systemFirmware": s.get("systemFirmware") or [],
+                "motherboardFirmware": s.get("motherboardFirmware") or {},
+                "diskQualificationPackage": s.get("diskQualificationPackage") or {},
+                "autoUpdateSettings": s.get("autoUpdateSettings") or {},
+                # ── Lifecycle & TAM intelligence ──
+                "lifecycleEvents": s.get("lifecycleEvents") or [],
+                "licenses": s.get("licenses") or [],
+                "pvrs": s.get("pvrs") or [],
+                # ── Downtime & monthly stats ──
+                "downtimeEvents": s.get("downtimeEvents") or {},
+                "monthlyUptimeStats": s.get("monthlyUptimeStats") or [],
+                "monthlyCarbonStats": s.get("monthlyCarbonStats") or [],
+                "monthlyResolvedRisksStats": s.get("monthlyResolvedRisksStats") or [],
+                "monthlyArpStats": s.get("monthlyArpStats") or [],
+                "monthlyAutoResolvedCases": s.get("monthlyAutoResolvedCases") or [],
+                "sustainabilityScores": s.get("sustainabilityScores") or [],
+                # ── Capacity ──
+                "capacityAllocatedKB": cap_phys.get("allocatedCapacityKB", 0),
+                "capacityUsedKB": cap_phys.get("usedCapacityKB", 0),
+                "capacityAvailableKB": cap_phys.get("availableCapacityKB", 0),
+                "dataReductionRatio": cap_eff.get("dataReductionRatio"),
                 "clusterPhysicalUsedTB": cl_cap.get("physicalUsedTB", 0),
                 "clusterRawCapacityTB": cl_cap.get("rawCapacityTB", 0),
                 "clusterLogicalUsedTB": cl_cap.get("logicalUsedTB", 0),
                 "clusterUsableCapacityTB": cl_cap.get("usableCapacityTB", 0),
                 "snapMirrorCount": serial_to_cluster_sm.get(serial, 0),
                 "isHAConfigured": serial_to_cluster_ha.get(serial, False),
+                # ── Shelves, drives, ports, switches ──
+                "shelves": s.get("shelves") or [],
+                "portInterface": s.get("portInterface") or {},
+                "networkPorts": s.get("networkPorts") or {},
+                "switches": switches,
+                "vcenters": s.get("vcenters") or [],
+                # ── Risks & cases ──
                 "risks": risks_by_serial.get(serial, []),
                 "cases": cases_by_serial.get(serial, []),
                 "_source": "graphql",
@@ -538,6 +782,12 @@ def _do_full_harvest():
             "totalCases": len(all_cases),
             "totalRiskInstances": len(all_risk_instances),
             "summary": summary,
+            # ── TAM data ──
+            "tamRecommendations": tam_recommendations,
+            "tamSites": tam_sites,
+            "tamSustainability": tam_sustainability,
+            "tamOsVersions": tam_os_versions,
+            "tamRenewals": tam_renewals,
         }
 
         print(f"  [HARVEST] Done in {duration_ms}ms: {len(systems_out)} systems, {len(all_clusters)} clusters, {len(all_risks)} unique risks, {len(all_risk_instances)} risk instances, {len(all_cases)} cases", flush=True)
@@ -592,6 +842,11 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        # Serve the development HTML (external app.js) instead of the
+        # compiled single-file index.html, so code changes take effect
+        # without recompiling.
+        if self.path in ('/', '/index.html', '/index.html?'):
+            self.path = '/index_src.html'
         if self.path.startswith('/api/harvest'):
             self.handle_harvest()
         elif self.path.startswith('/api/sync-status'):

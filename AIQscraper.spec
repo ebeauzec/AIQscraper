@@ -102,13 +102,13 @@ if IS_MAC:
         name='NetApp AIQ Advisor.app',
         icon=None,                          # drop icon.icns here to use it
         bundle_identifier='com.netapp.aiqadvisor',
-        version='1.11.0',
+        version='3.0.0',
         info_plist={
             'NSPrincipalClass': 'NSApplication',
             'NSAppleScriptEnabled': False,
             'CFBundleName': 'NetApp AIQ Advisor',
             'CFBundleDisplayName': 'NetApp AIQ Advisor',
-            'CFBundleShortVersionString': '1.11.0',
+            'CFBundleShortVersionString': '3.0.0',
             'LSMinimumSystemVersion': '10.13.0',
             'NSHighResolutionCapable': True,
         },

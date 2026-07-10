@@ -1,0 +1,2512 @@
+{
+  "type_SystemContract": {
+    "name": "SystemContract",
+    "kind": "OBJECT",
+    "description": "System hardware, software and nrd(non returnable disk) contract details",
+    "fields": [
+      {
+        "name": "softwareContractStartDate",
+        "description": "Software contract start date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareContractStartDate",
+        "description": "Hardware contract start date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "nrdContractStartDate",
+        "description": "NRD (non returnable disk) contract start date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "expiryDate",
+        "description": "Earliest contract expiration date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "softwareContractEndDate",
+        "description": "Software contract end date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareContractEndDate",
+        "description": "Hardware contract end date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "nrdContractEndDate",
+        "description": "NRD (non returnable disk) contract end date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "overallContractEndDate",
+        "description": "Overall contract end date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "softwareContractId",
+        "description": "Software contract id.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareContractId",
+        "description": "Hardware contract id.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "nrdContractId",
+        "description": "NRD (non returnable disk) contract id.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "isContractActive",
+        "description": "Contract status of a system. Set to true if one of the NRD, SW & HW contracts are active otherwise false.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareServiceLevel",
+        "description": "The level of hardware support purchased on a system by the customer.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareWarrantyEndDate",
+        "description": "The date when the hardware warranty of the NetApp product expires",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareWarrantyStartDate",
+        "description": "The date when the hardware warranty of the NetApp product begins.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_LifecycleEvent": {
+    "name": "LifecycleEvent",
+    "kind": "OBJECT",
+    "description": "A lifecycle event that has been identified for your system, representing an upcoming milestone that may require attention such as a contract expiry, a capacity threshold crossing, or an end-of-support-life date.",
+    "fields": [
+      {
+        "name": "workflowCategory",
+        "description": "The high-level workflow category this event belongs to, such as Renewal, Capacity, or Tech Refresh.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "LifecycleWorkflowCategory",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "typeCode",
+        "description": "The specific type of lifecycle event identified for your system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "LifecycleEventTypeCode",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "typeName",
+        "description": "A human-readable name for this lifecycle event type.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "criticalityCode",
+        "description": "The urgency level of this event, indicating how soon action is recommended.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "LifecycleEventCriticality",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "daysToEvent",
+        "description": "The estimated number of days until this lifecycle event is expected to occur. A value of 0 indicates the event is imminent or already underway.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "talkingPoint",
+        "description": "A concise summary explaining why this lifecycle event was identified for your system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "actions",
+        "description": "The list of recommended actions you can take to address this lifecycle event, ranked by priority.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Recommendation": {
+    "name": "Recommendation",
+    "kind": "OBJECT",
+    "description": "Key recommendation containing matched recommendation data with scoring and categorization",
+    "fields": [
+      {
+        "name": "recommendation",
+        "description": "Actionable recommendation text with specific technical guidance and instructions",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "rank",
+        "description": "Priority ranking within category where lower values indicate higher priority",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "category",
+        "description": "Primary recommendation category for system health analysis and optimization",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "RecommendationCategory",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "subCategory",
+        "description": "Specific recommendation subcategory identifiers representing distinct system health and optimization focus areas (such as configuration, versioning, support status, and best practices) that enable precise recommendation targeting and retrieval within broader assessment categories.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "RecommendationSubCategory",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "score",
+        "description": "System health percentage (0-100) where 100 indicates optimal performance and 0 indicates critical issues, used for threshold-based recommendation matching. Example: score 75 matches thresholds 0-79.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_RecommendationCategory": {
+    "name": "RecommendationCategory",
+    "kind": "ENUM",
+    "description": "Primary recommendation category for system health analysis and optimization",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "AUTO_SUPPORT",
+        "description": "AutoSupport system configuration, connectivity, and data transmission settings"
+      },
+      {
+        "name": "SUPPORT_AND_ENTITLEMENTS",
+        "description": "Support contract status, entitlements, and end-of-support lifecycle management"
+      },
+      {
+        "name": "CONFIG",
+        "description": "System configuration optimization for high availability and operational efficiency"
+      },
+      {
+        "name": "VERSION",
+        "description": "Software version upgrades including ONTAP, firmware, and system components"
+      },
+      {
+        "name": "BEST_PRACTICES",
+        "description": "Best practices for system health and risk mitigation"
+      }
+    ]
+  },
+  "type_PropensityCategory": {
+    "name": "PropensityCategory",
+    "kind": "ENUM",
+    "description": "System capacity propensity category",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "CRITICAL",
+        "description": "Critical"
+      },
+      {
+        "name": "HIGH",
+        "description": "High"
+      },
+      {
+        "name": "MEDIUM",
+        "description": "Medium"
+      },
+      {
+        "name": "LOW",
+        "description": "Low"
+      },
+      {
+        "name": "NONE",
+        "description": "None"
+      }
+    ]
+  },
+  "type_SalesTerritoryHierarchy": {
+    "name": "SalesTerritoryHierarchy",
+    "kind": "OBJECT",
+    "description": "Levels in which sales territory hierarchy is segregated at NetApp.",
+    "fields": [
+      {
+        "name": "worldwide",
+        "description": "Level one of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "geo",
+        "description": "Level two of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "multiArea",
+        "description": "Level three of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "area",
+        "description": "Level four of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "multiRegion",
+        "description": "Level Five of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "region",
+        "description": "Level six of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "district",
+        "description": "Level seven of the sales territory hierarchy.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "territory",
+        "description": "A geographical area defined on the basis of geography, sales potential, history, or a combination of factors for which an individual salesperson or sales team holds responsibility.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_SystemContactPerson": {
+    "name": "SystemContactPerson",
+    "kind": "OBJECT",
+    "description": "Contact information for the person you can reach out to.",
+    "fields": [
+      {
+        "name": "name",
+        "description": "Contact person's name.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "emailAddress",
+        "description": "Contact person's email address.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "managerEmailAddress",
+        "description": "The email address of contact person's manager.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_ContactPerson": {
+    "name": "ContactPerson",
+    "kind": "OBJECT",
+    "description": "Support contact person details.",
+    "fields": [
+      {
+        "name": "firstName",
+        "description": "Contact first name",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "lastName",
+        "description": "Contact last name.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "phone",
+        "description": "Contact number.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "email",
+        "description": "Contact email address.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_EnergyConsumptionMetrics": {
+    "name": "EnergyConsumptionMetrics",
+    "kind": "OBJECT",
+    "description": "Energy consumption details of a FAS or AFF ONTAP system from AutoSupport and data published by NetApp product teams.",
+    "fields": [
+      {
+        "name": "actualEnergyConsumptions",
+        "description": "Energy consumption details generated using the AutoSupport data.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "projectedEnergyConsumption",
+        "description": "Energy consumption details generated using the AutoSupport data and data published by hardware product teams in NetApp based on experimental analysis.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ProjectedEnergyConsumption",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "publishedPowerConsumption",
+        "description": "Power consumption values generated using the data published by hardware product teams in NetApp based on experimental analysis.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "PublishedPowerConsumption",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "forecastedEnergyConsumptions",
+        "description": "Energy consumption details of a hardware component generated using AI model.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_SustainabilityScore": {
+    "name": "SustainabilityScore",
+    "kind": "OBJECT",
+    "description": "Scoring mechanism for energy consumption based on ideal weightage set across various parameters that impact the energy usage. Scores are computed for systems that send AutoSupport.",
+    "fields": [
+      {
+        "name": "scorePercentage",
+        "description": "Sustainability score as a percentage computed on a variety of factors such as a hardware component's configuration, installed location, and other factors that impact power consumption efficiency and efficient monitoring.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "percentageChange",
+        "description": "Percentage change in score when compared to the previous week. Negative value if the score decreases.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "changeFactors",
+        "description": "List of factors that impacted change in score percentage when compared to the previous week.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "generatedDate",
+        "description": "Date and time when the sustainability score was generated.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DateTime",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_SystemDowntimeEvents": {
+    "name": "SystemDowntimeEvents",
+    "kind": "OBJECT",
+    "description": "A list of system downtime events.",
+    "fields": [
+      {
+        "name": "totalCount",
+        "description": "Total number of downtime events matching the query.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "events",
+        "description": "List of downtime events.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_SystemDowntimeEvent": {
+    "name": "SystemDowntimeEvent",
+    "kind": "OBJECT",
+    "description": "A downtime event for a system, sourced from AutoSupport data.",
+    "fields": [
+      {
+        "name": "autoSupport",
+        "description": "AutoSupport details associated with the downtime event.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AutoSupport",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "category",
+        "description": "Category of the downtime event (e.g. Takeover).",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "code",
+        "description": "Event code identifying the type of downtime event.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "emsDate",
+        "description": "Date and time when the EMS event occurred.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DateTime",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "summary",
+        "description": "Short summary describing the downtime event.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "outageSeconds",
+        "description": "Total duration of the outage in seconds.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_ONTAPSystemCapacity": {
+    "name": "ONTAPSystemCapacity",
+    "kind": "OBJECT",
+    "description": "Capacity information of a customer, site, cluster, group or system for ONTAP",
+    "fields": [
+      {
+        "name": "logical",
+        "description": "Logical capacity",
+        "type": {
+          "name": "ONTAPSystemLogicalCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "physical",
+        "description": "Physical capacity",
+        "type": {
+          "name": "ONTAPSystemPhysicalCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "efficiency",
+        "description": "Storage Efficiency",
+        "type": {
+          "name": "ONTAPSystemEfficiency",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "lastAsupId",
+        "description": "The last ASUP ID for the system",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "reportedOn",
+        "description": "The date when the last ASUP was generated",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_AggregateCapacity": {
+    "name": "AggregateCapacity",
+    "kind": "OBJECT",
+    "description": "Aggregate Capacity",
+    "fields": [
+      {
+        "name": "allocatedKB",
+        "description": "Total size of aggregate in KB.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "lastAsupId",
+        "description": "The last ASUP ID for the system",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "reportedOn",
+        "description": "The date when the last ASUP was generated",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "logical",
+        "description": "Logical capacity details for the aggregate.",
+        "type": {
+          "name": "AggregateLogicalCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "physical",
+        "description": "Physical capacity details for the aggregate.",
+        "type": {
+          "name": "AggregatePhysicalCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "efficiency",
+        "description": "Storage efficiency metrics for the aggregate.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AggregateEfficiency",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_AggregateCapacityForecast": {
+    "name": "AggregateCapacityForecast",
+    "kind": "OBJECT",
+    "description": "A capacity forecast for a given aggregate, conveying last 12 months used/allocated and the next 12 months projection, then yearly to 5 years. Allocated: How much storage the aggregate can use, Used: How much storage the aggregate is using.",
+    "fields": [
+      {
+        "name": "trend",
+        "description": "The aggregate capacity forecasting data points.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_VolumeCapacity": {
+    "name": "VolumeCapacity",
+    "kind": "OBJECT",
+    "description": "Volume Capacity",
+    "fields": [
+      {
+        "name": "usableKiB",
+        "description": "The storage capacity that can be used",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "availableKB",
+        "description": "Available volume in kilobytes",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "sizeKB",
+        "description": "Total allocated volume capacity in kilobytes",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "lastAsupId",
+        "description": "The last ASUP ID for the system",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "reportedOn",
+        "description": "The date when the last ASUP was generated",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "logical",
+        "description": "Logical volume capacity",
+        "type": {
+          "name": "VolumeLogicalCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "efficiency",
+        "description": "Efficiency details",
+        "type": {
+          "name": "VolumeCapacityEfficiency",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Workload": {
+    "name": "Workload",
+    "kind": "OBJECT",
+    "description": "Workload",
+    "fields": [
+      {
+        "name": "name",
+        "description": "Workload name",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_WorkloadSummary": {
+    "name": "WorkloadSummary",
+    "kind": "OBJECT",
+    "description": "This is a count of workloads for each of the possible values of the GroupBy field.",
+    "fields": [
+      {
+        "name": "name",
+        "description": "Value of the groupBy field",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systemCount",
+        "description": "Count of systems.",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "volumeCount",
+        "description": "Count of volumes.",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "totalCapacity",
+        "description": "Total capacity of the volumes. (Not supported on ASA R2 systems.)",
+        "type": {
+          "name": "VolumeCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "groupBy",
+        "description": "Applies groupBy field to workload group",
+        "type": {
+          "name": null,
+          "kind": "LIST",
+          "ofType": {
+            "name": null,
+            "kind": "NON_NULL",
+            "ofType": {
+              "name": "WorkloadSummary",
+              "kind": "OBJECT"
+            }
+          }
+        }
+      },
+      {
+        "name": "totalTieredKB",
+        "description": "The amount of data that has been moved to another tier.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "totalUnmonitoredKB",
+        "description": "The amount of data which are not monitored",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_VolumesSummary": {
+    "name": "VolumesSummary",
+    "kind": "OBJECT",
+    "description": "Volumes summary",
+    "fields": [
+      {
+        "name": "volumeCount",
+        "description": "Count of volumes.",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "totalCapacity",
+        "description": "Total capacity of the volumes.",
+        "type": {
+          "name": "VolumeCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Case": {
+    "name": "Case",
+    "kind": "OBJECT",
+    "description": "System support case details.",
+    "fields": [
+      {
+        "name": "caseId",
+        "description": "Identifier of the support case.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "created",
+        "description": "Timestamp when this case was created.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DateTime",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "lastUpdated",
+        "description": "Timestamp when this case was most recently modified",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "closed",
+        "description": "Timestamp when this case was closed.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "priority",
+        "description": "Priority of the support case. Lower number is for higher priority.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "highestPriority",
+        "description": "Highest priority that can be assigned to the case.",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "symptom",
+        "description": "Symptom of the case.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "status",
+        "description": "Status of the case.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "CaseStatus",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "description",
+        "description": "Description of the support case.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "system",
+        "description": "Affected system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "System",
+            "kind": "INTERFACE",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "type",
+        "description": "Type of the support case.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "bugIds",
+        "description": "List of identifiers of the bugs associated with the support case.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "caseReceivedVia",
+        "description": "Method by which the support case was received.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "resolution",
+        "description": "Resolution of the support case.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "reporterContact",
+        "description": "Contact details of the person who created the case.",
+        "type": {
+          "name": "ReporterContact",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "rmaParts",
+        "description": "List of RMA (Return Merchandise Authorization) requests to return a product/part associated with the case.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "category",
+        "description": "Major functional area of the case.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "subCategory",
+        "description": "Technical sub-area within the major functional area.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_CaseSummary": {
+    "name": "CaseSummary",
+    "kind": "OBJECT",
+    "description": "System support case summary details.",
+    "fields": [
+      {
+        "name": "countByHighestPriority",
+        "description": "Case count by highest priority for a given duration.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "CaseCountByPriority",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "trendByHighestPriority",
+        "description": "Case trend by highest priority over time.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Asp": {
+    "name": "Asp",
+    "kind": "OBJECT",
+    "description": "Authorized Support Partner (ASP) related information.",
+    "fields": [
+      {
+        "name": "name",
+        "description": "The name of the Authorized Support Partner (ASP) for the system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "endDate",
+        "description": "Date until which the ASP Partner relationship remains valid.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DateTime",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_DomesticParent": {
+    "name": "DomesticParent",
+    "kind": "OBJECT",
+    "description": "A geography-based grouping of a set of customer sites.",
+    "fields": [
+      {
+        "name": "id",
+        "description": "Unique identifier for a domestic parent.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "name",
+        "description": "Name of a domestic parent.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Site": {
+    "name": "Site",
+    "kind": "OBJECT",
+    "description": "Details of the physical location where the NetApp product resides",
+    "fields": [
+      {
+        "name": "id",
+        "description": "Site identifier of the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "cmatId",
+        "description": "The Site Customer Master Data ID (CMAT ID) is a unique identifier assigned to this specific location within NetApp's customer management system, enabling consistent identification of your site across all NetApp products and services.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "name",
+        "description": "Site name of the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systems",
+        "description": "The storage systems that are currently part of this site.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Systems",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "countryCode",
+        "description": "2-character ISO Country code of the system site.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "postalCode",
+        "description": "Postal code of the system site.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "city",
+        "description": "City name of the system site.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "streetAddress",
+        "description": "List of street address lines for the system site.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "state",
+        "description": "State name of the system site.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "vmwareFlag",
+        "description": "Indicates whether VMware-related features are enabled on any system or cluster within the site.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systemsWithCriticalPropensity",
+        "description": "Indicates the number of systems currently with critical propensity category at the customer's site.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systemsWithHighPropensity",
+        "description": "Indicates the number of systems currently with high propensity category at the customer's site.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "operationalDate",
+        "description": "Date when the site became operational.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "ageInYears",
+        "description": "Indicates the duration for which the site has been operational. It is calculated as the difference between the current date and the system's operationalDate, divided by the average number of days in a year (365.25, to account for leap years), rounded down to the nearest integer.",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "capacity",
+        "description": "Total storage capacity provisioned at a site. When querying a site, this value is aggregated across all customers associated with the site for which the user is entitled to see. When querying a system, this value is for the customer associated with that system at the site (not aggregated across multiple customers).",
+        "type": {
+          "name": "SiteCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "monthlyCapacity",
+        "description": "Monthly capacity of customer site.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "carbonEmission",
+        "description": "Carbon emission factors of a site.",
+        "type": {
+          "name": "SiteCarbonEmission",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Customer": {
+    "name": "Customer",
+    "kind": "OBJECT",
+    "description": "Customer details",
+    "fields": [
+      {
+        "name": "id",
+        "description": "Customer identifier.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "cmatId",
+        "description": "The Customer Master Data ID (CMAT ID) is a unique identifier assigned to your organization in NetApp's customer management system, enabling consistent identification across all NetApp products and services.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "name",
+        "description": "Customer name.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systems",
+        "description": "The storage systems that are currently part of this customer.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Systems",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "sustainabilityScorePercentage",
+        "description": "Percentage value aggregated at customer, industry or overall NetApp level based on various factors such as hardware component's configuration, installed location and other energy factors that impacts the sustainability score.",
+        "type": {
+          "name": "SustainabilityScorePercentage",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "healthScore",
+        "description": "Health score calculated as the average percentage of all systems at customer, industry, and overall NetApp based on factors such as firmware recency, ONTAP version, add-on status, renewal status, and AutoSupport enabled/disabled state.",
+        "type": {
+          "name": "HealthScore",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "quarterlyOntapFeatureUsageStats",
+        "description": "Quarterly ONTAP feature usage statistics aggregated at the customer level.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_Nagp": {
+    "name": "Nagp",
+    "kind": "OBJECT",
+    "description": "NetApp Global Parent Account (NAGP) details of the system: NetApp defined top-level grouping that links companies, domestic parent, and sites in the NetApp Master. It represents the topmost level in the NetApp hierarchy and GTM hierarchy.",
+    "fields": [
+      {
+        "name": "id",
+        "description": "NetApp Global Parent Account identifier of the system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "name",
+        "description": "NetApp Global Parent Account name of the system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_AutoSupportConfig": {
+    "name": "AutoSupportConfig",
+    "kind": "OBJECT",
+    "description": "AutoSupport Config details.",
+    "fields": [
+      {
+        "name": "autoSupportStatus",
+        "description": "Status of the AutoSupport mechanism on the system.",
+        "type": {
+          "name": "AutoSupportStatus",
+          "kind": "ENUM",
+          "ofType": null
+        }
+      },
+      {
+        "name": "isAutoSupportOnDemandEnabled",
+        "description": "AutoSupport on demand enabled.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "isAutoSupportOnDemandCapable",
+        "description": "AutoSupport on demand capable.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "autoSupportTransport",
+        "description": "AutoSupport transport.",
+        "type": {
+          "name": "AutoSupportTransport",
+          "kind": "ENUM",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systemDomain",
+        "description": "The domain from which the autoSupport was sent",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "isAsupRetransmitEnabled",
+        "description": "Indicates if AutoSupport retransmission is enabled.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_HardwareModel": {
+    "name": "HardwareModel",
+    "kind": "OBJECT",
+    "description": "A model details",
+    "fields": [
+      {
+        "name": "name",
+        "description": "Model of the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "modelRevision",
+        "description": "Revision of the system model, identifying a specific sub-version which can be used for ONTAP compatibility checks and end-of-support retrieval.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfAvailability",
+        "description": "Platform end of availability",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfSupport",
+        "description": "Platform end of support",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareCapabilities",
+        "description": "Maximum supported capacity and supported drive/shelf counts for this model.",
+        "type": {
+          "name": "HardwareCapabilities",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_SystemState": {
+    "name": "SystemState",
+    "kind": "ENUM",
+    "description": "Possible states for a system",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "ACTIVE",
+        "description": "Active"
+      },
+      {
+        "name": "INACTIVE",
+        "description": "Inactive"
+      },
+      {
+        "name": "DECOMMISSIONED",
+        "description": "Decommissioned"
+      },
+      {
+        "name": "OBSOLETE",
+        "description": "Obsolete"
+      }
+    ]
+  },
+  "type_EndOfSupport": {
+    "name": "EndOfSupport",
+    "kind": "OBJECT",
+    "description": "End of support dates for the system",
+    "fields": [
+      {
+        "name": "earliestShelfEndOfSupportDate",
+        "description": "Earliest end-of-support date for any shelf in the system.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "earliestDiskEndOfSupportDate",
+        "description": "Earliest end-of-support date for any drive in the system.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "earliestEndOfSupportDate",
+        "description": "Earliest end of support date among hardwareModel.EndOfSupportDate, earliestShelfEndOfSupportDate and earliestDiskEndOfSupportDate.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "latestPVRDate",
+        "description": "Latest policy variance request date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "latestEndOfSupportDate",
+        "description": "Latest date among earliestEndOfSupportDate and latestPVRDate.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_SoftwareVersionMilestones": {
+    "name": "SoftwareVersionMilestones",
+    "kind": "OBJECT",
+    "description": "OS version details",
+    "fields": [
+      {
+        "name": "releaseDate",
+        "description": "Release date for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfVersionFullSupport",
+        "description": "End of version full support for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfVersionLimitedSupport",
+        "description": "End of version limited support for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfSelfServiceSupport",
+        "description": "End of version self service support for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "inputFields": null,
+    "enumValues": null
+  },
+  "type_AppDrlAndId": {
+    "name": "AppDrlAndId",
+    "kind": "INPUT_OBJECT",
+    "description": null,
+    "fields": null,
+    "inputFields": [
+      {
+        "name": "applicationOrUsername",
+        "description": null,
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "id",
+        "description": null,
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "partNumber",
+        "description": null,
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "dataReleaseLevel",
+        "description": null,
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ],
+    "enumValues": null
+  },
+  "enum_PropensityCategory": {
+    "name": "PropensityCategory",
+    "kind": "ENUM",
+    "description": "System capacity propensity category",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "CRITICAL",
+        "description": "Critical"
+      },
+      {
+        "name": "HIGH",
+        "description": "High"
+      },
+      {
+        "name": "MEDIUM",
+        "description": "Medium"
+      },
+      {
+        "name": "LOW",
+        "description": "Low"
+      },
+      {
+        "name": "NONE",
+        "description": "None"
+      }
+    ]
+  },
+  "enum_SystemState": {
+    "name": "SystemState",
+    "kind": "ENUM",
+    "description": "Possible states for a system",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "ACTIVE",
+        "description": "Active"
+      },
+      {
+        "name": "INACTIVE",
+        "description": "Inactive"
+      },
+      {
+        "name": "DECOMMISSIONED",
+        "description": "Decommissioned"
+      },
+      {
+        "name": "OBSOLETE",
+        "description": "Obsolete"
+      }
+    ]
+  },
+  "enum_SupportState": {
+    "name": "SupportState",
+    "kind": "ENUM",
+    "description": "Support state of the OS version.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "RECOMMENDED",
+        "description": "Indicates the OS version is provided with latest updates and recommended by NetApp."
+      },
+      {
+        "name": "STANDARD",
+        "description": "Indicates the OS version is supported but may not have latest updates."
+      },
+      {
+        "name": "WITHDRAWN",
+        "description": "Indicates the OS version is obsolete."
+      }
+    ]
+  },
+  "enum_SecurityFileType": {
+    "name": "SecurityFileType",
+    "kind": "ENUM",
+    "description": "The type of the installable automatic update security file.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "ARPAI",
+        "description": "ARPAI is an abbreviation for Autonomous Ransomware Protection. It is an AI based model to proactively detect ransomware threats when this is set up in the system."
+      }
+    ]
+  },
+  "enum_FirmwareType": {
+    "name": "FirmwareType",
+    "kind": "ENUM",
+    "description": "The type of the firmware.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "SP",
+        "description": "Service processor"
+      },
+      {
+        "name": "BMC",
+        "description": "Baseboard management controller"
+      }
+    ]
+  },
+  "enum_ShelfFirmwareType": {
+    "name": "ShelfFirmwareType",
+    "kind": "ENUM",
+    "description": "The type of the shelf firmware.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "EXPANDER_FIRMWARE",
+        "description": "Firmware for the expander module."
+      },
+      {
+        "name": "ACP_FIRMWARE",
+        "description": "Firmware for the Alternate Control Path module."
+      }
+    ]
+  },
+  "enum_SystemFileType": {
+    "name": "SystemFileType",
+    "kind": "ENUM",
+    "description": "The type of the installable automatic update system file.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "TZDB",
+        "description": "Timezone database."
+      }
+    ]
+  },
+  "enum_AutoUpdateStatus": {
+    "name": "AutoUpdateStatus",
+    "kind": "ENUM",
+    "description": "The current status of the automatic update file or firmware.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "RUNNING",
+        "description": "Running"
+      },
+      {
+        "name": "ARCHIVED",
+        "description": "Archived"
+      },
+      {
+        "name": "RETRACTED",
+        "description": "Retracted"
+      },
+      {
+        "name": "PAUSED",
+        "description": "Paused"
+      },
+      {
+        "name": "CANCELLED",
+        "description": "Cancelled"
+      }
+    ]
+  },
+  "enum_AutoUpdatePriority": {
+    "name": "AutoUpdatePriority",
+    "kind": "ENUM",
+    "description": "The priority of the automatic update file or firmware.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "NORMAL",
+        "description": "Normal"
+      },
+      {
+        "name": "HIGH",
+        "description": "High"
+      },
+      {
+        "name": "CRITICAL",
+        "description": "Critical"
+      }
+    ]
+  },
+  "enum_NetworkPortRole": {
+    "name": "NetworkPortRole",
+    "kind": "ENUM",
+    "description": "Network port role.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "CLUSTER",
+        "description": "Cluster port"
+      },
+      {
+        "name": "CLUSTER_MGMT",
+        "description": "Cluster management port"
+      },
+      {
+        "name": "DATA",
+        "description": "Data port"
+      },
+      {
+        "name": "INTERCLUSTER",
+        "description": "Intercluster port"
+      },
+      {
+        "name": "NODE_MGMT",
+        "description": "Node management port"
+      },
+      {
+        "name": "UNKNOWN",
+        "description": "Unknown"
+      }
+    ]
+  },
+  "enum_NetworkPortType": {
+    "name": "NetworkPortType",
+    "kind": "ENUM",
+    "description": "Type of the network port.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "IF_GROUP",
+        "description": "Interface Group"
+      },
+      {
+        "name": "PHYSICAL",
+        "description": "Physical port"
+      },
+      {
+        "name": "PVLAN",
+        "description": "Private Virtual Local Area Network"
+      },
+      {
+        "name": "UNKNOWN",
+        "description": "Unknown"
+      },
+      {
+        "name": "VIP",
+        "description": "Virtual IP"
+      },
+      {
+        "name": "VLAN",
+        "description": "Virtual Local Area Network"
+      }
+    ]
+  },
+  "enum_NetworkPortLinkStatus": {
+    "name": "NetworkPortLinkStatus",
+    "kind": "ENUM",
+    "description": "Link status of the network port.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "DOWN",
+        "description": "Link is inactive"
+      },
+      {
+        "name": "UP",
+        "description": "Link is active"
+      }
+    ]
+  },
+  "enum_TieringPolicy": {
+    "name": "TieringPolicy",
+    "kind": "ENUM",
+    "description": "Tiering Policy",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "ALL",
+        "description": "All data is immediately marked as cold and tiered to object storage as soon as possible"
+      },
+      {
+        "name": "SNAPSHOT_ONLY",
+        "description": "Tiers cold Snapshot blocks in the volume that are not shared with the active file system"
+      },
+      {
+        "name": "AUTO",
+        "description": "ONTAP tiers all cold blocks in the volume to object storage"
+      },
+      {
+        "name": "NONE",
+        "description": "Preventing it from being moved to the cloud tier"
+      }
+    ]
+  },
+  "enum_SnapLockMode": {
+    "name": "SnapLockMode",
+    "kind": "ENUM",
+    "description": "SnapLock is a high-performance compliance solution for organizations that use WORM storage to retain files in unmodified form for regulatory and governance purposes.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "COMPLIANCE",
+        "description": "Compliance mode - Protection at the disk level. WORM files cannot be deleted during retention period."
+      },
+      {
+        "name": "ENTERPRISE",
+        "description": "Enterprise mode - Protection at the file level. WORM files can be deleted by the compliance administrator using an audited \"privileged delete\" procedure."
+      },
+      {
+        "name": "NON_SNAPLOCK",
+        "description": "Non-SnapLock - Volume is not configured with SnapLock protection."
+      }
+    ]
+  },
+  "enum_OperatingMode": {
+    "name": "OperatingMode",
+    "kind": "ENUM",
+    "description": "Operating mode of the system.",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "SEVEN_MODE",
+        "description": "An ONTAP system operating in a stand-alone, non-clustered configuration."
+      },
+      {
+        "name": "CLUSTER_MODE",
+        "description": "An ONTAP system operating in a clustered configuration."
+      },
+      {
+        "name": "ELEMENT_OS",
+        "description": "An Element OS system."
+      },
+      {
+        "name": "SANTRICITY_OS",
+        "description": "A SANtricity OS system."
+      }
+    ]
+  },
+  "enum_ProductType": {
+    "name": "ProductType",
+    "kind": "ENUM",
+    "description": "System Product Type",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "FILER",
+        "description": "Filer"
+      },
+      {
+        "name": "SWApp",
+        "description": "Software application"
+      },
+      {
+        "name": "NON_FILER",
+        "description": "Other"
+      },
+      {
+        "name": "UNKNOWN",
+        "description": "Unknown"
+      },
+      {
+        "name": "SWITCH",
+        "description": "A storage switch sold and supported by NetApp."
+      },
+      {
+        "name": "AIDE_DCN",
+        "description": "ONTAP Data Compute Node"
+      }
+    ]
+  },
+  "enum_SystemOSType": {
+    "name": "SystemOSType",
+    "kind": "ENUM",
+    "description": "System OS Type",
+    "fields": null,
+    "inputFields": null,
+    "enumValues": [
+      {
+        "name": "ONTAP",
+        "description": null
+      },
+      {
+        "name": "ELEMENT_OS",
+        "description": null
+      },
+      {
+        "name": "SANTRICITY_OS",
+        "description": null
+      },
+      {
+        "name": "DEBIAN",
+        "description": null
+      }
+    ]
+  },
+  "recommendations": {
+    "_error": "Cannot query field \"title\" on type \"Recommendation\"."
+  },
+  "successPlan": {
+    "_error": "Field \"successPlan\" of type \"Query\" must have a selection of subfields. Did you mean \"successPlan { ... }\"?"
+  },
+  "contractRenewals": {
+    "_error": "Field \"contract\" of type \"System\" must have a selection of subfields. Did you mean \"contract { ... }\"?"
+  },
+  "sustainabilityScore": {
+    "_error": "Field \"sustainabilityScore\" of type \"Query\" must have a selection of subfields. Did you mean \"sustainabilityScore { ... }\"?"
+  },
+  "energyConsumption": {
+    "_error": "Field \"energyConsumptionMetrics\" of type \"Query\" must have a selection of subfields. Did you mean \"energyConsumptionMetrics { ... }\"?"
+  },
+  "workloadSummary": {
+    "_error": "Field \"workloadSummary\" of type \"Query\" must have a selection of subfields. Did you mean \"workloadSummary { ... }\"?"
+  },
+  "supportOfferings": {
+    "_error": "Cannot query field \"description\" on type \"Feature\"."
+  },
+  "caseSummary": {
+    "_error": "Field \"caseSummary\" of type \"Query\" must have a selection of subfields. Did you mean \"caseSummary { ... }\"?"
+  },
+  "sites": {
+    "_error": "Cannot query field \"siteId\" on type \"Site\"."
+  },
+  "per_system_tam": {
+    "_error": "Cannot query field \"name\" on type \"ContactPerson\"."
+  },
+  "ONTAPCapacity": {
+    "_error": "Field \"ONTAPSystemCapacity\" of type \"Query\" must have a selection of subfields. Did you mean \"ONTAPSystemCapacity { ... }\"?"
+  }
+}

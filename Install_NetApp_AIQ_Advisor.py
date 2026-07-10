@@ -3,7 +3,7 @@
 NetApp Active IQ Advisor - Setup Installer
 ==========================================
 A self-contained GUI installer written in Python.
-v1.11.1 - Fixed: Launch Now uses subprocess.Popen directly.
+v3.0.0 - TAM Account Intelligence Suite
 
 Why Python instead of a .bat or .exe?
   - Runs through python.exe, which is a digitally-signed, trusted
@@ -247,7 +247,7 @@ class InstallerApp:
             bg=BG2, fg=CYAN, font=("Segoe UI", 16, "bold")
         ).pack()
         tk.Label(
-            header, text="Setup Installer  ·  Version 1.11.0",
+            header, text="Setup Installer  ·  Version 3.0.0",
             bg=BG2, fg=TEXT2, font=FONT_SM
         ).pack(pady=(2, 0))
 
@@ -549,7 +549,7 @@ class InstallerApp:
 
 def console_install():
     """Minimal console installer for environments without tkinter."""
-    print("\n NetApp Active IQ Advisor — Setup v1.11.0\n")
+    print("\n NetApp Active IQ Advisor — Setup v3.0.0\n")
     input(" Press Enter to begin...\n")
 
     pver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"

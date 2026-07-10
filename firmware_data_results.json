@@ -1,0 +1,999 @@
+{
+  "type_PortInterface": {
+    "name": "PortInterface",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "onboardPorts",
+        "description": "Onboard ports",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "adapterCards",
+        "description": "Adapter cards and their ports",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "type_AdapterPortInterface": {
+    "name": "AdapterPortInterface",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "slots",
+        "description": "Physical hardware slots in the system, each containing one or more adapters.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "type_NetworkPorts": {
+    "name": "NetworkPorts",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "totalCount",
+        "description": "Total number of network ports reported for this node.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "networkPorts",
+        "description": "List of network ports on this node, sorted by port name.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "type_NetworkPort": {
+    "name": "NetworkPort",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "broadcastDomain",
+        "description": "The broadcast domain that contains this port. Broadcast domains group ports that share the same Layer 2 network and are used by ONTAP to automatically place and fail over LIFs.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "interfaceGroupOwner",
+        "description": "The name of the interface group that owns this port. Populated only when the port is a member of an interface group; null otherwise.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "ipspaceName",
+        "description": "The IPspace this port belongs to. IPspaces provide isolated networking namespaces within the cluster. Common values are 'Default' for data and management traffic and 'Cluster' for cluster interconnect traffic.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "link",
+        "description": "The current physical link state of the port (UP or DOWN).",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "NetworkPortLinkStatus",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "macAddress",
+        "description": "The hardware Media Access Control (MAC) address that uniquely identifies this network interface at Layer 2.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "maxTransmissionUnitBytes",
+        "description": "Maximum Transmission Unit size in bytes. Defines the largest IP packet the port can transmit without fragmentation. Standard Ethernet uses 1500 bytes; jumbo frames use 9000 bytes for improved throughput on storage traffic.",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "port",
+        "description": "The name of the network port as reported by the node (e.g., e0a, e0b, a0a, e0a-200).",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "role",
+        "description": "The traffic role assigned to this port, which determines the type of network communication it handles.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "NetworkPortRole",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "speedAdministrativeMbps",
+        "description": "The configured port speed in Mbps. A value of 'auto' means the port negotiates speed automatically with the connected switch.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "speedOperationalMbps",
+        "description": "The current negotiated operating speed of the port in Mbps. A value of '0' typically indicates the link is down or the speed cannot be determined.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "type",
+        "description": "The physical or logical type of the network port.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "NetworkPortType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_ShelfHardwareModel": {
+    "name": "ShelfHardwareModel",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "name",
+        "description": "Shelf model name",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "endOfAvailability",
+        "description": "Shelf end of availability",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfHwSupport",
+        "description": "Shelf end of hardware support",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfSwSupport",
+        "description": "Shelf end of software support",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_ShelfModuleHardwareModel": {
+    "name": "ShelfModuleHardwareModel",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "name",
+        "description": "Shelf module name",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "endOfAvailability",
+        "description": "Shelf Module end of availability",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfHwSupport",
+        "description": "Shelf Module end of hardware support",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfSwSupport",
+        "description": "Shelf Module end of software support",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_Drive": {
+    "name": "Drive",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "uuid",
+        "description": "Unique Identifier of the drive.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "serialNumber",
+        "description": "Serial number of the drive.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "mode",
+        "description": "Indicates the current mode of the drive.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DriveMode",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "primaryPath",
+        "description": "Primary path to the drive.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "primaryPort",
+        "description": "Primary port to the drive.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "secondaryPath",
+        "description": "Secondary path to the drive.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "secondaryPort",
+        "description": "Secondary port to the drive.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "slot",
+        "description": "Slot number where the drive is located.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "firmwareRevision",
+        "description": "Revision level of the drive firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "powerOnHours",
+        "description": "Cumulative amount of time in hours that a disk drive has been powered on and operational since it was last reset or initialized.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "vendor",
+        "description": "Vendor of the drive.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "hardwareModel",
+        "description": "The drive hardware model details.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DriveHardwareModel",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "revolutionsPerMinute",
+        "description": "Spindle rotational speed (revolutions per minute) of the Drive, not applicable for solid-state(SSD / NVMe / Flash) models.",
+        "type": {
+          "name": "Float",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "capacity",
+        "description": "Drive capacity information including both configured and physical capacity details.",
+        "type": {
+          "name": "DriveCapacity",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_Drives": {
+    "name": "Drives",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "totalCount",
+        "description": "Total number of drives.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "cursor",
+        "description": "Cursor of last element returned. Pass this to subsequent query to fetch the next set of results.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "drives",
+        "description": "List of drives.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "type_Bays": {
+    "name": "Bays",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "totalCount",
+        "description": "Total number of drive bays in the shelf enclosure.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "emptyCount",
+        "description": "Number of empty drive bays in the shelf enclosure.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_BundledSystemFirmware": {
+    "name": "BundledSystemFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "type",
+        "description": "The type of the system firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "FirmwareType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "version",
+        "description": "The version of the system firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "biosVersion",
+        "description": "The BIOS version of the system firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "systemModel",
+        "description": "The system model associated with the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_BundledDriveFirmware": {
+    "name": "BundledDriveFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "driveModel",
+        "description": "The model of the drive firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "version",
+        "description": "The version of the drive firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_BundledShelfFirmware": {
+    "name": "BundledShelfFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "shelfName",
+        "description": "The name of the shelf associated with the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "shelfModuleName",
+        "description": "The name of the shelf module associated with the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "firmwareType",
+        "description": "The type of the shelf firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ShelfFirmwareType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "shelfModuleFirmwareVersion",
+        "description": "Marketed version of the shelf module firmware, e.g., 'IOM12.0311.SFW'.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "sysShelfModuleFirmwareVersion",
+        "description": "Firmware version of the shelf module, e.g., '0311'.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_BundledSecurityFile": {
+    "name": "BundledSecurityFile",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "fileType",
+        "description": "The type of the security file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "SecurityFileType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "version",
+        "description": "The version of the security file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_BundledSystemFile": {
+    "name": "BundledSystemFile",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "fileType",
+        "description": "The type of the system file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "SystemFileType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "version",
+        "description": "The version of the system file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_CustomerQualifiedVersionDetails": {
+    "name": "CustomerQualifiedVersionDetails",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "qualifiedVersion",
+        "description": "Qualified version of the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "audits",
+        "description": "Audit trail of changes to the qualified version. It will have maximum 10 records from the latest events.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "type_SystemSoftwareVersion": {
+    "name": "SystemSoftwareVersion",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "fullVersionString",
+        "description": "OS version of the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfVersionDetails",
+        "description": "OS end of version details of the system.",
+        "type": {
+          "name": "SoftwareVersionMilestones",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_FirmwareVersion": {
+    "name": "FirmwareVersion",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "postingDate",
+        "description": "Posting date of the recommended firmware version.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_SystemFirmware": {
+    "name": "SystemFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "postingDate",
+        "description": "Posting date of the recommended firmware version.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "autoUpdateEligible",
+        "description": "Flag to indicate if this current version is eligible for automatic firmware update.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "firmwareFiles",
+        "description": "A list of firmware files available for updating the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "type",
+        "description": "Firmware type.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "FirmwareType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_FullStack": {
+    "name": "FullStack",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "cloudInsightsApplications",
+        "description": "Cloud Insights Applications that monitor ONTAP storage controllers",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "cloudInsightsHostCount",
+        "description": "Count of hosts monitored in Cloud Insights that are connected to the ONTAP storage controllers",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "cloudInsightsVirtualMachineCount",
+        "description": "Count of virtual machines monitored in Cloud Insights that are created by the hypervisors running on the hosts",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "vCenterCount",
+        "description": "Count of vCenter vSphere servers that manage the ONTAP storage controllers",
+        "type": {
+          "name": "Int",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  }
+}

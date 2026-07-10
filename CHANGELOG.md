@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.0] - 2026-07-10
+
+### Added — TAM Account Intelligence Suite (Tabs 10–15)
+- **Tab 10: Contracts & Lifecycle** — Contract status summary cards (Active/Expiring/Expired), lifecycle event table (EOA/EOS milestones sorted by urgency), and contract renewal pipeline filtered per-customer with tech refresh status and service tier breakdown
+- **Tab 11: Sustainability & ESG** — Fleet-wide sustainability score with week-over-week trend, historical weekly score table, improvement factors, per-system carbon emissions (monthly), and per-customer average data reduction ratio (dedup + compression)
+- **Tab 12: Recommendations** — Active IQ key recommendations grouped by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, SUPPORT_AND_ENTITLEMENTS) with rank scores and sub-categories
+- **Tab 13: Account Intelligence** — Account personnel table (Sales Rep, CSM, SAM, ASP, Propensity per system), site inventory filtered per-customer, customer/site/system summary cards
+- **Tab 14: Contract Compliance** — Contract and warranty status cards, service tier distribution, contract renewal pipeline with HW/SW service levels, EOA/EOS dates
+- **Tab 15: Operational Health** — AutoSupport (ASUP) health verification (7-day recency check), Anti-Ransomware Protection (ARP) enablement audit, firmware currency analysis, last reboot timeline
+
+### Added — UI Enhancements
+- **Tooltips on all summary cards** — Hover tooltips with detailed explanations on every KPI card across the main dashboard, Executive Summary, and all TAM tabs (10–15)
+- **Card subtitles** — Descriptive subtitle text below every numeric card for at-a-glance understanding
+- **Fleet-wide disclaimer** on Sustainability tab clarifying that scores are fleet-wide, not per-customer
+
+### Added — Data Pipeline
+- **TAM GraphQL endpoints** — Sites, Sustainability Scores, OS Version Catalog, Renewals, and Recommendations harvested via `server.py`
+- **Enrichment passthrough** for `siteName`, `siteId`, `siteCity`, `siteCountry`, `salesRepName`, `csmName`, `samName`, `aspName`, `propensityCategory`, `contractActive`, `warrantyEndDate`, `serviceTier`, `latestAsupDate`, `isARPEnabled`, and 20+ additional TAM fields
+- **DOM injection rendering** for Tabs 13–15 using `createElement`/`appendChild` to bypass HTML template nesting issues
+
+### Changed
+- **Per-customer scoping** — Tabs 10, 13, and 14 now filter TAM data (sites, renewals, personnel) to the selected customer instead of showing fleet-wide data
+- **Account Personnel promoted** to top of Tab 13 output (above Sites table)
+- **Version unified** to 3.0.0 across README, CHANGELOG, HTML sidebar, and installer
+
+### Fixed
+- Tabs 13–15 rendering blank due to unclosed HTML tags in template string injection — resolved via DOM element injection
+- Sites table showing all 50 fleet sites regardless of selected customer — now filtered by system siteName/siteId
+- Renewals pipeline showing entire fleet in Tabs 10 and 14 — now filtered by hostname/serial
+
 ## [2.0.0] - 2026-07-10
 
 ### Added

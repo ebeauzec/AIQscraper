@@ -917,12 +917,11 @@ input:checked + .slider:before {
 /* Sub-tab navigation under Executive Action Plan */
 .action-plan-tabs-nav {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 24px;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 12px;
-  overflow-x: auto;
-  white-space: nowrap;
 }
 .action-plan-tabs-nav::-webkit-scrollbar {
   height: 4px;
@@ -936,12 +935,13 @@ input:checked + .slider:before {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .plan-tab-btn:hover {
@@ -1064,7 +1064,7 @@ input:checked + .slider:before {
 
       
       <div class="nav-footer">
-        NetApp Internal Tool<br>Version 2.0.0-GraphQL
+        NetApp Internal Tool<br>Version 3.0.0-TAM
       </div>
     </div>
     
@@ -1097,25 +1097,25 @@ input:checked + .slider:before {
       <div id="overviewTab" class="tab-content active">
         <!-- KPI Cards Row -->
         <div class="kpi-row">
-          <div class="card kpi-card" id="kpiCardAll" onclick="setKpiFilter('ALL')" style="cursor: pointer;">
+          <div class="card kpi-card" id="kpiCardAll" onclick="setKpiFilter('ALL')" style="cursor: pointer;" data-tooltip="Total number of NetApp ONTAP storage systems monitored in Active IQ. Click to show all systems in the table below.">
             <div class="card-title">Total Systems</div>
             <div class="card-value" id="kpiTotalSystems">0</div>
             <div class="card-subtitle">Active monitored assets</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
           </div>
-          <div class="card kpi-card" id="kpiCardCritical" onclick="setKpiFilter('CRITICAL')" style="cursor: pointer;">
+          <div class="card kpi-card" id="kpiCardCritical" onclick="setKpiFilter('CRITICAL')" style="cursor: pointer;" data-tooltip="Systems with at least one critical-severity risk flagged by Active IQ predictive analytics. Critical risks indicate potential data loss, outage, or security vulnerability. Click to filter.">
             <div class="card-title">Critical Risks</div>
             <div class="card-value" id="kpiCriticalRisks">0</div>
             <div class="card-subtitle">Action required immediately</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
           </div>
-          <div class="card kpi-card" id="kpiCardWarning" onclick="setKpiFilter('WARNING')" style="cursor: pointer;">
+          <div class="card kpi-card" id="kpiCardWarning" onclick="setKpiFilter('WARNING')" style="cursor: pointer;" data-tooltip="Systems with high-severity risks that require preventative review. These are not yet critical but could escalate without action. Click to filter.">
             <div class="card-title">Active Warnings</div>
             <div class="card-value" id="kpiWarningRisks">0</div>
             <div class="card-subtitle">Preventative review recommended</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <div class="card kpi-card" id="kpiCardContract" onclick="setKpiFilter('CONTRACT')" style="cursor: pointer;">
+          <div class="card kpi-card" id="kpiCardContract" onclick="setKpiFilter('CONTRACT')" style="cursor: pointer;" data-tooltip="Systems whose support contracts expire within 90 days. Proactive renewal avoids service gaps and ensures continued access to software updates, AutoSupport, and break/fix support. Click to filter.">
             <div class="card-title">Expiring Contracts</div>
             <div class="card-value" id="kpiContracts">0</div>
             <div class="card-subtitle">Expires within 90 days</div>
@@ -4639,10 +4639,10 @@ function loadConfig() {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
-  const schemaVer = safeGetItem("aiq_systems_schema_v9");
+  const schemaVer = safeGetItem("aiq_systems_schema_v10");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v9") {
+  if (savedSystems && schemaVer === "v10") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -4667,7 +4667,7 @@ function loadConfig() {
     } else {
       state.systems = []; // Will be populated by loadProductionData
     }
-    safeSetItem("aiq_systems_schema_v9", "v9");
+    safeSetItem("aiq_systems_schema_v10", "v10");
     saveSystems();
   }
 
@@ -8517,7 +8517,104 @@ function enrichSystemTelemetry(s) {
     projections:       projections,
     securityBulletins: securityBulletins,
     supportCases:      supportCases,
-    autosupport:       autosupport
+    autosupport:       autosupport,
+    // ── TAM Enrichment Fields ──
+    productType:       s.productType || '',
+    systemState:       s.systemState || '',
+    techRefreshStatus: s.techRefreshStatus || '',
+    serviceTier:       s.serviceTier || '',
+    lastRebootTime:    s.lastRebootTime || '',
+    originalShipDate:  s.originalShipDate || '',
+    marketingType:     s.marketingType || '',
+    storageConfiguration: s.storageConfiguration || '',
+    isFabricPool:      s.isFabricPool,
+    hasPvr:            s.hasPvr,
+    modelRevision:     s.modelRevision || '',
+    // ── Account Management ──
+    salesRepName:      s.salesRepName || '',
+    salesRepEmail:     s.salesRepEmail || '',
+    csmName:           s.csmName || '',
+    csmEmail:          s.csmEmail || '',
+    samName:           s.samName || '',
+    samEmail:          s.samEmail || '',
+    gard:              s.gard || {},
+    aspName:           s.aspName || '',
+    aspEndDate:        s.aspEndDate || '',
+    domesticParentName: s.domesticParentName || '',
+    nagpName:          s.nagpName || '',
+    siteName:          s.siteName || '',
+    siteId:            s.siteId || '',
+    siteCity:          s.siteCity || '',
+    siteCountry:       s.siteCountry || '',
+    // ── Extended Contract ──
+    contractActive:    s.contractActive,
+    contractEndDate:   s.contractEndDate || s.contractExpiry || '',
+    contractExpiry:    s.contractExpiry || '',
+    warrantyEndDate:   s.warrantyEndDate || '',
+    warrantyStartDate: s.warrantyStartDate || '',
+    serviceLevel:      s.serviceLevel || '',
+    contractSWId:      s.contractSWId || '',
+    contractHWId:      s.contractHWId || '',
+    contractNRDEndDate: s.contractNRDEndDate || '',
+    latestAsupDate:    s.latestAsupDate || '',
+    // ── End of Support ──
+    eosEarliest:       s.eosEarliest || '',
+    eosShelf:          s.eosShelf || '',
+    eosDisk:           s.eosDisk || '',
+    eosPVR:            s.eosPVR || '',
+    eosLatest:         s.eosLatest || '',
+    // ── Software Version ──
+    softwareVersionFull: s.softwareVersionFull || '',
+    swReleaseDate:     s.swReleaseDate || '',
+    swEndOfFullSupport: s.swEndOfFullSupport || '',
+    swEndOfLimitedSupport: s.swEndOfLimitedSupport || '',
+    swEndOfSelfService: s.swEndOfSelfService || '',
+    swRecMin:          s.swRecMin || '',
+    swRecLatest:       s.swRecLatest || '',
+    swCQV:             s.swCQV || '',
+    // ── ONTAP Flags ──
+    isMetroCluster:    s.isMetroCluster,
+    isAllFlashOptimized: s.isAllFlashOptimized,
+    isFlexPod:         s.isFlexPod,
+    isARPEnabled:      s.isARPEnabled,
+    operatingMode:     s.operatingMode || '',
+    propensityCategory: s.propensityCategory || '',
+    nextBestAction:    s.nextBestAction || '',
+    belongsToMixModelCluster: s.belongsToMixModelCluster,
+    serviceProcessorIP: s.serviceProcessorIP || '',
+    autoUpdateEnabled: s.autoUpdateEnabled,
+    // ── AutoSupport Extended ──
+    asupStatus:        s.asupStatus || '',
+    asupTransport:     s.asupTransport || '',
+    asupOnDemand:      s.asupOnDemand,
+    asupDomain:        s.asupDomain || '',
+    // ── Firmware ──
+    systemFirmware:    s.systemFirmware || [],
+    motherboardFirmware: s.motherboardFirmware || {},
+    diskQualificationPackage: s.diskQualificationPackage || {},
+    autoUpdateSettings: s.autoUpdateSettings || {},
+    // ── Lifecycle Events & Licenses ──
+    lifecycleEvents:   s.lifecycleEvents || [],
+    licenses:          s.licenses || [],
+    pvrs:              s.pvrs || [],
+    // ── Downtime & Monthly Stats ──
+    downtimeEvents:    s.downtimeEvents || {},
+    monthlyUptimeStats: s.monthlyUptimeStats || [],
+    monthlyCarbonStats: s.monthlyCarbonStats || [],
+    monthlyResolvedRisksStats: s.monthlyResolvedRisksStats || [],
+    monthlyArpStats:   s.monthlyArpStats || [],
+    monthlyAutoResolvedCases: s.monthlyAutoResolvedCases || [],
+    sustainabilityScores: s.sustainabilityScores || [],
+    // ── Per-System Capacity ──
+    capacityAllocatedKB: s.capacityAllocatedKB || 0,
+    capacityUsedKB:    s.capacityUsedKB || 0,
+    capacityAvailableKB: s.capacityAvailableKB || 0,
+    dataReductionRatio: s.dataReductionRatio,
+    // ── Shelves, Ports, vCenters ──
+    shelves:           s.shelves || [],
+    portInterface:     s.portInterface || {},
+    networkPorts:      s.networkPorts || {},
+    vcenters:          s.vcenters || [],
   };
 }
 
@@ -9420,7 +9517,628 @@ CUSTOMER: ${cleanScope}  |  DATE: ${today}
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// TAM Section Renderers (Sections 10-15)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Generic sortable column click handler for all TAM tables
+function sortTamTable(th) {
+  const table = th.closest('table');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  const colIdx = Array.from(th.parentElement.children).indexOf(th);
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  
+  // Toggle direction
+  const curDir = th.getAttribute('data-sort-dir') || 'none';
+  const newDir = curDir === 'asc' ? 'desc' : 'asc';
+  
+  // Reset all th sort indicators in this table
+  th.parentElement.querySelectorAll('th').forEach(h => {
+    h.setAttribute('data-sort-dir', 'none');
+    const ind = h.querySelector('.tam-sort-icon');
+    if (ind) ind.textContent = '⇅';
+  });
+  th.setAttribute('data-sort-dir', newDir);
+  const icon = th.querySelector('.tam-sort-icon');
+  if (icon) icon.textContent = newDir === 'asc' ? '▲' : '▼';
+  
+  rows.sort((a, b) => {
+    const aCell = a.children[colIdx];
+    const bCell = b.children[colIdx];
+    if (!aCell || !bCell) return 0;
+    let aVal = (aCell.textContent || '').trim();
+    let bVal = (bCell.textContent || '').trim();
+    
+    // Try numeric sort first (strip %, d, y, :1 suffixes)
+    const aNum = parseFloat(aVal.replace(/[%dyx:,]/g, ''));
+    const bNum = parseFloat(bVal.replace(/[%dyx:,]/g, ''));
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      return newDir === 'asc' ? aNum - bNum : bNum - aNum;
+    }
+    // Try date sort (YYYY-MM-DD)
+    if (/^\d{4}-\d{2}/.test(aVal) && /^\d{4}-\d{2}/.test(bVal)) {
+      return newDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    }
+    // Fallback: string sort (case-insensitive)
+    aVal = aVal.toLowerCase();
+    bVal = bVal.toLowerCase();
+    // Push empty/dash values to bottom regardless of direction
+    if ((!aVal || aVal === '—') && bVal && bVal !== '—') return 1;
+    if ((!bVal || bVal === '—') && aVal && aVal !== '—') return -1;
+    return newDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  });
+  
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// Helper: generate a sortable TH element
+function _sth(style, label) {
+  return `<th style="${style}cursor:pointer;user-select:none;" onclick="sortTamTable(this)">${label} <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>`;
+}
+
+function _renderContractsLifecycleSection(systems) {
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+  const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
+  const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;';
+  const critColor = {'CRITICAL':'#ef4444','HIGH':'#f59e0b','MEDIUM':'#3b82f6','LOW':'#6b7280'};
+
+  // Contract summary
+  const now = new Date();
+  const expiring90 = systems.filter(s => { const d = s.contractExpiry || s.contracts?.endDate; return d && (new Date(d) - now) / 86400000 < 90 && (new Date(d) - now) > 0; });
+  const expired = systems.filter(s => { const d = s.contractExpiry || s.contracts?.endDate; return d && new Date(d) < now; });
+  const activeContracts = systems.filter(s => s.contractActive === true);
+
+  // Lifecycle events across all systems
+  const allLC = [];
+  systems.forEach(s => (s.lifecycleEvents || []).forEach(le => allLC.push({...le, systemName: s.systemName, serialNumber: s.serialNumber})));
+  allLC.sort((a,b) => (a.daysToEvent || 9999) - (b.daysToEvent || 9999));
+
+  // TAM renewal data — filter to selected scope
+  const allRenewals = state.tamRenewals || [];
+  const scopeHostNames = new Set(systems.map(s => (s.systemName || '').toLowerCase()));
+  const scopeSerials = new Set(systems.map(s => (s.serialNumber || '').toUpperCase()));
+  const renewals = allRenewals.filter(r => {
+    const rHost = (r.hostName || '').toLowerCase();
+    const rSerial = (r.serialNumber || '').toUpperCase();
+    return scopeHostNames.has(rHost) || scopeSerials.has(rSerial);
+  });
+
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+      <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems with a valid, current support contract. Includes both hardware and software service levels.">
+        <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${activeContracts.length}</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Active Contracts</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Current support coverage</div>
+      </div>
+      <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems whose support contract expires within 90 days. Immediate renewal engagement recommended to avoid coverage gaps.">
+        <div style="font-size:1.8rem;font-weight:700;color:#f59e0b;">${expiring90.length}</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Expiring < 90 Days</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Urgent renewal needed</div>
+      </div>
+      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems with expired support contracts. No entitlement for break/fix, software updates, or technical support.">
+        <div style="font-size:1.8rem;font-weight:700;color:#ef4444;">${expired.length}</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Expired</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No support entitlement</div>
+      </div>
+      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Upcoming hardware or software end-of-availability, end-of-support, or end-of-service lifecycle milestones from the TAM renewal pipeline.">
+        <div style="font-size:1.8rem;font-weight:700;color:#3b82f6;">${allLC.length}</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Lifecycle Events</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">EOA / EOS milestones</div>
+      </div>
+    </div>`;
+
+  // Lifecycle events table
+  if (allLC.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Lifecycle Events (sorted by urgency)</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="${tblStyle}"><thead><tr>
+        ${_sth(thStyle,'System')}${_sth(thStyle,'Category')}${_sth(thStyle,'Event')}
+        ${_sth(thStyle,'Criticality')}${_sth(thStyle,'Days')}${_sth(thStyle,'Talking Point')}
+      </tr></thead><tbody>`;
+    allLC.slice(0, 50).forEach(le => {
+      const cc = critColor[(le.criticalityCode || '').toUpperCase()] || '#6b7280';
+      html += `<tr>
+        <td style="${tdStyle}">${le.systemName || ''}</td>
+        <td style="${tdStyle}"><span style="background:rgba(59,130,246,0.15);padding:2px 8px;border-radius:10px;font-size:0.72rem;">${le.workflowCategory || ''}</span></td>
+        <td style="${tdStyle}">${le.typeName || ''}</td>
+        <td style="${tdStyle}"><span style="color:${cc};font-weight:600;">${le.criticalityCode || ''}</span></td>
+        <td style="${tdStyle};font-weight:600;">${le.daysToEvent != null ? le.daysToEvent + 'd' : ''}</td>
+        <td style="${tdStyle};font-size:0.75rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(le.talkingPoint||'').replace(/"/g,'&quot;')}">${(le.talkingPoint || '').substring(0, 120)}${(le.talkingPoint||'').length > 120 ? '...' : ''}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Contract renewal timeline
+  // Build hostname→customer lookup
+  const hostCustMap = {};
+  systems.forEach(s => { if (s.systemName) hostCustMap[s.systemName.toLowerCase()] = s.customerName || ''; });
+  if (renewals.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Contract Renewal Pipeline (${renewals.length} systems)</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="${tblStyle}"><thead><tr>
+        ${_sth(thStyle,'System')}${_sth(thStyle,'Customer')}${_sth(thStyle,'Platform')}${_sth(thStyle,'Service')}
+        ${_sth(thStyle,'Tech Refresh')}${_sth(thStyle,'Expiry')}${_sth(thStyle,'Level')}${_sth(thStyle,'HW EOA')}${_sth(thStyle,'HW EOS')}
+      </tr></thead><tbody>`;
+    renewals.forEach(r => {
+      const cn = r.contract || {};
+      const hw = r.hardwareModel || {};
+      const refreshColor = {'Lost':'#ef4444','Refresh Quoted Pipeline':'#f59e0b'}[r.techRefreshStatus] || '#6b7280';
+      const custName = hostCustMap[(r.hostName || '').toLowerCase()] || r.customerName || '';
+      html += `<tr>
+        <td style="${tdStyle}">${r.hostName || ''}</td>
+        <td style="${tdStyle}">${custName}</td>
+        <td style="${tdStyle}">${r.platformType || ''}</td>
+        <td style="${tdStyle}">${r.serviceTier || ''}</td>
+        <td style="${tdStyle}"><span style="color:${refreshColor};font-weight:600;">${r.techRefreshStatus || ''}</span></td>
+        <td style="${tdStyle}">${(cn.expiryDate || '').substring(0,10)}</td>
+        <td style="${tdStyle};font-size:0.72rem;">${(cn.hardwareServiceLevel || '').substring(0,40)}</td>
+        <td style="${tdStyle}">${(hw.endOfAvailability || '').substring(0,10)}</td>
+        <td style="${tdStyle}">${(hw.endOfSupport || '').substring(0,10)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html;
+}
+
+function _renderSustainabilitySection(systems) {
+  const scores = state.tamSustainability || [];
+  const latest = scores[0] || {};
+
+  // Per-customer efficiency metrics
+  const withReduction = systems.filter(s => s.dataReductionRatio != null && s.dataReductionRatio > 0);
+  const avgReduction = withReduction.length > 0
+    ? (withReduction.reduce((a, s) => a + s.dataReductionRatio, 0) / withReduction.length).toFixed(1)
+    : '—';
+
+  let html = `
+    <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:0.75rem;color:#f59e0b;">
+      ⚠ Sustainability scores are fleet-wide (all ${state.systems ? state.systems.length : '?'} systems). Per-customer breakdown is not available from the AIQ API. The efficiency metrics below are scoped to the selected ${systems.length} system(s).
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+      <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="NetApp Active IQ Sustainability score (0-100%). Measures power efficiency, storage utilization, and environmental impact across the entire fleet.">
+        <div style="font-size:2.2rem;font-weight:700;color:#10b981;">${latest.scorePercentage || '—'}%</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Fleet Sustainability Score</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">AIQ environmental efficiency rating</div>
+      </div>
+      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Change in sustainability score compared to the previous week. Positive values indicate improved efficiency (e.g. better storage utilization, reduced power consumption).">
+        <div style="font-size:2.2rem;font-weight:700;color:${(latest.percentageChange||0) >= 0 ? '#10b981':'#ef4444'};">${(latest.percentageChange||0) >= 0 ? '+':''}${latest.percentageChange || '0'}%</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Week-over-Week Change</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Score delta vs. previous week</div>
+      </div>
+      <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Number of weekly sustainability score snapshots available from the AIQ API. Used to track the sustainability trend over time.">
+        <div style="font-size:2.2rem;font-weight:700;color:#8b5cf6;">${scores.length}</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Historical Weeks</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Weeks of trend data available</div>
+      </div>
+      <div style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Average data reduction ratio across the selected systems. Combines deduplication, compression, and compaction. Higher is better — e.g. 3.2:1 means 3.2x storage savings.">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--accent-cyan);">${avgReduction}:1</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Avg Data Reduction</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Dedup + compression ratio</div>
+      </div>
+    </div>`;
+
+  // Score trend
+  if (scores.length > 1) {
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Weekly Score Trend</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);padding:12px;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Week</th>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Score</th>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Change</th>
+      </tr></thead><tbody>`;
+    scores.slice(0, 12).forEach(s => {
+      const change = s.percentageChange || 0;
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s.generatedDate || '').substring(0,10)}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${s.scorePercentage || '—'}%</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);color:${change >= 0 ? '#10b981' : '#ef4444'};font-weight:600;">${change >= 0 ? '+' : ''}${change}%</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Change factors
+  if (latest.changeFactors) {
+    const factors = Array.isArray(latest.changeFactors) ? latest.changeFactors : [latest.changeFactors];
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Improvement Factors</h4>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+    factors.forEach(f => {
+      html += `<span style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);padding:4px 10px;border-radius:12px;font-size:0.72rem;color:var(--text-primary);">${f}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // Per-system carbon stats
+  const carbonSystems = systems.filter(s => (s.monthlyCarbonStats || []).length > 0);
+  if (carbonSystems.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Per-System Carbon Emissions (Latest Month)</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">System</th>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Month</th>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Carbon (Tons)</th>
+        <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Energy (kWh)</th>
+      </tr></thead><tbody>`;
+    carbonSystems.forEach(s => {
+      const latest = s.monthlyCarbonStats[0] || {};
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${latest.month || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${latest.carbonEmissionTons || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${latest.energyConsumedKWh || '—'}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html;
+}
+
+function _renderRecommendationsSection() {
+  const recs = state.tamRecommendations || [];
+  if (recs.length === 0) return '<p style="color:var(--text-secondary);font-size:0.85rem;">No recommendations available. Run a data refresh to load TAM recommendations.</p>';
+
+  const byCategory = {};
+  recs.forEach(r => {
+    const cat = r.category || 'OTHER';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(r);
+  });
+
+  const catIcons = {'VERSION':'🔄','AUTO_SUPPORT':'📡','BEST_PRACTICES':'✅','CONFIG':'⚙️','SUPPORT_AND_ENTITLEMENTS':'🛡️'};
+  const catColors = {'VERSION':'#3b82f6','AUTO_SUPPORT':'#8b5cf6','BEST_PRACTICES':'#10b981','CONFIG':'#f59e0b','SUPPORT_AND_ENTITLEMENTS':'#ef4444'};
+
+  let html = `<div style="margin-bottom:16px;">
+    <p style="font-size:0.85rem;color:var(--text-secondary);">Top ${recs.length} key recommendations from Active IQ, ranked by impact and health score.</p>
+  </div>`;
+
+  Object.keys(byCategory).forEach(cat => {
+    const items = byCategory[cat];
+    const icon = catIcons[cat] || '📋';
+    const color = catColors[cat] || '#6b7280';
+    html += `<div style="margin-bottom:20px;">
+      <h4 style="color:${color};margin:12px 0 8px;font-size:0.95rem;">${icon} ${cat.replace(/_/g,' ')} (${items.length})</h4>`;
+    items.forEach(r => {
+      const scoreColor = (r.score || 0) >= 80 ? '#10b981' : (r.score || 0) >= 50 ? '#f59e0b' : '#ef4444';
+      html += `<div style="background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:0.75rem;color:var(--text-secondary);">${r.subCategory || ''}</span>
+          <span style="background:${scoreColor}22;color:${scoreColor};padding:2px 10px;border-radius:10px;font-size:0.72rem;font-weight:600;">Score: ${r.score || 0}%</span>
+        </div>
+        <p style="font-size:0.82rem;color:var(--text-primary);margin:0;line-height:1.4;">${(r.recommendation || '').substring(0,300)}${(r.recommendation||'').length > 300 ? '...' : ''}</p>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  return html;
+}
+
+function _renderAccountIntelligenceSection(systems) {
+  const allSites = state.tamSites || [];
+  
+  // Build set of site names/IDs from the selected systems to filter sites
+  const scopeSiteNames = new Set();
+  const scopeSiteIds = new Set();
+  systems.forEach(s => {
+    if (s.siteName) scopeSiteNames.add(s.siteName);
+    if (s.siteId) scopeSiteIds.add(s.siteId);
+  });
+  
+  // Filter sites to only those matching the selected scope
+  const sites = scopeSiteNames.size > 0 || scopeSiteIds.size > 0
+    ? allSites.filter(site => scopeSiteNames.has(site.name) || scopeSiteIds.has(site.id))
+    : allSites;  // fallback to all if no site info on systems
+  
+  // Deduplicate customers
+  const custMap = {};
+  systems.forEach(s => {
+    const key = s.customerName || s.customerId || 'Unknown';
+    if (!custMap[key]) custMap[key] = {name: key, systems: [], sites: new Set(), salesRep: '', csm: '', sam: '', asp: ''};
+    custMap[key].systems.push(s);
+    if (s.siteName) custMap[key].sites.add(s.siteName);
+    if (s.salesRepName) custMap[key].salesRep = s.salesRepName;
+    if (s.csmName) custMap[key].csm = s.csmName;
+    if (s.samName) custMap[key].sam = s.samName;
+    if (s.aspName) custMap[key].asp = s.aspName;
+  });
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+    <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Unique customer accounts in the selected scope.">
+      <div style="font-size:1.8rem;font-weight:700;color:#3b82f6;">${Object.keys(custMap).length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Customers</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Unique account entities</div>
+    </div>
+    <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Physical data center or office locations associated with the selected customer's systems.">
+      <div style="font-size:1.8rem;font-weight:700;color:#8b5cf6;">${sites.length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Sites</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Locations in scope</div>
+    </div>
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total ONTAP storage systems in the selected scope.">
+      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${systems.length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Systems</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Storage controllers in scope</div>
+    </div>
+  </div>`;
+
+  // Personnel table (shown first)
+  const personnelSystems = systems.filter(s => s.salesRepName || s.csmName || s.samName);
+  if (personnelSystems.length > 0) {
+    const thS13 = 'text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;';
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Account Personnel</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        ${_sth(thS13,'System')}${_sth(thS13,'Sales Rep')}${_sth(thS13,'CSM')}
+        ${_sth(thS13,'SAM')}${_sth(thS13,'ASP')}${_sth(thS13,'Propensity')}
+      </tr></thead><tbody>`;
+    const seen = new Set();
+    personnelSystems.forEach(s => {
+      const key = s.clusterName || s.systemName;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const propColor = {'CRITICAL':'#ef4444','HIGH':'#f59e0b','MEDIUM':'#3b82f6'}[s.propensityCategory] || '#6b7280';
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.salesRepName || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.csmName || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.samName || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.aspName || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${propColor};font-weight:600;">${s.propensityCategory || '—'}</span></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Sites table
+  if (sites.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Sites (${sites.length})</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Site Name')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','City')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Country')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Age')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Critical Prop.')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','High Prop.')}
+      </tr></thead><tbody>`;
+    sites.forEach(s => {
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.name || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.city || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.countryCode || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.ageInYears != null ? s.ageInYears + 'y' : ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);color:${(s.systemsWithCriticalPropensity||0) > 0 ? '#ef4444':'var(--text-secondary)'};">${s.systemsWithCriticalPropensity || 0}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);color:${(s.systemsWithHighPropensity||0) > 0 ? '#f59e0b':'var(--text-secondary)'};">${s.systemsWithHighPropensity || 0}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html;
+}
+
+function _renderLicenseComplianceSection(systems) {
+  // Since per-system 'licenses' field is not available in the GraphQL schema,
+  // we derive compliance from contract status, service tiers, and lifecycle events
+  // Filter renewals to selected scope
+  const allRenewals = state.tamRenewals || [];
+  const scopeHostNames = new Set(systems.map(s => (s.systemName || '').toLowerCase()));
+  const scopeSerials = new Set(systems.map(s => (s.serialNumber || '').toUpperCase()));
+  const renewals = allRenewals.filter(r => {
+    const rHost = (r.hostName || '').toLowerCase();
+    const rSerial = (r.serialNumber || '').toUpperCase();
+    return scopeHostNames.has(rHost) || scopeSerials.has(rSerial);
+  });
+  
+  const activeContracts = systems.filter(s => s.contractActive === true);
+  const expiredContracts = systems.filter(s => s.contractActive === false);
+  const noContract = systems.filter(s => s.contractActive == null);
+  
+  // Service tier distribution
+  const tierMap = {};
+  systems.forEach(s => {
+    const tier = s.serviceTier || 'Unknown';
+    tierMap[tier] = (tierMap[tier] || 0) + 1;
+  });
+
+  // Warranty analysis
+  const now = new Date();
+  const warrantyExpired = systems.filter(s => s.warrantyEndDate && new Date(s.warrantyEndDate) < now);
+  const warrantyActive = systems.filter(s => s.warrantyEndDate && new Date(s.warrantyEndDate) >= now);
+  
+  let html = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems with a current, valid NetApp hardware or software support contract.">
+      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${activeContracts.length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Active Contracts</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Current HW/SW support coverage</div>
+    </div>
+    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems whose support contract has expired. These systems are not covered for break/fix or software updates.">
+      <div style="font-size:1.8rem;font-weight:700;color:#ef4444;">${expiredContracts.length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Expired Contracts</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No active support coverage</div>
+    </div>
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems still within their original hardware warranty period (separate from support contracts).">
+      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${warrantyActive.length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Warranty Active</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Within HW warranty period</div>
+    </div>
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems whose original hardware warranty has expired. Hardware replacements require an active support contract.">
+      <div style="font-size:1.8rem;font-weight:700;color:#f59e0b;">${warrantyExpired.length}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Warranty Expired</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Past HW warranty end date</div>
+    </div>
+  </div>`;
+
+  // Service Tier Distribution
+  const tiers = Object.entries(tierMap).sort((a,b) => b[1] - a[1]);
+  if (tiers.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Service Tier Distribution</h4>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">`;
+    tiers.forEach(([tier, count]) => {
+      html += `<div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);border-radius:var(--radius-sm);padding:8px 14px;">
+        <span style="font-weight:600;color:var(--accent-cyan);">${tier}</span>
+        <span style="color:var(--text-secondary);margin-left:8px;">${count} systems</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Contract Compliance Table - show systems with expiring/expired contracts
+  const contractSystems = systems
+    .filter(s => s.contractEndDate || s.contractExpiry)
+    .map(s => {
+      const endDate = s.contractEndDate || s.contractExpiry || '';
+      const daysLeft = endDate ? Math.round((new Date(endDate) - now) / 86400000) : null;
+      return {...s, _endDate: endDate, _daysLeft: daysLeft};
+    })
+    .sort((a,b) => (a._daysLeft || 9999) - (b._daysLeft || 9999));
+
+  if (contractSystems.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Contract Compliance (${contractSystems.length} systems)</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','System')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Service Level')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Contract End')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Days Left')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Status')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Warranty End')}
+      </tr></thead><tbody>`;
+    contractSystems.slice(0, 80).forEach(s => {
+      const daysColor = s._daysLeft == null ? '#6b7280' : s._daysLeft < 0 ? '#ef4444' : s._daysLeft < 90 ? '#f59e0b' : '#10b981';
+      const statusLabel = s.contractActive === true ? 'Active' : s.contractActive === false ? 'Expired' : 'Unknown';
+      const statusColor = s.contractActive === true ? '#10b981' : '#ef4444';
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName || s.serialNumber}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.serviceLevel || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s._endDate || '').substring(0,10)}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${daysColor};font-weight:600;">${s._daysLeft != null ? s._daysLeft : ''}</span></td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${statusColor};font-weight:600;">${statusLabel}</span></td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s.warrantyEndDate || '').substring(0,10)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html;
+}
+
+
+function _renderMonthlySLASection(systems) {
+  // Since monthlyUptimeStats, monthlyArpStats are not in the GraphQL schema,
+  // we derive operational health from ASUP recency, reboot history, firmware, and ARP status
+  const now = new Date();
+
+  // ASUP health: how recently did each system phone home?
+  const asupSystems = systems.filter(s => s.latestAsupDate).map(s => {
+    const asupDate = new Date(s.latestAsupDate);
+    const daysAgo = Math.round((now - asupDate) / 86400000);
+    return {...s, _asupDaysAgo: daysAgo, _asupHealthy: daysAgo <= 7};
+  });
+  const asupHealthy = asupSystems.filter(s => s._asupHealthy).length;
+  const asupStale = asupSystems.filter(s => !s._asupHealthy).length;
+
+  // ARP (Anti-Ransomware Protection) status
+  const arpEnabled = systems.filter(s => s.isARPEnabled === true).length;
+  const arpDisabled = systems.filter(s => s.isARPEnabled === false).length;
+  const arpUnknown = systems.length - arpEnabled - arpDisabled;
+
+  // Firmware currency
+  const fwCurrent = systems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const fwBehind = systems.filter(s => s.swRecMin && s.osVersion && s.osVersion < s.swRecMin).length;
+
+  // Last reboot analysis
+  const rebootSystems = systems.filter(s => s.lastRebootTime).map(s => {
+    const rDate = new Date(s.lastRebootTime);
+    const daysAgo = Math.round((now - rDate) / 86400000);
+    return {...s, _rebootDaysAgo: daysAgo};
+  }).sort((a,b) => a._rebootDaysAgo - b._rebootDaysAgo);
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems that sent an AutoSupport (ASUP) telemetry message to NetApp within the last 7 days. A healthy ASUP confirms the system is reachable and monitored.">
+      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${asupHealthy}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ASUP Healthy (7d)</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">AutoSupport received within 7 days</div>
+    </div>
+    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems whose last AutoSupport message is older than 7 days. This may indicate network issues, disabled ASUP, or the system being offline.">
+      <div style="font-size:1.8rem;font-weight:700;color:#ef4444;">${asupStale}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ASUP Stale</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No ASUP received in over 7 days</div>
+    </div>
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems with ONTAP Autonomous Ransomware Protection (ARP) enabled. ARP uses machine learning to detect and block ransomware attacks on NAS volumes.">
+      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${arpEnabled}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ARP Enabled</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Anti-Ransomware Protection active</div>
+    </div>
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems without ARP enabled. Enabling ARP is recommended for all NAS workloads to detect abnormal file encryption patterns.">
+      <div style="font-size:1.8rem;font-weight:700;color:#f59e0b;">${systems.length - arpEnabled}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ARP Not Enabled</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No ransomware protection detected</div>
+    </div>
+  </div>`;
+
+  // ASUP Recency Table
+  if (asupSystems.length > 0) {
+    const staleSystems = asupSystems.filter(s => !s._asupHealthy).sort((a,b) => b._asupDaysAgo - a._asupDaysAgo);
+    if (staleSystems.length > 0) {
+      html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Stale AutoSupport Systems (>${'\u200B'}7 days)</h4>
+      <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+          ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','System')}
+          ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Last ASUP')}
+          ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Days Ago')}
+          ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','OS Version')}
+          ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','ARP')}
+        </tr></thead><tbody>`;
+      staleSystems.slice(0, 50).forEach(s => {
+        const daysColor = s._asupDaysAgo > 30 ? '#ef4444' : '#f59e0b';
+        html += `<tr>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName || s.serialNumber}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s.latestAsupDate || '').substring(0,10)}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${daysColor};font-weight:600;">${s._asupDaysAgo}</span></td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled ? '<span style="color:#10b981;">Yes</span>' : '<span style="color:#6b7280;">No</span>'}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+    }
+  }
+
+  // Recent Reboots
+  const recentReboots = rebootSystems.filter(s => s._rebootDaysAgo <= 90);
+  if (recentReboots.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Recent Reboots (Last 90 Days) - ${recentReboots.length} systems</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','System')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Last Reboot')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Days Ago')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','OS Version')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Model')}
+      </tr></thead><tbody>`;
+    recentReboots.slice(0, 50).forEach(s => {
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName || s.serialNumber}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s.lastRebootTime || '').substring(0,10)}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s._rebootDaysAgo}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.model || ''}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html;
+}
+
+
 function generateActionPlan() {
+
   const selectValue = document.getElementById("planTargetSelect").value;
   const planBody = document.getElementById("generatedPlanBody");
   if (!planBody) return;
@@ -9603,23 +10321,23 @@ function generateActionPlan() {
           A total of <strong>${targetSystems.length}</strong> storage configuration(s) were audited.
         </p>
         <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 20px 0;">
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Total count of Active IQ predictive risk signatures (critical, high, medium, low) across all systems in scope. Each risk includes a root cause analysis and remediation steps.">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Total Risks</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${allRisks.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allRisks.length}</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="CVE-linked security vulnerabilities matched against the installed ONTAP versions and firmware. Each advisory includes mitigation steps and links to the NetApp Security Advisory portal.">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Security Advisories</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${allSecurityAdvisories.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${allSecurityAdvisories.length}</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Active support cases open with NetApp Support (P1-P4). Includes cases auto-created by AutoSupport and manually raised by the customer.">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Open Support Cases</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.length}</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Systems whose HW/SW support contract expires within 90 days. Requires proactive renewal engagement to avoid service coverage gaps.">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Expiring</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color);">
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="NetApp-issued field actions (FAs) requiring customer action — typically proactive hardware replacements, firmware updates, or configuration changes mandated by engineering.">
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Active Field Actions</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${activeFAs.length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${activeFAs.length}</div>
           </div>
@@ -10062,9 +10780,71 @@ function generateActionPlan() {
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerSuccessPlan}</textarea>
       </div>
     </div>
+
+    <!-- ═══ SECTION 10: Contracts & Lifecycle ═══ -->
+    <div class="plan-section" data-section-index="10" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">10. Contracts & Lifecycle Events</h2>
+      </div>
+      ${_renderContractsLifecycleSection(targetSystems)}
+    </div>
+
+    <!-- ═══ SECTION 11: Sustainability & ESG ═══ -->
+    <div class="plan-section" data-section-index="11" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">11. Sustainability & ESG Report</h2>
+      </div>
+      ${_renderSustainabilitySection(targetSystems)}
+    </div>
+
+    <!-- ═══ SECTION 12: Recommendations ═══ -->
+    <div class="plan-section" data-section-index="12" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">12. TAM Recommendations</h2>
+      </div>
+      ${_renderRecommendationsSection()}
+    </div>
   `;
 
   planBody.innerHTML = html;
+
+  // Inject sections 13-15 separately to avoid DOM nesting issues from earlier renderer output
+  const sec13 = document.createElement('div');
+  sec13.className = 'plan-section';
+  sec13.setAttribute('data-section-index', '13');
+  sec13.style.display = 'none';
+  sec13.style.marginTop = '32px';
+  sec13.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">13. Account Intelligence</h2>
+    </div>
+    ${_renderAccountIntelligenceSection(targetSystems)}`;
+  planBody.appendChild(sec13);
+
+  const sec14 = document.createElement('div');
+  sec14.className = 'plan-section';
+  sec14.setAttribute('data-section-index', '14');
+  sec14.style.display = 'none';
+  sec14.style.marginTop = '32px';
+  sec14.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">14. Contract Compliance</h2>
+    </div>
+    ${_renderLicenseComplianceSection(targetSystems)}`;
+  planBody.appendChild(sec14);
+
+  const sec15 = document.createElement('div');
+  sec15.className = 'plan-section';
+  sec15.setAttribute('data-section-index', '15');
+  sec15.style.display = 'none';
+  sec15.style.marginTop = '32px';
+  sec15.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">15. Operational Health</h2>
+    </div>
+    ${_renderMonthlySLASection(targetSystems)}`;
+  planBody.appendChild(sec15);
+
   
   // Render plan sub-tabs bar dynamically
   const planTabsHeader = document.getElementById("planTabsHeader");
@@ -10077,9 +10857,15 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)">4. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)">5. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)">7. Logistics & Health</button>
+      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)">7. Logistics &amp; Health</button>
       <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)">8. Guidelines</button>
       <button class="plan-tab-btn" data-tab-index="9" onclick="switchPlanTab(9)">9. Deliverables Drafts</button>
+      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)">10. Contracts &amp; Lifecycle</button>
+      <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)">11. Sustainability</button>
+      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)">12. Recommendations</button>
+      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)">13. Account Intelligence</button>
+      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)">14. Contract Compliance</button>
+      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)">15. Operational Health</button>
     `;
   }
 
@@ -10088,6 +10874,7 @@ function generateActionPlan() {
 
 // Global section switcher inside generated plan
 function switchPlanTab(index) {
+
   const sections = document.querySelectorAll(".plan-section");
   const buttons = document.querySelectorAll(".plan-tab-btn");
   
@@ -11841,6 +12628,14 @@ async function loadProductionData(forceRefresh = false) {
     if (result.summary) {
       state.fleetSummary = result.summary;
     }
+
+    // ── Store TAM root-level data ──
+    state.tamRecommendations = result.tamRecommendations || [];
+    state.tamSites = result.tamSites || [];
+    state.tamSustainability = result.tamSustainability || [];
+    state.tamOsVersions = result.tamOsVersions || [];
+    state.tamRenewals = result.tamRenewals || [];
+
 
     // Show cache status in the connection indicator
     const cacheInfo = result._cache || {};

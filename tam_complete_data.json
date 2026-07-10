@@ -1,0 +1,1625 @@
+{
+  "per_system_tam": {
+    "_error": "Field \"supportAddOns\" must not have a selection since type \"SupportAddonType\" has no subfields"
+  },
+  "contractRenewals": {
+    "systemContractRenewals": {
+      "systems": [
+        {
+          "serialNumber": "211715000458",
+          "hostName": "DRNACLUS-N1",
+          "osVersion": "9.16.1P11",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "12005048",
+            "hardwareContractId": "12005048",
+            "softwareContractEndDate": "2026-08-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2026-08-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-08-31T07:00:00.000Z",
+            "expiryDate": "2026-08-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "Choice HW Post Warranty NBDD,Renewal,e",
+            "hardwareWarrantyEndDate": "2026-09-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": null,
+            "latestEndOfSupportDate": "2026-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "CRITICAL",
+              "daysToEvent": 53,
+              "talkingPoint": "A renewal event is coming up in 53 days, with support contract end date on 2026-08-31."
+            },
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211715000459",
+          "hostName": "DRNACLUS-N2",
+          "osVersion": "9.16.1P11",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "12005048",
+            "hardwareContractId": "12005048",
+            "softwareContractEndDate": "2026-08-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2026-08-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-08-31T07:00:00.000Z",
+            "expiryDate": "2026-08-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "Choice HW Post Warranty NBDD,Renewal,e",
+            "hardwareWarrantyEndDate": "2027-05-31T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": null,
+            "latestEndOfSupportDate": "2026-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "CRITICAL",
+              "daysToEvent": 53,
+              "talkingPoint": "A renewal event is coming up in 53 days, with support contract end date on 2026-08-31."
+            },
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211724000031",
+          "hostName": "ZADOLNAPRDCL-01",
+          "osVersion": "9.11.1P13",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Refresh Quoted Pipeline",
+          "contract": {
+            "softwareContractId": "11982640",
+            "hardwareContractId": "11982640",
+            "softwareContractEndDate": "2026-11-30T08:00:00.000Z",
+            "hardwareContractEndDate": "2026-11-30T08:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-11-30T08:00:00.000Z",
+            "expiryDate": "2026-11-30T08:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2026-12-31T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": null,
+            "latestEndOfSupportDate": "2026-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A renewal event is coming up in 144 days, with support contract end date on 2026-11-30."
+            },
+            {
+              "workflowCategory": "CAPACITY",
+              "typeCode": "CAPACITY_THRESHOLD",
+              "typeName": "Storage Capacity Threshold",
+              "criticalityCode": "CRITICAL",
+              "daysToEvent": 932,
+              "talkingPoint": "A capacity add-ons event is coming up in 932 days, with system capacity currently at 94% on track to reach full capacity by 2029-01-26."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211817000153",
+          "hostName": "ZADOLNABCKCL-02",
+          "osVersion": "9.11.1P13",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Refresh Quoted Pipeline",
+          "contract": {
+            "softwareContractId": "11982641",
+            "hardwareContractId": "11982641",
+            "softwareContractEndDate": "2027-04-30T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-04-30T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-04-30T07:00:00.000Z",
+            "expiryDate": "2027-04-30T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Rep,e",
+            "hardwareWarrantyEndDate": "2026-05-31T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-09-30T00:00:00.000Z",
+            "latestPVRDate": "2027-11-30T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "CAPACITY",
+              "typeCode": "CAPACITY_THRESHOLD",
+              "typeName": "Storage Capacity Threshold",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 295,
+              "talkingPoint": "A capacity add-ons event is coming up in 295 days, with system capacity currently at 91% on track to reach full capacity by 2027-04-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 295,
+              "talkingPoint": "A renewal event is coming up in 295 days, with support contract end date on 2027-04-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211839000195",
+          "hostName": "SDC-NETAPP01-CT01",
+          "osVersion": "9.16.1P12",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11934012",
+            "hardwareContractId": "11934012",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2028-11-30T00:00:00.000Z",
+            "latestPVRDate": "2026-12-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2028-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A700",
+            "endOfAvailability": "2023-10-02T00:00:00.000Z",
+            "endOfSupport": "2028-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211839000196",
+          "hostName": "SDC-NETAPP01-CT02",
+          "osVersion": "9.16.1P12",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11934012",
+            "hardwareContractId": "11934012",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2028-11-30T00:00:00.000Z",
+            "latestPVRDate": "2026-12-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2028-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A700",
+            "endOfAvailability": "2023-10-02T00:00:00.000Z",
+            "endOfSupport": "2028-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211839000197",
+          "hostName": "LDC-NETAPP-CT02",
+          "osVersion": "9.16.1P12",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11934011",
+            "hardwareContractId": "11934011",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2028-11-30T00:00:00.000Z",
+            "latestPVRDate": "2026-12-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2028-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A700",
+            "endOfAvailability": "2023-10-02T00:00:00.000Z",
+            "endOfSupport": "2028-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211839000198",
+          "hostName": "LDC-NETAPP-CT01",
+          "osVersion": "9.16.1P12",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11934011",
+            "hardwareContractId": "11934011",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2028-11-30T00:00:00.000Z",
+            "latestPVRDate": "2026-12-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2028-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A700",
+            "endOfAvailability": "2023-10-02T00:00:00.000Z",
+            "endOfSupport": "2028-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211848000049",
+          "hostName": "DRNetapp06",
+          "osVersion": "9.14.1P7",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11818870",
+            "hardwareContractId": "11818870",
+            "softwareContractEndDate": "2026-10-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2026-10-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-10-31T07:00:00.000Z",
+            "expiryDate": "2026-10-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-PartnerChoice Post Warranty Extension",
+            "hardwareWarrantyEndDate": "2026-10-31T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2025-01-31T00:00:00.000Z",
+            "latestPVRDate": "2026-10-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2026-10-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 114,
+              "talkingPoint": "A renewal event is coming up in 114 days, with support contract end date on 2026-10-31."
+            },
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211848000050",
+          "hostName": "DRNetapp07",
+          "osVersion": "9.14.1P7",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11818870",
+            "hardwareContractId": "11818870",
+            "softwareContractEndDate": "2026-10-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2026-10-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-10-31T07:00:00.000Z",
+            "expiryDate": "2026-10-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-PartnerChoice Post Warranty Extension",
+            "hardwareWarrantyEndDate": "2026-10-31T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2025-01-31T00:00:00.000Z",
+            "latestPVRDate": "2026-10-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2026-10-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 114,
+              "talkingPoint": "A renewal event is coming up in 114 days, with support contract end date on 2026-10-31."
+            },
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211917000114",
+          "hostName": "NBSC-AFF-A300-DRMS-N01",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932941",
+            "hardwareContractId": "11932941",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211917000115",
+          "hostName": "NBSC-AFF-A300-DRMS-N02",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932941",
+            "hardwareContractId": "11932941",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211917000116",
+          "hostName": "ITDC-A300-DRMS-N01",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932941",
+            "hardwareContractId": "11932941",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211917000117",
+          "hostName": "ITDC-A300-DRMS-N02",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932941",
+            "hardwareContractId": "11932941",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211917000156",
+          "hostName": "BLV2-AFF-A300-DRMS-N02",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932942",
+            "hardwareContractId": "11932942",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211926000036",
+          "hostName": "ITDC-AFF-A300-CITRIX-N01",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932943",
+            "hardwareContractId": "11932943",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "211926000037",
+          "hostName": "ITDC-AFF-A300-CITRIX-N02",
+          "osVersion": "9.15.1P17",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "Lost",
+          "contract": {
+            "softwareContractId": "11932943",
+            "hardwareContractId": "11932943",
+            "softwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "hardwareContractEndDate": "2027-03-31T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2027-03-31T07:00:00.000Z",
+            "expiryDate": "2027-03-31T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2027-04-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": "2027-03-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2027-03-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "AFF-A300",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            },
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "MEDIUM",
+              "daysToEvent": 265,
+              "talkingPoint": "A renewal event is coming up in 265 days, with support contract end date on 2027-03-31."
+            }
+          ]
+        },
+        {
+          "serialNumber": "212010000048",
+          "hostName": "netapp2-01",
+          "osVersion": "9.16.1P12",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "None",
+          "contract": {
+            "softwareContractId": "11795528",
+            "hardwareContractId": "11795528",
+            "softwareContractEndDate": "2026-09-30T07:00:00.000Z",
+            "hardwareContractEndDate": "2026-09-30T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-09-30T07:00:00.000Z",
+            "expiryDate": "2026-09-30T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-PartnerChoice Post Warranty Extension",
+            "hardwareWarrantyEndDate": "2026-09-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": null,
+            "latestEndOfSupportDate": "2026-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "CRITICAL",
+              "daysToEvent": 83,
+              "talkingPoint": "A renewal event is coming up in 83 days, with support contract end date on 2026-09-30."
+            },
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "212010000049",
+          "hostName": "netapp2-02",
+          "osVersion": "9.16.1P12",
+          "platformType": "ONTAP",
+          "serviceTier": "STANDARD",
+          "techRefreshStatus": "None",
+          "contract": {
+            "softwareContractId": "11795528",
+            "hardwareContractId": "11795528",
+            "softwareContractEndDate": "2026-09-30T07:00:00.000Z",
+            "hardwareContractEndDate": "2026-09-30T07:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-09-30T07:00:00.000Z",
+            "expiryDate": "2026-09-30T07:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "R-Choice HW Suprt,Services,SSP,4hr Pts,e",
+            "hardwareWarrantyEndDate": "2026-09-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2026-11-30T00:00:00.000Z",
+            "latestPVRDate": null,
+            "latestEndOfSupportDate": "2026-11-30T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8200",
+            "endOfAvailability": "2021-05-17T00:00:00.000Z",
+            "endOfSupport": "2026-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "CRITICAL",
+              "daysToEvent": 83,
+              "talkingPoint": "A renewal event is coming up in 83 days, with support contract end date on 2026-09-30."
+            },
+            {
+              "workflowCategory": "TECH_REFRESH",
+              "typeCode": "CONTROLLER_EOSL",
+              "typeName": "Controller End of Service/Life",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 144,
+              "talkingPoint": "A Refresh event is coming up in 144 days, with controller reaching end of service on 2026-11-30."
+            }
+          ]
+        },
+        {
+          "serialNumber": "212027000083",
+          "hostName": "uwcprod-f8300n1",
+          "osVersion": "9.15.1P15",
+          "platformType": "ONTAP",
+          "serviceTier": "AIQPARTNERSELECT",
+          "techRefreshStatus": "Needs Refresh Action",
+          "contract": {
+            "softwareContractId": "11886289",
+            "hardwareContractId": "11886289",
+            "softwareContractEndDate": "2026-12-31T08:00:00.000Z",
+            "hardwareContractEndDate": "2026-12-31T08:00:00.000Z",
+            "nrdContractEndDate": null,
+            "overallContractEndDate": "2026-12-31T08:00:00.000Z",
+            "expiryDate": "2026-12-31T08:00:00.000Z",
+            "isContractActive": true,
+            "hardwareServiceLevel": "4hr Parts Delivery,LSC",
+            "hardwareWarrantyEndDate": "2027-01-30T00:00:00.000Z"
+          },
+          "endOfSupport": {
+            "earliestEndOfSupportDate": "2025-01-31T00:00:00.000Z",
+            "latestPVRDate": "2026-12-31T00:00:00.000Z",
+            "latestEndOfSupportDate": "2026-12-31T00:00:00.000Z"
+          },
+          "hardwareModel": {
+            "name": "FAS8300",
+            "endOfAvailability": "2025-11-07T00:00:00.000Z",
+            "endOfSupport": "2030-11-30T00:00:00.000Z"
+          },
+          "lifecycleEvents": [
+            {
+              "workflowCategory": "RENEWAL",
+              "typeCode": "CONTRACT_EXPIRY",
+              "typeName": "Contract Expiration",
+              "criticalityCode": "HIGH",
+              "daysToEvent": 175,
+              "talkingPoint": "A renewal event is coming up in 175 days, with support contract end date on 2026-12-31."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "sustainability": {
+    "sustainabilityScore": {
+      "sustainabilityScores": [
+        {
+          "scorePercentage": 73.6,
+          "percentageChange": 20.2,
+          "generatedDate": "2026-07-05T00:00:00.000Z",
+          "changeFactors": [
+            "Adjusted temperature",
+            "AutoSupport is disabled.",
+            "AutoSupport is enabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Enabled Cloud Insights monitoring",
+            "Enabled Compaction",
+            "Enabled Compression",
+            "Enabled Dedup",
+            "Enabled FlexClone ",
+            "Enabled Inactive data reporting",
+            "Temperature requires adjusting",
+            "Update carbon mitigation details to help reflect accurate sustainability score."
+          ]
+        },
+        {
+          "scorePercentage": 69.8,
+          "percentageChange": -3.4,
+          "generatedDate": "2026-06-28T00:00:00.000Z",
+          "changeFactors": [
+            "Adjusted temperature",
+            "AutoSupport is disabled.",
+            "AutoSupport is enabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Enabled Cloud Insights monitoring",
+            "Enabled Compaction",
+            "Enabled Compression",
+            "Enabled Dedup",
+            "Enabled FlexClone ",
+            "Enabled Inactive data reporting",
+            "Temperature requires adjusting",
+            "Update carbon mitigation details to help reflect accurate sustainability score."
+          ]
+        },
+        {
+          "scorePercentage": 73.3,
+          "percentageChange": 2,
+          "generatedDate": "2026-06-21T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 72.9,
+          "percentageChange": 1.6,
+          "generatedDate": "2026-06-14T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73,
+          "percentageChange": 1.3,
+          "generatedDate": "2026-06-07T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.1,
+          "percentageChange": 1.5,
+          "generatedDate": "2026-05-31T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.1,
+          "percentageChange": 1.3,
+          "generatedDate": "2026-05-24T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.1,
+          "percentageChange": 1,
+          "generatedDate": "2026-05-17T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.1,
+          "percentageChange": 0.6,
+          "generatedDate": "2026-05-10T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.3,
+          "percentageChange": 0.9,
+          "generatedDate": "2026-05-03T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.6,
+          "percentageChange": 1.6,
+          "generatedDate": "2026-04-26T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.2,
+          "percentageChange": 0.8,
+          "generatedDate": "2026-04-19T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.1,
+          "percentageChange": 0.5,
+          "generatedDate": "2026-04-12T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73,
+          "percentageChange": 0.4,
+          "generatedDate": "2026-04-05T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 72.9,
+          "percentageChange": -0.2,
+          "generatedDate": "2026-03-29T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 72.3,
+          "percentageChange": -1.7,
+          "generatedDate": "2026-03-22T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 72.4,
+          "percentageChange": -1.6,
+          "generatedDate": "2026-03-15T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 72.5,
+          "percentageChange": -1.6,
+          "generatedDate": "2026-03-08T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 72.6,
+          "percentageChange": -1.5,
+          "generatedDate": "2026-03-01T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.1,
+          "percentageChange": -2.2,
+          "generatedDate": "2026-02-22T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.3,
+          "percentageChange": -2.1,
+          "generatedDate": "2026-02-15T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.3,
+          "percentageChange": -2.3,
+          "generatedDate": "2026-02-08T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.8,
+          "percentageChange": -1.5,
+          "generatedDate": "2026-02-01T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.6,
+          "percentageChange": -2.5,
+          "generatedDate": "2026-01-25T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.7,
+          "percentageChange": -2.2,
+          "generatedDate": "2026-01-18T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.7,
+          "percentageChange": -2.3,
+          "generatedDate": "2026-01-11T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.6,
+          "percentageChange": -2.5,
+          "generatedDate": "2026-01-04T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.8,
+          "percentageChange": -2,
+          "generatedDate": "2025-12-28T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.9,
+          "percentageChange": -1.8,
+          "generatedDate": "2025-12-21T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        },
+        {
+          "scorePercentage": 73.8,
+          "percentageChange": -1.9,
+          "generatedDate": "2025-12-14T00:00:00.000Z",
+          "changeFactors": [
+            "AutoSupport is disabled.",
+            "Carbon mitigation details have been shared.",
+            "Disable Compression",
+            "Disabled Cloud Insights monitoring",
+            "Disabled Compaction",
+            "Disabled Dedup",
+            "Disabled FlexCache",
+            "Disabled FlexClone ",
+            "Disabled Inactive data reporting",
+            "Disabled Tiering",
+            "Temperature requires adjusting"
+          ]
+        }
+      ]
+    }
+  },
+  "customers": {
+    "customers": {
+      "customers": [
+        {
+          "id": "1012935",
+          "cmatId": "6022246",
+          "name": "ooba",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 72.92517618289153,
+            "customer": 74.33333333333333
+          }
+        },
+        {
+          "id": "1013641",
+          "cmatId": "6029811",
+          "name": "Allan Gray Ltd.",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 73.13164545808611,
+            "customer": 76.3
+          }
+        },
+        {
+          "id": "1013815",
+          "cmatId": "6031133",
+          "name": "Vodacom South Africa",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 72.21943528735243,
+            "customer": 68
+          }
+        },
+        {
+          "id": "1020505",
+          "cmatId": "6065825",
+          "name": "University of the Western Cape",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 71.95718854645297,
+            "customer": 73.66666666666667
+          }
+        },
+        {
+          "id": "1027593",
+          "cmatId": "5033238",
+          "name": "Shoprite Checkers",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 72.3422050116215,
+            "customer": 56.25
+          }
+        },
+        {
+          "id": "1031135",
+          "cmatId": "5030488",
+          "name": "Petroleum Agency SA",
+          "healthScore": null,
+          "sustainabilityScorePercentage": null
+        },
+        {
+          "id": "1032221",
+          "cmatId": "5027216",
+          "name": "Telkom SA Ltd.",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 72.21943528735243,
+            "customer": 63.8125
+          }
+        },
+        {
+          "id": "1448121",
+          "cmatId": "6107470",
+          "name": "Oasis Group Holdings (Pty) Ltd.",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 73.5763143519496,
+            "customer": 61.5
+          }
+        },
+        {
+          "id": "1540092",
+          "cmatId": "6130939",
+          "name": "Stellenbosch University",
+          "healthScore": null,
+          "sustainabilityScorePercentage": {
+            "overall": 72.35255052391581,
+            "industry": 71.95718854645297,
+            "customer": 69.66666666666667
+          }
+        },
+        {
+          "id": "1626043",
+          "cmatId": "6157002",
+          "name": "Umngeni-Uthukela Water",
+          "healthScore": null,
+          "sustainabilityScorePercentage": null
+        }
+      ]
+    }
+  },
+  "caseSummary": {
+    "_error": "Field \"caseCount\" of type \"CaseCountByPriority\" must have a selection of subfields. Did you mean \"caseCount { ... }\"?"
+  },
+  "successPlan": {
+    "_error": "Field \"successPlan\" of type \"Query\" must have a selection of subfields. Did you mean \"successPlan { ... }\"?"
+  }
+}

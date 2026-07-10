@@ -895,12 +895,11 @@ input:checked + .slider:before {
 /* Sub-tab navigation under Executive Action Plan */
 .action-plan-tabs-nav {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 24px;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 12px;
-  overflow-x: auto;
-  white-space: nowrap;
 }
 .action-plan-tabs-nav::-webkit-scrollbar {
   height: 4px;
@@ -914,12 +913,13 @@ input:checked + .slider:before {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .plan-tab-btn:hover {
