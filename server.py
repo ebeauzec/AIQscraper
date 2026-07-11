@@ -398,7 +398,6 @@ def _do_full_harvest(watchlist_id=None):
                   monthlyCapacity {
                     month
                     physical { usedKiB rawMarketingKiB qoqUtilizationPercentage }
-                    logical { usedKiB }
                   }
                 }
               }
