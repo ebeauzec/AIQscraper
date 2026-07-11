@@ -3192,11 +3192,23 @@ function renderCharts() {
   const usableSum    = filteredSystems.reduce((a, s) => a + (s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0), 0);
   const availableSum = Math.max(0, usableSum - physicalSum);
 
-  // Fleet-average data reduction ratio (systems with ratio > 1 only)
-  const withRatio = filteredSystems.filter(s => s.dataReductionRatioSys > 1);
-  const avgDRR = withRatio.length
-    ? (withRatio.reduce((a, s) => a + (s.dataReductionRatioSys || 0), 0) / withRatio.length).toFixed(1)
-    : null;
+  // Fleet-average data reduction ratio — weighted by physical capacity.
+  // Uses efficiency.dataReductionRatio (numeric, stored by enrichSystemTelemetry).
+  // Falls back to parsing efficiency.ratio string for any older cached entries.
+  let drrWeightedSum = 0, drrPhysSum = 0;
+  filteredSystems.forEach(s => {
+    const phys  = s.efficiency.physicalUsedTB || 0;
+    let   ratio = s.efficiency.dataReductionRatio || 0;
+    if (!ratio) {
+      const rStr = (s.efficiency.ratio || '1.0:1').replace(':1', '');
+      ratio = parseFloat(rStr) || 1;
+    }
+    if (ratio < 1) ratio = 1;
+    drrWeightedSum += phys * ratio;
+    drrPhysSum     += phys;
+  });
+  const avgDRRNum = drrPhysSum > 0 ? drrWeightedSum / drrPhysSum : 0;
+  const avgDRR    = avgDRRNum > 1.05 ? avgDRRNum.toFixed(1) : null;  // only show if meaningful
 
   efficiencyChartInstance = new Chart(ctxEff, {
     type: 'doughnut',
@@ -7635,14 +7647,32 @@ function renderCSMTab() {
       <strong>Selected Systems (${targetCSMSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${targetCSMSystems.map(s => s.systemName).join(", ")}</span>
     `;
 
-    // 1. Efficiency aggregate
-    let totalLogical = 0, totalPhysical = 0, totalSaved = 0;
+    // ── Efficiency aggregates — all computed from dataReductionRatioSys (dedup+compression only,
+    // excl. snapshots). Using logicalUsedTB or spaceSavedTB directly mixes two different
+    // efficiency metrics (one uses full snapshot ratio, the other uses pure DR ratio),
+    // producing wildly inconsistent numbers (e.g. 1.7:1 ratio but 98,000 TB "saved").
+    let totalPhysical = 0, weightedRatioSum = 0, drSystemCount = 0;
     targetCSMSystems.forEach(s => {
-      totalLogical += s.efficiency.logicalUsedTB;
-      totalPhysical += s.efficiency.physicalUsedTB;
-      totalSaved += s.efficiency.spaceSavedTB;
+      const phys  = s.efficiency.physicalUsedTB   || 0;
+      // dataReductionRatio is now stored on the efficiency object (numeric, dedup+compression only)
+      // Fall back to parsing the ratio string if the numeric field is absent (e.g. older cached data)
+      let ratio = s.efficiency.dataReductionRatio || 0;
+      if (!ratio) {
+        const rStr = (s.efficiency.ratio || '1.0:1').replace(':1', '');
+        ratio = parseFloat(rStr) || 1;
+      }
+      if (ratio < 1) ratio = 1;  // floor at 1:1
+      totalPhysical    += phys;
+      weightedRatioSum += phys * ratio;  // weight by physical capacity
+      if (ratio > 1) drSystemCount++;
     });
-    const avgRatio = totalPhysical > 0 ? (totalLogical / totalPhysical).toFixed(1) : "1.0";
+    // Weighted-average ratio: Σ(physᵢ × ratioᵢ) / Σphysᵢ
+    const avgRatioNum = totalPhysical > 0 ? weightedRatioSum / totalPhysical : 1;
+    const avgRatio    = avgRatioNum.toFixed(1);
+    // Logical = physical × weighted-avg ratio (data you'd need without reduction)
+    const totalLogical = parseFloat((totalPhysical * avgRatioNum).toFixed(1));
+    // Saved = logical − physical (consistent with ratio shown)
+    const totalSaved   = parseFloat(Math.max(0, totalLogical - totalPhysical).toFixed(1));
 
     document.getElementById("csmSavingsCard").innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -8607,6 +8637,7 @@ function enrichSystemTelemetry(s) {
 
     efficiency = {
       ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : 'N/A'),
+      dataReductionRatio: parseFloat((dataRedRatio > 1 ? dataRedRatio : 1).toFixed(2)),  // numeric DR ratio (dedup+compression only, excl. snapshots)
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
       spaceSavedTB: parseFloat(spaceSavedForChart.toFixed(1)),
