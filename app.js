@@ -5919,6 +5919,15 @@ function renderCSMTab() {
       historicalCapacityMonths: aggHist,
       projectedCapacityMonths: aggProj
     };
+    // Cache for toggle
+    _csmAllSystems = targetCSMSystems;
+    _csmAggProjObj = aggProjObj;
+    _capacityViewMode = 'aggregate';
+    // Reset toggle buttons to Aggregate
+    const ab = document.getElementById('capViewAggrBtn'), nb = document.getElementById('capViewNodeBtn');
+    if (ab) { ab.style.background = 'var(--accent-cyan)'; ab.style.color = '#000'; }
+    if (nb) { nb.style.background = 'transparent'; nb.style.color = 'var(--text-secondary)'; }
+    const bd = document.getElementById('csmNodeBreakdown'); if (bd) bd.style.display = 'none';
     renderProjectionsChart(aggProjObj, "Consolidated Account Portfolio");
     return;
   }
@@ -6062,6 +6071,14 @@ function renderCSMTab() {
     : '<span style="font-size:0.85rem;color:var(--text-muted);font-weight:400;">Not available via API</span>';
   document.getElementById("csmAvgLatencyText").innerText = proj.peakIops > 0 ? `Avg Latency: ${proj.avgLatencyMs.toFixed(1)} ms` : 'IOPS/Latency requires Cloud Insights';
 
+  // Cache for toggle (single-system view)
+  _csmAllSystems = [sys];
+  _csmAggProjObj = proj;
+  _capacityViewMode = 'aggregate';
+  const ab2 = document.getElementById('capViewAggrBtn'), nb2 = document.getElementById('capViewNodeBtn');
+  if (ab2) { ab2.style.background = 'var(--accent-cyan)'; ab2.style.color = '#000'; }
+  if (nb2) { nb2.style.background = 'transparent'; nb2.style.color = 'var(--text-secondary)'; }
+  const bd2 = document.getElementById('csmNodeBreakdown'); if (bd2) bd2.style.display = 'none';
   // Draw capacity/performance projection line chart
   renderProjectionsChart(proj, sys.systemName);
 }
@@ -6140,7 +6157,180 @@ function renderProjectionsChart(proj, systemName) {
   });
 }
 
-// 7. Action Plan Compiler
+// ─── Capacity View Toggle & Per-Node Breakdown ───────────────────────────────
+// State is cached so toggling doesn't require a full re-render
+let _capacityViewMode = 'aggregate';
+let _csmAllSystems = [];      // all enriched systems currently displayed
+let _csmAggProjObj = null;    // aggregate projection data
+
+function setCapacityView(mode) {
+  _capacityViewMode = mode;
+
+  // Toggle button styles
+  const aggrBtn = document.getElementById('capViewAggrBtn');
+  const nodeBtn = document.getElementById('capViewNodeBtn');
+  const breakdownDiv = document.getElementById('csmNodeBreakdown');
+  if (!aggrBtn || !nodeBtn) return;
+
+  if (mode === 'aggregate') {
+    aggrBtn.style.background = 'var(--accent-cyan)';
+    aggrBtn.style.color = '#000';
+    nodeBtn.style.background = 'transparent';
+    nodeBtn.style.color = 'var(--text-secondary)';
+    if (breakdownDiv) breakdownDiv.style.display = 'none';
+    if (_csmAggProjObj) renderProjectionsChart(_csmAggProjObj, 'Consolidated Account Portfolio');
+  } else {
+    nodeBtn.style.background = 'var(--accent-cyan)';
+    nodeBtn.style.color = '#000';
+    aggrBtn.style.background = 'transparent';
+    aggrBtn.style.color = 'var(--text-secondary)';
+    if (breakdownDiv) breakdownDiv.style.display = 'block';
+    renderNodeCapacityChart(_csmAllSystems);
+    renderNodeBreakdownTable(_csmAllSystems);
+  }
+}
+
+function renderNodeCapacityChart(systems) {
+  const ctx = document.getElementById('csmProjectionsChart');
+  if (!ctx || typeof Chart === 'undefined') return;
+  if (projectionsChartInstance) projectionsChartInstance.destroy();
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  const labels = [];
+  for (let i = -5; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const suffix = i === 0 ? ' ●' : (i > 0 ? ' (Est.)' : '');
+    labels.push(monthNames[d.getMonth()] + ' ' + d.getFullYear() + suffix);
+  }
+
+  // Palette for per-node lines
+  const palette = ['#0ea5e9','#22d3ee','#6366f1','#a78bfa','#f59e0b','#34d399','#f87171','#fb923c','#e879f9','#94a3b8','#10b981','#fbbf24'];
+
+  const datasets = systems.map((s, idx) => {
+    const p = s.projections || {};
+    const hist = p.historicalCapacityMonths || Array(6).fill(0);
+    const proj = p.projectedCapacityMonths || Array(3).fill(0);
+    const color = palette[idx % palette.length];
+    const histData = [...hist, ...Array(3).fill(null)];
+    const projData = [...Array(5).fill(null), hist[5] || hist[hist.length-1] || 0, ...proj];
+    return [
+      {
+        label: s.systemName,
+        data: histData,
+        borderColor: color,
+        backgroundColor: color.replace(')', ', 0.05)').replace('rgb', 'rgba'),
+        borderWidth: 2,
+        tension: 0.2,
+        fill: false,
+        pointRadius: 3,
+      },
+      {
+        label: `${s.systemName} (proj)`,
+        data: projData,
+        borderColor: color,
+        borderDash: [4,4],
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        tension: 0.2,
+        pointStyle: 'rectRot',
+        pointRadius: 4,
+        showInLegend: false,
+      }
+    ];
+  }).flat();
+
+  projectionsChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#9ca3af', font: { size: 10 }, callback: v => v.toFixed(0) + ' TB' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: '#f3f4f6', boxWidth: 10, font: { size: 10 }, filter: item => !item.text.includes('(proj)') }
+        },
+        tooltip: { mode: 'index', intersect: false }
+      }
+    }
+  });
+}
+
+function renderNodeBreakdownTable(systems) {
+  const tbody = document.getElementById('csmNodeBreakdownBody');
+  if (!tbody) return;
+
+  // Sort by rawTB descending
+  const sorted = [...systems].sort((a,b) => (b.clusterRawCapacityTB || 0) - (a.clusterRawCapacityTB || 0));
+
+  const srcMap = { 'actual-monthly': 'Actual', 'qoq': 'QoQ', 'yoy': 'YoY', 'estimated': 'Est.' };
+
+  tbody.innerHTML = sorted.map(s => {
+    const rawTB   = s.clusterRawCapacityTB  || 0;
+    const usedTB  = s.clusterPhysicalUsedTB || 0;
+    const util    = rawTB > 0 ? (usedTB / rawTB) * 100 : 0;
+    const proj    = s.projections || {};
+    const growthGBd = proj.growthRateGBPerDay || 0;
+    const days    = proj.daysToLimit || 9999;
+    const runway  = days >= 9999 ? '> 10 Yrs' : days >= 365 ? `${(days/365).toFixed(1)} Yrs` : `${days} days`;
+    const src     = srcMap[proj.growthSource || 'estimated'] || 'Est.';
+    const model   = s.model || s.platform || '-';
+
+    // Utilization bar color
+    const barColor = util >= 85 ? '#ef4444' : util >= 70 ? '#f59e0b' : '#22d3ee';
+    // Row subtle highlight when >80%
+    const rowBg   = util >= 85 ? 'background:rgba(239,68,68,0.04);' : '';
+    // Runway color
+    const runwayColor = days <= 60 ? 'var(--status-critical)' : days <= 365 ? 'var(--status-warning)' : 'var(--status-normal)';
+
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rowBg}">
+      <td style="padding:9px 10px;font-weight:600;">${s.systemName || '-'}</td>
+      <td style="padding:9px 10px;color:var(--text-secondary);font-size:0.78rem;">${model}</td>
+      <td style="padding:9px 10px;text-align:right;">${rawTB.toFixed(1)}</td>
+      <td style="padding:9px 10px;text-align:right;">${usedTB.toFixed(1)}</td>
+      <td style="padding:9px 10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+            <div style="width:${Math.min(util,100).toFixed(1)}%;height:100%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
+          </div>
+          <span style="font-size:0.78rem;color:${barColor};font-weight:600;min-width:38px;">${util.toFixed(1)}%</span>
+        </div>
+      </td>
+      <td style="padding:9px 10px;text-align:right;font-size:0.82rem;">${growthGBd > 0 ? '+' + growthGBd.toFixed(1) + ' GB' : '—'}</td>
+      <td style="padding:9px 10px;text-align:right;font-weight:700;color:${runwayColor};">${runway}</td>
+      <td style="padding:9px 10px;font-size:0.75rem;color:var(--text-muted);">${src}</td>
+    </tr>`;
+  }).join('');
+
+  // Totals / summary footer
+  const totalRaw  = sorted.reduce((a,s) => a + (s.clusterRawCapacityTB  || 0), 0);
+  const totalUsed = sorted.reduce((a,s) => a + (s.clusterPhysicalUsedTB || 0), 0);
+  const totalGrow = sorted.reduce((a,s) => a + ((s.projections||{}).growthRateGBPerDay || 0), 0);
+  const totalUtil = totalRaw > 0 ? (totalUsed / totalRaw) * 100 : 0;
+
+  tbody.innerHTML += `<tr style="border-top:2px solid var(--border-color);font-weight:700;background:rgba(255,255,255,0.03);">
+    <td style="padding:9px 10px;" colspan="2">TOTAL (${sorted.length} nodes)</td>
+    <td style="padding:9px 10px;text-align:right;">${totalRaw.toFixed(1)}</td>
+    <td style="padding:9px 10px;text-align:right;">${totalUsed.toFixed(1)}</td>
+    <td style="padding:9px 10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+          <div style="width:${Math.min(totalUtil,100).toFixed(1)}%;height:100%;background:#22d3ee;border-radius:3px;"></div>
+        </div>
+        <span style="font-size:0.78rem;color:#22d3ee;font-weight:700;min-width:38px;">${totalUtil.toFixed(1)}%</span>
+      </div>
+    </td>
+    <td style="padding:9px 10px;text-align:right;">+${totalGrow.toFixed(0)} GB</td>
+    <td colspan="2" style="padding:9px 10px;color:var(--text-muted);font-size:0.78rem;">Aggregate across all nodes</td>
+  </tr>`;
+}
+
+
 function populateActionPlanSelector() {
   const select = document.getElementById("planTargetSelect");
   if (!select) return;

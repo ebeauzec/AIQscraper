@@ -447,9 +447,15 @@
 
         <!-- Capacity and Performance Projections / Trends line graph -->
         <div class="card" style="margin-bottom: 32px; display: flex; flex-direction: column;">
-          <div class="table-header-row" style="margin-bottom: 20px;">
-            <div class="section-title" style="color: var(--accent-cyan); font-weight: 700;">Storage Capacity & Performance Forecasting Projections</div>
-            <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;" id="csmGrowthRateText">Average Growth: -</div>
+          <div class="table-header-row" style="margin-bottom: 16px;">
+            <div class="section-title" style="color: var(--accent-cyan); font-weight: 700;">Storage Capacity &amp; Performance Forecasting Projections</div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;" id="csmGrowthRateText">Average Growth: -</div>
+              <div style="display:flex; gap:4px; background:rgba(255,255,255,0.04); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:3px;" id="capViewToggle">
+                <button id="capViewAggrBtn" onclick="setCapacityView('aggregate')" style="font-size:0.75rem;font-weight:600;padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:var(--accent-cyan);color:#000;">Aggregate</button>
+                <button id="capViewNodeBtn" onclick="setCapacityView('node')" style="font-size:0.75rem;font-weight:600;padding:4px 12px;border-radius:4px;border:none;cursor:pointer;background:transparent;color:var(--text-secondary);">Per Node</button>
+              </div>
+            </div>
           </div>
           <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
             <div class="chart-wrapper" style="height: 260px;">
@@ -468,7 +474,28 @@
               </div>
             </div>
           </div>
-        </div>
+          <!-- Per-Node Breakdown Table (hidden by default, shown in Per Node view) -->
+          <div id="csmNodeBreakdown" style="margin-top:20px; display:none;">
+            <div style="font-size:0.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin-bottom:10px;letter-spacing:0.05em;">Capacity Breakdown by Node</div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border-color);color:var(--text-muted);text-align:left;">
+                    <th style="padding:8px 10px;font-weight:600;">Node / System</th>
+                    <th style="padding:8px 10px;font-weight:600;">Model</th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Raw TB</th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Used TB</th>
+                    <th style="padding:8px 10px;font-weight:600;min-width:160px;">Utilization</th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Growth/day</th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Runway</th>
+                    <th style="padding:8px 10px;font-weight:600;">Source</th>
+                  </tr>
+                </thead>
+                <tbody id="csmNodeBreakdownBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>        </div>
         
         <!-- Adoption Checklist Card -->
         <div class="card table-card" style="max-width: 600px;">
