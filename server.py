@@ -279,9 +279,6 @@ def _do_full_harvest(watchlist_id=None):
                     isMetroCluster isAllFlashOptimized operatingMode
                     propensityCategory serviceProcessorIPAddress
                     isARPEnabled autoUpdateEnabled nextBestAction
-                    # ASA r2 / AFX personality identification
-                    # personality field: "UNIFIED" (AFF/FAS), "ASA" (classic), "ASA_R2", "AFX"
-                    personality isDisaggregated
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
                     systemFirmware { type currentVersion recommendedVersion }
@@ -293,11 +290,6 @@ def _do_full_harvest(watchlist_id=None):
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
                       }
                       reportedOn
-                      # ASA r2 SAZ-level capacity (storage units, no aggregates)
-                      storageAvailabilityZone {
-                        totalRawKiB usedKiB availableKiB provisionedKiB
-                        dataReductionRatio effectiveCapacityKiB
-                      }
                     }
                     monthlyCapacity {
                       month
@@ -305,10 +297,6 @@ def _do_full_harvest(watchlist_id=None):
                       logical { usedKiB }
                       efficiency { ratio { efficiencyRatio dataReductionRatio } }
                     }
-                    # Consistency group count (ASA r2 primary data unit)
-                    consistencyGroups { totalCount }
-                    # Storage unit count (replaces LUN/volume count on ASA r2)
-                    storageUnits { totalCount }
                   }"""
 
         # Try expanded first, fall back to minimal
@@ -823,17 +811,21 @@ def _do_full_harvest(watchlist_id=None):
                 "storageConfiguration": s.get("storageConfiguration", ""),
                 "isFabricPool": s.get("isFabricPool"),
                 "hasPvr": s.get("hasPvr"),
-                # ── Platform personality (ASA r2 / AFX / Unified) ──
-                # personality field from API: "UNIFIED", "ASA", "ASA_R2", "AFX"
-                "personality": s.get("personality", ""),
-                "isDisaggregated": s.get("isDisaggregated", False),
-                "isAsaR2": s.get("personality", "").upper() in ("ASA_R2", "ASAER2") or \
-                           hw.get("name", "").upper().startswith("ASA A") and s.get("isDisaggregated", False),
-                "isAfx": s.get("personality", "").upper() in ("AFX", "DISAGGREGATED") or \
-                         s.get("isDisaggregated", False) and not s.get("personality", "").upper().startswith("ASA"),
-                # Consistency groups and storage units (ASA r2 primary entities)
-                "consistencyGroupCount": ((s.get("consistencyGroups") or {}).get("totalCount") or 0),
-                "storageUnitCount": ((s.get("storageUnits") or {}).get("totalCount") or 0),
+                # ── Platform personality (ASA r2 / AFX — detected via model name) ──
+                "personality": "",
+                "isDisaggregated": False,
+                "isAsaR2": hw.get("name", "").upper().startswith("ASA A"),
+                "isAfx": "EF50" in hw.get("name", "").upper() or "EF80" in hw.get("name", "").upper() or "AFX" in hw.get("name", "").upper(),
+                # SAZ capacity not available via API
+                "sazTotalRawKiB": 0,
+                "sazUsedKiB": 0,
+                "sazAvailableKiB": 0,
+                "sazProvisionedKiB": 0,
+                "sazEffectiveCapacityKiB": 0,
+                "sazDataReductionRatio": None,
+                # ASA r2 / storage unit counts not available via API
+                "consistencyGroupCount": 0,
+                "storageUnitCount": 0,
                 # ── Contacts & personnel ──
                 "contactFirstName": contact.get("firstName", ""),
                 "contactLastName": contact.get("lastName", ""),
@@ -890,12 +882,9 @@ def _do_full_harvest(watchlist_id=None):
                 "serviceProcessorIP": s.get("serviceProcessorIPAddress", ""),
                 "autoUpdateEnabled": s.get("autoUpdateEnabled"),
                 # ASA r2: SAZ-level capacity (no aggregates; pull from storageAvailabilityZone)
-                "sazTotalRawKiB": ((cap.get("storageAvailabilityZone") or {}).get("totalRawKiB") or 0),
-                "sazUsedKiB": ((cap.get("storageAvailabilityZone") or {}).get("usedKiB") or 0),
-                "sazAvailableKiB": ((cap.get("storageAvailabilityZone") or {}).get("availableKiB") or 0),
-                "sazProvisionedKiB": ((cap.get("storageAvailabilityZone") or {}).get("provisionedKiB") or 0),
-                "sazEffectiveCapacityKiB": ((cap.get("storageAvailabilityZone") or {}).get("effectiveCapacityKiB") or 0),
-                "sazDataReductionRatio": ((cap.get("storageAvailabilityZone") or {}).get("dataReductionRatio") or None),
+                "sazTotalRawKiB": 0,
+                "sazUsedKiB": 0,
+                "sazAvailableKiB": 0,
                 # ── AutoSupport ──
                 "latestAsupDate": asup.get("receivedDate") or asup.get("generatedDate", ""),
                 "latestAsupSubject": asup.get("subject", ""),
