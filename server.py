@@ -243,7 +243,9 @@ def _do_full_harvest(watchlist_id=None):
                     overallContractEndDate isContractActive
                     hardwareServiceLevel hardwareWarrantyEndDate
                   }
-                  latestAsup { asupId generatedDate receivedDate subject type }"""
+                  latestAsup { asupId generatedDate receivedDate subject type isManual }
+                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
+                  autoSupports { asupId generatedDate receivedDate subject type isManual }"""
 
         # ── Extended: original + safe additional fields ──
         SYSTEMS_FIELDS_TAM = """
@@ -270,7 +272,9 @@ def _do_full_harvest(watchlist_id=None):
                     hardwareServiceLevel hardwareWarrantyEndDate hardwareWarrantyStartDate
                   }
                   autoSupportConfig { autoSupportStatus isAutoSupportOnDemandEnabled isAutoSupportOnDemandCapable autoSupportTransport systemDomain }
-                  latestAsup { asupId generatedDate receivedDate subject type }
+                  latestAsup { asupId generatedDate receivedDate subject type isManual }
+                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
+                  autoSupports { asupId generatedDate receivedDate subject type isManual }
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
                     propensityCategory serviceProcessorIPAddress
@@ -360,7 +364,13 @@ def _do_full_harvest(watchlist_id=None):
                     hardwareModel { name endOfAvailability endOfHwSupport }
                   }
                   capacity {
-                    physical { usedKiB rawMarketingKiB usablePerformanceTierKiB }
+                    physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
+                    logical { usedKiB }
+                    reportedOn
+                  }
+                  monthlyCapacity {
+                    month
+                    physical { usedKiB rawMarketingKiB qoqUtilizationPercentage }
                     logical { usedKiB }
                   }
                 }
@@ -567,7 +577,20 @@ def _do_full_harvest(watchlist_id=None):
                 "physicalUsedTB": round((phys.get("usedKiB") or 0) / (1024**3), 2),
                 "rawCapacityTB": round((phys.get("rawMarketingKiB") or 0) / (1024**3), 2),
                 "logicalUsedTB": round((logical.get("usedKiB") or 0) / (1024**3), 2),
-                "usableCapacityTB": round((phys.get("usablePerformanceTierKiB") or 0) / (1024**3), 2),
+                "usableCapacityTB": round((phys.get("usablePerformanceTierKiB") or phys.get("rawMarketingKiB") or 0) / (1024**3), 2),
+                "qoqUtilizationPct": phys.get("qoqUtilizationPercentage") or 0,
+                "yoyUtilizationPct": phys.get("yoyUtilizationPercentage") or 0,
+                "capacityReportedOn": (cap.get("reportedOn") or "")[:10],
+                # Monthly history for chart: list of {month, usedKiB, rawKiB}
+                "monthlyCapacity": [
+                    {
+                        "month": m.get("month", ""),
+                        "usedTB": round(((m.get("physical") or {}).get("usedKiB") or 0) / (1024**3), 3),
+                        "rawTB": round(((m.get("physical") or {}).get("rawMarketingKiB") or 0) / (1024**3), 2),
+                        "qoqPct": (m.get("physical") or {}).get("qoqUtilizationPercentage") or None,
+                    }
+                    for m in (cl.get("monthlyCapacity") or [])
+                ],
             }
             sm_count = ((cl.get("snapMirrorRelationships") or {}).get("totalCount")) or 0
             is_ha = cl.get("isHAConfigured", False)
@@ -777,10 +800,16 @@ def _do_full_harvest(watchlist_id=None):
                 "autoUpdateEnabled": s.get("autoUpdateEnabled"),
                 # ── AutoSupport ──
                 "latestAsupDate": asup.get("receivedDate") or asup.get("generatedDate", ""),
+                "latestAsupSubject": asup.get("subject", ""),
+                "latestAsupType": asup.get("type", ""),
+                "latestAsupIsManual": asup.get("isManual"),
+                "latestAsupId": asup.get("asupId", ""),
                 "asupStatus": asup_cfg.get("autoSupportStatus", ""),
                 "asupTransport": asup_cfg.get("autoSupportTransport", ""),
                 "asupOnDemand": asup_cfg.get("isAutoSupportOnDemandEnabled"),
                 "asupDomain": asup_cfg.get("systemDomain", ""),
+                "asupHistory": s.get("autoSupports") or [],
+                "asupByType": s.get("latestAsupOfEachType") or [],
                 # ── Firmware ──
                 "systemFirmware": s.get("systemFirmware") or [],
                 "motherboardFirmware": s.get("motherboardFirmware") or {},
@@ -807,6 +836,10 @@ def _do_full_harvest(watchlist_id=None):
                 "clusterRawCapacityTB": cl_cap.get("rawCapacityTB", 0),
                 "clusterLogicalUsedTB": cl_cap.get("logicalUsedTB", 0),
                 "clusterUsableCapacityTB": cl_cap.get("usableCapacityTB", 0),
+                "clusterQoQUtilPct": cl_cap.get("qoqUtilizationPct", 0),
+                "clusterYoYUtilPct": cl_cap.get("yoyUtilizationPct", 0),
+                "clusterCapacityReportedOn": cl_cap.get("capacityReportedOn", ""),
+                "clusterMonthlyCapacity": cl_cap.get("monthlyCapacity", []),
                 "snapMirrorCount": serial_to_cluster_sm.get(serial, 0),
                 "isHAConfigured": serial_to_cluster_ha.get(serial, False),
                 # ── Shelves, drives, ports, switches ──

@@ -7528,15 +7528,19 @@ function renderCSMTab() {
     
     const avgLatency = countAvgLatency > 0 ? (sumAvgLatency / countAvgLatency) : 2.5;
 
-    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${totalGrowth} GB/day`;
+    const growthSrc = targetCSMSystems[0]?.projections?.growthSource || "estimated";
+    const growthLabel = {"actual-monthly":"Actual","qoq":"QoQ","yoy":"YoY","estimated":"Est."}[growthSrc] || "";
+    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${totalGrowth.toFixed(0)} GB/day (${growthLabel})`;
     
     const limitLabel = document.getElementById("csmDaysToLimitText");
-    limitLabel.innerText = `${minDaysToLimit} Days`;
+    limitLabel.innerText = minDaysToLimit >= 9999 ? '> 10 Years' : `${minDaysToLimit.toLocaleString()} Days`;
     limitLabel.style.color = minDaysToLimit <= 60 ? "var(--status-critical)" : (minDaysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
     
     document.getElementById("csmLimitDateText").innerText = `Est. limit reached on ${worstSystemName}: ${worstLimitDate}`;
-    document.getElementById("csmPeakIopsText").innerText = `${totalPeakIops.toLocaleString()} IOPS`;
-    document.getElementById("csmAvgLatencyText").innerText = `Avg Latency: ${avgLatency.toFixed(1)} ms`;
+    document.getElementById("csmPeakIopsText").innerHTML = totalPeakIops > 0
+      ? `${totalPeakIops.toLocaleString()} IOPS`
+      : '<span style="font-size:0.9rem; color:var(--text-muted); font-weight:400;">Not available via API</span>';
+    document.getElementById("csmAvgLatencyText").innerText = totalPeakIops > 0 ? `Avg Latency: ${avgLatency.toFixed(1)} ms` : "IOPS/Latency requires Cloud Insights";
 
     const aggProjObj = {
       historicalCapacityMonths: aggHist,
@@ -7672,15 +7676,17 @@ function renderCSMTab() {
   // Render Projections & Forecasting Metrics & Line Chart
   const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
   
-  document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay} GB/day`;
+  document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay} GB/day (${{"actual-monthly":"Actual","qoq":"QoQ","yoy":"YoY","estimated":"Est."}[proj.growthSource || "estimated"] || "Est."})`;
   
   const limitLabel = document.getElementById("csmDaysToLimitText");
-  limitLabel.innerText = `${proj.daysToLimit} Days`;
+  limitLabel.innerText = proj.daysToLimit >= 9999 ? '> 10 Years' : `${proj.daysToLimit.toLocaleString()} Days`;
   limitLabel.style.color = proj.daysToLimit <= 60 ? "var(--status-critical)" : (proj.daysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
   
   document.getElementById("csmLimitDateText").innerText = `Est. Limit reached: ${proj.limitDate}`;
-  document.getElementById("csmPeakIopsText").innerText = `${proj.peakIops.toLocaleString()} IOPS`;
-  document.getElementById("csmAvgLatencyText").innerText = `Avg Latency: ${proj.avgLatencyMs.toFixed(1)} ms`;
+  document.getElementById("csmPeakIopsText").innerHTML = proj.peakIops > 0
+    ? `${proj.peakIops.toLocaleString()} IOPS`
+    : '<span style="font-size:0.9rem; color:var(--text-muted); font-weight:400;">Not available via API</span>';
+  document.getElementById("csmAvgLatencyText").innerText = proj.peakIops > 0 ? `Avg Latency: ${proj.avgLatencyMs.toFixed(1)} ms` : "IOPS/Latency requires Cloud Insights";
 
   // Draw capacity/performance projection line chart
   renderProjectionsChart(proj, sys.systemName);
@@ -8144,34 +8150,93 @@ function enrichSystemTelemetry(s) {
 
   let projections;
   if (isLiveData) {
-    const physTB = efficiency.physicalUsedTB || 0;
-    const rawTB = efficiency.rawCapacityTB || efficiency.usableCapacityTB || 0;
-    // Estimate a simple growth model from current usage
-    // Use 0.5% monthly growth rate as a conservative estimate
-    const monthlyGrowthRate = 0.005;
-    const growthPerDay = physTB * monthlyGrowthRate / 30;
-    // Build historical: estimate last 6 months by working backwards from current
-    const hist = [];
-    for (let i = 5; i >= 0; i--) {
-      hist.push(Math.max(0, physTB * (1 - monthlyGrowthRate * i)));
+    // ── Real capacity fields from cluster GQL ──
+    // rawCapacityTB = cluster marketing raw capacity (always populated)
+    // physicalUsedTB = physical used (may be 0 if API gap — use logicalUsedTB as fallback)
+    // clusterQoQUtilPct = quarter-over-quarter utilisation % change (3-month actual growth)
+    // clusterYoYUtilPct = year-over-year utilisation % change (12-month actual growth)
+    // clusterMonthlyCapacity = [{month, usedTB, rawTB}] — 19 months of history
+    const rawTB   = s.clusterRawCapacityTB || s.clusterUsableCapacityTB || 0;
+    let physTB    = s.clusterPhysicalUsedTB || 0;
+    const logTB   = s.clusterLogicalUsedTB  || 0;
+    const qoqPct  = s.clusterQoQUtilPct || 0;   // % growth over 90 days
+    const yoyPct  = s.clusterYoYUtilPct || 0;   // % growth over 365 days
+    const monthly = s.clusterMonthlyCapacity || [];
+
+    // If physTB is 0 (API gap), estimate from rawTB × current utilisation %
+    // Prefer QoQ/YoY to back-compute if available
+    if (physTB === 0 && rawTB > 0 && qoqPct > 0) {
+      // qoqPct is % of raw used this quarter vs last → estimate current used
+      // QoQ = (currentUsed - prevUsed) / rawTB × 100, so prevUsed ≈ currentUsed - rawTB×qoqPct/100
+      // We don't have a direct "currentUsedPct" — use a heuristic from efficiency ratio
+      const effRatio = efficiency.physicalUsedTB || 0;
+      physTB = effRatio > 0 ? effRatio : rawTB * 0.4; // default 40% fill if unknown
     }
-    // Build projected: next 3 months forward from current
-    const proj = [];
+
+    // ── Growth rate derivation ──
+    // Priority 1: real QoQ% → convert to TB/day
+    // Priority 2: real YoY% → convert to TB/day  
+    // Priority 3: derive from monthly history via linear regression
+    // Priority 4: conservative 0.5%/month fallback
+    let growthPerDayTB = 0;
+    let growthSource = "estimated";
+
+    // Try monthly history: filter months with actual data, run linear regression
+    const validMonths = monthly.filter(m => m.usedTB > 0).sort((a,b) => a.month < b.month ? -1 : 1);
+    if (validMonths.length >= 2) {
+      // Simple slope: (last - first) / # months
+      const first = validMonths[0].usedTB;
+      const last  = validMonths[validMonths.length - 1].usedTB;
+      const nMonths = validMonths.length - 1;
+      growthPerDayTB = Math.max(0, (last - first) / (nMonths * 30));
+      growthSource = "actual-monthly";
+    } else if (qoqPct > 0 && rawTB > 0) {
+      // QoQ%: growth over 90 days expressed as % of raw capacity
+      growthPerDayTB = (rawTB * qoqPct / 100) / 90;
+      growthSource = "qoq";
+    } else if (yoyPct > 0 && rawTB > 0) {
+      growthPerDayTB = (rawTB * yoyPct / 100) / 365;
+      growthSource = "yoy";
+    } else {
+      // Fallback: 0.5%/month of current physical usage
+      growthPerDayTB = physTB * 0.005 / 30;
+      growthSource = "estimated";
+    }
+
+    // ── Chart history ──
+    // Use real monthly data if available, else synthesise from current + growth
+    let hist = [], proj = [];
+    if (validMonths.length >= 3) {
+      // Real data — use last 6 valid months
+      hist = validMonths.slice(-6).map(m => parseFloat(m.usedTB.toFixed(2)));
+    } else {
+      // Synthesise backwards from current
+      for (let i = 5; i >= 0; i--) {
+        hist.push(parseFloat(Math.max(0, physTB - growthPerDayTB * 30 * i).toFixed(2)));
+      }
+    }
+    // Project forward 3 months from last hist value
+    const lastHistVal = hist[hist.length - 1] || physTB;
     for (let i = 1; i <= 3; i++) {
-      proj.push(physTB * (1 + monthlyGrowthRate * i));
+      proj.push(parseFloat(Math.min(rawTB, lastHistVal + growthPerDayTB * 30 * i).toFixed(2)));
     }
-    // Days to capacity limit
-    const remainingTB = rawTB > physTB ? rawTB - physTB : 0;
-    const daysToLimit = growthPerDay > 0 ? Math.round(remainingTB / growthPerDay) : 9999;
-    const limitDate = new Date(Date.now() + daysToLimit * 86400000).toISOString().split('T')[0];
+
+    // ── Runway ──
+    // Use usable (not raw marketing) as ceiling at 90% fill threshold
+    const ceilingTB    = (s.clusterUsableCapacityTB || rawTB) * 0.9;
+    const remainingTB  = Math.max(0, ceilingTB - physTB);
+    const daysToLimit  = growthPerDayTB > 0 ? Math.round(remainingTB / growthPerDayTB) : 9999;
+    const limitDate    = new Date(Date.now() + daysToLimit * 86400000).toISOString().split('T')[0];
+
     projections = s.projections || {
-      growthRateGBPerDay: Math.round(growthPerDay * 1024), // Convert TB to GB
+      growthRateGBPerDay: Math.round(growthPerDayTB * 1024),
+      growthSource: growthSource,
       daysToLimit: daysToLimit,
       limitDate: daysToLimit > 3650 ? 'N/A' : limitDate,
-      peakIops: 0,
-      avgLatencyMs: 0,
-      historicalCapacityMonths: hist.map(v => parseFloat(v.toFixed(2))),
-      projectedCapacityMonths: proj.map(v => parseFloat(v.toFixed(2)))
+      peakIops: 0,        // IOPS not exposed via public AIQ GQL API
+      avgLatencyMs: 0,    // Latency not exposed via public AIQ GQL API
+      historicalCapacityMonths: hist,
+      projectedCapacityMonths: proj
     };
   } else {
     projections = s.projections || {
