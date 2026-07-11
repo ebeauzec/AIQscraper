@@ -5837,7 +5837,7 @@ function renderCSMTab() {
     document.getElementById("csmSnapmirrorCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <h4 style="font-size: 0.9rem; color: var(--text-secondary);">SnapMirror replication</h4>
-        <span class="badge normal">${smEnabledCount} Enabled</span>
+        <span class="badge ${smEnabledCount > 0 ? 'normal' : 'warning'}">${smEnabledCount} Enabled</span>
       </div>
       <div style="max-height: 120px; overflow-y: auto; padding-right: 4px;">
         ${relationshipsHTML}
@@ -6433,16 +6433,31 @@ function enrichSystemTelemetry(s) {
   // 4. Dynamic Efficiency Ratios
   let efficiency = s.efficiency;
   if (!efficiency && isLiveData) {
-    // Live API path: use cluster-level capacity data
-    const physTB = s.clusterPhysicalUsedTB || 0;
-    const logTB = s.clusterLogicalUsedTB || 0;
-    const rawTB = s.clusterRawCapacityTB || 0;
-    const ratioVal = physTB > 0 ? (logTB / physTB).toFixed(1) : '0';
+    // Live API path: use system-level capacity fields
+    const physTB   = s.clusterPhysicalUsedTB || 0;
+    const logTB    = s.clusterLogicalUsedTB  || 0;
+    const rawTB    = s.clusterRawCapacityTB  || 0;
+    const savedKiB = s.savedKiB || 0;
+    const savedTB  = savedKiB / (1024 * 1024 * 1024);  // KiB → TB
+    // Prefer real API efficiency ratio; fall back to logical/physical calculation
+    const apiRatio = s.efficiencyRatio || s.dataReductionRatioSys || 0;
+    let ratioVal;
+    if (apiRatio && apiRatio > 1) {
+      ratioVal = apiRatio.toFixed(1);
+    } else if (physTB > 0 && logTB > 0) {
+      ratioVal = (logTB / physTB).toFixed(1);
+    } else if (physTB > 0 && savedTB > 0) {
+      ratioVal = ((physTB + savedTB) / physTB).toFixed(1);
+    } else {
+      ratioVal = null;
+    }
+    // Space saved: prefer savedKiB from API, otherwise Logical-Physical
+    const spaceSaved = savedTB > 0 ? savedTB : Math.max(0, logTB - physTB);
     efficiency = {
-      ratio: physTB > 0 ? `${ratioVal}:1` : 'N/A',
-      logicalUsedTB: logTB,
+      ratio: ratioVal ? `${ratioVal}:1` : 'N/A',
+      logicalUsedTB: logTB > 0 ? logTB : (physTB + spaceSaved),
       physicalUsedTB: physTB,
-      spaceSavedTB: Math.max(0, logTB - physTB),
+      spaceSavedTB: parseFloat(spaceSaved.toFixed(1)),
       fabricPoolTieredTB: 0,
       rawCapacityTB: rawTB,
       usableCapacityTB: s.clusterUsableCapacityTB || 0,
@@ -6467,6 +6482,7 @@ function enrichSystemTelemetry(s) {
       fabricPoolTieredTB: (isAFF || isASA) ? 12.5 : 0.0
     };
   }
+
 
   // 5. Dynamic Logistics & Contacts
   let logistics;

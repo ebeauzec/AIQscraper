@@ -284,13 +284,18 @@ def _do_full_harvest(watchlist_id=None):
                     systemFirmware { type currentVersion recommendedVersion }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
-                      logical { usedKiB }
+                      logical { usedKiB usedWithoutSnapshotsClonesKiB }
+                      efficiency {
+                        ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }
+                        saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
+                      }
                       reportedOn
                     }
                     monthlyCapacity {
                       month
-                      physical { rawMarketingKiB usedKiB qoqUtilizationPercentage }
+                      physical { rawMarketingKiB usedKiB utilizationPercentage qoqUtilizationPercentage }
                       logical { usedKiB }
+                      efficiency { ratio { efficiencyRatio dataReductionRatio } }
                     }
                   }"""
 
@@ -721,19 +726,31 @@ def _do_full_harvest(watchlist_id=None):
                 })
 
             # ── Pre-compute capacity from system-level ONTAPSystemPhysicalCapacity ──
-            # These fields come from: ... on ONTAPSystem { capacity { physical { ... } } monthlyCapacity { ... } }
             # System-level is preferred; cluster-level used as fallback for systems without cluster data.
-            _sys_phys = cap_phys  # already extracted above
+            _sys_phys = cap_phys
             _sys_log  = (cap.get("logical") or {})
-            _sys_monthly = [
-                {
-                    "month": m.get("month", ""),
-                    "usedTB": round(((m.get("physical") or {}).get("usedKiB") or 0) / (1024**3), 3),
-                    "rawTB":  round(((m.get("physical") or {}).get("rawMarketingKiB") or 0) / (1024**3), 2),
-                    "qoqPct": (m.get("physical") or {}).get("qoqUtilizationPercentage"),
-                }
-                for m in (s.get("monthlyCapacity") or [])
-            ]
+            _sys_eff  = (cap.get("efficiency") or {})
+            _sys_eff_ratio = (_sys_eff.get("ratio") or {})
+            _sys_eff_saved = (_sys_eff.get("saved") or {})
+            _sys_monthly = []
+            for m in (s.get("monthlyCapacity") or []):
+                mp  = m.get("physical") or {}
+                ml  = m.get("logical") or {}
+                mep = (m.get("efficiency") or {}).get("ratio") or {}
+                mraw = mp.get("rawMarketingKiB") or 0
+                mused = mp.get("usedKiB") or 0
+                mutil = mp.get("utilizationPercentage") or 0
+                # If usedKiB is 0 but utilizationPercentage is set, derive used
+                if mused == 0 and mraw > 0 and mutil > 0:
+                    mused = mraw * mutil / 100.0
+                _sys_monthly.append({
+                    "month":   m.get("month", ""),
+                    "usedTB":  round(mused / (1024**3), 3),
+                    "rawTB":   round(mraw  / (1024**3), 2),
+                    "qoqPct":  mp.get("qoqUtilizationPercentage"),
+                    "effRatio": mep.get("efficiencyRatio"),
+                    "logUsedTB": round((ml.get("usedKiB") or 0) / (1024**3), 3),
+                })
             _raw_kib  = _sys_phys.get("rawMarketingKiB") or 0
             _used_kib = _sys_phys.get("usedKiB") or 0
             _log_kib  = _sys_log.get("usedKiB") or 0
@@ -741,7 +758,10 @@ def _do_full_harvest(watchlist_id=None):
             _qoq      = _sys_phys.get("qoqUtilizationPercentage") or 0
             _yoy      = _sys_phys.get("yoyUtilizationPercentage") or 0
             _util_pct = _sys_phys.get("utilizationPercentage") or 0
-            # Fall back to cluster-level if system-level is zero
+            # Fix API gap: if usedKiB is 0 but utilizationPercentage is set, derive it
+            if _used_kib == 0 and _raw_kib > 0 and _util_pct > 0:
+                _used_kib = _raw_kib * _util_pct / 100.0
+            # Fall back to cluster-level if system-level raw is also zero
             if _raw_kib == 0:
                 _raw_kib  = cl_cap.get("rawCapacityTB", 0) * (1024**3)
                 _used_kib = cl_cap.get("physicalUsedTB", 0) * (1024**3)
@@ -871,7 +891,7 @@ def _do_full_harvest(watchlist_id=None):
                 "capacityAllocatedKB": 0,
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),
-                "dataReductionRatio": cap_eff.get("dataReductionRatio"),
+                "dataReductionRatio": _data_red or cap_eff.get("dataReductionRatio"),
                 "clusterPhysicalUsedTB": round(_used_kib  / (1024**3), 2),
                 "clusterRawCapacityTB":  round(_raw_kib   / (1024**3), 2),
                 "clusterLogicalUsedTB":  round(_log_kib   / (1024**3), 2),
@@ -881,6 +901,13 @@ def _do_full_harvest(watchlist_id=None):
                 "clusterCapacityUtilPct": _util_pct,
                 "clusterCapacityReportedOn": (cap.get("reportedOn") or cl_cap.get("capacityReportedOn", "") or "")[:10],
                 "clusterMonthlyCapacity": _sys_monthly if _sys_monthly else cl_cap.get("monthlyCapacity", []),
+                # ── Efficiency (from system-level GQL) ──
+                "efficiencyRatio": _eff_ratio,
+                "dataReductionRatioSys": _data_red,
+                "withSnapshotRatio": _snap_ratio,
+                "savedKiB": _saved_kib,
+                "dedupSavedKiB": _dedup_kib,
+                "compactionSavedKiB": _compact_kib,
                 "snapMirrorCount": serial_to_cluster_sm.get(serial, 0),
                 "isHAConfigured": serial_to_cluster_ha.get(serial, False),
                 # ── Shelves, drives, ports, switches ──
