@@ -732,6 +732,15 @@ def _do_full_harvest(watchlist_id=None):
             _sys_eff  = (cap.get("efficiency") or {})
             _sys_eff_ratio = (_sys_eff.get("ratio") or {})
             _sys_eff_saved = (_sys_eff.get("saved") or {})
+            # ── Efficiency ratio fields (ONTAPSystemEfficiency.ratio) ──
+            _eff_ratio     = _sys_eff_ratio.get("efficiencyRatio")       # includes snapshots
+            _data_red      = _sys_eff_ratio.get("dataReductionRatio")    # dedupe+compression only ← preferred
+            _snap_ratio    = _sys_eff_ratio.get("withSnapshotRatio")     # with-snapshot ratio (reference)
+            # ── Space saved KiB fields (ONTAPSystemEfficiency.saved) ──
+            _saved_kib     = _sys_eff_saved.get("savedKiB")              # total (includes snapshot savings)
+            _dedup_kib     = _sys_eff_saved.get("deDuplicationSavedKiB") # pure dedup savings
+            _compact_kib   = _sys_eff_saved.get("compactionSavedKiB")    # compaction savings
+
             _sys_monthly = []
             for m in (s.get("monthlyCapacity") or []):
                 mp  = m.get("physical") or {}

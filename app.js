@@ -5774,12 +5774,13 @@ function renderCSMTab() {
     document.getElementById("csmSavingsCard").innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 12px;">
         <div>
-          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Efficiency</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Data Reduction</span>
           <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${avgRatio}:1</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compression only, excl. snapshots</div>
         </div>
         <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div>
-            <span style="font-size: 0.75rem; color: var(--text-muted);">Logical Space Used</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Logical (Dedup Savings)</span>
             <div style="font-weight: 600;">${totalLogical.toFixed(1)} TB</div>
           </div>
           <div>
@@ -5788,11 +5789,13 @@ function renderCSMTab() {
           </div>
         </div>
         <div style="background-color: rgba(0, 230, 118, 0.08); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0, 230, 118, 0.2);">
-          <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Total Storage Saved</div>
+          <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Data Reduction Saved</div>
           <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${totalSaved.toFixed(1)} TB</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction savings only</div>
         </div>
       </div>
     `;
+
 
     // 2. FabricPool aggregate
     let totalFP = 0, activeFPCount = 0;
@@ -5951,17 +5954,23 @@ function renderCSMTab() {
   `;
 
   const isASA = (sys.platform || "").includes("ASA");
-  const efficiencyLabel = isASA ? "Storage Efficiency Ratio (Block SAN)" : "Storage Efficiency Ratio";
+  const effLabelBase = isASA ? "Storage Efficiency (Block SAN)" : "Data Reduction";
+  const withSnaps = sys.efficiency.efficiencyRatioWithSnaps;
+  const withSnapsStr = withSnaps && withSnaps > 1 ? `${withSnaps.toFixed(1)}:1` : null;
 
   document.getElementById("csmSavingsCard").innerHTML = `
     <div style="display: flex; flex-direction: column; gap: 12px;">
       <div>
-        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">${efficiencyLabel}</span>
+        <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">${effLabelBase} Ratio</span>
         <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${sys.efficiency.ratio}</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+          Dedupe + compression only&nbsp;&nbsp;
+          ${withSnapsStr ? `<span style="color:var(--accent-cyan);" title="Includes snapshot space savings">incl. snapshots: ${withSnapsStr}</span>` : ''}
+        </div>
       </div>
       <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
         <div>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Logical Space Used</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Logical (Dedup Savings)</span>
           <div style="font-weight: 600;">${sys.efficiency.logicalUsedTB.toFixed(1)} TB</div>
         </div>
         <div>
@@ -5970,11 +5979,13 @@ function renderCSMTab() {
         </div>
       </div>
       <div style="background-color: rgba(0, 230, 118, 0.08); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0, 230, 118, 0.2);">
-        <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Total Storage Saved</div>
+        <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Data Reduction Saved</div>
         <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${sys.efficiency.spaceSavedTB.toFixed(1)} TB</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction savings only</div>
       </div>
     </div>
   `;
+
 
   const fpTiered = sys.efficiency.fabricPoolTieredTB;
   let fpAdoptionBadge = "";
@@ -6625,33 +6636,45 @@ function enrichSystemTelemetry(s) {
   if (!efficiency && isLiveData) {
     // Live API path: use system-level capacity fields
     const physTB   = s.clusterPhysicalUsedTB || 0;
-    const logTB    = s.clusterLogicalUsedTB  || 0;
     const rawTB    = s.clusterRawCapacityTB  || 0;
-    const savedKiB = s.savedKiB || 0;
-    const savedTB  = savedKiB / (1024 * 1024 * 1024);  // KiB → TB
-    // Prefer real API efficiency ratio; fall back to logical/physical calculation
-    const apiRatio = s.efficiencyRatio || s.dataReductionRatioSys || 0;
+
+    // ── Efficiency ratio: use dataReductionRatio (dedupe+compression ONLY, no snapshots).
+    // efficiencyRatio includes snapshot space savings which massively inflates the number.
+    // dataReductionRatioSys = pure dedup + compression ratio from ONTAPSystemEfficiency.
+    const dataRedRatio = s.dataReductionRatioSys || 0;   // e.g. 3.2 for 3.2:1
+    const effRatioFull = s.efficiencyRatio || 0;         // includes snapshots (for reference only)
+
+    // ── Space saved: use dedup + compaction ONLY (exclude snapshot savings)
+    const dedupSavedKiB    = s.dedupSavedKiB    || 0;
+    const compactSavedKiB  = s.compactionSavedKiB || 0;
+    const dataSavedTB      = (dedupSavedKiB + compactSavedKiB) / (1024 ** 3);  // KiB → TiB
+
+    // ── Determine displayed ratio
     let ratioVal;
-    if (apiRatio && apiRatio > 1) {
-      ratioVal = apiRatio.toFixed(1);
-    } else if (physTB > 0 && logTB > 0) {
-      ratioVal = (logTB / physTB).toFixed(1);
-    } else if (physTB > 0 && savedTB > 0) {
-      ratioVal = ((physTB + savedTB) / physTB).toFixed(1);
+    if (dataRedRatio > 1) {
+      ratioVal = dataRedRatio.toFixed(1);
+    } else if (physTB > 0 && dataSavedTB > 0) {
+      // Fallback: compute from saved KiB
+      ratioVal = ((physTB + dataSavedTB) / physTB).toFixed(1);
     } else {
       ratioVal = null;
     }
-    // Space saved: prefer savedKiB from API, otherwise Logical-Physical
-    const spaceSaved = savedTB > 0 ? savedTB : Math.max(0, logTB - physTB);
+
+    // ── Logical used: physical × dataReduction ratio (without snapshot inflation)
+    const logTB = dataRedRatio > 1 ? physTB * dataRedRatio : (physTB + dataSavedTB);
+
     efficiency = {
       ratio: ratioVal ? `${ratioVal}:1` : 'N/A',
-      logicalUsedTB: logTB > 0 ? logTB : (physTB + spaceSaved),
+      logicalUsedTB: parseFloat((logTB || physTB).toFixed(1)),
       physicalUsedTB: physTB,
-      spaceSavedTB: parseFloat(spaceSaved.toFixed(1)),
+      spaceSavedTB: parseFloat(dataSavedTB.toFixed(1)),
       fabricPoolTieredTB: 0,
       rawCapacityTB: rawTB,
       usableCapacityTB: s.clusterUsableCapacityTB || 0,
+      // Expose full ratio separately for tooltip/detail views
+      efficiencyRatioWithSnaps: effRatioFull,
     };
+
   } else if (!efficiency) {
     // Mock fallback for non-live systems
     let ratio = "1.0:1";
