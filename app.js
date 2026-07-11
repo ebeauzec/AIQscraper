@@ -3171,72 +3171,112 @@ let capacityChartInstance = null;
 let projectionsChartInstance = null; // Line chart for capacity & performance trends
 
 function renderCharts() {
-  const ctxEff = document.getElementById("efficiencyChart");
-  const ctxCap = document.getElementById("capacityChart");
-  
-  if (!ctxEff || !ctxCap) return;
-  
-  const filteredSystems = getFilteredSystems();
-  
-  if (filteredSystems.length === 0) {
-    if (efficiencyChartInstance) efficiencyChartInstance.destroy();
-    if (capacityChartInstance) capacityChartInstance.destroy();
-    return;
-  }
+  const ctxEff = document.getElementById('efficiencyChart');
+  const ctxCap = document.getElementById('capacityChart');
 
-  const logicalSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.logicalUsedTB, 0);
-  const physicalSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.physicalUsedTB, 0);
-  const savedSum = filteredSystems.reduce((acc, sys) => acc + sys.efficiency.spaceSavedTB, 0);
+  if (!ctxEff || !ctxCap) return;
+
+  const filteredSystems = getFilteredSystems();
 
   if (efficiencyChartInstance) efficiencyChartInstance.destroy();
   if (capacityChartInstance) capacityChartInstance.destroy();
 
-  if (typeof Chart === "undefined") {
-    console.warn("Chart.js library not loaded yet.");
-    return;
-  }
+  if (filteredSystems.length === 0) return;
+  if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+
+  // ── Donut: fleet capacity utilisation (physical used vs available) ──────────
+  // "Available" = sum of (usableCapacityTB - physicalUsedTB), floored at 0.
+  // This shows how full the fleet is on actual disk, regardless of efficiency ratio.
+  // Efficiency ratio is shown as a text overlay so it isn't distorting the pie.
+  const physicalSum  = filteredSystems.reduce((a, s) => a + (s.efficiency.physicalUsedTB  || 0), 0);
+  const usableSum    = filteredSystems.reduce((a, s) => a + (s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0), 0);
+  const availableSum = Math.max(0, usableSum - physicalSum);
+
+  // Fleet-average data reduction ratio (systems with ratio > 1 only)
+  const withRatio = filteredSystems.filter(s => s.dataReductionRatioSys > 1);
+  const avgDRR = withRatio.length
+    ? (withRatio.reduce((a, s) => a + (s.dataReductionRatioSys || 0), 0) / withRatio.length).toFixed(1)
+    : null;
 
   efficiencyChartInstance = new Chart(ctxEff, {
     type: 'doughnut',
     data: {
-      labels: ['Physical Used Space (TB)', 'Space Saved by Efficiency (TB)'],
+      labels: ['Physical Used (TB)', 'Available Capacity (TB)'],
       datasets: [{
-        data: [physicalSum.toFixed(1), savedSum.toFixed(1)],
-        backgroundColor: ['rgba(0, 115, 230, 0.7)', 'rgba(0, 230, 118, 0.7)'],
-        borderColor: ['#0073e6', '#00e676'],
+        data: [physicalSum.toFixed(1), availableSum > 0 ? availableSum.toFixed(1) : physicalSum.toFixed(1)],
+        backgroundColor: ['rgba(0, 115, 230, 0.8)', 'rgba(0, 200, 120, 0.5)'],
+        borderColor: ['#0073e6', '#00c878'],
         borderWidth: 1
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      cutout: '68%',
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { color: '#f3f4f6' }
+        legend: { position: 'bottom', labels: { color: '#f3f4f6', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const tb = parseFloat(ctx.raw).toFixed(1);
+              const pct = usableSum > 0 ? ((parseFloat(ctx.raw) / usableSum) * 100).toFixed(0) : 0;
+              return `${ctx.label}: ${tb} TB (${pct}%)`;
+            }
+          }
         }
       }
-    }
+    },
+    plugins: [{
+      id: 'centerText',
+      afterDraw(chart) {
+        if (!avgDRR) return;
+        const { width, height, ctx: c } = chart;
+        c.save();
+        c.font = `bold ${Math.round(height / 8)}px Inter, sans-serif`;
+        c.fillStyle = '#f3f4f6';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(`${avgDRR}:1`, width / 2, height / 2 - 10);
+        c.font = `${Math.round(height / 14)}px Inter, sans-serif`;
+        c.fillStyle = '#9ca3af';
+        c.fillText('avg reduction', width / 2, height / 2 + Math.round(height / 10));
+        c.restore();
+      }
+    }]
+  });
+
+  // ── Bar: top 15 systems by physical used — used vs available ──────────────
+  const barSystems = [...filteredSystems]
+    .filter(s => (s.efficiency.physicalUsedTB || 0) > 0)
+    .sort((a, b) => b.efficiency.physicalUsedTB - a.efficiency.physicalUsedTB)
+    .slice(0, 15);
+
+  const barUsed  = barSystems.map(s => parseFloat((s.efficiency.physicalUsedTB  || 0).toFixed(1)));
+  const barAvail = barSystems.map(s => {
+    const usable = s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0;
+    return parseFloat(Math.max(0, usable - (s.efficiency.physicalUsedTB || 0)).toFixed(1));
   });
 
   capacityChartInstance = new Chart(ctxCap, {
     type: 'bar',
     data: {
-      labels: filteredSystems.map(s => s.systemName),
+      labels: barSystems.map(s => (s.clusterName || s.systemName || '').replace(/-0[12]$/, '')),
       datasets: [
         {
-          label: 'On-Prem Flash Storage (TB)',
-          data: filteredSystems.map(s => (s.efficiency.physicalUsedTB - s.efficiency.fabricPoolTieredTB).toFixed(1)),
-          backgroundColor: 'rgba(0, 115, 230, 0.7)',
+          label: 'Physical Used (TB)',
+          data: barUsed,
+          backgroundColor: 'rgba(0, 115, 230, 0.8)',
           borderColor: '#0073e6',
-          borderWidth: 1
+          borderWidth: 1,
+          stack: 'cap'
         },
         {
-          label: 'FabricPool Tiered to Cloud (TB)',
-          data: filteredSystems.map(s => s.efficiency.fabricPoolTieredTB.toFixed(1)),
-          backgroundColor: 'rgba(0, 210, 255, 0.7)',
-          borderColor: '#00d2ff',
-          borderWidth: 1
+          label: 'Available Capacity (TB)',
+          data: barAvail,
+          backgroundColor: 'rgba(0, 200, 120, 0.4)',
+          borderColor: '#00c878',
+          borderWidth: 1,
+          stack: 'cap'
         }
       ]
     },
@@ -3244,13 +3284,34 @@ function renderCharts() {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
-        y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+        x: {
+          stacked: true,
+          ticks: { color: '#9ca3af', maxRotation: 40, font: { size: 10 } },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          stacked: true,
+          min: 0,
+          ticks: {
+            color: '#9ca3af',
+            callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'Storage (TB)', color: '#9ca3af', font: { size: 11 } }
+        }
       },
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { color: '#f3f4f6' }
+        legend: { position: 'bottom', labels: { color: '#f3f4f6', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = (barUsed[ctx.dataIndex] + barAvail[ctx.dataIndex]) > 0
+                ? ((barUsed[ctx.dataIndex] / (barUsed[ctx.dataIndex] + barAvail[ctx.dataIndex])) * 100).toFixed(0)
+                : 0;
+              if (ctx.datasetIndex === 0) return `Used: ${ctx.parsed.y.toFixed(1)} TB (${pct}% full)`;
+              return `Available: ${ctx.parsed.y.toFixed(1)} TB`;
+            }
+          }
         }
       }
     }
@@ -8530,17 +8591,30 @@ function enrichSystemTelemetry(s) {
     const logTBfinal = dataRedRatio > 1 ? physTBfinal * dataRedRatio : (physTBfinal + dataSavedTB);
 
 
+
+    // ── Space saved for the donut chart: logicalUsedTB - physicalUsedTB
+    // Using raw KiB (dedup+compaction) over-inflates the donut slice because
+    // snapshot savings are already reflected in the logical used total.
+    // logical - physical gives the proportional "virtual savings" that makes sense
+    // on-disk (e.g. 844 TB physical, 10,000 TB logical → 9,156 TB saved by ratio).
+    const logicalTBforSavings  = s.clusterLogicalUsedTB || 0;
+    const spaceSavedForChart   = Math.max(0, logicalTBforSavings - physTBfinal);
+    // FabricPool: only tag systems where isFabricPool is true; estimate tiered as
+    // the delta between logical and physical (cold data sitting in object store).
+    // FabricPool tiered bytes are not available from this GQL query — set to 0.
+    // The overview chart now shows used vs available capacity instead.
+    const fpTieredTB = 0;
+
     efficiency = {
       ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : 'N/A'),
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
-      spaceSavedTB: parseFloat(dataSavedTB.toFixed(1)),
-      fabricPoolTieredTB: 0,  // ASA r2 / AFX do not support FabricPool
+      spaceSavedTB: parseFloat(spaceSavedForChart.toFixed(1)),
+      spaceSavedKiB: parseFloat(dataSavedTB.toFixed(1)),  // raw KiB-derived savings (per-system detail)
+      fabricPoolTieredTB: fpTieredTB,
       rawCapacityTB: rawTBfinal,
       usableCapacityTB: usableTBfinal,
-      // Expose full ratio separately for tooltip/detail views
       efficiencyRatioWithSnaps: effRatioFull,
-      // Personality note for display
       platformNote: isASAr2 ? 'ASA r2 — capacity via Storage Availability Zone (SAZ). 4:1 efficiency SLA guaranteed by NetApp.' :
                    isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' : null,
     };
