@@ -2634,7 +2634,7 @@ const MOCK_SYSTEMS = [
           { id: "CVE-2024-25062", title: "Libxml2 Use-After-Free Vulnerability in NetApp Products", severity: "high", status: "Active", mitigation: "Apply ONTAP patch P8 or later. Alternatively restrict XML-based management API access to trusted networks." },
           { id: "CVE-2025-1736", title: "PHP Vulnerability in NetApp Management Frameworks", severity: "medium", status: "Active", mitigation: "Upgrade to the latest recommended ONTAP version. Limit HTTPS management access to jump hosts." },
           { id: "CVE-2024-36904", title: "Linux Kernel TCP Race Condition in NetApp Products", severity: "high", status: "Active", mitigation: "Upgrade SP/BMC firmware. Monitor for kernel panics. Apply ONTAP patch addressing kernel subsystem." },
-          { id: "CVE-2026-22795", title: "OpenSSL Buffer Overflow Vulnerability in NetApp Products", severity: "critical", status: "Active", mitigation: "Urgent: Upgrade to ONTAP 9.15.1P2+ or 9.16.1+. Disable SSLv3 fallback on management interfaces immediately." },
+          { id: "CVE-2026-4747", title: "FreeBSD RBAC Vulnerability in NetApp Products", severity: "high", status: "Active", mitigation: "Apply the ONTAP patch for your active branch that incorporates the FreeBSD RBAC fix. Restrict management network access. Review NTAP advisory portal for your specific version." },
           { id: "CVE-2022-29824", title: "Libxml2 Integer Overflow in NetApp Products", severity: "medium", status: "Active", mitigation: "Upgrade ONTAP to a version that bundles libxml2 >= 2.9.14. Review NTAP-20220624-0001." },
           { id: "CVE-2023-44487", title: "HTTP/2 Rapid Reset DoS Vulnerability (Disclosed Oct 2023)", severity: "high", status: "Active", mitigation: "Apply HTTP/2 rate limiting on management LIFs. Upgrade to ONTAP version with HTTP/2 connection throttling patch." },
           { id: "CVE-2024-6387", title: "OpenSSH regreSSHion Remote Code Execution", severity: "critical", status: "Active", mitigation: "Upgrade SSH subsystem via SP/BMC firmware update. Restrict SSH access to bastion hosts only. Review NTAP-20240701-0001." }
@@ -3859,13 +3859,14 @@ const SOFTWARE_VERSION_DATABASES = {
     "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0", "12.1.0"
   ],
   snapcenter: [
-    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1"
+    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1", "6.2.2"
   ]
 };
 
-// ── NetApp Reference Library Data (synced 2026-07-10) ─────────────────────
+// ── NetApp Reference Library Data (synced 2026-07-11) ─────────────────────
 // Source: G:\My Drive\Cowork\NetApp\NetApp Reference Library
 // All data verified against docs.netapp.com primary sources.
+// Online cross-check: security.netapp.com, kb.netapp.com, NVD, CISA KEV
 
 // EOA Platform List — confirmed by direct fetch of docs.netapp.com/us-en/ontap-systems/endofavail/ 2026-07-09
 // EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA
@@ -4055,7 +4056,12 @@ const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   "Cisco NX-OS":   { recommended: "9.3(12)", label: "Cisco Nexus 9000 Series (cluster/MC-IP)" },
   "Cisco MDS":     { recommended: "9.2(2)",  label: "Cisco MDS 9000 Series (FC SAN)" },
   "Brocade FOS":   { recommended: "9.2.1",   label: "Brocade FC Switch (Fabric OS)" },
-  "Broadcom EFOS": { recommended: "3.8.0.2", label: "Broadcom BES-53248 (cluster switch)" }
+  "Broadcom EFOS": { recommended: "3.8.0.2", label: "Broadcom BES-53248 (cluster switch)" },
+  // AFX-specific components (distinct from AFF/ASA shelf modules)
+  // Source: Platforms-Hardware/README.md — confirmed 2026-07-07 against docs.netapp.com/us-en/ontap-technical-reports/afx-overview/afx-overview-hardware.html
+  "NSM140":        { recommended: "current", label: "NSM140 NVMe Shelf Module (AFX NX224 shelves only — NOT interchangeable with NSM100)" },
+  "Cisco 9332D-GX2B": { recommended: "current", label: "Cisco Nexus 9332D-GX2B (AFX cluster switch, 400GbE)" },
+  "Cisco 9364D-GX2A": { recommended: "current", label: "Cisco Nexus 9364D-GX2A (AFX cluster switch, 400GbE)" }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4096,7 +4102,7 @@ const REFERENCE_LIBRARY_MC_REQUIREMENTS = {
 // Source: docs.netapp.com/us-en/ontap/release-notes, NetApp TR library
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ONTAP_HIGHLIGHTS = {
-  "9.19.1": "Current GA (~2026-06-11). SnapMirror active sync transparent failover for AIX; SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror Synchronous; direct-attach FC; active-active multipathing on AFF; per-SVM System Manager dashboard.",
+  "9.19.1": "Released May 2026. SnapMirror active sync transparent failover for AIX (2-node); SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror Synchronous; scheduled snapshot replication to destination. ASA r2: direct-attach FC (no FC switch required); ARP/AI within SM active sync relationships. AFX: global deduplication across entire SAZ (enabled by default); intelligent prefetching for sequential video frames; per-SVM System Manager dashboard. S3 idle connection timeout reduced 20min→5min.",
   "9.18.1": "SnapMirror cloud for MC FlexGroup; new controller replace combos (A70→A90, FAS70→FAS90) in MC-IP; 100Gbps ISL minimum for high-speed MC-IP platforms.",
   "9.17.1": "MC-IP E2E encryption extended to AFF A20/A30/C30/A50/C60/A70/A90/A1K/C80, FAS50/70/90; MC-IP limit increases. AFX platform requires 9.17.1+.",
   "9.16.1": "GA 2026-04-01. IPsec HW offload; NVMe space dealloc default-on; ARP/AI (99% precision, zero learning period on FlexVol); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA for System Manager. ARP/AI requires ONTAP 9.16.1+.",
@@ -4550,9 +4556,9 @@ const NETAPP_SECURITY_BULLETIN_DB = [
     title: "ONTAP 9.17.1 System Manager 'API not found' Errors on ASAr1 Systems",
     description: "In ONTAP System Manager 9.17.1 GA on ASAr1 systems, multiple workflows fail with 'API not found' errors, affecting dashboard health cards, mediator visibility, node discovery, software update display, IPSpaces in network overview, and MetroCluster detection.",
     affectedProducts: ["ONTAP"],
-    affectedVersions: { ontap: [{ from: "9.17.1", to: "9.17.1P-check KB" }] },
-    fixedVersions:    { ontap: ["Next available 9.17.1 P-release — check KB CONTAP-551221"] },
-    mitigation: "Use ONTAP CLI as workaround for affected System Manager workflows. Apply next available 9.17.1 P-release.",
+    affectedVersions: { ontap: [{ from: "9.17.1", to: "9.17.1P1" }] },
+    fixedVersions:    { ontap: ["9.17.1P2"] },
+    mitigation: "Upgrade to ONTAP 9.17.1P2+. Use ONTAP CLI as workaround for affected System Manager workflows.",
     published: "2025-01-01",
     link: "https://kb.netapp.com/"
   },
@@ -5422,7 +5428,9 @@ const REFERENCE_LIBRARY_ASA_R2 = {
 // Source: NetApp field advisories, SU bulletins, release notes
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_PRELEASE_MINIMUMS = {
-  "9.17.1": { minSafe: "9.17.1P2", reason: "CVE-2026-22050 Snapshot Lock bypass fixed in P2" },
+  // 9.19.1: too early in GA cycle to specify minimum P-release; apply latest available
+  "9.18.1": { minSafe: "9.18.1P2", reason: "NTAP-20260204-0012/0015: OpenSSL vulnerabilities (incl. CVSS 9.8 stack overflow) affecting 9.18.1 exclusively. Intel NIC failures with Cisco Nexus 5K/7K (KB-IntelNIC-CiscoNexus-9181)." },
+  "9.17.1": { minSafe: "9.17.1P4", reason: "CVE-2026-22050 Snapshot Lock bypass fixed P2; CONTAP-539599 (SM Active Sync failover regression) fixed P4. P4 is the recommended minimum." },
   "9.16.1": { minSafe: "9.16.1P11", reason: "SU611: Low-memory node instability on AFF/ASA. SM Active Sync failover issues in P6/P7. Multiple stability fixes." },
   "9.15.1": { minSafe: "9.15.1P4", reason: "NFSv3/RDMA stability, SnapMirror active sync symmetric improvements" },
   "9.14.1": { minSafe: "9.14.1P3", reason: "Veeam backup clone panic, LIF migration stability, SnapMirror throughput regression" },
@@ -5615,16 +5623,22 @@ const REFERENCE_LIBRARY_INTEGRATIONS = {
     name: "Veeam Backup & Replication",
     minOntap: "9.8",
     currentPlugin: "NetApp Plugin for Veeam v2",
+    // Note: Veeam acquired Securiti AI ($1.725B, closed 2025-12-11) — Veeam now bundles DSPM/data-intelligence
+    // capability from Securiti. This changes the Veeam + ONTAP story for customers with DSPM requirements.
     keyFeatures: [
-      "NetApp Plugin v2: Snapshot-aware backup — Veeam triggers ONTAP snapshot before backup job, dramatically reducing backup window",
-      "Instant VM Recovery from ONTAP snapshot: Veeam can mount ONTAP NFS snapshot directly and boot VM in minutes",
+      "NetApp Plugin v2 (VBR 12.3+): SnapDiff API CFT mode — Veeam uses Changed-File-Tracking via ONTAP SnapDiff API for incremental-forever NAS backups without full-scan overhead",
+      "Snapshot-aware backup: Veeam triggers ONTAP snapshot before backup job, dramatically reducing backup window",
+      "Instant VM Recovery from ONTAP snapshot: Veeam mounts ONTAP NFS snapshot directly and boots VM in minutes",
       "Veeam CDP (Continuous Data Protection): Integration with SnapMirror Active Sync for near-zero RPO continuous replication",
       "Direct NFS mode: Veeam reads VM data directly from ONTAP NFS without going through ESXi — reduces host CPU impact",
       "Veeam + SnapVault: Use ONTAP SnapVault for long-term retention of Veeam backup data on secondary ONTAP array",
-      "Veeam Hardened Repository on ONTAP S3: Immutable WORM bucket on ONTAP S3 as Veeam immutable backup target (9.8+)"
+      "Veeam Hardened Repository on ONTAP S3: Immutable WORM bucket on ONTAP S3 as Veeam immutable backup target (9.8+)",
+      "Veeam Securiti DSPM (post-acquisition, 2026): Data discovery and classification on Veeam-protected ONTAP data"
     ],
     caveats: [
       "Veeam NetApp Plugin v2 requires Veeam Backup & Replication v12.1+",
+      "SnapDiff API CFT mode caveat: NOT supported on ONTAP 9.10.1 through 9.10.1P10 — upgrade to 9.10.1P11+ or 9.11.1+ before enabling",
+      "SnapDiff CFT caveat: NOT supported on FlexGroup volumes — only FlexVol",
       "CVE-related: Veeam 12.1 clone operation triggered node panic on ONTAP 9.14.1 GA (fixed in 9.14.1P3+)",
       "ONTAP S3 as Veeam Scale-Out Repository: Requires ONTAP 9.8+ and S3 license. Configure object versioning for immutability",
       "Veeam + MetroCluster: Supported but must configure Veeam proxy affinity to prevent cross-site backup traffic"
@@ -5636,12 +5650,17 @@ const REFERENCE_LIBRARY_INTEGRATIONS = {
     name: "Commvault",
     tool: "IntelliSnap with ONTAP",
     minOntap: "9.5",
+    // Note: NetApp–Commvault Strategic Alliance announced 2026-03-24:
+    // ARP (Autonomous Ransomware Protection) + Commvault Synthetic Recovery — closed-loop detection-to-recovery.
+    // Commvault Metallic DMaaS can back up ONTAP-managed data to cloud with dedup + SLA guarantees.
     keyFeatures: [
       "IntelliSnap: Application-consistent snapshots on ONTAP — Commvault orchestrates quiesce/snapshot/unquiesce sequence",
       "Commvault Snap Copy: Uses ONTAP FlexClone to create instant clone of snapshot for backup job (no impact on primary)",
       "SnapVault integration: Commvault can manage SnapVault replication schedules from a single pane",
       "Commvault + SnapMirror: DR failover orchestration with SnapMirror via Commvault DR workflow automation",
-      "NDMP backup: Legacy tape/disk backup via NDMP 4/5 — ONTAP native support, no agent required on storage"
+      "NDMP backup: Legacy tape/disk backup via NDMP 4/5 — ONTAP native support, no agent required on storage",
+      "NetApp ARP + Commvault closed-loop (2026): ONTAP ARP/AI detects anomalous writes → triggers Commvault synthetic recovery job → validated clean recovery point within the RPO window",
+      "Commvault Metallic DMaaS: Cloud-native backup-as-a-service option for ONTAP data — deduplication-aware, SLA-managed"
     ],
     caveats: [
       "IntelliSnap requires Commvault v11 SP26+ and ONTAP 9.5+",
@@ -5680,6 +5699,25 @@ const REFERENCE_LIBRARY_INTEGRATIONS = {
       "ONTAP NDMP scoped user: Create dedicated NDMP user with limited permissions for each backup tool"
     ],
     docUrl: "https://docs.cohesity.com/"
+  },
+
+  // ── HYCU — added 2026-07-11 per Backup-3rdParty/README.md update ─────────────
+  hycu: {
+    name: "HYCU Data Protection",
+    minOntap: "9.8",
+    keyFeatures: [
+      "Agentless REST API integration: HYCU uses ONTAP REST API directly — no NDMP, no agents, no additional components on storage",
+      "Application-consistent protection: HYCU orchestrates quiesce/snapshot/backup for VMs and applications without VSS or Veeam infrastructure",
+      "R-Shield YARA scanning: HYCU R-Shield performs YARA-rule-based malware scanning on backup data before restore to ensure clean recovery point",
+      "Cloud backup: HYCU can replicate ONTAP-snapshot-based backups to S3-compatible object storage (AWS, Azure, GCP, ONTAP S3)",
+      "Granular recovery: File and folder-level restore from ONTAP snapshot-aware backups without full VM restore"
+    ],
+    caveats: [
+      "HYCU requires ONTAP REST API access (9.8+). Ensure ONTAP management LIF is accessible from HYCU server",
+      "R-Shield YARA scanning is an add-on capability — confirm licensing before positioning as default ransomware protection",
+      "HYCU does not use SnapMirror — replication is managed by HYCU's own engine. Factor this into cross-site DR designs"
+    ],
+    docUrl: "https://www.hycu.com/data-protection-for-netapp"
   },
 
   ndmp: {
