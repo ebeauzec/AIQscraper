@@ -1,468 +1,518 @@
-# NetApp Active IQ Advisor Dashboard
+﻿# NetApp Active IQ Advisor Dashboard
 
-[![Version](https://img.shields.io/badge/version-3.1.0-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.2.0-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
 [![AI Free](https://img.shields.io/badge/AI--Free-100%25-critical)]()
 
-> **Operational intelligence for NetApp Technical Account Managers, Sales Engineers, and Managed Service Providers.**
+> **One tool. Your entire fleet. Six customer-ready deliverables. In under two minutes.**
 >
-> Harvests your complete fleet telemetry from the Active IQ Digital Advisor GraphQL API, enriches it with a curated Reference Library of CVEs, platform specs, firmware baselines, and operating procedures, then renders it as an interactive dashboard with a 15-tab Action Planner and 6 downloadable deliverables.
+> Built for NetApp Technical Account Managers, Sales Engineers, and Managed Service Providers who need to walk into every customer meeting fully prepared — with real data, real risks, and ready-to-share reports.
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Data Flow](#data-flow)
-- [Dashboard Tabs](#dashboard-tabs)
-- [Action Planner (Tabs 1–15)](#action-planner-tabs-115)
-- [Reference Library Enrichment](#reference-library-enrichment)
-- [Use Cases](#use-cases)
-- [Getting Started](#getting-started)
-- [File Structure](#file-structure)
-- [Data Security & Compliance](#data-security--compliance)
-- [Troubleshooting](#troubleshooting)
-- [Change History](#change-history)
+1. [Why This Tool — vs. Active IQ Directly](#1-why-this-tool--vs-active-iq-directly)
+2. [What It Delivers](#2-what-it-delivers)
+3. [Use Cases](#3-use-cases)
+4. [Getting Started](#4-getting-started)
+5. [Dashboard Guide](#5-dashboard-guide)
+6. [Action Planner — All 15 Sections](#6-action-planner--all-15-sections)
+7. [Downloadable Deliverables](#7-downloadable-deliverables)
+8. [Security & Data Privacy](#8-security--data-privacy)
+9. [Troubleshooting](#9-troubleshooting)
+10. [Internal Architecture](#10-internal-architecture) *(Addendum — for developers)*
 
 ---
 
-## Overview
+## 1. Why This Tool — vs. Active IQ Directly
 
-The **Active IQ Advisor Dashboard** is a browser-based operational intelligence platform designed for NetApp Technical Account Managers (TAMs), Sales Engineers (SEs), and Managed Service Providers (MSPs). It provides a single-pane-of-glass view of an entire customer fleet — systems, risks, contracts, security advisories, upgrade paths, and sustainability metrics — all in one place.
+Active IQ is excellent for monitoring a single customer. This tool is built for TAMs, SEs, and MSPs who manage **multiple customers and large mixed portfolios** — where Active IQ's UI quickly becomes a bottleneck.
 
-### What It Does
+### What Active IQ gives you
 
-| Capability | Description |
+- A web dashboard scoped to one customer at a time
+- Risks, advisories, and capacity alerts for systems you navigate to manually
+- Case history and contract dates — per system, per customer
+- Sustainability scores and recommendations
+
+### What this tool adds on top
+
+| Gap in Active IQ | What the Advisor Dashboard does |
 |---|---|
-| **Fleet Harvesting** | Connects to the Active IQ Digital Advisor GraphQL API and harvests systems, clusters, risks, support cases, recommendations, sustainability scores, sites, and contracts for the TAM's assigned portfolio |
-| **Reference Library Enrichment** | Overlays curated security advisories (CVEs), EOA platform flags, firmware baselines, MetroCluster ISL requirements, Kerberos enforcement detection, and SnapMirror policy alignment checks |
-| **15-Tab Action Planner** | Generates a structured executive report spanning technical risks, security, upgrades, contracts, sustainability, and operational health |
-| **6 Downloadable Deliverables** | Customer Success Plan, QBR Pack, MSP Service Report, Account Handover Brief, Extended Deliverables, CLI Runbook — all generated client-side |
-| **Offline Operation** | After initial sync, the dashboard works fully offline from the SQLite cache and browser localStorage |
+| **One customer at a time** — you must manually switch contexts and re-filter for every account | **Cross-customer fleet view** — all customers, all systems in a single pane. Filter to any customer in one click |
+| **No deliverable generation** — you take screenshots or copy/paste into documents | **Six ready-to-share deliverables** — QBR Pack, Customer Success Plan, MSP Report, Handover Brief, CLI Runbook — generated in seconds |
+| **No upgrade path calculator** — AIQ shows your current version; you have to figure out the hop sequence yourself | **Automatic hop-by-hop upgrade paths** — direct paths where available; multi-hop sequences with intermediate versions and per-version notes for ONTAP, StorageGRID, and SANtricity |
+| **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against 7+ tracked CVEs with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps |
+| **Capacity trend is per-system** — no fleet-wide growth rate or cross-customer runway view | **Fleet-wide capacity projection** — 6-month historical trend, growth rate in GB/day, per-node breakdown, and runway estimate per node |
+| **Efficiency includes snapshot savings** — the displayed ratio is inflated | **Correct data reduction ratio** — uses dedupe + compression only (no snapshots). Snapshot-inclusive ratio shown separately for reference |
+| **No ITIL-aligned change control output** — risks are described but remediation isn't structured for change management | **CLI Runbook with ITIL tiers** — every remediation step classified as Non-Disruptive / Disruptive / Destructive, formatted as change tickets for CAB approval |
+| **No Reference Library enrichment** — you must manually cross-reference EOA lists, firmware baselines, and MetroCluster ISL specs | **Automatic enrichment** — EOA hardware flags, firmware baseline checks, MetroCluster ISL validation, Kerberos AES detection, SnapMirror policy audit, Varonis EOL warning |
+| **No account handover support** — transitioning an account means extensive manual documentation | **Account Handover Brief** — structured briefing generated in one click covering fleet context, open risks, contracts, contacts, and pending actions |
+| **ARP and ASUP health require individual system checks** — no fleet-wide audit | **Fleet-wide operational health** — ARP enablement, AutoSupport recency, firmware currency, and reboot timeline across all systems at once |
+| **Sustainability requires per-customer navigation** | **Cross-customer ESG dashboard** — fleet sustainability score, carbon/energy data, and data reduction ratios all in one view |
+
+### Where this tool is most effective
+
+1. **Portfolio-level preparation** — walking into any QBR or account review with all data ready, not just the one customer you happened to check that morning
+2. **Security posture triage** — instantly knowing which systems across all customers are affected by a new CVE, without clicking through each account individually
+3. **Contract and renewal pipeline management** — surfacing all expiring contracts across the entire portfolio in one view, ranked by urgency
+4. **MSP monthly reporting at scale** — generating per-customer service reports across 20+ customers in minutes rather than hours
+5. **Change management readiness** — producing ITIL-formatted CLI runbooks for CAB submission, not just a list of risks
 
 ---
 
-## Architecture
+## 2. What It Delivers
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Browser (Frontend)                           │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────────┐  │
-│  │ app.js   │  │styles.css│  │ chart.js │  │   localStorage     │  │
-│  │ ~13,200  │  │dark-theme│  │ Chart.js │  │ (client-side cache)│  │
-│  │ lines    │  │glassmor- │  │ library  │  │                    │  │
-│  │          │  │phism     │  │          │  │                    │  │
-│  └────┬─────┘  └──────────┘  └──────────┘  └────────────────────┘  │
-│       │  fetch('/api/harvest')                                      │
-└───────┼─────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                     server.py (Port 8080)                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────────┐ │
-│  │ OAuth Token  │  │ GraphQL      │  │ SQLite Cache              │ │
-│  │ Exchange     │  │ Harvester    │  │ (aiq_cache.db)            │ │
-│  │              │  │ 8+ queries   │  │ WAL mode, persistent      │ │
-│  └──────┬───────┘  └──────┬───────┘  └───────────────────────────┘ │
-│         │                 │                                         │
-└─────────┼─────────────────┼─────────────────────────────────────────┘
-          │                 │
-          ▼                 ▼
-┌──────────────────┐  ┌──────────────────────────────────────────────┐
-│ NetApp OAuth     │  │ gql.aiq.netapp.com/graphql                  │
-│ Token Endpoint   │  │ Systems, Clusters, Risks, Cases, Watchlists,│
-│ (TLS 1.2+)      │  │ Recommendations, Sustainability, Sites,     │
-│                  │  │ Contracts, OS Version Catalog                │
-└──────────────────┘  └──────────────────────────────────────────────┘
-```
+In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library, and renders it as a fully interactive dashboard with six downloadable customer-facing deliverables.
 
-### Component Summary
+**Harvested from Active IQ:**
+- Every system and cluster across your entire portfolio
+- All open and resolved technical risks and advisories
+- Support case history per system
+- Contract status, expiry dates, and service tiers
+- End-of-Availability and End-of-Support lifecycle milestones
+- Sustainability and energy efficiency scores
+- Capacity trends and storage efficiency ratios
+- AutoSupport status, firmware currency, and Anti-Ransomware Protection (ARP) coverage
+- OS version catalog for upgrade path calculation
+- Account personnel (Sales Rep, CSM, SAM, ASP, Propensity)
 
-| Component | File | Role |
-|---|---|---|
-| **Backend Server** | `server.py` | Python HTTP server on port 8080. Handles OAuth token exchange, sends 8+ GraphQL queries to harvest fleet data, normalizes the raw API response, caches results in SQLite (`aiq_cache.db`), and serves the frontend files |
-| **Frontend Application** | `app.js` | ~13,200 lines of JavaScript. Contains the system normalizer (`enrichSystemTelemetry`), risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, and the Reference Library enrichment engine |
-| **Development HTML** | `index_src.html` | HTML shell that loads `app.js` and `styles.css` as external files. Used during development — changes to `app.js` take effect on browser refresh |
-| **Compiled HTML** | `index.html` | Single-file HTML with all JS/CSS inlined. For offline distribution — must be rebuilt after code changes |
-| **Styles** | `styles.css` | Dark-theme CSS with glassmorphism effects, responsive layout, and sidebar animations |
-| **Charts** | `chart.js` | Local copy of the Chart.js library for capacity, trend, and distribution visualizations |
-| **Database** | `aiq_cache.db` | SQLite persistent cache (WAL mode) storing the full harvest result with sync metadata |
+**Added by the Reference Library (not in Active IQ):**
+- EOA hardware flags for AFF, ASA, and FAS platforms
+- CVE cross-referencing with version-range matching and per-system applicability
+- Firmware baseline checks for shelves and switches
+- MetroCluster ISL requirement validation
+- Kerberos AES enforcement detection (Microsoft KB5073381)
+- SnapMirror synchronous policy alignment audit
+- Varonis FPolicy EOL detection
+- Legacy firewall policy deprecation detection (ONTAP 9.10.1+)
 
 ---
 
-## Data Flow
+## 3. Use Cases
 
-The following diagram traces the complete lifecycle of data from API credentials to rendered dashboard.
+### QBR / Account Review Preparation
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Browser as Browser (app.js)
-    participant Server as server.py (:8080)
-    participant OAuth as NetApp OAuth
-    participant GQL as gql.aiq.netapp.com
-    participant DB as SQLite (aiq_cache.db)
-    participant LS as localStorage
+**Goal:** Walk into a quarterly review with complete, accurate, customer-specific data — without spending the morning manually pulling information.
 
-    User->>Browser: Enter Active IQ Refresh Token in Settings
-    Browser->>Server: POST /api/harvest (refresh_token)
-    Server->>OAuth: Exchange refresh token → access token (TLS 1.2+)
-    OAuth-->>Server: Access token (JWT, short-lived)
+**Workflow:**
+1. Select the customer from the sidebar filter dropdown
+2. Click **Sync** (or use today's cached data)
+3. Go to **Action Planner** → click **Generate**
+4. Navigate to **Tab 9 → QBR Pack** → click **Generate QBR Pack**
 
-    loop 8+ GraphQL Queries
-        Server->>GQL: Query systems, clusters, risks, cases,<br/>watchlists, recommendations,<br/>sustainability, sites, contracts,<br/>OS version catalog
-        GQL-->>Server: Raw JSON response
-    end
-
-    Note over Server: Normalize API response:<br/>• Flatten nested objects<br/>• Extract switches from port connectivity<br/>• Map HA partners<br/>• Attach cases to systems by serial<br/>• Merge risk instances to risk definitions
-
-    Server->>DB: Cache full normalized result + timestamp
-    Server-->>Browser: Return normalized JSON (/api/harvest)
-
-    Note over Browser: enrichSystemTelemetry() runs on each system:<br/>• Generate risks from Reference Library<br/>• Calculate upgrade paths (direct/multi-hop)<br/>• Normalize contracts and lifecycle dates<br/>• Build SnapMirror relationship data<br/>• Normalize support cases<br/>• Inject Reference Library checks:<br/>  – EOA platform flagging<br/>  – CVE version-range matching<br/>  – Kerberos AES detection<br/>  – Firewall policy deprecation<br/>  – SnapMirror policy alignment<br/>  – Varonis FPolicy EOL warning
-
-    Browser->>LS: Store enriched systems for instant reload
-    Browser->>User: Render dashboard across sidebar tabs<br/>and 15-tab Action Planner
-```
-
-### Step-by-Step Walkthrough
-
-| Step | Location | What Happens |
-|---|---|---|
-| **1. Authentication** | Settings tab | User pastes their Active IQ Refresh Token. This is a long-lived token generated from the Active IQ portal |
-| **2. Token Exchange** | `server.py` | The server exchanges the refresh token for a short-lived access token (JWT) via NetApp's OAuth endpoint over TLS 1.2+ |
-| **3. GraphQL Harvesting** | `server.py` | 8+ GraphQL queries are sent to `gql.aiq.netapp.com/graphql` to harvest: systems, clusters, risks, support cases, watchlists, TAM recommendations, sustainability scores, sites, contracts, and the OS version catalog |
-| **4. Server Normalization** | `server.py` | Raw API responses are flattened (nested objects extracted), switches are parsed from port connectivity data, HA partners are mapped, support cases are attached to systems by serial number, and risk instances are merged to their parent risk definitions |
-| **5. SQLite Caching** | `aiq_cache.db` | The full normalized result is persisted to SQLite in WAL mode with a timestamp, duration, and summary counts (systems, clusters, risks, cases). Subsequent page loads serve cached data instantly while a background thread re-syncs |
-| **6. Frontend Fetch** | `app.js` | The frontend fetches `/api/harvest` and receives the normalized JSON payload containing all fleet data |
-| **7. Enrichment** | `app.js` → `enrichSystemTelemetry()` | Each system is individually enriched: risks are generated, upgrade paths calculated, contracts and lifecycle dates normalized, SnapMirror data built, support cases normalized, and Reference Library checks injected (EOA flagging, CVE matching, Kerberos detection, firewall deprecation, SnapMirror alignment, Varonis EOL) |
-| **8. Client Caching** | `localStorage` | Enriched systems are stored in the browser's localStorage for instant reload on subsequent visits without a network round-trip |
-| **9. Rendering** | Dashboard UI | The enriched data is rendered across the sidebar tabs, charts, sortable system inventory, and the 15-tab Action Planner |
+**Output:** A QBR Pack containing KPI scorecard, risk trend, resolved cases, open action items, and upgrade roadmap — ready for the customer presentation.
 
 ---
 
-## Dashboard Tabs
+### Security Posture Assessment
 
-The sidebar provides six primary navigation tabs.
+**Goal:** When a new CVE or ONTAP advisory is published, immediately know which systems across all customers are affected — not just the ones you happen to check.
 
-### Overview Dashboard
+**Workflow:**
+1. Go to **Technical Audit** in the sidebar
+2. The **Security Advisories** section lists all tracked CVEs with per-system applicability
+3. Each entry shows: CVE ID, CVSS score, affected version range, fixed version, and the specific CLI command to remediate
+4. Use **Action Planner → Tab 3** to produce a customer-scoped security advisory section
 
-Fleet-wide KPI cards (total systems, clusters, risks, cases), interactive Chart.js visualizations (capacity trends, risk distribution, platform mix), and a sortable/filterable system inventory table with per-system status indicators.
-
-### Technical Audit
-
-Risk register organized by severity (Critical → High → Medium → Low). Includes security advisories with CVE references, NTAP-SA bulletin IDs, CVSS scores, affected version ranges, and specific remediation steps. Links to the NetApp Security Advisory portal.
-
-### Support & Ops
-
-Contract tracking with active/expiring/expired status cards, End-of-Support (EOS) and End-of-Availability (EOA) date timelines, and a filterable view of open, processing, and closed support cases attached to specific systems.
-
-### Value & ROI (CSM)
-
-Storage efficiency metrics (deduplication, compression, compaction), FabricPool tiering ratios, SnapMirror relationship counts (async/sync), capacity projections with chronological trend charts, and data reduction ratios scoped per-customer.
-
-### Action Planner
-
-The 15-section executive report generator — the core deliverable engine. See [Action Planner details](#action-planner-tabs-115) below.
-
-### Settings & Config
-
-API token management, sync interval configuration, custom account groups (group systems by business unit, region, or any criteria), watchlist management, and full import/export of dashboard state.
+**Output:** A complete, system-level security exposure list across your entire portfolio, with remediation steps ready to go into a CLI Runbook.
 
 ---
 
-## Action Planner (Tabs 1–15)
+### Capacity Planning & Runway Review
 
-The Action Planner generates a structured operational report with 15 specialized sections. Each tab can be independently generated, filtered per-customer, and exported.
+**Goal:** Know which systems are approaching capacity limits — per node, with actual growth rates, not just a percentage bar.
 
-| Tab | Name | Content |
-|---|---|---|
-| **1** | Executive Summary | KPI summary cards, fleet overview text, key findings |
-| **2** | Technical Risks | Prioritized risk register with severity, description, affected systems, and remediation plans. Fix-grouped to consolidate duplicate advisories |
-| **3** | Security Advisories | CVE-referenced security bulletins with CVSS scores, affected version ranges, fix versions, and specific CLI remediation steps |
-| **4** | Support Cases | Active, processing, and closed support cases with priority sorting, case age tracking, and system-level attachment |
-| **5** | OS Upgrades | Direct and multi-hop upgrade paths with version-specific notes, pre-upgrade checks, and post-upgrade recommendations. Supports ONTAP, StorageGRID, and SANtricity upgrade chains |
-| **6** | Switch Validation | Cluster and MetroCluster switch inventory with model identification, firmware version status, and ISL requirement validation against Reference Library baselines |
-| **7** | Logistics & Health | Site logistics (data center locations, city/country), account contacts, and customer satisfaction (CSAT) scores |
-| **8** | Guidelines | Change control procedures aligned to ITIL safety tiers: Non-Disruptive, Disruptive but Data-Safe, and Destructive or Irreversible |
-| **9** | Deliverables | 6 downloadable report generators (see below) |
-| **10** | Contracts & Lifecycle | Contract status summary (active/expiring/expired), lifecycle event table (EOA/EOS milestones sorted by urgency), and contract renewal pipeline with tech refresh status and service tier breakdown |
-| **11** | Sustainability & ESG | Fleet-wide Active IQ Sustainability Score (0–100%) with week-over-week trend, historical weekly snapshots, improvement factors, per-system carbon/energy data, and per-customer data reduction ratio |
-| **12** | Recommendations | Active IQ key recommendations grouped by category: VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, and SUPPORT_AND_ENTITLEMENTS — with rank scores and sub-categories |
-| **13** | Account Intelligence | Account personnel table (Sales Rep, CSM, SAM, ASP, Propensity per system), site inventory filtered per-customer, and summary cards |
-| **14** | Contract Compliance | Compliance posture cards (active/expired contracts, warranty status), service tier distribution breakdown, and per-system renewal pipeline with HW/SW service levels and EOA/EOS dates |
-| **15** | Operational Health | AutoSupport (ASUP) health (7-day recency check), Anti-Ransomware Protection (ARP) enablement audit, firmware currency analysis, and last reboot timeline sorted by days since reboot |
+**Workflow:**
+1. Go to **Value & ROI (CSM)** in the sidebar
+2. The capacity chart defaults to **Aggregate** (fleet-wide). Click **Per Node** to see individual node trend lines
+3. The **Capacity Breakdown by Node** table shows: Used TB, Raw TB, Utilisation %, Growth/day, and Runway per node
+4. Nodes approaching limits are colour-coded amber (>70%) and red (>85%)
 
-### Downloadable Deliverables (Tab 9)
-
-| Deliverable | Description |
-|---|---|
-| **Customer Success Plan** | Executive-facing document summarizing fleet health, key risks, and strategic recommendations |
-| **QBR Pack** | Quarterly Business Review package with KPIs, risk trends, and action items — ready for customer presentation |
-| **MSP Service Report** | Monthly managed service report template with SLA metrics, case resolution summary, and risk posture |
-| **Account Handover Brief** | Structured briefing document for TAM-to-TAM account transitions, covering all fleet context and open items |
-| **Extended Deliverables** | Comprehensive technical deep-dive with full risk register, advisory inventory, and upgrade roadmap |
-| **CLI Runbook** | Copy-paste-ready ONTAP CLI commands organized by remediation action, with ITIL safety tier classifications |
+**Output:** A per-node capacity breakdown with runway estimates, sourced from actual monthly telemetry data — matching the chart data exactly.
 
 ---
 
-## Reference Library Enrichment
+### Contract & Renewal Pipeline
 
-**New in v3.1.0** — The Reference Library is a curated knowledge base embedded in `app.js` that enriches every system during the `enrichSystemTelemetry()` pass. It is synchronized from the NetApp Reference Library folder and provides intelligence that goes beyond what the Active IQ API alone delivers.
+**Goal:** Surface all expiring contracts and EOA hardware across the portfolio to build a proactive renewal and tech refresh pipeline.
 
-### EOA Platform Flagging
+**Workflow:**
+1. Go to **Action Planner → Tab 10** (Contracts & Lifecycle) for the full expiry view
+2. Cross-reference with **Tab 14** (Contract Compliance) for hardware warranty and service tier status
+3. Filter by customer or by urgency (expiring within 30/60/90 days)
+4. Generate an **Account Handover Brief** or **Extended Deliverables** from Tab 9 for formal documentation
 
-Detects systems running End-of-Availability hardware and flags them for tech refresh planning.
-
-| Family | EOA Models |
-|---|---|
-| **AFF** | A200, A220, A300, A320, A700, A700s, C190, C800 |
-| **ASA** | ASA C250, ASA C400, ASA C800 |
-| **FAS** | FAS2600, FAS500f, FAS8200, FAS9000 |
-
-### CVE/Advisory Database
-
-7+ tracked CVEs with version-range matching, CVSS scores, and specific remediation commands.
-
-| CVE ID | Product | Severity | CVSS | Summary |
-|---|---|---|---|---|
-| CVE-2026-22050 | ONTAP | High | 7.5 | Snapshot Lock Bypass — locked snapshots can be deleted. Fix: 9.16.1P9 / 9.17.1P2+ |
-| CVE-2026-22052 | ONTAP | Medium | 5.3 | S3 NAS Bucket information disclosure to limited-access users |
-| CVE-2026-20833 | ONTAP CIFS/SMB | Medium | 5.9 | Microsoft Kerberos AES enforcement (KB5073381) — may break CIFS auth |
-| CVE-2026-22054 | Config Advisor | Medium | 5.3 | Hard-coded credentials in Config Advisor 6.7.3 |
-| CVE-2025-26512 | SnapCenter | Critical | 9.9 | Privilege escalation — low-privilege user gains admin access. Fix: 6.0.1P1 / 6.1P1+ |
-| CVE-2026-22051 | StorageGRID | Medium | 4.3 | Authenticated metrics query information disclosure. Fix: 11.9.0.13 / 12.0.0.6+ |
-| CVE-2026-24051 | Trident | High | 7.0 | OpenTelemetry PATH hijacking → local privilege escalation. Fix: v26.02.0+ |
-
-### ONTAP Version Highlights
-
-Per-version feature summaries used to justify upgrade recommendations to customers.
-
-| Version | Key Highlights |
-|---|---|
-| **9.19.1** | Current GA. SnapMirror active sync transparent failover for AIX; tamperproof snapshot locking for SM Sync; direct-attach FC; active-active multipathing on AFF |
-| **9.18.1** | SnapMirror cloud for MC FlexGroup; new controller replace combos in MC-IP; 100Gbps ISL minimum |
-| **9.17.1** | MC-IP E2E encryption extended to next-gen platforms; AFX platform requires 9.17.1+ |
-| **9.16.1** | IPsec HW offload; ARP/AI (99% precision, no learning on FlexVol); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA |
-| **9.14.1** | CLI consistency groups; NVMe/TCP auto-discovery; TSSE physical-used semantics change; OAuth 2.0 ADFS |
-| **9.12.1** | SM Sync 300TB FlexVol; System Manager NetApp Console integration; tamper-proof logging default |
-| **9.10.1** | ARP introduced; firewall policies deprecated → LIF service policies (**breaking**); SnapLock coexistence |
-
-### MetroCluster ISL Requirements
-
-Distance limits, packet loss/jitter thresholds, and MTU requirements from the Reference Library.
-
-| Parameter | FC (Brocade) | FC (Other) | IP |
-|---|---|---|---|
-| **Max Distance** | 300 km | 200 km | 700 km |
-| **Max Packet Loss** | 0.01% | 0.01% | 0.01% |
-| **Max Jitter** | 3 ms | 3 ms | 3 ms |
-| **Fabric Asymmetry** | 0.2 ms | 0.2 ms | 0.2 ms |
-| **Required MTU** | — | — | 9216 bytes |
-
-### Firmware Baselines
-
-Recommended minimum firmware versions for shelf modules and switches.
-
-| Component | Recommended Minimum | Label |
-|---|---|---|
-| NSM100 | 0220 | NSM100 Shelf Module |
-| IOM12 | 0260 | IOM12 SAS Module |
-| IOM3 | 0200 | IOM3 SAS Module |
-| Cisco NX-OS | 9.3(12) | Cisco Nexus Switch |
-| Cisco MDS | 9.2(2) | Cisco MDS Switch |
-| Brocade FOS | 9.2.1 | Brocade FC Switch |
-| Broadcom EFOS | 3.8.0.2 | Broadcom Ethernet Switch |
-
-### Additional Enrichment Checks
-
-| Check | Description |
-|---|---|
-| **Kerberos AES Enforcement Detection** | Flags all CIFS/SMB-serving systems for Microsoft KB5073381 (Apr–Jul 2026 enforcement). Validates that AES encryption is enabled for Kerberos and RC4/DES is disabled |
-| **SnapMirror Synchronous Policy Alignment** | Detects `strict-sync-mirror` vs `sync-mirror` policy mismatches and flags systems that may experience different RPO behavior during failover |
-| **Varonis FPolicy EOL Warning** | Alerts on Varonis FPolicy connector end-of-life deadline (December 31, 2026) for systems with Varonis integration |
-| **Legacy Firewall Policy Detection** | Identifies systems on ONTAP 9.10.1+ still using deprecated `firewall-policy` configurations instead of LIF service policies |
-| **SnapCenter Version Chain** | Tracks SnapCenter versions from 4.5 through 6.2.1 for upgrade path calculation |
+**Output:** A ranked contract renewal pipeline with EOA/EOS milestones, tech refresh status, and service tier breakdown.
 
 ---
 
-## Use Cases
+### OS Upgrade Planning
 
-### 1. Quarterly Business Review Preparation
+**Goal:** For every system running a non-current ONTAP release, determine the exact upgrade path — including any required intermediate versions.
 
-Generate a complete QBR pack for any customer in under 30 seconds. Select the customer from the filter dropdown, navigate to Action Planner → Tab 9 (Deliverables), and click **Generate QBR Pack**. The output includes KPI summaries, risk trends, resolved cases, and recommended actions — formatted for executive presentation.
+**Workflow:**
+1. Go to **Action Planner → Tab 5** (OS Upgrades)
+2. Each system shows its current version and the recommended target
+3. Multi-hop paths display all intermediate versions with version-specific notes and pre/post checks
+4. Use the **CLI Runbook** deliverable (Tab 9) to extract upgrade commands for change management submission
 
-### 2. Security Posture Assessment
-
-Use the Technical Audit tab to instantly identify all CVE-affected systems across your entire fleet. The Reference Library cross-references each system's ONTAP version against 7+ tracked CVEs with version-range matching, showing exactly which advisories apply, their CVSS scores, and the specific upgrade or CLI command required to remediate.
-
-### 3. Upgrade Planning
-
-Tab 5 (OS Upgrades) calculates hop-by-hop upgrade paths for every system. For systems on older ONTAP releases (e.g., 9.8), it maps the required intermediate versions, pre-upgrade checks, and version-specific considerations. Supports ONTAP, StorageGRID, and SANtricity upgrade chains with direct links to NetApp upgrade documentation.
-
-### 4. Contract Renewal Pipeline
-
-Tab 10 (Contracts & Lifecycle) and Tab 14 (Contract Compliance) surface all expiring contracts across the portfolio. Filter by "expiring within 90 days" to build a renewal pipeline, complete with service tier breakdowns, hardware EOA/EOS milestones, and tech refresh status — ready to hand off to sales.
-
-### 5. New Account Onboarding
-
-When assigned a new account, run a single sync to instantly populate the dashboard with the complete fleet inventory — every system, cluster, risk, contract, and support case. Tab 13 (Account Intelligence) provides the personnel map (Sales Rep, CSM, SAM, ASP) and site inventory. Generate an Account Handover Brief from Tab 9 for documentation.
-
-### 6. MetroCluster Health Review
-
-Tab 6 (Switch Validation) inventories all cluster and MetroCluster switches with firmware versions. The Reference Library injects ISL requirement checks (distance, packet loss, jitter, MTU) and validates switch firmware against recommended baselines. Tab 2 (Technical Risks) surfaces any MetroCluster-specific risks from Active IQ.
-
-### 7. MSP Monthly Service Reporting
-
-Managed Service Providers generate monthly customer reports from Tab 9 (Deliverables → MSP Service Report). The report includes SLA performance, case resolution metrics, risk posture trends, and proactive maintenance actions taken. Deliverables are generated entirely client-side — no customer data leaves the local machine.
-
-### 8. EOA/EOS Tech Refresh Planning
-
-The Reference Library automatically flags all End-of-Availability hardware in the fleet (AFF A200/A220/A300/A320/A700/A700s/C190/C800, ASA C250/C400/C800, FAS2600/FAS500f/FAS8200/FAS9000). Combined with Tab 10's lifecycle milestones and Tab 14's warranty status, TAMs can build a prioritized tech refresh plan with clear timelines.
+**Output:** A system-by-system upgrade roadmap with hop sequences, version notes, and ITIL-classified CLI steps.
 
 ---
 
-## Getting Started
+### MSP Monthly Service Reporting
+
+**Goal:** Generate per-customer monthly service reports across a large managed portfolio without manual data compilation.
+
+**Workflow:**
+1. Select the customer from the sidebar filter
+2. Go to **Action Planner → Tab 9 → MSP Service Report**
+3. Click **Generate MSP Service Report**
+
+**Output:** A monthly service report with SLA metrics, case resolution summary, proactive actions taken, and risk posture change — one per customer, all client-side.
+
+---
+
+### New Account Onboarding / Handover
+
+**Goal:** When assigned a new account, rapidly understand the full fleet context. When handing off, produce a structured briefing.
+
+**Workflow:**
+1. Sync the portfolio (all accounts come in together — no per-account setup)
+2. Select the customer in the sidebar filter
+3. Review **Tab 13** (Account Intelligence) for the personnel map and site inventory
+4. Generate an **Account Handover Brief** from **Tab 9**
+
+**Output:** A structured handover document covering fleet health, open risks, contract status, key contacts, and pending actions.
+
+---
+
+### EOA / Tech Refresh Planning
+
+**Goal:** Identify all End-of-Availability hardware across the portfolio before EOS dates create support gaps.
+
+**Workflow:**
+1. The Reference Library automatically flags EOA hardware across all systems during enrichment
+2. Go to **Technical Audit** — EOA systems appear as Medium/High enrichment risks
+3. Cross-reference with **Tab 10** for lifecycle milestones and EOS dates
+4. Use **Tab 14** for warranty status and remaining support coverage
+
+**Flagged EOA Platforms:**
+- **AFF:** A200, A220, A300, A320, A700, A700s, C190, C800
+- **ASA:** C250, C400, C800
+- **FAS:** 2600, 500f, 8200, 9000
+
+---
+
+### MetroCluster Health Review
+
+**Goal:** Validate MetroCluster switch configurations, firmware, and ISL parameters against NetApp requirements.
+
+**Workflow:**
+1. Go to **Action Planner → Tab 6** (Switch Validation)
+2. All cluster and MetroCluster switches are inventoried with model and firmware version
+3. ISL parameters (distance, packet loss, jitter, MTU) are validated against Reference Library baselines
+4. Firmware currency is checked against recommended minimums for Cisco NX-OS, Cisco MDS, Brocade FOS, and Broadcom EFOS
+
+---
+
+## 4. Getting Started
 
 ### Prerequisites
 
-| Requirement | Minimum Version | How to Check |
+| Requirement | Minimum | Notes |
 |---|---|---|
-| **Python** | 3.8+ | `python --version` |
-| **pip** | Any | `pip --version` |
-| **Active IQ API Token** | — | [Generate from Active IQ portal](#step-2-get-your-api-token) |
+| **Python** | 3.8+ | Check with `python --version` |
+| **Active IQ Refresh Token** | — | Generated from the Active IQ portal |
+| **Network access** | — | To `gql.aiq.netapp.com` and `api.activeiq.netapp.com` for initial sync |
 
-> [!NOTE]
-> The server uses only Python standard library modules (`http.server`, `urllib`, `json`, `sqlite3`, `threading`). No additional pip packages are required for the web dashboard. The `requirements_desktop.txt` file is only needed if building the standalone desktop app (requires `pywebview` and `pyinstaller`).
+> **No pip packages required** for the web dashboard. The server uses only Python standard library modules. `requirements_desktop.txt` is only needed for the optional standalone desktop app.
 
-### Step 1: Clone or Download
+### Step 1 — Clone the Repository
 
 ```bash
 git clone https://github.com/ebeauzec/AIQscraper.git
 cd AIQscraper
 ```
 
-### Step 2: Get Your API Token
+### Step 2 — Get Your API Refresh Token
 
 1. Log in to [activeiq.netapp.com](https://activeiq.netapp.com/)
 2. Click **Quick Links** → **API Services**
-3. Click **Generate Token** to create your **Refresh Token**
-4. Copy the refresh token — you will paste it into the dashboard's Settings tab
+3. Click **Generate Token**
+4. Copy the **Refresh Token**
 
-> [!IMPORTANT]
-> The Refresh Token is a long-lived credential scoped to your Active IQ account. It is stored locally in `aiq_config.json` and never transmitted anywhere except the official NetApp OAuth endpoint.
+> The Refresh Token is stored locally in `aiq_config.json` and is only ever sent to the official NetApp OAuth endpoint. It is never transmitted to any third-party service.
 
-### Step 3: Start the Dashboard
+### Step 3 — Start the Dashboard
 
-| Method | Command | Best For |
+| Method | How | Notes |
 |---|---|---|
-| **Batch File** ⭐ | Double-click `start_dashboard.bat` | **Recommended.** Auto-kills old server processes, starts the server, and opens your browser |
-| **PowerShell** | `.\Start-Dashboard.ps1` | Same as batch but with colored status output and Python version check |
-| **Direct Python** | `python server.py` then navigate to `http://localhost:8080` | Development — verbose console output for debugging |
+| **Windows Batch** ⭐ | Double-click `start_dashboard.bat` | **Recommended.** Auto-kills old processes, starts server, opens browser |
+| **PowerShell** | `.\Start-Dashboard.ps1` | Coloured output with Python version check |
+| **Direct Python** | `python server.py` → `http://localhost:8080` | Dev mode — verbose console output |
 | **Desktop App** | `python launcher.py` | Standalone window (requires `pip install pywebview`) |
 
-### Step 4: First Sync
+### Step 4 — First Sync
 
-1. Open the dashboard in your browser (`http://localhost:8080`)
-2. Navigate to **Settings & Config** (last sidebar tab)
-3. Paste your Active IQ **Refresh Token** into the token field
-4. Click **Sync** to trigger the initial harvest
+1. Open `http://localhost:8080` in your browser
+2. Go to **Settings & Config** (last sidebar tab)
+3. Paste your **Refresh Token**
+4. Click **Sync Now**
 
-The first sync sends 8+ GraphQL queries to the Active IQ API and may take 30–90 seconds depending on portfolio size. Subsequent page loads serve cached data instantly from SQLite while a background thread re-syncs.
+First sync takes **30–90 seconds** (8+ GraphQL API calls). All subsequent page loads serve cached data instantly from SQLite while a background thread re-syncs.
 
-### Step 5: Using Groups and Watchlists
+### Step 5 — Filter to a Customer
 
-- **Custom Groups**: In Settings, create groups to organize systems by business unit, region, or any criteria. Groups persist across sessions
-- **Watchlists**: Import Active IQ watchlist IDs to scope the harvest to specific system sets
-- **Customer Filter**: Use the sidebar customer dropdown to filter all views and Action Planner tabs to a single customer
-
-### How to Stop
-
-Press **Ctrl+C** in the terminal window, or close the terminal. The batch file and PowerShell launcher automatically kill any existing server processes on port 8080 before starting.
+Use the **Customer Filter** dropdown in the sidebar to scope all views and deliverables to a single customer. All tabs, charts, tables, and generated reports respect the active filter.
 
 ---
 
-## File Structure
+## 5. Dashboard Guide
 
-| File | Size | Purpose |
+The sidebar provides six primary navigation areas:
+
+### Overview
+
+Fleet-wide KPI cards (systems, clusters, critical risks, open cases), interactive charts (capacity trend, risk distribution, platform mix), and a sortable/filterable system inventory table.
+
+### Technical Audit
+
+The risk and security intelligence hub. Displays all Active IQ risks sorted by severity, security advisories with CVE cross-referencing, and Reference Library enrichment checks (Kerberos, SnapMirror, Varonis, firewall deprecation). Each advisory links to the NetApp Security Advisory portal.
+
+### Support & Ops
+
+Contract status pipeline (Active / Expiring / Expired cards), EOS/EOA lifecycle timeline sorted by urgency, and a filterable support case view (Open / Processing / Closed) with case age and system attachment.
+
+### Value & ROI (CSM)
+
+Storage efficiency and capacity intelligence:
+
+- **Data Reduction Ratio** — dedupe + compression only. Snapshot-inclusive ratio shown as a secondary annotation for reference
+- **Space Saved** — TB saved through deduplication and compaction (not including snapshot space)
+- **FabricPool** — tiering ratio and adoption status
+- **SnapMirror** — async/sync relationship counts
+- **Capacity Projection Chart** — toggle between **Aggregate** (fleet-wide) and **Per Node** (individual node trend lines)
+- **Capacity Breakdown by Node** — Used TB, Raw TB, Utilisation %, Growth/day, Runway, Data Source per node
+
+> **Per Node toggle:** Click **Per Node** in the top-right of the chart to see each cluster node as a separate trend line. The breakdown table below updates to show per-node utilisation and runway. Raw TB shows "N/A" where the API reports capacity at cluster-aggregate level only — used TB and utilisation fall back to the actual monthly telemetry data (the same source the chart uses).
+
+### Action Planner
+
+The core reporting engine. Click **Generate** to build all 15 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-15-sections) for full detail on each section.
+
+### Settings & Config
+
+API token management, sync interval, custom account groups, watchlist IDs, and state export/import.
+
+---
+
+## 6. Action Planner — All 15 Sections
+
+Click **Action Planner** in the sidebar, then **Generate**. All 15 sections are built and the numbered tab row appears above the content area.
+
+| # | Section | What's Inside |
 |---|---|---|
-| `server.py` | ~55 KB | Python backend — OAuth exchange, GraphQL harvesting, SQLite caching, static file serving, `/api/*` proxy |
-| `app.js` | ~668 KB | All frontend JavaScript (~13,200 lines) — enrichment engine, risk engine, upgrade calculator, Action Planner, deliverable generators, chart rendering, Reference Library |
-| `index_src.html` | ~70 KB | Development HTML shell — loads external `app.js` + `styles.css` |
-| `index.html` | ~676 KB | Compiled single-file HTML — all JS/CSS inlined for offline distribution |
-| `styles.css` | ~22 KB | Dark-theme CSS with glassmorphism effects |
-| `chart.js` | ~209 KB | Chart.js library (local copy) |
+| **1** | **Executive Summary** | Fleet health KPIs, key findings, critical items needing immediate action |
+| **2** | **Technical Risks** | All Active IQ risks — severity sorted, fix-grouped to eliminate duplicates, with affected systems and remediation |
+| **3** | **Security Advisories** | CVE-referenced bulletins with CVSS, affected version ranges, fix versions, and specific CLI remediation commands |
+| **4** | **Support Cases** | Active, in-progress, and recently closed cases — priority sorted, with case age and system link |
+| **5** | **OS Upgrades** | Hop-by-hop upgrade paths. Direct where possible; multi-hop with intermediate versions and per-version notes. Covers ONTAP, StorageGRID, SANtricity |
+| **6** | **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
+| **7** | **Logistics & Health** | Site locations (city/country/state), account contacts, CSAT scores |
+| **8** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
+| **9** | **Deliverables** | Six one-click downloadable report generators |
+| **10** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
+| **11** | **Sustainability & ESG** | Fleet Sustainability Score with weekly trend, carbon/energy per system, data reduction ratios per customer |
+| **12** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores |
+| **13** | **Account Intelligence** | Personnel map (Sales Rep, CSM, SAM, ASP, Propensity per system), site inventory |
+| **14** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
+| **15** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
+
+---
+
+## 7. Downloadable Deliverables
+
+All deliverables are generated in the browser from your local data. Nothing is uploaded or transmitted. Find them in **Action Planner → Tab 9**.
+
+> **Customer-scoped:** Set the Customer Filter in the sidebar before generating to produce a deliverable for a single account only.
+
+| Deliverable | Best For | Contents |
+|---|---|---|
+| **Customer Success Plan** | Executive QBR presentation | Fleet health summary, key risks, strategic recommendations, contract renewal pipeline |
+| **QBR Pack** | Quarterly Business Reviews | KPI scorecard, risk trend, resolved cases, open action items, upgrade roadmap |
+| **MSP Service Report** | Monthly managed service reporting | SLA metrics, case resolution summary, proactive actions, risk posture change |
+| **Account Handover Brief** | TAM-to-TAM transitions | Fleet context, open risks, contract status, key contacts, pending actions |
+| **Extended Deliverables** | Deep technical briefings | Full risk register, advisory inventory, upgrade roadmap, switch validation |
+| **CLI Runbook** | Implementation engineers / CAB submissions | Copy-paste ONTAP CLI commands, grouped by remediation and classified by ITIL tier |
+
+---
+
+## 8. Security & Data Privacy
+
+| Guarantee | Detail |
+|---|---|
+| **100% Local** | All data stays in browser `localStorage` and local SQLite (`aiq_cache.db`). Nothing goes to any cloud service |
+| **Zero AI/ML** | No generative AI, no ML models, no LLM services — anywhere in the stack. All outputs are fully deterministic |
+| **No Telemetry** | The tool does not phone home, collect analytics, or transmit metadata of any kind |
+| **Official NetApp APIs Only** | Network traffic is exclusively to `gql.aiq.netapp.com` and `api.activeiq.netapp.com` over TLS 1.2+ |
+| **Read-Only** | Only reads telemetry via the Active IQ API. Never executes commands against production systems |
+| **Human-Reviewed Remediation** | All CLI outputs go into change tickets for human review and CAB approval — nothing is auto-executed |
+| **Offline After Sync** | Once synced, the dashboard operates fully offline from the local cache |
+| **Minimal Footprint** | No install, no persistent services, no registry modifications, no external shares |
+
+---
+
+## 9. Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| **Port 8080 in use** | Old server process running | Use `start_dashboard.bat` — auto-kills old processes. Or: `netstat -ano \| findstr :8080` → `taskkill /F /PID <pid>` |
+| **Dashboard outdated / tabs missing** | Browser cached old `index.html` | Hard refresh: **Ctrl+Shift+R** |
+| **Server won't start** | Python not in PATH | Check: `python --version` (must be 3.8+) |
+| **No data after sync** | Invalid or expired token | Regenerate at Active IQ → Quick Links → API Services |
+| **CORS errors in console** | HTML opened as file:// not via server | Always use `http://localhost:8080` |
+| **Action Planner tabs 10–15 missing** | Report not generated yet | Click **Action Planner** → click **Generate** |
+| **Sync takes 60–90 seconds** | Large portfolio, first sync | Normal. Subsequent loads use the SQLite cache. Add `?force=1` to URL to force re-harvest |
+| **Charts not rendering** | `chart.js` missing | Verify file exists in project folder. Hard refresh (Ctrl+Shift+R) |
+| **Node capacity shows 0.0** | API reports cluster-aggregate, not per-node | Dashboard falls back to monthly telemetry. Ensure a full sync completed |
+| **Desktop app won't launch** | Missing `pywebview` | `pip install -r requirements_desktop.txt` |
+
+---
+
+## 10. Internal Architecture
+
+> This section is an addendum for developers who want to understand, extend, or contribute to the codebase. It is not required reading for daily use.
+
+### High-Level Stack
+
+```
+Browser (app.js + styles.css + chart.js)
+  │  fetch /api/harvest
+  ▼
+server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
+  │
+  ├── NetApp OAuth (api.activeiq.netapp.com) — token exchange
+  └── Active IQ GraphQL (gql.aiq.netapp.com) — 8+ queries
+```
+
+### Component Reference
+
+| File | Size | Role |
+|---|---|---|
+| `server.py` | ~75 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints |
+| `app.js` | ~700 KB | ~13,200 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, Reference Library |
+| `index_src.html` | ~74 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
+| `index.html` | ~680 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
+| `styles.css` | ~22 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
+| `chart.js` | ~209 KB | Local copy of Chart.js library |
 | `aiq_cache.db` | Variable | SQLite persistent cache (WAL mode) |
-| `aiq_config.json` | ~2 KB | Server configuration (token, sync settings) |
-| `start_dashboard.bat` | ~1 KB | Windows batch launcher — kills old processes, starts server, opens browser |
-| `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher — colored output, Python check, same lifecycle |
-| `launcher.py` | ~8 KB | Desktop app launcher (`pywebview` wrapper for standalone window) |
-| `requirements_desktop.txt` | ~1 KB | pip dependencies for desktop app build only (`pywebview`, `pyinstaller`) |
-| `build_windows.bat` | ~3 KB | PyInstaller build script for Windows executable |
-| `build_mac.sh` | ~2 KB | PyInstaller build script for macOS executable |
-| `CHANGELOG.md` | — | Version release history |
-| `LICENSE` | — | MIT License |
+| `aiq_config.json` | ~2 KB | Server config — token, sync settings |
+| `start_dashboard.bat` | ~1 KB | Windows batch launcher |
+| `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher with Python version check |
+| `launcher.py` | ~8 KB | Desktop app wrapper (pywebview) |
 
-> [!TIP]
-> **Development workflow**: The server serves `index_src.html` which loads the external `app.js`. Changes to `app.js` take effect immediately on browser refresh (Ctrl+Shift+R). The compiled `index.html` is for distribution only and must be rebuilt after code changes.
+### Data Flow
 
----
+```
+1. User pastes Refresh Token → Settings → Sync Now
+2. server.py: exchange Refresh Token → Access Token (NetApp OAuth, TLS 1.2+)
+3. server.py: 8+ GraphQL queries to gql.aiq.netapp.com
+      Systems · Clusters · Risks · Cases · Watchlists
+      Recommendations · Sustainability · Sites · Contracts · OS Catalog
+4. server.py: normalize response
+      – Flatten nested objects
+      – Map HA partners
+      – Attach cases to systems by serial number
+      – Merge risk instances to parent risk definitions
+      – Extract switches from port connectivity data
+5. server.py: cache full result to SQLite (aiq_cache.db)
+6. server.py: return normalized JSON to browser
+7. app.js: enrichSystemTelemetry() runs on each system
+      – Reference Library: EOA flags, CVE version-range matching,
+        Kerberos AES detection, SnapMirror policy alignment,
+        Varonis EOL, legacy firewall detection
+      – Upgrade path calculation (direct + multi-hop)
+      – Contract and lifecycle date normalization
+      – SnapMirror relationship data
+      – Efficiency metrics: dataReductionRatio (dedupe+compression only)
+        Space saved: deDuplicationSavedKiB + compactionSavedKiB
+8. app.js: store enriched systems in localStorage
+9. app.js: render across sidebar tabs, charts, Action Planner
+```
 
-## Data Security & Compliance
+### Efficiency Calculation
 
-### 100% AI-Free Processing
+The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataReductionRatio` — **dedupe + compression only, no snapshot savings.** The snapshot-inclusive `efficiencyRatio` is preserved and displayed as a secondary annotation. Space saved is `deDuplicationSavedKiB + compactionSavedKiB` only.
 
-| Guarantee | Detail |
+### Reference Library — EOA Platforms
+
+| Family | EOA Models |
 |---|---|
-| **Zero AI/ML Dependencies** | No generative AI, no machine learning models, no LLM services — anywhere in the stack |
-| **Deterministic Logic** | All risk calculations, upgrade paths, and enrichment use standard JavaScript algorithms with reproducible outputs |
-| **No Telemetry** | The tool does not phone home, collect usage analytics, or transmit any metadata |
+| AFF | A200, A220, A300, A320, A700, A700s, C190, C800 |
+| ASA | C250, C400, C800 |
+| FAS | 2600, 500f, 8200, 9000 |
 
-### Complete Data Sovereignty
+### Reference Library — CVE Database
 
-| Guarantee | Detail |
+| CVE | Product | Sev | CVSS | Summary |
+|---|---|---|---|---|
+| CVE-2026-22050 | ONTAP | High | 7.5 | Snapshot Lock Bypass |
+| CVE-2026-22052 | ONTAP | Med | 5.3 | S3 NAS Bucket info disclosure |
+| CVE-2026-20833 | ONTAP CIFS | Med | 5.9 | Kerberos AES enforcement (KB5073381) |
+| CVE-2026-22054 | Config Advisor | Med | 5.3 | Hard-coded credentials 6.7.3 |
+| CVE-2025-26512 | SnapCenter | Crit | 9.9 | Privilege escalation |
+| CVE-2026-22051 | StorageGRID | Med | 4.3 | Metrics query info disclosure |
+| CVE-2026-24051 | Trident | High | 7.0 | OpenTelemetry PATH hijack |
+
+### Reference Library — Firmware Baselines
+
+| Component | Recommended Min |
 |---|---|
-| **Local-Only Storage** | All data resides in browser `localStorage` and the local SQLite database (`aiq_cache.db`). No cloud storage, no external databases |
-| **Zero External Transmission** | Network traffic is limited exclusively to official NetApp TLS 1.2+ endpoints (`gql.aiq.netapp.com`, `api.activeiq.netapp.com`). No third-party APIs, CDNs, or analytics services |
-| **Offline Capable** | After the initial sync, the dashboard operates fully offline from cached data |
+| NSM100 Shelf | 0220 |
+| IOM12 SAS | 0260 |
+| IOM3 SAS | 0200 |
+| Cisco NX-OS | 9.3(12) |
+| Cisco MDS | 9.2(2) |
+| Brocade FOS | 9.2.1 |
+| Broadcom EFOS | 3.8.0.2 |
 
-### NetApp Security Policy Alignment
+### Reference Library — MetroCluster ISL Requirements
 
-| Guarantee | Detail |
-|---|---|
-| **Read-Only Telemetry** | The tool only reads telemetry data via the Active IQ API. It never executes commands against production systems |
-| **Change Control Enforcement** | All remediation outputs are formatted as ITIL-aligned change tickets and CLI runbooks for human review and approval — never auto-executed |
-| **Minimal Footprint** | No installation required (runs from source), no persistent services, no external data shares, no registry modifications |
+| Parameter | FC Brocade | FC Other | IP |
+|---|---|---|---|
+| Max Distance | 300 km | 200 km | 700 km |
+| Max Packet Loss | 0.01% | 0.01% | 0.01% |
+| Max Jitter | 3 ms | 3 ms | 3 ms |
+| Required MTU | — | — | 9216 |
 
----
+### Development Workflow
 
-## Troubleshooting
+```bash
+# Serve dev HTML (changes to app.js take effect on Ctrl+Shift+R)
+python server.py
 
-| Problem | Cause | Solution |
-|---|---|---|
-| **Port 8080 in use** | An old server process is still running | Use `start_dashboard.bat` — it auto-kills old processes. Or manually: `netstat -ano \| findstr :8080` to find the PID, then `taskkill /F /PID <pid>` |
-| **Dashboard looks outdated / missing tabs** | Browser is serving the compiled `index.html` instead of `index_src.html` with external `app.js` | Restart with `start_dashboard.bat`. Hard refresh: **Ctrl+Shift+R**. Clear browser cache if needed |
-| **Server won't start** | Python not installed or not in PATH | Verify: `python --version` (must be 3.8+). Check port availability: `netstat -ano \| findstr 8080` |
-| **No data after sync** | Invalid or expired Refresh Token | Verify your token in the Active IQ portal (Quick Links → API Services). Check the terminal window for API error messages. Re-generate the token if expired |
-| **CORS errors in console** | Opening the HTML file directly instead of through the server | Always access via `http://localhost:8080`. The API Base URL in Settings should be `/api` (default) |
-| **Tabs 10–15 not visible** | Action Planner not generated | Click **Action Planner** in the sidebar → click **Generate** → tabs appear in wrapped rows above the content area |
-| **Sync takes too long** | Large portfolio (500+ systems) or slow network | First sync may take 60–90 seconds. Subsequent loads use cached data. Use `?force=1` to force a full re-harvest if cache is stale |
-| **Charts not rendering** | Chart.js not loaded | Verify `chart.js` exists in the project directory. Hard refresh the browser. Check the console (F12) for load errors |
-| **Desktop app won't launch** | Missing `pywebview` dependency | Install: `pip install -r requirements_desktop.txt`. The desktop app is optional — the browser dashboard works without it |
+# Rebuild compiled index.html after code changes (Windows)
+build_windows.bat
+
+# Rebuild on macOS/Linux
+bash build_mac.sh
+```
 
 ---
 
 ## Change History
 
-See [CHANGELOG.md](CHANGELOG.md) for the complete version release history.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ---
 
 <p align="center">
-  <strong>NetApp Active IQ Advisor Dashboard v3.1.0</strong><br>
+  <strong>NetApp Active IQ Advisor Dashboard v3.2.0</strong><br>
   Built for TAMs, by TAMs.<br>
   <a href="LICENSE">MIT License</a> · <a href="CHANGELOG.md">Changelog</a>
 </p>

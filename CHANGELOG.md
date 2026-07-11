@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.2.0] - 2026-07-11
+
+### Fixed — Storage Efficiency (Critical)
+- **Efficiency ratio inflated by snapshot savings** — Server was referencing `_eff_ratio`, `_data_red`, `_dedup_kib`, `_compact_kib` without ever assigning them. All efficiency variables now correctly parsed from `ONTAPSystemEfficiency.ratio` and `.saved` GQL response objects
+- **Switched from `efficiencyRatio` to `dataReductionRatio`** — Primary displayed ratio is now dedupe + compression only (no snapshot savings), matching how Active IQ presents data reduction. The snapshot-inclusive ratio is retained and shown as a secondary annotation ("incl. snapshots: X.X:1")
+- **Space saved now uses `deDuplicationSavedKiB + compactionSavedKiB`** — Previously used `savedKiB` (total, including snapshot space). Now correctly shows data reduction savings only
+
+### Fixed — Per-Node Capacity Breakdown (Critical)
+- **Used TB and Utilisation showed 0.0 for all nodes** — The API reports capacity at cluster-aggregate level for cluster nodes; `clusterPhysicalUsedTB` was 0. Fallback chain now: `clusterPhysicalUsedTB` → `efficiency.physicalUsedTB` → last `historicalCapacityMonths` entry (same source the projection chart uses)
+- **Utilisation % fallback** — Now uses `clusterCapacityUtilPct` (direct API value) first, then computes from raw/used, then from usable capacity
+- **Raw TB shows N/A** where the API only reports cluster-aggregate (rather than showing 0.0 which was misleading)
+- **Sort order fixed** — Per-node table now sorts by effective used TB descending
+
+### Fixed — DOM Structure Bug
+- **Strategic Capability Adoption Checklist not rendering** — Double `</div>` on one line in `index_src.html` broke DOM nesting; the checklist card was outside its tab container and not visible
+
+### Changed — Documentation
+- **README completely rewritten** — New structure leads with use cases, deliverables, and user guide. "Why this tool vs. Active IQ directly" section added with side-by-side comparison. Internal architecture moved to Section 10 as an addendum
+
+---
+
 ## [3.1.0] - 2026-07-10
+
 
 ### Added — NetApp Reference Library Enrichment Engine
 - **EOA Platform Flagging** — Automatic detection of systems running End-of-Availability hardware. Complete EOA list from docs.netapp.com (AFF A200/A220/A300/A320/A700/A700s/C190/C800, ASA C250/C400/C800, FAS2600/FAS500f/FAS8200/FAS9000) plus EOA switches (BES-53248, Cisco 9336C-FX2, NVIDIA SN2100)
