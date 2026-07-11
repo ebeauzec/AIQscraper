@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""
+r"""
 PyInstaller spec for NetApp Active IQ Advisor
 Builds a native desktop app from the existing HTML/JS dashboard + Python proxy.
 
