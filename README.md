@@ -45,7 +45,7 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 | **One customer at a time** — you must manually switch contexts and re-filter for every account | **Cross-customer fleet view** — all customers, all systems in a single pane. Filter to any customer in one click |
 | **No deliverable generation** — you take screenshots or copy/paste into documents | **Six ready-to-share deliverables** — QBR Pack, Customer Success Plan, MSP Report, Handover Brief, CLI Runbook — generated in seconds |
 | **No upgrade path calculator** — AIQ shows your current version; you have to figure out the hop sequence yourself | **Automatic hop-by-hop upgrade paths** — direct paths where available; multi-hop sequences with intermediate versions and per-version notes for ONTAP, StorageGRID, and SANtricity |
-| **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against 7+ tracked CVEs with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps |
+| **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against tracked CVEs with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps |
 | **Capacity trend is per-system** — no fleet-wide growth rate or cross-customer runway view | **Fleet-wide capacity projection** — 6-month historical trend, growth rate in GB/day, per-node breakdown, and runway estimate per node |
 | **Efficiency includes snapshot savings** — the displayed ratio is inflated | **Correct data reduction ratio** — uses dedupe + compression only (no snapshots). Snapshot-inclusive ratio shown separately for reference |
 | **No ITIL-aligned change control output** — risks are described but remediation isn't structured for change management | **CLI Runbook with ITIL tiers** — every remediation step classified as Non-Disruptive / Disruptive / Destructive, formatted as change tickets for CAB approval |
@@ -87,7 +87,6 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - MetroCluster ISL requirement validation
 - Kerberos AES enforcement detection (Microsoft KB5073381)
 - SnapMirror synchronous policy alignment audit
-- Varonis FPolicy EOL detection
 - Legacy firewall policy deprecation detection (ONTAP 9.10.1+)
 
 ---
