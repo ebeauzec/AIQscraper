@@ -5137,6 +5137,28 @@ NETAPP_SECURITY_BULLETIN_DB.push(
 
 );
 
+// Helper: Robust numeric version comparison. Returns true if ver < limit.
+// Supports "9.x", "9.x.y", and "9.x.yPn" formats.
+function versionLt(ver, limit) {
+  const parse = (v) => {
+    const m = (v || '').replace(/^(ontap|storagegrid|santricity os)\s*/i, '').trim().match(/^(\d+)\.(\d+)(?:\.(\d+))?(?:P(\d+))?/i);
+    if (!m) return [0, 0, 0, 0];
+    return [
+      parseInt(m[1]),
+      parseInt(m[2]),
+      m[3] ? parseInt(m[3]) : 0,
+      m[4] ? parseInt(m[4]) : 0
+    ];
+  };
+  const vm = parse(ver);
+  const lm = parse(limit);
+  for (let i = 0; i < 4; i++) {
+    if (vm[i] < lm[i]) return true;
+    if (vm[i] > lm[i]) return false;
+  }
+  return false;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Given a system's ONTAP version, return all applicable advisories
 // Called during enrichSystemTelemetry() for live and mock systems
@@ -5157,21 +5179,6 @@ function getApplicableSecurityBulletins(ontapVersion, platformType) {
   if (!vMatch) return [];
   const base  = vMatch[1];  // e.g. "9.16.1"
   const patch = vMatch[2] ? parseInt(vMatch[2]) : 0;
-
-  function versionLt(ver, limit) {
-    // Returns true if ver < limit (both in "9.x.y" format, optionally "9.x.yPn")
-    const vm = ver.match(/^(\d+)\.(\d+)\.(\d+)(?:P(\d+))?/i);
-    const lm = limit.match(/^(\d+)\.(\d+)\.(\d+)(?:P(\d+))?/i);
-    if (!vm || !lm) return false;
-    for (let i = 1; i <= 3; i++) {
-      const a = parseInt(vm[i]), b = parseInt(lm[i]);
-      if (a < b) return true;
-      if (a > b) return false;
-    }
-    // Same major.minor.patch — compare patch level
-    const ap = parseInt(vm[4] || '0'), bp = parseInt(lm[4] || '0');
-    return ap < bp;
-  }
 
   for (const advisory of NETAPP_SECURITY_BULLETIN_DB) {
     // Skip platform-irrelevant advisories
@@ -9930,7 +9937,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Contract Coverage ──
@@ -10107,7 +10114,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Critical risk count ──
@@ -10543,7 +10550,7 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   });
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
   const arpEnabledCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const fwCurrentCount = targetSystems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
+  const fwCurrentCount = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
   const sysCount = targetSystems.length;
   const pctAsup = sysCount > 0 ? Math.round(asupCompliant / sysCount * 100) : 0;
@@ -11506,8 +11513,8 @@ function _renderMonthlySLASection(systems) {
   const arpUnknown = systems.length - arpEnabled - arpDisabled;
 
   // Firmware currency
-  const fwCurrent = systems.filter(s => s.swRecMin && s.osVersion && s.osVersion >= s.swRecMin).length;
-  const fwBehind = systems.filter(s => s.swRecMin && s.osVersion && s.osVersion < s.swRecMin).length;
+  const fwCurrent = systems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const fwBehind = systems.filter(s => s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)).length;
 
   // Last reboot analysis
   const rebootSystems = systems.filter(s => s.lastRebootTime).map(s => {
