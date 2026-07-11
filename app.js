@@ -6276,40 +6276,70 @@ function renderNodeBreakdownTable(systems) {
   const tbody = document.getElementById('csmNodeBreakdownBody');
   if (!tbody) return;
 
-  // Sort by rawTB descending
-  const sorted = [...systems].sort((a,b) => (b.clusterRawCapacityTB || 0) - (a.clusterRawCapacityTB || 0));
-
   const srcMap = { 'actual-monthly': 'Actual', 'qoq': 'QoQ', 'yoy': 'YoY', 'estimated': 'Est.' };
 
-  tbody.innerHTML = sorted.map(s => {
-    const rawTB   = s.clusterRawCapacityTB  || 0;
-    const usedTB  = s.clusterPhysicalUsedTB || 0;
-    const util    = rawTB > 0 ? (usedTB / rawTB) * 100 : 0;
-    const proj    = s.projections || {};
-    const growthGBd = proj.growthRateGBPerDay || 0;
-    const days    = proj.daysToLimit || 9999;
-    const runway  = days >= 9999 ? '> 10 Yrs' : days >= 365 ? `${(days/365).toFixed(1)} Yrs` : `${days} days`;
-    const src     = srcMap[proj.growthSource || 'estimated'] || 'Est.';
-    const model   = s.model || s.platform || '-';
+  // Helper: best available "used TB" for a system
+  // Priority: clusterPhysicalUsedTB → efficiency.physicalUsedTB → last historicalCapacityMonth (what chart uses)
+  function getUsedTB(s) {
+    if (s.clusterPhysicalUsedTB && s.clusterPhysicalUsedTB > 0) return s.clusterPhysicalUsedTB;
+    if (s.efficiency && s.efficiency.physicalUsedTB && s.efficiency.physicalUsedTB > 0) return s.efficiency.physicalUsedTB;
+    const hist = (s.projections && s.projections.historicalCapacityMonths) || [];
+    const last = hist.length > 0 ? hist[hist.length - 1] : 0;
+    return last || 0;
+  }
 
-    // Utilization bar color
-    const barColor = util >= 85 ? '#ef4444' : util >= 70 ? '#f59e0b' : '#22d3ee';
-    // Row subtle highlight when >80%
-    const rowBg   = util >= 85 ? 'background:rgba(239,68,68,0.04);' : '';
-    // Runway color
+  // Helper: best available "raw TB"
+  function getRawTB(s) {
+    if (s.clusterRawCapacityTB && s.clusterRawCapacityTB > 0) return s.clusterRawCapacityTB;
+    if (s.efficiency && s.efficiency.rawCapacityTB && s.efficiency.rawCapacityTB > 0) return s.efficiency.rawCapacityTB;
+    return 0;
+  }
+
+  // Helper: best available utilisation %
+  // Priority: direct API utilPct → computed from raw/used → projection runway context
+  function getUtilPct(s, usedTB, rawTB) {
+    if (s.clusterCapacityUtilPct && s.clusterCapacityUtilPct > 0) return s.clusterCapacityUtilPct;
+    if (rawTB > 0 && usedTB > 0) return Math.min((usedTB / rawTB) * 100, 100);
+    // If only used is known, estimate raw from usableCapacity
+    const usable = (s.clusterUsableCapacityTB || (s.efficiency && s.efficiency.usableCapacityTB) || 0);
+    if (usable > 0 && usedTB > 0) return Math.min((usedTB / usable) * 100, 100);
+    return 0;
+  }
+
+  // Sort descending by effective used TB
+  const sorted = [...systems].sort((a, b) => getUsedTB(b) - getUsedTB(a));
+
+  tbody.innerHTML = sorted.map(s => {
+    const rawTB  = getRawTB(s);
+    const usedTB = getUsedTB(s);
+    const util   = getUtilPct(s, usedTB, rawTB);
+    const proj   = s.projections || {};
+    const growthGBd = proj.growthRateGBPerDay || 0;
+    const days   = proj.daysToLimit || 9999;
+    const runway = days >= 9999 ? '> 10 Yrs' : days >= 365 ? `${(days/365).toFixed(1)} Yrs` : `${days} days`;
+    const src    = srcMap[proj.growthSource || 'estimated'] || 'Est.';
+    const model  = s.model || s.platform || '-';
+
+    // Color thresholds
+    const barColor    = util >= 85 ? '#ef4444' : util >= 70 ? '#f59e0b' : '#22d3ee';
+    const rowBg       = util >= 85 ? 'background:rgba(239,68,68,0.04);' : '';
     const runwayColor = days <= 60 ? 'var(--status-critical)' : days <= 365 ? 'var(--status-warning)' : 'var(--status-normal)';
+
+    // Raw TB display — show '—' when not available from API (cluster-aggregate systems)
+    const rawDisplay  = rawTB > 0 ? rawTB.toFixed(1) : '<span style="color:var(--text-muted);font-size:0.75rem;">N/A</span>';
+    const usedDisplay = usedTB > 0 ? usedTB.toFixed(1) : '0.0';
 
     return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rowBg}">
       <td style="padding:9px 10px;font-weight:600;">${s.systemName || '-'}</td>
       <td style="padding:9px 10px;color:var(--text-secondary);font-size:0.78rem;">${model}</td>
-      <td style="padding:9px 10px;text-align:right;">${rawTB.toFixed(1)}</td>
-      <td style="padding:9px 10px;text-align:right;">${usedTB.toFixed(1)}</td>
+      <td style="padding:9px 10px;text-align:right;">${rawDisplay}</td>
+      <td style="padding:9px 10px;text-align:right;">${usedDisplay}</td>
       <td style="padding:9px 10px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
-            <div style="width:${Math.min(util,100).toFixed(1)}%;height:100%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
+            <div style="width:${Math.min(util, 100).toFixed(1)}%;height:100%;background:${barColor};border-radius:3px;transition:width 0.4s;"></div>
           </div>
-          <span style="font-size:0.78rem;color:${barColor};font-weight:600;min-width:38px;">${util.toFixed(1)}%</span>
+          <span style="font-size:0.78rem;color:${barColor};font-weight:600;min-width:38px;">${util > 0 ? util.toFixed(1) + '%' : '<span style="color:var(--text-muted)">—</span>'}</span>
         </div>
       </td>
       <td style="padding:9px 10px;text-align:right;font-size:0.82rem;">${growthGBd > 0 ? '+' + growthGBd.toFixed(1) + ' GB' : '—'}</td>
@@ -6318,20 +6348,21 @@ function renderNodeBreakdownTable(systems) {
     </tr>`;
   }).join('');
 
-  // Totals / summary footer
-  const totalRaw  = sorted.reduce((a,s) => a + (s.clusterRawCapacityTB  || 0), 0);
-  const totalUsed = sorted.reduce((a,s) => a + (s.clusterPhysicalUsedTB || 0), 0);
-  const totalGrow = sorted.reduce((a,s) => a + ((s.projections||{}).growthRateGBPerDay || 0), 0);
-  const totalUtil = totalRaw > 0 ? (totalUsed / totalRaw) * 100 : 0;
+  // Totals footer — sum effective used TB across all nodes
+  const totalRaw  = sorted.reduce((a, s) => a + getRawTB(s), 0);
+  const totalUsed = sorted.reduce((a, s) => a + getUsedTB(s), 0);
+  const totalGrow = sorted.reduce((a, s) => a + ((s.projections || {}).growthRateGBPerDay || 0), 0);
+  const totalUtil = totalRaw > 0 ? Math.min((totalUsed / totalRaw) * 100, 100)
+                  : sorted.reduce((sum, s) => sum + getUtilPct(s, getUsedTB(s), getRawTB(s)), 0) / (sorted.length || 1);
 
   tbody.innerHTML += `<tr style="border-top:2px solid var(--border-color);font-weight:700;background:rgba(255,255,255,0.03);">
     <td style="padding:9px 10px;" colspan="2">TOTAL (${sorted.length} nodes)</td>
-    <td style="padding:9px 10px;text-align:right;">${totalRaw.toFixed(1)}</td>
+    <td style="padding:9px 10px;text-align:right;">${totalRaw > 0 ? totalRaw.toFixed(1) : '<span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">N/A</span>'}</td>
     <td style="padding:9px 10px;text-align:right;">${totalUsed.toFixed(1)}</td>
     <td style="padding:9px 10px;">
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
-          <div style="width:${Math.min(totalUtil,100).toFixed(1)}%;height:100%;background:#22d3ee;border-radius:3px;"></div>
+          <div style="width:${Math.min(totalUtil, 100).toFixed(1)}%;height:100%;background:#22d3ee;border-radius:3px;"></div>
         </div>
         <span style="font-size:0.78rem;color:#22d3ee;font-weight:700;min-width:38px;">${totalUtil.toFixed(1)}%</span>
       </div>
