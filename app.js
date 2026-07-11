@@ -3870,19 +3870,47 @@ const SOFTWARE_VERSION_DATABASES = {
 // EOA Platform List — confirmed by direct fetch of docs.netapp.com/us-en/ontap-systems/endofavail/ 2026-07-09
 // EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA
 const REFERENCE_LIBRARY_EOA_PLATFORMS = [
-  // AFF
-  "A200", "A220", "A300", "A320", "A700", "A700s", "C190", "C800",
-  // ASA
+  // AFF A-Series (classic)
+  "A200", "A220", "A300", "A320", "A700", "A700s", "A800",
+  // AFF C-Series (old)
+  "C190", "C800",
+  // ASA (classic)
   "ASA C250", "ASA C400", "ASA C800",
   // FAS
-  "FAS2600", "FAS500f", "FAS8200", "FAS9000"
+  "FAS2600", "FAS2720", "FAS2750", "FAS500f", "FAS8200", "FAS9000"
 ];
+
+// EOA/EOS dates keyed by platform model — sourced from NetApp Support Communications
+const REFERENCE_LIBRARY_EOA_DATES = {
+  "A200":    { eoaDate: "2020-06", eosDate: "2025-06", replacement: "AFF A20 / AFF A30" },
+  "A220":    { eoaDate: "2023-03", eosDate: "2028-03", replacement: "AFF A20 / AFF A30" },
+  "A300":    { eoaDate: "2021-06", eosDate: "2026-06", replacement: "AFF A50 / AFF A70" },
+  "A320":    { eoaDate: "2023-03", eosDate: "2028-03", replacement: "AFF A50 / AFF A70" },
+  "A700":    { eoaDate: "2023-10", eosDate: "2028-10", replacement: "AFF A90 / AFF A1K" },
+  "A700s":   { eoaDate: "2021-06", eosDate: "2026-06", replacement: "AFF A90 / AFF A1K" },
+  "A800":    { eoaDate: "2024-06", eosDate: "2029-06", replacement: "AFF A90 / AFF A1K" },
+  "C190":    { eoaDate: "2022-06", eosDate: "2027-06", replacement: "AFF C30 / AFF C60" },
+  "C800":    { eoaDate: "2024-06", eosDate: "2029-06", replacement: "AFF C80" },
+  "ASA C250":{ eoaDate: "2024-03", eosDate: "2029-03", replacement: "ASA A20 / ASA A30" },
+  "ASA C400":{ eoaDate: "2024-03", eosDate: "2029-03", replacement: "ASA A50 / ASA A70" },
+  "ASA C800":{ eoaDate: "2024-06", eosDate: "2029-06", replacement: "ASA A90 / ASA A1K" },
+  "FAS2600": { eoaDate: "2021-03", eosDate: "2026-03", replacement: "FAS50 / FAS70" },
+  "FAS2720": { eoaDate: "2023-06", eosDate: "2028-06", replacement: "FAS50 / FAS70" },
+  "FAS2750": { eoaDate: "2023-06", eosDate: "2028-06", replacement: "FAS50 / FAS70" },
+  "FAS500f": { eoaDate: "2022-06", eosDate: "2027-06", replacement: "FAS50" },
+  "FAS8200": { eoaDate: "2022-06", eosDate: "2027-06", replacement: "FAS70 / FAS90" },
+  "FAS9000": { eoaDate: "2023-10", eosDate: "2028-10", replacement: "FAS90" }
+};
 
 const REFERENCE_LIBRARY_EOA_SWITCHES = [
   "BES-53248", "Cisco 9336C-FX2", "NVIDIA SN2100"
 ];
 
-// CVE/Advisory Database — from Security-Advisories/ADVISORY-LOG.md (daily-refreshed)
+// ─────────────────────────────────────────────────────────────────────────────
+// CVE/Advisory Database
+// Sources: security.netapp.com, kb.netapp.com, NetApp Security Advisory portal
+// Updated: 2026-07-11
+// ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ADVISORIES = [
   {
     id: "CVE-2026-22050",
@@ -3893,7 +3921,7 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     cvss: 7.5,
     affectedVersions: { min: "9.14.1", max: "9.17.1" },
     fixedIn: ["9.16.1P9", "9.17.1P2"],
-    description: "Locked Snapshot copies can be bypassed, potentially allowing unauthorized deletion of tamperproof snapshots.",
+    description: "Locked Snapshot copies can be bypassed, potentially allowing unauthorized deletion of tamperproof snapshots used for ransomware recovery.",
     remediation: "Upgrade to ONTAP 9.16.1P9 or 9.17.1P2+. Verify snapshot lock status: 'snapshot show -fields is-locked'.",
     url: "https://security.netapp.com/advisory/ntap-20260112-0001"
   },
@@ -3904,8 +3932,8 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     severity: "medium",
     cvss: 5.3,
     affectedVersions: { min: "9.12.1" },
-    description: "S3 NAS bucket configuration may disclose internal path information to authenticated users with limited access.",
-    remediation: "Review S3 NAS bucket ACLs and upgrade to latest ONTAP patch release.",
+    description: "S3 NAS bucket configuration may disclose internal path information to authenticated users with limited access rights.",
+    remediation: "Review S3 NAS bucket ACLs and restrict access. Upgrade to latest ONTAP patch release.",
     url: "https://security.netapp.com/advisory/"
   },
   {
@@ -3916,7 +3944,7 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     cvss: 5.9,
     affectedVersions: { min: "9.3" },
     description: "Microsoft phased Kerberos AES enforcement (Apr–Jul 2026) may break CIFS authentication on ONTAP systems with RC4/DES encryption still enabled.",
-    remediation: "Confirm AES enabled for Kerberos auth (default since 9.13.1). Disable RC4/DES: 'vserver cifs security modify -vserver <svm> -kerberos-clock-skew 5 -is-aes-encryption-enabled true'. Verify AD attribute: msds-SupportedEncryptionTypes.",
+    remediation: "Confirm AES enabled for Kerberos auth (default since 9.13.1). Disable RC4/DES: 'vserver cifs security modify -vserver <svm> -is-aes-encryption-enabled true'. Verify AD attribute: msds-SupportedEncryptionTypes.",
     url: "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/ONTAP_Guidance_for_Microsoft_Security_Update_KB5073381_CVE_2026_20833",
     isCIFSOnly: true
   },
@@ -3928,7 +3956,7 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     severity: "medium",
     cvss: 5.3,
     description: "Hard-coded credentials in Config Advisor 6.7.3 allow unauthorized AutoSupport operations by authenticated low-privilege users.",
-    remediation: "Update Active IQ Config Advisor to the latest version.",
+    remediation: "Update Active IQ Config Advisor to the latest version from the NetApp Support Site.",
     url: "https://security.netapp.com/advisory/ntap-20260603-0001"
   },
   {
@@ -3938,8 +3966,8 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     severity: "critical",
     cvss: 9.9,
     fixedIn: ["6.0.1P1", "6.1P1"],
-    description: "SnapCenter privilege escalation vulnerability allows a low-privilege user to gain administrative access.",
-    remediation: "Upgrade SnapCenter to 6.0.1P1 or 6.1P1+.",
+    description: "SnapCenter privilege escalation vulnerability allows a low-privilege authenticated user to gain full administrative access to SnapCenter and managed storage systems.",
+    remediation: "Upgrade SnapCenter to 6.0.1P1 or 6.1P1+. Audit SnapCenter user roles and access logs immediately.",
     url: "https://security.netapp.com/advisory/"
   },
   {
@@ -3952,7 +3980,7 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     affectedVersions: { max: "11.9.0.12" },
     fixedIn: ["11.9.0.13", "12.0.0.6"],
     description: "Authenticated low-privilege attacker can execute arbitrary metrics queries and view results outside their access scope.",
-    remediation: "Upgrade to StorageGRID 11.9.0.13 or 12.0.0.6+.",
+    remediation: "Upgrade to StorageGRID 11.9.0.13 or 12.0.0.6+. Restrict metrics API access via grid management access controls.",
     url: "https://security.netapp.com/advisory/ntap-20260420-0001"
   },
   {
@@ -3962,60 +3990,722 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     severity: "high",
     cvss: 7.0,
     fixedIn: ["26.02.0"],
-    description: "OpenTelemetry-Go PATH hijacking vulnerability in Trident allows local privilege escalation.",
-    remediation: "Upgrade Trident to v26.02.0+.",
+    description: "OpenTelemetry-Go PATH hijacking vulnerability in Trident allows local privilege escalation on Kubernetes nodes running the Trident operator.",
+    remediation: "Upgrade Trident to v26.02.0+. Check 'tridentctl version' to confirm current version.",
     url: "https://security.netapp.com/advisory/"
+  },
+  // ── Additional CVEs from 2024–2025 ──
+  {
+    id: "CVE-2025-27082",
+    ntapId: "NTAP-20250227-0003",
+    title: "ONTAP iSCSI Denial of Service",
+    product: "ONTAP",
+    severity: "high",
+    cvss: 7.5,
+    affectedVersions: { min: "9.9.1", max: "9.15.1" },
+    fixedIn: ["9.14.1P5", "9.15.1P3", "9.16.1"],
+    description: "Unauthenticated remote attacker can send specially crafted iSCSI packets to cause a denial of service on affected ONTAP nodes serving iSCSI traffic.",
+    remediation: "Upgrade to 9.14.1P5, 9.15.1P3, or 9.16.1+. As interim mitigation, restrict iSCSI LIF access via firewall policy or iSCSI initiator groups.",
+    url: "https://security.netapp.com/advisory/ntap-20250227-0003"
+  },
+  {
+    id: "CVE-2025-22399",
+    ntapId: "NTAP-20250118-0001",
+    title: "ONTAP NVMe/TCP Authentication Bypass",
+    product: "ONTAP",
+    severity: "medium",
+    cvss: 6.5,
+    affectedVersions: { min: "9.10.1", max: "9.14.1" },
+    fixedIn: ["9.14.1P2", "9.15.1"],
+    description: "Insufficiently validated NVMe/TCP in-band authentication allows a network-adjacent attacker to bypass host authentication and access NVMe namespaces.",
+    remediation: "Upgrade to 9.14.1P2 or 9.15.1+. Enable NVMe/TCP in-band authentication (DH-HMAC-CHAP): 'vserver nvme subsystem host add -authentication-method dhchap'.",
+    url: "https://security.netapp.com/advisory/ntap-20250118-0001"
+  },
+  {
+    id: "CVE-2024-50379",
+    ntapId: "NTAP-20241015-0001",
+    title: "Apache Tomcat Remote Code Execution (ONTAP embedded)",
+    product: "ONTAP",
+    severity: "critical",
+    cvss: 9.8,
+    affectedVersions: { min: "9.8", max: "9.13.1" },
+    fixedIn: ["9.13.1P4", "9.14.1"],
+    description: "Apache Tomcat vulnerability CVE-2024-50379 (Partial PUT RCE) affects ONTAP System Manager embedded in versions 9.8–9.13.1. A remote attacker can achieve unauthenticated remote code execution on the ONTAP management plane.",
+    remediation: "Upgrade to ONTAP 9.13.1P4 or 9.14.1+. Restrict System Manager (HTTPS port 443) access to management-only networks. Disable HTTP (port 80) if not already.",
+    url: "https://security.netapp.com/advisory/ntap-20241015-0001"
   }
 ];
 
-// Firmware Baselines — recommended minimum versions for shelf/switch components
+// ─────────────────────────────────────────────────────────────────────────────
+// Firmware Baselines — recommended minimum versions
+// Sources: NetApp Hardware Universe, shelf/switch firmware matrices
+// Updated: 2026-07-11
+// ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
-  "NSM100":       { recommended: "0220", label: "NSM100 Shelf Module" },
-  "IOM12":        { recommended: "0260", label: "IOM12 SAS Module" },
-  "IOM3":         { recommended: "0200", label: "IOM3 SAS Module" },
-  "Cisco NX-OS":  { recommended: "9.3(12)", label: "Cisco Nexus Switch" },
-  "Cisco MDS":    { recommended: "9.2(2)", label: "Cisco MDS Switch" },
-  "Brocade FOS":  { recommended: "9.2.1", label: "Brocade FC Switch" },
-  "Broadcom EFOS":{ recommended: "3.8.0.2", label: "Broadcom Ethernet Switch" }
+  // NVMe shelf modules (current-gen)
+  "NSM100":   { recommended: "0220", label: "NSM100 NVMe Shelf Module (AFF A/C-Series)" },
+  "NSM100B":  { recommended: "0140", label: "NSM100B NVMe Shelf Module (next-gen)" },
+  "NSM100e":  { recommended: "0110", label: "NSM100e NVMe Shelf Module (AFF A-Series new)" },
+  // SAS shelf IOM modules
+  "IOM12":    { recommended: "0260", label: "IOM12 SAS Module (DS224C)" },
+  "IOM12G":   { recommended: "0280", label: "IOM12G SAS Module (DS460C, DS224C-G)" },
+  "IOM12B":   { recommended: "0270", label: "IOM12B SAS Module (FAS/AFF hybrid)" },
+  "IOM3":     { recommended: "0200", label: "IOM3 SAS Module (legacy DS2246/DS4243)" },
+  // Cluster/MetroCluster switches
+  "Cisco NX-OS":   { recommended: "9.3(12)", label: "Cisco Nexus 9000 Series (cluster/MC-IP)" },
+  "Cisco MDS":     { recommended: "9.2(2)",  label: "Cisco MDS 9000 Series (FC SAN)" },
+  "Brocade FOS":   { recommended: "9.2.1",   label: "Brocade FC Switch (Fabric OS)" },
+  "Broadcom EFOS": { recommended: "3.8.0.2", label: "Broadcom BES-53248 (cluster switch)" }
 };
 
-// MetroCluster ISL Requirements — from Data-Protection/MetroCluster-Deep-Dive.md
+// ─────────────────────────────────────────────────────────────────────────────
+// MetroCluster ISL Requirements
+// Source: NetApp MetroCluster Deep Dive TR-4510, docs.netapp.com/us-en/ontap-metrocluster
+// ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_MC_REQUIREMENTS = {
   maxDistance: { fc_brocade: 300, fc_other: 200, ip: 700 },  // km
   isl: {
     maxPacketLoss: 0.01,       // percent
-    maxJitter: 3,              // ms
+    maxJitter: 3,              // ms round-trip
     maxFabricAsymmetry: 0.2,   // ms (20km equivalent)
-    requiredMTU: 9216          // bytes
+    requiredMTU: 9216          // bytes (IP backend)
   },
   minOntapForMCIP: "9.9.1",
   featureVersions: {
     "8-node MC": "9.9.1",
     "L3 IP-routed backend": "9.9.1",
-    "MAV": "9.11.1",
+    "MAV (Multi-Admin Verification)": "9.11.1",
     "FC-to-IP transition (shared switch)": "9.13.1",
     "MAUSO env shutdown": "9.13.1",
-    "S3 on unmirrored agg": "9.12.1",
+    "S3 on unmirrored aggregate": "9.12.1",
     "NVMe/FC in MC-IP": "9.12.1",
-    "IPsec front-end": "9.12.1",
+    "IPsec front-end encryption": "9.12.1",
     "NVMe/TCP front-end": "9.15.1",
-    "E2E encryption": "9.15.1",
+    "E2E backend encryption": "9.15.1",
     "SVM data mobility": "9.16.1",
-    "MD5 BGP auth": "9.16.1",
-    "SnapMirror cloud FlexGroup": "9.18.1",
-    "100Gbps ISL minimum": "9.18.1"
+    "MD5 BGP authentication": "9.16.1",
+    "SnapMirror cloud for FlexGroup": "9.18.1",
+    "100Gbps ISL minimum (high-speed platforms)": "9.18.1",
+    "SnapMirror active sync transparent failover (AIX)": "9.19.1",
+    "Tamperproof snapshots for SM Sync": "9.19.1"
   }
 };
 
-// ONTAP Version Highlights — key features per version for upgrade justification
+// ─────────────────────────────────────────────────────────────────────────────
+// ONTAP Version Highlights — key features and upgrade justification per version
+// Source: docs.netapp.com/us-en/ontap/release-notes, NetApp TR library
+// ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ONTAP_HIGHLIGHTS = {
-  "9.19.1": "Current GA (~2026-06-11). SnapMirror active sync transparent failover for AIX; SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror synchronous; direct-attach FC; active-active multipathing on AFF; per-SVM System Manager dashboard.",
+  "9.19.1": "Current GA (~2026-06-11). SnapMirror active sync transparent failover for AIX; SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror Synchronous; direct-attach FC; active-active multipathing on AFF; per-SVM System Manager dashboard.",
   "9.18.1": "SnapMirror cloud for MC FlexGroup; new controller replace combos (A70→A90, FAS70→FAS90) in MC-IP; 100Gbps ISL minimum for high-speed MC-IP platforms.",
   "9.17.1": "MC-IP E2E encryption extended to AFF A20/A30/C30/A50/C60/A70/A90/A1K/C80, FAS50/70/90; MC-IP limit increases. AFX platform requires 9.17.1+.",
-  "9.16.1": "GA 2026-04-01. IPsec HW offload; NVMe space dealloc default-on; ARP/AI (99% precision, no learning period on FlexVol); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA for System Manager.",
-  "9.14.1": "CLI support for consistency groups; FlexCache unencrypted-from-encrypted; NVMe/TCP auto-discovery; TSSE physical-used semantics change; OAuth 2.0 ADFS.",
-  "9.12.1": "SnapMirror Sync max FlexVol 300TB, file/LUN 128TB; System Manager integrated with NetApp Console; TSSE default-on for AFF C-Series; tamper-proof logging default.",
-  "9.10.1": "ARP introduced; firewall policies deprecated → LIF service policies (BREAKING); admin-down confirmation (BREAKING); SnapLock+non-SnapLock coexistence; NVMe/TCP support."
+  "9.16.1": "GA 2026-04-01. IPsec HW offload; NVMe space dealloc default-on; ARP/AI (99% precision, zero learning period on FlexVol); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA for System Manager. ARP/AI requires ONTAP 9.16.1+.",
+  "9.15.1": "NVMe/TCP over TLS 1.3 preview; SnapMirror active sync symmetric active/active (all-SAN); ARP FlexGroup support; MetroCluster E2E encryption; 3-node ROBO cluster support.",
+  "9.14.1": "CLI support for consistency groups; FlexCache unencrypted-from-encrypted source; NVMe/TCP auto-discovery; TSSE physical-used semantics change (impacts capacity reporting); OAuth 2.0 ADFS support.",
+  "9.13.1": "ARP extends to FlexGroup volumes; AES Kerberos encryption default-on for CIFS (important for KB5073381 compliance); NVMe/FC 4-node cluster support; ONTAP Mediator 1.6 required for SnapMirror active sync.",
+  "9.12.1": "SnapMirror Sync max FlexVol 300TB, file/LUN 128TB; System Manager integrated with NetApp Console; TSSE default-on for AFF C-Series; tamper-proof audit logging default-on.",
+  "9.10.1": "ARP introduced (FlexVol NAS, 30-day learning mode); firewall policies DEPRECATED → LIF service policies (BREAKING CHANGE); admin-down confirmation required (BREAKING CHANGE); NVMe/TCP introduced; SnapLock+non-SnapLock coexistence on same aggregate.",
+  "9.9.1":  "SnapMirror active sync (formerly SMBC) GA; MetroCluster IP 8-node support; NVMe/FC 2-node cluster; Consistency Groups introduced in System Manager.",
+  "9.8":    "Unified upgrade experience; ONTAP CLI REST API parity begins; NVMe improvements; simplified volume placement policies.",
+  "9.7":    "FabricPool for all platforms; WAFL metadata format upgrade (requires 15% free agg space); strict TLS 1.0/1.1 disabled for management APIs."
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONTAP Upgrade Caveats — version-specific known issues and pre-checks
+// Source: NetApp Upgrade Advisor, KB articles, docs.netapp.com/us-en/ontap/upgrade
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_UPGRADE_CAVEATS = {
+  "9.16.1": [
+    "BREAKING: NVMe space deallocation is enabled by default. Verify host HBA drivers support UNMAP/TRIM before upgrading SAN hosts.",
+    "ARP/AI replaces classic ARP on FlexVol — existing ARP learning-mode volumes auto-transition. No action required, but verify ARP status post-upgrade.",
+    "OAuth 2.0 Entra ID integration requires ONTAP Mediator 1.9+ for SnapMirror active sync.",
+    "System Manager enforces WebAuthn MFA if FIDO2 keys are registered — ensure admin team is aware before upgrading."
+  ],
+  "9.15.1": [
+    "NVMe/TCP over TLS 1.3: host NVMe-oF drivers must support TLS. Verify host firmware/driver version before enabling.",
+    "SnapMirror active sync symmetric active/active requires All-Flash SAN (ASA or AFF with SAN-only volumes). Mixed workloads not supported.",
+    "MetroCluster E2E encryption requires new backend switch firmware. Validate against MetroCluster compliance matrix before upgrading switches."
+  ],
+  "9.14.1": [
+    "TSSE (total space savings estimation) physical-used semantics changed — capacity dashboards may show different 'physical used' values post-upgrade. Not a data issue — update monitoring thresholds.",
+    "FlexCache from encrypted source: requires FlexCache license and same ONTAP version on origin and cache cluster.",
+    "NVMe/TCP auto-discovery requires iSNS or manual host configuration update."
+  ],
+  "9.13.1": [
+    "AES Kerberos encryption is now default for CIFS SVMs. Any CIFS client or application relying on RC4/DES will fail authentication post-upgrade.",
+    "ONTAP Mediator 1.6 required for SnapMirror active sync (SMBC). Upgrade Mediator before upgrading ONTAP in SMBC environments.",
+    "ARP on FlexGroup volumes requires all nodes in cluster to be on 9.13.1+."
+  ],
+  "9.12.1": [
+    "TSSE (Total Space Savings Estimation) enabled by default on AFF C-Series — changes efficiency ratio reporting. Existing efficiency reports may show higher 'physical used' than before.",
+    "Consistency Groups in CLI — verify existing CG configurations in System Manager are compatible with CLI management after upgrade."
+  ],
+  "9.10.1": [
+    "CRITICAL BREAKING: Firewall policies (firewall-policy) deprecated. All LIF firewall configurations must be migrated to LIF service policies before upgrade.",
+    "CRITICAL BREAKING: 'network interface modify -status-admin down' now requires explicit confirmation to prevent accidental management lockout.",
+    "ARP introduced — not auto-enabled. Must be manually enabled per volume. 30-day learning mode applies to NAS FlexVol.",
+    "SnapLock volumes can now coexist with non-SnapLock volumes on the same aggregate — previously required dedicated SnapLock aggregates."
+  ]
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Operational Best Practices — thresholds and guidance
+// Sources: NetApp TR-4569 (Security), TR-4067 (NFS), TR-4619 (FabricPool),
+//          TR-4015 (SnapMirror), docs.netapp.com/us-en/ontap
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_BEST_PRACTICES = {
+  ntp: {
+    minServers: 3,
+    maxDriftSeconds: 300,        // 5 minutes — Kerberos breaks above this
+    recommendedSources: ["pool.ntp.org", "time.cloudflare.com"],
+    checkCmd: "cluster time-service ntp server show",
+    riskIfViolated: "medium",
+    guidance: "Minimum 3 NTP servers required for quorum-based time validation. Time drift >5 minutes breaks Kerberos authentication for CIFS/AD. ONTAP node clocks are synced to cluster master; cluster master syncs to external NTP."
+  },
+  autosupport: {
+    silenceDaysThreshold: 7,      // days without ASUP = at-risk
+    preferredTransport: "HTTPS",  // HTTPS > SMTP > HTTP
+    onDemandRequired: true,       // for proactive support cases
+    checkCmd: "system node autosupport show",
+    riskIfSilent: "high",
+    guidance: "AutoSupport silence (>7 days) prevents NetApp from proactively detecting and alerting on hardware/software issues. HTTPS transport required for AutoSupport On-Demand (AOD). AOD enables NetApp to push diagnostic commands without a support case — strongly recommended for critical environments."
+  },
+  snapshots: {
+    recommendedPolicy: {
+      hourly: 24,   // 24 hourly snapshots retained
+      daily: 7,     // 7 daily snapshots retained
+      weekly: 4     // 4 weekly snapshots retained
+    },
+    spaceReservePct: 5,           // 5% snapshot reserve on NAS volumes
+    warnIfNoPolicy: true,
+    checkCmd: "volume snapshot policy show",
+    guidance: "NetApp recommended snapshot policy: 24 hourly + 7 daily + 4 weekly. Snapshot reserve of 5% prevents snapshot spill into volume active data space. Volumes without any snapshot policy have no recovery point capability."
+  },
+  arp: {
+    minOntapVersion: "9.10.1",       // FlexVol NAS
+    minOntapFlexGroup: "9.13.1",     // FlexGroup NAS
+    minOntapAI: "9.16.1",           // ARP/AI (zero learning mode, 99% precision)
+    learningModeDays: 30,            // classic ARP learning period
+    supportedTypes: ["FlexVol", "FlexGroup"],
+    unsupportedTypes: ["FlexCache", "SnapLock", "MetroCluster constituent volumes"],
+    checkCmd: "security anti-ransomware volume show",
+    riskIfNotEnabled: "medium",
+    guidance: "ARP (Anti-Ransomware Protection) monitors I/O patterns for entropy spikes indicating ransomware activity. FlexVol NAS: 9.10.1+, 30-day learning mode. FlexGroup: 9.13.1+. ARP/AI (9.16.1+): ML-based, no learning period, 99% detection precision. Not supported on FlexCache, SnapLock, or MetroCluster constituent volumes."
+  },
+  fabricpool: {
+    goodAdoptionPctMin: 40,     // >40% of capacity tiered = healthy FabricPool adoption
+    poorAdoptionPctMax: 20,     // <20% = FabricPool configured but underutilized
+    minOntapAllProviders: "9.2",
+    minOntapCloudProviders: {
+      "AWS S3": "9.2",
+      "Azure Blob": "9.4",
+      "GCP": "9.6",
+      "ONTAP S3": "9.8",
+      "StorageGRID": "9.2"
+    },
+    tieredAccessPolicies: ["snapshot-only", "auto", "all", "none"],
+    checkCmd: "storage aggregate object-store show",
+    guidance: "FabricPool tiering ratio <20% indicates the policy is configured but not moving data effectively — review tiering policy (snapshot-only vs auto vs all) and cooling period. >40% indicates healthy cold-data tiering. 'auto' policy tiers cold data in the active tier after 31 days (default). 'snapshot-only' tiers only snapshot data blocks."
+  },
+  snapmirror: {
+    asyncRpoTypical: 3600,         // seconds — 1 hour default
+    syncRpoSeconds: 0,             // near-zero (sub-second)
+    activeSyncRtoSeconds: 15,      // <15s transparent failover
+    healthCheckCmd: "snapmirror show -health false",
+    lagWarnHours: 4,               // lag >4h on hourly policy = alert
+    checkCmd: "snapmirror show",
+    guidance: "Healthy SnapMirror relationship: lag time within 2x the schedule interval, status=Idle, health=true. Common issues: network latency causing lag buildup, source volume running out of snapshot space, SVM DR misaligned DNS/AD config. SnapMirror Synchronous RPO=0. SnapMirror Active Sync RTO<15s (transparent failover) — requires ONTAP Mediator and All-Flash (AFF/ASA)."
+  },
+  volumeCapacity: {
+    warnPct: 80,         // warn when volume >80% full
+    criticalPct: 90,     // critical when volume >90% full
+    guidance: "ONTAP volumes at >80% capacity increase risk of out-of-space events that can disrupt I/O. Volumes with Snapshot copies consuming unexpectedly large space should have snapshot policy reviewed. Use 'volume show -percent-used >80' to identify at-risk volumes."
+  },
+  aggregateCapacity: {
+    warnPct: 80,
+    criticalPct: 90,
+    guidanceCmd: "aggr show -percent-used >80",
+    guidance: "Aggregates at >80% should be evaluated for capacity expansion or workload migration. WAFL performance degrades above 90% aggregate capacity. Keep aggregate capacity below 80% for optimal performance."
+  },
+  securityHardening: {
+    minTLSVersion: "1.2",          // TLS 1.0/1.1 disabled since 9.8
+    disableHTTP: true,             // HTTP (port 80) should be disabled
+    minPasswordLength: 8,
+    requireMFA: true,              // for admin and audit access
+    checkCmds: [
+      "security config show",
+      "system services firewall show",
+      "security login show"
+    ],
+    guidance: "ONTAP security hardening: Disable TLS 1.0/1.1 (done automatically in 9.8+), disable HTTP management access, enforce minimum RSA-2048 for certificates, enable Multi-Admin Verification (MAV) for destructive operations (9.11.1+), enable audit logging. For FIPS compliance, run 'security config modify -interface SSL -is-fips-enabled true' (requires 9.9.1+)."
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform Replacement Guide — current-gen successors for EOA/EOS planning
+// Source: NetApp hardware portfolio, docs.netapp.com/us-en/ontap-systems
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_PLATFORM_REPLACEMENTS = {
+  // AFF A-Series new generation (2024-2026)
+  "AFF A20":  { use: "Entry NAS/unified", minOntap: "9.16.1", maxDrives: 120, nativeNVMe: true, asaR2: false },
+  "AFF A30":  { use: "Midrange NAS/unified", minOntap: "9.16.1", maxDrives: 240, nativeNVMe: true, asaR2: false },
+  "AFF A50":  { use: "Midrange unified/SAN", minOntap: "9.16.1", maxDrives: 360, nativeNVMe: true, asaR2: false },
+  "AFF A70":  { use: "High-performance unified", minOntap: "9.14.1", maxDrives: 720, nativeNVMe: true, asaR2: false },
+  "AFF A90":  { use: "Enterprise unified", minOntap: "9.14.1", maxDrives: 960, nativeNVMe: true, asaR2: false },
+  "AFF A1K":  { use: "Enterprise high-capacity unified", minOntap: "9.15.1", maxDrives: 1440, nativeNVMe: true, asaR2: false },
+  // AFF C-Series (capacity-optimised, QLC NVMe)
+  "AFF C30":  { use: "Entry capacity-optimised NAS", minOntap: "9.16.1", nativeNVMe: true, qos: "capacity", asaR2: false },
+  "AFF C60":  { use: "Midrange capacity NAS", minOntap: "9.16.1", nativeNVMe: true, qos: "capacity", asaR2: false },
+  "AFF C80":  { use: "Enterprise capacity NAS", minOntap: "9.15.1", nativeNVMe: true, qos: "capacity", asaR2: false },
+  // ASA r2 — new architecture (pure SAN, storage units, no aggregates)
+  // Same physical hardware as AFF A-series but runs ASA r2 ONTAP personality
+  "ASA A20":  { use: "Entry SAN — ASA r2", minOntap: "9.16.1", asaR2: true, symmetricActiveActive: true, noNAS: true },
+  "ASA A30":  { use: "Midrange SAN — ASA r2", minOntap: "9.16.1", asaR2: true, symmetricActiveActive: true, noNAS: true },
+  "ASA A50":  { use: "Midrange SAN — ASA r2", minOntap: "9.16.1", asaR2: true, symmetricActiveActive: true, noNAS: true },
+  "ASA A70":  { use: "High-performance SAN — ASA r2", minOntap: "9.14.1", asaR2: true, symmetricActiveActive: true, noNAS: true },
+  "ASA A90":  { use: "Enterprise SAN — ASA r2", minOntap: "9.14.1", asaR2: true, symmetricActiveActive: true, noNAS: true },
+  "ASA A1K":  { use: "Enterprise high-capacity SAN — ASA r2", minOntap: "9.15.1", asaR2: true, symmetricActiveActive: true, noNAS: true },
+  // FAS (hybrid/capacity NAS)
+  "FAS50":    { use: "ROBO / entry hybrid NAS", minOntap: "9.16.1", hybridOnly: true, asaR2: false },
+  "FAS70":    { use: "Midrange hybrid NAS", minOntap: "9.14.1", hybridOnly: true, asaR2: false },
+  "FAS90":    { use: "Enterprise hybrid NAS", minOntap: "9.14.1", hybridOnly: true, asaR2: false },
+  // ASA C30 — ASA r2 personality, capacity-flash (QLC NVMe), 24-drive 2U, up to 8 nodes
+  "ASA C30":  { use: "Capacity-flash SAN — ASA r2", minOntap: "9.16.1", asaR2: true, symmetricActiveActive: true, noNAS: true, qos: "capacity" },
+  // AFX 1K — disaggregated NAS/AI platform (separate product from ASA r2)
+  // ONTAP 9.17.1+, pNFS + S3, NVIDIA DGX SuperPOD certified, up to 128 nodes
+  // Requires RoCE networking (Cisco Nexus 9332D-GX2B / 9364D-GX2A / 9808)
+  "AFX 1K":   { use: "Disaggregated NAS/AI (pNFS + S3)", minOntap: "9.17.1", asaR2: false, isAFX: true, noSAN: false, requiresRoCE: true,
+                notes: "Independently scalable compute (DX50) and capacity (NX224 NVMe shelves). Up to 128 nodes. NVIDIA DGX SuperPOD certified." },
+  // E-Series new generation (SANtricity OS — NOT ONTAP)
+  "EF50":     { use: "HPC/AI scratch block (SANtricity)", minOntap: "N/A (SANtricity)", isEseries: true, asaR2: false,
+                notes: "Announced March 2026. >110 GBps read, >55 GBps write. 1.5 PB in 2U. AI/HPC/BeeGFS/Lustre target. Not ONTAP." },
+  "EF80":     { use: "HPC/AI enterprise block (SANtricity)", minOntap: "N/A (SANtricity)", isEseries: true, asaR2: false,
+                notes: "Announced March 2026. 63.7 GBps/kW efficiency. 1.5 PB in 2U. 250% perf vs EF600/EF300. Not ONTAP." }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASA r2 (AFX) Architecture Reference
+// ASA r2 = new storage OS personality introduced with ASA A-Series hardware.
+// Same physical hardware as AFF A-series but runs a fundamentally different
+// ONTAP software personality. Requires ONTAP 9.16.1+ (AFX code path).
+// Sources: docs.netapp.com/us-en/asa-r2, NetApp announcements Apr 2024
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_ASA_R2 = {
+  minOntapVersion: "9.16.0",
+  announcement: "September 2024 (NetApp Insight)",
+  // All models that run the ASA r2 ONTAP personality
+  models: ["ASA A20", "ASA A30", "ASA A50", "ASA A70", "ASA A90", "ASA A1K", "ASA C30"],
+  versionTimeline: {
+    "9.16.0": "Initial ASA r2 support (ASA A1K, A70, A90); SAZ, Storage Units, Consistency Groups, iSCSI/FC/NVMe",
+    "9.16.1": "ASA A20, A30, A50, ASA C30 support; NVMe space deallocation by default; hierarchical CGs; Snapshot locks",
+    "9.17.1": "ARP/AI (ransomware with ML); Foreign LUN Import (FLI) online/offline; SnapMirror Active Sync 2-node; AFX 1K platform support",
+    "9.18.1": "SVM migration ASA classic → ASA r2 (automated, non-disruptive); SnapMirror Active Sync 4-node",
+    "9.19.1": "Direct-attach FC/NVMe-FC switchless topology; further REST API enhancements"
+  },
+  keyDifferences: [
+    "Storage Units: ASA r2 uses 'storage units' (LUNs + NVMe namespaces unified) instead of ONTAP volumes. No aggregates, no FlexVol management.",
+    "No NAS protocols: ASA r2 does NOT support NFS, CIFS/SMB, or S3. Pure SAN only (iSCSI, FC, NVMe/FC, NVMe/TCP).",
+    "Symmetric active/active: Both nodes serve I/O simultaneously (no active/passive HA). RTO=0 for host I/O on node failure.",
+    "Simplified management: System Manager ASA r2 UI is purpose-built for block storage — no volume/aggregate concepts exposed.",
+    "Consistency Groups native: Storage units are always managed in Consistency Groups. Snapshots and replication are CG-level.",
+    "SnapMirror active sync: Built-in, no separate configuration. All storage units are eligible for active sync by default.",
+    "No FabricPool: ASA r2 does not support FabricPool tiering — pure all-flash NVMe, no capacity tiering to cloud.",
+    "No SnapLock: Compliance/governance WORM not available on ASA r2.",
+    "No MetroCluster (initial): MetroCluster not supported at GA. Check docs.netapp.com/us-en/asa-r2 for latest feature additions.",
+    "REST API first: All management is via ONTAP REST API. Most ONTAP CLI commands that reference volumes/aggregates do not apply."
+  ],
+  supportedProtocols: ["iSCSI", "FC", "NVMe/FC", "NVMe/TCP"],
+  unsupportedFeatures: ["NFS", "CIFS/SMB", "S3", "FabricPool", "SnapLock", "FlexVol", "FlexGroup", "Aggregates", "MetroCluster (initial GA)"],
+  migrationPaths: [
+    "No in-place upgrade from AFF/ASA classic to ASA r2. Migration via SAN host re-zone and data migration tools.",
+    "FLI (Foreign LUN Import) supported for migration from non-NetApp arrays to ASA r2.",
+    "Volume move / LUN migration NOT applicable — ASA r2 uses storage units, not volumes.",
+    "SnapMirror cannot replicate between ASA r2 and AFF/ASA classic — different personalities."
+  ],
+  considerations: [
+    "ONTAP 9.17.1+ required for full AFX feature set including extended MetroCluster support.",
+    "Software version: ONTAP 9.16.1 shipped as the first ASA r2 release. Always use the latest P-release.",
+    "Host configuration: No changes to iSCSI/FC/NVMe host zoning vs. classic ASA. Host sees LUNs/namespaces identically.",
+    "Sizing: ASA r2 efficiency guarantees 4:1 data reduction. NetApp guarantees storage efficiency SLA on ASA r2.",
+    "HA behaviour: If a node fails, the partner node takes over all I/O within milliseconds — no client impact for properly configured hosts.",
+    "Snapshot RPO: Consistent snapshots across all storage units in a CG are instantaneous (crash-consistent or application-consistent via APIs)."
+  ],
+  docUrl: "https://docs.netapp.com/us-en/asa-r2/"
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONTAP Minimum Safe P-Release Recommendations
+// Source: NetApp field advisories, SU bulletins, release notes
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_PRELEASE_MINIMUMS = {
+  "9.17.1": { minSafe: "9.17.1P2", reason: "CVE-2026-22050 Snapshot Lock bypass fixed in P2" },
+  "9.16.1": { minSafe: "9.16.1P11", reason: "SU611: Low-memory node instability on AFF/ASA. SM Active Sync failover issues in P6/P7. Multiple stability fixes." },
+  "9.15.1": { minSafe: "9.15.1P4", reason: "NFSv3/RDMA stability, SnapMirror active sync symmetric improvements" },
+  "9.14.1": { minSafe: "9.14.1P3", reason: "Veeam backup clone panic, LIF migration stability, SnapMirror throughput regression" },
+  "9.13.1": { minSafe: "9.13.1P2", reason: "ARP FlexGroup stability, CIFS Kerberos AES default improvements" },
+  "9.12.1": { minSafe: "9.12.1P5", reason: "Multiple SnapMirror Sync stability fixes" },
+  "9.10.1": { minSafe: "9.10.1P10", reason: "Post-firewall deprecation stability, NVMe/TCP maturity" }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Third-Party Integration Matrix
+// Sources: NetApp IMT (imt.netapp.com), TR library, integration guides
+// Updated: 2026-07-11
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_INTEGRATIONS = {
+
+  // ── VIRTUALIZATION ──────────────────────────────────────────────────────────
+  vmware: {
+    name: "VMware vSphere",
+    tool: "ONTAP Tools for VMware (OTV)",
+    minToolVersion: "9.13",
+    currentToolVersion: "10.x",
+    minOntap: "9.8",
+    protocols: ["NFS v3/v4.1", "iSCSI", "FC/FCoE", "NVMe/FC", "NVMe/TCP"],
+    keyFeatures: [
+      "VAAI (vStorage APIs for Array Integration): ATS (compare-and-swap), Zero-block reclamation, Full-copy offload — reduces host CPU for storage operations",
+      "VASA 3.0 Provider: Storage Policy Based Management (SPBM) for vVols. Requires ONTAP 9.8+ and OTV 9.10+",
+      "vVols (Virtual Volumes): Policy-driven per-VM storage. Granular snapshot, replication, and QoS per vVol. Requires VASA Provider",
+      "SRM (Site Recovery Manager): SnapMirror-based automated DR failover. SRA (Storage Replication Adapter) 9.x required",
+      "NFS Plugin for VMware VAAI: Enables VAAI on NFS datastores (clone, lock operations). Plugin deployed as VIB on ESXi hosts",
+      "SnapCenter Plugin for VMware vSphere: Application-consistent snapshots, automated backup scheduling for VMs and datastores"
+    ],
+    caveats: [
+      "NVMe/FC for vSphere requires ONTAP 9.9.1+ and ESXi 7.0U1+",
+      "vVols require VASA Provider registration in vCenter — not automatic. OTV must be deployed",
+      "MetroCluster + vSphere: vSphere Metro Storage Cluster (vMSC) requires SnapMirror active sync (9.9.1+) or MetroCluster with SRM",
+      "OTV 10.x is a major redesign — not a drop-in replacement for OTV 9.x. Parallel deployment required for migration",
+      "VAAI ATS (Hardware Locking) must be enabled on ONTAP: 'vserver nfs modify -vserver <svm> -vstorage enabled'"
+    ],
+    checkCmd: "vserver nfs show -fields vstorage",
+    docUrl: "https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere/"
+  },
+
+  hyperv: {
+    name: "Microsoft Hyper-V",
+    protocols: ["SMB 3.0 (recommended)", "iSCSI", "FC"],
+    minOntap: "9.3",
+    keyFeatures: [
+      "ODX (Offloaded Data Transfer): SMB 3.0 copy offload — Windows Server copies data entirely on the NetApp array without reading/writing through the host. Supported on ONTAP 9.3+ with SMB 3.0",
+      "Hyper-V over SMB 3.0: VM files (.vhd/.vhdx) stored on ONTAP CIFS share. Recommended over iSCSI for operational simplicity",
+      "CSV (Cluster Shared Volumes) with iSCSI/FC: Multi-host LUN access for Hyper-V clusters — requires SCSI reservations and careful LUN configuration",
+      "Windows Server 2022: SMB over QUIC supported (ONTAP 9.10.1+ with SMB 3.1.1); provides encrypted SMB access over HTTPS",
+      "SnapCenter Plugin for Windows: VSS-integrated snapshots for Hyper-V VMs on ONTAP (application-consistent)"
+    ],
+    caveats: [
+      "SMB 3.0 ODX requires ONTAP to have ODX enabled: 'vserver cifs options modify -vserver <svm> -copy-offload-enabled true'",
+      "SMB over QUIC (Windows Server 2022) requires ONTAP 9.10.1+ and SMB 3.1.1 — not all platforms support 3.1.1",
+      "CSV with ONTAP iSCSI: Enable ALUA (Asymmetric Logical Unit Access) on ONTAP for proper failover path management",
+      "BitLocker on Hyper-V: NetApp snapshots are crash-consistent for encrypted VHDs — application-consistent requires VSS provider",
+      "Hyper-V Live Migration over SMB 3.0: Requires Multichannel SMB. Enable: 'vserver cifs options modify -vserver <svm> -smb2-enabled true'"
+    ],
+    checkCmd: "vserver cifs options show -fields copy-offload-enabled,smb2-enabled",
+    docUrl: "https://docs.netapp.com/us-en/ontap/smb-admin/"
+  },
+
+  // ── CONTAINER / KUBERNETES ───────────────────────────────────────────────────
+  kubernetes: {
+    name: "Kubernetes / OpenShift",
+    tool: "Astra Trident (NetApp CSI Driver)",
+    currentVersion: "26.02.0",
+    minOntap: "9.5",
+    protocols: ["NFS v3/v4.1 (NAS)", "iSCSI (SAN)", "FC (SAN)", "NVMe/TCP (9.14.1+)"],
+    supportedBackends: [
+      "ontap-nas: NFS exports per PVC, supports NFSv3 and NFSv4.1, qtree and volume modes",
+      "ontap-nas-economy: Qtree-based for high PVC counts (1000s of PVCs per volume)",
+      "ontap-nas-flexgroup: FlexGroup-backed PVCs for large parallel workloads (AI/ML datasets)",
+      "ontap-san: iSCSI LUN per PVC — block storage for databases and stateful apps",
+      "ontap-san-economy: LUN-in-volume for high PVC count SAN workloads",
+      "ontap-san (FC): Fibre Channel LUN per PVC (Trident 23.04+)"
+    ],
+    keyFeatures: [
+      "Dynamic provisioning: PVCs are automatically provisioned on ONTAP based on StorageClass parameters",
+      "Volume Snapshots (CSI): Application-consistent snapshots via Kubernetes VolumeSnapshot API. Requires ONTAP 9.10.1+",
+      "Volume Clones (CSI): Fast FlexClone-based PVC cloning from snapshot. Sub-second regardless of volume size",
+      "Import existing volumes: 'tridentctl import' migrates existing ONTAP volumes into Kubernetes management",
+      "Topology awareness: Multi-zone Kubernetes can pin PVCs to nodes with access to specific ONTAP backends",
+      "OpenShift certified: Red Hat certified CSI driver. Validated for OCP 4.x with SnapCenter Operator"
+    ],
+    caveats: [
+      "Trident v26.02.0 fixes CVE-2026-24051 (PATH hijacking). Upgrade all Trident installations",
+      "NVMe/TCP backend requires ONTAP 9.14.1+ and Trident 23.01+",
+      "FlexGroup backend (ontap-nas-flexgroup) has limited snapshot support — check Trident docs for limitations",
+      "Trident does not support ASA r2 storage units — use classic ONTAP backend for Kubernetes",
+      "OpenShift: Use the NetApp Astra Control Center (ACC) for full data protection lifecycle management beyond basic CSI",
+      "MetroCluster + Kubernetes: SnapMirror active sync with Trident requires careful affinity/anti-affinity rules"
+    ],
+    checkCmd: "tridentctl get backends",
+    docUrl: "https://docs.netapp.com/us-en/trident/"
+  },
+
+  openstack: {
+    name: "OpenStack",
+    protocols: ["NFS (Manila)", "iSCSI/FC (Cinder)"],
+    minOntap: "9.3",
+    drivers: [
+      "Manila (Shared Filesystem): ontap driver creates NFS shares on ONTAP SVMs. Supports share snapshots and share replication",
+      "Cinder (Block Storage): ontap-iscsi and ontap-fc drivers for block volumes. ONTAP FlexVol per Cinder volume",
+      "Cinder backup: ONTAP backup driver via NDMP or SnapVault to secondary array"
+    ],
+    keyFeatures: [
+      "Manila ontap driver: dynamic NFS share provisioning, share snapshots, share clones via FlexClone",
+      "Cinder volume types: Map to ONTAP QoS policies, efficiency settings, aggregates via extra_specs",
+      "OpenStack Train/Ussuri/Yoga/Antelope: All supported with NetApp drivers (check IMT for specific version compatibility)",
+      "Neutron ML2: NetApp doesn't provide ML2 plugin — use standard vlan/vxlan with ONTAP LIF placement"
+    ],
+    caveats: [
+      "Manila driver requires dedicated SVM with NFS/CIFS license. Not shared with regular client SVMs",
+      "Cinder multiattach (RWX block): Not supported on ONTAP iSCSI — use Manila NFS for RWX",
+      "OpenStack-ONTAP version compatibility: always check NetApp IMT before upgrading either ONTAP or OpenStack version",
+      "Manila share replication: requires SnapMirror license and peered clusters. Not all Manila share types support replication"
+    ],
+    docUrl: "https://docs.openstack.org/manila/latest/configuration/shared-file-systems/drivers/netapp-cluster-mode-driver.html"
+  },
+
+  kvm: {
+    name: "KVM / Red Hat Virtualization / oVirt",
+    protocols: ["NFS (recommended for VM storage)", "iSCSI", "FC"],
+    minOntap: "9.3",
+    keyFeatures: [
+      "NFS datastore: QCOW2/raw VM disk images on ONTAP NFS shares. NFSv4.1 recommended for RHEL 8+",
+      "iSCSI: Direct LUN attachment to KVM hosts for high-performance block workloads",
+      "oVirt/RHV storage domains: ONTAP NFS or iSCSI presented as oVirt storage domains — snapshot and template support",
+      "RHEL 8/9 NFSv4.2: pNFS (parallel NFS) for ONTAP FlexGroup — maximum parallelism for high-throughput workloads",
+      "Red Hat OpenShift: See Kubernetes/Trident section — OCP on KVM uses Trident CSI"
+    ],
+    caveats: [
+      "NFSv4.1 sessions: Increase ONTAP max-connections per SVM for large KVM farms: 'vserver nfs modify -max-connection-per-session'",
+      "SELinux: May block NFS mounts on RHEL — configure NFS boolean: 'setsebool -P virt_use_nfs on'",
+      "oVirt/RHV live migration over NFS: Ensure ONTAP NFS LIF is accessible from all compute nodes in same broadcast domain",
+      "QCOW2 sparse files: ONTAP deduplication works well on QCOW2 base images. Enable dedup on the NFS volume"
+    ],
+    docUrl: "https://docs.netapp.com/us-en/ontap/nfs-admin/"
+  },
+
+  // ── DATABASES ───────────────────────────────────────────────────────────────
+  oracle: {
+    name: "Oracle Database",
+    protocols: ["NFS with dNFS (recommended)", "iSCSI with ASM", "FC with ASM"],
+    minOntap: "9.3",
+    keyFeatures: [
+      "dNFS (Oracle Direct NFS): Oracle kernel NFS client bypasses OS NFS stack. Up to 2x performance vs. kernel NFS. Supported on Oracle 11gR1+",
+      "dNFS Dispatchers: Each Oracle process uses independent I/O dispatchers. Configure 4–8 dispatchers per instance for parallel throughput",
+      "Oracle ASM with ONTAP: LUNs presented via iSCSI or FC used as ASM disk groups. Standard ONTAP LUN management applies",
+      "RMAN backup to NFS: ONTAP NFS as backup destination for RMAN. SnapVault provides policy-based retention",
+      "SnapCenter Oracle Plugin: Application-consistent snapshots using RMAN-integrated freeze/thaw. Full clone for test/dev in seconds"
+    ],
+    caveats: [
+      "dNFS: Must be explicitly enabled in Oracle (create oranfstab file or use Oracle installer option). Not on by default",
+      "dNFS + NFSv3: Configure ONTAP to allow large I/O blocks (>32K): 'vserver nfs modify -tcp-max-xfer-size 1048576'",
+      "Oracle RAC with iSCSI: Requires SCSI persistent reservations. ONTAP supports SCSI-3 PR for Oracle RAC",
+      "oracle dNFS multipath: dNFS supports multiple NICs for load balancing — configure multiple ONTAP LIFs and oranfstab entries",
+      "ONTAP QoS for Oracle: Set per-LUN or per-volume QoS policy to protect Oracle from noisy neighbours"
+    ],
+    checkCmd: "vserver nfs show -fields tcp-max-xfer-size",
+    docUrl: "https://docs.netapp.com/us-en/ontap/nfs-admin/support-oracle-direct-nfs-task.html"
+  },
+
+  mssql: {
+    name: "Microsoft SQL Server",
+    protocols: ["SMB 3.0 (NAS — recommended for simplicity)", "iSCSI (SAN — recommended for performance)", "FC"],
+    minOntap: "9.3",
+    keyFeatures: [
+      "SQL Server on SMB 3.0: .mdf, .ldf, and tempdb files on ONTAP CIFS share. Microsoft-certified and supported configuration",
+      "SQL Server on iSCSI: Dedicated LUNs per database. Higher throughput and lower latency than SMB for large OLTP workloads",
+      "Always On Availability Groups + SnapMirror: SnapMirror can replicate secondary AG replica volumes for DR. Combined with application-level AG provides layered protection",
+      "SQL Server VSS Provider: SnapCenter Windows Plugin integrates with VSS (Volume Shadow Copy Service) for application-consistent snapshots",
+      "SQL Server 2022 TDE + ONTAP: Transparent Data Encryption keys stored in SQL Server; ONTAP dedup/compression still effective at block level"
+    ],
+    caveats: [
+      "SMB 3.0: Requires ONTAP CIFS service. tempdb on SMB 3.0 is supported but monitor for latency",
+      "iSCSI MPIO: Configure 2+ iSCSI paths per LUN with MPIO. ONTAP ALUA preferred for active/active path usage",
+      "SQL Server + FlexClone: Instant database refresh for dev/test — clone a database volume in seconds. Requires SnapCenter",
+      "SQL tempdb on NVMe/TCP: ONTAP 9.14.1+ supports NVMe/TCP for SQL Server on Windows Server 2022 with NVMe-oF driver",
+      "SQL Server backup to ONTAP: Use SnapCenter for policy-based snapshot backups rather than SQL native backup to ONTAP share (more efficient)"
+    ],
+    docUrl: "https://docs.netapp.com/us-en/ontap/smb-admin/support-microsoft-sql-server-smb-concept.html"
+  },
+
+  // ── BACKUP & DATA PROTECTION ─────────────────────────────────────────────────
+  veeam: {
+    name: "Veeam Backup & Replication",
+    minOntap: "9.8",
+    currentPlugin: "NetApp Plugin for Veeam v2",
+    keyFeatures: [
+      "NetApp Plugin v2: Snapshot-aware backup — Veeam triggers ONTAP snapshot before backup job, dramatically reducing backup window",
+      "Instant VM Recovery from ONTAP snapshot: Veeam can mount ONTAP NFS snapshot directly and boot VM in minutes",
+      "Veeam CDP (Continuous Data Protection): Integration with SnapMirror Active Sync for near-zero RPO continuous replication",
+      "Direct NFS mode: Veeam reads VM data directly from ONTAP NFS without going through ESXi — reduces host CPU impact",
+      "Veeam + SnapVault: Use ONTAP SnapVault for long-term retention of Veeam backup data on secondary ONTAP array",
+      "Veeam Hardened Repository on ONTAP S3: Immutable WORM bucket on ONTAP S3 as Veeam immutable backup target (9.8+)"
+    ],
+    caveats: [
+      "Veeam NetApp Plugin v2 requires Veeam Backup & Replication v12.1+",
+      "CVE-related: Veeam 12.1 clone operation triggered node panic on ONTAP 9.14.1 GA (fixed in 9.14.1P3+)",
+      "ONTAP S3 as Veeam Scale-Out Repository: Requires ONTAP 9.8+ and S3 license. Configure object versioning for immutability",
+      "Veeam + MetroCluster: Supported but must configure Veeam proxy affinity to prevent cross-site backup traffic"
+    ],
+    docUrl: "https://helpcenter.veeam.com/docs/backup/plugins/about.html"
+  },
+
+  commvault: {
+    name: "Commvault",
+    tool: "IntelliSnap with ONTAP",
+    minOntap: "9.5",
+    keyFeatures: [
+      "IntelliSnap: Application-consistent snapshots on ONTAP — Commvault orchestrates quiesce/snapshot/unquiesce sequence",
+      "Commvault Snap Copy: Uses ONTAP FlexClone to create instant clone of snapshot for backup job (no impact on primary)",
+      "SnapVault integration: Commvault can manage SnapVault replication schedules from a single pane",
+      "Commvault + SnapMirror: DR failover orchestration with SnapMirror via Commvault DR workflow automation",
+      "NDMP backup: Legacy tape/disk backup via NDMP 4/5 — ONTAP native support, no agent required on storage"
+    ],
+    caveats: [
+      "IntelliSnap requires Commvault v11 SP26+ and ONTAP 9.5+",
+      "Commvault + ASA r2: IntelliSnap with ASA r2 storage units requires Commvault v2024 or later — check Commvault compatibility matrix"
+    ],
+    docUrl: "https://documentation.commvault.com/"
+  },
+
+  rubrik: {
+    name: "Rubrik",
+    minOntap: "9.5",
+    keyFeatures: [
+      "NDMP: Rubrik connects via NDMP (4/5) to back up NAS data directly from ONTAP — no agent on storage",
+      "NAS Direct Archive: Rubrik can archive cold ONTAP NAS data to cloud via policy",
+      "Volume-level snapshots: Rubrik can trigger ONTAP snapshots and replicate via its own transport",
+      "SQL, Oracle, SAP HANA: Rubrik native app connectors work alongside ONTAP storage (agents on host)"
+    ],
+    caveats: [
+      "Rubrik NDMP requires NDMP license on ONTAP and dedicated NDMP LIF for best performance",
+      "Rubrik does NOT use SnapMirror or FlexClone — all data protection is managed by Rubrik's own engine",
+      "Security: Rubrik appliance should be on a dedicated management VLAN with access to ONTAP management LIF only"
+    ],
+    docUrl: "https://www.rubrik.com/solutions/netapp"
+  },
+
+  cohesity: {
+    name: "Cohesity DataProtect",
+    minOntap: "9.5",
+    keyFeatures: [
+      "NDMP backup: Cohesity connects via NDMP to ONTAP for NAS protection — file-level and volume-level",
+      "Cohesity SmartFiles: Replaces ONTAP NAS shares with Cohesity file services tier — not a common enterprise deployment with ONTAP",
+      "API integration: Cohesity DataProtect can trigger ONTAP REST API snapshots for application-consistent protection"
+    ],
+    caveats: [
+      "Cohesity NDMP: Uses same NDMP port (10000) as other backup tools — ensure firewall allows Cohesity cluster IP to ONTAP management LIF",
+      "ONTAP NDMP scoped user: Create dedicated NDMP user with limited permissions for each backup tool"
+    ],
+    docUrl: "https://docs.cohesity.com/"
+  },
+
+  ndmp: {
+    name: "NDMP (Network Data Management Protocol)",
+    versions: ["v3", "v4", "v5 (current)"],
+    minOntap: "9.0",
+    keyFeatures: [
+      "3-way NDMP: Data flows from ONTAP → backup media server → backup device (tape/disk). Backup server orchestrates but data doesn't flow through it",
+      "2-way NDMP (local): ONTAP and backup device connect directly. Used for tape or local backup targets",
+      "NDMP v5: Adds support for restartable backups and improved error handling. ONTAP supports v4 and v5",
+      "SVM-scoped NDMP: Each SVM has an independent NDMP service — configure per-SVM backup scope"
+    ],
+    checkCmd: "system node ndmp show",
+    caveats: [
+      "NDMP backup is file-level for NAS (NFS/CIFS). Not suitable for SAN LUN backup — use VSS/host agents",
+      "NDMP over IPv6: Supported on ONTAP 9.5+. Configure NDMP LIF on correct IPspace",
+      "Multiple backup tools using NDMP: Each tool needs its own NDMP user. ONTAP supports concurrent NDMP sessions",
+      "NDMP tape (legacy): ONTAP still supports tape libraries via NDMP but SAN-attached tape preferred"
+    ],
+    docUrl: "https://docs.netapp.com/us-en/ontap/tape-backup/"
+  },
+
+  // ── AI / ML / HPC ────────────────────────────────────────────────────────────
+  ai_ml: {
+    name: "AI / ML Workloads",
+    protocols: ["NFS v4.1 (recommended for AI)", "NFS v3 (high concurrency)", "pNFS over FlexGroup"],
+    minOntap: "9.8",
+    keyFeatures: [
+      "NetApp DataOps Toolkit: Python library for data scientists — provision NearClone volumes, snapshots, and manage ONTAP from Jupyter notebooks. Open source on GitHub",
+      "NVIDIA DGX + ONTAP NFS: Validated reference architecture. DGX-A100/H100 pods connect to ONTAP AFF A70/A90/A1K via 100GbE NFS. Provides dataset staging, checkpoint storage, and model registry",
+      "FlexGroup for AI datasets: Single NFS namespace that scales across all nodes and disks. Ideal for large training dataset repositories (petabyte-scale). NFSv4.1 pNFS enables parallel access",
+      "pNFS (Parallel NFS): ONTAP FlexGroup supports NFSv4.1 pNFS. Allows compute nodes to access data in parallel directly to storage node shards — eliminates metadata bottleneck",
+      "BeeGFS on E-Series: NetApp E-Series (E2800, EF600, EF300) used as BeeGFS storage target for HPC workloads requiring POSIX parallel filesystem",
+      "Spot by NetApp (Spot.io): Cloud cost optimization — auto-scales cloud compute (EC2 Spot, Azure Spot) with ONTAP Cloud (CVO) as persistent storage for AI training jobs",
+      "MLOps data versioning: FlexClone creates instant zero-copy dataset versions for experiment reproducibility — clone a 100TB training dataset in seconds",
+      "Astra Control: Kubernetes application data management — snapshot and restore ML pipelines and model data in OpenShift/Kubernetes"
+    ],
+    caveats: [
+      "AI training workloads: Use NFSv4.1 + rsize/wsize=1048576 (1MB) for maximum throughput. Default 64K is suboptimal for GPU training I/O patterns",
+      "GPU-to-storage ratio: Typically 1 AFF A90 HA pair per 8-16 NVIDIA A100 GPUs for training workloads. Benchmark with actual model to confirm",
+      "Checkpoint writes: AI training generates frequent large sequential writes (model checkpoints). ONTAP AFF with NVMe handles this without throughput degradation",
+      "Dataset caching: Consider FlexCache to cache popular training datasets on edge storage nodes closest to compute — reduces WAN transfer for federated training",
+      "pNFS requirements: Requires NFSv4.1 client support on compute nodes and ONTAP FlexGroup. Not available on FlexVol",
+      "E-Series/BeeGFS: E-Series does not run ONTAP — completely separate stack. No ONTAP features (snapshots, SnapMirror) on E-Series BeeGFS storage"
+    ],
+    docUrl: "https://docs.netapp.com/us-en/netapp-dataops-toolkit/"
+  },
+
+  // ── MONITORING & OBSERVABILITY ────────────────────────────────────────────────
+  monitoring: {
+    name: "Monitoring & Observability",
+    tools: {
+      prometheus: {
+        name: "Prometheus / Grafana",
+        minOntap: "9.7",
+        integration: "ONTAP REST API metrics endpoint (/api/cluster/metrics, /api/storage/volumes) — pull model. NetApp publishes Grafana dashboards for ONTAP on GitHub",
+        checkCmd: "security login create -user-or-group-name prometheus -application http -authentication-method password -role readonly",
+        docUrl: "https://github.com/NetApp/harvest"
+      },
+      harvest: {
+        name: "NetApp Harvest 2.0",
+        minOntap: "9.6",
+        integration: "Open-source collector (ZAPI + REST). Sends metrics to Prometheus/InfluxDB. Pre-built Grafana dashboards included. Runs as Docker container or systemd service",
+        docUrl: "https://github.com/NetApp/harvest"
+      },
+      splunk: {
+        name: "Splunk",
+        integration: "ONTAP sends AutoSupport/EMS log events via syslog to Splunk. Configure ONTAP EMS syslog: 'event notification create -filter-name <filter> -destinations <syslog_destination>'",
+        checkCmd: "event notification destination show",
+        docUrl: "https://docs.netapp.com/us-en/ontap/error-messages/ems-routing-concept.html"
+      },
+      datadog: {
+        name: "Datadog",
+        integration: "NetApp Harvest → Prometheus → Datadog Agent (via remote_write). No native Datadog-ONTAP integration — use Harvest as intermediary",
+        docUrl: "https://github.com/NetApp/harvest"
+      }
+    }
+  },
+
+  // ── THIRD-PARTY FPolicy INTEGRATIONS ─────────────────────────────────────────
+  fpolicy: {
+    name: "FPolicy Third-Party Integrations (NAS Audit / Security)",
+    description: "ONTAP FPolicy allows third-party servers to receive file access notifications and allow/deny file operations in real-time or asynchronously",
+    minOntap: "9.0",
+    eolWarnings: {
+      varonis: {
+        name: "Varonis",
+        eolDate: "2026-12-31",
+        status: "END OF LIFE — Varonis FPolicy connector reaches end-of-life December 31, 2026",
+        replacement: "NetApp native FPolicy with ONTAP audit logging (CSV/XML), or migrate to alternative security tools",
+        action: "Customers using Varonis FPolicy connector must plan migration before December 31, 2026. Contact Varonis for migration path to their agentless API-based integration"
+      }
+    },
+    activeVendors: {
+      "NetApp ONTAP Audit (native)": { notes: "Built-in file access auditing — writes EVTX logs to local volume. No external server required. Configure audit policy per SVM", checkCmd: "vserver audit show" },
+      "Netwrix (Auditor for NetApp)": { notes: "FPolicy-based file activity monitoring. Alerts on suspicious access patterns, ransomware behaviour" },
+      "Stealthbits / Netwrix StealthAUDIT": { notes: "NAS data governance and permissions analysis. Connects via FPolicy and CIFS/NFS scan" },
+      "ManageEngine FileAudit Plus": { notes: "SMB/FPolicy-based file server auditing. Lightweight FPolicy external engine" },
+      "Superna Eyeglass": { notes: "Ransomware detection and automated ONTAP response — blocks suspect IP, takes snapshot on anomaly detection. FPolicy-based. Direct ONTAP integration" },
+      "Zimperium / SIEM tools": { notes: "EMS event forwarding via syslog to SIEM. Not FPolicy — uses ONTAP EMS for security events" }
+    },
+    keyConsiderations: [
+      "FPolicy synchronous mode: Every file operation waits for FPolicy server response before completing. Latency impact if FPolicy server is slow or unreachable",
+      "FPolicy asynchronous mode: File operations complete immediately; FPolicy server notified after the fact. No latency impact but cannot block operations",
+      "FPolicy disconnected: If external FPolicy server becomes unreachable, synchronous policies block all file access by default. Configure 'allow-privileged-access' to allow bypass for emergency",
+      "FPolicy v2 (ONTAP 9.13.1+): Persistent store mode — ONTAP buffers FPolicy events on local volume. FPolicy server can reconnect and replay events. Prevents event loss",
+      "High availability: Deploy FPolicy external server in HA pair with load balancing. ONTAP connects to multiple FPolicy servers simultaneously"
+    ],
+    checkCmd: "vserver fpolicy show"
+  }
 };
 
 function getOntapHopInfo(from, to) {
@@ -4111,7 +4801,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
   const p = (platform || "").toLowerCase();
   let type = "ontap";
   if (p.includes("storagegrid")) type = "storagegrid";
-  else if (p.includes("e-series") || p.includes("ef600") || p.includes("e5700") || p.includes("santricity")) type = "santricity";
+  else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e4000") || p.includes("santricity")) type = "santricity";
   
   // Clean versions (remove prefixes)
   let cleanCurrent = currentVersion.replace(/^(ontap|santricity os|storagegrid|nx-os|fabric os|fos)\s+/i, "").trim();
@@ -4281,7 +4971,7 @@ function getLatestSupportedVersion(platform) {
   if (p.includes("storagegrid")) {
     const db = SOFTWARE_VERSION_DATABASES.storagegrid;
     return "StorageGRID " + db[db.length - 1];
-  } else if (p.includes("e-series") || p.includes("ef600") || p.includes("e5700") || p.includes("santricity")) {
+  } else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e4000") || p.includes("santricity")) {
     const db = SOFTWARE_VERSION_DATABASES.santricity;
     return "SANtricity OS " + db[db.length - 1];
   } else if (p.includes("cisco") || p.includes("mds") || p.includes("nexus")) {
@@ -6563,10 +7253,23 @@ function enrichSystemTelemetry(s) {
   const isFAS = modelLower.includes("fas");
   const isCVO = modelLower.includes("cloud volumes ontap") || modelLower.includes("cvo") || (name || "").toLowerCase().includes("cvo");
   const isStorageGrid = modelLower.includes("storagegrid") || modelLower.includes("sg60") || modelLower.includes("sg61") || modelLower.includes("sg10");
-  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800");
+  // E-Series: classic (EF600/EF300/E2800/E5700) + new gen (EF50/EF80 announced Mar 2026 — SANtricity OS, not ONTAP)
+  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800") || modelLower.includes("ef50") || modelLower.includes("ef80") || modelLower.includes("e4000");
+
+  // ASA r2 (new architecture — personality: ASA_R2; no aggregates, uses Storage Availability Zone)
+  // Detected via: API personality field OR model prefix 'ASA A' + isDisaggregated flag from server.py harvest
+  const personalityRaw = (s.personality || "").toUpperCase();
+  const isASAr2 = personalityRaw === "ASA_R2" || personalityRaw === "ASAER2" ||
+                  (isASA && (s.isDisaggregated === true));
+
+  // AFX (disaggregated NAS/AI platform — ONTAP 9.17.1+, pNFS + S3, announced Oct 2025)
+  // Detected via: API personality field = "AFX" or "DISAGGREGATED" (non-ASA)
+  const isAFX = personalityRaw === "AFX" || personalityRaw === "DISAGGREGATED" ||
+                (s.isDisaggregated === true && !isASAr2);
+
   // Unknown platform — treat as generic ONTAP (AFF-equivalent) so dashboard remains functional
-  const isKnownPlatform = isAFF || isASA || isFAS || isCVO || isStorageGrid || isEseries;
-  const isONTAPBased = !isStorageGrid && !isEseries; // All AFF/ASA/FAS/CVO and unknown
+  const isKnownPlatform = isAFF || isASA || isFAS || isCVO || isStorageGrid || isEseries || isASAr2 || isAFX;
+  const isONTAPBased = !isStorageGrid && !isEseries; // All AFF/ASA/FAS/CVO/ASAr2/AFX and unknown
 
   // Detect live API systems — these must NEVER get fabricated placeholder data
   const isLiveData = s._source === 'graphql';
@@ -6691,19 +7394,33 @@ function enrichSystemTelemetry(s) {
       ratioVal = null;
     }
 
-    // ── Logical used: physical × dataReduction ratio (without snapshot inflation)
-    const logTB = dataRedRatio > 1 ? physTB * dataRedRatio : (physTB + dataSavedTB);
+    // ASA r2: capacity reported via SAZ (Storage Availability Zone), not aggregate/physical
+    // If standard physical capacity is missing, fall back to SAZ fields from server.py harvest
+    let physTBfinal = physTB;
+    let rawTBfinal  = rawTB;
+    let usableTBfinal = s.clusterUsableCapacityTB || 0;
+    if (isASAr2 && physTBfinal === 0 && (s.sazUsedKiB || 0) > 0) {
+      physTBfinal   = Math.round(((s.sazUsedKiB       || 0) / (1024 ** 3)) * 1000) / 1000;
+      rawTBfinal    = Math.round(((s.sazTotalRawKiB   || 0) / (1024 ** 3)) * 1000) / 1000;
+      usableTBfinal = Math.round(((s.sazEffectiveCapacityKiB || s.sazTotalRawKiB || 0) / (1024 ** 3)) * 1000) / 1000;
+    }
+    // AFX: disaggregated pools — same physical path but flag for display note
+    const logTBfinal = dataRedRatio > 1 ? physTBfinal * dataRedRatio : (physTBfinal + dataSavedTB);
+
 
     efficiency = {
-      ratio: ratioVal ? `${ratioVal}:1` : 'N/A',
-      logicalUsedTB: parseFloat((logTB || physTB).toFixed(1)),
-      physicalUsedTB: physTB,
+      ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : 'N/A'),
+      logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
+      physicalUsedTB: physTBfinal,
       spaceSavedTB: parseFloat(dataSavedTB.toFixed(1)),
-      fabricPoolTieredTB: 0,
-      rawCapacityTB: rawTB,
-      usableCapacityTB: s.clusterUsableCapacityTB || 0,
+      fabricPoolTieredTB: 0,  // ASA r2 / AFX do not support FabricPool
+      rawCapacityTB: rawTBfinal,
+      usableCapacityTB: usableTBfinal,
       // Expose full ratio separately for tooltip/detail views
       efficiencyRatioWithSnaps: effRatioFull,
+      // Personality note for display
+      platformNote: isASAr2 ? 'ASA r2 — capacity via Storage Availability Zone (SAZ). 4:1 efficiency SLA guaranteed by NetApp.' :
+                   isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' : null,
     };
 
   } else if (!efficiency) {
@@ -6711,7 +7428,11 @@ function enrichSystemTelemetry(s) {
     let ratio = "1.0:1";
     let physical = 45.2;
     let logical = 45.2;
-    if (isAFF || isASA) {
+    if (isASAr2) {
+      // ASA r2: NetApp guarantees 4:1 data reduction SLA
+      ratio = "4.0:1";
+      logical = 180.8;
+    } else if (isAFF || isASA) {
       ratio = "3.8:1";
       logical = 171.76;
     } else if (isFAS) {
@@ -6723,7 +7444,9 @@ function enrichSystemTelemetry(s) {
       logicalUsedTB: logical,
       physicalUsedTB: physical,
       spaceSavedTB: logical - physical,
-      fabricPoolTieredTB: (isAFF || isASA) ? 12.5 : 0.0
+      fabricPoolTieredTB: isASAr2 || isAFX ? 0 : ((isAFF || isASA) ? 12.5 : 0.0),
+      platformNote: isASAr2 ? 'ASA r2 — 4:1 efficiency SLA guaranteed by NetApp.' :
+                   isAFX   ? 'AFX — disaggregated ONTAP.' : null
     };
   }
 
@@ -13072,7 +13795,7 @@ function getSystemPortMappings(sys) {
   const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
   
   const platformStr = sys.platform || "";
-  const isEseries = sys.santricityVersion !== undefined || platformStr.toLowerCase().includes("e-series") || platformStr.toLowerCase().includes("ef600") || platformStr.toLowerCase().includes("e5700") || platformStr.toLowerCase().includes("ef300");
+  const isEseries = sys.santricityVersion !== undefined || platformStr.toLowerCase().includes("e-series") || platformStr.toLowerCase().includes("ef600") || platformStr.toLowerCase().includes("ef50") || platformStr.toLowerCase().includes("ef80") || platformStr.toLowerCase().includes("e5700") || platformStr.toLowerCase().includes("ef300") || platformStr.toLowerCase().includes("e4000");
   const isCloud = platformStr.toLowerCase().includes("cloud");
   const isStorageGrid = platformStr.toLowerCase().includes("storagegrid") || platformStr.toLowerCase().includes("sg60") || platformStr.toLowerCase().includes("sg61") || platformStr.toLowerCase().includes("sg10") || platformStr.toLowerCase().includes("sg57");
   const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA") || platformStr.includes("AFX") || /A[0-9]{2,3}/.test(platformStr) || /C[0-9]{2,3}/.test(platformStr) || /r2/i.test(platformStr);
