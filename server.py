@@ -282,6 +282,16 @@ def _do_full_harvest(watchlist_id=None):
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
                     systemFirmware { type currentVersion recommendedVersion }
+                    capacity {
+                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
+                      logical { usedKiB }
+                      reportedOn
+                    }
+                    monthlyCapacity {
+                      month
+                      physical { rawMarketingKiB usedKiB qoqUtilizationPercentage }
+                      logical { usedKiB }
+                    }
                   }"""
 
         # Try expanded first, fall back to minimal
@@ -710,6 +720,36 @@ def _do_full_harvest(watchlist_id=None):
                     "endOfHwSupport": hm.get("endOfHwSupport", ""),
                 })
 
+            # ── Pre-compute capacity from system-level ONTAPSystemPhysicalCapacity ──
+            # These fields come from: ... on ONTAPSystem { capacity { physical { ... } } monthlyCapacity { ... } }
+            # System-level is preferred; cluster-level used as fallback for systems without cluster data.
+            _sys_phys = cap_phys  # already extracted above
+            _sys_log  = (cap.get("logical") or {})
+            _sys_monthly = [
+                {
+                    "month": m.get("month", ""),
+                    "usedTB": round(((m.get("physical") or {}).get("usedKiB") or 0) / (1024**3), 3),
+                    "rawTB":  round(((m.get("physical") or {}).get("rawMarketingKiB") or 0) / (1024**3), 2),
+                    "qoqPct": (m.get("physical") or {}).get("qoqUtilizationPercentage"),
+                }
+                for m in (s.get("monthlyCapacity") or [])
+            ]
+            _raw_kib  = _sys_phys.get("rawMarketingKiB") or 0
+            _used_kib = _sys_phys.get("usedKiB") or 0
+            _log_kib  = _sys_log.get("usedKiB") or 0
+            _usbl_kib = _sys_phys.get("usablePerformanceTierKiB") or 0
+            _qoq      = _sys_phys.get("qoqUtilizationPercentage") or 0
+            _yoy      = _sys_phys.get("yoyUtilizationPercentage") or 0
+            _util_pct = _sys_phys.get("utilizationPercentage") or 0
+            # Fall back to cluster-level if system-level is zero
+            if _raw_kib == 0:
+                _raw_kib  = cl_cap.get("rawCapacityTB", 0) * (1024**3)
+                _used_kib = cl_cap.get("physicalUsedTB", 0) * (1024**3)
+                _log_kib  = cl_cap.get("logicalUsedTB", 0) * (1024**3)
+                _usbl_kib = cl_cap.get("usableCapacityTB", 0) * (1024**3)
+                _qoq      = cl_cap.get("qoqUtilizationPct", 0)
+                _yoy      = cl_cap.get("yoyUtilizationPct", 0)
+
             systems_out.append({
                 # ── Core identity ──
                 "serialNumber": serial,
@@ -828,18 +868,19 @@ def _do_full_harvest(watchlist_id=None):
                 "monthlyAutoResolvedCases": s.get("monthlyAutoResolvedCases") or [],
                 "sustainabilityScores": s.get("sustainabilityScores") or [],
                 # ── Capacity ──
-                "capacityAllocatedKB": cap_phys.get("allocatedCapacityKB", 0),
-                "capacityUsedKB": cap_phys.get("usedCapacityKB", 0),
-                "capacityAvailableKB": cap_phys.get("availableCapacityKB", 0),
+                "capacityAllocatedKB": 0,
+                "capacityUsedKB": round(_used_kib),
+                "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),
                 "dataReductionRatio": cap_eff.get("dataReductionRatio"),
-                "clusterPhysicalUsedTB": cl_cap.get("physicalUsedTB", 0),
-                "clusterRawCapacityTB": cl_cap.get("rawCapacityTB", 0),
-                "clusterLogicalUsedTB": cl_cap.get("logicalUsedTB", 0),
-                "clusterUsableCapacityTB": cl_cap.get("usableCapacityTB", 0),
-                "clusterQoQUtilPct": cl_cap.get("qoqUtilizationPct", 0),
-                "clusterYoYUtilPct": cl_cap.get("yoyUtilizationPct", 0),
-                "clusterCapacityReportedOn": cl_cap.get("capacityReportedOn", ""),
-                "clusterMonthlyCapacity": cl_cap.get("monthlyCapacity", []),
+                "clusterPhysicalUsedTB": round(_used_kib  / (1024**3), 2),
+                "clusterRawCapacityTB":  round(_raw_kib   / (1024**3), 2),
+                "clusterLogicalUsedTB":  round(_log_kib   / (1024**3), 2),
+                "clusterUsableCapacityTB": round((_usbl_kib or _raw_kib) / (1024**3), 2),
+                "clusterQoQUtilPct": _qoq,
+                "clusterYoYUtilPct": _yoy,
+                "clusterCapacityUtilPct": _util_pct,
+                "clusterCapacityReportedOn": (cap.get("reportedOn") or cl_cap.get("capacityReportedOn", "") or "")[:10],
+                "clusterMonthlyCapacity": _sys_monthly if _sys_monthly else cl_cap.get("monthlyCapacity", []),
                 "snapMirrorCount": serial_to_cluster_sm.get(serial, 0),
                 "isHAConfigured": serial_to_cluster_ha.get(serial, False),
                 # ── Shelves, drives, ports, switches ──
