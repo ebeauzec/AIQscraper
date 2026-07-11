@@ -56,9 +56,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`securityBulletins` now always populated for live systems** — previously only auto-generated when API returned zero bulletins; now additive so DB entries always appear alongside API data
 - **Daily re-scrape cron** — scheduled at 08:00 to trigger reference library re-sync
 
+### Fixed
+- **Version String Comparison Bug (Critical)** — Replaced direct string comparisons (e.g. `s.osVersion >= s.swRecMin`) with the robust numeric `versionLt` helper in `app.js` across 5 filter lines. This resolves a bug where newer versions like 9.10+ were sorted alphabetically as smaller than 9.9.x baselines, miscalculating node firmware currency.
+- **PyInstaller spec UnicodeEscape Error** — Converted `AIQscraper.spec` docstring to a raw string (`r"""..."""`) to fix a SyntaxError caused by backslashes inside path names (e.g., `\N`).
+
 ### Changed
-- **CHANGELOG / README** — updated to reflect v3.3.0 security intelligence milestone
-- **Badge version** — bumped to 3.3.0
+- **SnapCenter version database** — Appended `"6.2.2"` to `SOFTWARE_VERSION_DATABASES.snapcenter` after synchronizing updates from the daily reference library scan.
+- **CHANGELOG / README** — updated to reflect v3.3.0 security intelligence milestone.
+- **Badge version** — bumped to 3.3.0.
 
 ---
 
