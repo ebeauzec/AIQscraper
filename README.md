@@ -1,6 +1,6 @@
-﻿# NetApp Active IQ Advisor Dashboard
+# NetApp Active IQ Advisor Dashboard
 
-[![Version](https://img.shields.io/badge/version-3.2.0-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.3.0-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -45,7 +45,7 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 | **One customer at a time** — you must manually switch contexts and re-filter for every account | **Cross-customer fleet view** — all customers, all systems in a single pane. Filter to any customer in one click |
 | **No deliverable generation** — you take screenshots or copy/paste into documents | **Six ready-to-share deliverables** — QBR Pack, Customer Success Plan, MSP Report, Handover Brief, CLI Runbook — generated in seconds |
 | **No upgrade path calculator** — AIQ shows your current version; you have to figure out the hop sequence yourself | **Automatic hop-by-hop upgrade paths** — direct paths where available; multi-hop sequences with intermediate versions and per-version notes for ONTAP, StorageGRID, and SANtricity |
-| **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against tracked CVEs with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps |
+| **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against **82 tracked CVEs** (from MITRE, NVD, CISA KEV, NetApp PSIRT, GitHub) with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps. Includes 2 CISA KEV-confirmed actively exploited entries. |
 | **Capacity trend is per-system** — no fleet-wide growth rate or cross-customer runway view | **Fleet-wide capacity projection** — 6-month historical trend, growth rate in GB/day, per-node breakdown, and runway estimate per node |
 | **Efficiency includes snapshot savings** — the displayed ratio is inflated | **Correct data reduction ratio** — uses dedupe + compression only (no snapshots). Snapshot-inclusive ratio shown separately for reference |
 | **No ITIL-aligned change control output** — risks are described but remediation isn't structured for change management | **CLI Runbook with ITIL tiers** — every remediation step classified as Non-Disruptive / Disruptive / Destructive, formatted as change tickets for CAB approval |
@@ -82,7 +82,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 **Added by the Reference Library (not in Active IQ):**
 - EOA hardware flags for AFF, ASA, and FAS platforms
-- CVE cross-referencing with version-range matching and per-system applicability
+- **CVE cross-referencing** — 82 unique CVEs across 77 advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP version range.
+- **CISA KEV integration** — 2 confirmed actively exploited NetApp-related CVEs flagged with 🚨 priority (CVE-2024-54085 CVSS 10.0, CVE-2024-38475 CVSS 9.1)
 - Firmware baseline checks for shelves and switches
 - MetroCluster ISL requirement validation
 - Kerberos AES enforcement detection (Microsoft KB5073381)
@@ -353,6 +354,8 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 ## 8. Security & Data Privacy
 
+### Tool Security Guarantees
+
 | Guarantee | Detail |
 |---|---|
 | **100% Local** | All data stays in browser `localStorage` and local SQLite (`aiq_cache.db`). Nothing goes to any cloud service |
@@ -363,6 +366,41 @@ All deliverables are generated in the browser from your local data. Nothing is u
 | **Human-Reviewed Remediation** | All CLI outputs go into change tickets for human review and CAB approval — nothing is auto-executed |
 | **Offline After Sync** | Once synced, the dashboard operates fully offline from the local cache |
 | **Minimal Footprint** | No install, no persistent services, no registry modifications, no external shares |
+
+### Security Intelligence Database
+
+The tool maintains a built-in `NETAPP_SECURITY_BULLETIN_DB` that is cross-referenced against every system's ONTAP version during data enrichment. This is **in addition to** advisories returned by the Active IQ API.
+
+| Metric | Value |
+|--------|-------|
+| **Total advisory entries** | **77** |
+| **Unique CVEs covered** | **82** |
+| **CISA KEV confirmed** | **2** (actively exploited in the wild) |
+| **Coverage period** | 2024 – 2026 |
+| **Products covered** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, SAN Host Utilities, Active IQ Unified Manager |
+
+#### Sources
+
+| Source | Type |
+|--------|------|
+| `security.netapp.com` (NetApp PSIRT) | Official NetApp advisories (NTAP-YYYYMMDD-XXXX) |
+| MITRE CVE | CVE dictionary cross-reference |
+| NVD / NIST CVE API | CVSS scores, affected version metadata |
+| CISA Known Exploited Vulnerabilities (KEV) | Active exploitation status |
+| GitHub Security Advisories | Trident / Golang dependency CVEs |
+| NetApp KB | Operational bugs (CONTAP-xxxxxx IDs) |
+| Tenable, SentinelOne, Eclypsium, CIRCL | Threat intelligence cross-reference |
+
+#### 🚨 CISA KEV — Actively Exploited Entries
+
+| CVE | CVSS | Product | Status | Fix |
+|-----|------|---------|--------|-----|
+| **CVE-2024-54085** | **10.0** | StorageGRID BMC (SG6160, SGF6112, SG110, SG1100) | 🚨 Active exploitation confirmed. PoC exists. | Apply AMI MegaRAC SPx firmware 12.7+/13.5+ |
+| **CVE-2024-38475** | **9.1** | ONTAP 9 (Apache mod_rewrite) | 🚨 Actively exploited. CISA KEV 2024. | ONTAP 9.12.1P16 / 9.14.1P8 / 9.16.1 |
+
+#### Update Cadence
+
+The database is updated with each release. A daily background task (08:00) monitors the local NetApp Reference Library for new advisories and prompts re-ingestion. To manually check for new advisories, visit [security.netapp.com/advisory/](https://security.netapp.com/advisory/) and add new entries to `NETAPP_SECURITY_BULLETIN_DB` in `app.js`.
 
 ---
 

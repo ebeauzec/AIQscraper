@@ -7,7 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.3.0] - 2026-07-11
+
+### Added — Security Intelligence Engine (Major)
+
+#### Multi-Source CVE Harvest
+- **77 advisory entries covering 82 unique CVEs** ingested into `NETAPP_SECURITY_BULLETIN_DB` in `app.js`
+- Sources scraped and cross-referenced:
+  - `security.netapp.com` (NetApp PSIRT) — all NTAP-YYYYMMDD-XXXX advisories 2024–2026
+  - **MITRE CVE** — NetApp ONTAP / StorageGRID / Trident keyword search
+  - **NVD / NIST CVE API** — `keywordSearch=netapp+ontap` endpoint + web extraction
+  - **CISA Known Exploited Vulnerabilities (KEV)** catalog — confirmed 2 NetApp-related entries
+  - **GitHub Security Advisories** — Trident/Astra Trident Golang dependency CVEs
+  - **NetApp KB** — operational bugs (CONTAP-xxxxxx IDs, upgrade-triggered instabilities)
+  - **Tenable, SentinelOne, Eclypsium, CIRCL** — threat intelligence cross-reference
+
+#### CISA KEV — Actively Exploited (2 entries confirmed)
+- **CVE-2024-54085** (CVSS 10.0) — AMI MegaRAC SPx BMC authentication bypass via HTTP header spoofing. Grants full unauthenticated BMC control on StorageGRID SG6160, SGF6112, SG110, SG1100. Added to CISA KEV June 25, 2025. PoC exists. Unaffected models: SG6060, SGF6024, SG100, SG1000.
+- **CVE-2024-38475** (CVSS 9.1) — Apache HTTP Server mod_rewrite URL mapping flaw allowing source code disclosure and RCE. Added to CISA KEV 2024. Fixed in ONTAP 9.12.1P16 / 9.13.1P14 / 9.14.1P8 / 9.15.1P3 / 9.16.1.
+
+#### New Critical CVEs (CVSS ≥ 9.0)
+- **CVE-2024-43102** (CVSS 10.0) — FreeBSD UMTX Use-After-Free, kernel privilege escalation. All ONTAP 9. Advisory NTAP-20240916-0001.
+- **CVE-2025-26512** (CVSS 9.9) — SnapCenter improper access control, low-priv user → remote admin on any SnapCenter plug-in host. Fix: SC 6.0.1P1 / 6.1P1.
+- **CVE-2025-6965** (CVSS 9.8) — SQLite integer overflow in SnapCenter Server. Fix: SQLite 3.50.2+.
+- **CVE-2025-15467** (CVSS 9.8) — OpenSSL stack buffer overflow in CMS AuthEnvelopedData. Affects ONTAP 9.18.1 only.
+- **CVE-2026-27143** (CVSS 9.8) — Golang compiler integer overflow/underflow. Affects Trident / ONTAP tools. Fix: Go 1.25.9+.
+- **CVE-2024-11236** (CVSS 9.8) — PHP ldap_escape buffer overflow on 32-bit. Fix: PHP 8.1.30+/8.2.24+.
+- **CVE-2024-45337** (CVSS 9.1) — Golang x/crypto SSH auth bypass. Affects Trident.
+- **CVE-2024-47685** (CVSS 9.1) — Linux kernel vulnerability. StorageGRID hotfix 11.9.0.7 required.
+- **CVE-2025-4517** (CVSS 9.4) — Python tarfile path traversal. Affects all products bundling Python.
+
+#### New High CVEs (CVSS 7.0–8.9) — 20+ entries including
+- CVE-2026-27140 (CVSS 8.8) — Golang stdlib memory corruption, Trident/ONTAP tools
+- CVE-2024-21989 (CVSS 8.1) — ONTAP Select Deploy read-only privilege escalation
+- CVE-2024-38473 (CVSS 8.1) — Apache mod_proxy auth bypass (same advisory as CVE-2024-38475)
+- CVE-2025-0411 (CVSS 7.0) — 7-Zip MoTW bypass in Active IQ Unified Manager
+- CVE-2024-0760 (CVSS 7.5) — ISC BIND DNS flood DoS, ONTAP 9.14.1+ DNS LB configs
+- CVE-2024-2511 (CVSS 7.5) — OpenSSL TLSv1.3 unbounded memory growth DoS
+- CVE-2024-2398 (CVSS 7.5) — libcurl HTTP/2 server push memory leak
+- CVE-2024-22025 (CVSS 7.5) — Node.js DoS, Active IQ Unified Manager / ONTAP tools
+- CVE-2024-55549 (CVSS 7.8) — libxslt use-after-free, ONTAP / multiple products
+- CVE-2026-24051 (CVSS 7.8) — Astra Trident PATH hijacking. Fix: Trident v26.02+
+
+#### Enrichment Wiring
+- **`getApplicableSecurityBulletins(ontapVersion, platformType)`** — version-aware DB matcher wired into `enrichSystemTelemetry()`. Performs ONTAP version string comparison (branch + patch-level) against all 77 DB entries
+- **Three-way merge in `enrichSystemTelemetry()`** — API-provided bulletins, risk-extracted CVE IDs, and DB-matched advisories are merged and deduplicated by CVE ID using a `Set`. Result is sorted Critical → High → Medium → Low.
+- **Enriched bulletin schema** — all bulletins now carry: `id`, `ntapId`, `cve`, `cvss`, `title`, `category`, `severity`, `status`, `mitigation`, `fixedIn`, `published`, `link`, `source` (`api` / `risk` / `db`)
+- **`securityBulletins` now always populated for live systems** — previously only auto-generated when API returned zero bulletins; now additive so DB entries always appear alongside API data
+- **Daily re-scrape cron** — scheduled at 08:00 to trigger reference library re-sync
+
+### Changed
+- **CHANGELOG / README** — updated to reflect v3.3.0 security intelligence milestone
+- **Badge version** — bumped to 3.3.0
+
+---
+
 ## [3.2.0] - 2026-07-11
+
 
 ### Fixed — Storage Efficiency (Critical)
 - **Efficiency ratio inflated by snapshot savings** — Server was referencing `_eff_ratio`, `_data_red`, `_dedup_kib`, `_compact_kib` without ever assigning them. All efficiency variables now correctly parsed from `ONTAPSystemEfficiency.ratio` and `.saved` GQL response objects
