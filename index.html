@@ -141,9 +141,24 @@
             <div class="chart-wrapper">
               <canvas id="efficiencyChart"></canvas>
             </div>
+            <!-- Efficiency stats strip -->
+            <div id="effStatsStrip" style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:14px; padding:0 8px;">
+              <div class="eff-stat-pill" style="background:rgba(0,115,230,0.12); border:1px solid rgba(0,115,230,0.35); border-radius:8px; padding:7px 14px; text-align:center; min-width:110px;">
+                <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px;">Logical Used</div>
+                <div id="effStatLogical" style="font-size:15px; font-weight:700; color:#60a5fa;">—</div>
+              </div>
+              <div class="eff-stat-pill" style="background:rgba(0,115,230,0.08); border:1px solid rgba(0,115,230,0.25); border-radius:8px; padding:7px 14px; text-align:center; min-width:110px;">
+                <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px;">Physical Used</div>
+                <div id="effStatPhysical" style="font-size:15px; font-weight:700; color:#93c5fd;">—</div>
+              </div>
+              <div class="eff-stat-pill" style="background:rgba(0,200,120,0.10); border:1px solid rgba(0,200,120,0.30); border-radius:8px; padding:7px 14px; text-align:center; min-width:110px;">
+                <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px;">Space Saved</div>
+                <div id="effStatSaved" style="font-size:15px; font-weight:700; color:#34d399;">—</div>
+              </div>
+            </div>
           </div>
           <div class="card chart-card">
-            <div class="card-title" style="margin-bottom: 20px;">Top 15 Systems by Physical Capacity</div>
+            <div class="card-title" style="margin-bottom: 20px;">Storage Capacity by System</div>
             <div class="chart-wrapper">
               <canvas id="capacityChart"></canvas>
             </div>

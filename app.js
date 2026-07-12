@@ -3258,40 +3258,69 @@ function renderCharts() {
     }]
   });
 
-  // ── Bar: top 15 systems by physical used — used vs available ──────────────
+  // ── Bar: top 15 systems by physical used — physical on-flash / FabricPool tiered / available ──
   const barSystems = [...filteredSystems]
     .filter(s => (s.efficiency.physicalUsedTB || 0) > 0)
     .sort((a, b) => b.efficiency.physicalUsedTB - a.efficiency.physicalUsedTB)
     .slice(0, 15);
 
-  const barUsed  = barSystems.map(s => parseFloat((s.efficiency.physicalUsedTB  || 0).toFixed(1)));
+  // Determine FabricPool participation
+  const barFPTiered = barSystems.map(s => parseFloat(((s.efficiency.fabricPoolTieredTB) || 0).toFixed(1)));
+  const fpCount     = barFPTiered.filter(v => v > 0).length;
+  const anyFP       = fpCount > 0;
+
+  // Physical on-flash = physicalUsedTB minus what's already tiered (FabricPool tiered is cold blocks
+  // that have been moved off-flash; the physicalUsedTB field in our mock data represents total logical
+  // footprint. We keep the bar split as: [on-flash physical] + [tiered] + [available])
+  const barOnFlash = barSystems.map((s, i) => {
+    const total = parseFloat((s.efficiency.physicalUsedTB || 0).toFixed(1));
+    return parseFloat(Math.max(0, total - barFPTiered[i]).toFixed(1));
+  });
   const barAvail = barSystems.map(s => {
     const usable = s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0;
     return parseFloat(Math.max(0, usable - (s.efficiency.physicalUsedTB || 0)).toFixed(1));
   });
 
+  // Update card title dynamically
+  const capCardTitle = ctxCap.closest('.chart-card')?.querySelector('.card-title');
+  if (capCardTitle) {
+    capCardTitle.innerHTML = anyFP
+      ? `Storage Capacity by System <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);margin-left:6px;">· top 15 · <span style="color:#2dd4bf;">&#9632;</span> incl. FabricPool tiering</span>`
+      : `Storage Capacity by System <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);margin-left:6px;">· top 15 · no FabricPool in view</span>`;
+  }
+
+  const barDatasets = [
+    {
+      label: 'Physical On-Flash (TB)',
+      data: barOnFlash,
+      backgroundColor: 'rgba(0, 115, 230, 0.82)',
+      borderColor: '#0073e6',
+      borderWidth: 1,
+      stack: 'cap'
+    },
+    {
+      label: anyFP ? `FabricPool Tiered (TB) — ${fpCount} system${fpCount > 1 ? 's' : ''}` : 'FabricPool Tiered (TB)',
+      data: barFPTiered,
+      backgroundColor: 'rgba(45, 212, 191, 0.75)',
+      borderColor: '#2dd4bf',
+      borderWidth: 1,
+      stack: 'cap'
+    },
+    {
+      label: 'Available Capacity (TB)',
+      data: barAvail,
+      backgroundColor: 'rgba(0, 200, 120, 0.32)',
+      borderColor: '#00c878',
+      borderWidth: 1,
+      stack: 'cap'
+    }
+  ];
+
   capacityChartInstance = new Chart(ctxCap, {
     type: 'bar',
     data: {
       labels: barSystems.map(s => (s.clusterName || s.systemName || '').replace(/-0[12]$/, '')),
-      datasets: [
-        {
-          label: 'Physical Used (TB)',
-          data: barUsed,
-          backgroundColor: 'rgba(0, 115, 230, 0.8)',
-          borderColor: '#0073e6',
-          borderWidth: 1,
-          stack: 'cap'
-        },
-        {
-          label: 'Available Capacity (TB)',
-          data: barAvail,
-          backgroundColor: 'rgba(0, 200, 120, 0.4)',
-          borderColor: '#00c878',
-          borderWidth: 1,
-          stack: 'cap'
-        }
-      ]
+      datasets: barDatasets
     },
     options: {
       responsive: true,
@@ -3314,15 +3343,36 @@ function renderCharts() {
         }
       },
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#f3f4f6', font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#f3f4f6',
+            font: { size: 11 },
+            // Hide FabricPool legend entry when none of the systems have it
+            filter: item => !(item.text.startsWith('FabricPool') && !anyFP)
+          }
+        },
         tooltip: {
           callbacks: {
             label: ctx => {
-              const pct = (barUsed[ctx.dataIndex] + barAvail[ctx.dataIndex]) > 0
-                ? ((barUsed[ctx.dataIndex] / (barUsed[ctx.dataIndex] + barAvail[ctx.dataIndex])) * 100).toFixed(0)
-                : 0;
-              if (ctx.datasetIndex === 0) return `Used: ${ctx.parsed.y.toFixed(1)} TB (${pct}% full)`;
-              return `Available: ${ctx.parsed.y.toFixed(1)} TB`;
+              const i = ctx.dataIndex;
+              const total = barOnFlash[i] + barFPTiered[i] + barAvail[i];
+              const utilPct = total > 0 ? ((( barOnFlash[i] + barFPTiered[i]) / total) * 100).toFixed(0) : 0;
+              if (ctx.datasetIndex === 0) {
+                return `On-Flash: ${ctx.parsed.y.toFixed(1)} TB  (${utilPct}% utilised)`;
+              } else if (ctx.datasetIndex === 1) {
+                return barFPTiered[i] > 0
+                  ? `FabricPool Tiered: ${ctx.parsed.y.toFixed(1)} TB (cold data moved to cloud)`
+                  : `FabricPool: not enabled on this system`;
+              } else {
+                return `Available: ${ctx.parsed.y.toFixed(1)} TB`;
+              }
+            },
+            afterBody: (items) => {
+              if (!items.length) return [];
+              const i = items[0].dataIndex;
+              const hasFP = barFPTiered[i] > 0;
+              return hasFP ? [] : ['  ↳ No FabricPool tiering configured'];
             }
           }
         }
