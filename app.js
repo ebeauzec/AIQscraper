@@ -1,4 +1,4 @@
-// Active IQ Web Client - Core Application Logic
+﻿// Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
 // This tool is designed to be strictly READ-ONLY. Under no circumstances should
@@ -14619,19 +14619,19 @@ function generateActionPlan() {
       <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
         <div style="background: rgba(0,229,255,0.08); border: 1px solid rgba(0,229,255,0.3); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
           <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Active</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${activeCases.length > 0 ? 'var(--accent-cyan)' : 'var(--status-normal)'};">${activeCases.length}</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${activeCases.length > 0 ? 'var(--accent-cyan)' : 'var(--status-normal)'};"> ${activeCases.length}</div>
         </div>
         <div style="background: rgba(255,152,0,0.06); border: 1px solid rgba(255,152,0,0.2); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
           <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Processing</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: ${inactiveCases.length > 0 ? '#ff9800' : 'var(--status-normal)'};">${inactiveCases.length}</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: ${inactiveCases.length > 0 ? '#ff9800' : 'var(--status-normal)'};"> ${inactiveCases.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
           <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Closed</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-muted);">${closedCases.length}</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-muted);"> ${closedCases.length}</div>
         </div>
         <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm); text-align: center; min-width: 100px;">
           <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Total</div>
-          <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary);">${allSupportCases.length}</div>
+          <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary);"> ${allSupportCases.length}</div>
         </div>
       </div>
     `;
@@ -14647,7 +14647,7 @@ function generateActionPlan() {
       const borderColor = isActive ? 'var(--accent-cyan)' : (isClosed ? 'var(--border-color)' : 'rgba(255,152,0,0.4)');
       const opacity = isClosed ? '0.6' : '1';
       const statusColor = isActive ? 'var(--accent-cyan)' : (isClosed ? 'var(--text-muted)' : '#ff9800');
-      const statusLabel = isActive ? '● ACTIVE' : (isClosed ? '○ CLOSED' : '◐ PROCESSING');
+      const statusLabel = isActive ? '\u25cf ACTIVE' : (isClosed ? '\u25cb CLOSED' : '\u25d0 PROCESSING');
 
       const resLine = c.resolution ? `<div style="font-size: 0.82rem; color: var(--status-normal); margin-top: 6px; padding: 4px 8px; background: rgba(0,230,118,0.05); border-left: 2px solid var(--status-normal); border-radius: 4px;"><strong>Resolution:</strong> ${c.resolution}</div>` : '';
       const notesLine = c.ownerNotes ? `<div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; font-style: italic; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--accent-cyan);"><strong>Latest Notes:</strong> ${c.ownerNotes}</div>` : '';
@@ -14849,39 +14849,88 @@ function generateActionPlan() {
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(8)" data-tooltip="Download Section 8 change control guidelines as a TXT file.">Download Guidelines (TXT)</button>
       </div>
       
-      <div style="margin-bottom: 18px;">
-        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">A. Implementing Changes via NetApp Change Control</h4>
-        <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary);">
-          To minimize risk when applying technical fixes (e.g., replacing hardware spare parts, updating shelf SAS cabling, or performing software/switch firmware upgrades), ensure you adhere to NetApp change control guidelines:
-        </p>
-        <ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-top: 6px;">
-          <li><strong>Upgrade Advisor</strong>: Always run the 'Upgrade Advisor' script inside Active IQ Digital Advisor to generate a customized configuration checklist before performing any ONTAP updates.</li>
-          <li><strong>Pre-upgrade Checklists</strong>: Run cluster health checks: 'system health alert show' and verify that replication paths are stable.</li>
-          <li><strong>Switch Upgrades</strong>: For cluster switch ISSU, verify port redundancy using <code>show interface status</code> and ensure peer interconnect links are online. For MetroCluster systems, upgrade switch firmware strictly one switch at a time, validating fabric sync via <code>switchshow</code> before proceeding to the partner site.</li>
-          <li><strong>Maintenance Windows</strong>: Schedule all disk replacement and switch firmware modifications during off-peak periods, even if non-disruptive, to prevent application latency spikes.</li>
-        </ul>
-      </div>
+      ${(() => {
+        const custNames = [...new Set(targetSystems.map(s => s.customerName).filter(Boolean))];
+        const custLabel = custNames.length === 1 ? custNames[0] : custNames.length > 1 ? custNames.join(' / ') : 'Selected Account';
+        const sysCount  = targetSystems.length;
+        const sysNames  = targetSystems.map(s => s.systemName);
+        const critHighRisks = allRisks.filter(r => r.severity === 'critical' || r.severity === 'high');
+        const uniqueRiskDescs = [...new Map(critHighRisks.map(r => [r.description || r.shortName, r])).values()].slice(0, 4);
+        const upgradeList = allUpgrades.slice(0, 6);
+        const cveIds = [...new Set(allSecurityAdvisories.map(sa => { const m = (sa.id || sa.cve || '').match(/CVE-[0-9]{4}-[0-9]+/); return m ? m[0] : null; }).filter(Boolean))].slice(0, 5);
+        const expiringItems = expiringContracts.slice(0, 5);
+        const hasMC  = targetSystems.some(s => (s.platform || s.model || '').toLowerCase().includes('metrocluster')) || mcSystems.length > 0;
+        const hasASA = targetSystems.some(s => (s.platform || s.model || '').toLowerCase().includes(' asa'));
+        const hasVMware = allHypervisors.some(h => /vmware|esxi/i.test(h.type || h.hypervisorType || ''));
+        const hasK8s    = allHypervisors.some(h => /kubernetes|trident|k8s/i.test(h.type || h.hypervisorType || ''));
+        const showHyper = hasVMware || hasK8s;
 
-      <div style="margin-bottom: 18px;">
-        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">B. 3rd-Party Virtualization & Hypervisor Integrations</h4>
-        <p style="font-size: 0.85rem; line-height: 1.4; color: var(--text-secondary);">
-          If systems back VM workloads (VMware ESXi or Kubernetes orchestrators), follow host compliance settings:
-        </p>
-        <ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; margin-top: 6px;">
-          <li><strong>Multipathing PSP</strong>: Confirm ESXi hosts utilize VMW_PSP_RR Round Robin policies with IOPS limit=1 to distribute workload. Fixed pathing configurations should be corrected immediately using: 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops' (for ESXi 6.x) or 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1' (for ESXi 7.0/8.0+).</li>
-          <li><strong>Trident Upgrades</strong>: Coordinate Astra Trident driver upgrades alongside Kubernetes API migrations to avoid CSI mount failures.</li>
-        </ul>
-      </div>
+        let secA = '<div style="margin-bottom:18px;">';
+        secA += '<h4 style="font-size:0.95rem;color:var(--accent-cyan);margin-bottom:6px;">A. Pre-Change Assessment \u2014 ' + custLabel + '</h4>';
+        secA += '<p style="font-size:0.85rem;line-height:1.4;color:var(--text-secondary);margin-bottom:10px;"><strong>' + sysCount + ' system' + (sysCount !== 1 ? 's' : '') + ' in scope:</strong> ' + sysNames.map(n => '<code style="font-size:0.78rem;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;">' + n + '</code>').join(' ') + '</p>';
+        secA += '<ul style="margin-left:20px;font-size:0.85rem;color:var(--text-secondary);line-height:1.5;margin-top:6px;">';
+        if (upgradeList.length > 0) {
+          secA += '<li><strong>OS Upgrade Pre-checks</strong>: Before upgrading, run <code>system health alert show</code> and confirm zero HA takeover blocks on:<ul style="margin-top:4px;margin-left:16px;">' + upgradeList.map(u => '<li><code>' + u.systemName + '</code> \u2014 ' + (u.currentVersion || 'current') + ' \u2192 <strong>' + u.targetVersion + '</strong>' + (u.upgradeHops && u.upgradeHops.length > 1 ? ' (via ' + u.upgradeHops.join(' \u2192 ') + ')' : '') + '</li>').join('') + '</ul></li>';
+        }
+        if (critHighRisks.length > 0) {
+          secA += '<li><strong>Outstanding Critical/High Risks (' + critHighRisks.length + ' total)</strong>: Resolve before scheduling maintenance:<ul style="margin-top:4px;margin-left:16px;">' + uniqueRiskDescs.map(r => '<li><code>' + r.systemName + '</code> \u2014 ' + (r.description || r.shortName || r.category) + '</li>').join('') + (critHighRisks.length > 4 ? '<li style="color:var(--text-muted);">\u2026and ' + (critHighRisks.length - 4) + ' more (see Section 2)</li>' : '') + '</ul></li>';
+        }
+        if (hasMC) {
+          secA += '<li><strong>MetroCluster Change Protocol</strong>: For MC systems (' + (mcSystems.length > 0 ? mcSystems.join(', ') : 'in scope') + '), upgrade one site at a time. Validate <code>metrocluster check run</code> and <code>storage failover show</code> before proceeding to partner site. Confirm Mediator/Tiebreaker reachability post-change.</li>';
+        }
+        if (hasASA) {
+          secA += '<li><strong>ASA SAN Pre-checks</strong>: Verify all LUN paths are active (<code>network interface show -role data</code>) and iSCSI/FC sessions are balanced before making configuration changes on ASA platforms in scope.</li>';
+        }
+        if (switchAlerts.length > 0) {
+          const swNames = [...new Set(switchAlerts.map(sw => sw.systemName))];
+          secA += '<li><strong>Switch Firmware (' + switchAlerts.length + ' alert' + (switchAlerts.length !== 1 ? 's' : '') + ')</strong>: Non-optimal switch status on ' + swNames.map(n => '<code>' + n + '</code>').join(', ') + '. Verify port redundancy with <code>show interface status</code> before ISSU upgrades.</li>';
+        }
+        secA += '<li><strong>Maintenance Window Scheduling</strong>: All disk replacement, firmware, and switch modifications should be scheduled during off-peak periods. Confirm with ' + custLabel + ' site contacts before booking windows.</li>';
+        secA += '</ul></div>';
 
-      <div>
-        <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin-bottom: 6px;">C. Proceeding Milestones & Next Steps</h4>
-        <ol style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-top: 6px;">
-          <li><strong>Coordinate support renewal quotes</strong> for all systems identified in support reports.</li>
-          <li><strong>Create internal IT ticket instances</strong> for the high-priority technical items in Section 2, attaching the generated remediation steps.</li>
-          <li><strong>Verify delivery credentials</strong> and clearance permissions with site contacts listed in Section 6 before shipping parts.</li>
-          <li><strong>Review the Security advisories</strong> in Section 3 and schedule OS micro-patches or workaround applications to block exposures.</li>
-        </ol>
-      </div>
+        let secB = '';
+        if (showHyper) {
+          secB = '<div style="margin-bottom:18px;"><h4 style="font-size:0.95rem;color:var(--accent-cyan);margin-bottom:6px;">B. Workload &amp; Hypervisor Environment</h4><p style="font-size:0.85rem;line-height:1.4;color:var(--text-secondary);">Active IQ telemetry indicates the following hypervisor workloads are attached to systems in scope:</p><ul style="margin-left:20px;font-size:0.85rem;color:var(--text-secondary);line-height:1.5;margin-top:6px;">';
+          if (hasVMware) secB += '<li><strong>VMware ESXi</strong>: Confirm hosts use <code>VMW_PSP_RR</code> Round Robin with IOPS limit=1. Do not take ONTAP nodes offline without first migrating VM workloads via vMotion.</li>';
+          if (hasK8s)   secB += '<li><strong>Kubernetes / Astra Trident</strong>: Coordinate Trident driver upgrades alongside any ONTAP changes. Validate PVC mounts with <code>kubectl get pvc --all-namespaces</code> before and after changes.</li>';
+          secB += '</ul></div>';
+        }
+
+        const actions = [];
+        const label = showHyper ? 'C' : 'B';
+        if (critHighRisks.length > 0) {
+          const critCount = critHighRisks.filter(r => r.severity === 'critical').length;
+          const highCount = critHighRisks.filter(r => r.severity === 'high').length;
+          const affected  = [...new Set(critHighRisks.map(r => r.systemName))];
+          const sevStr = (critCount > 0 ? critCount + ' critical' : '') + (critCount > 0 && highCount > 0 ? ' and ' : '') + (highCount > 0 ? highCount + ' high' : '');
+          actions.push('<strong>Remediate ' + sevStr + ' risk' + (critHighRisks.length !== 1 ? 's' : '') + '</strong> on ' + affected.map(n => '<code>' + n + '</code>').join(', ') + ' \u2014 raise internal change tickets referencing Section 2 remediation plans.');
+        }
+        if (cveIds.length > 0) {
+          actions.push('<strong>Apply security patches</strong> for ' + cveIds.length + ' CVE' + (cveIds.length !== 1 ? 's' : '') + ' (' + cveIds.join(', ') + ') \u2014 review Section 3 for NetApp advisory links and fix version targets.');
+        } else if (allSecurityAdvisories.length > 0) {
+          actions.push('<strong>Review ' + allSecurityAdvisories.length + ' security bulletin' + (allSecurityAdvisories.length !== 1 ? 's' : '') + '</strong> in Section 3 and schedule micro-patches or workaround mitigations.');
+        }
+        if (upgradeList.length > 0) {
+          const osTargets = [...new Set(upgradeList.map(u => u.targetVersion).filter(Boolean))];
+          actions.push('<strong>Schedule OS upgrades</strong> for ' + upgradeList.length + ' system' + (upgradeList.length !== 1 ? 's' : '') + ' to ' + osTargets.join(' / ') + ' \u2014 complete pre-change checks above before booking windows with ' + custLabel + '.');
+        }
+        if (expiringItems.length > 0) {
+          const soonest = expiringItems.slice().sort((a, b) => (a.daysRemaining || 0) - (b.daysRemaining || 0))[0];
+          actions.push('<strong>Renew support contracts</strong> for ' + expiringItems.length + ' system' + (expiringItems.length !== 1 ? 's' : '') + ' \u2014 soonest: <code>' + soonest.systemName + '</code> in ' + soonest.daysRemaining + ' day' + (soonest.daysRemaining !== 1 ? 's' : '') + '. Coordinate with ' + custLabel + ' procurement contacts.');
+        }
+        if (allSupportCases.length > 0) {
+          const openCases = allSupportCases.filter(c => (c.status || '').toLowerCase() !== 'closed');
+          if (openCases.length > 0) actions.push('<strong>Follow up on ' + openCases.length + ' open support case' + (openCases.length !== 1 ? 's' : '') + '</strong> \u2014 verify resolution progress and confirm site access or part delivery with ' + custLabel + ' contacts (see Section 4).');
+        }
+        if (switchAlerts.length > 0) {
+          const swn = [...new Set(switchAlerts.map(sw => sw.systemName))];
+          actions.push('<strong>Resolve switch alerts</strong> on ' + swn.map(n => '<code>' + n + '</code>').join(', ') + ' \u2014 details in Section 6. Schedule ISSU firmware update during agreed maintenance window.');
+        }
+        if (actions.length === 0) actions.push('<strong>Continue routine monitoring</strong> \u2014 no critical actions outstanding. Schedule a follow-up Active IQ review in 30 days.');
+
+        const secC = '<div><h4 style="font-size:0.95rem;color:var(--accent-cyan);margin-bottom:6px;">' + label + '. Priority Action Items for ' + custLabel + '</h4><ol style="margin-left:20px;font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-top:6px;">' + actions.map(a => '<li>' + a + '</li>').join('') + '</ol></div>';
+        return secA + secB + secC;
+      })()}
     </div>
 
     <!-- Deliverables and Drafts Section -->
