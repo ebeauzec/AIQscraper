@@ -10075,12 +10075,21 @@ function enrichSystemTelemetry(s) {
         if (isFixed) return;
       }
 
+      // Build advisoryUrl directly — this risk bypasses the normalization .map() loop
+      // so advisoryUrl must be set here or the title will render as plain (un-clickable) text.
+      const _advCveMatch = (adv.id || '').match(/CVE-\d{4}-\d+/i);
+      const _advNtapMatch = (adv.id || '').match(/^NTAP-/i);
+      const _advUrl = adv.url
+        || (_advCveMatch  ? `https://security.netapp.com/advisory/?q=${_advCveMatch[0]}` : null)
+        || (_advNtapMatch ? `https://security.netapp.com/advisory/${adv.id.toLowerCase()}/` : null)
+        || 'https://security.netapp.com/advisory/';
       risks.push({
         id: riskId,
         severity: adv.severity,
         category: "Security",
         description: `${adv.id}: ${adv.title}` + (adv.cvss ? ` (CVSS ${adv.cvss})` : ''),
         recommendation: adv.remediation,
+        advisoryUrl: _advUrl,
         kbLink: adv.url,
         remediationPlan: {
           cause: adv.description,
@@ -10111,6 +10120,7 @@ function enrichSystemTelemetry(s) {
         category: "Security",
         description: "CVE-2026-20833: Microsoft Kerberos AES-Only Enforcement — verify CIFS/SMB authentication compatibility.",
         recommendation: "Confirm AES encryption enabled for Kerberos auth (default since ONTAP 9.13.1). Disable RC4/DES if still configured. Microsoft phased enforcement active Apr–Jul 2026.",
+        advisoryUrl: 'https://security.netapp.com/advisory/?q=CVE-2026-20833',
         kbLink: "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/ONTAP_Guidance_for_Microsoft_Security_Update_KB5073381_CVE_2026_20833",
         remediationPlan: {
           cause: "Microsoft Security Update KB5073381 phases out RC4 and DES Kerberos encryption. ONTAP CIFS servers joined to AD without an explicit msds-SupportedEncryptionTypes value may lose authentication.",
