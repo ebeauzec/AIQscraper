@@ -13491,6 +13491,20 @@ function _renderSustainabilitySection(systems) {
 
   const fallbackMode = custRows.length === 0;
 
+  // Detect whether sustainabilityScorePercentage.overall is fleet-level (same for all)
+  // — the Active IQ API sometimes returns an identical score for every customer record.
+  const nonNullScores = custRows.map(r => r.score).filter(s => s !== null);
+  const scoresAreIdentical = nonNullScores.length > 1 &&
+    new Set(nonNullScores.map(s => parseFloat(s).toFixed(2))).size === 1;
+
+  // When scores are fleet-identical, sort by data reduction ratio instead (it genuinely differs)
+  const sortedRows = scoresAreIdentical
+    ? [...custRows].sort((a, b) => (parseFloat(b.avgRed) || 0) - (parseFloat(a.avgRed) || 0))
+    : custRows;
+
+  // Max reduction ratio across rows (used to scale bar widths)
+  const maxRed = Math.max(...sortedRows.map(r => parseFloat(r.avgRed) || 0), 1);
+
   // Scope-level efficiency metrics (for the stat cards)
   const withReduction = systems.filter(s => s.dataReductionRatio != null && s.dataReductionRatio > 0);
   const avgReduction  = withReduction.length > 0
@@ -13501,20 +13515,41 @@ function _renderSustainabilitySection(systems) {
 
   // ── Per-customer scorecard ────────────────────────────────────────────────────
   if (!fallbackMode) {
-    html += `<h4 style="color:var(--accent-cyan);margin:0 0 12px;font-size:0.95rem;">📊 Per-Customer Sustainability Score</h4>`;
+    html += `<h4 style="color:var(--accent-cyan);margin:0 0 10px;font-size:0.95rem;">📊 Per-Customer Efficiency Breakdown</h4>`;
+
+    // Banner when API score is fleet-level
+    if (scoresAreIdentical) {
+      const fleetSc = parseFloat(nonNullScores[0]).toFixed(1);
+      html += `<div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:12px;font-size:0.73rem;color:#f59e0b;">
+        ⚠ The Active IQ API returns a single fleet-wide sustainability score (${fleetSc}%) for all customers — it cannot be broken down per customer. The bar below shows each customer's <strong>data reduction ratio</strong>, which is computed from their individual systems and genuinely varies.
+      </div>`;
+    }
+
     html += `<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">`;
 
-    custRows.forEach(row => {
-      const sc     = row.score;
-      const barW   = sc !== null ? Math.max(2, sc) : 0;
-      const barCol = sc === null ? '#475569'
+    sortedRows.forEach(row => {
+      const sc       = row.score;
+      const scFormatted = sc !== null ? parseFloat(sc).toFixed(1) : null;
+
+      // Bar: use reduction ratio when scores are identical, otherwise use score
+      let barW, barCol, barTitle;
+      if (scoresAreIdentical) {
+        const red  = parseFloat(row.avgRed) || 0;
+        barW       = maxRed > 0 ? Math.max(2, (red / maxRed) * 100) : 0;
+        barCol     = red >= 3 ? '#10b981' : red >= 2 ? '#f59e0b' : red > 0 ? '#ef4444' : '#475569';
+        barTitle   = `Data reduction: ${row.avgRed || '—'}:1`;
+      } else {
+        barW       = sc !== null ? Math.max(2, sc) : 0;
+        barCol     = sc === null ? '#475569'
                    : sc >= 75   ? '#10b981'
                    : sc >= 50   ? '#f59e0b'
                    :              '#ef4444';
-      const scLabel = sc !== null ? `${sc}%` : 'N/A';
-      const scNote  = sc !== null
-        ? (sc >= 75 ? 'Good' : sc >= 50 ? 'Fair' : 'Needs attention')
-        : 'Score not available from API';
+        barTitle   = `Sustainability: ${scFormatted || '—'}%`;
+      }
+
+      const scNote = scoresAreIdentical
+        ? (row.avgRed ? `${row.avgRed}:1 avg data reduction · ${row.systemCount} system${row.systemCount !== 1 ? 's' : ''}` : `${row.systemCount} system${row.systemCount !== 1 ? 's' : ''} · no reduction data`)
+        : (sc !== null ? (sc >= 75 ? 'Good' : sc >= 50 ? 'Fair' : 'Needs attention') : 'Score not available from API');
 
       html += `
         <div style="background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:var(--radius-sm);padding:14px 16px;">
@@ -13523,13 +13558,13 @@ function _renderSustainabilitySection(systems) {
               <span style="font-size:0.88rem;font-weight:700;color:var(--text-primary);">${row.name}</span>
               <span style="margin-left:10px;font-size:0.72rem;color:var(--text-secondary);">${row.systemCount} system${row.systemCount !== 1 ? 's' : ''} selected</span>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              ${row.avgRed ? `<span style="font-size:0.75rem;color:var(--accent-cyan);background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);padding:2px 8px;border-radius:8px;" title="Avg data reduction ratio across selected systems">${row.avgRed}:1 reduction</span>` : ''}
-              ${row.carbonKg > 0 ? `<span style="font-size:0.75rem;color:#8b5cf6;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);padding:2px 8px;border-radius:8px;" title="Combined CO₂ from latest available month">${row.carbonKg.toFixed(2)} t CO₂</span>` : ''}
-              <span style="font-size:1.1rem;font-weight:800;color:${barCol};min-width:48px;text-align:right;">${scLabel}</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${row.avgRed ? `<span style="font-size:0.75rem;color:var(--accent-cyan);background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);padding:2px 8px;border-radius:8px;" title="Avg data reduction ratio">${row.avgRed}:1 reduction</span>` : ''}
+              ${row.carbonKg > 0 ? `<span style="font-size:0.75rem;color:#8b5cf6;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);padding:2px 8px;border-radius:8px;" title="CO₂ from latest available month">${row.carbonKg.toFixed(2)} t CO₂</span>` : ''}
+              ${!scoresAreIdentical && scFormatted ? `<span style="font-size:1.1rem;font-weight:800;color:${barCol};min-width:46px;text-align:right;">${scFormatted}%</span>` : ''}
             </div>
           </div>
-          <div style="background:rgba(255,255,255,0.07);border-radius:6px;height:8px;overflow:hidden;">
+          <div style="background:rgba(255,255,255,0.07);border-radius:6px;height:8px;overflow:hidden;" title="${barTitle}">
             <div style="height:100%;width:${barW}%;background:linear-gradient(90deg,${barCol}99,${barCol});border-radius:6px;transition:width 0.4s ease;"></div>
           </div>
           <div style="font-size:0.68rem;color:var(--text-muted);margin-top:5px;">${scNote}</div>
@@ -13539,7 +13574,7 @@ function _renderSustainabilitySection(systems) {
     html += `</div>`;
   } else {
     html += `<div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:0.75rem;color:#93c5fd;">
-      ℹ Per-customer sustainability scores are not available for the current scope. Fleet trend is shown below.
+      ℹ Per-customer data is not available for the current scope. Fleet trend is shown below.
     </div>`;
   }
 
