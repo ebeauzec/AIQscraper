@@ -13456,45 +13456,120 @@ function _renderContractsLifecycleSection(systems) {
 }
 
 function _renderSustainabilitySection(systems) {
-  const scores = state.tamSustainability || [];
-  const latest = scores[0] || {};
+  const scores  = state.tamSustainability || [];
+  const latest  = scores[0] || {};
+  const allCust = state.customers || [];
 
-  // Per-customer efficiency metrics
+  // ── Per-customer sustainability ──────────────────────────────────────────────
+  // state.customers[] carries sustainabilityScorePercentage.overall from the API.
+  // Match customers to the selected systems by customerId, then compute per-
+  // customer efficiency metrics from the system objects themselves.
+  const custIdsSeen   = new Set(systems.map(s => s.customerId).filter(Boolean));
+  const custNamesSeen = new Set(systems.map(s => s.customerName).filter(Boolean));
+
+  const custRows = allCust
+    .filter(c => custIdsSeen.has(c.id) || custNamesSeen.has(c.name))
+    .map(c => {
+      const custSystems = systems.filter(s => s.customerId === c.id || s.customerName === c.name);
+      const score = ((c.sustainabilityScorePercentage || {}).overall) || null;
+      const withRed = custSystems.filter(s => s.dataReductionRatio > 0);
+      const avgRed = withRed.length
+        ? (withRed.reduce((a, s) => a + s.dataReductionRatio, 0) / withRed.length).toFixed(1)
+        : null;
+      const carbonKg = custSystems.reduce((sum, s) => {
+        const c0 = (s.monthlyCarbonStats || [])[0] || {};
+        return sum + (parseFloat(c0.carbonEmissionTons) || 0);
+      }, 0);
+      return { name: c.name, score, systemCount: custSystems.length, avgRed, carbonKg };
+    })
+    .sort((a, b) => {
+      if (a.score !== null && b.score !== null) return b.score - a.score;
+      if (a.score !== null) return -1;
+      if (b.score !== null) return  1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const fallbackMode = custRows.length === 0;
+
+  // Scope-level efficiency metrics (for the stat cards)
   const withReduction = systems.filter(s => s.dataReductionRatio != null && s.dataReductionRatio > 0);
-  const avgReduction = withReduction.length > 0
+  const avgReduction  = withReduction.length > 0
     ? (withReduction.reduce((a, s) => a + s.dataReductionRatio, 0) / withReduction.length).toFixed(1)
     : '—';
 
-  let html = `
-    <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:0.75rem;color:#f59e0b;">
-      ⚠ Sustainability scores are fleet-wide (all ${state.systems ? state.systems.length : '?'} systems). Per-customer breakdown is not available from the AIQ API. The efficiency metrics below are scoped to the selected ${systems.length} system(s).
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
-      <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="NetApp Active IQ Sustainability score (0-100%). Measures power efficiency, storage utilization, and environmental impact across the entire fleet.">
+  let html = '';
+
+  // ── Per-customer scorecard ────────────────────────────────────────────────────
+  if (!fallbackMode) {
+    html += `<h4 style="color:var(--accent-cyan);margin:0 0 12px;font-size:0.95rem;">📊 Per-Customer Sustainability Score</h4>`;
+    html += `<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">`;
+
+    custRows.forEach(row => {
+      const sc     = row.score;
+      const barW   = sc !== null ? Math.max(2, sc) : 0;
+      const barCol = sc === null ? '#475569'
+                   : sc >= 75   ? '#10b981'
+                   : sc >= 50   ? '#f59e0b'
+                   :              '#ef4444';
+      const scLabel = sc !== null ? `${sc}%` : 'N/A';
+      const scNote  = sc !== null
+        ? (sc >= 75 ? 'Good' : sc >= 50 ? 'Fair' : 'Needs attention')
+        : 'Score not available from API';
+
+      html += `
+        <div style="background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:var(--radius-sm);padding:14px 16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div>
+              <span style="font-size:0.88rem;font-weight:700;color:var(--text-primary);">${row.name}</span>
+              <span style="margin-left:10px;font-size:0.72rem;color:var(--text-secondary);">${row.systemCount} system${row.systemCount !== 1 ? 's' : ''} selected</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              ${row.avgRed ? `<span style="font-size:0.75rem;color:var(--accent-cyan);background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);padding:2px 8px;border-radius:8px;" title="Avg data reduction ratio across selected systems">${row.avgRed}:1 reduction</span>` : ''}
+              ${row.carbonKg > 0 ? `<span style="font-size:0.75rem;color:#8b5cf6;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);padding:2px 8px;border-radius:8px;" title="Combined CO₂ from latest available month">${row.carbonKg.toFixed(2)} t CO₂</span>` : ''}
+              <span style="font-size:1.1rem;font-weight:800;color:${barCol};min-width:48px;text-align:right;">${scLabel}</span>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.07);border-radius:6px;height:8px;overflow:hidden;">
+            <div style="height:100%;width:${barW}%;background:linear-gradient(90deg,${barCol}99,${barCol});border-radius:6px;transition:width 0.4s ease;"></div>
+          </div>
+          <div style="font-size:0.68rem;color:var(--text-muted);margin-top:5px;">${scNote}</div>
+        </div>`;
+    });
+
+    html += `</div>`;
+  } else {
+    html += `<div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:0.75rem;color:#93c5fd;">
+      ℹ Per-customer sustainability scores are not available for the current scope. Fleet trend is shown below.
+    </div>`;
+  }
+
+  // ── Four summary stat cards ───────────────────────────────────────────────────
+  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+      <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Latest fleet-wide Active IQ Sustainability score (0–100%). Measures power efficiency, storage utilization, and environmental impact across all systems.">
         <div style="font-size:2.2rem;font-weight:700;color:#10b981;">${latest.scorePercentage || '—'}%</div>
         <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Fleet Sustainability Score</div>
         <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">AIQ environmental efficiency rating</div>
       </div>
-      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Change in sustainability score compared to the previous week. Positive values indicate improved efficiency (e.g. better storage utilization, reduced power consumption).">
+      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Change in fleet sustainability score vs. the previous week.">
         <div style="font-size:2.2rem;font-weight:700;color:${(latest.percentageChange||0) >= 0 ? '#10b981':'#ef4444'};">${(latest.percentageChange||0) >= 0 ? '+':''}${latest.percentageChange || '0'}%</div>
         <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Week-over-Week Change</div>
         <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Score delta vs. previous week</div>
       </div>
-      <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Number of weekly sustainability score snapshots available from the AIQ API. Used to track the sustainability trend over time.">
+      <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Number of weekly sustainability score snapshots available.">
         <div style="font-size:2.2rem;font-weight:700;color:#8b5cf6;">${scores.length}</div>
         <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Historical Weeks</div>
         <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Weeks of trend data available</div>
       </div>
-      <div style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Average data reduction ratio across the selected systems. Combines deduplication, compression, and compaction. Higher is better — e.g. 3.2:1 means 3.2x storage savings.">
+      <div style="background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Average data reduction ratio across the selected systems. Combines deduplication, compression, and compaction.">
         <div style="font-size:2.2rem;font-weight:700;color:var(--accent-cyan);">${avgReduction}:1</div>
         <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Avg Data Reduction</div>
-        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Dedup + compression ratio</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Dedup + compression (selected scope)</div>
       </div>
     </div>`;
 
-  // Score trend
+  // ── Fleet weekly score trend ──────────────────────────────────────────────────
   if (scores.length > 1) {
-    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Weekly Score Trend</h4>
+    html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Fleet Weekly Score Trend</h4>
     <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);padding:12px;">
       <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
         <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Week</th>
@@ -13512,7 +13587,7 @@ function _renderSustainabilitySection(systems) {
     html += `</tbody></table></div>`;
   }
 
-  // Change factors
+  // ── Change factors ────────────────────────────────────────────────────────────
   if (latest.changeFactors) {
     const factors = Array.isArray(latest.changeFactors) ? latest.changeFactors : [latest.changeFactors];
     html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Improvement Factors</h4>
@@ -13523,7 +13598,7 @@ function _renderSustainabilitySection(systems) {
     html += `</div>`;
   }
 
-  // Per-system carbon stats
+  // ── Per-system carbon stats ───────────────────────────────────────────────────
   const carbonSystems = systems.filter(s => (s.monthlyCarbonStats || []).length > 0);
   if (carbonSystems.length > 0) {
     html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Per-System Carbon Emissions (Latest Month)</h4>
@@ -13535,12 +13610,12 @@ function _renderSustainabilitySection(systems) {
         <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Energy (kWh)</th>
       </tr></thead><tbody>`;
     carbonSystems.forEach(s => {
-      const latest = s.monthlyCarbonStats[0] || {};
+      const latestC = s.monthlyCarbonStats[0] || {};
       html += `<tr>
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName}</td>
-        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${latest.month || ''}</td>
-        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${latest.carbonEmissionTons || '—'}</td>
-        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${latest.energyConsumedKWh || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${latestC.month || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${latestC.carbonEmissionTons || '—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${latestC.energyConsumedKWh || '—'}</td>
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -16880,6 +16955,8 @@ async function loadProductionData(forceRefresh = false) {
     state.tamSustainability = result.tamSustainability || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
+    // Per-customer sustainability scores (sustainabilityScorePercentage.overall)
+    state.customers = result.customers || [];
 
 
     // Show cache status in the connection indicator
