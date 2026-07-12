@@ -10231,8 +10231,13 @@ function enrichSystemTelemetry(s) {
         const bulletinId = cveId || `NTAP-${r.id}`;
         if (!seen.has(bulletinId) && !seen.has(key)) {
           seen.add(bulletinId); seen.add(key);
-          let advUrl = r.advisoryUrl || '';
-          if (!advUrl && cveId) advUrl = 'https://security.netapp.com/advisory/';
+          let advUrl = r.advisoryUrl || r.link || '';
+          // Try to extract NTAP advisory ID from mitigation text for a direct link
+          if (!advUrl || advUrl === 'https://security.netapp.com/advisory/') {
+            const ntapInMit = (r.mitigation || r.recommendation || '').match(/NTAP-[0-9]{8}-[0-9]{4}/i);
+            if (ntapInMit) advUrl = `https://security.netapp.com/advisory/${ntapInMit[0].toLowerCase()}/`;
+            else if (cveId) advUrl = `https://security.netapp.com/advisory/?q=${cveId}`;
+          }
           let mitText = '';
           if (r.remediationPlan && r.remediationPlan.steps && r.remediationPlan.steps.length > 0) {
             mitText = r.remediationPlan.steps.map(s => s.replace(/^\d+\.\s*/, '')).join(' | ');
@@ -14548,11 +14553,25 @@ function generateActionPlan() {
       if (s.severity === "critical") badgeClass = "badge critical";
       else if (s.severity === "high") badgeClass = "badge warning";
       
-      // Build advisory link: use stored URL or construct from CVE ID
-      let advLink = s.advisoryUrl || '';
-      if (!advLink) {
-        const cveMatch = (s.id || '').match(/CVE-[0-9]{4}-[0-9]+/);
-        if (cveMatch) advLink = `https://security.netapp.com/advisory/`;
+      // Build advisory link: prefer stored direct URL, then ntapId, then NTAP in mitigation, then CVE search
+      let advLink = s.link || s.advisoryUrl || '';
+      if (!advLink || advLink === 'https://security.netapp.com/advisory/') {
+        // 1. Use the ntapId field if present (e.g. "ntap-20240712-0001")
+        if (s.ntapId) {
+          advLink = `https://security.netapp.com/advisory/${s.ntapId.toLowerCase()}/`;
+        } else {
+          // 2. Extract an NTAP advisory reference from the mitigation text
+          const ntapInMit = (s.mitigation || '').match(/NTAP-[0-9]{8}-[0-9]{4}/i);
+          if (ntapInMit) {
+            advLink = `https://security.netapp.com/advisory/${ntapInMit[0].toLowerCase()}/`;
+          } else {
+            // 3. CVE search query as last resort
+            const cveInId  = (s.id  || '').match(/CVE-[0-9]{4}-[0-9]+/);
+            const cveInCve = (s.cve || '').match(/CVE-[0-9]{4}-[0-9]+/);
+            const cve = (cveInId || cveInCve || [])[0];
+            if (cve) advLink = `https://security.netapp.com/advisory/?q=${cve}`;
+          }
+        }
       }
       const linkHtml = advLink
         ? `<a href="${advLink}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">View Full Advisory →</a>`
