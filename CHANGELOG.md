@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.3.1] - 2026-07-12
+
+### Fixed — UI Rendering
+
+#### Recommendation Cards — SHELF_FIRMWARE Mis-positioned
+- **Root cause:** `linkify()` and `rescopeText()` inject HTML `<a>`/`<strong>` tags into recommendation text. The previous code applied `.substring(0, 500)` *after* those transforms, meaning a long advisory (e.g. SP_BMC) could be truncated mid-tag — e.g. cutting inside `<a href="https://...">`). The browser auto-closed the `<p>` element and left the dangling open `<a>` tag in scope, causing the **next card's `<div>` to be parsed as a child of the previous card** rather than a sibling. SHELF_FIRMWARE visually appeared inline inside the SP_BMC block.
+- **Fix:** Truncation now applies to the **raw plain text** (`r.recommendation`) at 497 chars before any HTML transformation. `linkify()` and `rescopeText()` are then applied to the already-safe excerpt, guaranteeing no tag is ever cut mid-open.
+
+#### Performance Optimisation — Risk Table & Bulletin Section
+- **Risk table grouped by system:** Initial DOM now scales with number of systems (*N*) not total risks (*N × M*). Each system renders as a single collapsible summary row (severity pills: Critical / High / Med / Low counts). Click to expand per-risk drilldown. Systems sorted Critical-first, then alphabetically.
+- **Expand All / Collapse All** button added to the risk table controls bar.
+- **Bulletin severity tiers:** Critical + High advisories always rendered immediately. Medium / Low / Informational advisories collapsed behind a single click-to-expand row, reducing initial DOM and CVE fetch burst.
+- **Batched CVE enrichment:** NVD API calls moved from a synchronous burst-of-N to a 5-per-100ms `setTimeout` queue. Primary (visible) rows enriched 80ms after paint; secondary (hidden) rows enriched lazily on first expansion, clearing the queue after one run.
+
+### Added — Toggle Helper Functions
+- **`toggleRiskGroup(groupId, headerRow)`** — per-system chevron drilldown with animated 90° rotation.
+- **`toggleAllRiskGroups(btn)`** — expands/collapses all system groups in a single click.
+- **`toggleBulletinSecondary(btn)`** — reveals collapsed Medium/Low/Info bulletin tier; fires deferred CVE enrichment queue on first open only.
+
+---
+
 ## [3.3.0] - 2026-07-11
 
 ### Added — Security Intelligence Engine (Major)

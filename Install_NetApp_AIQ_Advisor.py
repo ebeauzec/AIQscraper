@@ -3,7 +3,7 @@
 NetApp Active IQ Advisor - Setup Installer
 ==========================================
 A self-contained GUI installer written in Python.
-v3.3.0 - Security Intelligence Engine
+v3.3.1 - UI Rendering & Performance Fixes
 
 Why Python instead of a .bat or .exe?
   - Runs through python.exe, which is a digitally-signed, trusted
@@ -549,7 +549,7 @@ class InstallerApp:
 
 def console_install():
     """Minimal console installer for environments without tkinter."""
-    print("\n NetApp Active IQ Advisor — Setup v3.3.0\n")
+    print("\n NetApp Active IQ Advisor — Setup v3.3.1\n")
     input(" Press Enter to begin...\n")
 
     pver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"

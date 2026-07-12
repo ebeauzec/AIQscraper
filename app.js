@@ -3617,6 +3617,384 @@ function sortDataList(list, sortKey, sortOrder) {
   });
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENRICHMENT ENGINE
+// Autonomous public-source enrichment for version data and CVEs.
+// Queries /api/enrich (server.py) which fetches NVD, NetApp PSIRT, and
+// docs.netapp.com — all public sources. No customer data ever leaves the tool.
+// ═══════════════════════════════════════════════════════════════════════════════
+const enrichmentEngine = {
+  // In-session memory cache: "type:id" → data object
+  _cache: new Map(),
+  // Track in-flight requests to avoid duplicate fetches
+  _inflight: new Set(),
+  // Log of everything enriched this session
+  _log: [],
+  // Running count of successfully enriched fields
+  _count: 0,
+
+  // ── Core fetch ──────────────────────────────────────────────────────────────
+  // Version enrichment (ontap-version, sg-version, santricity-version) is
+  // CACHE-ONLY on the server — the background thread does the actual fetching.
+  // The server returns {status:'pending'} on cache miss; we return null and let
+  // syncFromServer populate the cache after the next sync.
+  async enrich(type, id) {
+    if (!id || !type) return null;
+    const key = `${type}:${id}`;
+    if (this._cache.has(key)) return this._cache.get(key);
+    if (this._inflight.has(key)) {
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 300));
+        if (this._cache.has(key)) return this._cache.get(key);
+      }
+      return null;
+    }
+    this._inflight.add(key);
+    try {
+      const url = `/api/enrich?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+      const resp = await fetch(url, { cache: 'no-store' });
+      if (!resp.ok) return null;
+      const json = await resp.json();
+      if (json.status === 'pending') {
+        // Background thread hasn't enriched this version yet — return sentinel
+        return { _pending: true };
+      }
+      if (json.status === 'ok' && json.data) {
+        this._cache.set(key, json.data);
+        this._log.push({
+          type, id,
+          source: json.source || 'unknown',
+          cached: json.cached || false,
+          fetched_at: json.fetched_at || new Date().toISOString(),
+          data: json.data
+        });
+        this._count++;
+        this._updateBadge();
+        return json.data;
+      }
+    } catch (e) {
+      // Network unavailable or server not running — fail silently
+    } finally {
+      this._inflight.delete(key);
+    }
+    return null;
+  },
+
+  // ── Typed helpers ────────────────────────────────────────────────────────────
+  async enrichCVE(cveId)         { return this.enrich('cve', cveId); },
+  async enrichAdvisory(ntapId)   { return this.enrich('ntap-advisory', ntapId); },
+  async enrichONTAP(version)     { return this.enrich('ontap-version', version); },
+  async enrichSG(version)        { return this.enrich('sg-version', version); },
+  async enrichSANtricity(version){ return this.enrich('santricity-version', version); },
+
+  // Dispatch by platform type
+  async enrichVersion(sys) {
+    const ver = sys.ontapVersion || sys.osVersion || '';
+    if (!ver) return null;
+    const model = (sys.platform || sys.model || '').toLowerCase();
+    if (model.includes('storagegrid') || model.includes('sg60') || model.includes('sg61') || model.includes('sg10')) {
+      return this.enrichSG(ver);
+    } else if (model.includes('e-series') || model.includes('ef6') || model.includes('ef3') || model.includes('e5700') || model.includes('e2800')) {
+      return this.enrichSANtricity(ver);
+    } else {
+      return this.enrichONTAP(ver);
+    }
+  },
+
+  // ── Badge updater ───────────────────────────────────────────────────────────
+  _updateBadge() {
+    const badge = document.getElementById('enrichBadge');
+    const text  = document.getElementById('enrichBadgeText');
+    if (!badge || !text) return;
+    const cveCount = this._log.filter(e => e.type === 'cve').length;
+    const verCount = this._log.filter(e => e.type.includes('version')).length;
+    let label = `${this._count} enriched`;
+    if (verCount > 0 && cveCount > 0) label = `${verCount} versions · ${cveCount} CVEs`;
+    else if (verCount > 0) label = `${verCount} version${verCount > 1 ? 's' : ''} enriched`;
+    else if (cveCount > 0) label = `${cveCount} CVE${cveCount > 1 ? 's' : ''} enriched`;
+    text.textContent = label;
+    badge.style.display = 'flex';
+  },
+
+  // ── UI: inject version enrichment into a DOM element ────────────────────────
+  // Call with the system object and the container element that should receive
+  // the enrichment block. Inserts below existing content, non-destructively.
+  async injectVersionEnrichment(sys, containerEl) {
+    if (!containerEl) return;
+    const existingId = `enrich-block-${sys.serialNumber}`;
+    if (document.getElementById(existingId)) return; // already injected
+
+    // Show minimal placeholder — don't promise a spinner since data may be pending
+    const placeholder = document.createElement('div');
+    placeholder.id = existingId;
+    placeholder.style.cssText = 'margin-top:8px; font-size:0.71rem; color:var(--text-muted); display:flex; align-items:center; gap:6px;';
+    placeholder.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.5" class="spin-anim"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> <span>Loading version intel…</span>`;
+    containerEl.appendChild(placeholder);
+
+    const data = await this.enrichVersion(sys);
+
+    // Pending: background thread hasn't enriched this version yet
+    if (data && data._pending) {
+      placeholder.innerHTML = `<span style="color:var(--text-muted); font-style:italic;">⏳ Version intel will be ready after the next sync. Trigger a sync to fetch version-specific issues from public sources.</span>`;
+      return;
+    }
+
+    if (!data) { placeholder.remove(); return; }
+
+    const issues      = (data.knownIssues       || []).slice(0, 5);
+    const fixed       = (data.fixedIssues        || []).slice(0, 3);
+    const whatsNew    = (data.whatsNew           || []).slice(0, 3);
+    const cves        = (data.relatedCVEs        || []).slice(0, 6);
+    const advisories  = (data.relatedAdvisories  || []).slice(0, 4);
+    const bugs        = (data.relatedBugs        || []).slice(0, 4);
+    const motivation  = data.upgradeMotivation   || '';
+    const sources     = data.sources             || [];
+
+    // Severity color helpers
+    const cvssColor = s => (s >= 9 ? '#ef4444' : s >= 7 ? '#f59e0b' : s >= 4 ? '#eab308' : '#22c55e');
+    const sevBadge  = (sev, score) => {
+      const col = score != null ? cvssColor(score) : '#6b7280';
+      return `<span style="background:${col}22; color:${col}; border:1px solid ${col}44; border-radius:3px; padding:1px 5px; font-size:0.65rem; font-weight:700; margin-left:4px;">${score != null ? score + ' ' : ''}${sev || ''}</span>`;
+    };
+
+    let html = `<div style="margin-top:12px; padding:10px 12px; border-radius:8px; background:rgba(45,212,191,0.05); border:1px solid rgba(45,212,191,0.18); font-size:0.72rem; line-height:1.55;">`;
+
+    // ── Header ───────────────────────────────────────────────────────────────
+    html += `<div style="font-weight:700; color:#2dd4bf; margin-bottom:6px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">`;
+    html += `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>`;
+    html += `Version Intel · ${data.version || sys.ontapVersion || 'N/A'} (${data.platform || 'ONTAP'})`;
+    if (sources.length > 0) {
+      sources.forEach(s => {
+        html += `<span style="font-weight:400; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:3px; padding:1px 5px; font-size:0.63rem;">${s}</span>`;
+      });
+    }
+    html += `</div>`;
+
+    // ── Known Issues ─────────────────────────────────────────────────────────
+    if (issues.length > 0) {
+      html += `<div style="color:#f59e0b; font-weight:600; margin-bottom:3px;">⚠ ${issues.length} Known Issue${issues.length > 1 ? 's' : ''} (Release Notes):</div>`;
+      html += `<ul style="margin:0 0 8px 14px; padding:0; color:var(--text-secondary);">`;
+      html += issues.map(i => `<li style="margin-bottom:3px;">${i.substring(0,140)}${i.length>140?'…':''}</li>`).join('');
+      html += `</ul>`;
+    }
+
+    // ── Fixed Issues ─────────────────────────────────────────────────────────
+    if (fixed.length > 0) {
+      html += `<div style="color:#22c55e; font-weight:600; margin-bottom:3px;">✓ ${fixed.length} Fixed in This Release:</div>`;
+      html += `<ul style="margin:0 0 8px 14px; padding:0; color:var(--text-secondary);">`;
+      html += fixed.map(f => `<li style="margin-bottom:3px;">${f.substring(0,140)}${f.length>140?'…':''}</li>`).join('');
+      html += `</ul>`;
+    }
+
+    // ── What's New ────────────────────────────────────────────────────────────
+    if (whatsNew.length > 0) {
+      html += `<div style="color:#60a5fa; font-weight:600; margin-bottom:3px;">✦ What's New:</div>`;
+      html += `<ul style="margin:0 0 8px 14px; padding:0; color:var(--text-secondary);">`;
+      html += whatsNew.map(w => `<li style="margin-bottom:3px;">${w.substring(0,140)}${w.length>140?'…':''}</li>`).join('');
+      html += `</ul>`;
+    }
+
+    // ── NVD CVEs ──────────────────────────────────────────────────────────────
+    if (cves.length > 0) {
+      html += `<div style="color:#ef4444; font-weight:600; margin-bottom:3px; border-top:1px solid rgba(255,255,255,0.07); padding-top:6px; margin-top:2px;">🔴 ${cves.length} CVE${cves.length>1?'s':''} from NVD:</div>`;
+      html += cves.map(c => {
+        const score = c.cvss != null ? parseFloat(c.cvss) : null;
+        return `<div style="display:flex; align-items:flex-start; gap:6px; margin-bottom:5px; padding:4px 6px; background:rgba(239,68,68,0.06); border-radius:4px;">
+          <span style="font-weight:700; color:#ef4444; white-space:nowrap; font-size:0.7rem;">${c.id}</span>
+          ${sevBadge(c.severity, score)}
+          <span style="color:var(--text-secondary); flex:1;">${(c.description||'').substring(0,160)}${(c.description||'').length>160?'…':''}</span>
+          ${c.publishedDate ? `<span style="color:var(--text-muted); white-space:nowrap; font-size:0.65rem;">${c.publishedDate}</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // ── PSIRT Advisories ──────────────────────────────────────────────────────
+    if (advisories.length > 0) {
+      html += `<div style="color:#f97316; font-weight:600; margin-bottom:3px; border-top:1px solid rgba(255,255,255,0.07); padding-top:6px; margin-top:2px;">🔒 ${advisories.length} PSIRT Advisory/Advisories:</div>`;
+      html += advisories.map(a =>
+        `<div style="margin-bottom:4px; padding:4px 6px; background:rgba(249,115,22,0.06); border-radius:4px;">
+          <a href="${a.link||'#'}" target="_blank" style="color:#f97316; font-weight:600; font-size:0.7rem; text-decoration:none;">${a.id}</a>
+          <span style="color:var(--text-secondary); margin-left:6px;">${(a.title||'').substring(0,120)}</span>
+        </div>`
+      ).join('');
+    }
+
+    // ── Bugs Online ───────────────────────────────────────────────────────────
+    if (bugs.length > 0) {
+      html += `<div style="color:#a78bfa; font-weight:600; margin-bottom:3px; border-top:1px solid rgba(255,255,255,0.07); padding-top:6px; margin-top:2px;">🐛 ${bugs.length} Bug${bugs.length>1?'s':''} (Bugs Online):</div>`;
+      html += bugs.map(b =>
+        `<div style="margin-bottom:4px; padding:4px 6px; background:rgba(167,139,250,0.06); border-radius:4px;">
+          <a href="${b.link||'#'}" target="_blank" style="color:#a78bfa; font-weight:600; font-size:0.7rem; text-decoration:none;">${b.id}</a>
+          <span style="color:var(--text-secondary); margin-left:6px;">${(b.title||'').substring(0,120)}</span>
+        </div>`
+      ).join('');
+    }
+
+    // ── No findings ───────────────────────────────────────────────────────────
+    if (!issues.length && !cves.length && !advisories.length && !bugs.length) {
+      html += `<div style="color:var(--status-normal); font-style:italic;">✓ No known issues, CVEs, or advisories found in public sources for this version.</div>`;
+    }
+
+    // ── Upgrade motivation summary ────────────────────────────────────────────
+    if (motivation) {
+      html += `<div style="color:var(--text-secondary); border-top:1px solid rgba(255,255,255,0.06); padding-top:5px; margin-top:6px;">💡 ${motivation}</div>`;
+    }
+
+    html += `</div>`;
+    placeholder.outerHTML = html;
+  },
+
+  // ── UI: enrich a CVE entry and update DOM ───────────────────────────────────
+  async injectCVEEnrichment(cveId, containerEl) {
+    if (!containerEl || !cveId || !cveId.match(/^CVE-\d{4}-\d+$/i)) return;
+    const data = await this.enrichCVE(cveId);
+    if (!data || data.status === 'not_found') return;
+
+    // Update CVSS if it's showing N/A
+    const cvssEl = containerEl.querySelector('[data-enrich-cvss]');
+    if (cvssEl && data.cvss) {
+      cvssEl.textContent = `${data.cvss} ${data.severity || ''}`;
+      cvssEl.style.color = data.cvss >= 9 ? 'var(--status-critical)' : data.cvss >= 7 ? '#f59e0b' : 'var(--text-secondary)';
+    }
+    // Update description if it's showing N/A or generic
+    const descEl = containerEl.querySelector('[data-enrich-desc]');
+    if (descEl && data.description) {
+      descEl.textContent = data.description.substring(0, 300) + (data.description.length > 300 ? '…' : '');
+    }
+    // Update published date
+    const dateEl = containerEl.querySelector('[data-enrich-date]');
+    if (dateEl && data.publishedDate) dateEl.textContent = data.publishedDate;
+    // Affected versions
+    const affEl = containerEl.querySelector('[data-enrich-affected]');
+    if (affEl && data.affectedVersions) affEl.textContent = data.affectedVersions;
+  },
+
+  // ── Sync from server: pre-load SQLite cache + fill any gaps ─────────────────
+  // Called after every harvest completes (cached or live).
+  // 1. Loads all cached enrichment entries from server SQLite → populates _cache
+  // 2. Identifies versions in current systems list not yet cached → enrich them
+  async syncFromServer(systems) {
+    try {
+      // Step 1: pre-load the dump
+      const resp = await fetch('/api/enrich/dump', { cache: 'no-store' });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.status === 'ok' && json.entries) {
+          let preloaded = 0;
+          for (const [key, entry] of Object.entries(json.entries)) {
+            if (!this._cache.has(key) && entry.data) {
+              this._cache.set(key, entry.data);
+              // Also add to log if not already present
+              const [type, ...idParts] = key.split(':');
+              const id = idParts.join(':');
+              if (!this._log.find(e => e.type === type && e.id === id)) {
+                this._log.push({
+                  type, id,
+                  source: entry.source || 'sqlite-cache',
+                  cached: true,
+                  fetched_at: entry.fetched_at || '',
+                  data: entry.data
+                });
+                this._count++;
+              }
+              preloaded++;
+            }
+          }
+          if (preloaded > 0) {
+            console.log(`[ENRICH] Pre-loaded ${preloaded} enrichment entries from server cache.`);
+            this._updateBadge();
+          }
+        }
+      }
+    } catch (e) {
+      // Server not running or dump failed — ignore silently
+      return;
+    }
+
+    // Step 2: log which versions are not yet cached (background thread handles fetching)
+    // We do NOT call /api/enrich per-version here — those calls would block the
+    // single-threaded server. The _enrich_all_versions thread does the actual work.
+    if (!systems || systems.length === 0) return;
+    const uncached = [];
+    for (const sys of systems) {
+      const ver = sys.ontapVersion || sys.osVersion || '';
+      if (!ver || ver.length < 4) continue;
+      const model = (sys.platform || sys.model || '').toLowerCase();
+      let etype = 'ontap-version';
+      if (model.includes('storagegrid') || model.includes('sg60') || model.includes('sg61')) etype = 'sg-version';
+      else if (model.includes('e-series') || model.includes('ef6') || model.includes('e5700') || model.includes('e2800')) etype = 'santricity-version';
+      const key = `${etype}:${ver}`;
+      if (!this._cache.has(key)) uncached.push({ etype, ver, key });
+    }
+    const seen = new Set();
+    const toFetch = uncached.filter(u => { if (seen.has(u.key)) return false; seen.add(u.key); return true; });
+    if (toFetch.length > 0) {
+      console.log(`[ENRICH] ${toFetch.length} version(s) pending background enrichment: ${toFetch.map(u => u.ver).join(', ')}`);
+    }
+  }
+};
+
+// ── Enrichment log modal ─────────────────────────────────────────────────────
+function showEnrichLog() {
+  const log = enrichmentEngine._log;
+  if (log.length === 0) { alert('No enrichment data fetched yet this session.'); return; }
+
+  const rows = log.map(e => {
+    const timeStr = e.fetched_at ? new Date(e.fetched_at).toLocaleTimeString() : '—';
+    const cacheStr = e.cached ? '📦 cached' : '🌐 live';
+    let summary = '';
+    if (e.type.includes('version') && e.data) {
+      const ki  = (e.data.knownIssues      || []).length;
+      const wn  = (e.data.whatsNew         || []).length;
+      const cv  = (e.data.relatedCVEs      || []).length;
+      const adv = (e.data.relatedAdvisories|| []).length;
+      const bg  = (e.data.relatedBugs      || []).length;
+      const parts = [];
+      if (ki  > 0) parts.push(`${ki} known issue${ki>1?'s':''}`);
+      if (cv  > 0) parts.push(`${cv} CVE${cv>1?'s':''}`);
+      if (adv > 0) parts.push(`${adv} advisory/advisories`);
+      if (bg  > 0) parts.push(`${bg} bug${bg>1?'s':''}`);
+      if (wn  > 0) parts.push(`${wn} what's-new`);
+      summary = parts.length ? parts.join(' · ') : '✓ clean';
+    } else if (e.type === 'cve' && e.data) {
+      summary = `CVSS ${e.data.cvss || 'N/A'} ${e.data.severity || ''}`;
+    }
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+      <td style="padding:5px 8px; color:#2dd4bf; font-family:monospace; font-size:0.75rem;">${e.id}</td>
+      <td style="padding:5px 8px; color:var(--text-secondary); font-size:0.72rem;">${e.type}</td>
+      <td style="padding:5px 8px; color:var(--text-secondary); font-size:0.72rem;">${e.source}</td>
+      <td style="padding:5px 8px; color:var(--text-muted); font-size:0.72rem;">${cacheStr}</td>
+      <td style="padding:5px 8px; color:var(--text-secondary); font-size:0.72rem;">${summary}</td>
+      <td style="padding:5px 8px; color:var(--text-muted); font-size:0.72rem;">${timeStr}</td>
+    </tr>`;
+  }).join('');
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius);padding:24px;max-width:860px;width:95%;max-height:80vh;overflow:auto;position:relative;">
+      <button onclick="this.closest('[style*=fixed]').remove()" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text-secondary);font-size:1.2rem;cursor:pointer;">✕</button>
+      <div style="font-size:1rem;font-weight:700;color:#2dd4bf;margin-bottom:4px;">🔍 Enrichment Log</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:16px;">Data fetched this session from public sources (NVD, docs.netapp.com, security.netapp.com). No customer data was transmitted.</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+            <th style="padding:4px 8px;text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">ID</th>
+            <th style="padding:4px 8px;text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">Type</th>
+            <th style="padding:4px 8px;text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">Source</th>
+            <th style="padding:4px 8px;text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">Origin</th>
+            <th style="padding:4px 8px;text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">Summary</th>
+            <th style="padding:4px 8px;text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">Time</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
 function renderOverviewTable() {
   const tbody = document.getElementById("overviewTableBody");
   if (!tbody) return;
@@ -6255,6 +6633,63 @@ function getLatestSupportedVersion(platform) {
   }
 }
 
+// ── linkify(text) ────────────────────────────────────────────────────────────
+// Converts plain-text step/recommendation strings into rich HTML, making all
+// embedded URLs, NetApp doc references, CVE IDs, TR numbers, and advisory IDs
+// clickable links. Safe to call on authored (non-user-input) strings only.
+function linkify(text) {
+  if (!text) return '';
+  const s = a => `style="color:var(--accent-cyan);text-decoration:underline;"`;
+  const w = a => `style="color:var(--status-warning);text-decoration:underline;"`;
+  return text
+    // Raw https URLs — must come first so later patterns don't double-process
+    .replace(/(https?:\/\/[^\s<>"']+)/g,
+      '<a href="$1" target="_blank" ' + s() + ' onclick="window.open(this.href,\'_blank\');return false;">$1</a>')
+    // TR-XXXX NetApp technical reports
+    .replace(/\bTR-(\d{4})\b/g,
+      '<a href="https://www.netapp.com/search/#q=TR-$1&t=Resources" target="_blank" ' + s() + '>TR-$1</a>')
+    // NTAP advisory IDs  NTAP-20260112-0001
+    .replace(/\b(NTAP-\d{8}-\d{4})\b/gi,
+      '<a href="https://security.netapp.com/advisory/$1/" target="_blank" ' + w() + '>$1</a>')
+    // CVE IDs
+    .replace(/\b(CVE-\d{4}-\d+)\b/g,
+      '<a href="https://security.netapp.com/advisory/?q=$1" target="_blank" ' + w() + '>$1</a>')
+    // Microsoft KB numbers  KB5073381
+    .replace(/\b(KB\d{7,})\b/g,
+      '<a href="https://support.microsoft.com/search/results?query=$1" target="_blank" ' + s() + '>$1</a>')
+    // IMT references
+    .replace(/\b(IMT|Interoperability Matrix(?:\s+Tool)?)\b/g,
+      '<a href="https://imt.netapp.com/matrix/" target="_blank" ' + s() + '>$1</a>');
+}
+
+// ── getSwitchFirmwareLink(model) ──────────────────────────────────────────────
+// Returns { label, url } for firmware downloads per switch model family.
+function getSwitchFirmwareLink(model) {
+  const m = (model || '').toLowerCase();
+  if (m.includes('nexus 93') || m.includes('nexus 97') || m.includes('9336') || m.includes('9364') || m.includes('9332') || m.includes('nx-os')) {
+    return { label: 'Cisco NX-OS Download', url: 'https://software.cisco.com/download/home/280275056' };
+  }
+  if (m.includes('mds') || m.includes('cisco mds')) {
+    return { label: 'Cisco MDS Firmware Download', url: 'https://software.cisco.com/download/home/280283452' };
+  }
+  if (m.includes('brocade') || m.includes('g620') || m.includes('g630') || m.includes('g720') || m.includes('fos') || m.includes('fabric os')) {
+    return { label: 'Brocade FOS Download', url: 'https://www.broadcom.com/support/fibre-channel-networking/software-downloads' };
+  }
+  if (m.includes('bes-53248') || m.includes('efos') || m.includes('broadcom')) {
+    return { label: 'EFOS Firmware (mysupport)', url: 'https://mysupport.netapp.com/site/products/all/details/broadcom-cluster-switches/downloads-tab' };
+  }
+  if (m.includes('nvidia') || m.includes('sn2100') || m.includes('cumulus')) {
+    return { label: 'NVIDIA SN2100 Firmware', url: 'https://mysupport.netapp.com/site/products/all/details/nvidia-cluster-switches/downloads-tab' };
+  }
+  // Generic cluster switch fallback
+  return { label: 'NetApp Switch Downloads', url: 'https://mysupport.netapp.com/site/downloads' };
+}
+
+// ── getSwitchIMTLink(model) ───────────────────────────────────────────────────
+function getSwitchIMTLink(ontapVersion) {
+  return `https://imt.netapp.com/matrix/#search&searchByProductIdAndFamilyName=search&productNameForSearch=switch&userSelectedTargetFamilyList=ONTAP&userSelectedTargetProductList=ONTAP+${encodeURIComponent(ontapVersion || '9.16.1')}`;
+}
+
 function getRiskSafetyTier(r) {
   const desc = (r.description || "").toLowerCase();
   const cat = (r.category || "").toLowerCase();
@@ -6269,7 +6704,91 @@ function getRiskSafetyTier(r) {
   return "Non-Disruptive";
 }
 
+// ── Risk group collapsible toggle ─────────────────────────────────────────────
+// Called from onclick on system-level header rows in the TAM risks table.
+function toggleRiskGroup(groupId, headerRow) {
+  const drilldown = document.getElementById(groupId);
+  if (!drilldown) return;
+  const expanded = headerRow.dataset.expanded === 'true';
+  const chevron  = headerRow.querySelector('.risk-chevron');
+
+  if (expanded) {
+    drilldown.style.display = 'none';
+    headerRow.dataset.expanded = 'false';
+    if (chevron) { chevron.style.transform = ''; chevron.textContent = '▶'; }
+  } else {
+    drilldown.style.display = '';
+    headerRow.dataset.expanded = 'true';
+    if (chevron) { chevron.style.transform = 'rotate(90deg)'; chevron.textContent = '▶'; }
+  }
+}
+
+// ── Expand / Collapse All risk groups at once ──────────────────────────────────
+function toggleAllRiskGroups(btn) {
+  const expanding = btn.dataset.expanded !== 'true';
+  btn.dataset.expanded = expanding ? 'true' : 'false';
+  btn.textContent = expanding ? '⊟ Collapse All' : '⊞ Expand All';
+
+  document.querySelectorAll('.risk-system-header').forEach(headerRow => {
+    const groupId  = headerRow.dataset.group;
+    const drilldown = groupId ? document.getElementById(groupId) : null;
+    const chevron   = headerRow.querySelector('.risk-chevron');
+    if (!drilldown) return;
+    if (expanding) {
+      drilldown.style.display = '';
+      headerRow.dataset.expanded = 'true';
+      if (chevron) { chevron.style.transform = 'rotate(90deg)'; }
+    } else {
+      drilldown.style.display = 'none';
+      headerRow.dataset.expanded = 'false';
+      if (chevron) { chevron.style.transform = ''; }
+    }
+  });
+}
+
+// ── Security bulletin secondary-tier toggle ────────────────────────────────────
+// Shows / hides the Medium/Low/Info bulletin rows. On first expansion, fires
+// the deferred CVE enrichment batch so those rows get NVD data on demand.
+function toggleBulletinSecondary(btn) {
+  const group   = document.getElementById('bulletin-secondary-group');
+  const chevron = document.getElementById('bulletin-secondary-chevron');
+  const label   = document.getElementById('bulletin-secondary-label');
+  if (!group) return;
+
+  const expanded = group.style.display !== 'none';
+  if (expanded) {
+    group.style.display = 'none';
+    if (chevron) chevron.textContent = '▶';
+    if (btn) { btn.dataset.expanded = 'false'; btn.textContent = (label ? label.textContent.replace('Hide', 'Show') : 'Show lower-severity advisories ▼'); }
+    if (label) label.textContent = label.textContent.replace('Hide', 'Show');
+  } else {
+    group.style.display = '';
+    if (chevron) chevron.textContent = '▼';
+    if (label) label.textContent = label.textContent.replace('Show', 'Hide').replace('▼', '▲');
+    if (btn) btn.dataset.expanded = 'true';
+
+    // Fire deferred CVE enrichment on first open only
+    if (window._deferredBulletinEnrich && window._deferredBulletinEnrich.length > 0) {
+      const queue = window._deferredBulletinEnrich;
+      window._deferredBulletinEnrich = []; // clear so it only runs once
+      const batchSize = 5, delayMs = 100;
+      for (let i = 0; i < queue.length; i += batchSize) {
+        const chunk = queue.slice(i, i + batchSize);
+        setTimeout(() => {
+          chunk.forEach(({ rowId, cveId }) => {
+            const rowEl = document.getElementById(rowId);
+            if (rowEl && typeof enrichmentEngine !== 'undefined') {
+              enrichmentEngine.injectCVEEnrichment(cveId, rowEl);
+            }
+          });
+        }, Math.floor(i / batchSize) * delayMs);
+      }
+    }
+  }
+}
+
 function openRemediationModal(riskId) {
+
   let risk = null;
   let ownerSys = null;
   for (const s of state.systems) {
@@ -6310,15 +6829,16 @@ function openRemediationModal(riskId) {
       <span style="background: ${safetyColor}; color: #fff; font-size: 0.68rem; padding: 2px 6px; border-radius: var(--radius-sm); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${safetyTier}</span>
     </div>`;
 
-  document.getElementById("modalDetailCause").innerText = risk.remediationPlan.cause;
-  document.getElementById("modalDetailImpact").innerText = risk.remediationPlan.impact;
+  document.getElementById("modalDetailCause").innerHTML = linkify(risk.remediationPlan.cause);
+  document.getElementById("modalDetailImpact").innerHTML = linkify(risk.remediationPlan.impact);
   
   const stepsList = document.getElementById("modalDetailSteps");
   stepsList.innerHTML = "";
   risk.remediationPlan.steps.forEach(step => {
     const li = document.createElement("li");
-    li.innerText = step;
-    li.style.marginBottom = "6px";
+    li.innerHTML = linkify(step);
+    li.style.marginBottom = "8px";
+    li.style.lineHeight = "1.5";
     stepsList.appendChild(li);
   });
 
@@ -6326,12 +6846,96 @@ function openRemediationModal(riskId) {
   optionsList.innerHTML = "";
   risk.remediationPlan.options.forEach(opt => {
     const li = document.createElement("li");
-    li.innerText = opt;
+    li.innerHTML = linkify(opt);
     li.style.marginBottom = "6px";
+    li.style.lineHeight = "1.5";
     optionsList.appendChild(li);
   });
 
-  document.getElementById("modalDetailThirdParty").innerText = risk.remediationPlan.thirdParty;
+  document.getElementById("modalDetailThirdParty").innerHTML = linkify(risk.remediationPlan.thirdParty);
+
+  // ── Reference Links footer ────────────────────────────────────────────────
+  // Build a set of contextually relevant reference links for this risk type
+  const refLinksEl = document.getElementById("modalReferenceLinks");
+  if (refLinksEl) {
+    const cat = (risk.category || '').toLowerCase();
+    const desc = (risk.description || '').toLowerCase();
+    const links = [];
+
+    // Always add KB search
+    links.push({ label: '🔍 NetApp KB Search', url: buildKBSearchURL(risk.description, risk.category) });
+
+    // CVE / Security
+    const cveMatch = (risk.description || '').match(/CVE-\d{4}-\d+/);
+    if (cveMatch) {
+      links.push({ label: `🛡 PSIRT: ${cveMatch[0]}`, url: `https://security.netapp.com/advisory/?q=${cveMatch[0]}` });
+      links.push({ label: '📋 NVD Entry', url: `https://nvd.nist.gov/vuln/detail/${cveMatch[0]}` });
+    } else if (cat.includes('security') || desc.includes('vulnerability')) {
+      links.push({ label: '🛡 NetApp PSIRT Advisories', url: 'https://security.netapp.com/advisory/' });
+      links.push({ label: '📄 ONTAP Security Hardening TR-4569', url: 'https://www.netapp.com/pdf.html?item=/media/10674-tr4569pdf.pdf' });
+    }
+
+    // Software / Firmware upgrade
+    if (cat.includes('software') || cat.includes('firmware') || desc.includes('upgrade') || desc.includes('version')) {
+      links.push({ label: '⬇ NetApp Software Downloads', url: 'https://mysupport.netapp.com/site/downloads' });
+      links.push({ label: '✅ IMT Compatibility Matrix', url: 'https://imt.netapp.com/matrix/' });
+      links.push({ label: '📖 ONTAP Upgrade Guide', url: 'https://docs.netapp.com/us-en/ontap/upgrade/index.html' });
+    }
+
+    // Shelf / IOM / NSM firmware
+    if (desc.includes('iom') || desc.includes('nsm') || desc.includes('shelf')) {
+      links.push({ label: '⬇ Shelf Firmware Downloads', url: 'https://mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware' });
+      links.push({ label: '📖 Shelf Firmware Upgrade Docs', url: 'https://docs.netapp.com/us-en/ontap/disks-aggregates/shelf-firmware-upgrade-manual-disk-task.html' });
+    }
+
+    // Disk / DQP
+    if (desc.includes('dqp') || desc.includes('disk qualif') || desc.includes('disk firmware')) {
+      links.push({ label: '⬇ DQP Download', url: 'https://mysupport.netapp.com/site/downloads/firmware/disk' });
+    }
+
+    // Switch firmware
+    if (cat.includes('switch') || desc.includes('nx-os') || desc.includes('fos') || desc.includes('efos')) {
+      const swLink = getSwitchFirmwareLink(risk.description);
+      links.push({ label: `⬇ ${swLink.label}`, url: swLink.url });
+      links.push({ label: '✅ Switch IMT', url: 'https://imt.netapp.com/matrix/' });
+    }
+
+    // Hardware / FRU
+    if (cat.includes('hardware') || desc.includes('fru') || desc.includes('path') || desc.includes('cable')) {
+      links.push({ label: '🔧 NetApp Support Portal', url: 'https://mysupport.netapp.com/site/global/dashboard' });
+    }
+
+    // MetroCluster
+    if (desc.includes('metrocluster') || desc.includes('mcc') || desc.includes('isl')) {
+      links.push({ label: '📖 MetroCluster Docs', url: 'https://docs.netapp.com/us-en/ontap-metrocluster/' });
+      links.push({ label: '📄 MetroCluster Deep Dive TR-4517', url: 'https://www.netapp.com/search/#q=TR-4517&t=Resources' });
+    }
+
+    // StorageGRID
+    if (cat.includes('storagegrid') || desc.includes('storagegrid')) {
+      links.push({ label: '📖 StorageGRID Upgrade Docs', url: 'https://docs.netapp.com/us-en/storagegrid/upgrade/index.html' });
+    }
+
+    // SANtricity / E-Series
+    if (cat.includes('santricity') || cat.includes('e-series') || desc.includes('santricity')) {
+      links.push({ label: '📖 SANtricity Upgrade Docs', url: 'https://docs.netapp.com/us-en/e-series/upgrade-santricity.html' });
+    }
+
+    if (links.length > 0) {
+      refLinksEl.style.display = 'block';
+      refLinksEl.innerHTML = `
+        <div style="font-weight:600;font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Reference Links</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${links.map(l => `<a href="${l.url}" target="_blank" onclick="window.open(this.href,'_blank');return false;"
+            style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--accent-cyan);
+                   background:rgba(0,188,212,0.07);border:1px solid rgba(0,188,212,0.2);
+                   padding:4px 10px;border-radius:var(--radius-sm);text-decoration:none;white-space:nowrap;"
+            onmouseover="this.style.background='rgba(0,188,212,0.15)'" onmouseout="this.style.background='rgba(0,188,212,0.07)'">${l.label}</a>`).join('')}
+        </div>`;
+    } else {
+      refLinksEl.style.display = 'none';
+    }
+  }
 
   const contextSection = document.getElementById("modalUpgradeContextSection");
   const contextText = document.getElementById("modalDetailUpgradeContext");
@@ -6352,8 +6956,6 @@ function openRemediationModal(riskId) {
   }
 
   const kbBtn = document.getElementById("modalKbLink");
-  // Generate a live KB search URL from the risk description so any new condition
-  // discovered via the AIQ API always produces a working, relevant search link.
   kbBtn.href = buildKBSearchURL(risk.description, risk.category);
 
   modal.style.display = "flex";
@@ -6441,50 +7043,177 @@ function renderTAMTab() {
       <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
     `;
   }
-  
-  // Compile Combined Risks
-  let riskRows = "";
-  const allRisks = [];
+
+  // ── Autonomous version enrichment (lazy, non-blocking) ──────────────────────
+  // For single-system view: fetch release notes and inject below version header
+  if (selectedSystems.length === 1) {
+    const sys = selectedSystems[0];
+    const headerEl = document.getElementById('tamActiveSystem');
+    if (headerEl) {
+      enrichmentEngine.injectVersionEnrichment(sys, headerEl);
+    }
+  }
+
+  // ── Compile Combined Risks — grouped by system with collapsible drilldown ──
+  // Groups risks per system to keep initial DOM at N rows (systems) not N×M (all risks).
+  // Each system row shows severity pill counts; click expands per-risk detail rows.
+  const risksBySystem = {};
   selectedSystems.forEach(sys => {
-    (sys.risks || []).forEach(r => {
-      allRisks.push({ ...r, systemName: sys.systemName });
-    });
+    const risks = sys.risks || [];
+    if (risks.length > 0) {
+      risksBySystem[sys.systemName] = {
+        systemName: sys.systemName,
+        platform:   sys.platform   || '',
+        version:    sys.ontapVersion || sys.santricityVersion || '',
+        risks: risks.map(r => ({ ...r, systemName: sys.systemName }))
+      };
+    }
   });
-  
-  sortDataList(allRisks, state.tamRisksSortKey, state.tamRisksSortOrder);
-  
-  if (allRisks.length === 0) {
-    riskRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active technical risks found. Systems are fully compliant.</td></tr>`;
+
+  const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const worstSeverity = (risks) => {
+    let w = 99;
+    risks.forEach(r => { const s = SEV_ORDER[r.severity?.toLowerCase()] ?? 5; if (s < w) w = s; });
+    return w;
+  };
+
+  // Sort system groups: worst severity first, then alphabetically
+  const sortedSystemNames = Object.keys(risksBySystem).sort((a, b) => {
+    const wa = worstSeverity(risksBySystem[a].risks);
+    const wb = worstSeverity(risksBySystem[b].risks);
+    return wa !== wb ? wa - wb : a.localeCompare(b);
+  });
+
+  const sevBadgeHtml = (sev) => {
+    const s = (sev || '').toLowerCase();
+    if (s === 'critical') return `<span class="badge critical">Critical</span>`;
+    if (s === 'high')     return `<span class="badge critical">High</span>`;
+    if (s === 'medium')   return `<span class="badge warning">Medium</span>`;
+    if (s === 'low')      return `<span class="badge info">Low</span>`;
+    return `<span class="badge info">${sev}</span>`;
+  };
+
+  const totalRisks = Object.values(risksBySystem).reduce((s, g) => s + g.risks.length, 0);
+
+  if (totalRisks === 0) {
+    document.getElementById('tamRisksTableBody').innerHTML =
+      `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">
+        ✓ No active technical risks found. All selected systems are fully compliant.
+       </td></tr>`;
   } else {
-    allRisks.forEach(r => {
-      let sevBadge = `<span class="badge info">${r.severity}</span>`;
-      if (r.severity === "critical") sevBadge = `<span class="badge critical">Critical</span>`;
-      else if (r.severity === "high") sevBadge = `<span class="badge critical">High</span>`;
-      else if (r.severity === "medium") sevBadge = `<span class="badge warning">Medium</span>`;
-      else if (r.severity === "low") sevBadge = `<span class="badge info">Low</span>`;
-      
+    // Build header controls row
+    const controlsHtml = `
+      <tr class="risk-controls-row">
+        <td colspan="4" style="padding:8px 12px;background:rgba(255,255,255,0.015);border-bottom:1px solid var(--border-color);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <span style="font-size:0.78rem;color:var(--text-muted);">
+              <strong style="color:var(--text-primary);">${sortedSystemNames.length}</strong> systems
+              · <strong style="color:var(--text-primary);">${totalRisks}</strong> total risks
+              · grouped by system — click a row to expand
+            </span>
+            <button onclick="toggleAllRiskGroups(this)"
+              style="font-size:0.72rem;padding:3px 10px;border:1px solid var(--border-color);
+                     background:rgba(255,255,255,0.04);color:var(--text-secondary);
+                     border-radius:var(--radius-sm);cursor:pointer;"
+              data-expanded="false">⊞ Expand All</button>
+          </div>
+        </td>
+      </tr>`;
+
+    let riskRows = controlsHtml;
+
+    sortedSystemNames.forEach((sysName, sysIdx) => {
+      const grp    = risksBySystem[sysName];
+      const risks  = grp.risks;
+      const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+      risks.forEach(r => {
+        const s = (r.severity || '').toLowerCase();
+        if (counts[s] !== undefined) counts[s]++;
+      });
+      const worst = worstSeverity(risks);
+      const groupId = `risk-group-${sysIdx}`;
+
+      // Severity pill mini-summary
+      const pills = [];
+      if (counts.critical) pills.push(`<span style="background:rgba(248,113,113,0.18);color:#f87171;border:1px solid rgba(248,113,113,0.35);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">🔴 ${counts.critical} Crit</span>`);
+      if (counts.high)     pills.push(`<span style="background:rgba(251,146,60,0.18);color:#fb923c;border:1px solid rgba(251,146,60,0.35);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">🟠 ${counts.high} High</span>`);
+      if (counts.medium)   pills.push(`<span style="background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">🟡 ${counts.medium} Med</span>`);
+      if (counts.low)      pills.push(`<span style="background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">🔵 ${counts.low} Low</span>`);
+
+      // Left accent colour by worst severity
+      const accentColor = worst === 0 ? '#f87171' : worst === 1 ? '#fb923c' : worst === 2 ? '#fbbf24' : '#60a5fa';
+
+      // System summary row (always visible)
       riskRows += `
-        <tr>
-          <td>${sevBadge}</td>
-          <td>
-            <div style="font-weight: 600;">${r.category}</div>
-            <div style="font-size: 0.72rem; color: var(--accent-cyan); margin-top: 2px;">System: ${r.systemName}</div>
-          </td>
-          <td>
-            <div style="font-weight: 500; margin-bottom: 4px;">${r.description}</div>
-            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">${r.advisoryUrl ? `<a href="${r.advisoryUrl}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer;" onclick="window.open(this.href, '_blank'); return false;">${r.recommendation}</a>` : r.recommendation}</div>
-          </td>
-          <td>
-            <div style="display: flex; gap: 8px;">
-              <button class="action-btn" style="font-size: 0.75rem; padding: 6px 12px;" onclick="openRemediationModal(${r.id})" data-tooltip="View detailed step-by-step remediation procedures, action paths, and third-party environment considerations for this risk.">Remediation Plan</button>
-              <a class="external-link" style="font-size: 0.75rem; display: flex; align-items: center;" href="${buildKBSearchURL(r.description, r.category)}" target="_blank" onclick="window.open(this.href, '_blank'); return false;">Search KB</a>
+        <tr class="risk-system-header" onclick="toggleRiskGroup('${groupId}', this)"
+          style="cursor:pointer;border-left:3px solid ${accentColor};transition:background 0.2s;"
+          onmouseover="this.style.background='rgba(255,255,255,0.03)'"
+          onmouseout="this.style.background=''"
+          data-group="${groupId}" data-expanded="false">
+          <td colspan="3" style="padding:12px 14px;">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <span style="font-weight:700;font-size:0.92rem;color:var(--text-primary);">${sysName}</span>
+              ${grp.platform ? `<span style="font-size:0.72rem;color:var(--text-muted);font-family:monospace;">${grp.platform}</span>` : ''}
+              ${grp.version  ? `<span style="font-size:0.72rem;color:var(--text-muted);">ONTAP ${grp.version}</span>` : ''}
+              <div style="display:flex;gap:5px;flex-wrap:wrap;">${pills.join('')}</div>
             </div>
           </td>
-        </tr>
-      `;
+          <td style="padding:12px 14px;text-align:right;white-space:nowrap;">
+            <span style="font-size:0.75rem;color:var(--text-muted);">${risks.length} risk${risks.length !== 1 ? 's' : ''}</span>
+            <span class="risk-chevron" style="margin-left:8px;font-size:0.85rem;color:var(--text-muted);transition:transform 0.2s;display:inline-block;">▶</span>
+          </td>
+        </tr>`;
+
+      // Drilldown tbody (hidden by default)
+      riskRows += `<tr id="${groupId}" style="display:none;">
+        <td colspan="4" style="padding:0;">
+          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.15);">`;
+
+      // Sort individual risks by severity, then description
+      const sortedRisks = [...risks].sort((a, b) => {
+        const sa = SEV_ORDER[(a.severity || '').toLowerCase()] ?? 5;
+        const sb = SEV_ORDER[(b.severity || '').toLowerCase()] ?? 5;
+        return sa !== sb ? sa - sb : (a.description || '').localeCompare(b.description || '');
+      });
+
+      sortedRisks.forEach(r => {
+        riskRows += `
+          <tr style="border-top:1px solid rgba(255,255,255,0.04);"
+            onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+            onmouseout="this.style.background=''">
+            <td style="padding:10px 14px 10px 24px;width:110px;vertical-align:top;">${sevBadgeHtml(r.severity)}</td>
+            <td style="padding:10px 8px;width:160px;vertical-align:top;">
+              <div style="font-weight:600;font-size:0.82rem;">${r.category}</div>
+              ${r.subCategory ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${r.subCategory}</div>` : ''}
+            </td>
+            <td style="padding:10px 8px;vertical-align:top;">
+              <div style="font-weight:500;margin-bottom:4px;font-size:0.85rem;">
+                ${r.advisoryUrl
+                  ? `<a href="${r.advisoryUrl}" target="_blank" onclick="window.open(this.href,'_blank');return false;">
+                       ${r.description} <span style="font-size:0.65rem;color:var(--accent-cyan);vertical-align:middle;margin-left:3px;">↗</span>
+                     </a>`
+                  : (r.description || '')}
+              </div>
+              <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.45;">${r.recommendation || ''}</div>
+            </td>
+            <td style="padding:10px 14px;vertical-align:top;white-space:nowrap;">
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <button class="action-btn" style="font-size:0.72rem;padding:5px 10px;"
+                  onclick="openRemediationModal(${r.id})"
+                  data-tooltip="View detailed step-by-step remediation plan for this risk.">Plan</button>
+                <a class="external-link" style="font-size:0.72rem;"
+                  href="${buildKBSearchURL(r.description, r.category)}" target="_blank"
+                  onclick="window.open(this.href,'_blank');return false;">KB Search</a>
+              </div>
+            </td>
+          </tr>`;
+      });
+
+      riskRows += `</table></td></tr>`;
     });
+
+    document.getElementById('tamRisksTableBody').innerHTML = riskRows;
   }
-  document.getElementById("tamRisksTableBody").innerHTML = riskRows;
   
   // Compile Combined OS Upgrades
   const upgradeBox = document.getElementById("tamUpgradeContainer");
@@ -6594,14 +7323,24 @@ function renderTAMTab() {
       let statusBadge = `<span class="badge normal">Optimal</span>`;
       if (sw.status === "Critical") statusBadge = `<span class="badge critical">Critical</span>`;
       else if (sw.status === "Warning") statusBadge = `<span class="badge warning">Warning</span>`;
-      
-      let actionText = "None required. Switch configuration matches validated baseline.";
+
+      // Firmware download link — vendor-specific
+      const fwLink = getSwitchFirmwareLink(sw.model);
+      // System context for IMT — try to pull from first selected system's ONTAP version
+      const activeSysForIMT = (selectedSystems && selectedSystems[0]) ? (selectedSystems[0].ontapVersion || '9.16.1') : '9.16.1';
+      const imtLink = getSwitchIMTLink(activeSysForIMT);
+
+      let actionText = `Switch matches validated baseline. <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">Verify in IMT ↗</a>`;
       if (sw.status === "Warning") {
-        actionText = `Plan firmware update to target release: <strong>${sw.targetFirmware}</strong>. Reference IMT baseline.`;
+        actionText = `Plan firmware update to target release: <strong style="color:var(--accent-cyan);">${sw.targetFirmware}</strong>. &nbsp;
+          <a href="${fwLink.url}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;font-weight:600;" onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label} ↗</a> &nbsp;
+          <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">✅ IMT ↗</a>`;
       } else if (sw.status === "Critical") {
-        actionText = `<strong style="color: var(--status-critical);">Immediate action required:</strong> Schedule window to install recommended version <strong>${sw.targetFirmware}</strong> to resolve bug or security vulnerability.`;
+        actionText = `<strong style="color:var(--status-critical);">⚠ Immediate action:</strong> Install <strong>${sw.targetFirmware}</strong> to resolve bug or security vulnerability. &nbsp;
+          <a href="${fwLink.url}" target="_blank" style="color:var(--status-critical);text-decoration:underline;font-weight:600;" onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label} ↗</a> &nbsp;
+          <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">✅ IMT ↗</a>`;
       }
-      
+
       switchRows += `
         <tr>
           <td><strong style="color: var(--text-primary); font-size: 0.85rem;">${sw.systemName}</strong></td>
@@ -6613,11 +7352,16 @@ function renderTAMTab() {
           <td>
             <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware}</code></div>
             <div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>
+            <div style="margin-top:4px;">
+              <a href="${fwLink.url}" target="_blank"
+                 style="font-size:0.68rem;color:var(--accent-cyan);text-decoration:underline;"
+                 onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label}</a>
+            </div>
           </td>
           <td>${statusBadge}</td>
           <td>
-            <div style="font-size: 0.8rem; color: var(--text-primary); margin-bottom: 4px;">${sw.validationDetails}</div>
-            <div style="font-size: 0.78rem; color: var(--text-secondary); font-style: italic;">${actionText}</div>
+            <div style="font-size: 0.8rem; color: var(--text-primary); margin-bottom: 4px;">${linkify(sw.validationDetails)}</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary);">${actionText}</div>
           </td>
         </tr>
       `;
@@ -6625,8 +7369,10 @@ function renderTAMTab() {
   }
   document.getElementById("tamSwitchesTableBody").innerHTML = switchRows;
   
-  // Compile Combined Security & Technical Bulletins
-  let bulletinRows = "";
+  // ── Compile Combined Security & Technical Bulletins — severity-tiered display ──
+  // Critical + High: always rendered as full rows (high-priority, always visible).
+  // Medium / Low / Info: collapsed into a single summary row to reduce initial DOM.
+  // CVE enrichment is batched (5 per 100ms) to avoid a burst of simultaneous fetches.
   const allBulletins = [];
   selectedSystems.forEach(sys => {
     if (sys.securityBulletins) {
@@ -6635,34 +7381,172 @@ function renderTAMTab() {
       });
     }
   });
-  
+
   sortDataList(allBulletins, state.tamSecuritySortKey, state.tamSecuritySortOrder);
-  
+
+  const BUL_SEV_TIER = (sev) => {
+    const s = (sev || '').toLowerCase();
+    return (s === 'critical' || s === 'high') ? 'primary' : 'secondary';
+  };
+
+  const buildBulletinRow = (b, bIdx) => {
+    let bBadge = `<span class="badge warning">${b.severity}</span>`;
+    if (b.severity === 'critical') bBadge = `<span class="badge critical">Critical</span>`;
+    else if (b.severity === 'high') bBadge = `<span class="badge critical">High</span>`;
+
+    const psirtUrl = (b.id && /^NTAP-/i.test(b.id))
+      ? `https://security.netapp.com/advisory/${b.id.toLowerCase()}/`
+      : (b.link || 'https://security.netapp.com/advisory/');
+    const cveId  = b.cve || (b.id && /^CVE-/i.test(b.id) ? b.id : null);
+    const nvdUrl = cveId ? `https://nvd.nist.gov/vuln/detail/${cveId}` : null;
+
+    const advisoryIdCell = `
+      <a href="${psirtUrl}" target="_blank"
+         style="color:var(--accent-cyan);font-family:monospace;font-weight:700;text-decoration:underline;"
+         onclick="window.open(this.href,'_blank');return false;">${b.id} ↗</a>`;
+
+    const cveDisplay = cveId
+      ? `<div style="font-size:0.68rem;margin-top:2px;">
+           <a href="${nvdUrl}" target="_blank"
+              style="color:var(--status-warning);text-decoration:underline;"
+              onclick="window.open(this.href,'_blank');return false;">${cveId} (NVD ↗)</a>
+         </div>`
+      : '';
+
+    const fixedLink = b.fixedIn
+      ? `<div style="font-size:0.7rem;color:var(--status-normal);margin-top:4px;">Fixed in: <strong>${b.fixedIn}</strong> &nbsp;
+           <a href="https://mysupport.netapp.com/site/downloads" target="_blank"
+              style="color:var(--status-normal);text-decoration:underline;font-size:0.65rem;"
+              onclick="window.open(this.href,'_blank');return false;">⬇ Download</a>
+         </div>`
+      : '';
+
+    const rowId = `bulletin-row-${bIdx}-${(b.id || '').replace(/[^a-z0-9]/gi, '-')}`;
+    return { rowId, cveId, html: `
+      <tr id="${rowId}">
+        <td>
+          ${advisoryIdCell}
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${b.systemName}</div>
+          ${b.cvss == null && cveId
+            ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">CVSS: <span data-enrich-cvss style="color:var(--text-muted)">fetching…</span></div>`
+            : `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">CVSS: ${b.cvss != null ? b.cvss : 'N/A'}</div>`}
+          ${b.publishedDate || b.published
+            ? `<div style="font-size:0.68rem;color:var(--text-muted);" data-enrich-date>${b.publishedDate || b.published}</div>`
+            : `<div style="font-size:0.68rem;color:var(--text-muted);" data-enrich-date></div>`}
+          ${cveDisplay}
+        </td>
+        <td>
+          <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;color:var(--text-primary);">${b.title}</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.3;" data-enrich-desc>${linkify(b.mitigation || '')}</div>
+          ${fixedLink}
+          ${cveId ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">Affected: <span data-enrich-affected>${b.fixedIn ? 'See advisory' : 'Fetching…'}</span></div>` : ''}
+        </td>
+        <td>${bBadge}</td>
+        <td><code style="color:var(--status-warning);font-size:0.78rem;">${b.status}</code></td>
+      </tr>`
+    };
+  };
+
+  let bulletinRows = '';
+  const enrichQueue = []; // {rowId, cveId} — processed in batches after paint
+
   if (allBulletins.length === 0) {
-    bulletinRows = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No active security advisories mapped.</td></tr>`;
+    bulletinRows = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px;">No active security advisories mapped.</td></tr>`;
   } else {
-    allBulletins.forEach(b => {
-      let bBadge = `<span class="badge warning">${b.severity}</span>`;
-      if (b.severity === "critical") bBadge = `<span class="badge critical">Critical</span>`;
-      else if (b.severity === "high") bBadge = `<span class="badge critical">High</span>`;
-      
+    const primaryBulletins   = allBulletins.filter(b => BUL_SEV_TIER(b.severity) === 'primary');
+    const secondaryBulletins = allBulletins.filter(b => BUL_SEV_TIER(b.severity) === 'secondary');
+
+    // Controls bar
+    bulletinRows += `
+      <tr>
+        <td colspan="4" style="padding:8px 12px;background:rgba(255,255,255,0.015);border-bottom:1px solid var(--border-color);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:0.78rem;color:var(--text-muted);">
+              <strong style="color:#f87171;">${primaryBulletins.length}</strong> Critical/High
+              ${secondaryBulletins.length ? `· <strong style="color:var(--text-secondary);">${secondaryBulletins.length}</strong> Medium/Low/Info` : ''}
+              · <strong style="color:var(--text-primary);">${allBulletins.length}</strong> total
+            </span>
+            ${secondaryBulletins.length ? `
+              <button onclick="toggleBulletinSecondary(this)"
+                style="font-size:0.72rem;padding:3px 10px;border:1px solid var(--border-color);
+                       background:rgba(255,255,255,0.04);color:var(--text-secondary);
+                       border-radius:var(--radius-sm);cursor:pointer;" data-expanded="false">
+                Show ${secondaryBulletins.length} lower-severity advisories ▼
+              </button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+
+    // ── TIER 1: Critical + High — always visible ──
+    if (primaryBulletins.length === 0) {
+      bulletinRows += `<tr><td colspan="4" style="text-align:center;color:var(--status-normal);padding:16px;font-size:0.85rem;">
+        ✓ No Critical or High severity advisories for selected systems.</td></tr>`;
+    } else {
+      primaryBulletins.forEach((b, i) => {
+        const globalIdx = allBulletins.indexOf(b);
+        const { rowId, cveId, html } = buildBulletinRow(b, globalIdx);
+        bulletinRows += html;
+        if (cveId) enrichQueue.push({ rowId, cveId });
+      });
+    }
+
+    // ── TIER 2: Medium / Low / Info — collapsed behind a toggle row ──
+    if (secondaryBulletins.length > 0) {
+      // Separator toggle row
       bulletinRows += `
-        <tr>
-          <td>
-            <strong style="color: var(--accent-cyan); font-family: monospace;">${b.id}</strong>
-            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">${b.systemName}</div>
+        <tr id="bulletin-secondary-toggle" onclick="toggleBulletinSecondary(this.querySelector('button'))"
+          style="cursor:pointer;background:rgba(255,255,255,0.015);"
+          onmouseover="this.style.background='rgba(255,255,255,0.03)'"
+          onmouseout="this.style.background='rgba(255,255,255,0.015)'">
+          <td colspan="4" style="padding:10px 14px;text-align:center;">
+            <button style="background:none;border:none;color:var(--text-secondary);font-size:0.8rem;cursor:pointer;display:flex;align-items:center;gap:8px;margin:0 auto;">
+              <span id="bulletin-secondary-chevron">▶</span>
+              <span id="bulletin-secondary-label">${secondaryBulletins.length} Medium / Low / Informational advisories — click to expand</span>
+            </button>
           </td>
-          <td>
-            <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; color: var(--text-primary);">${b.title}</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">${b.mitigation}</div>
-          </td>
-          <td>${bBadge}</td>
-          <td><code style="color: var(--status-warning); font-size: 0.78rem;">${b.status}</code></td>
-        </tr>
-      `;
-    });
+        </tr>`;
+
+      // Hidden secondary rows container
+      bulletinRows += `<tr id="bulletin-secondary-group" style="display:none;">
+        <td colspan="4" style="padding:0;">
+          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.1);">`;
+
+      secondaryBulletins.forEach((b, i) => {
+        const globalIdx = allBulletins.indexOf(b);
+        const { rowId, cveId, html } = buildBulletinRow(b, globalIdx);
+        bulletinRows += html;
+        if (cveId) enrichQueue.push({ rowId, cveId, deferred: true });
+      });
+
+      bulletinRows += `</table></td></tr>`;
+    }
   }
-  document.getElementById("tamSecurityBulletinsBody").innerHTML = bulletinRows;
+
+  document.getElementById('tamSecurityBulletinsBody').innerHTML = bulletinRows;
+
+  // ── CVE enrichment: batched queue — 5 per 100ms to avoid fetch burst ─────
+  // Only enrich primary (visible) rows immediately; deferred rows enriched on expand.
+  const primaryEnrich   = enrichQueue.filter(e => !e.deferred);
+  const deferredEnrich  = enrichQueue.filter(e =>  e.deferred);
+
+  const runEnrichBatch = (items, batchSize = 5, delayMs = 100) => {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const chunk = items.slice(i, i + batchSize);
+      setTimeout(() => {
+        chunk.forEach(({ rowId, cveId }) => {
+          const rowEl = document.getElementById(rowId);
+          if (rowEl) enrichmentEngine.injectCVEEnrichment(cveId, rowEl);
+        });
+      }, Math.floor(i / batchSize) * delayMs);
+    }
+  };
+
+  // Primary rows: enrich after first paint (slight delay to unblock render)
+  setTimeout(() => runEnrichBatch(primaryEnrich), 80);
+
+  // Secondary rows: enrich lazily on first expansion via stored queue
+  window._deferredBulletinEnrich = deferredEnrich;
+
   updateSortIndicators();
 }
 
@@ -8911,15 +9795,38 @@ function enrichSystemTelemetry(s) {
       // at render time from description+category via buildKBSearchURL(), ensuring
       // any new condition from the AIQ API gets a working, relevant search link.
     };
-    // Extract advisory URL from correctiveAction (array of {url, displayName})
+    // ── Extract advisory URL from correctiveAction (array of {url, displayName}) ──
     if (r.correctiveAction) {
       const actions = Array.isArray(r.correctiveAction) ? r.correctiveAction : [r.correctiveAction];
       const urlAction = actions.find(a => a && a.url);
       if (urlAction) normRisk.advisoryUrl = urlAction.url;
     }
-    // For live API risks, use correctiveAction from the API if available
+
+    // ── Synthesize advisory URLs for CVE/security risks that lack one ──────────
+    // The AIQ API often returns CVE risks without a correctiveAction URL. We build
+    // a direct NetApp PSIRT link from the CVE ID so every CVE row has a link.
+    if (!normRisk.advisoryUrl) {
+      const cveInDesc = (normRisk.description || '').match(/CVE-(\d{4})-(\d+)/i);
+      if (cveInDesc) {
+        // NetApp PSIRT advisory search by CVE ID
+        normRisk.advisoryUrl = `https://security.netapp.com/advisory/?q=${cveInDesc[0]}`;
+      } else if ((normRisk.category || '').toLowerCase().includes('security') ||
+                 (normRisk.description || '').toLowerCase().includes('vulnerability') ||
+                 (normRisk.description || '').toLowerCase().includes('advisory')) {
+        // Generic security risk — link to NetApp PSIRT home
+        normRisk.advisoryUrl = `https://security.netapp.com/advisory/`;
+      } else if (r.advisoryId || r.riskAdvisoryId) {
+        // Direct advisory ID from API
+        const advId = r.advisoryId || r.riskAdvisoryId;
+        normRisk.advisoryUrl = `https://security.netapp.com/advisory/${advId}`;
+      } else if (r.kbLink || r.kbUrl) {
+        // Fall back to KB article link if provided
+        normRisk.advisoryUrl = r.kbLink || r.kbUrl;
+      }
+    }
+
+    // ── Build remediation plan from correctiveAction if not already set ────────
     if (!normRisk.remediationPlan && isLiveData && r.correctiveAction) {
-      // correctiveAction from GraphQL is an array of {url, displayName}
       const actions = Array.isArray(r.correctiveAction) ? r.correctiveAction : [r.correctiveAction];
       const steps = actions.map((a, i) => {
         if (typeof a === 'object' && a.displayName) {
@@ -8939,7 +9846,7 @@ function enrichSystemTelemetry(s) {
       normRisk.remediationPlan = generateDynamicRemediationPlan(normRisk, { clusterName: cluster });
     }
 
-    // Replace generic "See Security Advisory" recommendations with actionable text
+    // ── Clean up generic "See Security Advisory" recommendation text ───────────
     const recIsGeneric = (normRisk.recommendation || '').match(/See (?:the )?Security Advisory/i);
     if (recIsGeneric) {
       const recOsVer = s.recommendedOSVersion || '';
@@ -8951,11 +9858,7 @@ function enrichSystemTelemetry(s) {
       } else {
         normRisk.recommendation = `Apply the corrective action per NetApp advisory guidelines.`;
       }
-      if (normRisk.advisoryUrl) {
-        normRisk.recommendation += ` See advisory: ${normRisk.advisoryUrl}`;
-      } else if (cveMatch) {
-        normRisk.recommendation += ` Ref: https://security.netapp.com/advisory/`;
-      }
+      // advisoryUrl is now always set for CVEs — no need to append it as text
     }
 
     return normRisk;
@@ -9563,140 +10466,893 @@ function enrichSystemTelemetry(s) {
 
 function generateDynamicRemediationPlan(risk, sys) {
   const desc = (risk.description || "").toLowerCase();
-  const cat = risk.category || "General";
+  const cat  = risk.category || "General";
   const catLower = cat.toLowerCase();
-  
-  let cause = "Undetermined configuration deviation identified in telemetry sync.";
-  let impact = "Potential compliance degradation or risk of localized performance instability.";
-  let steps = ["1. Review the configuration using standard ONTAP show command templates.", "2. Consult target platform documentation guidelines.", "3. Request technical assistance if baseline deviations require custom adjustment."];
-  let options = ["Option A: Apply recommended changes under next change control window.", "Option B: Retain current parameters if business exceptions mandate legacy settings."];
+  const platform = (sys.platform || "").toLowerCase();
+  const ontapVer = sys.ontapVersion || "";
+
+  // Parse ONTAP version for version-gated logic
+  const verMatch = ontapVer.match(/^([0-9]+)\.([0-9]+)/);
+  let major = 9, minor = 12;
+  if (verMatch) { major = parseInt(verMatch[1]); minor = parseInt(verMatch[2]); }
+  const is910OrNewer  = (major > 9) || (major === 9 && minor >= 10);
+  const is913OrNewer  = (major > 9) || (major === 9 && minor >= 13);
+  const is915OrNewer  = (major > 9) || (major === 9 && minor >= 15);
+  const is916OrNewer  = (major > 9) || (major === 9 && minor >= 16);
+  const is919OrNewer  = (major > 9) || (major === 9 && minor >= 19);
+  const isAFX         = platform.includes("afx") || platform.includes("all-flash fabric");
+  const isMCC         = platform.includes("metrocluster") || desc.includes("metrocluster") || desc.includes("mcc");
+  const isSG          = platform.includes("storagegrid") || catLower.includes("storagegrid") || desc.includes("storagegrid");
+  const isSantricity  = platform.includes("e-series") || catLower.includes("santricity") || desc.includes("santricity") || desc.includes("e-series");
+  const clusterName   = sys.clusterName || sys.systemName || "your-cluster";
+
+  // Per-version upgrade caveats (inline for use in steps)
+  const versionCaveats = REFERENCE_LIBRARY_UPGRADE_CAVEATS || {};
+
+  // ─── Default fallback ────────────────────────────────────────────────────────
+  let cause   = "Configuration deviation identified in Active IQ telemetry sync.";
+  let impact  = "Potential compliance degradation or risk of localized performance instability.";
+  let steps   = [
+    "1. Review configuration using standard ONTAP diagnostic commands.",
+    "2. Consult target platform documentation at https://docs.netapp.com/us-en/ontap/",
+    "3. Engage NetApp Support via https://mysupport.netapp.com/ if baseline deviations require custom adjustment."
+  ];
+  let options = [
+    "Option A: Apply recommended changes under next scheduled change control window.",
+    "Option B: Retain current parameters if business exceptions mandate legacy settings."
+  ];
   let thirdParty = "No direct third-party virtualization or backup hypervisor dependencies identified.";
 
-  // Fetch version specifics for network LIF confirmation checks
-  const verMatch = (sys.ontapVersion || "").match(/^([0-9]+)\.([0-9]+)/);
-  let major = 9;
-  let minor = 12;
-  if (verMatch) {
-    major = parseInt(verMatch[1]);
-    minor = parseInt(verMatch[2]);
-  }
-  const is910OrNewer = (major > 9) || (major === 9 && minor >= 10);
-
-  if (catLower.includes("security") || desc.includes("insecure") || desc.includes("vulnerability") || desc.includes("cve")) {
-    if (desc.includes("smb") || desc.includes("cifs")) {
-      cause = "Legacy SMBv1 protocol is enabled on target SVM parameters, violating security hardening policy.";
-      impact = "Exposes CIFS exports to interception, credential spoofing, or legacy ransomware attacks (CVE-2017-0144).";
-      steps = [
-        `1. Access administrative CLI for cluster: ${sys.clusterName || 'cluster'}.`,
-        "2. Disable legacy SMB1: 'vserver cifs options modify -vserver <svm_name> -smb1-enabled false'",
-        "3. Verify configuration state: 'vserver cifs options show -vserver <svm_name> -fields smb1-enabled'"
+  // ════════════════════════════════════════════════════════════════════════════
+  // STORAGEGRID
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isSG) {
+    if (desc.includes("upgrade") || desc.includes("version") || desc.includes("outdated")) {
+      cause  = "StorageGRID is running a version below the recommended baseline, missing security patches and feature improvements.";
+      impact = "Exposure to known CVEs, missing S3 compatibility improvements, and unsupported ILM policy features.";
+      steps  = [
+        "1. Log in to the Primary Admin Node web interface.",
+        "2. Download the StorageGRID upgrade package (.upgrade) from: https://mysupport.netapp.com/site/downloads",
+        "3. Navigate to MAINTENANCE > System > Software Update.",
+        "4. Upload the upgrade package and the current Recovery Package (.zip) — both files are required.",
+        "5. Click 'Apply' and monitor the upgrade progress via MAINTENANCE > Tasks > Grid Tasks.",
+        "6. Validate all nodes show 'Connected' status post-upgrade: NODES > Overview.",
+        "7. Regenerate a new Recovery Package after upgrade completes: MAINTENANCE > Recovery Package.",
+        "8. StorageGRID 12.0+ ref: https://docs.netapp.com/us-en/storagegrid/upgrade/index.html"
       ];
       options = [
-        "Option A: Disable SMBv1 cluster-wide immediately (Recommended).",
-        "Option B: Isolate legacy clients to dedicated, firewalled network segments if SMBv1 is mandatory."
+        "Option A: Upgrade sequentially through each major version (e.g., 11.8 → 11.9 → 12.0). Skipping major versions is NOT supported.",
+        "Option B: Apply hotfix only (patch release) if a full major upgrade is not feasible within the current maintenance window — navigate to MAINTENANCE > System > Hotfix."
       ];
-      thirdParty = "Modern Windows and Linux clients are fully compatible. Legacy Windows XP/2003 clients will lose access.";
-    } else if (desc.includes("export") || desc.includes("nfs") || desc.includes("policy")) {
-      cause = "NFS export policy rule allows superuser mounts to unauthorized subnets (root-squashing disabled).";
-      impact = "Unrestricted hosts on matching networks can mount volumes and write files with full root authority.";
-      steps = [
-        "1. Identify offending policy rules: 'vserver export-policy rule show -vserver <svm_name>'.",
-        "2. Restrict rule to secure clients: 'vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -clientmatch <trusted_subnet>'",
-        "3. Squash root privileges: 'vserver export-policy rule modify -vserver <svm_name> -policyname default -ruleindex 1 -superuser none'"
+      thirdParty = "Verify S3 client application compatibility. StorageGRID 11.9+ enforces strict TLS certificate handshakes. Swift API is deprecated in 11.7+ and removed in 12.0.";
+    } else if (desc.includes("ilm") || desc.includes("policy") || desc.includes("replication")) {
+      cause  = "ILM (Information Lifecycle Management) policy configuration may not meet data durability or compliance requirements.";
+      impact = "Objects may not be replicated to the required number of copies, creating data durability risk.";
+      steps  = [
+        "1. Navigate to ILM > Policies in the Grid Manager.",
+        "2. Review the Active Policy rules and verify object copy counts, storage pool assignments, and cloud tier rules.",
+        "3. Validate rule evaluation order — more specific rules must precede catch-all rules.",
+        "4. Test proposed changes using the ILM Policy Simulation tool before activation.",
+        "5. Activate the updated policy: ILM > Policies > Activate.",
+        "6. Monitor object placement via NODES > Storage Node > Objects.",
+        "Ref: https://docs.netapp.com/us-en/storagegrid/ilm/index.html"
       ];
       options = [
-        "Option A: Restrict client match to target subnet and disable superuser authority (Recommended).",
-        "Option B: Configure Kerberos (krb5/krb5i) if strong cryptographic authentication is required."
+        "Option A: Activate updated policy immediately and let background ILM scanner re-evaluate all existing objects (may take hours/days on large grids).",
+        "Option B: Create parallel policy for new ingest only, leaving existing objects unchanged."
       ];
-      thirdParty = "VMware ESXi hosts mounting NFS datastores require root access. Ensure client matches are limited specifically to ESXi VMkernel IP addresses.";
+      thirdParty = "S3 bucket replication rules configured in the S3 client SDK are separate from ILM policies. Both layers must be validated for compliance requirements.";
     } else {
-      cause = "Security parameter setting deviates from the ONTAP Security Hardening baseline.";
-      impact = "Increased administrative attack surface and reduction in active compliance validation scores.";
-      steps = [
-        "1. Consult ONTAP Security Hardening Guidelines (TR-4569).",
-        "2. Locate configuration parameter inside SVM settings.",
-        "3. Apply target hardening modifications under a standard change control window."
+      cause  = "StorageGRID node health or connectivity issue detected.";
+      impact = "Degraded node availability may reduce read/write performance and data durability.";
+      steps  = [
+        "1. Check node status: NODES > select node > Overview tab.",
+        "2. Review active alerts: ALERTS > Current.",
+        "3. For Admin Node failures: verify Cassandra service health via SSH: 'run-storagegrid-diagnostics.sh'.",
+        "4. For Storage Node issues: verify disk health and object store mount points.",
+        "5. Escalate to NetApp Support with grid diagnostics package if node cannot self-recover.",
+        "Ref: https://docs.netapp.com/us-en/storagegrid/maintain/index.html"
       ];
       options = [
-        "Option A: Harden configuration settings online (non-disruptive).",
-        "Option B: Register a security policy exception in corporate risk log."
+        "Option A: Decommission and redeploy affected node if hardware fault is confirmed.",
+        "Option B: Recover node from Recovery Package if node metadata is intact."
       ];
-      thirdParty = "Verify that third-party infrastructure management dashboards continue to authenticate normally.";
+      thirdParty = "S3 gateway load balancer endpoints should be monitored for elevated 5xx error rates during node recovery.";
     }
-  } else if (catLower.includes("network") || desc.includes("firewall") || desc.includes("lif") || desc.includes("ntp")) {
-    if (is910OrNewer && (desc.includes("firewall") || desc.includes("policy"))) {
-      cause = "Legacy firewall policy settings are deprecated in ONTAP 9.10.1+ and must be replaced by service policies.";
-      impact = "Deprecated firewall rules are ignored by ONTAP, potentially exposing administration ports or causing routing anomalies.";
-      steps = [
-        "1. Identify active service policies: 'network interface service-policy show'.",
-        "2. Define custom service policy rules if default profiles (default-management, default-data) are insufficient.",
-        "3. Bind service policy to LIF: 'network interface modify -vserver <svm_name> -lif <lif_name> -service-policy <policy>'",
-        "Note: In ONTAP 9.10.1+, modifying LIF configurations requires confirmation. Prepend '-confirm false' to run non-interactively."
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SANTRICITY / E-SERIES
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isSantricity) {
+    if (desc.includes("upgrade") || desc.includes("version") || desc.includes("outdated") || desc.includes("firmware")) {
+      cause  = "SANtricity OS or NVSRAM version is below the recommended baseline.";
+      impact = "Exposure to resolved controller firmware bugs, potential I/O instability, and missing drive qualification updates.";
+      steps  = [
+        "1. Download SANtricity OS firmware package (.dlp) and NVSRAM file from: https://mysupport.netapp.com/site/downloads",
+        "2. Log in to SANtricity System Manager (https://<controller-IP>).",
+        "3. Navigate to Support > Upgrade Center > SANtricity OS Software.",
+        "4. Upload both the SANtricity OS .dlp file AND the NVSRAM .nvm file — both are required for a complete upgrade.",
+        "5. Review the pre-upgrade health summary. Ensure all drives show 'Optimal' and both controllers are 'Online'.",
+        "6. Check BBU/SuperCap status: if battery is degraded, write caching will be disabled during the upgrade, causing temporary latency spikes.",
+        "7. Click 'Start Upgrade'. Controller A activates first, reboots, then Controller B activates.",
+        "8. Verify post-upgrade versions: Support > About > Software and Firmware Versions.",
+        "Ref: https://docs.netapp.com/us-en/e-series/upgrade-santricity.html"
       ];
       options = [
-        "Option A: Enforce modern service-policies on all LIF configurations (Recommended).",
-        "Option B: Clean up legacy firewall configurations: 'system services firewall policy delete'."
+        "Option A: Online upgrade (non-disruptive on dual-controller e.g. E2800/E5700/EF600). I/O continues during the rolling controller activation.",
+        "Option B: Offline upgrade — required for single-controller shelf configurations. Schedule full maintenance window."
       ];
-      thirdParty = "Ensure backup/management software connects via the new LIF interface policy mappings.";
+      thirdParty = "Host-side HBA multipathing (MPIO on Windows, dm-multipath on Linux, VMware PSP_RR) maintains I/O continuity during the rolling controller reboot. Verify multipath is active before starting.";
+    } else if (desc.includes("drive") || desc.includes("disk")) {
+      cause  = "Drive firmware is outdated or a drive has reported a recoverable error.";
+      impact = "Outdated drive firmware may have unresolved reliability issues. Unaddressed drive errors can lead to drive failure.";
+      steps  = [
+        "1. Check drive status: Hardware > Drives > select drive > View Settings.",
+        "2. For firmware update: Support > Upgrade Center > Drive Firmware.",
+        "3. Upload the drive firmware package (.dlp) downloaded from https://mysupport.netapp.com/site/downloads/firmware/disk",
+        "4. Select affected drives and click 'Start'. Drive firmware updates are non-disruptive on redundant pools/volume groups.",
+        "5. Verify drive health post-update: all drives should show 'Optimal'.",
+        "Ref: https://docs.netapp.com/us-en/e-series/maintenance-e2800/drives-replace-task.html"
+      ];
+      options = [
+        "Option A: Update drive firmware online via SANtricity Upgrade Center (non-disruptive).",
+        "Option B: Schedule drive replacement via NetApp Support (create a case at https://mysupport.netapp.com/) if drive error count is increasing."
+      ];
+      thirdParty = "iSCSI and FC host connections remain active during drive firmware updates on redundant pools.";
     } else {
-      cause = "Network parameters deviate from standard operational recommendations.";
-      impact = "Possible routing degradation, service latency, or administration port exposure.";
-      steps = [
-        "1. Retrieve network port configuration: 'network port show'.",
-        "2. Retrieve logical interface details: 'network interface show'.",
-        "3. Apply recommended modifications. Note: In ONTAP 9.10.1+, admin-down on system-SVM LIFs requires confirmation (prepend '-confirm false')."
+      cause  = "SANtricity controller or hardware component health deviation detected.";
+      impact = "Degraded controller redundancy or hardware fault may impact I/O availability.";
+      steps  = [
+        "1. Check controller status: Hardware > Controllers > select controller.",
+        "2. Review any active Recovery Guru items: Home > Recovery Guru.",
+        "3. Follow Recovery Guru remediation steps precisely — they are ordered for data integrity.",
+        "4. If a hardware FRU replacement is required, open a NetApp Support case: https://mysupport.netapp.com/",
+        "Ref: https://docs.netapp.com/us-en/e-series/maintenance-e2800/index.html"
+      ];
+      options = [
+        "Option A: Follow Recovery Guru steps for online component replacement if hot-swap is supported.",
+        "Option B: Schedule offline maintenance window for cold-swap component replacement."
+      ];
+      thirdParty = "Host I/O paths should be verified with your multipath driver before and after any controller component replacement.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SHELF FIRMWARE — IOM12 / IOM12G / IOM12B / IOM3 / NSM100 / NSM100B / NSM100e / NSM140
+  // ════════════════════════════════════════════════════════════════════════════
+  if (desc.includes("iom12") || desc.includes("iom12g") || desc.includes("iom12b") || desc.includes("iom3") ||
+      desc.includes("nsm100") || desc.includes("nsm140") || desc.includes("shelf firmware") ||
+      (desc.includes("shelf") && desc.includes("firmware")) || (desc.includes("shelf") && desc.includes("module"))) {
+    const shelfModule = desc.includes("nsm140") ? "NSM140 (AFX NX224)" :
+                        desc.includes("nsm100b") ? "NSM100B" :
+                        desc.includes("nsm100e") ? "NSM100e" :
+                        desc.includes("nsm100") ? "NSM100" :
+                        desc.includes("iom12g") ? "IOM12G" :
+                        desc.includes("iom12b") ? "IOM12B" :
+                        desc.includes("iom12") ? "IOM12" :
+                        desc.includes("iom3") ? "IOM3" : "shelf module";
+    const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[shelfModule.split(" ")[0]] || { recommended: "current" };
+    cause  = `${shelfModule} shelf module firmware is below the recommended baseline version (target: ${fwBaseline.recommended}).`;
+    impact = "Outdated shelf module firmware may contain known stability bugs affecting SAS/NVMe path throughput or causing unexpected shelf resets.";
+    steps  = [
+      `1. Download the latest ${shelfModule} shelf firmware package from: https://mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware`,
+      "2. Upload firmware to the ONTAP cluster: 'system node image package get -node * -package <url>' or via System Manager.",
+      "3. Initiate background shelf firmware update (non-disruptive): 'storage firmware download'",
+      "4. Monitor update progress: 'storage shelf show -fields firmware-revision,module-type' — updates run in background, no I/O interruption.",
+      "5. Verify all shelf modules show the updated firmware version after the background job completes.",
+      `6. For ${shelfModule} documentation: https://docs.netapp.com/us-en/ontap/disks-aggregates/shelf-firmware-upgrade-manual-disk-task.html`,
+      isAFX ? "NOTE: NSM140 modules are exclusive to AFX NX224 shelves and are NOT interchangeable with NSM100/NSM100B modules used in AFF/ASA platforms." : ""
+    ].filter(Boolean);
+    options = [
+      "Option A: Trigger automatic background update now — non-disruptive and runs shelf-by-shelf in the background.",
+      "Option B: Manually force update on a per-shelf basis: 'storage shelf firmware update -shelf <ID>' for targeted updates."
+    ];
+    thirdParty = "Shelf firmware updates are entirely transparent to host-side HBAs and hypervisors. No host-side action required.";
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // DISK / DQP FIRMWARE
+  // ════════════════════════════════════════════════════════════════════════════
+  if (desc.includes("dqp") || desc.includes("disk qualification") || desc.includes("disk firmware") ||
+      (desc.includes("disk") && (desc.includes("firmware") || desc.includes("outdated") || desc.includes("update")))) {
+    cause  = "Disk Drive Qualification Package (DQP) or individual drive firmware is below the current validated release.";
+    impact = "Unqualified or outdated disk firmware may contain known data integrity bugs. Unqualified drives may not be recognized after replacement, blocking array rebuild.";
+    steps  = [
+      "1. Check current DQP version: 'storage disk show -fields diskpathnames' and 'disk qualifications package show'.",
+      "2. Download the latest DQP package from: https://mysupport.netapp.com/site/downloads/firmware/disk",
+      "3. Upload DQP to the cluster: 'storage disk qualification package install <url>'",
+      "4. Trigger disk firmware update across all nodes: 'storage disk firmware update'",
+      "5. Monitor per-disk firmware update progress: 'storage disk show -fields firmware-revision' — runs non-disruptively, disk-by-disk in background.",
+      "6. Verify all drives show the target firmware revision post-update.",
+      "7. Ref: https://kb.netapp.com/onprem/ontap/hardware/How_to_update_ONTAP_Disk_Firmware_in_Non-Disruptive_Mode"
+    ];
+    options = [
+      "Option A: Apply DQP and disk firmware update online now — fully non-disruptive on all HA pair configurations.",
+      "Option B: Include in next scheduled maintenance window if change freeze applies."
+    ];
+    thirdParty = "Disk firmware updates are transparent to all host-side storage access. No host reboot or HBA driver update required.";
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SP / BMC FIRMWARE (Service Processor / Baseboard Management Controller)
+  // ════════════════════════════════════════════════════════════════════════════
+  if (desc.includes("service processor") || desc.includes(" sp ") || desc.includes("bmc") || desc.includes("baseboard management")) {
+    cause  = "Service Processor (SP) or BMC firmware is below the recommended version.";
+    impact = "Outdated SP/BMC firmware may lack critical remote management features, node power-cycle reliability fixes, and out-of-band connectivity stability improvements.";
+    steps  = [
+      "1. Check SP firmware version on all nodes: 'system service-processor show -fields firmware-version'",
+      "2. SP firmware is typically bundled with ONTAP image packages — ensure cluster is running current ONTAP patch.",
+      "3. Manually trigger SP firmware update: 'system service-processor image update -node *'",
+      "4. Monitor update progress: 'system service-processor show -fields is-updating' — update takes 5–15 minutes per node.",
+      "5. Verify updated SP version: 'system service-processor show -fields firmware-version'",
+      "6. Ref: https://docs.netapp.com/us-en/ontap/system-admin/sp-bmc-network-config-concept.html"
+    ];
+    options = [
+      "Option A: Update SP firmware online (non-disruptive to ONTAP I/O — SP is a separate management subsystem).",
+      "Option B: SP firmware auto-updates alongside ONTAP upgrades — can defer until next ONTAP patch cycle."
+    ];
+    thirdParty = "SP/BMC is used for remote KVM console access and node power management. Ensure management network connectivity is stable before updating.";
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // NIC / HBA / ADAPTER FIRMWARE
+  // ════════════════════════════════════════════════════════════════════════════
+  if (desc.includes("nic") || desc.includes("hba") || (desc.includes("adapter") && (desc.includes("firmware") || desc.includes("driver"))) ||
+      (desc.includes("fc adapter") || desc.includes("iscsi adapter") || desc.includes("ethernet adapter"))) {
+    cause  = "Network adapter (NIC/HBA) firmware is below the minimum qualified version.";
+    impact = "Outdated NIC/HBA firmware may contain link stability bugs, poor error recovery, or lack support for required host-side features (e.g. NVMe-oF, RDMA).";
+    steps  = [
+      "1. Identify adapter model and current firmware: 'network device-discovery show' and 'system node hardware show'.",
+      "2. Download the qualified firmware version for your adapter from: https://mysupport.netapp.com/site/downloads",
+      "3. Verify adapter firmware version compatibility in the IMT: https://imt.netapp.com/matrix/",
+      "4. For Qlogic/Marvell FC HBAs: use the vendor's qaucli or qlxdump utility for firmware updates.",
+      "5. For Broadcom/Emulex FC HBAs: use elxmgmt or OneCommand Manager.",
+      "6. For Intel/Broadcom NICs: update via vendor-provided network adapter firmware package.",
+      "7. NOTE: Some adapter firmware updates require a system reboot — plan accordingly for HA failover.",
+      "8. Ref: https://docs.netapp.com/us-en/ontap/networking/configure_network_ports_cluster.html"
+    ];
+    options = [
+      "Option A: Update adapter firmware online using vendor utilities (check if reboot-free update is available for your adapter model).",
+      "Option B: Schedule node takeover/giveback during maintenance window if adapter firmware requires node reboot."
+    ];
+    thirdParty = "ESXi: VMware HCL lists qualified adapter firmware versions. Update host-side HBA firmware using ESXi Update Manager or the adapter vendor's VIB package. Linux: update using the adapter vendor's firmware update utility or OS package manager.";
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SWITCH FIRMWARE — Cisco NX-OS / MDS / Brocade FOS / EFOS / NVIDIA SN2100
+  // ════════════════════════════════════════════════════════════════════════════
+  if (catLower.includes("switch") || desc.includes("nx-os") || desc.includes("nxos") || desc.includes("fabric os") ||
+      desc.includes("efos") || desc.includes("bes-53248") || desc.includes("brocade") || desc.includes("cisco") ||
+      desc.includes("sn2100") || desc.includes("cumulus") || desc.includes("switch firmware") ||
+      desc.includes("9336") || desc.includes("9364") || desc.includes("9332") || desc.includes("mds 9")) {
+
+    const isCiscoNexus = desc.includes("9336") || desc.includes("9364") || desc.includes("9332") || desc.includes("nexus") || desc.includes("nx-os") || desc.includes("nxos");
+    const isCiscoMDS   = desc.includes("mds 9") || desc.includes("cisco mds") || desc.includes("mds9");
+    const isBrocade    = desc.includes("brocade") || desc.includes("fabric os") || desc.includes("fos") || desc.includes("g620") || desc.includes("g630") || desc.includes("g720");
+    const isEFOS       = desc.includes("bes-53248") || desc.includes("efos") || desc.includes("broadcom cluster");
+    const isNVIDIA     = desc.includes("sn2100") || desc.includes("cumulus") || desc.includes("nvidia");
+    const isAFXSwitch  = desc.includes("9332d-gx2b") || desc.includes("9364d-gx2a");
+
+    if (isCiscoNexus || isAFXSwitch) {
+      const swModel = isAFXSwitch ? (desc.includes("9332d") ? "Cisco Nexus 9332D-GX2B" : "Cisco Nexus 9364D-GX2A") : "Cisco Nexus 9000-series";
+      const downloadUrl = isAFXSwitch ? "https://software.cisco.com/download/home/286325598" : "https://software.cisco.com/download/home/280275056";
+      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Cisco NX-OS"] || { recommended: "9.3(12)" };
+      cause  = `${swModel} switch is running NX-OS below the recommended baseline version (target: ${fwBaseline.recommended}).`;
+      impact = "Outdated NX-OS may expose cluster ISL links to known switch bugs causing traffic drops, incorrect ECMP hashing, or LACP timer issues that can disrupt cluster HA failover.";
+      steps  = [
+        "PRE-UPGRADE — run on BOTH switches in sequence (one at a time for non-disruptive upgrade):",
+        `1. Download target NX-OS image from: ${downloadUrl}`,
+        "2. Backup current switch config: 'copy running-config bootflash:pre-upgrade-backup.cfg'",
+        "3. Validate ONTAP cluster link health BEFORE starting: 'network port show -ipspace cluster' (all ports must be up/up).",
+        "4. Upload NX-OS image to switch bootflash: 'copy scp://user@<server>/nxos.bin bootflash:'",
+        "5. Install upgrade (non-disruptive if only one switch is upgraded at a time): 'install all nxos bootflash:<image>'",
+        "6. Confirm with 'y' when prompted. Switch will reload — ONTAP cluster links fail over to redundant switch during reload.",
+        "7. After switch comes back up, verify NX-OS version: 'show version'",
+        "8. Verify ONTAP cluster sees all ISL ports recovered: 'network port show -ipspace cluster'",
+        "9. Repeat for the second switch.",
+        isAFXSwitch ? "NOTE: AFX switches (9332D-GX2B / 9364D-GX2A) require ONTAP 9.17.1+ and are rated for 400GbE cluster ISLs. Verify with NetApp AFX design guide before firmware changes." : "",
+        "Ref: https://docs.netapp.com/us-en/ontap-systems-switches/switch-cisco-9336c-fx2/upgrade-switch-overview.html"
+      ].filter(Boolean);
+      options = [
+        "Option A: Non-disruptive rolling upgrade — one switch at a time while ONTAP cluster ISLs fail over to partner switch (recommended).",
+        "Option B: Install NX-OS on the upgrade candidate during a full maintenance window (lower risk for first time)."
+      ];
+      thirdParty = "Verify the Cisco NX-OS version is listed in the NetApp IMT (https://imt.netapp.com/matrix/) for your ONTAP version and switch model before installing.";
+    } else if (isCiscoMDS) {
+      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Cisco MDS"] || { recommended: "9.2(2)" };
+      cause  = `Cisco MDS 9000-series switch is running SAN-OS/NX-OS below the recommended baseline (target: ${fwBaseline.recommended}).`;
+      impact = "Outdated MDS firmware may expose Fibre Channel fabric to known zoning bugs, FSPF routing issues, or port flap defects that can cause SAN fabric disruptions.";
+      steps  = [
+        "1. Download Cisco MDS NX-OS firmware from: https://software.cisco.com/download/home/280283452",
+        "2. Backup switch config and zone database: 'copy running-config startup-config' and 'copy running-config scp://backup-server'",
+        "3. Upload image to MDS bootflash: 'copy scp://user@<server>/mds-image.bin bootflash:'",
+        "4. Install upgrade: 'install all kickstart bootflash:<ks-image> system bootflash:<sys-image>'",
+        "5. Upgrade non-disruptively using ISSU (In-Service Software Upgrade) if dual supervisors are present.",
+        "6. Verify zoning and FLOGI database post-upgrade: 'show zoneset active' and 'show flogi database'",
+        "Ref: https://www.cisco.com/c/en/us/support/storage-networking/mds-9000-nx-os-san-os-software/products-installation-guides-list.html"
+      ];
+      options = [
+        "Option A: ISSU (In-Service Software Upgrade) on dual-supervisor MDS — non-disruptive.",
+        "Option B: Scheduled maintenance window upgrade on single-supervisor or edge-of-support platforms."
+      ];
+      thirdParty = "Verify that all connected HBAs on host servers are qualified for the target MDS NX-OS version using the Cisco UCS/MDS HCL and the NetApp IMT.";
+    } else if (isBrocade) {
+      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Brocade FOS"] || { recommended: "9.2.1" };
+      cause  = `Brocade FC switch is running Fabric OS (FOS) below the recommended baseline (target: ${fwBaseline.recommended}).`;
+      impact = "Outdated FOS may contain known Fibre Channel fabric defects affecting zone enforcement, ISL stability, or E_Port negotiation with ONTAP FC target ports.";
+      steps  = [
+        "1. Download Brocade FOS firmware from: https://www.broadcom.com/support/fibre-channel-networking/software-downloads",
+        "2. Connect to switch via SSH as admin.",
+        "3. Backup configuration: 'configupload' (saves to remote FTP/SCP server).",
+        "4. Initiate firmware download: 'firmwaredownload -s -a <protocol>://<server>/<path>/fabos.bin'",
+        "5. Monitor download and staging: firmware downloads to the secondary partition first.",
+        "6. Activate firmware (requires brief disruption — ~15s port flap): 'firmwareactivate' OR use 'fastboot' for minimized disruption.",
+        "7. For HA (dual-domain) ISL links, upgrade switches one at a time — ISLs reconverge automatically.",
+        "8. Verify FOS version post-upgrade: 'version' and verify fabric topology: 'fabricshow'",
+        "Ref: https://techdocs.broadcom.com/us/en/fibre-channel-networking/fabric-os/fabric-os-administration-guide.html"
+      ];
+      options = [
+        "Option A: Non-disruptive HA upgrade — one switch per fabric at a time. ISLs re-establish within seconds.",
+        "Option B: Full fabric maintenance window if single-switch fabric (no redundancy)."
+      ];
+      thirdParty = "Verify Brocade FOS version compatibility with ONTAP via the NetApp IMT: https://imt.netapp.com/matrix/. ESXi hosts may briefly log path errors during the ~15 second port flap — these are expected and self-recover.";
+    } else if (isEFOS) {
+      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Broadcom EFOS"] || { recommended: "3.8.0.2" };
+      cause  = `BES-53248 cluster switch is running EFOS below the recommended baseline (target: ${fwBaseline.recommended}).`;
+      impact = "Outdated EFOS may cause cluster ISL port flap issues, incorrect LACP negotiation, or missing QoS enhancements required for high-speed cluster traffic.";
+      steps  = [
+        "1. Download EFOS firmware for BES-53248 from: https://mysupport.netapp.com/site/products/all/details/broadcom-cluster-switches/downloads-tab",
+        "2. Connect to switch SSH session.",
+        "3. Backup current config: 'copy running-config sftp://user@<server>/bes53248-backup.cfg'",
+        "4. Upload EFOS image: 'copy sftp://user@<server>/EFOS-<version>.stk nvram:software install'",
+        "5. Verify image loaded to standby partition: 'show bootvar'",
+        "6. Reboot switch to activate new image: 'reload' — ONTAP cluster ISLs fail over to partner switch during reboot.",
+        "7. Verify EFOS version: 'show version' and cluster ISL health: ONTAP 'network port show -ipspace cluster'",
+        "8. Repeat for second BES-53248 switch.",
+        "Ref: https://docs.netapp.com/us-en/ontap-systems-switches/switch-bes-53248/upgrade-efos-software.html"
+      ];
+      options = [
+        "Option A: Rolling upgrade (one BES-53248 at a time) — non-disruptive to ONTAP cluster.",
+        "Option B: Upgrade both switches in a maintenance window for first-time upgrade procedure."
+      ];
+      thirdParty = "BES-53248 is supported for ONTAP cluster interconnect only. Verify in NetApp IMT: https://imt.netapp.com/matrix/ for your ONTAP version.";
+    } else if (isNVIDIA) {
+      cause  = "NVIDIA SN2100 cluster switch is running Cumulus Linux below the recommended baseline.";
+      impact = "Outdated Cumulus Linux may contain BGP routing defects or LACP instability affecting cluster ISL uptime.";
+      steps  = [
+        "1. Download the qualified Cumulus Linux image from: https://mysupport.netapp.com/site/products/all/details/nvidia-cluster-switches/downloads-tab",
+        "2. SSH to the SN2100 switch (default user: cumulus).",
+        "3. Stage image: 'sudo onie-install -a -i <image_url>'",
+        "4. Reboot to activate: 'sudo reboot'",
+        "5. Verify Cumulus version post-reboot: 'net show version'",
+        "6. Verify ONTAP cluster ISL recovery: 'network port show -ipspace cluster'",
+        "7. Ref: https://docs.netapp.com/us-en/ontap-systems-switches/switch-nvidia-sn2100/upgrade-cumulus-software.html"
+      ];
+      options = [
+        "Option A: Rolling upgrade — one SN2100 at a time. ONTAP cluster ISLs fail over during reboot.",
+        "Option B: Maintenance window upgrade for both switches simultaneously."
+      ];
+      thirdParty = "NVIDIA SN2100 is supported for ONTAP cluster interconnect as of ONTAP 9.9.1. Verify in NetApp IMT for your version.";
+    } else {
+      // Generic switch fallback
+      cause  = "Cluster or management switch firmware is below the recommended validated baseline.";
+      impact = "Outdated switch firmware may cause cluster ISL instability or missing required feature support.";
+      steps  = [
+        "1. Identify switch model and current firmware: ONTAP 'network switch show' or direct switch console.",
+        "2. Verify qualified firmware version in NetApp IMT: https://imt.netapp.com/matrix/",
+        "3. Download qualified firmware from vendor portal or NetApp Support: https://mysupport.netapp.com/site/downloads",
+        "4. Follow vendor-specific upgrade procedure for your switch model.",
+        "5. Perform rolling upgrade (one switch at a time) to maintain ONTAP cluster ISL redundancy.",
+        "6. Verify ONTAP cluster health after each switch upgrade: 'cluster show' and 'network port show -ipspace cluster'"
+      ];
+      options = [
+        "Option A: Rolling upgrade — preferred for maintaining cluster ISL redundancy.",
+        "Option B: Scheduled full maintenance window if switch model requires simultaneous upgrade."
+      ];
+      thirdParty = "Verify switch model and firmware version in the NetApp IMT before upgrading: https://imt.netapp.com/matrix/";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // METROCLUSTER
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isMCC || desc.includes("isl") || desc.includes("switchover") || desc.includes("switchback")) {
+    if (desc.includes("upgrade") || desc.includes("version") || desc.includes("outdated")) {
+      cause  = "MetroCluster site is running a mixed or outdated ONTAP version below the recommended baseline.";
+      impact = "Version skew across MC sites may block switchover/switchback operations and introduce unsupported configuration states.";
+      steps  = [
+        "1. Confirm MetroCluster health BEFORE starting: 'metrocluster check run' and 'metrocluster check show' — ALL checks must pass.",
+        "2. Verify ISL health: 'metrocluster interconnect show' (FC-MCC) or 'metrocluster configuration-settings interface show' (IP-MCC).",
+        "3. Upgrade in the correct sequence:",
+        "   a) First, upgrade the DISASTER RECOVERY (DR) site nodes (node3/node4).",
+        "   b) Perform negotiated switchover: 'metrocluster switchover'",
+        "   c) Upgrade the PRIMARY site nodes (node1/node2).",
+        "   d) Perform switchback: 'metrocluster switchback'",
+        "4. For each node upgrade, use standard NDU: 'cluster image update -version <target>'",
+        "5. Verify MetroCluster is fully operational post-upgrade: 'metrocluster check run' (all PASSED).",
+        is916OrNewer ? "NOTE: ONTAP 9.16.1+ enables SVM data mobility in MetroCluster-IP — verify SVM configurations after upgrade." : "",
+        "Ref: https://docs.netapp.com/us-en/ontap-metrocluster/upgrade/task_upgrade_controllers_in_a_four_node_fc_mcc_us_switchover_and_switchback_mcc_fc_4n_cu.html"
+      ].filter(Boolean);
+      options = [
+        "Option A: Switchover-based upgrade (recommended for major version changes — allows each site to be upgraded cleanly).",
+        "Option B: Non-disruptive NDU without switchover for patch-level upgrades within the same ONTAP release branch."
+      ];
+      thirdParty = "Verify that all MetroCluster ISL switches have been upgraded to the required firmware for the target ONTAP version BEFORE starting the ONTAP upgrade. Ref: https://imt.netapp.com/matrix/";
+    } else if (desc.includes("isl") || desc.includes("interconnect")) {
+      cause  = "MetroCluster ISL (Inter-Switch Link) or back-end interconnect is degraded.";
+      impact = "ISL degradation reduces MetroCluster mirroring throughput. Sustained packet loss >0.01% or jitter >3ms risks triggering an automatic unplanned switchover.";
+      const mcReq = REFERENCE_LIBRARY_MC_REQUIREMENTS || { isl: { maxPacketLoss: 0.01, maxJitter: 3 } };
+      steps  = [
+        `1. ISL requirements: max packet loss ${mcReq.isl.maxPacketLoss}%, max RTT jitter ${mcReq.isl.maxJitter}ms, MTU ${mcReq.isl.requiredMTU} bytes.`,
+        "2. Check ISL status: FC-MCC: 'metrocluster interconnect show' | IP-MCC: 'metrocluster configuration-settings interface show'",
+        "3. Run ISL health diagnostics on FC switches (Brocade): 'islshow', 'portperfshow', 'diagshow'",
+        "4. For Cisco MDS ISL: 'show interface fc <port> counters' — check for CRC errors, link resets.",
+        "5. For IP-MCC: verify MTU 9216 on all backend switches: Cisco 'show interface <int> | grep MTU' | Brocade 'portcfgshow'",
+        "6. Contact WAN/dark-fiber provider if packet loss is on a long-haul ISL — provide interface counters as evidence.",
+        "7. Ref TR-4517: https://www.netapp.com/search/#q=TR-4517&t=Resources"
+      ];
+      options = [
+        "Option A: Resolve physical ISL path issue (cable replacement, transceiver swap, or WAN provider escalation).",
+        "Option B: If ISL degradation is persistent, proactively perform negotiated switchover to DR site while primary site ISL is repaired."
+      ];
+      thirdParty = "IP-MCC requires dedicated Ethernet path with MTU 9216. Shared WAN circuits MUST meet NetApp ISL requirements documented in TR-4517.";
+    } else {
+      cause  = "MetroCluster configuration health issue detected.";
+      impact = "MetroCluster health issues can block automatic switchover/switchback operations, leaving the cluster unable to survive a site-level failure.";
+      steps  = [
+        "1. Run full MCC health check: 'metrocluster check run' followed by 'metrocluster check show'.",
+        "2. Address each failed check item systematically — MCC check output includes specific remediation guidance.",
+        "3. Verify mirroring status: 'storage aggregate show -is-home true' (all aggregates should be mirrored).",
+        "4. Verify MCC node status: 'metrocluster node show' — all nodes must show 'normal'.",
+        "5. Ref: https://docs.netapp.com/us-en/ontap-metrocluster/maintain/index.html"
+      ];
+      options = [
+        "Option A: Resolve configuration health items and re-run MCC health check until all items pass.",
+        "Option B: Engage NetApp Support for persistent MCC health failures that cannot be resolved via CLI."
+      ];
+      thirdParty = "MetroCluster ISL monitoring should be integrated into your WAN monitoring platform with alerting on packet loss >0.005% as an early warning threshold.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SNAPMIRROR / REPLICATION
+  // ════════════════════════════════════════════════════════════════════════════
+  if (desc.includes("snapmirror") || desc.includes("replication") || desc.includes("smbc") || desc.includes("active sync") || desc.includes("snapvault") || desc.includes("lag")) {
+    if (desc.includes("active sync") || desc.includes("smbc")) {
+      cause  = "SnapMirror active sync (symmetric active/active) relationship is out of sync or Mediator connectivity is lost.";
+      impact = "RPO=0 protection is suspended. A storage failure will result in data unavailability for hosts mapped to affected LUNs.";
+      steps  = [
+        "1. Verify relationship status: 'snapmirror show -type StrictSync,Sync' — look for 'out-of-sync' or 'broken-off' relationships.",
+        "2. Check ONTAP Mediator status: 'snapmirror mediator show' — Mediator must be 'connected' and 'reachable'.",
+        is916OrNewer ? "3. ONTAP 9.16.1+: Mediator 1.9 is required. Verify Mediator version: ssh admin@<mediator-ip> 'mediator-sm version'" : "3. Verify ONTAP Mediator version matches the ONTAP version requirements (see docs).",
+        "4. Re-establish relationship if broken: 'snapmirror resync -destination-path <dest_svm:dest_vol>'",
+        "5. Verify all protected LUNs are accessible from both sites after resync: 'lun show' and check host mount status.",
+        is915OrNewer ? "6. ONTAP 9.15.1+: Symmetric active/active now supports All-Flash SAN (ASA) — verify host sees LUNs from both paths." : "",
+        "7. Ref: https://docs.netapp.com/us-en/ontap/snapmirror-active-sync/index.html"
+      ].filter(Boolean);
+      options = [
+        "Option A: Resync from healthy site immediately (data from out-of-sync period will be overwritten from source).",
+        "Option B: Engage NetApp Support if both sites are down or Mediator is inaccessible — manual takeover procedure may be required."
+      ];
+      thirdParty = "Verify host ALUA/multipath settings are configured per the SnapMirror active sync host requirements. VMware: ensure VAAI and vVol compatibility if applicable.";
+    } else if (desc.includes("lag") || desc.includes("snapvault") || desc.includes("vault")) {
+      cause  = "SnapMirror vault or SnapVault backup relationship has exceeded the RPO lag threshold.";
+      impact = "Backup copies are stale beyond the agreed RPO. In a disaster scenario, data loss would exceed the approved recovery objective.";
+      steps  = [
+        "1. Check relationship lag: 'snapmirror show -fields lag-time,state,healthy'",
+        "2. Identify unhealthy relationships: 'snapmirror show -health false'",
+        "3. Trigger manual update for lagging relationships: 'snapmirror update -destination-path <dest_svm:dest_vol>'",
+        "4. Check for network connectivity issues between source and destination clusters: 'cluster peer health show'",
+        "5. Verify SnapMirror schedule is active: 'job schedule show' and 'snapmirror policy show'",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/data-protection/replication-workflow-concept.html"
+      ];
+      options = [
+        "Option A: Trigger immediate manual update and investigate root cause of lag (network, schedule, or snapshot deletion).",
+        "Option B: Review and adjust SnapMirror schedule or throttle policy if source cluster load is causing delays."
+      ];
+      thirdParty = "Verify cluster peering network (intercluster LIFs) has adequate bandwidth for transfer rate. Ref: 'network interface show -role intercluster'.";
+    } else {
+      cause  = "SnapMirror relationship is in an unhealthy or broken state.";
+      impact = "Data protection copies are not being updated. RPO objectives are not being met.";
+      steps  = [
+        "1. Review relationship state: 'snapmirror show -health false'",
+        "2. For broken-off relationships: 'snapmirror resync -destination-path <svm:vol>'",
+        "3. For quiesced relationships: 'snapmirror resume -destination-path <svm:vol>'",
+        "4. Monitor until sync is complete: 'snapmirror show -fields state,lag-time'",
+        "5. Ref: https://docs.netapp.com/us-en/ontap/data-protection/index.html"
+      ];
+      options = [
+        "Option A: Resync relationship immediately.",
+        "Option B: Delete and recreate relationship if resync fails (data from current destination will be overwritten)."
+      ];
+      thirdParty = "Backup software (CommVault, Veeam, NetBackup) using SnapVault as a backup target should be validated after resync.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CAPACITY / VOLUME / FABRICPOOL
+  // ════════════════════════════════════════════════════════════════════════════
+  if (catLower.includes("capacity") || desc.includes("full") || desc.includes("nearly full") || desc.includes("auto-grow") ||
+      desc.includes("volume") || desc.includes("aggregate") || desc.includes("fabricpool") || desc.includes("tiering")) {
+    if (desc.includes("fabricpool") || desc.includes("tiering")) {
+      cause  = "FabricPool tiering policy is misconfigured or inactive, preventing cold data from being moved to object storage tier.";
+      impact = "Hot tier (local NVME/SSD) fills with cold data, reducing available capacity for hot workloads and increasing cost per GB.";
+      steps  = [
+        "1. Check FabricPool tiering status: 'volume show -fields tiering-policy,cloud-retrieval-policy'",
+        "2. Verify object store attachment: 'storage aggregate object-store show'",
+        "3. Set appropriate tiering policy: 'volume modify -volume <vol> -tiering-policy auto' (recommended for most workloads)",
+        "4. Check minimum cooling days: 'volume show -fields tiering-minimum-cooling-days' — default 31 days.",
+        "5. Verify cloud tier connectivity: 'storage aggregate object-store check -aggregate <aggr>'",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/fabricpool/index.html"
+      ];
+      options = [
+        "Option A: Apply 'auto' tiering policy (tiers cold blocks after minimum cooling period).",
+        "Option B: Apply 'all' tiering policy (tiers all data including warm blocks — use only if S3 object store latency is acceptable for your workload)."
+      ];
+      thirdParty = "FabricPool requires a compatible object store (AWS S3, Azure Blob, GCP Storage, StorageGRID, or ONTAP S3). Verify object store credentials and bucket lifecycle policies are not deleting tiered data.";
+    } else {
+      cause  = "Volume or aggregate is approaching or has reached capacity threshold.";
+      impact = "Volume full conditions can cause application write I/O failures, database transaction rollbacks, and unexpected service disruptions.";
+      steps  = [
+        "1. Check volume and aggregate capacity: 'volume show -fields size,used,available,percent-used' and 'aggr show'",
+        "2. Enable volume auto-grow if not already active: 'volume modify -volume <vol> -autosize-mode grow -maximum-size <max>'",
+        "3. Enable Snapshot autodelete if Snapshot copies are consuming excessive space: 'volume snapshot autodelete modify -volume <vol> -enabled true'",
+        "4. Check for large or unused Snapshot copies: 'volume snapshot show -volume <vol> -fields size'",
+        "5. For aggregate imbalance: move volumes to less-utilized aggregates: 'volume move start -volume <vol> -destination-aggregate <aggr>'",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/volumes/manage-volumes-task.html"
+      ];
+      options = [
+        "Option A: Enable auto-grow and Snapshot autodelete for short-term relief.",
+        "Option B: Add capacity (expand aggregate or add shelves) for a permanent solution."
+      ];
+      thirdParty = "Monitor application-level space thresholds — ONTAP auto-grow is reactive, not predictive. Set capacity alerts at 80% to allow time to respond before hitting 100%.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // AUTOSUPPORT / CONNECTIVITY
+  // ════════════════════════════════════════════════════════════════════════════
+  if (desc.includes("autosupport") || desc.includes("asup") || desc.includes("connectivity") || desc.includes("support site")) {
+    cause  = "AutoSupport telemetry transmission is failing or configured with an insecure/deprecated transport.";
+    impact = "Failed AutoSupport prevents Active IQ from detecting risks proactively and disqualifies the system from Digital Advisor-driven support.";
+    steps  = [
+      "1. Test AutoSupport connectivity: 'system node autosupport invoke -node * -type test'",
+      "2. Check AutoSupport send log: 'system node autosupport history show -node * -type test'",
+      "3. Ensure HTTPS transport is configured (HTTP is deprecated): 'system node autosupport modify -node * -transport https'",
+      "4. If behind a proxy, configure proxy: 'system node autosupport modify -node * -proxy-url http://proxy:port'",
+      "5. Verify DNS resolution to support.netapp.com: 'dns-lookup support.netapp.com'",
+      "6. Verify NTP is synchronized (AutoSupport timestamps must be accurate): 'cluster time-service ntp status'",
+      "7. Ref: https://docs.netapp.com/us-en/active-iq/"
+    ];
+    options = [
+      "Option A: Switch to HTTPS and configure proxy if direct internet access is not available.",
+      "Option B: Configure AutoSupport to relay via a local AutoSupport proxy server (SMTP or HTTPS relay)."
+    ];
+    thirdParty = "Some proxy servers block long-lived HTTPS connections — verify that the proxy allows persistent connections to support.netapp.com on port 443.";
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // AFX — All-Flash Fabric
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isAFX) {
+    if (desc.includes("upgrade") || desc.includes("version") || desc.includes("outdated")) {
+      cause  = "AFX platform is running ONTAP below the minimum required version for full AFX feature support.";
+      impact = "AFX requires ONTAP 9.17.1 minimum. Earlier versions do not support global deduplication across the SAZ or intelligent prefetching for sequential video workloads.";
+      steps  = [
+        "1. AFX minimum supported ONTAP version: 9.17.1. Target: 9.19.1 for full feature set.",
+        "2. ONTAP 9.19.1 adds global deduplication across the entire SAZ (enabled by default), intelligent video prefetching, and per-SVM System Manager dashboards.",
+        "3. Download ONTAP 9.17.1 or later from: https://mysupport.netapp.com/site/downloads",
+        "4. Validate upgrade with: 'cluster image validate -version <target>'",
+        "5. Run NDU upgrade: 'cluster image update -version <target>'",
+        "6. Verify AFX-specific cluster switches (Cisco 9332D-GX2B or 9364D-GX2A) are running qualified firmware BEFORE upgrading ONTAP.",
+        "7. Ref: https://docs.netapp.com/us-en/ontap-technical-reports/afx-overview/afx-overview-hardware.html"
+      ];
+      options = [
+        "Option A: Upgrade to ONTAP 9.19.1 for full AFX feature set including global deduplication and ARP/AI within SnapMirror active sync.",
+        "Option B: Upgrade to ONTAP 9.17.1 as minimum if 9.19.1 is not yet qualified for your workload requirements."
+      ];
+      thirdParty = "AFX NSM140 shelf modules are NOT interchangeable with NSM100/NSM100B used in AFF/ASA platforms. Verify all shelf components against the AFX hardware compatibility list.";
+      return { cause, impact, steps, options, thirdParty };
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SECURITY FINDINGS
+  // ════════════════════════════════════════════════════════════════════════════
+  if (catLower.includes("security") || desc.includes("insecure") || desc.includes("vulnerability") || desc.includes("cve")) {
+    if (desc.includes("smb") || desc.includes("cifs") || desc.includes("kerberos") || desc.includes("rc4") || desc.includes("kb5073381") || desc.includes("aes")) {
+      const kbRef = desc.includes("kb5073381") ? " (KB5073381 enforcement active as of July 2026)" : "";
+      cause  = `CIFS/SMB security configuration is non-compliant${kbRef}. AES Kerberos encryption may not be enabled on affected SVMs.`;
+      impact = "Microsoft KB5073381 final enforcement phase (July 2026) has DISABLED RC4 as an implicit Kerberos fallback. SVMs created before ONTAP 9.13.1 without explicit AES configuration will experience CIFS authentication failures NOW.";
+      steps  = [
+        "1. Check which SVMs are at risk: 'vserver cifs security show -vserver * -fields advertised-enc-types'",
+        "   → If 'aes-128,aes-256' is NOT listed, that SVM is affected.",
+        "2. Disable SMBv1 (if enabled): 'vserver cifs options modify -vserver <svm> -smb1-enabled false'",
+        "3. Enable AES Kerberos: 'vserver cifs security modify -vserver <svm> -is-aes-encryption-enabled true -advertised-enc-types aes-128,aes-256'",
+        "4. ⚠ CAUTION: AES change may require a machine account password reset. Verify first in a test SVM or schedule a brief CIFS disruption window.",
+        "5. Validate in Active Directory: 'Get-ADComputer -Identity <CIFS_machine_account> -Properties msDS-SupportedEncryptionTypes' → must show AES bits (0x18 or higher).",
+        "6. Check DC event logs for Event IDs 201-209 to identify remaining RC4-only machine accounts.",
+        is913OrNewer ? "7. SVMs created on ONTAP 9.13.1+ have AES enabled by default — verify creation version to determine if action is needed." : "7. Your ONTAP version predates 9.13.1. AES is NOT enabled by default — explicit action required on ALL SVMs.",
+        "8. Full guidance: https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/ONTAP_Guidance_for_Microsoft_Security_Update_KB5073381_CVE_2026_20833"
+      ];
+      options = [
+        "Option A: Enable AES immediately on all affected SVMs (recommended — CIFS auth is already failing in affected environments).",
+        "Option B: If SMBv1 is required for legacy devices, isolate them to a separate SVM with restricted network access and apply AES to all other SVMs."
+      ];
+      thirdParty = "Windows NFS clients are not affected. Only CIFS/SMB authentication via Kerberos is impacted. Mac/Linux CIFS mounts using Kerberos may also be affected — verify with your AD team.";
+    } else if (desc.includes("export") || desc.includes("nfs") || desc.includes("superuser")) {
+      cause  = "NFS export policy rule allows superuser mounts or has an overly permissive clientmatch (e.g., 0.0.0.0/0).";
+      impact = "Any host matching the export rule can mount volumes with root authority, enabling unauthorized data access or deletion.";
+      steps  = [
+        "1. List export policy rules: 'vserver export-policy rule show -vserver * -fields clientmatch,superuser,ruleindex'",
+        "2. Restrict client match to specific subnets: 'vserver export-policy rule modify -vserver <svm> -policyname default -ruleindex <N> -clientmatch <trusted_subnet/mask>'",
+        "3. Disable superuser access: 'vserver export-policy rule modify -vserver <svm> -policyname default -ruleindex <N> -superuser none'",
+        "4. For Kerberos security: add 'krb5p' (encryption+integrity) to allowed security styles.",
+        "5. Verify changes: 'vserver export-policy rule show -vserver <svm>'",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/nfs-config/create-export-policy-task.html"
+      ];
+      options = [
+        "Option A: Restrict clientmatch to specific ESXi VMkernel IPs or trusted host subnets (Recommended).",
+        "Option B: Enable Kerberos (krb5/krb5i/krb5p) for strong authentication if environment supports it."
+      ];
+      thirdParty = "VMware ESXi hosts mounting NFS datastores require root access — limit clientmatch to ESXi VMkernel adapter IPs specifically, not entire subnets if possible.";
+    } else if (desc.includes("mav") || desc.includes("multi-admin")) {
+      cause  = "Multi-Admin Verification (MAV) is not enabled, allowing single-admin execution of destructive operations.";
+      impact = "Without MAV, a compromised or rogue admin account can delete volumes, disable snapshots, or turn off ransomware protection without requiring approval from a second administrator.";
+      steps  = [
+        "1. MAV requires ONTAP 9.11.1+. Verify version: 'version'",
+        "2. Enable MAV: 'security multi-admin-verify modify -enabled true'",
+        "3. Add approval groups: 'security multi-admin-verify approval-group create -name <group> -approvers <user1,user2>'",
+        "4. Define protected operations: 'security multi-admin-verify rule create -operation <operation>'",
+        "5. Recommended MAV-protected operations: volume delete, snapshot delete, security disable, SnapLock operations.",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/multi-admin-verify/index.html"
+      ];
+      options = [
+        "Option A: Enable MAV with a minimum 2-admin approval group for destructive operations.",
+        "Option B: Start with MAV in audit-only mode to understand operational impact before enforcement."
+      ];
+      thirdParty = "MAV approval requests are sent via email — ensure SMTP is configured on the cluster: 'system node autosupport modify -to <admin_email>'";
+    } else if (desc.includes("audit") || desc.includes("tamper")) {
+      cause  = "ONTAP audit logging or tamper-proof audit is not configured per security hardening requirements.";
+      impact = "Without tamper-proof audit logging, audit events can be deleted or modified by a privileged admin, preventing forensic investigation after a security incident.";
+      steps  = [
+        "1. Enable audit on target SVM: 'vserver audit create -vserver <svm> -destination /audit_log_dir'",
+        "2. Enable tamper-proof audit log (ONTAP 9.12.1+, enabled by default on new clusters): 'vserver audit modify -vserver <svm> -is-user-activity-audit-enabled true'",
+        "3. Configure audit log rotation: 'vserver audit modify -vserver <svm> -rotate-size 100MB -rotate-schedule-hour 0'",
+        "4. Verify audit config: 'vserver audit show -vserver <svm>'",
+        "5. Ref: https://docs.netapp.com/us-en/ontap/nas-audit/index.html"
+      ];
+      options = [
+        "Option A: Enable CIFS/NFS audit events (file access, permission changes) for compliance-sensitive SVMs.",
+        "Option B: Enable management audit events at cluster level for admin activity tracking."
+      ];
+      thirdParty = "Export audit logs to a SIEM (Splunk, Microsoft Sentinel) using SNMP traps or syslog forwarding: 'cluster log-forwarding create'.";
+    } else if (desc.includes("ssh") || desc.includes("tls") || desc.includes("cipher") || desc.includes("ssl")) {
+      cause  = "SSH cipher configuration or TLS version settings include deprecated/weak algorithms.";
+      impact = "Weak SSH ciphers (e.g., arcfour, 3des-cbc) or TLS 1.0/1.1 enable downgrade attacks on management sessions.";
+      steps  = [
+        "1. Check SSH ciphers: 'security ssh show'",
+        "2. Restrict to strong ciphers only: 'security ssh modify -ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com'",
+        "3. Restrict MAC algorithms: 'security ssh modify -mac-algorithms hmac-sha2-256,hmac-sha2-512,umac-128-etm@openssh.com'",
+        "4. Disable TLS 1.0/1.1 for HTTPS management (ONTAP 9.8+): 'security ssl modify -min-version tlsv1.2'",
+        "5. Ref: https://www.netapp.com/pdf.html?item=/media/10674-tr4569pdf.pdf (TR-4569 Security Hardening Guide)"
+      ];
+      options = [
+        "Option A: Apply all cipher restrictions immediately — no service disruption for modern SSH clients.",
+        "Option B: Test with a non-production cluster first if your jump host uses non-standard SSH client configurations."
+      ];
+      thirdParty = "Verify that ONTAP management automation scripts (Ansible, Python) use TLS 1.2+ HTTPS connections to the cluster management LIF after applying cipher restrictions.";
+    } else if (desc.includes("snaplock") || desc.includes("worm")) {
+      cause  = "SnapLock/WORM configuration is not enabled or snapshot locking is misconfigured.";
+      impact = "Without SnapLock protection, ransomware actors can delete backup copies and render ransomware recovery impossible.";
+      steps  = [
+        "1. Enable SnapLock Compliance/Enterprise on new aggregate: 'storage aggregate create -aggregate <name> -snaplock-type compliance'",
+        "2. Create SnapLock Compliance volume: 'volume create -volume <name> -aggregate <snaplock_aggr> -type DP'",
+        "3. Configure default retention period: 'volume snaplock modify -volume <name> -default-retention-period 30days'",
+        "4. Enable locked Snapshots on existing FlexVol (ONTAP 9.12.1+): 'volume snapshot policy modify -policy <policy> -is-schedule-enabled true'",
+        is916OrNewer ? "5. NOTE: CVE-2026-22050 (NTAP-20260112-0001) — a vulnerability allowing locked snapshot expiry bypass was fixed in ONTAP 9.16.1P9 and 9.17.1P2. Ensure you are running a fixed version." : "",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/snaplock/index.html and TR-4526"
+      ].filter(Boolean);
+      options = [
+        "Option A: Enable SnapLock Enterprise (allows admin to delete with justification) for operational flexibility.",
+        "Option B: Enable SnapLock Compliance (truly immutable — no admin can delete before retention expires) for regulatory mandates."
+      ];
+      thirdParty = "SnapLock volumes are supported for NAS (NFS/CIFS) and SAN (iSCSI/FCP). Verify backup software (CommVault, Veeam) can write to SnapLock Compliance volumes via SnapVault.";
+    } else {
+      cause  = "Security configuration deviates from the ONTAP Security Hardening baseline (TR-4569).";
+      impact = "Increased administrative attack surface and reduction in active compliance validation scores.";
+      steps  = [
+        "1. Consult the ONTAP Security Hardening Guide TR-4569: https://www.netapp.com/pdf.html?item=/media/10674-tr4569pdf.pdf",
+        "2. Review PSIRT advisories at: https://security.netapp.com/advisory/",
+        "3. Apply target hardening modifications under a standard change control window.",
+        "4. Validate with 'security compliance show' if available for your ONTAP version."
+      ];
+      options = [
+        "Option A: Apply security hardening settings (non-disruptive).",
+        "Option B: Register a security policy exception in the corporate risk register if full hardening cannot be applied immediately."
+      ];
+      thirdParty = "Verify that third-party management tools (SolarWinds, Nagios, Zabbix) continue to authenticate via HTTPS/SNMPv3 after cipher hardening.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // NETWORK / CONFIGURATION
+  // ════════════════════════════════════════════════════════════════════════════
+  if (catLower.includes("network") || desc.includes("firewall") || desc.includes("lif") || desc.includes("ntp") || desc.includes("dns") || desc.includes("lacp")) {
+    if (is910OrNewer && (desc.includes("firewall") || desc.includes("service policy"))) {
+      cause  = "Legacy firewall policy settings are deprecated in ONTAP 9.10.1+ and must be replaced by LIF service policies.";
+      impact = "Deprecated firewall rules are silently ignored by ONTAP 9.10.1+, potentially exposing management ports or causing routing anomalies.";
+      steps  = [
+        "1. List current LIF configurations and firewall policies: 'network interface show -fields firewall-policy'",
+        "2. List available service policies: 'network interface service-policy show'",
+        "3. Assign appropriate service policy to each LIF: 'network interface modify -vserver <svm> -lif <lif> -service-policy <policy>'",
+        "   → Data LIFs: 'default-data-files' | Management LIFs: 'default-management' | Intercluster LIFs: 'default-intercluster'",
+        "4. Verify: 'network interface show -fields service-policy'",
+        "5. Clean up legacy firewall policies: 'system services firewall policy show' then delete if unused.",
+        "6. Ref: https://docs.netapp.com/us-en/ontap/networking/create_a_lif.html"
+      ];
+      options = [
+        "Option A: Enforce modern service-policies on all LIF configurations (Recommended — online, non-disruptive).",
+        "Option B: If firewall rules are still referenced in automation scripts, update scripts before migrating LIFs."
+      ];
+      thirdParty = "Ensure backup/monitoring software connects via the updated LIF service policy mappings. Test connectivity from each management tool after migration.";
+    } else if (desc.includes("ntp")) {
+      cause  = "NTP (Network Time Protocol) is not configured or time synchronization has drifted.";
+      impact = "Time drift >1 second can cause Kerberos authentication failures (CIFS, NFSv4), SnapMirror replication errors, and audit log timestamp corruption.";
+      steps  = [
+        "1. Check NTP status: 'cluster time-service ntp status' and 'date'",
+        "2. Add NTP servers: 'cluster time-service ntp server create -server <ntp_server_ip>'",
+        "3. Verify NTP sync: 'cluster time-service ntp status' — should show 'synchronized'",
+        "4. For Kerberos environments: NTP must point to the same NTP source as Active Directory domain controllers.",
+        "5. Ref: https://docs.netapp.com/us-en/ontap/system-admin/configure-ntp-server-cluster-task.html"
+      ];
+      options = [
+        "Option A: Configure NTP to use internal AD-integrated NTP servers for Kerberos environments.",
+        "Option B: Use public NTP pool servers (pool.ntp.org) if no internal NTP infrastructure exists."
+      ];
+      thirdParty = "Kerberos (SMB/NFS) requires time synchronization within 5 minutes of the KDC. NTP drift alerts should be configured at 30 seconds as an early warning.";
+    } else if (desc.includes("dns")) {
+      cause  = "DNS resolution is failing or DNS is not configured on one or more SVMs.";
+      impact = "DNS failures prevent CIFS/SMB authentication, NFS hostname resolution, AutoSupport delivery, and SnapMirror peer hostname lookups.";
+      steps  = [
+        "1. Check DNS config per SVM: 'vserver services name-service dns show'",
+        "2. Test DNS resolution: 'vserver services name-service dns check -vserver <svm>'",
+        "3. Add or correct DNS servers: 'vserver services name-service dns modify -vserver <svm> -domains <domain> -name-servers <dns_ip>'",
+        "4. Verify: 'vserver services name-service dns check -vserver <svm>' — all checks should pass.",
+        "5. Ref: https://docs.netapp.com/us-en/ontap/networking/configure_dns_services_for_an_svm_task.html"
+      ];
+      options = [
+        "Option A: Update DNS server list to point to reliable internal resolvers.",
+        "Option B: Add redundant DNS servers to prevent single point of failure."
+      ];
+      thirdParty = "DNS must resolve the CIFS machine account name for Kerberos authentication. Verify both forward and reverse DNS records for the CIFS server exist in AD DNS.";
+    } else {
+      cause  = "Network configuration deviates from operational best practices.";
+      impact = "Possible routing degradation, service latency, or management port exposure.";
+      steps  = [
+        "1. Review network port health: 'network port show' and 'network port reachability show'",
+        "2. Review LIF status: 'network interface show'",
+        "3. Check broadcast domain assignments: 'network port broadcast-domain show'",
+        "4. Apply required modifications during a maintenance window.",
+        "5. Ref: https://docs.netapp.com/us-en/ontap/networking/index.html"
       ];
       options = [
         "Option A: Apply network modifications online during scheduled change control.",
-        "Option B: Retain current configurations if application dependencies require static routing routes."
+        "Option B: Retain current configurations if application dependencies require static routing."
       ];
-      thirdParty = "Verify hypervisor datastores remain mounted and backup data paths remain online.";
+      thirdParty = "Verify hypervisor datastores remain mounted and backup data paths remain online after any LIF or broadcast domain changes.";
     }
-  } else if (catLower.includes("hardware") || desc.includes("path") || desc.includes("cable") || desc.includes("fan") || desc.includes("battery") || desc.includes("bbu")) {
-    if (desc.includes("path") || desc.includes("sas") || desc.includes("nvme") || desc.includes("cable")) {
-      cause = "Degraded connection, interface errors, or disconnected physical cable path.";
-      impact = "Loss of storage path redundancy. A secondary failure on the redundant loop triggers localized data unavailability.";
-      steps = [
-        "1. Verify active device path states: 'storage path show'.",
-        "2. Check status LEDs on physical shelf modules and transceivers.",
-        "3. Reseat copper or optical cable connections.",
-        "4. Replace cable or transceiver module if diagnostics report persistent CRC errors."
-      ];
-      options = [
-        "Option A: Perform reseat or cabling swap online. Active multipathing protects active I/O flows.",
-        "Option B: Schedule maintenance window if replacing shelf interface modules (IOM/NSM)."
-      ];
-      thirdParty = "Hypervisors (ESXi/AHV) may report SCSI device path degradation alerts which resolve automatically upon link restore.";
-    } else {
-      cause = "Hardware component fault or sensor reading outside target operational limits.";
-      impact = "Risk of localized hardware failure leading to performance degradation or controller reboots.";
-      steps = [
-        "1. Query cluster hardware health: 'system health alert show'.",
-        "2. Retrieve detailed component status logs.",
-        "3. Coordinate module replacement (FRU) with NetApp Support."
-      ];
-      options = [
-        "Option A: Hot-swap replacement online (non-disruptive for hot-pluggable fans/power supplies).",
-        "Option B: Schedule off-peak maintenance window if the component requires node takeover/failover."
-      ];
-      thirdParty = "Monitor virtualization console logs for physical chassis alarm notifications.";
-    }
-  } else if (catLower.includes("software") || catLower.includes("firmware") || desc.includes("version") || desc.includes("upgrade") || desc.includes("outdated")) {
-    cause = "Node or component software/firmware version runs below the target validated release baseline.";
-    impact = "Exposure to resolved software bugs, microcode errors, or compatibility boundaries.";
-    steps = [
-      "1. Download target software package from NetApp support site.",
-      "2. Upload package to local node web servers.",
-      "3. Trigger rolling upgrade: 'storage firmware download' or standard software upgrade sequence.",
-      "4. Verify post-upgrade version state."
-    ];
-    options = [
-      "Option A: Perform rolling non-disruptive update (NDU) during off-peak hours.",
-      "Option B: Perform update during standard scheduled hardware lifecycle maintenance."
-    ];
-    thirdParty = "Ensure upstream hypervisors and backup engines are fully qualified for the target version in the Interoperability Matrix (IMT).";
+    return { cause, impact, steps, options, thirdParty };
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // HARDWARE / PATH / FRU
+  // ════════════════════════════════════════════════════════════════════════════
+  if (catLower.includes("hardware") || desc.includes("path") || desc.includes("cable") || desc.includes("fan") ||
+      desc.includes("battery") || desc.includes("bbu") || desc.includes("psu") || desc.includes("fru") ||
+      desc.includes("controller") || desc.includes("nvmem")) {
+    if (desc.includes("path") || desc.includes("sas") || desc.includes("nvme") || desc.includes("cable")) {
+      cause  = "Degraded connection, interface errors, or disconnected physical cable causing storage path loss.";
+      impact = "Loss of path redundancy. A secondary failure on the remaining path causes data unavailability until the path is restored.";
+      steps  = [
+        "1. Verify path states: 'storage path show' (ONTAP) or 'storage disk path show'",
+        "2. Check for SAS/NVMe error counters: 'storage port show' and 'storage adapter show'",
+        "3. Inspect shelf status LEDs and IOM/NSM module link activity LEDs.",
+        "4. Reseat cable connections at both the shelf IOM/NSM module and the HBA port end.",
+        "5. If errors persist: swap with a known-good cable. Use the correct cable type (SAS: mini-SAS HD, NVMe: QSFP+/SFP28 depending on platform).",
+        "6. Replace IOM/NSM module if module-level faults persist after cable swap.",
+        "7. Ref: https://docs.netapp.com/us-en/ontap-systems/a900/index.html (replace with your platform)"
+      ];
+      options = [
+        "Option A: Reseat or swap cable online — active multipathing protects I/O during the operation.",
+        "Option B: Replace IOM/NSM shelf module — non-disruptive on dual-path shelf configurations."
+      ];
+      thirdParty = "ESXi/AHV hosts may log SCSI path degradation alerts during path restoration — these are expected and self-resolve once the path is restored.";
+    } else {
+      cause  = "Hardware component fault or sensor reading outside operational limits.";
+      impact = "Risk of component failure leading to performance degradation or unplanned controller takeover.";
+      steps  = [
+        "1. Check cluster hardware alerts: 'system health alert show'",
+        "2. View component health: 'system node show -fields health'",
+        "3. For power supply (PSU): verify power cord seating, check for overheating in the rack.",
+        "4. For fan failure: 'system environment sensors show' — open a case at https://mysupport.netapp.com/",
+        "5. For NVMEM battery (on FAS/AFF classic platforms): 'system node environment sensors show -node *' — degraded NVMEM battery disables write caching.",
+        "6. Coordinate FRU replacement with NetApp Support: https://mysupport.netapp.com/",
+        "7. Ref: https://docs.netapp.com/us-en/ontap-systems/index.html"
+      ];
+      options = [
+        "Option A: Hot-swap replacement online (non-disruptive for hot-pluggable PSUs, fans).",
+        "Option B: Schedule maintenance window with node takeover/giveback if controller-level FRU replacement is required."
+      ];
+      thirdParty = "Monitor virtualization and backup console logs for physical chassis alarm notifications during FRU replacement procedures.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SOFTWARE / ONTAP UPGRADE — must come AFTER all firmware-specific blocks
+  // ════════════════════════════════════════════════════════════════════════════
+  if (catLower.includes("software") || catLower.includes("firmware") || desc.includes("version") || desc.includes("upgrade") || desc.includes("outdated")) {
+    const targetVer = (sys.upgrades && sys.upgrades.targetVersion) ? sys.upgrades.targetVersion : (sys.recommendedVersion || "current recommended");
+    const caveatList = versionCaveats[targetVer] || [];
+    const isMultiHop = sys.upgrades && sys.upgrades.hops && sys.upgrades.hops.length > 1;
+
+    cause  = `${clusterName} is running ONTAP ${ontapVer || "an outdated version"}, which is below the recommended baseline${targetVer ? " (" + targetVer + ")" : ""}.`;
+    impact = "Running an outdated ONTAP version exposes the cluster to resolved bugs, security vulnerabilities, and missing feature support. Some versions are approaching or past End-of-Support.";
+
+    steps  = [
+      // Pre-upgrade checklist
+      "PRE-UPGRADE CHECKLIST:",
+      "1. Verify cluster HA status: 'cluster show' — all nodes must be healthy. 'storage failover show' — takeover must be enabled.",
+      "2. Verify no active hardware alerts: 'system health alert show'",
+      "3. Verify aggregate status: 'storage aggregate show' — all aggregates must be online.",
+      "4. Check disk health: 'storage disk show -broken' — must return no broken disks.",
+      "5. Verify shelf/disk firmware: 'storage firmware show' — update shelf/DQP firmware BEFORE ONTAP upgrade if lagging.",
+      "6. Check switch firmware compatibility in IMT: https://imt.netapp.com/matrix/",
+      "7. Generate config backup: 'system configuration backup create -node * -backup-name pre_upgrade_" + ontapVer.replace(/\./g, "_") + "'",
+      "8. For SnapMirror active sync/SMBC: upgrade ONTAP Mediator FIRST. https://docs.netapp.com/us-en/ontap/mediator/index.html",
+      "",
+      // Upgrade execution
+      "UPGRADE EXECUTION:",
+      isMultiHop ? `9. This is a MULTI-HOP UPGRADE (${sys.upgrades.hops.length} hops required): complete each intermediate hop fully before proceeding to the next.` : "",
+      `9. Download ONTAP ${targetVer} image from: https://mysupport.netapp.com/site/downloads`,
+      `10. Review Upgrade Advisor recommendations: https://activeiq.netapp.com (sign in with NSS credentials)`,
+      `11. Validate upgrade: 'cluster image validate -version ${targetVer}' — fix any blocking items before proceeding.`,
+      `12. Run NDU: 'cluster image update -version ${targetVer} -noconfirm'`,
+      "13. Monitor upgrade progress: 'cluster image show-update-progress'",
+      "14. Verify post-upgrade: 'version' and 'cluster show'",
+      "",
+      // Version-specific caveats
+      ...(caveatList.length > 0 ? ["VERSION-SPECIFIC CAVEATS FOR " + targetVer + ":"] : []),
+      ...caveatList.map((c, i) => `   ⚠ ${c}`),
+      "",
+      `Full ONTAP upgrade guide: https://docs.netapp.com/us-en/ontap/upgrade/index.html`
+    ].filter(s => s !== undefined);
+
+    options = [
+      `Option A: Non-disruptive rolling upgrade (NDU) — nodes fail over one at a time. No I/O interruption for HA pairs.`,
+      isMultiHop ? `Option B: Multi-hop path — intermediate version ${sys.upgrades && sys.upgrades.hops ? sys.upgrades.hops[0].to : "intermediate"} is required before reaching ${targetVer}. Complete each hop before proceeding.` : `Option B: Upgrade during a scheduled maintenance window if additional buffer time is desired for validation steps.`
+    ];
+    thirdParty = `Verify all connected systems in the NetApp IMT (https://imt.netapp.com/matrix/) for the target ONTAP version BEFORE upgrading: VMware ESXi HBA drivers, backup software agents, host multipath drivers, and cluster switches.`;
+    return { cause, impact, steps, options, thirdParty };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Default / catch-all
+  // ════════════════════════════════════════════════════════════════════════════
   return { cause, impact, steps, options, thirdParty };
 }
 
@@ -9987,44 +11643,131 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const avgCsat = systemCount > 0 ? (csatScoreSum / systemCount).toFixed(1) : "No Data";
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
-  // Filter to critical+high, remove best_practice, group by fix
+  // ── ASUP & ARP health ──
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const asupCompliant = targetSystems.filter(s => {
+    if (!s.latestAsupDate) return false;
+    const d = new Date(s.latestAsupDate);
+    return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
+  }).length;
+  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const contractActive = targetSystems.filter(s => s.contractActive === true).length;
+
+  // ── Risk groups ──
   const fixGroups = _filterAndDeduplicateRisks(allRisks, targetSystems);
+  const critCount = allRisks.filter(r => r.severity === 'critical').length;
+  const highCount = allRisks.filter(r => r.severity === 'high').length;
+  const medCount  = allRisks.filter(r => r.severity === 'medium').length;
+  const secCount  = allRisks.filter(r => (r.category||'').toLowerCase() === 'security').length;
+
+  // ── Switch firmware compliance ──
+  const switchDrift = [];
+  targetSystems.forEach(sys => {
+    (sys.switches || []).forEach(sw => {
+      if (sw.recommendedFirmware && sw.firmware && sw.firmware !== sw.recommendedFirmware) {
+        switchDrift.push({ systemName: sys.systemName, model: sw.model, current: sw.firmware, recommended: sw.recommendedFirmware });
+      }
+    });
+  });
+
+  // ── Shelf firmware compliance ──
+  const shelfDrift = [];
+  targetSystems.forEach(sys => {
+    (sys.shelves || []).forEach(sh => {
+      const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
+      if (baseline && sh.firmwareVersion && sh.firmwareVersion !== baseline.recommended) {
+        shelfDrift.push({ systemName: sys.systemName, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
+      }
+    });
+  });
+
+  // ── Security bulletins ──
+  const secBulletins = [];
+  targetSystems.forEach(sys => {
+    (sys.securityBulletins || []).forEach(b => {
+      if ((b.severity || '').toLowerCase() === 'critical' || (b.severity || '').toLowerCase() === 'high') {
+        secBulletins.push({ systemName: sys.systemName, ...b });
+      }
+    });
+  });
+
+  // ── AutoSupport issues ──
+  const asupIssues = [];
+  targetSystems.forEach(s => {
+    const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+    if (!asup.enabled) {
+      asupIssues.push({ name: s.systemName, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled." });
+    } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
+      asupIssues.push({ name: s.systemName, issue: "AutoSupport Stale", detail: `No telemetry for ${asup.lastReceivedDays} days. Verify HTTPS (443) to support.netapp.com.` });
+    }
+  });
+
+  // ── MetroCluster systems ──
+  const mccSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('metrocluster') || (s.platform || '').toLowerCase().includes('mcc'));
+
+  // ── StorageGRID systems ──
+  const sgSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('storagegrid') || (s.osType || '') === 'StorageGRID');
+
+  // ── SANtricity/E-Series systems ──
+  const sanSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('e-series') || (s.platform || '').toLowerCase().includes('ef') || s.santricityVersion);
+
+  // ── Upgrade text with full hop details ──
+  const upgradesText = allUpgrades.map(u => {
+    const hops = calculateUpgradePath(u.platform, u.currentVersion || "", u.targetVersion);
+    let hopDetails = "";
+    if (hops.length > 1) {
+      hopDetails += `\n     [Multi-Hop Upgrade Required: ${hops.map(h => h.from + ' -> ' + h.to).join(' | ')}]`;
+    }
+    hops.forEach((h, idx) => {
+      hopDetails += `\n     * Hop ${idx + 1}: ${h.from} -> ${h.to}`;
+      if (h.steps && h.steps.length > 0) hopDetails += `\n       Steps: ${h.steps.map(s => s.replace(/<[^>]*>/g, "")).join(" | ")}`;
+      if (h.considerations && h.considerations.length > 0) hopDetails += `\n       Caveats: ${h.considerations.map(c => c.replace(/<[^>]*>/g, "")).join(" | ")}`;
+      if (h.docLink) hopDetails += `\n       Ref: ${h.docLink}`;
+    });
+    return `- Upgrade ${u.systemName} from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n     -> Benefit: ${u.benefits}${hopDetails}`;
+  }).join("\n");
+
+  const casesText = allSupportCases.map(c =>
+    `- Case ID: ${c.id} (${c.systemName}) | Sev: ${c.severity} | Status: ${c.status || 'Open'} | Owner: ${c.nextActionBy || "Under Review"}\n  -> Title: ${c.title}`
+  ).join("\n");
+
+  const contractsText = expiringContracts.map(e =>
+    `- System: ${e.systemName} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate} (${e.daysRemaining} days)`
+  ).join("\n");
+
   const risksText = fixGroups.map((g, i) => {
     const sysNames = [...new Set(g.systems.filter(Boolean))];
     const sysLabel = sysNames.length <= 3 ? sysNames.join(', ') : `${sysNames.slice(0, 3).join(', ')} +${sysNames.length - 3} more`;
     const refUrl = g.fixUrl || '';
     const refLine = refUrl ? `\n   -> Reference: ${refUrl}` : '';
-
+    const stepsBlock = (() => {
+      // Pull enriched steps from the first finding's remediationPlan
+      const firstFinding = g.findings[0];
+      const plan = firstFinding && firstFinding.remediationPlan;
+      if (plan && plan.steps && plan.steps.length > 0) {
+        return '\n   -> Steps:\n' + plan.steps.map(s => `      ${s}`).join('\n');
+      }
+      return '';
+    })();
     if (g.count === 1) {
-      return `${i+1}. [${g.severity.toUpperCase()}] ${g.findings[0].systemName}: ${g.findings[0].description}\n   -> Fix: ${g.fix}${refLine}`;
+      return `${i+1}. [${g.severity.toUpperCase()}] ${g.findings[0].systemName}: ${g.findings[0].description}\n   -> Fix: ${g.fix}${stepsBlock}${refLine}`;
     }
-    // Consolidated: fix first, then list resolved findings
     let text = `${i+1}. [${g.severity.toUpperCase()}] FIX: ${g.fix}  (resolves ${g.count} finding${g.count > 1 ? 's' : ''} across ${sysLabel})`;
-    g.findings.forEach(f => {
-      text += `\n     • [${(f.severity || '').toUpperCase()}] ${f.description}`;
-    });
+    g.findings.forEach(f => { text += `\n     • [${(f.severity || '').toUpperCase()}] ${f.description}`; });
+    text += stepsBlock;
     text += refLine;
     return text;
   }).join("\n\n");
-  const upgradesText = allUpgrades.map(u => {
-    const hops = calculateUpgradePath(u.platform, u.currentVersion || "", u.targetVersion);
-    let hopDetails = "";
-    if (hops.length > 0) {
-      if (hops.length > 1) {
-        hopDetails += `\n     [Multi-Hop Upgrade Sequence Required: ${hops.map(h => h.from + ' -> ' + h.to).join(' | ')}]`;
-      }
-      hops.forEach((h, idx) => {
-        hopDetails += `\n     * Hop ${idx + 1}: ${h.from} -> ${h.to}
-       - Steps: ${h.steps.map(s => s.replace(/<[^>]*>/g, "")).join(" | ")}
-       - Recommendations: ${h.recommendations.map(r => r.replace(/<[^>]*>/g, "")).join(" | ")}
-       - Considerations: ${h.considerations.map(c => c.replace(/<[^>]*>/g, "")).join(" | ")}
-       - Doc Link: ${h.docLink}`;
-      });
-    }
-    return `- Upgrade ${u.systemName} from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n     -> Benefit: ${u.benefits}${hopDetails}`;
-  }).join("\n");
-  const casesText = allSupportCases.map(c => `- Case ID: ${c.id} (${c.systemName}) | Severity: ${c.severity} | Next Action Owner: ${c.nextActionBy || "Under Review"}\n  -> Title: ${c.title}`).join("\n");
-  const contractsText = expiringContracts.map(e => `- System: ${e.systemName} | Support Level: ${e.supportLevel} | Expiry Date: ${e.endDate} (${e.daysRemaining} days remaining)`).join("\n");
+
+  // ── Platform summary ──
+  const platformCounts = {};
+  targetSystems.forEach(s => {
+    const p = s.platform || 'Unknown';
+    platformCounts[p] = (platformCounts[p] || 0) + 1;
+  });
+  const platformLines = Object.entries(platformCounts).map(([p, n]) => `  - ${p}: ${n} system${n > 1 ? 's' : ''}`).join('\n');
 
   return `================================================================================
 CUSTOMER SUCCESS PLAN (CSP) & ENVIRONMENTAL POSTURE OPTIMIZATION
@@ -10034,26 +11777,57 @@ DATE GENERATED       : ${new Date().toISOString().split('T')[0]}
 ACCOUNT TEAM         : TAM: ${activeTAMOwner} | Account Manager: ${activeAMOwner}
 CSAT SENTIMENT RATING: ${avgCsat} / 10.0 (Support & Account Hygiene)
 ENVIRONMENT HEALTH   : ${allRisks.length > 0 ? 'WARNING - Action Required' : 'OPTIMAL / COMPLIANT'}
+SYSTEMS IN SCOPE     : ${systemCount}
 
 --------------------------------------------------------------------------------
-1. EXECUTIVE SUMMARY & VALUE ALIGNMENT (CSM/CSAT PRACTICE)
+1. EXECUTIVE SUMMARY & VALUE ALIGNMENT
 --------------------------------------------------------------------------------
-The primary objective of this Customer Success Plan is to secure, optimize, and streamline storage operations in alignment with standard industry frameworks (ITIL Change Control, NIST/SANS Hardening, and NetApp Best Practices). 
+This Customer Success Plan aligns storage operations to ITIL Change Control, NIST/SANS
+hardening, and NetApp Best Practices across ${systemCount} system${systemCount !== 1 ? 's' : ''} spanning:
+${platformLines}
 
-* WORKLOAD ADOPTION & EFFICIENCY HYGIENE:
+* OPERATIONAL HEALTH SCORECARD:
+  - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
+  - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled
+  - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
+  - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
+
+* RISK POSTURE SUMMARY:
+  - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
+  - Security Advisories: ${secCount}
+  - Switch Firmware Drift: ${switchDrift.length} switch${switchDrift.length !== 1 ? 'es' : ''} below validated baseline
+  - Shelf Firmware Drift: ${shelfDrift.length} shelf module${shelfDrift.length !== 1 ? 's' : ''} below recommended version
+  - AutoSupport Issues: ${asupIssues.length}
+  - Open Support Cases: ${allSupportCases.length}
+
+* WORKLOAD EFFICIENCY HYGIENE:
   - Total Physical Used Capacity: ${totalCapTB.toFixed(1)} TB
   - Total Logical Capacity Represented: ${logicalCapTB.toFixed(1)} TB
   - Storage Efficiency Ratio: ${spaceSavedRatio}:1 (Saved ${totalSavedTB.toFixed(1)} TB via Deduplication/Compression)
   - Capacity Projections: High-runway analytics applied. Tech refresh plans are mapped to lifecycle windows.
 
-* CUSTOMER SATISFACTION (CSAT) CRITERIA:
-  - The support sentiment score is rated at ${avgCsat}/10. 
-  - Periodic QBRs (Quarterly Business Reviews) will be scheduled to review hardware lifecycle transitions and cloud integration milestones.
-
+* CUSTOMER SATISFACTION (CSAT):
+  - Sentiment score: ${avgCsat}/10
+  - Periodic QBRs will be scheduled to review hardware lifecycle transitions and cloud integration milestones.
+${mccSystems.length > 0 ? `
+* METROCLUSTER SYSTEMS (${mccSystems.length}):
+  - MetroCluster upgrade sequence: DR site first, then primary site, then switchover/switchback verification.
+  - ISL health requirements: packet loss <0.01%, jitter <3ms, MTU 9216 bytes.
+  - Reference: docs.netapp.com/us-en/ontap-metrocluster/ | TR-4510 | TR-4517
+` : ''}${sgSystems.length > 0 ? `
+* STORAGEGRID SYSTEMS (${sgSystems.length}):
+  - StorageGRID upgrades must follow sequential hop path (no skipping minor versions).
+  - Reference: Maintenance > Software Update in Grid Manager.
+` : ''}${sanSystems.length > 0 ? `
+* SANTRICITY / E-SERIES SYSTEMS (${sanSystems.length}):
+  - SANtricity upgrades require BOTH SANtricity OS AND NVSRAM files.
+  - Use SANtricity System Manager > Upgrade Center for non-disruptive controller upgrades.
+` : ''}
 --------------------------------------------------------------------------------
 2. SUPPORT CASE & SERVICE RESOLUTION HYGIENE (SAM PRACTICE)
 --------------------------------------------------------------------------------
-Maintaining operational hygiene involves tracking and resolving support tickets promptly to prevent support SLA deviations.
+Maintaining operational hygiene involves tracking and resolving support tickets promptly
+to prevent support SLA deviations and customer satisfaction impacts.
 
 * ACTIVE SUPPORT TICKETS:
 ${allSupportCases.length > 0 ? casesText : "✓ No active open support cases detected."}
@@ -10061,71 +11835,161 @@ ${allSupportCases.length > 0 ? casesText : "✓ No active open support cases det
 * CONTRACT COVERAGE & LIFECYCLE RISKS:
 ${expiringContracts.length > 0 ? contractsText : "✓ All active support contracts have > 90 days remaining. SupportEdge Premium SLA active."}
 
+* AUTOSUPPORT TELEMETRY STATUS:
+${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — ${a.detail}`).join('\n') : "✓ All systems reporting AutoSupport telemetry within 7-day SLA window."}
+
 --------------------------------------------------------------------------------
-3. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
+3. SECURITY POSTURE & CVE REMEDIATION
+--------------------------------------------------------------------------------
+${secBulletins.length > 0 ? `ACTIVE SECURITY ADVISORIES (Critical/High — ${secBulletins.length} total):
+${secBulletins.map((b, i) => `  ${i+1}. [${(b.severity||'').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     System: ${b.systemName}\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n')}` : "✓ No critical or high-severity security advisories active."}
+
+KEY SECURITY ACTIONS:
+  - Disable SMBv1: 'vserver cifs options modify -vserver <svm> -smb1-enabled false'
+  - Enforce NFS root squash: 'vserver export-policy rule modify -policyname default -ruleindex 1 -superuser none'
+  - AES Kerberos (KB5073381): 'vserver cifs security modify -vserver <svm> -advertised-enc-types aes-128,aes-256'
+  - Enable MAV (ONTAP 9.11.1+): 'security multi-admin-verify enable'
+  - Disable TLS 1.0/1.1: 'security config modify -supported-protocols TLSv1.2,TLSv1.3'
+  - Enable audit logging: 'vserver audit create -vserver <svm> -destination /audit_log -format json'
+  Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
+
+--------------------------------------------------------------------------------
+4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
 --------------------------------------------------------------------------------
 
 PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7)
 --------------------------------------------------------------
-Focus: Address severe network path errors and SANS/NIST security configuration drifts.
+Focus: Address critical security drifts, ASUP failures, single points of failure.
 
 * ACTION 1.1: Security Protocol Hardening (CVE / Ransomware Mitigation)
-  - Standard Practice: Disable legacy SMBv1 protocols to block remote code execution. Enforce root squashing (superuser=none) in export policies.
-  - CLI Remediation Command: 
-    - CIFS: 'vserver cifs options modify -vserver <svm> -smb1-enabled false'
-    - NFS: 'vserver export-policy rule modify -policyname default -ruleindex 1 -superuser none'
+  - Disable legacy SMBv1: 'vserver cifs options modify -vserver <svm> -smb1-enabled false'
+  - Enforce NFS root squashing: 'vserver export-policy rule modify -policyname default -ruleindex 1 -superuser none'
+  - Apply AES Kerberos enforcement (pre-ONTAP 9.13.1, KB5073381): 'vserver cifs security modify -vserver <svm> -advertised-enc-types aes-128,aes-256'
   - Verification: 'vserver cifs options show -fields smb1-enabled'
+  - Reference: security.netapp.com | TR-4569
 
-* ACTION 1.2: Restore Physical Cable/Path Redundancy
-  - Standard Practice: Resolve single-controller SAS loop alerts to recover dual-pathing.
-  - CLI Verification: 'storage show path -fields disk-count,path-link-status'
+* ACTION 1.2: Restore AutoSupport Telemetry
+  - Enable HTTPS transport: 'system node autosupport modify -node * -state enable -transport https -support enable'
+  - Configure proxy (if required): 'system node autosupport modify -node * -proxy-url http://<proxy>:<port>'
+  - Test connectivity: 'system node autosupport invoke -node * -type test'
+  - Reference: docs.netapp.com/us-en/active-iq/
+
+* ACTION 1.3: Restore Physical Path Redundancy
+  - SAS/NVMe path check: 'storage path show' and 'storage disk show -fields disk-class,container-name,state'
+  - Shelf module IOM/NSM LED status inspection
+  - Reference: mysupport.netapp.com/site/global/dashboard
 
 * IDENTIFIED PHASE 1 ITEMS IN ACTIVE ENVIRONMENT:
 ${allRisks.length > 0 ? risksText : "✓ No active high-priority configuration drifts detected."}
 
-PHASE 2: SOFTWARE LIFECYCLE & FABRIC ALIGNMENT (DAYS 8 - 30)
+PHASE 2: FIRMWARE & SOFTWARE LIFECYCLE ALIGNMENT (DAYS 8 - 30)
 ------------------------------------------------------------
-Focus: Bring storage operating system versions and networking switches to validated baselines.
+Focus: Bring all OS versions, switch firmware, shelf firmware, and disk qualification
+packages to NetApp validated baselines.
 
-* ACTION 2.1: Non-Disruptive ONTAP / SANtricity OS Upgrades
-  - Standard Practice: Utilize Active IQ Digital Advisor 'Upgrade Advisor' scripts. Cross-reference NetApp IMT.
+* ACTION 2.1: ONTAP / SANtricity / StorageGRID OS Upgrades
+  - Use Upgrade Advisor: https://activeiq.netapp.com/upgrade-advisor
+  - Cross-reference NetApp IMT: https://imt.netapp.com/matrix/
+  - Pre-upgrade checklist: cluster show | storage failover show | system health alert show | disk show -fields firmware-revision
   - Upgrade Targets:
 ${allUpgrades.length > 0 ? upgradesText : "  ✓ All systems are running recommended stable software baselines."}
 
 * ACTION 2.2: Interconnect Switch Firmware Upgrades
-  - Standard Practice: Update Cisco Nexus/Brocade switches. Enforce ISSU (In-Service Software Upgrade) or hot load firmware procedures.
+  - Standard: Update Cisco Nexus (ISSU 'install all'), Brocade FOS ('firmwaredownload' + 'fastboot'),
+    BES-53248 EFOS ('software install'), NVIDIA SN2100 (Cumulus 'apt-get upgrade').
+  - IMT validation required before ANY switch firmware change.
+${switchDrift.length > 0 ? '  SWITCH FIRMWARE DRIFT DETECTED:\n' + switchDrift.map(sw => `    ⚠ ${sw.systemName} — ${sw.model}: current=${sw.current}, target=${sw.recommended}`).join('\n') : '  ✓ All switch firmware at validated baseline.'}
 
-PHASE 3: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90)
+* ACTION 2.3: Shelf Module Firmware Updates
+  - Non-disruptive background update: 'storage firmware download' (runs automatically per-node)
+  - Download from: mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware
+  - Verify post-update: 'storage shelf firmware show'
+${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(sh => `    ⚠ ${sh.systemName} — ${sh.module}: current=${sh.current}, target=${sh.recommended}`).join('\n') : '  ✓ All shelf module firmware at recommended baseline.'}
+
+* ACTION 2.4: Disk Qualification Package (DQP) Update
+  - Download latest DQP: mysupport.netapp.com/site/downloads/firmware/disk
+  - Install: 'storage disk firmware update -disk *' (non-disruptive, per-disk background)
+  - Verify: 'storage disk qualification package show'
+
+* ACTION 2.5: Service Processor / BMC Firmware
+  - Update: 'system service-processor image update -node * -update-type latest'
+  - Verify: 'system service-processor show -fields firmware-version'
+
+PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30)
+-----------------------------------------------------------
+Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.
+
+* ACTION 3.1: SnapMirror Relationship Health
+  - Check all relationships: 'snapmirror show -fields state,lag-time,health'
+  - Update lagging relationships: 'snapmirror update -destination-path <dest>'
+  - Resync broken relationships: 'snapmirror resync -destination-path <dest>'
+  - Mediator status (active sync): 'snapmirror mediator show'
+
+* ACTION 3.2: Capacity & FabricPool Tiering
+  - Identify full volumes: 'volume show -fields percent-used,available,state' | filter >80%
+  - Enable auto-grow: 'volume modify -vserver <svm> -volume <vol> -autosize-mode grow'
+  - FabricPool tiering: 'volume modify -vserver <svm> -volume <vol> -tiering-policy auto'
+  - Reference: docs.netapp.com/us-en/ontap/fabricpool/
+
+PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90)
 --------------------------------------------------------------------
 Focus: Drive long-term efficiency, audit logging, and host integration compliance.
 
-* ACTION 3.1: Hypervisor Storage Driver Optimization
-  - Standard Practice: Configure VMware ESXi hosts with VMW_PSP_RR Round Robin policies, setting the IOPS limit = 1 to load-balance queue depths.
-  - Run Command (ESXi 6.x): 'esxcli storage nmp psp roundrobin device config set -d <naa_id> -I 1 -t iops'
-  - Run Command (ESXi 7.0/8.0+): 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1'
+* ACTION 4.1: Hypervisor Storage Driver Optimization
+  - VMware ESXi Round Robin: 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1'
+  - Nutanix AHV: Verify multipath policy via 'lsblk' and 'multipath -ll' on AHV hosts.
 
-* ACTION 3.2: Enable SVM Configuration Change Auditing
-  - Standard Practice: Configure and enable vserver audit logging for compliance.
-  - Run Commands: 'vserver audit create -vserver <svm_name> -destination /audit_log -format json' and 'vserver audit enable -vserver <svm_name>'
+* ACTION 4.2: Enable SVM Configuration Change Auditing
+  - Create audit policy: 'vserver audit create -vserver <svm_name> -destination /audit_log -format json'
+  - Enable: 'vserver audit enable -vserver <svm_name>'
+  - Reference: docs.netapp.com/us-en/ontap/audit/
 
-* ACTION 3.3: Third-Party Backup Snapshot Scheduling Compliance
-  - Standard Practice: Avoid schedule collision between third-party snapshot orchestration (Veeam, Commvault, Rubrik) and native ONTAP snapshot policies. Disable native ONTAP snapshot schedules on volumes managed by third-party backup platforms to prevent reaching the 255-snapshot-per-volume ceiling.
-  - Run Command: 'volume modify -vserver <svm_name> -volume <vol_name> -snapshot-policy none'
+* ACTION 4.3: Anti-Ransomware Protection (ARP/ARP-AI)
+  - ONTAP 9.10.1+: enable ARP per volume: 'security anti-ransomware volume enable -vserver <svm> -volume <vol>'
+  - ONTAP 9.16.1+: ARP/AI enabled by default on new volumes (zero learning period).
+  - Current coverage: ${arpCount}/${systemCount} systems
+
+* ACTION 4.4: Third-Party Backup Integration Compliance
+  - Avoid schedule collision with Veeam/Commvault/Rubrik: 'volume modify -vserver <svm_name> -volume <vol_name> -snapshot-policy none'
+  - SnapLock policy review: TR-4526 (WORM compliance)
+  - Reference: docs.netapp.com/us-en/ontap/data-protection/
+
+* ACTION 4.5: Multi-Admin Verification (MAV)
+  - ONTAP 9.11.1+: 'security multi-admin-verify enable'
+  - Add rules for destructive operations: 'security multi-admin-verify rule create -operation <op>'
+  - Reference: docs.netapp.com/us-en/ontap/multi-admin-verify/
+
+PHASE 5: CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90)
+---------------------------------------------------------------------
+Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
+
+* ACTION 5.1: Support Contract Renewals
+${expiringContracts.length > 0 ? contractsText : "  ✓ No contracts expiring within 90 days."}
+  - Portal: https://mysupport.netapp.com/
+
+* ACTION 5.2: Hardware Refresh Planning
+  - Identify near-EOS systems and initiate pre-sales engagement for AFF A-Series or ASA r2 refresh.
+  - Reference: imt.netapp.com/matrix/ | netapp.com/data-storage/
 
 --------------------------------------------------------------------------------
-4. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES
+5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES
 --------------------------------------------------------------------------------
 All operations under this plan must comply with standard ITIL Change Control procedures:
-1. PRE-CHANGE VERIFICATION: Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state prior to any change.
-2. SAFETY CLASSIFICATION: Verify command safety tiers (Non-Disruptive, Disruptive but Data-Safe, Destructive or Irreversible) prior to execution. For destructive actions, ensure a valid backup or Snapshot exists.
-3. MAINTENANCE WINDOWS: Schedule hardware spares replacement during off-peak windows to absorb transient latency spikes.
-4. CHANGE ROLLBACK PLAN: Document rollback CLI commands for all upgrades (e.g. reverting to fallback boot partitions if post-upgrade checks fail).
+1. PRE-CHANGE VERIFICATION: Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state.
+2. SAFETY CLASSIFICATION: Verify command safety tiers (Non-Disruptive, Disruptive but Data-Safe, Destructive/Irreversible) before execution. For destructive operations, ensure a valid snapshot/backup exists.
+3. MAINTENANCE WINDOWS: Schedule hardware spares replacement and disruptive operations during off-peak hours.
+4. CHANGE ROLLBACK PLAN: Document rollback CLI commands for all upgrades (e.g., revert to fallback boot partition: 'system node image modify -node * -image image1 -isdefault true').
+5. POST-CHANGE VERIFICATION: Run 'system health alert show | storage failover show | network interface show' after every change.
 ================================================================================`;
 }
+
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // TAM / MSP Deliverable Compilers (QBR, MSP Report, Account Handover)
 // ═══════════════════════════════════════════════════════════════════════
+
+
 
 function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
@@ -10176,9 +12040,15 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
 
   const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
   const topActions = sortedRisks.slice(0, 5).map((g, i) => {
-    const sysLabel = g.systems.filter(Boolean).slice(0, 3).join(', ');
-    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
-  }).join('\n');
+    const sysLabel = [...new Set(g.systems.filter(Boolean))].slice(0, 3).join(', ');
+    const plan = g.remediationPlan || {};
+    let entry = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}`;
+    if (g.count > 1) entry += ` (${g.count} findings across ${sysLabel})`;
+    else entry += ` — ${sysLabel}`;
+    if (plan.cause) entry += `\n       Root Cause: ${plan.cause}`;
+    if (plan.impact) entry += `\n       Impact: ${plan.impact}`;
+    return entry;
+  }).join('\n\n');
 
   // ── Sustainability ──
   const scores = state.tamSustainability || [];
@@ -10213,19 +12083,24 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     `  • ${e.systemName} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  (${e.daysRemaining} days)`
   ).join('\n') || '  No expiring contracts within scope.';
 
-  // ── Recommendations ──
+  // ── Recommendations (fleet-wide; scoped count provided as context) ──
   const recs = state.tamRecommendations || [];
   let recsSection = '  No recommendations available.\n';
   if (recs.length > 0) {
+    recsSection = `  NOTE: Active IQ recommendation scores reflect the full TAM fleet. Scoped system count for this account: ${total} systems.\n\n`;
     const byCat = {};
     recs.forEach(r => {
       const cat = r.category || 'OTHER';
       if (!byCat[cat]) byCat[cat] = [];
       byCat[cat].push(r);
     });
-    recsSection = Object.keys(byCat).map(cat => {
+    recsSection += Object.keys(byCat).map(cat => {
       const items = byCat[cat];
-      const lines = items.slice(0, 5).map(r => `    • [Score ${r.score || 0}%] ${(r.recommendation || '').substring(0, 120)}`).join('\n');
+      // Strip global "N of your systems" counts from the truncated text to avoid confusion
+      const lines = items.slice(0, 5).map(r => {
+        const clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `[see scoped count]`);
+        return `    • [Score ${r.score || 0}%] ${clean.substring(0, 150)}`;
+      }).join('\n');
       return `  ${cat.replace(/_/g, ' ')} (${items.length}):\n${lines}`;
     }).join('\n\n') + '\n';
   }
@@ -10273,8 +12148,16 @@ Prepared: ${salesRep}
   Security Advisories: ${secCount}
   Open Support Cases:  ${allSupportCases.length}
 
-  TOP CORRECTIVE ACTIONS:
+  TOP CORRECTIVE ACTIONS (with root cause context):
 ${topActions || '  No critical or high-severity corrective actions identified.'}
+
+  SECURITY QUICK WINS:
+  • Disable SMBv1:    vserver cifs options modify -vserver <svm> -smb1-enabled false
+  • Enable ARP:       security anti-ransomware volume enable -volume <vol> -vserver <svm>
+  • Enable MAV:       security multi-admin-verify enable  (ONTAP 9.11.1+)
+  • Disable TLS 1.0:  security config modify -supported-protocols TLSv1.2,TLSv1.3
+  • Enable Auditing:  vserver audit create -vserver <svm> -destination /audit_log -format json
+  Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
 
 --------------------------------------------------------------------------------
 4. SUSTAINABILITY & EFFICIENCY
@@ -10301,6 +12184,7 @@ ${recsSection}
   □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
   □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}
   □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
+  □ Validate ITIL Change Control process for all planned remediation items
 ================================================================================`;
 }
 
@@ -10383,9 +12267,13 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Improvement Backlog ──
   const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
   const backlogLines = sortedRisks.map((g, i) => {
-    const sysLabel = g.systems.filter(Boolean).slice(0, 3).join(', ');
-    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
-  }).join('\n') || '  No outstanding corrective actions.';
+    const sysLabel = [...new Set(g.systems.filter(Boolean))].slice(0, 3).join(', ');
+    const plan = g.remediationPlan || {};
+    let line = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
+    if (plan.cause) line += `\n       Root Cause: ${plan.cause}`;
+    if (plan.impact) line += `\n       Impact: ${plan.impact}`;
+    return line;
+  }).join('\n\n') || '  No outstanding corrective actions.';
 
   // ── Next Period ──
   const staleAsup = total - asupCompliant;
@@ -10951,6 +12839,9 @@ CHANGE CONTROL TICKETS
 ================================================================================
 Scope: ${cleanScope}  |  Date: ${today}
 
+All changes must follow ITIL Change Control procedures. Obtain CAB approval, document
+rollback plan, and confirm cluster health before initiating any corrective action.
+
 `;
 
   targetSystems.forEach((sys, sidx) => {
@@ -10958,39 +12849,92 @@ Scope: ${cleanScope}  |  Date: ${today}
       .filter(r => { const s = (r.severity||'').toLowerCase(); return s === 'critical' || s === 'high'; })
       .filter(r => { const c = (r.category||'').toLowerCase(); return c !== 'best practice' && c !== 'best_practice' && c !== 'best practices'; })
       .sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
-    const l = sys.logistics || { deliveryAddress: "N/A", accessRestrictions: "N/A" };
-    const c = sys.contacts || { name: "N/A", phone: "N/A" };
+    const l = sys.logistics || { deliveryAddress: 'N/A', accessRestrictions: 'N/A' };
+    const ct = sys.contacts || { name: 'N/A', phone: 'N/A' };
+    const priority = sysRisks.some(r => r.severity === 'critical') ? 'CRITICAL' : sysRisks.length > 0 ? 'HIGH' : 'STANDARD';
 
-    changeTickets += `--------------------------------------------------------------------------------
-TICKET ${sidx + 1}: ${sys.systemName} (${sys.serialNumber})
-  Cluster: ${sys.clusterName || 'N/A'}  |  OS: ${sys.ontapVersion || 'N/A'}  |  Priority: ${sysRisks.some(r => r.severity === 'critical') ? 'CRITICAL' : sysRisks.length > 0 ? 'HIGH' : 'STANDARD'}
-  Contact: ${c.name} (${c.phone})  |  Site: ${l.deliveryAddress}
---------------------------------------------------------------------------------
-PRE-CHECKS:
-  storage aggregate show -state online
+    changeTickets += `================================================================================
+CHANGE TICKET #${sidx + 1} — ${sys.systemName}
+================================================================================
+  Serial:   ${sys.serialNumber || 'N/A'}
+  Cluster:  ${sys.clusterName || 'N/A'}
+  Platform: ${sys.platform || 'N/A'}
+  OS:       ${sys.ontapVersion || sys.osVersion || 'N/A'}
+  Site:     ${l.deliveryAddress}
+  Contact:  ${ct.name} | ${ct.phone}
+  Priority: ${priority}
+  Tasks:    ${sysRisks.length} corrective action${sysRisks.length !== 1 ? 's' : ''}${sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date' ? ' + 1 OS upgrade' : ''}
+
+--- PRE-CHANGE HEALTH VALIDATION ---
+  cluster show
+  system health alert show
   storage failover show
-  cluster show && system health alert show
+  storage aggregate show -state online
+  network interface show -status-oper down
   system configuration backup create -node *
+  event log show -severity EMERGENCY,ALERT -time-range -1h
 
 `;
+
     if (sysRisks.length > 0) {
-      changeTickets += `TASKS (${sysRisks.length}):\n`;
+      changeTickets += `--- CORRECTIVE ACTIONS (${sysRisks.length}) ---\n\n`;
       sysRisks.forEach((r, rIdx) => {
-        changeTickets += `  ${rIdx + 1}. [${r.severity.toUpperCase()}] ${r.description}\n`;
+        const plan = r.remediationPlan || {};
+        changeTickets += `  [${rIdx + 1}] [${(r.severity || '').toUpperCase()}] ${r.description}\n`;
+        if (plan.cause) changeTickets += `      Root Cause: ${plan.cause}\n`;
+        if (plan.impact) changeTickets += `      Impact:     ${plan.impact}\n`;
+        if (plan.steps && plan.steps.length > 0) {
+          changeTickets += `      CLI Steps:\n`;
+          plan.steps.forEach(s => { changeTickets += `        ${s}\n`; });
+        } else if (r.recommendation) {
+          changeTickets += `      Action:     ${r.recommendation}\n`;
+        }
+        if (plan.thirdParty) changeTickets += `      Host/3rd-Party: ${plan.thirdParty}\n`;
+        const ref = findingRef(r);
+        if (ref) changeTickets += `      Reference:  ${ref}\n`;
+        changeTickets += '\n';
       });
     } else {
-      changeTickets += "TASKS: No critical/high risks.\n";
+      changeTickets += '  No critical/high risks identified for this system.\n\n';
     }
 
-    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      changeTickets += `  [UPGRADE] ${sys.ontapVersion || 'N/A'} -> ${sys.upgrades.targetVersion}\n`;
+    if (sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date') {
+      const origVer = sys.santricityVersion || sys.ontapVersion || 'current';
+      const hops = calculateUpgradePath(sys.platform, origVer, sys.upgrades.targetVersion);
+      changeTickets += `--- OS UPGRADE ---\n  ${origVer} -> ${sys.upgrades.targetVersion}\n`;
+      if (hops.length > 1) {
+        changeTickets += `  Multi-hop sequence required:\n`;
+        hops.forEach((h, hIdx) => {
+          changeTickets += `    Hop ${hIdx + 1}: ${h.from} -> ${h.to}  |  ${h.docLink}\n`;
+          if (h.steps && h.steps.length > 0) {
+            h.steps.slice(0, 3).forEach(s => { changeTickets += `      • ${s.replace(/<[^>]*>/g, '')}\n`; });
+          }
+          if (h.considerations && h.considerations.length > 0) {
+            changeTickets += `      Caveats: ${h.considerations.slice(0, 2).map(c => c.replace(/<[^>]*>/g, '')).join(' | ')}\n`;
+          }
+        });
+      } else if (hops.length === 1) {
+        const h = hops[0];
+        changeTickets += `  Ref: ${h.docLink}\n`;
+        if (h.steps && h.steps.length > 0) {
+          changeTickets += `  Steps:\n`;
+          h.steps.slice(0, 4).forEach(s => { changeTickets += `    • ${s.replace(/<[^>]*>/g, '')}\n`; });
+        }
+      }
+      changeTickets += '\n';
     }
 
-    changeTickets += `
-VERIFICATION:
+    changeTickets += `--- POST-CHANGE VERIFICATION ---
   system health alert show
   storage failover show
   network interface show
+  event log show -severity EMERGENCY,ALERT -time-range -1h
+  cluster ping-cluster -node *
+
+--- ROLLBACK CRITERIA ---
+  If health alerts increase or failover state degrades, revert using:
+  system node image modify -node * -image image1 -isdefault true  (ONTAP version rollback)
+  Restore configuration from backup: system configuration restore
 
 `;
   });
@@ -10999,59 +12943,106 @@ VERIFICATION:
   let solutionProposals = `================================================================================
 TECHNICAL SOLUTION PROPOSAL
 ================================================================================
-Customer: ${cleanScope}  |  Date: ${today}
+Customer:     ${cleanScope}
+Date:         ${today}
+Prepared By:  ${personnel.sam !== 'Not Assigned' ? personnel.sam + ' (SAM)' : personnel.salesRep !== 'Not Assigned' ? personnel.salesRep : 'NetApp Account Team'}
 
-SUMMARY
-  ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''} resolving ${totalDeduped} finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.
+EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+This proposal addresses ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''} resolving ${totalDeduped} Active IQ finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.
+Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCount}
 
-PRIORITISED CORRECTIONS
+OPERATIONAL HEALTH BASELINE:
+  AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
+  ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
+  Firmware Currency:      ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
+  Contract Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems)
+
+PRIORITISED CORRECTIVE ACTIONS
 --------------------------------------------------------------------------------
 `;
 
   sortedRisks.forEach((g, idx) => {
     const sysNames = [...new Set(g.systems.filter(Boolean))];
+    const plan = g.remediationPlan || {};
     solutionProposals += `${idx + 1}. [${g.severity.toUpperCase()}] ${g.fix}\n`;
-    solutionProposals += `   Systems: ${sysNames.join(', ')}\n`;
+    solutionProposals += `   Affected Systems: ${sysNames.join(', ')}\n`;
+    if (plan.cause) solutionProposals += `   Root Cause:  ${plan.cause}\n`;
+    if (plan.impact) solutionProposals += `   Business Risk: ${plan.impact}\n`;
     if (g.count > 1) {
-      solutionProposals += `   Addresses ${g.count} findings:\n`;
+      solutionProposals += `   Resolves ${g.count} findings:\n`;
       g.findings.forEach(f => {
-        solutionProposals += `     • ${f.description}\n`;
+        solutionProposals += `     • [${(f.severity||'').toUpperCase()}] ${f.description}\n`;
       });
     } else {
       solutionProposals += `   Finding: ${g.findings[0].description}\n`;
     }
-    if (g.fixUrl) solutionProposals += `   Ref: ${g.fixUrl}\n`;
+    if (plan.options && plan.options.length > 0) {
+      solutionProposals += `   Remediation Options:\n`;
+      plan.options.forEach(o => { solutionProposals += `     → ${o}\n`; });
+    }
+    if (plan.thirdParty) solutionProposals += `   Host/Integration Note: ${plan.thirdParty}\n`;
+    if (g.fixUrl) solutionProposals += `   Reference: ${g.fixUrl}\n`;
     solutionProposals += '\n';
   });
 
   if (allUpgrades.length > 0) {
-    solutionProposals += `OS UPGRADES (${allUpgrades.length})
+    solutionProposals += `OS & FIRMWARE UPGRADES (${allUpgrades.length})
 --------------------------------------------------------------------------------
 `;
     allUpgrades.forEach(u => {
-      solutionProposals += `  ${u.systemName}: ${u.currentVersion || 'N/A'} -> ${u.targetVersion}\n`;
+      const hops = calculateUpgradePath(u.platform, u.currentVersion || '', u.targetVersion);
+      solutionProposals += `  ${u.systemName}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;
+      solutionProposals += `    Benefit: ${u.benefits || 'Security patches, performance improvements, and new features.'}\n`;
+      if (hops.length > 1) {
+        solutionProposals += `    Multi-hop sequence: ${hops.map(h => h.from + ' -> ' + h.to).join(' | ')}\n`;
+      }
+      solutionProposals += '\n';
     });
-    solutionProposals += '\n';
   }
 
-  solutionProposals += `TIMELINE
+  solutionProposals += `IMPLEMENTATION TIMELINE
 --------------------------------------------------------------------------------
-  Week 1:   Pre-checks & change requests
-  Week 2-3: Critical remediation
-  Week 4-5: OS upgrades
-  Week 6:   Verification & sign-off
+  Phase 1 (Days 1-7):   CAB approval, pre-change health validation, critical risk remediation
+  Phase 2 (Days 8-30):  OS/firmware upgrades, switch firmware, shelf module updates
+  Phase 3 (Days 31-90): ARP enablement, audit logging, hypervisor integration compliance
+  Phase 4 (Day 90+):    Post-change verification, QBR review, documentation sign-off
 
-REFERENCES
-  security.netapp.com  |  kb.netapp.com  |  mysupport.netapp.com/matrix
-  activeiq.netapp.com  |  docs.netapp.com/us-en/ontap/upgrade/index.html
+CHANGE SAFETY CLASSIFICATION
+--------------------------------------------------------------------------------
+  Non-Disruptive:  ASUP config, ARP enable, audit logging, shelf/disk firmware (background)
+  Disruptive/Safe: ONTAP upgrades (rolling HA failover), switch ISSU firmware updates
+  Potentially Disruptive: Network interface reconfigurations, aggregate relocation
+  Destructive/Irreversible: Snapshot deletion, volume destroy, LUN unmap — require backup verification
+
+KEY REFERENCES
+--------------------------------------------------------------------------------
+  Active IQ:         activeiq.netapp.com
+  Security:          security.netapp.com
+  Knowledge Base:    kb.netapp.com
+  Upgrade Advisor:   docs.netapp.com/us-en/ontap/upgrade/index.html
+  IMT:               mysupport.netapp.com/matrix
+  Support Portal:    mysupport.netapp.com
 `;
 
   // ===================== 5. IMPLEMENTATION RUNBOOKS =====================
   let implementationPlans = `================================================================================
-CLI RUNBOOK
+CLI RUNBOOK — CORRECTIVE ACTION PLAYBOOK
 ================================================================================
-Scope: ${cleanScope}  |  Date: ${today}
-Note:  Critical items first. Best-practice items excluded for brevity.
+Scope:    ${cleanScope}
+Date:     ${today}
+Prepared: ${personnel.sam !== 'Not Assigned' ? personnel.sam : personnel.salesRep}
+Note:     Critical/High severity items only. Best-practice items excluded.
+          All commands must be run in the context of the correct cluster/vserver.
+          Obtain CAB approval before executing Disruptive or Destructive commands.
+
+GLOBAL PRE-FLIGHT CHECKS (run before any system):
+  cluster show
+  system health alert show
+  storage failover show
+  storage aggregate show -state online
+  network interface show -status-oper down
+  event log show -severity EMERGENCY,ALERT -time-range -1h
 
 `;
 
@@ -11061,44 +13052,111 @@ Note:  Critical items first. Best-practice items excluded for brevity.
       .filter(r => { const c = (r.category||'').toLowerCase(); return c !== 'best practice' && c !== 'best_practice' && c !== 'best practices'; })
       .sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
 
-    implementationPlans += `--------------------------------------------------------------------------------
-SYSTEM ${sysIdx + 1}: ${sys.systemName} (${sys.serialNumber})
-  Cluster: ${sys.clusterName || 'N/A'}  |  OS: ${sys.ontapVersion || 'N/A'}  |  Platform: ${sys.platform}
---------------------------------------------------------------------------------
+    implementationPlans += `================================================================================
+SYSTEM ${sysIdx + 1}: ${sys.systemName}
+================================================================================
+  Serial:   ${sys.serialNumber || 'N/A'}
+  Cluster:  ${sys.clusterName || 'N/A'}
+  Platform: ${sys.platform || 'N/A'}
+  OS:       ${sys.ontapVersion || sys.osVersion || 'N/A'}
+  Site:     ${sys.siteName || 'N/A'}
+  Contract: ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
 `;
 
     if (sysRisks.length > 0) {
       sysRisks.forEach((r, rIdx) => {
-        implementationPlans += `[${rIdx + 1}] [${r.severity.toUpperCase()}] ${r.description}\n`;
-        if (r.remediationPlan && r.remediationPlan.steps && r.remediationPlan.steps.length > 0) {
-          r.remediationPlan.steps.forEach(s => { implementationPlans += `    ${s}\n`; });
-        } else if (r.recommendation) {
-          implementationPlans += `    ${r.recommendation}\n`;
-        }
-        const ref = findingRef(r);
-        if (ref) implementationPlans += `    Ref: ${ref}\n`;
+        const plan = r.remediationPlan || {};
+        implementationPlans += `
+--------------------------------------------------------------------------------
+ACTION ${rIdx + 1}: [${(r.severity||'').toUpperCase()}] ${r.description}
+--------------------------------------------------------------------------------`;
+        if (plan.cause)    implementationPlans += `\n  Root Cause:   ${plan.cause}`;
+        if (plan.impact)   implementationPlans += `\n  Impact:       ${plan.impact}`;
         implementationPlans += '\n';
+        if (plan.steps && plan.steps.length > 0) {
+          implementationPlans += `  CLI Steps:\n`;
+          plan.steps.forEach(s => { implementationPlans += `    ${s}\n`; });
+        } else if (r.recommendation) {
+          implementationPlans += `  Action: ${r.recommendation}\n`;
+        }
+        if (plan.options && plan.options.length > 0) {
+          implementationPlans += `  Remediation Options:\n`;
+          plan.options.forEach(o => { implementationPlans += `    → ${o}\n`; });
+        }
+        if (plan.thirdParty) implementationPlans += `  Host/3rd-Party: ${plan.thirdParty}\n`;
+        const ref = findingRef(r);
+        if (ref) implementationPlans += `  Reference: ${ref}\n`;
       });
     } else {
-      implementationPlans += "  No critical/high risks.\n\n";
+      implementationPlans += '\n  ✓ No critical/high severity risks identified for this system.\n';
     }
 
-    if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      const origVer = sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion;
+    if (sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date') {
+      const origVer = sys.santricityVersion || sys.ontapVersion || 'current';
       const hops = calculateUpgradePath(sys.platform, origVer, sys.upgrades.targetVersion);
-      implementationPlans += `[UPGRADE] ${origVer} -> ${sys.upgrades.targetVersion}\n`;
+      implementationPlans += `
+--------------------------------------------------------------------------------
+ONTAP/OS UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
+--------------------------------------------------------------------------------\n`;
       if (hops.length > 1) {
+        implementationPlans += `  Multi-hop upgrade required — do NOT skip intermediate versions.\n`;
         hops.forEach((h, hIdx) => {
-          implementationPlans += `    Hop ${hIdx + 1}: ${h.from} -> ${h.to}  |  ${h.docLink}\n`;
+          implementationPlans += `  Hop ${hIdx + 1}: ${h.from} -> ${h.to}\n`;
+          if (h.steps && h.steps.length > 0) {
+            h.steps.slice(0, 5).forEach(s => { implementationPlans += `    ${s.replace(/<[^>]*>/g, '')}\n`; });
+          }
+          if (h.recommendations && h.recommendations.length > 0) {
+            implementationPlans += `    Recommendations: ${h.recommendations.slice(0,2).map(r => r.replace(/<[^>]*>/g,'')).join(' | ')}\n`;
+          }
+          if (h.considerations && h.considerations.length > 0) {
+            implementationPlans += `    Caveats: ${h.considerations.slice(0,2).map(c => c.replace(/<[^>]*>/g,'')).join(' | ')}\n`;
+          }
+          implementationPlans += `    Doc: ${h.docLink}\n\n`;
         });
+      } else if (hops.length === 1) {
+        const h = hops[0];
+        if (h.steps && h.steps.length > 0) {
+          h.steps.slice(0, 5).forEach(s => { implementationPlans += `  ${s.replace(/<[^>]*>/g, '')}\n`; });
+        }
+        if (h.considerations && h.considerations.length > 0) {
+          implementationPlans += `  Caveats: ${h.considerations.slice(0,2).map(c => c.replace(/<[^>]*>/g,'')).join(' | ')}\n`;
+        }
+        implementationPlans += `  Doc: ${h.docLink}\n`;
+      } else {
+        implementationPlans += `  Download upgrade package from: https://mysupport.netapp.com/site/downloads\n`;
+        implementationPlans += `  Follow: https://docs.netapp.com/us-en/ontap/upgrade/index.html\n`;
       }
-      implementationPlans += '\n';
     }
 
-    if ((sys.platform || "").includes("ASA")) {
-      implementationPlans += `[ASA SAN Checks]
-    esxcli storage nmp device list | lun show -fields space-allocation | igroup show -fields ostype,protocol\n\n`;
+    // Platform-specific additional checks
+    if ((sys.platform || '').toUpperCase().includes('ASA')) {
+      implementationPlans += `
+  [ASA SAN-SPECIFIC CHECKS]
+    lun show -fields space-allocation,enabled
+    igroup show -fields ostype,protocol
+    esxcli storage nmp device list  (from each VMware ESXi host)
+    storage path show -fields node,type,state
+`;
     }
+    if ((sys.platform || '').toLowerCase().includes('metrocluster')) {
+      implementationPlans += `
+  [METROCLUSTER-SPECIFIC PRE-CHECKS]
+    metrocluster check run && metrocluster check show
+    metrocluster interconnect show
+    metrocluster node show -fields node-state,configuration-state
+    Note: Upgrade DR site first, then primary site. Perform switchover/switchback test post-upgrade.
+`;
+    }
+
+    implementationPlans += `
+  [POST-CHANGE VERIFICATION]
+    system health alert show
+    storage failover show
+    network interface show
+    event log show -severity EMERGENCY,ALERT -time-range -1h
+    cluster ping-cluster -node *
+
+`;
   });
 
   // ===================== 6. SALES PROPOSALS =====================
@@ -11462,9 +13520,50 @@ function _renderSustainabilitySection(systems) {
   return html;
 }
 
-function _renderRecommendationsSection() {
+function _renderRecommendationsSection(targetSystems) {
   const recs = state.tamRecommendations || [];
+  const scopeCount = (targetSystems || []).length;
+
   if (recs.length === 0) return '<p style="color:var(--text-secondary);font-size:0.85rem;">No recommendations available. Run a data refresh to load TAM recommendations.</p>';
+
+  // ── Build scoped risk counts per category/subCategory from actual system data ──
+  // This is used to restate the "N of your systems" counts accurately for the selected scope.
+  const scopedCatFailCounts = {}; // category -> count of scoped systems with >=1 risk in that category
+  const scopedSubCatFailCounts = {}; // subCategory (normalized) -> count
+  (targetSystems || []).forEach(sys => {
+    const catsSeen = new Set();
+    const subCatsSeen = new Set();
+    (sys.risks || []).forEach(r => {
+      const cat  = (r.category || '').toUpperCase().replace(/\s+/g, '_');
+      const sub  = (r.subCategory || r.type || '').toUpperCase().replace(/\s+/g, '_');
+      if (cat  && !catsSeen.has(cat))  { catsSeen.add(cat);   scopedCatFailCounts[cat]  = (scopedCatFailCounts[cat]  || 0) + 1; }
+      if (sub  && !subCatsSeen.has(sub)) { subCatsSeen.add(sub); scopedSubCatFailCounts[sub] = (scopedSubCatFailCounts[sub] || 0) + 1; }
+    });
+  });
+
+  // ── Map known recommendation subCategories to risk categories ──
+  const subCatToCat = {
+    'LATEST_VERSION': 'VERSION', 'MAJOR_VERSION': 'VERSION', 'PATCH_VERSION': 'VERSION',
+    'AUTO_SUPPORT': 'AUTO_SUPPORT', 'AUTOSUPPORT': 'AUTO_SUPPORT',
+    'AVAILABILITY_PROTECTION': 'BEST_PRACTICES', 'CONFIGURATION': 'BEST_PRACTICES',
+    'PERFORMANCE_EFFICIENCY': 'BEST_PRACTICES', 'CAPACITY': 'BEST_PRACTICES',
+    'SECURITY': 'BEST_PRACTICES', 'BIOS': 'BEST_PRACTICES',
+    'SPARES_AND_FAILED_DRIVES': 'CONFIG',
+    'SLA_AND_ENTITLEMENTS': 'SUPPORT_AND_ENTITLEMENTS'
+  };
+
+  // Helper: rewrite "N of your systems" in recommendation text to the scoped count
+  function rescopeText(text, cat, subCat) {
+    if (!text) return '';
+    // Try to get the scoped failing count for this specific category
+    const normSub = (subCat || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const normCat = (cat || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const failCount = scopedSubCatFailCounts[normSub] || scopedCatFailCounts[normCat] || 0;
+    // Replace patterns like "98 of your systems", "27 of your systems are failing"
+    return text.replace(/(\d+)\s+of\s+your\s+systems/gi, (match, n) => {
+      return `<strong style="color:#f59e0b">${failCount}</strong> of your <strong>${scopeCount}</strong> selected systems`;
+    });
+  }
 
   const byCategory = {};
   recs.forEach(r => {
@@ -11473,27 +13572,102 @@ function _renderRecommendationsSection() {
     byCategory[cat].push(r);
   });
 
-  const catIcons = {'VERSION':'🔄','AUTO_SUPPORT':'📡','BEST_PRACTICES':'✅','CONFIG':'⚙️','SUPPORT_AND_ENTITLEMENTS':'🛡️'};
+  const catIcons  = {'VERSION':'🔄','AUTO_SUPPORT':'📡','BEST_PRACTICES':'✅','CONFIG':'⚙️','SUPPORT_AND_ENTITLEMENTS':'🛡️'};
   const catColors = {'VERSION':'#3b82f6','AUTO_SUPPORT':'#8b5cf6','BEST_PRACTICES':'#10b981','CONFIG':'#f59e0b','SUPPORT_AND_ENTITLEMENTS':'#ef4444'};
 
-  let html = `<div style="margin-bottom:16px;">
-    <p style="font-size:0.85rem;color:var(--text-secondary);">Top ${recs.length} key recommendations from Active IQ, ranked by impact and health score.</p>
+  let html = `<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Top ${recs.length} key recommendations from Active IQ — counts rescoped to <strong style="color:var(--accent-cyan)">${scopeCount} selected system${scopeCount !== 1 ? 's' : ''}</strong>.</p>
+    <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;">⚠ Counts shown reflect the selected customer scope, not the full fleet</span>
   </div>`;
 
   Object.keys(byCategory).forEach(cat => {
     const items = byCategory[cat];
-    const icon = catIcons[cat] || '📋';
-    const color = catColors[cat] || '#6b7280';
-    html += `<div style="margin-bottom:20px;">
-      <h4 style="color:${color};margin:12px 0 8px;font-size:0.95rem;">${icon} ${cat.replace(/_/g,' ')} (${items.length})</h4>`;
+    const icon  = catIcons[cat]  || '📋';
+    const color = catColors[cat] || '#94a3b8';
+    html += `<div style="margin-bottom:24px;">
+      <h4 style="color:${color};margin:12px 0 10px;font-size:0.95rem;font-weight:700;letter-spacing:0.3px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:8px;">${icon} ${cat.replace(/_/g,' ')} (${items.length})</h4>`;
     items.forEach(r => {
-      const scoreColor = (r.score || 0) >= 80 ? '#10b981' : (r.score || 0) >= 50 ? '#f59e0b' : '#ef4444';
-      html += `<div style="background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <span style="font-size:0.75rem;color:var(--text-secondary);">${r.subCategory || ''}</span>
-          <span style="background:${scoreColor}22;color:${scoreColor};padding:2px 10px;border-radius:10px;font-size:0.72rem;font-weight:600;">Score: ${r.score || 0}%</span>
+      // ── Resolve the effective health score ──────────────────────────────────
+      // Active IQ uses the `score` field in THREE distinct ways:
+      //
+      //  CASE A — Health percentage (use as-is)
+      //    score=87 while text says "13% of systems are not using HTTPS"
+      //    The score already represents the % of compliant systems.
+      //
+      //  CASE B — Problem percentage (must INVERT to get health %)
+      //    score=26 while text starts with "26% of entitled systems are expiring"
+      //    score=9  while text starts with "9% of systems will have EOS"
+      //    Detected when rawScore appears verbatim at the start of the text ("N% of...")
+      //
+      //  CASE C — All-clear zero (remap to 100%)
+      //    score=0  while text says "No platforms or storage are End of Support"
+      //    score=0  while text says "No systems have been set to Decline"
+      //    Detected by matching "all-clear" language patterns.
+      // ─────────────────────────────────────────────────────────────────────────
+      const rawScore = (r.score == null ? null : r.score);
+      const recText  = (r.recommendation || '');
+      const recLower = recText.toLowerCase();
+
+      // CASE B: Problem-rate detection — text starts with the same % as the score
+      // e.g. "26% of entitled systems are expiring within 6 months..."
+      // e.g. "9% of systems will have End of Support (EOS) within..."
+      const isProblemRate = rawScore > 0 && rawScore < 100 &&
+        new RegExp(`^${rawScore}%\\s+of`, 'i').test(recText.trim());
+
+      // CASE C: All-clear patterns — score=0 but zero systems have the problem
+      const allClearPatterns = [
+        // AutoSupport / signal
+        /^no systems have/i,
+        /^no systems are/i,
+        /^no systems have been/i,
+        /\bno systems have stopped\b/i,
+        /\bno systems have been set to decline\b/i,
+        // Compliance / alignment
+        /^all systems are fully/i,
+        /^all applicable systems have sufficient/i,
+        /^all applicable systems/i,
+        /\bfully aligned\b/i,
+        /\bsufficient spares\b.*\bno failed drives\b/i,
+        /\bno failed drives\b/i,
+        /\ball systems.*up to date\b/i,
+        /\ball.*systems.*compliant\b/i,
+        // EOS / entitlements
+        /^no platforms\b/i,
+        /^no\s+\w+\s+or\s+\w+\s+components?\s+are\s+end\s+of\s+support/i,
+        /\bno platforms or storage components are end of support\b/i,
+        /^no\s+\w+.*\bend of support\b/i,
+        /^all systems have valid entitlement/i,
+        /^all.*entitlements? are current/i,
+      ];
+      const isAllClear = rawScore === 0 && allClearPatterns.some(p => p.test(recText));
+
+      // Compute final effective health score
+      let effectiveScore;
+      let scoreNote = '';
+      if (isProblemRate) {
+        effectiveScore = 100 - rawScore;   // Invert: problem% → health%
+        scoreNote = ' ↑';                  // Visual hint that score was corrected
+      } else if (isAllClear) {
+        effectiveScore = 100;
+      } else {
+        effectiveScore = rawScore || 0;
+      }
+
+      const scoreColor = effectiveScore >= 80 ? '#10b981' : effectiveScore >= 50 ? '#f59e0b' : '#ef4444';
+      const scoreLabel = isAllClear ? '100% ✓' : `${effectiveScore}%${scoreNote}`;
+      // ── Truncate on RAW text BEFORE HTML transforms ──────────────────────────
+      // linkify() and rescopeText() inject HTML tags. If we truncate AFTER them
+      // we can cut mid-tag (e.g. inside an <a href="...">), breaking the DOM and
+      // causing the next recommendation card to be nested inside this one.
+      const rawRec    = r.recommendation || '';
+      const truncated = rawRec.length > 500 ? rawRec.substring(0, 497) + '…' : rawRec;
+      const displayText = rescopeText(linkify(truncated), cat, r.subCategory);
+      html += `<div style="background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:0.7rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">${r.subCategory || ''}</span>
+          <span style="background:${scoreColor}22;color:${scoreColor};padding:2px 10px;border-radius:10px;font-size:0.72rem;font-weight:700;border:1px solid ${scoreColor}44;">Score: ${scoreLabel}</span>
         </div>
-        <p style="font-size:0.82rem;color:var(--text-primary);margin:0;line-height:1.4;">${(r.recommendation || '').substring(0,300)}${(r.recommendation||'').length > 300 ? '...' : ''}</p>
+        <p style="font-size:0.83rem;color:#e2e8f0;margin:0;line-height:1.65;">${displayText}</p>
       </div>`;
     });
     html += `</div>`;
@@ -12691,7 +14865,7 @@ function generateActionPlan() {
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">12. TAM Recommendations</h2>
       </div>
-      ${_renderRecommendationsSection()}
+      ${_renderRecommendationsSection(targetSystems)}
     </div>
   `;
 
@@ -14677,6 +16851,10 @@ async function loadProductionData(forceRefresh = false) {
     if (cacheInfo.hit && !forceRefresh) {
       console.log(`[AIQ] Serving from cache (last sync: ${cacheInfo.lastSync}). Background re-sync in progress.`);
     }
+
+    // ── Persistent enrichment: pre-load from server SQLite cache, then fill gaps ──
+    // Non-blocking: runs after render, never delays the UI
+    setTimeout(() => enrichmentEngine.syncFromServer(state.systems), 1200);
 
   } catch (err) {
     console.error("[AIQ] Harvest error:", err);

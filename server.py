@@ -61,6 +61,21 @@ def _init_db():
         );
     """)
     db.commit()
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS enrich_cache (
+            cache_key   TEXT PRIMARY KEY,
+            result_json TEXT NOT NULL,
+            fetched_at  TEXT NOT NULL,
+            source      TEXT DEFAULT ''
+        );
+    """)
+    # Purge: 24h for NVD CVEs, 7 days for everything else
+    db.execute("""
+        DELETE FROM enrich_cache WHERE
+            (source = 'nvd' AND fetched_at < datetime('now', '-1 day')) OR
+            (source != 'nvd' AND fetched_at < datetime('now', '-7 days'))
+    """)
+    db.commit()
     return db
 
 
@@ -1042,6 +1057,19 @@ def _do_full_harvest(watchlist_id=None):
         finally:
             db.close()
 
+        # Trigger background enrichment for all versions found in this harvest
+        # Non-blocking: runs in a separate daemon thread so it never delays the response
+        try:
+            t = threading.Thread(
+                target=_enrich_all_versions,
+                args=(result,),
+                daemon=True
+            )
+            t.start()
+            print("  [ENRICH] Post-harvest enrichment thread started.", flush=True)
+        except Exception as _te:
+            print(f"  [ENRICH] Could not start enrichment thread: {_te}", flush=True)
+
         return result
 
     except Exception as e:
@@ -1050,6 +1078,85 @@ def _do_full_harvest(watchlist_id=None):
     finally:
         with _sync_lock:
             _is_syncing = False
+
+
+def _enrich_all_versions(harvest_result):
+    """
+    Post-harvest enrichment pass.
+    Extracts every unique software version string from the harvested systems
+    and enriches it via the existing fetchers, writing results to enrich_cache.
+    Skips any version that was already enriched within the last 6 days.
+    Rate-limited to 1 request/second to be polite to public servers.
+    """
+    systems = harvest_result.get('systems', [])
+    if not systems:
+        return
+
+    # Collect unique (version, platform_family) pairs
+    to_enrich = {}  # key → (enrich_type, version_string)
+    for sys in systems:
+        ver = sys.get('ontapVersion') or sys.get('osVersion') or sys.get('softwareVersion') or ''
+        if not ver or len(ver) < 4:
+            continue
+        platform = (sys.get('platform') or sys.get('platformModel') or sys.get('platformType') or '').lower()
+        if 'storagegrid' in platform or 'sg60' in platform or 'sg61' in platform or 'sg10' in platform:
+            etype = 'sg-version'
+        elif 'e-series' in platform or 'ef6' in platform or 'ef3' in platform or 'e5700' in platform or 'e2800' in platform:
+            etype = 'santricity-version'
+        else:
+            etype = 'ontap-version'
+        cache_key = f'{etype}:{ver}'
+        to_enrich[cache_key] = (etype, ver)
+
+    if not to_enrich:
+        return
+
+    print(f"  [ENRICH] Post-harvest: checking {len(to_enrich)} unique version(s)...", flush=True)
+    db = _init_db()
+    try:
+        enriched_count = 0
+        skipped_count = 0
+        for cache_key, (etype, ver) in to_enrich.items():
+            try:
+                # Check if already cached and fresh (within 6 days)
+                row = db.execute(
+                    "SELECT fetched_at FROM enrich_cache WHERE cache_key = ?",
+                    (cache_key,)
+                ).fetchone()
+                if row:
+                    # Already cached — skip unless stale (> 6 days handled by purge on init)
+                    skipped_count += 1
+                    continue
+
+                # Fetch from public source
+                data = None
+                if etype == 'ontap-version':
+                    data = fetch_ontap_version_info(ver)
+                elif etype == 'sg-version':
+                    data = fetch_sg_version_info(ver)
+                elif etype == 'santricity-version':
+                    data = fetch_santricity_version_info(ver)
+
+                if data:
+                    fetched_at = datetime.now(timezone.utc).isoformat()
+                    db.execute(
+                        'INSERT OR REPLACE INTO enrich_cache (cache_key, result_json, fetched_at, source) VALUES (?, ?, ?, ?)',
+                        (cache_key, json.dumps(data), fetched_at, 'docs.netapp.com')
+                    )
+                    db.commit()
+                    enriched_count += 1
+                    print(f"  [ENRICH] {cache_key} — OK", flush=True)
+
+                # Rate limit: 1 req/sec to be polite
+                time.sleep(1.0)
+
+            except Exception as _e:
+                print(f"  [ENRICH] {cache_key} failed: {_e}", flush=True)
+                continue
+
+        print(f"  [ENRICH] Post-harvest complete: {enriched_count} enriched, {skipped_count} already cached.", flush=True)
+    finally:
+        db.close()
 
 
 def _background_sync():
@@ -1070,6 +1177,650 @@ def _background_sync():
         import traceback
         traceback.print_exc()
         print(f"  [BACKGROUND] Sync failed: {e}", flush=True)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Enrichment Engine — public-source data fetchers
+# ─────────────────────────────────────────────────────────────────────
+
+import re as _re
+import html as _html
+from html.parser import HTMLParser
+
+_ENRICH_UA = 'AIQ-Advisor/1.0 (enrichment; public data only)'
+
+
+def _enrich_fetch(url, timeout=12):
+    """Fetch URL, return (text, error). Uses urllib only."""
+    req = urllib.request.Request(url, headers={'User-Agent': _ENRICH_UA})
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
+            return r.read().decode('utf-8', errors='replace'), None
+    except Exception as e:
+        return None, str(e)
+
+
+def _strip_html_tags(text):
+    """Remove HTML tags, decode entities, collapse whitespace."""
+    class Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts = []
+        def handle_data(self, data):
+            self.parts.append(data)
+    s = Stripper()
+    s.feed(text)
+    cleaned = ' '.join(s.parts)
+    cleaned = _re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
+
+def fetch_cve_nvd(cve_id, api_key=None):
+    """
+    Query NIST NVD API v2 for a CVE.
+    Returns dict: {id, description, cvss, severity, publishedDate, references, affectedVersions}
+    or None on failure.
+    """
+    url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={urllib.parse.quote(cve_id)}'
+    if api_key:
+        url += f'&apiKey={api_key}'
+    text, err = _enrich_fetch(url)
+    if err or not text:
+        return None
+    try:
+        data = json.loads(text)
+        items = data.get('vulnerabilities', [])
+        if not items:
+            return {'id': cve_id, 'status': 'not_found'}
+        vuln = items[0].get('cve', {})
+        # Description
+        descs = vuln.get('descriptions', [])
+        desc = next((d['value'] for d in descs if d.get('lang') == 'en'), '')
+        # CVSS — prefer v3.1, fallback v3.0, v2
+        metrics = vuln.get('metrics', {})
+        cvss_score = None
+        severity = None
+        for key in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
+            if key in metrics and metrics[key]:
+                m = metrics[key][0].get('cvssData', {})
+                cvss_score = m.get('baseScore') or metrics[key][0].get('impactScore')
+                severity = m.get('baseSeverity') or metrics[key][0].get('baseSeverity', '')
+                break
+        # Published date
+        published = vuln.get('published', '')[:10]
+        # References
+        refs = [r.get('url', '') for r in vuln.get('references', [])[:5]]
+        # Affected versions from CPE
+        affected = []
+        for cfg in vuln.get('configurations', []):
+            for node in cfg.get('nodes', []):
+                for cpe in node.get('cpeMatch', []):
+                    if cpe.get('vulnerable'):
+                        vi = cpe.get('versionStartIncluding', '')
+                        ve = cpe.get('versionEndExcluding', '')
+                        ve2 = cpe.get('versionEndIncluding', '')
+                        if vi or ve or ve2:
+                            affected.append(f">={vi}" if vi else '' + (f' <{ve}' if ve else '') + (f' <={ve2}' if ve2 else ''))
+        return {
+            'id': cve_id,
+            'description': desc,
+            'cvss': cvss_score,
+            'severity': (severity or 'UNKNOWN').upper(),
+            'publishedDate': published,
+            'references': refs,
+            'affectedVersions': '; '.join(affected[:3]) if affected else 'See NVD for affected versions'
+        }
+    except Exception as e:
+        return {'id': cve_id, 'error': str(e)}
+
+
+def fetch_netapp_psirt(advisory_id):
+    """
+    Fetch and parse a NetApp PSIRT advisory page.
+    Returns dict: {id, title, description, severity, affectedProducts, publishedDate, link}
+    """
+    url = f'https://security.netapp.com/advisory/{urllib.parse.quote(advisory_id)}/'
+    text, err = _enrich_fetch(url)
+    if err or not text:
+        return None
+    try:
+        # Extract title
+        title_m = _re.search(r'<title>([^<]+)</title>', text, _re.IGNORECASE)
+        title = _strip_html_tags(title_m.group(1)) if title_m else advisory_id
+        # Extract severity from page content
+        sev_m = _re.search(r'(?:severity|risk)[\s:]*<[^>]*>\s*([A-Za-z]+)', text, _re.IGNORECASE)
+        severity = sev_m.group(1).upper() if sev_m else 'UNKNOWN'
+        # Get first substantial paragraph of content as description
+        content_m = _re.search(r'<div[^>]*class="[^"]*description[^"]*"[^>]*>(.*?)</div>', text, _re.IGNORECASE | _re.DOTALL)
+        if not content_m:
+            content_m = _re.search(r'<p>((?:(?!</p>).){80,500})</p>', text, _re.DOTALL)
+        description = _strip_html_tags(content_m.group(1))[:800] if content_m else ''
+        return {
+            'id': advisory_id,
+            'title': title.replace(' | NetApp', '').strip(),
+            'description': description,
+            'severity': severity,
+            'link': url
+        }
+    except Exception as e:
+        return {'id': advisory_id, 'error': str(e)}
+
+
+def _parse_netapp_release_notes(text, version, platform):
+    """
+    Extract known issues, fixed issues, and what's-new blurbs from
+    NetApp docs HTML for a given version/platform.
+    Uses section-aware parsing: looks for headings like 'Known Issues',
+    'Fixed Issues', "What's New", then reads the <li> items under each.
+    Returns dict: {knownIssues, fixedIssues, whatsNew, upgradeMotivation}
+    """
+    known = []
+    fixed = []
+    whatsnew = []
+
+    # ── Section-aware extraction ──────────────────────────────────────────────
+    # Split HTML into segments by heading text so we pull issues from the right
+    # section rather than from any random <li> on the page.
+    def _items_under_heading(html, *heading_patterns):
+        """Find text of <li> items in the section immediately after a heading."""
+        pat = '|'.join(heading_patterns)
+        m = _re.search(
+            rf'<h[2-4][^>]*>(?:[^<]*<[^>]+>)*[^<]*(?:{pat})[^<]*(?:<[^>]+>[^<]*)*</h[2-4]>',
+            html, _re.IGNORECASE
+        )
+        if not m:
+            return []
+        segment = html[m.end():m.end() + 8000]
+        # Stop at next heading
+        next_h = _re.search(r'<h[2-4][\s>]', segment)
+        if next_h:
+            segment = segment[:next_h.start()]
+        items = _re.findall(r'<li[^>]*>(.*?)</li>', segment, _re.DOTALL)
+        return [_strip_html_tags(i)[:300].strip() for i in items if len(_strip_html_tags(i).strip()) > 20]
+
+    # Known issues
+    known = _items_under_heading(text, r'known\s+issue', r'known\s+problem', r'known\s+limitation')[:8]
+    # Fixed bugs / resolved issues
+    fixed = _items_under_heading(text, r'fixed\s+bug', r'resolved\s+issue', r'bug\s+fix', r'fixed\s+issue')[:8]
+    # What's new / new features
+    whatsnew = _items_under_heading(text, r"what.{0,4}s\s+new", r'new\s+feature', r'enhancements?')[:5]
+
+    # ── Fallback: scan all <li> by keyword if sections not found ─────────────
+    if not known and not whatsnew:
+        all_li = _re.findall(r'<li[^>]*>(.*?)</li>', text, _re.DOTALL)
+        issue_kw  = ['issue', 'problem', 'bug', 'fail', 'error', 'crash', 'panic', 'incorrect', 'missing', 'not work', 'defect', 'caveat']
+        feature_kw = ['support', 'introduc', 'enabl', 'improve', 'new', 'add', 'enhanc', 'increas', 'extend']
+        for item in all_li[:100]:
+            clean = _strip_html_tags(item)[:250].strip()
+            if len(clean) < 25:
+                continue
+            cl = clean.lower()
+            if any(k in cl for k in issue_kw) and len(known) < 6:
+                known.append(clean)
+            elif any(k in cl for k in feature_kw) and len(whatsnew) < 4:
+                whatsnew.append(clean)
+
+    motivation_parts = []
+    if known:
+        motivation_parts.append(f"{len(known)} known issue(s) documented for {version}")
+    if fixed:
+        motivation_parts.append(f"{len(fixed)} issue(s) fixed in this release")
+    if whatsnew:
+        motivation_parts.append(f"new in {version}: {whatsnew[0][:80]}")
+    motivation = '. '.join(motivation_parts) or 'Check docs.netapp.com for current release status.'
+
+    return {
+        'knownIssues': known[:8],
+        'fixedIssues': fixed[:8],
+        'whatsNew':    whatsnew[:5],
+        'upgradeMotivation': motivation
+    }
+
+
+def _search_netapp_psirt_for_version(version, product_keyword):
+    """
+    Search the NetApp PSIRT advisory list for advisories that mention
+    a given software version. Scrapes security.netapp.com/advisory/ index.
+    Returns list of {id, title, severity, link} dicts.
+    """
+    results = []
+    try:
+        # PSIRT search page — queries by product keyword
+        search_url = f'https://security.netapp.com/advisory/?q={urllib.parse.quote(product_keyword)}'
+        text, err = _enrich_fetch(search_url, timeout=15)
+        if err or not text:
+            return results
+        # Extract advisory links + titles from the listing
+        adv_matches = _re.findall(
+            r'href="(/advisory/ntap-[^"]+)"[^>]*>.*?<[^>]+>([^<]{10,120})',
+            text, _re.DOTALL
+        )
+        for path, raw_title in adv_matches[:20]:
+            title = _strip_html_tags(raw_title).strip()
+            # Only include if the version string or major.minor appears in the listing
+            major_minor = _re.match(r'^(\d+\.\d+)', version)
+            ver_str = major_minor.group(1) if major_minor else version[:5]
+            if ver_str not in text:
+                continue
+            adv_id = path.strip('/').split('/')[-1]
+            results.append({
+                'id': adv_id,
+                'title': title[:200],
+                'link': f'https://security.netapp.com{path}',
+                'severity': 'UNKNOWN'
+            })
+    except Exception:
+        pass
+    return results[:5]
+
+
+def _search_nvd_for_version(version, cpe_product_keyword):
+    """
+    Query NVD CVE API v2 by keyword+version to find CVEs affecting this version.
+    Returns list of {id, description, cvss, severity, publishedDate} dicts.
+    """
+    results = []
+    try:
+        # NVD keyword search: product + version
+        q = urllib.parse.quote(f'{cpe_product_keyword} {version}')
+        url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={q}&resultsPerPage=10'
+        text, err = _enrich_fetch(url, timeout=20)
+        if err or not text:
+            return results
+        data = json.loads(text)
+        for item in data.get('vulnerabilities', []):
+            vuln = item.get('cve', {})
+            cve_id = vuln.get('id', '')
+            descs = vuln.get('descriptions', [])
+            desc  = next((d['value'] for d in descs if d.get('lang') == 'en'), '')
+            if not desc or version[:4] not in desc and version.split('.')[0] not in desc:
+                # Skip CVEs that don't actually mention this version family
+                pass  # still include — keyword search already filtered
+            metrics = vuln.get('metrics', {})
+            cvss_score = None
+            severity   = 'UNKNOWN'
+            for key in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
+                if key in metrics and metrics[key]:
+                    m = metrics[key][0].get('cvssData', {})
+                    cvss_score = m.get('baseScore')
+                    severity   = (m.get('baseSeverity') or 'UNKNOWN').upper()
+                    break
+            published = vuln.get('published', '')[:10]
+            if cve_id:
+                results.append({
+                    'id':            cve_id,
+                    'description':   desc[:400],
+                    'cvss':          cvss_score,
+                    'severity':      severity,
+                    'publishedDate': published,
+                })
+    except Exception:
+        pass
+    return results[:8]
+
+
+def _search_netapp_bugs_online(version, product_keyword):
+    """
+    Search NetApp Bugs Online public RSS feed for bugs matching a version.
+    Returns list of {id, title, description, component} dicts.
+    """
+    results = []
+    try:
+        # NetApp Bugs Online has a public search interface
+        # The query format: product=ONTAP&release=X.Y&type=bug
+        q = urllib.parse.quote(f'{product_keyword} {version}')
+        url = f'https://mysupport.netapp.com/site/bugs-online/product/ONTAP/qosb?searchContext=&queryKeywords={q}'
+        text, err = _enrich_fetch(url, timeout=15)
+        if err or not text:
+            return results
+        # Parse bug entries — Bugs Online returns HTML with bug IDs and titles
+        bug_matches = _re.findall(
+            r'bug[_\-\s]?id[^>]*>([0-9]{5,10})[^<]*<.*?(?:title|summary)[^>]*>([^<]{20,300})',
+            text, _re.IGNORECASE | _re.DOTALL
+        )
+        for bug_id, title in bug_matches[:10]:
+            clean_title = _strip_html_tags(title).strip()
+            if clean_title and len(clean_title) > 15:
+                results.append({
+                    'id':    f'Bug {bug_id}',
+                    'title': clean_title[:200],
+                    'link':  f'https://mysupport.netapp.com/site/bugs-online/product/ONTAP/{bug_id}'
+                })
+    except Exception:
+        pass
+    return results[:5]
+
+
+def fetch_ontap_version_info(version):
+    """
+    Multi-source enrichment for an ONTAP version:
+      1. docs.netapp.com release notes (version-specific URL)
+      2. NetApp PSIRT advisories mentioning this ONTAP version
+      3. NVD CVE search for ONTAP + version
+      4. NetApp Bugs Online public search
+    All sources are merged; any missing source fails silently.
+    """
+    ver_m = _re.match(r'^(\d+)\.(\d+)(?:\.(\d+))?', version)
+    if not ver_m:
+        return None
+    major, minor = ver_m.group(1), ver_m.group(2)
+    ver_slug = f'{major}-{minor}'
+
+    result = {
+        'version': version,
+        'platform': 'ONTAP',
+        'knownIssues': [],
+        'fixedIssues': [],
+        'whatsNew': [],
+        'upgradeMotivation': '',
+        'relatedCVEs': [],
+        'relatedAdvisories': [],
+        'relatedBugs': [],
+        'sources': [],
+        'source_url': ''
+    }
+
+    # ── Source 1: docs.netapp.com release notes ───────────────────────────────
+    doc_urls = [
+        f'https://docs.netapp.com/us-en/ontap/release-notes/ontap-{ver_slug}-release-notes.html',
+        f'https://docs.netapp.com/us-en/ontap/{major}-{minor}/release-notes/index.html',
+    ]
+    for url in doc_urls:
+        text, err = _enrich_fetch(url)
+        if text and not err and '<html' in text.lower():
+            parsed = _parse_netapp_release_notes(text, version, 'ontap')
+            result['knownIssues']  = parsed['knownIssues']
+            result['fixedIssues']  = parsed['fixedIssues']
+            result['whatsNew']     = parsed['whatsNew']
+            result['source_url']   = url
+            result['sources'].append('docs.netapp.com')
+            print(f'  [ENRICH] ONTAP {version} docs: {len(parsed["knownIssues"])} issues, {len(parsed["whatsNew"])} new features', flush=True)
+            break
+
+    # ── Source 2: NetApp PSIRT advisories ────────────────────────────────────
+    try:
+        advisories = _search_netapp_psirt_for_version(version, 'ONTAP')
+        if advisories:
+            result['relatedAdvisories'] = advisories
+            result['sources'].append('security.netapp.com')
+            print(f'  [ENRICH] ONTAP {version} PSIRT: {len(advisories)} advisory/advisories', flush=True)
+    except Exception:
+        pass
+
+    # ── Source 3: NVD CVE search ──────────────────────────────────────────────
+    try:
+        cves = _search_nvd_for_version(version, 'ONTAP')
+        if cves:
+            result['relatedCVEs'] = cves
+            result['sources'].append('nvd.nist.gov')
+            print(f'  [ENRICH] ONTAP {version} NVD: {len(cves)} CVE(s)', flush=True)
+    except Exception:
+        pass
+
+    # ── Source 4: NetApp Bugs Online ──────────────────────────────────────────
+    try:
+        bugs = _search_netapp_bugs_online(version, 'ONTAP')
+        if bugs:
+            result['relatedBugs'] = bugs
+            if 'mysupport.netapp.com' not in result['sources']:
+                result['sources'].append('mysupport.netapp.com')
+            print(f'  [ENRICH] ONTAP {version} Bugs Online: {len(bugs)} bug(s)', flush=True)
+    except Exception:
+        pass
+
+    # ── Upgrade motivation: synthesise from all sources ───────────────────────
+    parts = []
+    if result['knownIssues']:
+        parts.append(f"{len(result['knownIssues'])} known issue(s) in release notes")
+    if result['relatedCVEs']:
+        high = [c for c in result['relatedCVEs'] if (c.get('cvss') or 0) >= 7]
+        parts.append(f"{len(result['relatedCVEs'])} CVE(s) found ({len(high)} high/critical)")
+    if result['relatedAdvisories']:
+        parts.append(f"{len(result['relatedAdvisories'])} PSIRT advisory/advisories")
+    if result['relatedBugs']:
+        parts.append(f"{len(result['relatedBugs'])} tracked bug(s)")
+    if result['fixedIssues']:
+        parts.append(f"{len(result['fixedIssues'])} issue(s) fixed in this release")
+    result['upgradeMotivation'] = '. '.join(parts) if parts else 'No major issues found in public sources for this version.'
+
+    return result if result['sources'] else None
+
+
+def fetch_sg_version_info(version):
+    """
+    Multi-source enrichment for a StorageGRID version:
+      1. docs.netapp.com StorageGRID release notes
+      2. NetApp PSIRT advisories mentioning StorageGRID + version
+      3. NVD CVE search for StorageGRID + version
+    """
+    ver_m = _re.match(r'^(\d+)\.(\d+)', version)
+    if not ver_m:
+        return None
+    major, minor = ver_m.group(1), ver_m.group(2)
+    ver_slug = f'{major}{minor}'   # e.g. '119' for 11.9
+
+    result = {
+        'version': version,
+        'platform': 'StorageGRID',
+        'knownIssues': [],
+        'fixedIssues': [],
+        'whatsNew': [],
+        'upgradeMotivation': '',
+        'relatedCVEs': [],
+        'relatedAdvisories': [],
+        'relatedBugs': [],
+        'sources': [],
+        'source_url': ''
+    }
+
+    # ── Source 1: docs.netapp.com ─────────────────────────────────────────────
+    doc_urls = [
+        f'https://docs.netapp.com/us-en/storagegrid-{ver_slug}/release-notes/index.html',
+        f'https://docs.netapp.com/us-en/storagegrid-{major}-{minor}/release-notes/index.html',
+    ]
+    for url in doc_urls:
+        text, err = _enrich_fetch(url)
+        if text and not err and '<html' in text.lower():
+            parsed = _parse_netapp_release_notes(text, version, 'storagegrid')
+            result['knownIssues'] = parsed['knownIssues']
+            result['fixedIssues'] = parsed['fixedIssues']
+            result['whatsNew']    = parsed['whatsNew']
+            result['source_url']  = url
+            result['sources'].append('docs.netapp.com')
+            print(f'  [ENRICH] StorageGRID {version} docs: {len(parsed["knownIssues"])} issues', flush=True)
+            break
+
+    # ── Source 2: PSIRT ───────────────────────────────────────────────────────
+    try:
+        advisories = _search_netapp_psirt_for_version(version, 'StorageGRID')
+        if advisories:
+            result['relatedAdvisories'] = advisories
+            result['sources'].append('security.netapp.com')
+    except Exception:
+        pass
+
+    # ── Source 3: NVD ────────────────────────────────────────────────────────
+    try:
+        cves = _search_nvd_for_version(version, 'StorageGRID')
+        if cves:
+            result['relatedCVEs'] = cves
+            result['sources'].append('nvd.nist.gov')
+    except Exception:
+        pass
+
+    # ── Motivation ────────────────────────────────────────────────────────────
+    parts = []
+    if result['knownIssues']:
+        parts.append(f"{len(result['knownIssues'])} known issue(s)")
+    if result['relatedCVEs']:
+        parts.append(f"{len(result['relatedCVEs'])} CVE(s) found via NVD")
+    if result['relatedAdvisories']:
+        parts.append(f"{len(result['relatedAdvisories'])} PSIRT advisory/advisories")
+    result['upgradeMotivation'] = '. '.join(parts) if parts else 'No major issues found in public sources for this version.'
+
+    return result if result['sources'] else None
+
+
+def fetch_santricity_version_info(version):
+    """
+    Multi-source enrichment for a SANtricity / E-Series version:
+      1. docs.netapp.com SANtricity what's-new page (no per-version URL)
+      2. NetApp PSIRT advisories mentioning SANtricity + version
+      3. NVD CVE search for SANtricity + version
+    """
+    ver_m = _re.match(r'^(\d+)\.(\d+)', version)
+    if not ver_m:
+        return None
+
+    result = {
+        'version': version,
+        'platform': 'SANtricity',
+        'knownIssues': [],
+        'fixedIssues': [],
+        'whatsNew': [],
+        'upgradeMotivation': '',
+        'relatedCVEs': [],
+        'relatedAdvisories': [],
+        'relatedBugs': [],
+        'sources': [],
+        'source_url': ''
+    }
+
+    # ── Source 1: docs.netapp.com (SANtricity what's-new is a single page) ────
+    url = 'https://docs.netapp.com/us-en/e-series-santricity/whats-new.html'
+    text, err = _enrich_fetch(url)
+    if text and not err and '<html' in text.lower():
+        # Filter the page to the section that matches our version
+        ver_section_m = _re.search(
+            rf'(?:<h[2-4][^>]*>[^<]*{_re.escape(version[:5])}[^<]*</h[2-4]>)(.*?)(?=<h[2-4]|\Z)',
+            text, _re.DOTALL | _re.IGNORECASE
+        )
+        segment = ver_section_m.group(1) if ver_section_m else text
+        parsed = _parse_netapp_release_notes(segment, version, 'santricity')
+        result['knownIssues'] = parsed['knownIssues']
+        result['fixedIssues'] = parsed['fixedIssues']
+        result['whatsNew']    = parsed['whatsNew']
+        result['source_url']  = url
+        result['sources'].append('docs.netapp.com')
+        print(f'  [ENRICH] SANtricity {version} docs: {len(parsed["knownIssues"])} issues', flush=True)
+
+    # ── Source 2: PSIRT ───────────────────────────────────────────────────────
+    try:
+        advisories = _search_netapp_psirt_for_version(version, 'SANtricity')
+        if advisories:
+            result['relatedAdvisories'] = advisories
+            result['sources'].append('security.netapp.com')
+    except Exception:
+        pass
+
+    # ── Source 3: NVD ────────────────────────────────────────────────────────
+    try:
+        cves = _search_nvd_for_version(version, 'SANtricity')
+        if cves:
+            result['relatedCVEs'] = cves
+            result['sources'].append('nvd.nist.gov')
+    except Exception:
+        pass
+
+    # ── Motivation ────────────────────────────────────────────────────────────
+    parts = []
+    if result['knownIssues']:
+        parts.append(f"{len(result['knownIssues'])} known issue(s)")
+    if result['relatedCVEs']:
+        parts.append(f"{len(result['relatedCVEs'])} CVE(s) found via NVD")
+    if result['relatedAdvisories']:
+        parts.append(f"{len(result['relatedAdvisories'])} PSIRT advisory/advisories")
+    result['upgradeMotivation'] = '. '.join(parts) if parts else 'No major issues found in public sources for this version.'
+
+    return result if result['sources'] else None
+
+
+
+# Version types that are ALWAYS fetched in background — never block the server thread
+_VERSION_ENRICH_TYPES = {'ontap-version', 'sg-version', 'santricity-version'}
+
+
+def handle_enrich_request(params, db):
+    """
+    Main dispatcher for /api/enrich. Returns a JSON-serializable dict.
+
+    Version enrichment (ontap-version, sg-version, santricity-version):
+      Cache-only. Returns {status:'pending'} on miss — the background thread
+      (_enrich_all_versions) does the actual fetching after every harvest.
+      This keeps the server non-blocking (it is single-threaded).
+
+    CVE / advisory enrichment:
+      Fetches live — these are targeted NVD/PSIRT JSON calls, fast, user-initiated.
+
+    params: dict from parse_qs (values are lists)
+    db: sqlite3 connection
+    """
+    enrich_type = (params.get('type', [''])[0] or '').strip()
+    item_id = (params.get('id', params.get('ver', ['']))[0] or '').strip()
+    nvd_key = (params.get('apiKey', [''])[0] or '').strip() or None
+
+    if not enrich_type or not item_id:
+        return {'status': 'error', 'error': 'Missing type or id parameter'}
+
+    # Sanitize: only allow safe characters in identifiers
+    if not _re.match(r'^[A-Za-z0-9.:\-_/ ]+$', item_id):
+        return {'status': 'error', 'error': 'Invalid id format'}
+
+    cache_key = f'{enrich_type}:{item_id}'
+
+    # ── Always check cache first (applies to all types) ──────────────────────
+    row = db.execute(
+        'SELECT result_json, fetched_at, source FROM enrich_cache WHERE cache_key = ?',
+        (cache_key,)
+    ).fetchone()
+    if row:
+        try:
+            data = json.loads(row[0])
+            return {'status': 'ok', 'source': row[2], 'cached': True, 'fetched_at': row[1], 'data': data}
+        except Exception:
+            pass  # corrupt entry — fall through
+
+    # ── Version types: return 'pending' — background thread will enrich ───────
+    # Never do live fetches here; the server is single-threaded and external
+    # HTTP calls (docs.netapp.com, NVD, PSIRT) take 5-20s each, blocking ALL
+    # other requests including harvest, UI, etc.
+    if enrich_type in _VERSION_ENRICH_TYPES:
+        return {
+            'status': 'pending',
+            'message': 'Version enrichment is handled by the background sync thread. '
+                       'Data will be available after the next sync completes.',
+            'cache_key': cache_key
+        }
+
+    # ── CVE / advisory: fetch live (fast, targeted JSON endpoints) ────────────
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    data = None
+    source = 'unknown'
+
+    if enrich_type == 'cve':
+        source = 'nvd'
+        data = fetch_cve_nvd(item_id, api_key=nvd_key)
+    elif enrich_type == 'ntap-advisory':
+        source = 'netapp-psirt'
+        data = fetch_netapp_psirt(item_id)
+    else:
+        return {'status': 'error', 'error': f'Unknown enrich type: {enrich_type}'}
+
+    if data is None:
+        return {'status': 'error', 'source': source, 'cached': False, 'error': 'Fetch failed or no data returned'}
+
+    # Store in cache
+    try:
+        db.execute(
+            'INSERT OR REPLACE INTO enrich_cache (cache_key, result_json, fetched_at, source) VALUES (?, ?, ?, ?)',
+            (cache_key, json.dumps(data), fetched_at, source)
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    return {'status': 'ok', 'source': source, 'cached': False, 'fetched_at': fetched_at, 'data': data}
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1108,6 +1859,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_config_get()
         elif self.path.startswith('/api/watchlists'):
             self.handle_watchlists()
+        elif self.path.startswith('/api/enrich'):
+            self.handle_enrich()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -1383,6 +2136,55 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_enrich(self):
+        """GET /api/enrich?type=TYPE&id=ID  — per-item enrichment.
+        GET /api/enrich/dump               — return all cached enrichment as one JSON blob.
+        """
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(self.path)
+        path_clean = parsed.path.rstrip('/')
+
+        if path_clean == '/api/enrich/dump':
+            # Return every cached enrichment entry as a map: {cache_key: data}
+            db = _init_db()
+            try:
+                rows = db.execute(
+                    'SELECT cache_key, result_json, fetched_at, source FROM enrich_cache ORDER BY fetched_at DESC'
+                ).fetchall()
+            finally:
+                db.close()
+            dump = {}
+            for row in rows:
+                try:
+                    dump[row[0]] = {
+                        'data': json.loads(row[1]),
+                        'fetched_at': row[2],
+                        'source': row[3]
+                    }
+                except Exception:
+                    pass
+            body = json.dumps({'status': 'ok', 'count': len(dump), 'entries': dump}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # Default: single-item enrichment
+        params = parse_qs(parsed.query)
+        db = _init_db()
+        try:
+            result = handle_enrich_request(params, db)
+        finally:
+            db.close()
+        body = json.dumps(result).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def handle_watchlists(self):
         """GET /api/watchlists — fetch available watchlists from AIQ REST API."""

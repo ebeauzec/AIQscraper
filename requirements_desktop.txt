@@ -4,6 +4,9 @@
 # Core desktop windowing (no browser needed, no CORS restrictions)
 pywebview>=4.4.1
 
+# HTML parsing for autonomous enrichment engine (NetApp docs, PSIRT pages)
+beautifulsoup4>=4.12.0
+
 # Build tool to create the distributable executable
 pyinstaller>=6.0
 

@@ -75,7 +75,7 @@
 
       
       <div class="nav-footer">
-        NetApp Internal Tool<br>Version 3.1.0-TAM
+        NetApp Internal Tool<br>Version 3.3.1
       </div>
     </div>
     
@@ -100,6 +100,11 @@
           <div class="status-badge-header">
             <span class="indicator disconnected"></span>
             <span id="connectionStatusText" style="font-weight: 500;">Offline</span>
+          </div>
+          <!-- Enrichment status badge -->
+          <div id="enrichBadge" onclick="showEnrichLog()" title="Click to view enrichment log" style="display:none; align-items:center; gap:5px; cursor:pointer; padding:4px 10px; border-radius:20px; background:rgba(45,212,191,0.12); border:1px solid rgba(45,212,191,0.3); font-size:0.72rem; font-weight:600; color:#2dd4bf; transition:background 0.2s;" onmouseover="this.style.background='rgba(45,212,191,0.22)'" onmouseout="this.style.background='rgba(45,212,191,0.12)'">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <span id="enrichBadgeText">0 enriched</span>
           </div>
         </div>
       </div>
@@ -1002,6 +1007,13 @@
           <h4 class="modal-section-title">Hypervisor & 3rd-Party Compliance Settings</h4>
           <p id="modalDetailThirdParty" style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;"></p>
         </div>
+
+        <!-- Reference Links — populated dynamically by openRemediationModal() -->
+        <div id="modalReferenceLinks" style="display:none; margin-top:16px; padding:14px 16px;
+             background:rgba(0,188,212,0.04); border:1px solid rgba(0,188,212,0.12);
+             border-radius:var(--radius-sm);">
+        </div>
+
       </div>
       <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid var(--border-color);">
         <button class="action-btn secondary" onclick="closeRemediationModal()">Close Action Plan</button>

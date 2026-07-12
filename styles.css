@@ -1,28 +1,30 @@
 /* Custom Variables & Design System */
 :root {
   --bg-primary: #0a0e17;
-  --bg-sidebar: #0e121f;
+  --bg-sidebar: #0d1120;
   --bg-card: rgba(19, 25, 41, 0.75);
   --bg-input: rgba(13, 18, 30, 0.9);
-  
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(0, 115, 230, 0.3);
-  
-  --accent-cyan: #0073e6;
-  --accent-cyan-hover: #005bb8;
-  --accent-gradient: linear-gradient(135deg, #0073e6 0%, #00d2ff 100%);
-  
-  --status-critical: #ff3366;
-  --status-warning: #ffb300;
-  --status-normal: #00e676;
-  --status-info: #00b0ff;
-  
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
-  
+
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-glow: rgba(56, 189, 248, 0.35);
+
+  /* Sky blue — high contrast on dark backgrounds (~7:1 vs #0a0e17) */
+  --accent-cyan: #38bdf8;
+  --accent-cyan-hover: #7dd3fc;
+  --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+
+  --status-critical: #f87171;
+  --status-warning: #fbbf24;
+  --status-normal: #34d399;
+  --status-info: #60a5fa;
+
+  /* Text — lifted for legibility on dark backgrounds */
+  --text-primary: #f1f5f9;       /* slate-100 */
+  --text-secondary: #cbd5e1;     /* slate-300 — was #9ca3af (grey-400), now clearly readable */
+  --text-muted: #94a3b8;         /* slate-400 — was #6b7280 (grey-500), now readable at small sizes */
+
   --font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
   --radius-lg: 16px;
   --radius-md: 10px;
   --radius-sm: 6px;
@@ -111,14 +113,15 @@ body {
 }
 
 .nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background-color: rgba(0, 229, 255, 0.08);
-  border-color: rgba(0, 229, 255, 0.2);
+  background-color: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
   color: var(--accent-cyan);
+  font-weight: 600;
 }
 
 .nav-footer {
@@ -216,7 +219,7 @@ body {
 }
 
 .custom-autocomplete-item:hover {
-  background-color: rgba(0, 229, 255, 0.08);
+  background-color: rgba(56, 189, 248, 0.08);
   color: var(--accent-cyan);
 }
 
@@ -277,6 +280,7 @@ body {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+.spin-anim { animation: spin 1s linear infinite; }
 
 /* Card KPI Panels */
 .kpi-row {
@@ -300,14 +304,14 @@ body {
 
 .card:hover {
   transform: translateY(-4px);
-  border-color: rgba(0, 229, 255, 0.15);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  border-color: rgba(56, 189, 248, 0.2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 .card.kpi-card.active {
   border-color: var(--accent-cyan);
-  background-color: rgba(0, 229, 255, 0.05);
-  box-shadow: 0 8px 30px rgba(0, 229, 255, 0.15);
+  background-color: rgba(56, 189, 248, 0.06);
+  box-shadow: 0 8px 30px rgba(56, 189, 248, 0.12);
 }
 
 .card-title {
@@ -326,7 +330,7 @@ body {
   color: #f8fafc;
   padding: 8px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 229, 255, 0.35);
+  border: 1px solid rgba(56, 189, 248, 0.35);
   font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.4;
@@ -538,16 +542,34 @@ body {
   margin-top: 4px;
 }
 
-/* Hyperlinks in report */
+/* ── Global link colour override ──
+   Browser-default link blue (#0000ee) is unreadable on dark backgrounds.
+   This catches ALL <a> tags, including those embedded in Active IQ API HTML
+   (recommendation text, bulletin links, etc.) that we cannot control directly. */
+a {
+  color: var(--accent-cyan);
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+a:hover {
+  color: var(--accent-cyan-hover);
+  text-decoration: underline;
+}
+a:visited {
+  color: #a78bfa; /* soft violet — distinguishes visited links without going dark */
+}
+
+/* Hyperlinks in report / external references */
 .external-link {
   color: var(--accent-cyan);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-weight: 500;
 }
-
 .external-link:hover {
+  color: var(--accent-cyan-hover);
   text-decoration: underline;
 }
 
@@ -616,7 +638,7 @@ body {
 }
 
 input:checked + .slider {
-  background-color: rgba(0, 229, 255, 0.2);
+  background-color: rgba(56, 189, 248, 0.2);
   border-color: var(--accent-cyan);
 }
 
@@ -798,14 +820,15 @@ input:checked + .slider:before {
 }
 
 .tree-item:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
 }
 
 .tree-item.active {
-  background-color: rgba(0, 229, 255, 0.05);
-  border-color: rgba(0, 229, 255, 0.15);
+  background-color: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
   color: var(--accent-cyan);
+  font-weight: 600;
 }
 
 .tree-text {
@@ -863,7 +886,7 @@ input:checked + .slider:before {
   gap: 4px;
 }
 .copyable-code:hover {
-  background: rgba(0, 229, 255, 0.08) !important;
+  background: rgba(56, 189, 248, 0.1) !important;
   border-color: var(--accent-cyan) !important;
   color: var(--accent-cyan) !important;
 }
@@ -885,11 +908,11 @@ input:checked + .slider:before {
   border-radius: var(--radius-sm);
 }
 #sandboxGraphQLOutput::-webkit-scrollbar-thumb {
-  background: rgba(0, 229, 255, 0.2);
+  background: rgba(56, 189, 248, 0.2);
   border-radius: var(--radius-sm);
 }
 #sandboxGraphQLOutput::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 229, 255, 0.4);
+  background: rgba(56, 189, 248, 0.4);
 }
 
 /* Sub-tab navigation under Executive Action Plan */
@@ -923,9 +946,9 @@ input:checked + .slider:before {
 }
 
 .plan-tab-btn:hover {
-  background: rgba(0, 229, 255, 0.05);
+  background: rgba(56, 189, 248, 0.08);
   color: var(--accent-cyan);
-  border-color: rgba(0, 229, 255, 0.3);
+  border-color: rgba(56, 189, 248, 0.35);
 }
 
 .plan-tab-btn.active {
@@ -933,7 +956,7 @@ input:checked + .slider:before {
   color: #fff;
   border-color: transparent;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0, 229, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
 }
 
 /* Featured/highlighted tab (Deliverables) */
@@ -997,13 +1020,13 @@ input:checked + .slider:before {
   background: rgba(0, 0, 0, 0.2) !important;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 229, 255, 0.15) !important;
+  background: rgba(56, 189, 248, 0.2) !important;
   border-radius: 3px !important;
-  border: 1px solid rgba(0, 229, 255, 0.05) !important;
+  border: 1px solid rgba(56, 189, 248, 0.08) !important;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 229, 255, 0.35) !important;
-  border-color: rgba(0, 229, 255, 0.15) !important;
+  background: rgba(56, 189, 248, 0.4) !important;
+  border-color: rgba(56, 189, 248, 0.2) !important;
 }
 
 /* Physical Node interface slots and link partner styles */
