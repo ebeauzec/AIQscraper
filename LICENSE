@@ -4,25 +4,67 @@ Proprietary Software License
 Copyright (c) 2025–2026 Eugene Beauzec. All Rights Reserved.
 
 ================================================================================
-OWNERSHIP & INDEPENDENT DEVELOPMENT
+OWNERSHIP, INTELLECTUAL PROPERTY RIGHTS AND INDEPENDENT DEVELOPMENT
 ================================================================================
 
-This software and all associated documentation, source code, design, logic,
-data structures, and user interface elements (collectively, the "Software") are
-the sole and exclusive intellectual property of Eugene Beauzec ("Author").
+This software application, including without limitation its source code, object
+code, documentation, technical specifications, architecture, designs, workflows,
+configurations, prompts, scripts, build materials, databases, user interfaces,
+and all related materials, content and developments, whether existing now or
+created in the future, is the sole and exclusive intellectual property of
+Eugene Beauzec ("Author").
 
-The Software was conceived, designed, and developed entirely independently by
-the Author, outside of and without the involvement, direction, funding, or
-contribution of any employer, client, or third party, including but not limited
-to NetApp, Inc. or any of its subsidiaries or affiliates.
+All rights, title and interest in and to the software, including all copyright,
+economic rights, moral rights to the extent applicable, neighbouring rights,
+database rights, know-how, trade secrets, inventions, improvements, derivative
+works, updates, enhancements and all other intellectual property rights, are and
+shall remain exclusively vested in Eugene Beauzec, unless expressly transferred
+by him under a separate written agreement signed by him.
 
-The Software does not contain, incorporate, derive from, or disclose any
-proprietary, confidential, or trade-secret information belonging to NetApp, Inc.
-or any of its customers, partners, or vendors. All NetApp product names,
-terminology, and API endpoint conventions referenced in this Software are used
-solely for interoperability purposes and remain the trademarks and property of
-their respective owners. Such use does not imply endorsement, sponsorship, or
-affiliation.
+The software was independently conceived, authored, developed, tested and
+assembled by Eugene Beauzec on his own time and using independent tools,
+resources and development environments. The software was not created as a
+work-for-hire, commissioned work, employment deliverable, client assignment,
+internal project, sponsored project, or contractual obligation for any employer,
+former employer, client, sponsor, platform provider, user, contributor or third
+party.
+
+No employer, former employer, client, sponsor, platform provider, user,
+contributor or third party shall acquire any ownership interest, licence,
+royalty, profit-share, assignment right, benefit, claim, control, or other right
+in or to the software by reason of Eugene Beauzec's past or present employment,
+sponsorship, administrative status, visa status, immigration status, professional
+relationship, access to the software, use of the software, feedback,
+contribution, or use of independent development tools.
+
+The software does not contain, incorporate, derive from, or rely upon any
+confidential information, proprietary material, customer data, trade secrets,
+private repositories, internal systems, credentials, unpublished documentation,
+business plans, source code, technical materials, employer-provided resources, or
+non-public information belonging to any employer, former employer, client,
+sponsor, platform provider, user, contributor or third party.
+
+Any use of third-party tools, including generative-AI assisted development
+tools, was carried out solely as an independent development aid under Eugene
+Beauzec's personal direction, review, testing, selection and control. No
+confidential, proprietary, customer, internal, employer-owned, client-owned, or
+trade-secret information of any employer, former employer, client, sponsor,
+platform provider, user, contributor or third party was submitted to, uploaded
+into, disclosed to, or used with such tools in connection with the development
+of the software.
+
+If any third-party proprietary material is credibly identified as having been
+inadvertently included in the software, Eugene Beauzec reserves the right to
+remove, replace or remediate such material promptly, without admission of
+liability and without prejudice to his ownership of the remaining software.
+
+Any references to third-party products, services, companies, platforms,
+trademarks, technologies or tools are made solely for identification,
+compatibility, interoperability, technical, or documentation purposes. Such
+references do not imply any affiliation, sponsorship, endorsement, approval,
+authorisation, partnership, licence, or commercial relationship with the
+relevant third-party owner. All third-party trademarks, product names, company
+names and service names remain the property of their respective owners.
 
 ================================================================================
 GRANT OF LICENSE
@@ -74,15 +116,20 @@ Software as follows:
 RESTRICTIONS
 ================================================================================
 
-You may NOT, without the Author's prior explicit written consent:
+No person or entity may, without the Author's prior explicit written consent:
 
-- Sell, sublicense, rent, lease, or lend the Software or any portion thereof;
-- Remove or alter any copyright, trademark, or attribution notice;
+- Copy, reproduce, modify, adapt, translate, publish, or distribute the
+  Software or any portion thereof;
+- Commercialise, sublicense, sell, rent, lease, lend, assign, transfer, or
+  pledge the Software or any portion thereof;
+- Reverse engineer, decompile, disassemble, or otherwise attempt to derive the
+  source code from a compiled form of the Software;
+- Remove, alter, or obscure any copyright, trademark, or attribution notice;
 - Claim authorship or ownership of the Software or any derivative thereof;
 - Use the Author's name, likeness, or identity to endorse or promote products
   derived from this Software;
-- Represent this Software as an official NetApp product, tool, or publication,
-  or imply endorsement by NetApp, Inc.;
+- Represent this Software as an official product, tool, or publication of any
+  employer, client, or third party, including NetApp, Inc.;
 - Use this Software to provide services to third parties for compensation
   without an authorised commercial license.
 
@@ -90,10 +137,14 @@ You may NOT, without the Author's prior explicit written consent:
 INTELLECTUAL PROPERTY RESERVATION
 ================================================================================
 
-All rights not expressly granted in this License are reserved by the Author.
-This License does not transfer any ownership interest in the Software or any
-intellectual property rights therein. The Author retains all moral rights in
-the Software to the fullest extent permitted by applicable law.
+All rights not expressly granted in writing by Eugene Beauzec are strictly
+reserved. This License does not transfer any ownership interest in the Software
+or any intellectual property rights therein. The Author retains all moral rights
+in the Software to the fullest extent permitted by applicable law.
+
+Nothing in this License shall be interpreted as granting any implied licence,
+ownership right, commercial right, assignment, waiver, consent, or permission
+beyond what is expressly granted in writing by Eugene Beauzec.
 
 ================================================================================
 DISCLAIMER OF WARRANTIES
