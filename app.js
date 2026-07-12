@@ -6641,7 +6641,26 @@ function linkify(text) {
   if (!text) return '';
   const s = a => `style="color:var(--accent-cyan);text-decoration:underline;"`;
   const w = a => `style="color:var(--status-warning);text-decoration:underline;"`;
-  return text
+
+  // ── Pre-sanitize: the AIQ API often embeds raw HTML <a> tags in recommendation
+  // text (e.g. `firmware <a href="https://my..." target="_blank">here</a>`).
+  // Running the URL regex over already-linked HTML produces nested <a> tags or,
+  // when the text is truncated mid-tag, exposes raw `" target="_blank">here`
+  // as visible plain text. Strip existing anchor tags first so linkify() only
+  // ever works on plain text input.
+  //   <a href="URL" ...>label</a>  →  label (URL)
+  //   <a href="URL" ...>URL</a>    →  URL   (avoid "URL (URL)" duplicate)
+  let clean = text.replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    (match, url, label) => {
+      const lbl = label.trim().replace(/<[^>]+>/g, ''); // strip any nested tags in label
+      // If the label IS the URL (or is empty), just emit the URL once
+      return (lbl === url || !lbl) ? url : `${lbl} (${url})`;
+    }
+  );
+  // Strip any remaining HTML tags (img, span, strong, etc.) from the plain text
+  clean = clean.replace(/<[^>]+>/g, '');
+
+  return clean
     // Raw https URLs — must come first so later patterns don't double-process
     .replace(/(https?:\/\/[^\s<>"']+)/g,
       '<a href="$1" target="_blank" ' + s() + ' onclick="window.open(this.href,\'_blank\');return false;">$1</a>')
@@ -13669,7 +13688,20 @@ function _renderRecommendationsSection(targetSystems) {
       // linkify() and rescopeText() inject HTML tags. If we truncate AFTER them
       // we can cut mid-tag (e.g. inside an <a href="...">), breaking the DOM and
       // causing the next recommendation card to be nested inside this one.
-      const rawRec    = r.recommendation || '';
+      // ── Pre-strip HTML from raw recommendation text before truncation ──────────
+      // API recommendation text may contain raw HTML <a> tags. Truncating a raw HTML
+      // string at a fixed char offset can cut mid-tag (e.g. inside href="..."),
+      // leaving `" target="_blank">here` visible as plain text even after linkify().
+      // Solution: collapse <a href="URL">label</a> → "label (URL)" and strip all
+      // other HTML tags first, then truncate, then linkify() re-adds styled links.
+      const rawRec = (r.recommendation || '')
+        // Collapse anchors: <a href="URL" ...>label</a> → label (URL)
+        .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, url, lbl) => {
+          const t = lbl.trim().replace(/<[^>]+>/g, '');
+          return (t === url || !t) ? url : `${t} (${url})`;
+        })
+        // Strip remaining tags (strong, span, br, etc.)
+        .replace(/<[^>]+>/g, '');
       const truncated = rawRec.length > 500 ? rawRec.substring(0, 497) + '…' : rawRec;
       const displayText = rescopeText(linkify(truncated), cat, r.subCategory);
       html += `<div style="background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
