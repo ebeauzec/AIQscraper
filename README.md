@@ -1,7 +1,7 @@
 # NetApp Active IQ Advisor Dashboard
 
 [![Version](https://img.shields.io/badge/version-3.3.0-0066cc)](CHANGELOG.md)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
 [![AI Free](https://img.shields.io/badge/AI--Free-100%25-critical)]()
@@ -24,6 +24,7 @@
 8. [Security & Data Privacy](#8-security--data-privacy)
 9. [Troubleshooting](#9-troubleshooting)
 10. [Internal Architecture](#10-internal-architecture) *(Addendum — for developers)*
+11. [Legal & Intellectual Property](#11-legal--intellectual-property)
 
 ---
 
@@ -548,8 +549,43 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ---
 
+## 11. Legal & Intellectual Property
+
+> **Full terms:** [LICENSE](LICENSE) · [LEGAL.md](LEGAL.md)
+
+### Ownership
+
+This Software is the **sole and exclusive intellectual property of Eugene Beauzec**.
+Copyright © 2025–2026 Eugene Beauzec. All Rights Reserved.
+
+### Independent Development
+
+This tool was developed **entirely independently** — on personal time, with personal resources, and without the involvement, direction, or funding of any employer or client, including NetApp, Inc. It does not contain or derive from any proprietary, confidential, or internal NetApp information, customer data, or trade secrets.
+
+NetApp is not affiliated with, sponsoring, or endorsing this Software. Product names referenced (NetApp®, ONTAP®, Active IQ®, etc.) are trademarks of their respective owners, used solely for interoperability documentation.
+
+### License Terms at a Glance
+
+| Use | Permission |
+|---|---|
+| Personal / educational / research | ✅ Free |
+| Internal non-commercial organisational use | ✅ Free |
+| **Commercial use of any kind** | ⛔ **Requires Author's prior written consent** |
+| Redistribution | ⛔ Requires Author's prior written consent |
+| Claiming authorship / removing attribution | ⛔ Prohibited |
+
+This is **not** an open-source or MIT-licensed project. All rights not expressly granted are reserved by the Author.
+
+### Attribution
+
+All permitted uses must retain this notice:
+> *Copyright © 2025–2026 Eugene Beauzec. All Rights Reserved.*
+> *[LICENSE](LICENSE) · [LEGAL.md](LEGAL.md)*
+
+---
+
 <p align="center">
-  <strong>NetApp Active IQ Advisor Dashboard v3.2.0</strong><br>
-  Built for TAMs, by TAMs.<br>
-  <a href="LICENSE">MIT License</a> · <a href="CHANGELOG.md">Changelog</a>
+  <strong>NetApp Active IQ Advisor Dashboard</strong><br>
+  Copyright &copy; 2025&ndash;2026 <strong>Eugene Beauzec</strong>. All Rights Reserved.<br>
+  <a href="LICENSE">Proprietary License</a> &middot; <a href="LEGAL.md">Legal &amp; IP</a> &middot; <a href="CHANGELOG.md">Changelog</a>
 </p>

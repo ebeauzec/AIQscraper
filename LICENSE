@@ -1,33 +1,146 @@
-MIT License
+NetApp Active IQ Advisor Dashboard
+Proprietary Software License
 
-Copyright (c) 2026 Eugene Beauzec
+Copyright (c) 2025–2026 Eugene Beauzec. All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+================================================================================
+OWNERSHIP & INDEPENDENT DEVELOPMENT
+================================================================================
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This software and all associated documentation, source code, design, logic,
+data structures, and user interface elements (collectively, the "Software") are
+the sole and exclusive intellectual property of Eugene Beauzec ("Author").
+
+The Software was conceived, designed, and developed entirely independently by
+the Author, outside of and without the involvement, direction, funding, or
+contribution of any employer, client, or third party, including but not limited
+to NetApp, Inc. or any of its subsidiaries or affiliates.
+
+The Software does not contain, incorporate, derive from, or disclose any
+proprietary, confidential, or trade-secret information belonging to NetApp, Inc.
+or any of its customers, partners, or vendors. All NetApp product names,
+terminology, and API endpoint conventions referenced in this Software are used
+solely for interoperability purposes and remain the trademarks and property of
+their respective owners. Such use does not imply endorsement, sponsorship, or
+affiliation.
+
+================================================================================
+GRANT OF LICENSE
+================================================================================
+
+Subject to the terms and conditions of this License, the Author grants you a
+limited, non-exclusive, non-transferable, revocable license to use this
+Software as follows:
+
+1. NON-COMMERCIAL USE (FREE)
+   You may use, copy, and run this Software, without modification, for personal,
+   educational, research, or other non-commercial purposes at no charge, provided
+   that:
+   (a) This License file and all copyright notices are retained in all copies
+       or substantial portions of the Software; and
+   (b) You do not use the Software in any manner that generates revenue,
+       reduces costs in a commercial context, or forms part of a product or
+       service offered to paying customers.
+
+2. COMMERCIAL USE (REQUIRES PRIOR WRITTEN CONSENT)
+   Any use of the Software — in whole or in part, directly or as part of a
+   derivative work — in a commercial context requires the Author's prior
+   explicit written consent. Commercial use includes, without limitation:
+   (a) Using the Software as part of a product or service sold or licensed to
+       third parties;
+   (b) Using the Software internally within an organisation to generate
+       commercial value, reduce costs, or support revenue-generating activities;
+   (c) Bundling, repackaging, or white-labelling the Software;
+   (d) Using the Software as a managed service offering.
+
+   To request a commercial license, contact the Author directly.
+
+3. MODIFICATION & DERIVATIVE WORKS
+   You may modify the Software for personal, non-commercial use only.
+   Distribution of modified versions, or creation of derivative works for any
+   purpose — commercial or non-commercial — requires the Author's prior explicit
+   written consent. Any authorised derivative work must retain this License and
+   all copyright notices, and must clearly attribute the original Software and
+   its Author.
+
+4. REDISTRIBUTION
+   Redistribution of this Software, in source or compiled form, with or without
+   modification, is not permitted without the Author's prior explicit written
+   consent. Sharing access to a deployed, unmodified instance for non-commercial
+   purposes among colleagues within the same organisation is permitted, provided
+   no charge is levied and this License is made available to all users.
+
+================================================================================
+RESTRICTIONS
+================================================================================
+
+You may NOT, without the Author's prior explicit written consent:
+
+- Sell, sublicense, rent, lease, or lend the Software or any portion thereof;
+- Remove or alter any copyright, trademark, or attribution notice;
+- Claim authorship or ownership of the Software or any derivative thereof;
+- Use the Author's name, likeness, or identity to endorse or promote products
+  derived from this Software;
+- Represent this Software as an official NetApp product, tool, or publication,
+  or imply endorsement by NetApp, Inc.;
+- Use this Software to provide services to third parties for compensation
+  without an authorised commercial license.
+
+================================================================================
+INTELLECTUAL PROPERTY RESERVATION
+================================================================================
+
+All rights not expressly granted in this License are reserved by the Author.
+This License does not transfer any ownership interest in the Software or any
+intellectual property rights therein. The Author retains all moral rights in
+the Software to the fullest extent permitted by applicable law.
+
+================================================================================
+DISCLAIMER OF WARRANTIES
+================================================================================
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, OR NON-INFRINGEMENT. THE AUTHOR
+DOES NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE, UNINTERRUPTED, OR THAT
+DEFECTS WILL BE CORRECTED.
 
----
+================================================================================
+LIMITATION OF LIABILITY
+================================================================================
 
-### INDEMNITY & DISCLAIMER OF LIABILITY
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO
+LOSS OF DATA, BUSINESS INTERRUPTION, SYSTEM DOWNTIME, OR PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES) ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+INABILITY TO USE THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGES.
 
-1. **Unofficial Tooling**: This dashboard is an independent reporting tool designed for NetApp account teams (SAM/TAM/CSM) and is not an officially supported NetApp product. All API data is retrieved from NetApp Active IQ Digital Advisor APIs, and formatting/interpretations are provided "as-is".
-2. **Operational Responsibility**: The user is solely responsible for confirming, testing, and verifying the accuracy of all technical risk indicators, upgrade pathways, field actions, and contract lifecycles before executing maintenance, firmware updates, hardware requests, or configuration changes on production ONTAP clusters.
-3. **Indemnification**: By using this tool, the user agrees to defend, indemnify, and hold harmless the authors, contributors, and administrators of this software from and against any and all claims, damages, obligations, losses, liabilities, costs, or debt, and expenses (including but not limited to attorney's fees) arising from:
-   * System downtime, hardware failures, or data corruption.
-   * Service level agreement (SLA) breaches or service disruptions.
-   * Errors, omissions, or misrepresentations in data parsed from Active IQ.
-   * Expired support contracts or missed renewals not flagged by this interface.
+BY USING THIS SOFTWARE, YOU ACKNOWLEDGE AND AGREE THAT:
+(a) You are solely responsible for verifying the accuracy and suitability of
+    any data, output, or recommendation produced by this Software before acting
+    upon it in any production, operational, or customer-facing context;
+(b) The Author bears no liability for decisions made on the basis of this
+    Software's output, including but not limited to upgrade actions, hardware
+    changes, configuration modifications, or contract renewals.
+
+================================================================================
+GOVERNING LAW
+================================================================================
+
+This License shall be governed by and construed in accordance with applicable
+law. Any disputes arising under or in connection with this License shall be
+subject to the exclusive jurisdiction of the courts of competent jurisdiction
+in the Author's place of residence at the time of the dispute.
+
+================================================================================
+CONTACT
+================================================================================
+
+For commercial licensing inquiries, permissions requests, or any questions
+regarding this License, contact the Author via the repository's issue tracker
+or through the contact information provided in the project's documentation.
+
+================================================================================
+
+Copyright (c) 2025–2026 Eugene Beauzec. All Rights Reserved.
