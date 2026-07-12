@@ -2280,6 +2280,7 @@ const MOCK_SYSTEMS = [
     "FAS8700 (MetroCluster FC)",
     "EF600 (E-Series NVMe)",
     "AFX 1K (AI-Scale Disaggregated)",
+    "AFX 2K (AI-Scale High-Throughput)",
     "ASA A90 r2 (Next-Gen Block)"
   ];
   
@@ -4012,13 +4013,13 @@ const REFERENCE_LIBRARY_ADVISORIES = [
   },
   {
     id: "CVE-2026-20833",
-    title: "Microsoft Kerberos AES-Only Enforcement (KB5073381)",
+    title: "⚠️ ACTIVE: Microsoft Kerberos AES-Only Enforcement (KB5073381) — July 2026 Final Phase",
     product: "ONTAP CIFS/SMB",
-    severity: "medium",
-    cvss: 5.9,
+    severity: "high",
+    cvss: 6.8,
     affectedVersions: { min: "9.3" },
-    description: "Microsoft phased Kerberos AES enforcement (Apr–Jul 2026) may break CIFS authentication on ONTAP systems with RC4/DES encryption still enabled.",
-    remediation: "Confirm AES enabled for Kerberos auth (default since 9.13.1). Disable RC4/DES: 'vserver cifs security modify -vserver <svm> -is-aes-encryption-enabled true'. Verify AD attribute: msds-SupportedEncryptionTypes.",
+    description: "ACTIVE ENFORCEMENT as of July 2026: Microsoft KB5073381 final phase — RC4 is no longer accepted as an implicit Kerberos fallback by the KDC. CIFS authentication failures are occurring NOW in environments not yet configured for AES. SVMs created before ONTAP 9.13.1 are most at risk (AES was NOT default before 9.13.1). SVMs created on 9.13.1+ are generally unaffected. Diagnostic: check DC System event log for Event IDs 201-209 to identify machine accounts still using RC4.",
+    remediation: "IMMEDIATE ACTION for pre-9.13.1 SVMs: (1) 'vserver cifs security show -vserver <svm> -fields advertised-enc-types' — confirm AES listed. (2) 'vserver cifs security modify -vserver <svm> -is-aes-encryption-enabled true' and '-advertised-enc-types aes-128,aes-256'. CAUTION: may require machine account password reset — schedule a maintenance window. (3) Verify AD: Get-ADComputer -Identity <CIFS_machine_account> -Properties msDS-SupportedEncryptionTypes — must include AES (value 0x18).",
     url: "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/ONTAP_Guidance_for_Microsoft_Security_Update_KB5073381_CVE_2026_20833",
     isCIFSOnly: true
   },
@@ -4068,7 +4069,27 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     remediation: "Upgrade Trident to v26.02.0+. Check 'tridentctl version' to confirm current version.",
     url: "https://security.netapp.com/advisory/"
   },
-  // ── Additional CVEs from 2024–2025 ──
+  // ── FreeBSD vulnerability family — logged 2026-07-06, confirmed pre-existing set ──
+  {
+    id: "CVE-2026-4747",
+    title: "FreeBSD RBAC Privilege Escalation in NetApp Products",
+    product: "ONTAP",
+    severity: "high",
+    cvss: 7.8,
+    description: "A privilege escalation vulnerability in the FreeBSD RBAC subsystem affects NetApp products that bundle FreeBSD as their underlying OS (including ONTAP). A local authenticated attacker may gain elevated privileges beyond their assigned role.",
+    remediation: "Apply the ONTAP patch branch update that incorporates the FreeBSD RBAC fix. Restrict management network access to trusted jump hosts. Review the NetApp security advisory portal for your specific version's patch availability.",
+    url: "https://security.netapp.com/advisory/"
+  },
+  {
+    id: "CVE-2026-42511",
+    title: "FreeBSD Kernel Privilege Escalation in NetApp Products",
+    product: "ONTAP",
+    severity: "high",
+    cvss: 7.5,
+    description: "A second FreeBSD kernel vulnerability (sibling to CVE-2026-4747) affecting NetApp products that use FreeBSD as their underlying operating system. Allows local privilege escalation on affected ONTAP versions.",
+    remediation: "Apply the ONTAP patch that incorporates the FreeBSD kernel fix. Review NTAP advisory portal for affected version ranges. Restrict local/management access to authorised administrators only.",
+    url: "https://security.netapp.com/advisory/"
+  },
   {
     id: "CVE-2025-27082",
     ntapId: "NTAP-20250227-0003",
@@ -5435,10 +5456,15 @@ const REFERENCE_LIBRARY_PLATFORM_REPLACEMENTS = {
   // ASA C30 — ASA r2 personality, capacity-flash (QLC NVMe), 24-drive 2U, up to 8 nodes
   "ASA C30":  { use: "Capacity-flash SAN — ASA r2", minOntap: "9.16.1", asaR2: true, symmetricActiveActive: true, noNAS: true, qos: "capacity" },
   // AFX 1K — disaggregated NAS/AI platform (separate product from ASA r2)
-  // ONTAP 9.17.1+, pNFS + S3, NVIDIA DGX SuperPOD certified, up to 128 nodes
-  // Requires RoCE networking (Cisco Nexus 9332D-GX2B / 9364D-GX2A / 9808)
+  // ONTAP 9.17.1+, pNFS + S3, NVIDIA DGX SuperPOD certified
+  // Requires RoCE networking (Cisco Nexus 9332D-GX2B or 9364D-GX2A)
   "AFX 1K":   { use: "Disaggregated NAS/AI (pNFS + S3)", minOntap: "9.17.1", asaR2: false, isAFX: true, noSAN: false, requiresRoCE: true,
-                notes: "Independently scalable compute (DX50) and capacity (NX224 NVMe shelves). Up to 128 nodes. NVIDIA DGX SuperPOD certified." },
+                notes: "Independently scalable compute (DX50 optional) and capacity (NX224 NVMe shelves). NVIDIA DGX SuperPOD certified. Switches: Cisco Nexus 9332D-GX2B (1U) or 9364D-GX2A (2U)." },
+  // AFX 2K — higher-tier AFX controller (2U, added July 2026)
+  // Same SAZ/ONTAP AFX personality, larger/higher-throughput than AFX 1K
+  // Adds Cisco Nexus 9808 (16U) switch support for larger-scale deployments
+  "AFX 2K":   { use: "Disaggregated NAS/AI — high-throughput (pNFS + S3)", minOntap: "9.17.1", asaR2: false, isAFX: true, noSAN: false, requiresRoCE: true,
+                notes: "Higher-performance AFX controller tier (2U, 4-node minimum). Supports Cisco Nexus 9808 (16U) switches for large-scale AI factory deployments, alongside 9332D-GX2B and 9364D-GX2A. Same SAZ architecture, ONTAP AFX personality, and NX224 shelf ecosystem as AFX 1K. NVIDIA AIDE integration. REST-only API, no ZAPI." },
   // E-Series new generation (SANtricity OS — NOT ONTAP)
   "EF50":     { use: "HPC/AI scratch block (SANtricity)", minOntap: "N/A (SANtricity)", isEseries: true, asaR2: false,
                 notes: "Announced March 2026. >110 GBps read, >55 GBps write. 1.5 PB in 2U. AI/HPC/BeeGFS/Lustre target. Not ONTAP." },
@@ -7901,7 +7927,7 @@ function renderCSMTab() {
     fpAdoptionBadge = `<span class="badge normal">Tiering Active</span>`;
     fpStatusText = `System is tiering <strong>${fpTiered.toFixed(1)} TB</strong> of cold data to public/private cloud object storage. This saves premium flash tier capacity.`;
   } else {
-    fpAdoptionBadge = `<span class="badge warning">No Cloud Tiering</span>`;
+    fpAdoptionBadge = `<span class="badge warning">No FabricPool Tiering</span>`;  // Note: NetApp Cloud Tiering service EOA April 24 2026 — FabricPool is the current term
     fpStatusText = `<span style="color: var(--status-warning);">Potential opportunity!</span> Enable FabricPool tiering to offload cold backup/snapshot data to cheaper object storage and free up premium flash capacity.`;
   }
 
