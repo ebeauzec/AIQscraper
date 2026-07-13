@@ -17103,6 +17103,63 @@ async function checkAutoSync() {
 // Start auto-sync checking timer
 setInterval(checkAutoSync, 60000); // Check every 60 seconds
 
+// ── manualRefresh ─────────────────────────────────────────────────────────────
+// Triggered by the Refresh button in the top header bar.
+// Force-pulls live data from the AIQ API (bypasses server cache), re-syncs all
+// enrichment sources, invalidates every memo/dirty cache, then re-renders the
+// current tab exactly in-place (no tab switch, scroll position preserved).
+async function manualRefresh() {
+  const btn  = document.getElementById('manualRefreshBtn');
+  const icon = document.getElementById('refreshBtnIcon');
+  const text = document.getElementById('refreshBtnText');
+
+  // ── Visual: enter loading state ──────────────────────────────────────────
+  if (btn)  { btn.disabled = true; btn.style.opacity = '0.65'; btn.style.cursor = 'not-allowed'; }
+  if (icon) { icon.style.animation = 'spin 0.8s linear infinite'; icon.style.transformOrigin = 'center'; }
+  if (text) { text.textContent = 'Refreshing…'; }
+
+  // ── Capture current scroll position so we can restore it after render ────
+  const mainContent = document.querySelector('.main-content');
+  const scrollY = mainContent ? mainContent.scrollTop : 0;
+
+  // ── Bust all memo caches — fresh data must flow through every guard ───────
+  _gfsKeyIncl = null; _gfsResIncl = null;
+  _gfsKeyExcl = null; _gfsResExcl = null;
+  _chartDataStamp  = null;
+  _selectorStamp   = null;
+  _sidebarStamp    = null;
+  _upgradePathCache.clear();
+
+  try {
+    // 1. Force pull from Active IQ API (force=1 bypasses server-side cache)
+    await loadProductionData(true);
+
+    // 2. Re-sync enrichment engine — CVE data, version mapping, vulnerability info
+    //    Runs non-blocking via setTimeout so it never stalls the UI thread
+    setTimeout(() => enrichmentEngine.syncFromServer(state.systems), 400);
+
+    // 3. Re-render current tab in-place — switches to same tab (no visual jump)
+    //    refreshUIState() calls switchTab(state.activeTab || 'overview') which
+    //    just re-renders without navigating away
+    refreshUIState();
+
+    console.log('[AIQ] Manual refresh complete.');
+  } catch (err) {
+    console.error('[AIQ] Manual refresh failed:', err);
+  } finally {
+    // ── Restore scroll position (rAF ensures DOM has settled first) ──────────
+    if (mainContent) {
+      requestAnimationFrame(() => { mainContent.scrollTop = scrollY; });
+    }
+
+    // ── Restore button to idle state ─────────────────────────────────────────
+    if (btn)  { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+    if (icon) { icon.style.animation = ''; }
+    if (text) { text.textContent = 'Refresh'; }
+  }
+}
+
+
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
