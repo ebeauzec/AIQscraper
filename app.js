@@ -1,4 +1,4 @@
-﻿// Active IQ Web Client - Core Application Logic
+// Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
 // This tool is designed to be strictly READ-ONLY. Under no circumstances should
@@ -8729,33 +8729,83 @@ function renderCSMTab() {
       </div>
     `;
 
-    // 4. Checklist aggregate
-    let efficiencyPass = 0, cloudPass = 0, drPass = 0, riskPass = 0;
+    // 4. Checklist aggregate — TAM/MSP remediation readiness (9 checks)
+    const _latestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
+    let _verPass = 0, _effPass = 0, _cloudPass = 0, _drPass = 0;
+    let _riskPass = 0, _contractPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
+    let _verDetails = [];
+
     targetCSMSystems.forEach(s => {
-      if (parseFloat(s.efficiency.ratio.split(":")[0]) > 1.5) efficiencyPass++;
-      if (s.efficiency.fabricPoolTieredTB > 0) cloudPass++;
-      if (s.snapmirror && s.snapmirror.enabled) drPass++;
-      if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) riskPass++;
+      // 1. OS on recommended version (no outstanding upgrade recommendation)
+      const _hasUpgrade = !!(s.upgrades && s.upgrades.targetVersion);
+      if (!_hasUpgrade) _verPass++;
+      else _verDetails.push(`${s.systemName}: ${s.ontapVersion || '?'} \u2192 ${s.upgrades.targetVersion}`);
+
+      // 2. Storage efficiency >= 1.5:1
+      if (parseFloat((s.efficiency.ratio || '1:1').split(':')[0]) > 1.5) _effPass++;
+
+      // 3. FabricPool cloud tiering active
+      if (s.efficiency.fabricPoolTieredTB > 0) _cloudPass++;
+
+      // 4. SnapMirror / replication active
+      if (s.snapmirror && s.snapmirror.enabled) _drPass++;
+
+      // 5. Zero high/critical risks
+      if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) _riskPass++;
+
+      // 6. Support contract active (> 90 days remaining)
+      if (s.contracts && s.contracts.daysRemaining > 90) _contractPass++;
+
+      // 7. AutoSupport HTTPS active and reporting within 7 days
+      const _asup = s.autosupport || {};
+      if (_asup.enabled !== false && _asup.status !== 'failed' && _asup.status !== 'disabled' &&
+          (_asup.lastReceivedDays == null || _asup.lastReceivedDays <= 7)) _asupPass++;
+
+      // 8. Hardware not on EOA/EOS platform list
+      const _modelStr = (s.platform || s.model || '').toUpperCase();
+      if (!REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => _modelStr.includes(p.toUpperCase()))) _hwPass++;
+
+      // 9. No active security CVEs applicable to system
+      const _sec = getApplicableSecurityBulletins(s.ontapVersion, s.platform).filter(b => b.status !== 'resolved');
+      if (_sec.length === 0) _secPass++;
     });
-    const checklist = [
-      { name: "ONTAP 9.10+ / StorageGRID 11.5+", completedCount: targetCSMSystems.length },
-      { name: "Storage Efficiency Enabled (>1.5:1)", completedCount: efficiencyPass },
-      { name: "Cloud FabricPool Configured", completedCount: cloudPass },
-      { name: "SnapMirror DR Configured", completedCount: drPass },
-      { name: "Zero High/Critical Risks", completedCount: riskPass }
+
+    const _n = targetCSMSystems.length;
+    const _vDetail = _verDetails.length > 0
+      ? _verDetails.slice(0, 2).join(' | ') + (_verDetails.length > 2 ? ` +${_verDetails.length - 2} more` : '')
+      : '';
+
+    const _checklist = [
+      { name: `OS on Recommended Version (target: ONTAP ${_latestOntap})`, completedCount: _verPass,     detail: _vDetail },
+      { name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',         completedCount: _effPass,    detail: '' },
+      { name: 'Cloud FabricPool / Cold-Data Tiering Active',                    completedCount: _cloudPass,  detail: '' },
+      { name: 'SnapMirror Async/Sync Replication Configured',                   completedCount: _drPass,     detail: '' },
+      { name: 'Zero High/Critical Risks Outstanding',                           completedCount: _riskPass,   detail: '' },
+      { name: 'Support Contract Active (> 90 days remaining)',                  completedCount: _contractPass, detail: '' },
+      { name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',         completedCount: _asupPass,   detail: '' },
+      { name: 'Hardware on Current Platform Generation (non-EOA)',              completedCount: _hwPass,     detail: '' },
+      { name: 'No Active Security CVEs Applicable (PSIRT)',                     completedCount: _secPass,    detail: '' }
     ];
-    let checklistHTML = "";
-    checklist.forEach(item => {
+
+    let checklistHTML = '';
+    _checklist.forEach(item => {
+      const _allDone = item.completedCount === _n;
+      const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
+      const _pct = Math.round((item.completedCount / Math.max(_n, 1)) * 100);
       checklistHTML += `
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
-          <span style="font-size: 0.85rem;">${item.name}</span>
-          <span style="font-size: 0.85rem; font-weight: 600; color: ${item.completedCount === targetCSMSystems.length ? "var(--status-normal)" : "var(--status-warning)"};">
-            ${item.completedCount}/${targetCSMSystems.length} Done
-          </span>
+        <div style="padding: 8px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${item.detail ? 3 : 2}px;">
+            <span style="font-size: 0.82rem;">${item.name}</span>
+            <span style="font-size: 0.82rem; font-weight: 600; color: ${_col}; white-space: nowrap; margin-left: 8px;">${item.completedCount}/${_n}</span>
+          </div>
+          ${item.detail ? `<div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 3px;">${item.detail}</div>` : ''}
+          <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;">
+            <div style="height: 100%; width: ${_pct}%; background: ${_col}; border-radius: 2px;"></div>
+          </div>
         </div>
       `;
     });
-    document.getElementById("csmAdoptionChecklist").innerHTML = checklistHTML;
+    document.getElementById('csmAdoptionChecklist').innerHTML = checklistHTML;
 
     // 5. Projections aggregate
     let totalGrowth = 0, minDaysToLimit = 9999, worstLimitDate = "N/A", worstSystemName = "";
@@ -8926,27 +8976,84 @@ function renderCSMTab() {
     `;
   }
 
-  const checklist = [
-    { name: "ONTAP 9.10+ / StorageGRID 11.5+", completed: true },
-    { name: "Storage Efficiency Enabled (>1.5:1)", completed: parseFloat(sys.efficiency.ratio.split(":")[0]) > 1.5 },
-    { name: "Cloud FabricPool Configured", completed: fpTiered > 0 },
-    { name: "SnapMirror DR Configured", completed: sys.snapmirror.enabled },
-    { name: "Zero High/Critical Risks", completed: sys.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0 }
+  // Single-system checklist — 9 TAM/MSP remediation checks
+  const _sLatestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
+  const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
+  const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion);
+  const _sAsup       = sys.autosupport || {};
+  const _sIsEOA      = REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => (sys.platform || sys.model || '').toUpperCase().includes(p.toUpperCase()));
+  const _sCVEs       = getApplicableSecurityBulletins(sys.ontapVersion, sys.platform).filter(b => b.status !== 'resolved');
+  const _sCritH      = sys.risks.filter(r => r.severity === 'critical' || r.severity === 'high');
+  const _sCrit       = _sCritH.filter(r => r.severity === 'critical').length;
+  const _sHigh       = _sCritH.filter(r => r.severity === 'high').length;
+
+  const _sSingle = [
+    {
+      name: `OS on Recommended Version (target: ONTAP ${_sLatestOntap})`,
+      ok: !_sHasUpgrade,
+      detail: _sHasUpgrade ? `${_sCurVer} \u2192 ${sys.upgrades.targetVersion} upgrade recommended` : `${_sCurVer} \u2014 on target`
+    },
+    {
+      name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',
+      ok: parseFloat((sys.efficiency.ratio || '1:1').split(':')[0]) > 1.5,
+      detail: `Current ratio: ${sys.efficiency.ratio || 'N/A'}`
+    },
+    {
+      name: 'Cloud FabricPool / Cold-Data Tiering Active',
+      ok: fpTiered > 0,
+      detail: fpTiered > 0 ? `${fpTiered.toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
+    },
+    {
+      name: 'SnapMirror Async/Sync Replication Configured',
+      ok: sys.snapmirror.enabled,
+      detail: sys.snapmirror.enabled ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
+    },
+    {
+      name: 'Zero High/Critical Risks Outstanding',
+      ok: _sCritH.length === 0,
+      detail: _sCritH.length > 0 ? `${_sCrit} critical, ${_sHigh} high \u2014 remediation required` : 'No critical or high risks'
+    },
+    {
+      name: 'Support Contract Active (> 90 days remaining)',
+      ok: !!(sys.contracts && sys.contracts.daysRemaining > 90),
+      detail: sys.contracts
+        ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`)
+        : 'No contract data available'
+    },
+    {
+      name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',
+      ok: _sAsup.enabled !== false && _sAsup.status !== 'failed' && _sAsup.status !== 'disabled' && (_sAsup.lastReceivedDays == null || _sAsup.lastReceivedDays <= 7),
+      detail: _sAsup.status ? `Status: ${_sAsup.status}${_sAsup.lastReceivedDays != null ? ', last received ' + _sAsup.lastReceivedDays + 'd ago' : ''}` : 'AutoSupport status unknown'
+    },
+    {
+      name: 'Hardware on Current Platform Generation (non-EOA)',
+      ok: !_sIsEOA,
+      detail: _sIsEOA ? `${sys.platform} is End-of-Availability \u2014 refresh planning required` : `${sys.platform} is current generation`
+    },
+    {
+      name: 'No Active Security CVEs Applicable (PSIRT)',
+      ok: _sCVEs.length === 0,
+      detail: _sCVEs.length > 0
+        ? `${_sCVEs.length} active: ${_sCVEs.slice(0, 3).map(b => b.cve || b.id || '').filter(Boolean).join(', ')}${_sCVEs.length > 3 ? ` +${_sCVEs.length - 3} more` : ''}`
+        : 'No active advisories for this version'
+    }
   ];
 
-  let checklistHTML = "";
-  checklist.forEach(item => {
+  let checklistHTML = '';
+  _sSingle.forEach(item => {
+    const _col = item.ok ? 'var(--status-normal)' : 'var(--status-critical)';
+    const _dCol = item.ok ? 'var(--text-muted)' : 'var(--status-warning)';
     checklistHTML += `
-      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
-        <span style="font-size: 0.85rem;">${item.name}</span>
-        ${item.completed ? 
-          `<span style="color: var(--status-normal); font-weight: bold; font-size: 1.1rem;">✓</span>` : 
-          `<span style="color: var(--status-critical); font-weight: bold; font-size: 1rem;">✗</span>`
-        }
+      <div style="padding: 8px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px;">
+          <span style="font-size: 0.82rem; flex: 1;">${item.name}</span>
+          <span style="font-size: 1rem; font-weight: bold; color: ${_col}; flex-shrink: 0;">${item.ok ? '\u2713' : '\u2717'}</span>
+        </div>
+        <div style="font-size: 0.72rem; color: ${_dCol};">${item.detail}</div>
       </div>
     `;
   });
-  document.getElementById("csmAdoptionChecklist").innerHTML = checklistHTML;
+  document.getElementById('csmAdoptionChecklist').innerHTML = checklistHTML;
 
   // Render Projections & Forecasting Metrics & Line Chart
   const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
