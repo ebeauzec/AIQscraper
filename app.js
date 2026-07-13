@@ -9906,6 +9906,30 @@ function enrichSystemTelemetry(s) {
     };
   }
 
+  // ── Capacity backfill ─────────────────────────────────────────────────────
+  // Mock systems set s.efficiency directly with physicalUsedTB / logicalUsedTB
+  // but omit usableCapacityTB and rawCapacityTB.  The overview charts read
+  //   availableCapacity = usableCapacityTB - physicalUsedTB
+  // so without this backfill, Available always renders as 0.
+  // Realistic ONTAP model (RAID-DP, 2 hot spares / shelf):
+  //   rawCapacityTB   ≈ physical × 2.5   (marketed raw before RAID overhead)
+  //   usableCapacityTB ≈ physical × 1.75  (net after RAID, spares, root aggr)
+  // E-Series / StorageGRID use different models — kept proportional.
+  if (efficiency && (!efficiency.usableCapacityTB || efficiency.usableCapacityTB === 0)) {
+    const p       = efficiency.physicalUsedTB || 0;
+    const ratioNum = parseFloat((efficiency.ratio || '1.0:1').split(':')[0]) || 1.0;
+    const rawMult    = isFAS ? 3.0 : isEseries ? 2.8 : isStorageGrid ? 4.0 : 2.5;
+    const usableMult = isFAS ? 2.2 : isEseries ? 2.0 : isStorageGrid ? 3.5 : 1.75;
+    efficiency.rawCapacityTB    = parseFloat((p * rawMult).toFixed(1));
+    efficiency.usableCapacityTB = parseFloat((p * usableMult).toFixed(1));
+    efficiency.dataReductionRatio = efficiency.dataReductionRatio || ratioNum;
+  }
+  // Ensure spaceSavedTB is computed if missing
+  if (efficiency && (efficiency.spaceSavedTB === undefined || efficiency.spaceSavedTB === null)) {
+    efficiency.spaceSavedTB = parseFloat(
+      Math.max(0, (efficiency.logicalUsedTB || 0) - (efficiency.physicalUsedTB || 0)).toFixed(1)
+    );
+  }
 
   // 5. Dynamic Logistics & Contacts
   let logistics;
