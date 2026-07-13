@@ -5692,8 +5692,17 @@ function versionLt(ver, limit) {
 // Called during enrichSystemTelemetry() for live and mock systems
 // Returns array of {id, cve, cvss, severity, title, status, mitigation, link}
 // ─────────────────────────────────────────────────────────────────────────────
+// ─── Security bulletin result cache — keyed by "version|platform" ────────────
+// getApplicableSecurityBulletins() iterates the entire NETAPP_SECURITY_BULLETIN_DB
+// on every call. With 13+ systems × multiple renders per session, memoizing this
+// function eliminates the single biggest synchronous work block per render cycle.
+const _secBulletinCache = new Map();
+
 function getApplicableSecurityBulletins(ontapVersion, platformType) {
+  const _cacheKey = (ontapVersion || '') + '|' + (platformType || '');
+  if (_secBulletinCache.has(_cacheKey)) return _secBulletinCache.get(_cacheKey);
   if (!ontapVersion) return [];
+
   const results = [];
   const pType = (platformType || '').toLowerCase();
   const isStorageGrid = pType.includes('storagegrid') || pType.includes('sg');
@@ -5754,9 +5763,9 @@ function getApplicableSecurityBulletins(ontapVersion, platformType) {
       });
     }
   }
-  // Sort: critical → high → medium → low
   const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
   results.sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
+  _secBulletinCache.set(_cacheKey, results);
   return results;
 }
 
@@ -17196,11 +17205,29 @@ async function loadProductionData(forceRefresh = false) {
   refreshUIState();
 }
 
+// ─── Debounce utility ─────────────────────────────────────────────────────────
+// Returns a function that delays invoking fn until after `wait` ms have elapsed
+// since the last invocation. Used to throttle expensive search/resize renders.
+function debounce(fn, wait) {
+  let _timer;
+  return function(...args) {
+    clearTimeout(_timer);
+    _timer = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
+// Cached last query to avoid redundant full-render cycles when the search
+// value hasn't actually changed (e.g. arrow-key navigation, focus events).
+let _lastSearchQuery = null;
+
 function handleSearch(e) {
-  state.activeSearchQuery = e.target.value;
+  const newQuery = e.target.value;
+  if (newQuery === _lastSearchQuery) return;  // no-op — query unchanged
+  _lastSearchQuery = newQuery;
+  state.activeSearchQuery = newQuery;
   switchTab(state.currentTab);
   renderSidebarGroups();
-  updateCustomSearchSuggestions(e.target.value);
+  updateCustomSearchSuggestions(newQuery);
 }
 
 function executeSearchGo() {
@@ -17473,7 +17500,7 @@ window.onload = async function() {
   }
   renderSidebarGroups();
 
-  document.getElementById("searchInput").addEventListener("input", handleSearch);
+  document.getElementById("searchInput").addEventListener("input", debounce(handleSearch, 180));
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       executeSearchGo();
@@ -17498,11 +17525,11 @@ window.onload = async function() {
     }
   });
   
-  window.addEventListener('resize', () => {
+  window.addEventListener('resize', debounce(() => {
     if (state.currentTab === "overview") {
       renderCharts();
     }
-  });
+  }, 200));
 };
 
 // GraphQL Query Sandbox Execution handler
