@@ -22,6 +22,35 @@ const MOCK_SYSTEMS = [
     ontapVersion: "9.15.1P2",
     platform: "AFF A90 (On-Prem NVMe)",
     status: "warning",
+    clusterRawCapacityTB: 71.8,
+    clusterUsableCapacityTB: 50.2,
+    clusterPhysicalUsedTB: 28.7,
+    clusterLogicalUsedTB: 120.5,
+    clusterMgmtIp: "10.100.1.10",
+    haConfigured: true,
+    nodeSvmCount: 2,
+    dataSvmCount: 4,
+    localTierCount: 6,
+    volumeCount: 127,
+    lunCount: 0,
+    qtreeCount: 42,
+    snapmirrorCount: 8,
+    clusterQoQUtilPct: 4.2,
+    clusterYoYUtilPct: 16.8,
+    clusterMonthlyCapacity: [
+      { month: "2025-08", usedTB: 13.0, rawTB: 32.5 },
+      { month: "2025-09", usedTB: 14.1, rawTB: 35.2 },
+      { month: "2025-10", usedTB: 15.3, rawTB: 38.2 },
+      { month: "2025-11", usedTB: 16.6, rawTB: 41.4 },
+      { month: "2025-12", usedTB: 17.5, rawTB: 43.7 },
+      { month: "2026-01", usedTB: 18.5, rawTB: 46.2 },
+      { month: "2026-02", usedTB: 20.1, rawTB: 50.2 },
+      { month: "2026-03", usedTB: 22.0, rawTB: 54.9 },
+      { month: "2026-04", usedTB: 24.2, rawTB: 60.4 },
+      { month: "2026-05", usedTB: 26.5, rawTB: 66.1 },
+      { month: "2026-06", usedTB: 27.6, rawTB: 68.9 },
+      { month: "2026-07", usedTB: 28.7, rawTB: 71.6 }
+    ],
     risks: [
       {
         id: 101,
@@ -142,7 +171,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 120.5,
       physicalUsedTB: 28.7,
       spaceSavedTB: 91.8,
-      fabricPoolTieredTB: 12.4
+      fabricPoolTieredTB: 12.4,
+      usableCapacityTB: 50.2,
+      rawCapacityTB: 71.8,
+      dataReductionRatio: 4.2
     },
     snapmirror: {
       enabled: true,
@@ -333,7 +365,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 250.0,
       physicalUsedTB: 71.4,
       spaceSavedTB: 178.6,
-      fabricPoolTieredTB: 48.0
+      fabricPoolTieredTB: 48.0,
+      usableCapacityTB: 128.5,
+      rawCapacityTB: 142.8,
+      dataReductionRatio: 3.1
     },
     snapmirror: {
       enabled: true,
@@ -494,7 +529,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 850.0,
       physicalUsedTB: 850.0,
       spaceSavedTB: 0.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 2975.0,
+      rawCapacityTB: 3400.0,
+      dataReductionRatio: 1.0
     },
     snapmirror: {
       enabled: false,
@@ -689,7 +727,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 540.0,
       physicalUsedTB: 142.1,
       spaceSavedTB: 397.9,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 312.6,
+      rawCapacityTB: 426.3,
+      dataReductionRatio: 1.5
     },
     snapmirror: {
       enabled: true,
@@ -855,7 +896,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 512.0,
       physicalUsedTB: 134.7,
       spaceSavedTB: 377.3,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 296.3,
+      rawCapacityTB: 404.1,
+      dataReductionRatio: 1.5
     },
     snapmirror: {
       enabled: true,
@@ -967,7 +1011,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 350.0,
       physicalUsedTB: 72.9,
       spaceSavedTB: 277.1,
-      fabricPoolTieredTB: 85.0
+      fabricPoolTieredTB: 85.0,
+      usableCapacityTB: 127.6,
+      rawCapacityTB: 182.3,
+      dataReductionRatio: 3.2
     },
     snapmirror: {
       enabled: false,
@@ -1065,7 +1112,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 160.0,
       physicalUsedTB: 40.0,
       spaceSavedTB: 120.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 70.0,
+      rawCapacityTB: 100.0,
+      dataReductionRatio: 4.1
     },
     snapmirror: {
       enabled: true,
@@ -1175,7 +1225,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 450.0,
       physicalUsedTB: 450.0,
       spaceSavedTB: 0.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 787.5,
+      rawCapacityTB: 1125.0,
+      dataReductionRatio: 3.9
     },
     snapmirror: {
       enabled: false,
@@ -1284,7 +1337,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 140.0,
       physicalUsedTB: 50.0,
       spaceSavedTB: 90.0,
-      fabricPoolTieredTB: 22.0
+      fabricPoolTieredTB: 22.0,
+      usableCapacityTB: 87.5,
+      rawCapacityTB: 125.0,
+      dataReductionRatio: 3.7
     },
     snapmirror: {
       enabled: true,
@@ -1386,7 +1442,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 54.0,
       physicalUsedTB: 30.0,
       spaceSavedTB: 24.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 52.5,
+      rawCapacityTB: 75.0,
+      dataReductionRatio: 4.5
     },
     snapmirror: {
       enabled: false,
@@ -1467,7 +1526,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 54.0,
       physicalUsedTB: 30.0,
       spaceSavedTB: 24.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 52.5,
+      rawCapacityTB: 75.0,
+      dataReductionRatio: 4.5
     },
     snapmirror: {
       enabled: false,
@@ -1536,7 +1598,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 170.0,
       physicalUsedTB: 50.0,
       spaceSavedTB: 120.0,
-      fabricPoolTieredTB: 10.0
+      fabricPoolTieredTB: 10.0,
+      usableCapacityTB: 87.5,
+      rawCapacityTB: 125.0,
+      dataReductionRatio: 3.8
     },
     snapmirror: {
       enabled: false,
@@ -1621,7 +1686,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 350.0,
       physicalUsedTB: 140.0,
       spaceSavedTB: 210.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 245.0,
+      rawCapacityTB: 350.0,
+      dataReductionRatio: 3.5
     },
     snapmirror: {
       enabled: true,
@@ -1701,7 +1769,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 450.0,
       physicalUsedTB: 100.0,
       spaceSavedTB: 350.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 175.0,
+      rawCapacityTB: 250.0,
+      dataReductionRatio: 3.0
     },
     snapmirror: {
       enabled: false,
@@ -1778,7 +1849,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 950.0,
       physicalUsedTB: 950.0,
       spaceSavedTB: 0.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 1662.5,
+      rawCapacityTB: 2375.0,
+      dataReductionRatio: 2.8
     },
     snapmirror: {
       enabled: false,
@@ -1845,7 +1919,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 85.0,
       physicalUsedTB: 85.0,
       spaceSavedTB: 0,
-      fabricPoolTieredTB: 0
+      fabricPoolTieredTB: 0,
+      usableCapacityTB: 148.8,
+      rawCapacityTB: 212.5,
+      dataReductionRatio: 3.6
     },
     securityBulletins: [],
     supportCases: [],
@@ -1929,7 +2006,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 140.0,
       physicalUsedTB: 140.0,
       spaceSavedTB: 0,
-      fabricPoolTieredTB: 0
+      fabricPoolTieredTB: 0,
+      usableCapacityTB: 245.0,
+      rawCapacityTB: 350.0,
+      dataReductionRatio: 2.2
     },
     securityBulletins: [],
     supportCases: [],
@@ -2045,7 +2125,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 210.0,
       physicalUsedTB: 50.0,
       spaceSavedTB: 160.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 87.5,
+      rawCapacityTB: 125.0,
+      dataReductionRatio: 2.8
     },
     snapmirror: {
       enabled: false,
@@ -2161,7 +2244,10 @@ const MOCK_SYSTEMS = [
       logicalUsedTB: 1100.0,
       physicalUsedTB: 1100.0,
       spaceSavedTB: 0.0,
-      fabricPoolTieredTB: 0.0
+      fabricPoolTieredTB: 0.0,
+      usableCapacityTB: 3850.0,
+      rawCapacityTB: 4400.0,
+      dataReductionRatio: 1.0
     },
     snapmirror: {
       enabled: false,
@@ -10647,6 +10733,19 @@ function enrichSystemTelemetry(s) {
   if (hasCritRisk || contractExpired) computedStatus = 'critical';
   else if (hasHighRisk || asupFailed || (contracts && contracts.daysRemaining <= 90)) computedStatus = 'warning';
 
+  // ── Backfill contractActive + isARPEnabled for mock/non-live systems ───────
+  // contractActive: derived from contracts object; real API provides it as a boolean.
+  // Without this, Contract Coverage in CSM/reports shows 0/N (undefined !== true).
+  const _contractActive = s.contractActive != null
+    ? s.contractActive
+    : (contracts ? contracts.daysRemaining > 0 && contracts.status !== 'expired' : false);
+
+  // isARPEnabled: AFF/ASA systems support ARP (ONTAP 9.10.1+). FAS/SG/E-Series do not.
+  // Without this, ARP Coverage in CSM/reports shows 0/N (undefined !== true).
+  const _isARPEnabled = s.isARPEnabled != null
+    ? s.isARPEnabled
+    : !isStorageGrid && !isEseries && (isAFF || isASA || isASAr2 || isAFX || isCVO);
+
   return {
     _source:           s._source || (isLiveData ? 'graphql' : undefined),
     serialNumber:      serial,
@@ -10701,7 +10800,7 @@ function enrichSystemTelemetry(s) {
     siteCity:          s.siteCity || '',
     siteCountry:       s.siteCountry || '',
     // ── Extended Contract ──
-    contractActive:    s.contractActive,
+    contractActive:    _contractActive,
     contractEndDate:   s.contractEndDate || s.contractExpiry || '',
     contractExpiry:    s.contractExpiry || '',
     warrantyEndDate:   s.warrantyEndDate || '',
@@ -10730,7 +10829,7 @@ function enrichSystemTelemetry(s) {
     isMetroCluster:    s.isMetroCluster,
     isAllFlashOptimized: s.isAllFlashOptimized,
     isFlexPod:         s.isFlexPod,
-    isARPEnabled:      s.isARPEnabled,
+    isARPEnabled:      _isARPEnabled,
     operatingMode:     s.operatingMode || '',
     propensityCategory: s.propensityCategory || '',
     nextBestAction:    s.nextBestAction || '',
