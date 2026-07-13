@@ -3171,6 +3171,12 @@ let efficiencyChartInstance = null;
 let capacityChartInstance = null;
 let projectionsChartInstance = null; // Line chart for capacity & performance trends
 
+// ── Chart data fingerprint — avoids destroy/recreate when data is unchanged ───
+// renderCharts() is called on every Overview render (filter click, search, auto-sync).
+// Skipping the expensive Chart.js teardown+init when the underlying data is
+// bit-for-bit identical eliminates the most visible jank in the app.
+let _chartDataStamp = null;
+
 function renderCharts() {
   const ctxEff = document.getElementById('efficiencyChart');
   const ctxCap = document.getElementById('capacityChart');
@@ -3179,11 +3185,25 @@ function renderCharts() {
 
   const filteredSystems = getFilteredSystems();
 
+  if (filteredSystems.length === 0) {
+    // Data cleared — destroy orphaned instances and reset stamp
+    if (efficiencyChartInstance) { efficiencyChartInstance.destroy(); efficiencyChartInstance = null; }
+    if (capacityChartInstance)   { capacityChartInstance.destroy();   capacityChartInstance   = null; }
+    _chartDataStamp = null;
+    return;
+  }
+  if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+
+  // Build a lightweight fingerprint of the data that drives both charts.
+  // Include serial + physicalUsedTB + usableCapacityTB + fabricPoolTieredTB.
+  const _newStamp = filteredSystems.map(s =>
+    `${s.serialNumber}:${(s.efficiency.physicalUsedTB||0).toFixed(1)}:${(s.efficiency.usableCapacityTB||0).toFixed(1)}:${(s.efficiency.fabricPoolTieredTB||0).toFixed(1)}`
+  ).join('|');
+  if (_newStamp === _chartDataStamp && efficiencyChartInstance && capacityChartInstance) return; // data unchanged
+  _chartDataStamp = _newStamp;
+
   if (efficiencyChartInstance) efficiencyChartInstance.destroy();
   if (capacityChartInstance) capacityChartInstance.destroy();
-
-  if (filteredSystems.length === 0) return;
-  if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
 
   // ── Donut: fleet capacity utilisation (physical used vs available) ──────────
   // "Available" = sum of (usableCapacityTB - physicalUsedTB), floored at 0.
@@ -3381,7 +3401,26 @@ function renderCharts() {
   });
 }
 
+// ── getFilteredSystems memo cache ───────────────────────────────────────────
+// This function is called 6-12 times per render cycle across KPI cards, the
+// overview table, charts, system selectors, and all three detail tabs.
+// Result is cached per unique {filterType, filterValue, searchQuery, kpiFilter,
+// systemCount}. Returning .slice() copies lets callers sort/mutate freely
+// without corrupting the cache.
+let _gfsKeyIncl = null, _gfsResIncl = null; // full filter (includes KPI drill-down)
+let _gfsKeyExcl = null, _gfsResExcl = null; // KPI-excluded (used by updateOverviewKpis)
+
 function getFilteredSystems(excludeKpiFilter = false) {
+  const _baseStamp = `${state.activeFilterType}|${state.activeFilterValue || ''}|${state.activeSearchQuery || ''}|${state.systems.length}`;
+  const _stamp = excludeKpiFilter ? _baseStamp : _baseStamp + '|' + (state.activeKpiFilter || 'NONE');
+
+  // Return cached copy if stamp matches
+  if (excludeKpiFilter) {
+    if (_stamp === _gfsKeyExcl && _gfsResExcl) return _gfsResExcl.slice();
+  } else {
+    if (_stamp === _gfsKeyIncl && _gfsResIncl) return _gfsResIncl.slice();
+  }
+
   let filtered = state.systems;
 
   // 1. Sidebar customer/group/watchlist filters
@@ -3425,7 +3464,10 @@ function getFilteredSystems(excludeKpiFilter = false) {
     }
   }
 
-  return filtered;
+  // Store in cache and return a copy (callers may sort/mutate independently)
+  if (excludeKpiFilter) { _gfsKeyExcl = _stamp; _gfsResExcl = filtered; }
+  else { _gfsKeyIncl = _stamp; _gfsResIncl = filtered; }
+  return filtered.slice();
 }
 
 function updateOverviewKpis() {
@@ -4065,18 +4107,22 @@ function selectSystem(serial) {
   }
 }
 
+// ── populateSystemSelectors dirty guard ─────────────────────────────────────
+// Called at the top of renderTAMTab(), renderSAMTab(), renderCSMTab() — meaning
+// every tab switch rebuilds 3 full selector widgets (SAM <select>, CSM <select>,
+// TAM checkbox dropdown). Stamp guard skips the DOM work when scope is unchanged.
+let _selectorStamp = null;
+
 function populateSystemSelectors() {
   const currentFiltered = getFilteredSystems();
   
-  // Safe check for null/undefined selectedSystem
+  // ── State fixups (always run — correct selectedSystem / TAM serials) ─────
   const hasSelectedSystem = state.selectedSystem && typeof state.selectedSystem === 'object';
   const selectedSerial = hasSelectedSystem ? state.selectedSystem.serialNumber : null;
   
   if (currentFiltered.length > 0) {
     const isStillInScope = selectedSerial && currentFiltered.some(s => s.serialNumber === selectedSerial);
-    if (!isStillInScope) {
-      state.selectedSystem = currentFiltered[0];
-    }
+    if (!isStillInScope) state.selectedSystem = currentFiltered[0];
   } else {
     state.selectedSystem = null;
   }
@@ -4087,16 +4133,16 @@ function populateSystemSelectors() {
   
   // Prune/initialize selectedTAMSerials based on current scope
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
-  if (!state.selectedTAMSerials) {
-    state.selectedTAMSerials = [];
-  }
+  if (!state.selectedTAMSerials) state.selectedTAMSerials = [];
   
-  // Default TAM serials to ALL systems in scope when filter changes
   const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
                                 (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
-  if (hasTAMFilterMismatch) {
-    state.selectedTAMSerials = [...allSerialsInScope];
-  }
+  if (hasTAMFilterMismatch) state.selectedTAMSerials = [...allSerialsInScope];
+
+  // ── Dirty guard: skip expensive DOM dropdown rebuilds if scope/selection unchanged
+  const _selStamp = allSerialsInScope.join(',') + '|' + state.selectedSAMSystemSerial + '|' + state.selectedCSMSystemSerial + '|' + state.selectedTAMSerials.join(',');
+  if (_selStamp === _selectorStamp) return;
+  _selectorStamp = _selStamp;
   
   // Populate SAM System Selector
   const samSelect = document.getElementById("samSystemSelect");
@@ -6455,7 +6501,15 @@ function getSantricityHopInfo(from, to) {
   return { from, to, steps, recommendations, considerations, docLink };
 }
 
+// Memoize calculateUpgradePath — called in 6 separate loop contexts (TAM tab,
+// action plan, export functions) with no prior caching. The same (platform,
+// currentVersion, targetVersion) triple may appear many times per render.
+const _upgradePathCache = new Map();
+
 function calculateUpgradePath(platform, currentVersion, targetVersion) {
+  const _cacheKey = `${platform}|${currentVersion}|${targetVersion}`;
+  if (_upgradePathCache.has(_cacheKey)) return _upgradePathCache.get(_cacheKey);
+
   const p = (platform || "").toLowerCase();
   let type = "ontap";
   if (p.includes("storagegrid")) type = "storagegrid";
@@ -6469,7 +6523,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
   let currentBase = cleanCurrent.split("P")[0].trim();
   let targetBase = cleanTarget.split("P")[0].trim();
   
-  if (currentBase === targetBase) return [];
+  if (currentBase === targetBase) { _upgradePathCache.set(_cacheKey, []); return []; }
   
   const hops = [];
   
@@ -6621,6 +6675,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
     }
   }
   
+  _upgradePathCache.set(_cacheKey, hops);
   return hops;
 }
 
@@ -9353,7 +9408,10 @@ function renderNodeBreakdownTable(systems) {
   const totalUtil = totalRaw > 0 ? Math.min((totalUsed / totalRaw) * 100, 100)
                   : sorted.reduce((sum, s) => sum + getUtilPct(s, getUsedTB(s), getRawTB(s)), 0) / (sorted.length || 1);
 
-  tbody.innerHTML += `<tr style="border-top:2px solid var(--border-color);font-weight:700;background:rgba(255,255,255,0.03);">
+  // Append totals footer via createElement to avoid the slow innerHTML += re-parse
+  const _footerRow = document.createElement('tr');
+  _footerRow.style.cssText = 'border-top:2px solid var(--border-color);font-weight:700;background:rgba(255,255,255,0.03);';
+  _footerRow.innerHTML = `
     <td style="padding:9px 10px;" colspan="2">TOTAL (${sorted.length} nodes)</td>
     <td style="padding:9px 10px;text-align:right;">${totalRaw > 0 ? totalRaw.toFixed(1) : '<span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">N/A</span>'}</td>
     <td style="padding:9px 10px;text-align:right;">${totalUsed.toFixed(1)}</td>
@@ -9367,7 +9425,8 @@ function renderNodeBreakdownTable(systems) {
     </td>
     <td style="padding:9px 10px;text-align:right;">+${totalGrow.toFixed(0)} GB</td>
     <td colspan="2" style="padding:9px 10px;color:var(--text-muted);font-size:0.78rem;">Aggregate across all nodes</td>
-  </tr>`;
+  `;
+  tbody.appendChild(_footerRow);
 }
 
 
@@ -15811,9 +15870,22 @@ function deleteSavedFilter(event, id) {
   renderSidebarGroups();
 }
 
+// ── renderSidebarGroups dirty guard ─────────────────────────────────────────
+// Called from handleSearch (every debounced keystroke), refreshUIState (every
+// 60 s auto-sync), setFilter, and tab renders. Each call previously rebuilt the
+// entire sidebar DOM with O(customers × systems) complexity. Stamp guard skips
+// when nothing has actually changed.
+let _sidebarStamp = null;
+
 function renderSidebarGroups() {
   const container = document.getElementById("sidebarGroupsList");
   if (!container) return;
+
+  // Build a lightweight snapshot of everything the sidebar renders
+  const _stamp = `${state.systems.length}|${state.watchlists.length}|${state.groups.length}|${state.activeFilterType}|${state.activeFilterValue || ''}|${state.activeSearchQuery || ''}`;
+  if (_stamp === _sidebarStamp) return; // nothing to redraw
+  _sidebarStamp = _stamp;
+
   container.innerHTML = "";
 
   // 1. Watchlists (Fetched from Active IQ API or Mocked)
@@ -17265,20 +17337,23 @@ function executeSearchGo() {
   }
 }
 
+// ── switchTab querySelectorAll cache ────────────────────────────────────────
+// switchTab() fires on every search keystroke (via handleSearch), every filter
+// click, and every 60 s auto-sync. Caching the static nav-item / tab-content
+// node lists eliminates 2 document.querySelectorAll calls per invocation.
+let _cachedNavItems = null;
+let _cachedTabContents = null;
+
 // Sidebar switches tabs
 function switchTab(tabId) {
   state.currentTab = tabId;
   
-  // Update sidebar active highlights
-  document.querySelectorAll(".nav-item").forEach(item => {
-    item.classList.remove("active");
-    if (item.getAttribute("data-tab") === tabId) {
-      item.classList.add("active");
-    }
-  });
-  
-  // Hide all views
-  document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+  // Update sidebar active highlights — cache node lists (DOM structure is static,
+  // no need to re-query the entire document on every tab switch / search keystroke)
+  if (!_cachedNavItems)    _cachedNavItems    = Array.from(document.querySelectorAll(".nav-item"));
+  if (!_cachedTabContents) _cachedTabContents = Array.from(document.querySelectorAll(".tab-content"));
+  _cachedNavItems.forEach(item => item.classList.toggle("active", item.getAttribute("data-tab") === tabId));
+  _cachedTabContents.forEach(el => el.classList.remove("active"));
   
   // Show active view
   const target = document.getElementById(`${tabId}Tab`);
@@ -17525,10 +17600,12 @@ window.onload = async function() {
     }
   });
   
+  // Chart.js responsive:true auto-handles canvas resize via ResizeObserver.
+  // On resize we only need to notify existing instances — no destroy/recreate.
   window.addEventListener('resize', debounce(() => {
-    if (state.currentTab === "overview") {
-      renderCharts();
-    }
+    if (efficiencyChartInstance)    efficiencyChartInstance.resize();
+    if (capacityChartInstance)      capacityChartInstance.resize();
+    if (projectionsChartInstance)   projectionsChartInstance.resize();
   }, 200));
 };
 
