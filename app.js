@@ -3538,6 +3538,7 @@ function sortTable(tableId, key) {
   if (tableId === "overview") {
     renderOverviewTable();
   } else if (tableId === "tamRisks" || tableId === "tamSwitches" || tableId === "tamSecurity") {
+    renderTAMTab._lastFP = null; // sort change must force a full re-render of deferred sections
     renderTAMTab();
   } else if (tableId === "samCases" || tableId === "samFieldActions") {
     renderSAMTab();
@@ -7094,6 +7095,17 @@ function renderTAMTab() {
   
   // Prune/initialize active serials
   const activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
+
+  // ── Dirty-stamp guard ─────────────────────────────────────────────────────
+  // renderTAMTab() is invoked on every search keystroke (switchTab→handleSearch),
+  // every auto-sync tick, and every filter change while the TAM tab is active.
+  // With 20+ systems this is the primary browser-hang trigger on this page.
+  // Skip the full re-render when selection, active node, and system count are unchanged.
+  const _tamFP = activeSerials.slice().sort().join(',') + '|' +
+                 (state.activeVisualizerNodeSerial || '') + '|' +
+                 (state.systems ? state.systems.length : 0);
+  if (renderTAMTab._lastFP === _tamFP) return;
+  renderTAMTab._lastFP = _tamFP;
   
   if (activeSerials.length === 0) {
     document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems selected in current scope.</td></tr>`;
@@ -7173,6 +7185,31 @@ function renderTAMTab() {
       enrichmentEngine.injectVersionEnrichment(sys, headerEl);
     }
   }
+
+  // ── Skeleton loaders — show immediately while heavy sections are deferred ──
+  // The risks, upgrades, switches, and bulletin tables are built inside a
+  // requestAnimationFrame → setTimeout(0) block so the node-visual card, header,
+  // SVM panel, and E-Series panel can paint FIRST. This eliminates the
+  // "page freezes for 1-3 s on first TAM tab switch" hang with 20+ systems.
+  const _tamSkRow = (cols, msg = 'Loading\u2026') =>
+    `<tr><td colspan="${cols}" style="padding:20px;text-align:center;">`+
+    `<span style="color:var(--text-muted);font-size:0.8rem;opacity:0.6;">${msg}</span>`+
+    `</td></tr>`;
+  document.getElementById('tamRisksTableBody').innerHTML        = _tamSkRow(4, 'Loading risks\u2026');
+  document.getElementById('tamUpgradeContainer').innerHTML      =
+    `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.8rem;opacity:0.6;">Loading upgrade roadmap\u2026</div>`;
+  document.getElementById('tamSwitchesTableBody').innerHTML     = _tamSkRow(6, 'Loading switch data\u2026');
+  document.getElementById('tamSecurityBulletinsBody').innerHTML = _tamSkRow(4, 'Loading advisories\u2026');
+
+  // Capture local for closure (selectedSystems is in scope but explicit capture
+  // makes the intent clear and prevents accidental re-binding issues).
+  const _tamSelectedSystems = selectedSystems;
+
+  // Defer the 4 heavy table sections. The outer requestAnimationFrame lets the
+  // browser paint the visual layout card first; the inner setTimeout(0) then
+  // yields to the event loop one more time before the innerHTML builds begin.
+  requestAnimationFrame(() => setTimeout(() => { // ── BEGIN DEFERRED SECTIONS ──
+  const selectedSystems = _tamSelectedSystems; // restore in deferred scope
 
   // ── Compile Combined Risks — grouped by system with collapsible drilldown ──
   // Groups risks per system to keep initial DOM at N rows (systems) not N×M (all risks).
@@ -7668,6 +7705,7 @@ function renderTAMTab() {
   window._deferredBulletinEnrich = deferredEnrich;
 
   updateSortIndicators();
+  }, 0)); // ── END DEFERRED SECTIONS (requestAnimationFrame → setTimeout) ──
 }
 
 function getSystemSwitches(sys) {
@@ -17303,7 +17341,12 @@ function refreshUIState() {
   // 3. Rebuild global search parameters
   updateSearchSuggestions();
 
-  // 4. Force redraw layout of the active tab view
+  // 4. Invalidate TAM dirty-stamp caches so a data refresh always forces a
+  //    full re-render of all sections, even when serial selection is unchanged.
+  renderTAMTab._lastFP = null;
+  if (typeof renderNodeVisualLayout === 'function') renderNodeVisualLayout._lastFP = null;
+
+  // 5. Force redraw layout of the active tab view
   if (state.activeTab) {
     switchTab(state.activeTab);
   } else {
@@ -18265,6 +18308,16 @@ function getSystemPortMappings(sys) {
 function renderNodeVisualLayout(selectedSystems, sys) {
   const container = document.getElementById("tamNodeVisualContainer");
   if (!container) return;
+
+  // ── Dirty-stamp guard ─────────────────────────────────────────────────────
+  // renderNodeVisualLayout() fires on every node-tab click in the selector row.
+  // With a large port-mapping table + animated slots, re-rendering the same
+  // node is expensive and the primary cause of hangs when clicking between nodes.
+  // Skip when the already-displayed system + node-set fingerprint is unchanged.
+  const _nodeLayoutFP = (sys ? sys.serialNumber : '') + '|' +
+                        (selectedSystems ? selectedSystems.map(s => s.serialNumber).join(',') : '');
+  if (renderNodeVisualLayout._lastFP === _nodeLayoutFP) return;
+  renderNodeVisualLayout._lastFP = _nodeLayoutFP;
 
   const ports = getSystemPortMappings(sys);
   

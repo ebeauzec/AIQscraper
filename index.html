@@ -75,7 +75,7 @@
 
       
       <div class="nav-footer">
-        NetApp Internal Tool<br>Version 3.3.1
+        NetApp Internal Tool<br>Version 3.1.0-TAM
       </div>
     </div>
     
@@ -161,24 +161,9 @@
         <!-- Charts Grid Row -->
         <div class="charts-grid">
           <div class="card chart-card">
-            <div class="card-title" style="margin-bottom: 20px;">Fleet Capacity Utilisation</div>
+            <div class="card-title" style="margin-bottom: 20px;">Total Account Storage Savings (Efficiency)</div>
             <div class="chart-wrapper">
               <canvas id="efficiencyChart"></canvas>
-            </div>
-            <!-- Efficiency stats strip -->
-            <div id="effStatsStrip" style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:14px; padding:0 8px;">
-              <div class="eff-stat-pill" style="background:rgba(0,115,230,0.12); border:1px solid rgba(0,115,230,0.35); border-radius:8px; padding:7px 14px; text-align:center; min-width:110px;">
-                <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px;">Logical Used</div>
-                <div id="effStatLogical" style="font-size:15px; font-weight:700; color:#60a5fa;">—</div>
-              </div>
-              <div class="eff-stat-pill" style="background:rgba(0,115,230,0.08); border:1px solid rgba(0,115,230,0.25); border-radius:8px; padding:7px 14px; text-align:center; min-width:110px;">
-                <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px;">Physical Used</div>
-                <div id="effStatPhysical" style="font-size:15px; font-weight:700; color:#93c5fd;">—</div>
-              </div>
-              <div class="eff-stat-pill" style="background:rgba(0,200,120,0.10); border:1px solid rgba(0,200,120,0.30); border-radius:8px; padding:7px 14px; text-align:center; min-width:110px;">
-                <div style="font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px;">Space Saved</div>
-                <div id="effStatSaved" style="font-size:15px; font-weight:700; color:#34d399;">—</div>
-              </div>
             </div>
           </div>
           <div class="card chart-card">
@@ -1026,13 +1011,6 @@
           <h4 class="modal-section-title">Hypervisor & 3rd-Party Compliance Settings</h4>
           <p id="modalDetailThirdParty" style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4;"></p>
         </div>
-
-        <!-- Reference Links — populated dynamically by openRemediationModal() -->
-        <div id="modalReferenceLinks" style="display:none; margin-top:16px; padding:14px 16px;
-             background:rgba(0,188,212,0.04); border:1px solid rgba(0,188,212,0.12);
-             border-radius:var(--radius-sm);">
-        </div>
-
       </div>
       <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid var(--border-color);">
         <button class="action-btn secondary" onclick="closeRemediationModal()">Close Action Plan</button>
