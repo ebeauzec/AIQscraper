@@ -5711,6 +5711,43 @@ NETAPP_SECURITY_BULLETIN_DB.push(
 
 );
 
+// ── Batch 4: 2026-07-13 Advisory Log Sync ───────────────────────────────────
+// NTAP-20260603-0001 / CVE-2026-22054 (Active IQ Config Advisor, MEDIUM)
+// NTAP-20260603-0002 / CVE-2026-22055 (Active IQ OneCollect, MEDIUM) ← NEW 2026-07-13
+// Both advisories affect standalone Active IQ diagnostic tooling (not core ONTAP clusters).
+// Included for completeness; remediation is a tool upgrade, not an ONTAP cluster patch.
+NETAPP_SECURITY_BULLETIN_DB.push(
+
+  {
+    id: "NTAP-20260603-0001", cve: ["CVE-2026-22054"], cvss: 5.3,
+    severity: "medium",
+    category: "Hard-Coded Credentials / Active IQ Tooling",
+    title: "Active IQ Config Advisor 6.7.3 — Hard-Coded Credentials (CVE-2026-22054)",
+    description: "Hard-coded credentials in Active IQ Config Advisor 6.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations. NetApp has noted public discussion of this vulnerability exists. Affects the standalone diagnostic tool, not ONTAP cluster software. CVSS v4.0 5.3 (AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:N/SA:N).",
+    affectedProducts: ["Active IQ Config Advisor"],
+    affectedVersions: { generic: [{ from: "6.7.3", to: "6.7.3" }] },
+    fixedVersions:    { generic: ["Active IQ Config Advisor 6.7.4+"] },
+    mitigation: "Upgrade Active IQ Config Advisor to version 6.7.4 or later. Limit tool access to authorized administrators only. No ONTAP cluster-level patch required.",
+    published: "2026-06-03",
+    link: "https://security.netapp.com/advisory/ntap-20260603-0001/"
+  },
+
+  {
+    id: "NTAP-20260603-0002", cve: ["CVE-2026-22055"], cvss: 5.3,
+    severity: "medium",
+    category: "Hard-Coded Credentials / Active IQ Tooling",
+    title: "Active IQ OneCollect 2.7.3 — Hard-Coded Credentials (CVE-2026-22055)",
+    description: "Companion advisory to NTAP-20260603-0001. Hard-coded credentials in Active IQ OneCollect 2.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations via the same credential class of vulnerability. NetApp is aware of public discussion; no known in-the-wild exploitation reported as of 2026-07-13. Both advisories (0001/0002) were bundled together under CERT-FR CERTFR-2026-AVI-0686. Affects the standalone data-collection tool, not ONTAP cluster software. CVSS v4.0 5.3 (AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:N/SA:N).",
+    affectedProducts: ["Active IQ OneCollect"],
+    affectedVersions: { generic: [{ from: "2.7.3", to: "2.7.3" }] },
+    fixedVersions:    { generic: ["Active IQ OneCollect 2.7.4+"] },
+    mitigation: "Upgrade Active IQ OneCollect to version 2.7.4 or later. Restrict tool access to authorized administrators. No ONTAP cluster-level patch required. Cross-reference NTAP-20260603-0001 (Config Advisor companion advisory).",
+    published: "2026-06-03",
+    link: "https://security.netapp.com/advisory/ntap-20260603-0002/"
+  }
+
+);
+
 // Helper: Robust numeric version comparison. Returns true if ver < limit.
 // Supports "9.x", "9.x.y", and "9.x.yPn" formats.
 function versionLt(ver, limit) {
