@@ -83,7 +83,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 **Added by the Reference Library (not in Active IQ):**
 - EOA hardware flags for AFF, ASA, and FAS platforms
-- **CVE cross-referencing** — 82 unique CVEs across 77 advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP version range.
+- **CVE cross-referencing** — Unique CVEs across advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP version range.
 - **CISA KEV integration** — 2 confirmed actively exploited NetApp-related CVEs flagged with 🚨 priority (CVE-2024-54085 CVSS 10.0, CVE-2024-38475 CVSS 9.1)
 - Firmware baseline checks for shelves and switches
 - MetroCluster ISL requirement validation
