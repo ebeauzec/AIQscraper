@@ -3373,7 +3373,33 @@ const MOCK_WATCHLISTS = [
   }
 ];
 
-// 2. Global State Variable
+// Mock TAM site data — mirrors the real API tamSites schema.
+// Used by _renderAccountIntelligenceSection() when state.mockMode is true
+// so that real South African reseller sites never bleed into mock mode.
+// customerName field is used to filter sites to the selected scope.
+const MOCK_TAM_SITES = [
+  // ── Global Bank Corp ──────────────────────────────────────────────────────
+  { id: "site-gbc-001", name: "Global Bank Corp - New York HQ",    customerName: "Global Bank Corp",        city: "New York",      countryCode: "US", ageInYears: 8, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 2 },
+  { id: "site-gbc-002", name: "Global Bank Corp - Chicago Branch",  customerName: "Global Bank Corp",        city: "Chicago",       countryCode: "US", ageInYears: 5, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 1 },
+  { id: "site-gbc-003", name: "Global Bank Corp - London Office",   customerName: "Global Bank Corp",        city: "London",        countryCode: "GB", ageInYears: 6, systemsWithCriticalPropensity: 1, systemsWithHighPropensity: 0 },
+  { id: "site-gbc-004", name: "Global Bank Corp - Singapore DC",    customerName: "Global Bank Corp",        city: "Singapore",     countryCode: "SG", ageInYears: 3, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+  // ── HealthCare Solutions Inc ──────────────────────────────────────────────
+  { id: "site-hcs-001", name: "HealthCare Solutions - Atlanta HQ",  customerName: "HealthCare Solutions Inc",city: "Atlanta",       countryCode: "US", ageInYears: 7, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 1 },
+  { id: "site-hcs-002", name: "HealthCare Solutions - Houston",     customerName: "HealthCare Solutions Inc",city: "Houston",       countryCode: "US", ageInYears: 4, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+  { id: "site-hcs-003", name: "HealthCare Solutions - Dallas",      customerName: "HealthCare Solutions Inc",city: "Dallas",        countryCode: "US", ageInYears: 2, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+  // ── Apex Retail Group ─────────────────────────────────────────────────────
+  { id: "site-arg-001", name: "Apex Retail - Chicago DC",           customerName: "Apex Retail Group",       city: "Chicago",       countryCode: "US", ageInYears: 5, systemsWithCriticalPropensity: 1, systemsWithHighPropensity: 1 },
+  { id: "site-arg-002", name: "Apex Retail - Phoenix Regional",     customerName: "Apex Retail Group",       city: "Phoenix",       countryCode: "US", ageInYears: 3, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+  { id: "site-arg-003", name: "Apex Retail - Denver Fulfillment",   customerName: "Apex Retail Group",       city: "Denver",        countryCode: "US", ageInYears: 2, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 1 },
+  // ── Federal Aero Systems ──────────────────────────────────────────────────
+  { id: "site-fas-001", name: "Federal Aero - Washington DC HQ",    customerName: "Federal Aero Systems",    city: "Washington DC", countryCode: "US", ageInYears: 6, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+  { id: "site-fas-002", name: "Federal Aero - Huntsville Research", customerName: "Federal Aero Systems",    city: "Huntsville",    countryCode: "US", ageInYears: 4, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 1 },
+  // ── Apex Global Solutions ─────────────────────────────────────────────────
+  { id: "site-ags-001", name: "Apex Global - San Francisco HQ",     customerName: "Apex Global Solutions",   city: "San Francisco", countryCode: "US", ageInYears: 5, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+  { id: "site-ags-002", name: "Apex Global - Seattle Office",       customerName: "Apex Global Solutions",   city: "Seattle",       countryCode: "US", ageInYears: 3, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0 },
+];
+
+
 let state = {
   currentTab: "overview",
   mockMode: true,
@@ -14729,20 +14755,33 @@ function _renderRecommendationsSection(targetSystems) {
 }
 
 function _renderAccountIntelligenceSection(systems) {
-  const allSites = state.tamSites || [];
-  
-  // Build set of site names/IDs from the selected systems to filter sites
-  const scopeSiteNames = new Set();
-  const scopeSiteIds = new Set();
-  systems.forEach(s => {
-    if (s.siteName) scopeSiteNames.add(s.siteName);
-    if (s.siteId) scopeSiteIds.add(s.siteId);
-  });
-  
-  // Filter sites to only those matching the selected scope
-  const sites = scopeSiteNames.size > 0 || scopeSiteIds.size > 0
-    ? allSites.filter(site => scopeSiteNames.has(site.name) || scopeSiteIds.has(site.id))
-    : allSites;  // fallback to all if no site info on systems
+  // ── Mock-mode guard ──────────────────────────────────────────────────────
+  // state.tamSites holds real API data (South African reseller sites etc.)
+  // that persists even when the user switches to mock mode.  Use MOCK_TAM_SITES
+  // when in mock mode so that production site data never bleeds into mock reports.
+  let sites;
+  if (state.mockMode) {
+    // Build the set of customer names visible in the current scope
+    const scopeCustomers = new Set();
+    systems.forEach(s => { if (s.customerName) scopeCustomers.add(s.customerName); });
+    // Filter mock sites to the selected customer scope; fall back to all if no match
+    const filtered = scopeCustomers.size > 0
+      ? MOCK_TAM_SITES.filter(site => scopeCustomers.has(site.customerName))
+      : MOCK_TAM_SITES;
+    sites = filtered.length > 0 ? filtered : MOCK_TAM_SITES;
+  } else {
+    // Live mode — use API-provided tamSites, filtered by siteName/siteId
+    const allSites = state.tamSites || [];
+    const scopeSiteNames = new Set();
+    const scopeSiteIds   = new Set();
+    systems.forEach(s => {
+      if (s.siteName) scopeSiteNames.add(s.siteName);
+      if (s.siteId)   scopeSiteIds.add(s.siteId);
+    });
+    sites = (scopeSiteNames.size > 0 || scopeSiteIds.size > 0)
+      ? allSites.filter(site => scopeSiteNames.has(site.name) || scopeSiteIds.has(site.id))
+      : allSites;
+  }
   
   // Deduplicate customers
   const custMap = {};
