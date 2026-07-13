@@ -14868,16 +14868,87 @@ function generateActionPlan() {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All systems are running target version baselines.</p>`;
   } else {
     allUpgrades.forEach(u => {
+      const latestVer  = getLatestSupportedVersion(u.platform);
+      const currentVer = u.currentVersion || 'Unknown';
+      const minVer     = u.targetVersion  || 'N/A';
+      const hops       = calculateUpgradePath(u.platform, currentVer, minVer);
+      const isDirect   = hops.length <= 1;
+
+      // ── Version rail (3 nodes) ────────────────────────────────────────────
+      const versionRail = `
+        <div style="display:flex; align-items:center; gap:0; margin: 14px 0 10px; flex-wrap: wrap;">
+          <!-- Node 1: Current -->
+          <div style="display:flex; flex-direction:column; align-items:center; min-width:130px;">
+            <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.06em; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Current Version</div>
+            <div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:6px 14px; font-size:0.88rem; font-weight:700; color:#e2e8f0; font-family:monospace; white-space:nowrap;">${currentVer}</div>
+          </div>
+          <!-- Arrow 1 -->
+          <div style="flex:1; min-width:28px; display:flex; flex-direction:column; align-items:center; padding:0 4px; padding-top:18px;">
+            <div style="height:2px; width:100%; background: linear-gradient(90deg, rgba(251,191,36,0.5), rgba(251,191,36,0.2)); border-radius:1px;"></div>
+            <div style="font-size:0.64rem; color:rgba(251,191,36,0.6); margin-top:3px; white-space:nowrap;">upgrade to</div>
+          </div>
+          <!-- Node 2: Min Required -->
+          <div style="display:flex; flex-direction:column; align-items:center; min-width:130px;">
+            <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.06em; color:var(--accent-cyan); text-transform:uppercase; margin-bottom:4px;">Min. Required (To Fix)</div>
+            <div style="background:rgba(45,212,191,0.08); border:1px solid rgba(45,212,191,0.4); border-radius:6px; padding:6px 14px; font-size:0.88rem; font-weight:700; color:#2dd4bf; font-family:monospace; white-space:nowrap;">${minVer}</div>
+          </div>
+          <!-- Arrow 2 -->
+          <div style="flex:1; min-width:28px; display:flex; flex-direction:column; align-items:center; padding:0 4px; padding-top:18px;">
+            <div style="height:2px; width:100%; background: linear-gradient(90deg, rgba(74,222,128,0.2), rgba(74,222,128,0.5)); border-radius:1px;"></div>
+            <div style="font-size:0.64rem; color:rgba(74,222,128,0.6); margin-top:3px; white-space:nowrap;">latest</div>
+          </div>
+          <!-- Node 3: Latest Supported -->
+          <div style="display:flex; flex-direction:column; align-items:center; min-width:130px;">
+            <div style="font-size:0.68rem; font-weight:700; letter-spacing:0.06em; color:var(--status-normal); text-transform:uppercase; margin-bottom:4px;">Latest Supported</div>
+            <div style="background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.3); border-radius:6px; padding:6px 14px; font-size:0.88rem; font-weight:700; color:#4ade80; font-family:monospace; white-space:nowrap;">${latestVer}</div>
+          </div>
+        </div>`;
+
+      // ── Hop chain (only shown when path has >1 hops) ──────────────────────
+      let hopChainHtml = '';
+      if (!isDirect && hops.length > 1) {
+        const hopItems = hops.map((hop, i) => `
+          <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:${i < hops.length-1 ? '10px' : '0'};">
+            <div style="flex-shrink:0; width:22px; height:22px; border-radius:50%; background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.4); display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; color:#fbbf24; margin-top:1px;">${i+1}</div>
+            <div style="flex:1;">
+              <div style="font-size:0.82rem; color:#e2e8f0; margin-bottom:3px;">
+                <code style="color:#94a3b8; font-size:0.78rem;">${hop.from}</code>
+                <span style="color:#6b7280; margin:0 6px;">→</span>
+                <code style="color:#2dd4bf; font-size:0.78rem;">${hop.to}</code>
+              </div>
+              ${hop.steps && hop.steps.length ? `<div style="font-size:0.76rem; color:var(--text-muted); line-height:1.5; padding-left:2px;">${hop.steps.slice(0,2).join(' &nbsp;·&nbsp; ')}</div>` : ''}
+            </div>
+          </div>
+          ${i < hops.length-1 ? '<div style="margin-left:11px; width:1px; height:8px; background:rgba(251,191,36,0.25); margin-bottom:0;"></div>' : ''}`
+        ).join('');
+        hopChainHtml = `
+          <div style="margin-top:10px; padding:12px 14px; background:rgba(251,191,36,0.04); border:1px solid rgba(251,191,36,0.15); border-radius:6px;">
+            <div style="font-size:0.72rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#fbbf24; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+              ${hops.length}-Hop Upgrade Path Required
+            </div>
+            ${hopItems}
+          </div>`;
+      } else if (isDirect && hops.length === 1) {
+        hopChainHtml = `
+          <div style="margin-top:10px; font-size:0.78rem; color:rgba(74,222,128,0.75); display:flex; align-items:center; gap:5px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Direct upgrade available — no intermediate versions required.
+          </div>`;
+      }
+
       html += `
-        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>System: ${u.systemName}</strong>
-            <span class="badge warning">${u.urgency}</span>
+        <div style="background: rgba(255,255,255,0.015); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+            <div>
+              <strong style="font-size:0.95rem;">${u.systemName}</strong>
+              ${u.platform ? `<span style="font-size:0.75rem; color:var(--text-muted); margin-left:8px;">${u.platform}</span>` : ''}
+            </div>
+            <span class="badge warning" style="flex-shrink:0; margin-left:10px;">${u.urgency}</span>
           </div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
-            Min. Required OS Version (To Fix): <strong style="color: var(--accent-cyan);">${u.targetVersion}</strong> | Latest Supported OS Version: <strong style="color: var(--status-normal);">${getLatestSupportedVersion(u.platform)}</strong>
-          </div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
+          ${versionRail}
+          ${hopChainHtml}
+          <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">
             <strong>Expected Upgrade Benefits:</strong> ${u.benefits}
           </div>
         </div>
