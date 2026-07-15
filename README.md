@@ -370,15 +370,39 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 ### Security Intelligence Database
 
-The tool maintains a built-in `NETAPP_SECURITY_BULLETIN_DB` that is cross-referenced against every system's ONTAP version during data enrichment. This is **in addition to** advisories returned by the Active IQ API.
+The tool maintains a **live security advisory database** in [`security_bulletins.json`](file:///g:/My%20Drive/AntiGravity/AIQscraper/security_bulletins.json), cross-referenced against every system's ONTAP/StorageGRID/SnapCenter version at enrichment time. This is **in addition to** advisories returned by the Active IQ API.
+
+> [!IMPORTANT]
+> The server (`python server.py`) must be running for advisory data to load. If the server is offline, the database will be empty and the **Security Advisory Database** indicator in the Sync panel will show ⚠️ **server offline**.
 
 | Metric | Value |
 |--------|-------|
-| **Total advisory entries** | **77** |
-| **Unique CVEs covered** | **82** |
+| **Current advisory entries** | **69** (grows with each daily scan) |
 | **CISA KEV confirmed** | **2** (actively exploited in the wild) |
 | **Coverage period** | 2024 – 2026 |
 | **Products covered** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, SAN Host Utilities, Active IQ Unified Manager |
+| **Database file** | `security_bulletins.json` — single source of truth |
+
+#### How the Database Grows
+
+```
+Daily scan (08:00)  →  POST /api/bulletins  →  security_bulletins.json
+                                                         ↓
+App startup / Refresh button  →  GET /api/bulletins  →  in-memory DB  →  enriches all systems
+```
+
+The daily 08:00 background scan reads the NetApp Reference Library, checks `security.netapp.com` and NVD for new advisories, and POSTs any new entries to the running server. The server merges them (deduplicating by `id`) and writes to `security_bulletins.json`. **No code edits to `app.js` are ever needed.**
+
+#### Adding a New Advisory Manually
+
+**Option A — POST to server (preferred, server must be running):**
+```bash
+curl -X POST http://localhost:8080/api/bulletins \
+  -H "Content-Type: application/json" \
+  -d '{"bulletins":[{"id":"NTAP-YYYYMMDD-XXXX","cve":["CVE-XXXX-XXXXX"],"cvss":8.5,"severity":"high","title":"...","description":"...","affectedProducts":["ONTAP"],"affectedVersions":{"ontap":[{"from":"9.x.y","to":"9.x.yPn"}]},"fixedVersions":{"ontap":["9.x.yPn+1"]},"mitigation":"Upgrade to ...","published":"YYYY-MM-DD","link":"https://security.netapp.com/advisory/..."}]}'
+```
+
+**Option B — Edit `security_bulletins.json` directly:** Add an entry to the `bulletins` array, restart the server, then click **🛡️ Refresh Security Advisory DB** in the Sync panel.
 
 #### Sources
 
@@ -398,10 +422,6 @@ The tool maintains a built-in `NETAPP_SECURITY_BULLETIN_DB` that is cross-refere
 |-----|------|---------|--------|-----|
 | **CVE-2024-54085** | **10.0** | StorageGRID BMC (SG6160, SGF6112, SG110, SG1100) | 🚨 Active exploitation confirmed. PoC exists. | Apply AMI MegaRAC SPx firmware 12.7+/13.5+ |
 | **CVE-2024-38475** | **9.1** | ONTAP 9 (Apache mod_rewrite) | 🚨 Actively exploited. CISA KEV 2024. | ONTAP 9.12.1P16 / 9.14.1P8 / 9.16.1 |
-
-#### Update Cadence
-
-The database is updated with each release. A daily background task (08:00) monitors the local NetApp Reference Library for new advisories and prompts re-ingestion. To manually check for new advisories, visit [security.netapp.com/advisory/](https://security.netapp.com/advisory/) and add new entries to `NETAPP_SECURITY_BULLETIN_DB` in `app.js`.
 
 ---
 

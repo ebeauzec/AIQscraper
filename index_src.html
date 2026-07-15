@@ -654,9 +654,17 @@
                     <span id="syncNextTime" style="font-weight: 600; color: var(--text-primary);">Not Scheduled</span>
                   </div>
                 </div>
+                <div style="background: rgba(0,200,255,0.04); border: 1px solid rgba(0,200,255,0.15); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px;">
+                  <span style="color: var(--text-secondary); display: block; font-size: 0.72rem; text-transform: uppercase; margin-bottom: 4px;">Security Advisory Database</span>
+                  <span id="bulletinDbStatus" style="font-size: 0.8rem; color: var(--text-primary);">📦 loading…</span>
+                </div>
                 <button class="action-btn" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="triggerManualSync()" data-tooltip="Immediately connect to the API to pull fresh metrics.">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncSpinnerIcon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                   Synchronize Data Now
+                </button>
+                <button id="securityDbRefreshBtn" class="action-btn secondary" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;" onclick="refreshSecurityAdvisoryDB()" data-tooltip="Pull new advisories from security.netapp.com and NVD, add any new ones to the database, then reload the in-memory advisory set.">
+                  <span id="securityDbRefreshIcon">🛡️</span>
+                  <span id="securityDbRefreshText">Refresh Security Advisory DB</span>
                 </button>
                 <button class="action-btn secondary" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;" onclick="runAPIDiagnostics()" data-tooltip="Probe all API endpoints and show a detailed table of HTTP status and response structure.">
                   🔬 Run API Diagnostics

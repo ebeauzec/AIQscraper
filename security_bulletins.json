@@ -1,0 +1,2179 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-07-15",
+  "source": "Authoritative bulletin database -- migrated from hardcoded NETAPP_SECURITY_BULLETIN_DB in app.js. Grows via POST /api/bulletins (daily scan agent).",
+  "bulletinCount": 69,
+  "bulletins": [
+    {
+      "id": "NTAP-20260112-0001",
+      "cve": [
+        "CVE-2026-22050"
+      ],
+      "cvss": 6.9,
+      "severity": "medium",
+      "category": "Authorization Bypass / Ransomware Recovery Impact",
+      "title": "ONTAP Snapshot Locking Authorization Bypass",
+      "description": "A privileged remote attacker can set the expiry time of a locked snapshot to 'none', bypassing WORM snapshot protections and enabling deletion of locked snapshots before their retention period expires. High operational impact in ransomware recovery scenarios.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "9.16.1P8"
+          },
+          {
+            "from": "9.17.1",
+            "to": "9.17.1P1"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.16.1P9",
+          "9.17.1P2"
+        ]
+      },
+      "mitigation": "Upgrade to ONTAP 9.16.1P9 or 9.17.1P2. Restrict management interface access to trusted networks. Enable audit logging on snapshot operations.",
+      "published": "2026-01-12",
+      "link": "https://security.netapp.com/advisory/ntap-20260112-0001/"
+    },
+    {
+      "id": "NTAP-20260304-0001",
+      "cve": [
+        "CVE-2026-22052"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "Information Disclosure",
+      "title": "ONTAP S3 NAS Bucket Directory Listing Information Disclosure",
+      "description": "An authenticated attacker can view directory contents of S3 NAS buckets for which they do not have proper permissions on ONTAP 9.12.1 and later with S3 NAS buckets enabled.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.12.1",
+            "to": "9.12.1P19"
+          },
+          {
+            "from": "9.13.1",
+            "to": "9.13.1P18"
+          },
+          {
+            "from": "9.14.1",
+            "to": "9.14.1P15"
+          },
+          {
+            "from": "9.15.1",
+            "to": "9.15.1P15"
+          },
+          {
+            "from": "9.16.1",
+            "to": "9.16.1P7"
+          },
+          {
+            "from": "9.17.1",
+            "to": "9.17.1P0"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.12.1P20",
+          "9.13.1P19",
+          "9.14.1P16",
+          "9.15.1P16",
+          "9.16.1P8",
+          "9.17.1P1",
+          "9.18.1"
+        ]
+      },
+      "mitigation": "Upgrade to the applicable fixed patch release for your ONTAP branch. Restrict S3 bucket access policies.",
+      "published": "2026-03-04",
+      "link": "https://security.netapp.com/advisory/ntap-20260304-0001/"
+    },
+    {
+      "id": "NTAP-20250110-0001",
+      "cve": [
+        "CVE-2024-45289"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Data Integrity / OS-Level Vulnerability",
+      "title": "ONTAP FreeBSD Underlying OS Vulnerability — Data Modification Risk",
+      "description": "All supported versions of FreeBSD are susceptible to CVE-2024-45289 which ONTAP uses as its underlying OS; successful exploitation could allow addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Check NTAP-20250110-0001 for ONTAP-specific patch"
+        ]
+      },
+      "mitigation": "Apply applicable ONTAP patch releases. Monitor NTAP-20250110-0001 for specific fixed versions per branch.",
+      "published": "2025-01-10",
+      "link": "https://security.netapp.com/advisory/ntap-20250110-0001/"
+    },
+    {
+      "id": "NTAP-20240701-0001",
+      "cve": [
+        "CVE-2024-6387"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "Remote Code Execution / Denial of Service",
+      "title": "ONTAP OpenSSH regreSSHion — Signal Handler Race Condition RCE",
+      "description": "A race condition in OpenSSH sshd signal handler (regreSSHion) could theoretically allow remote unauthenticated code execution; ONTAP default sshd settings reduce exploitability and no exploit demonstrated on FreeBSD.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.11.1",
+            "to": "current"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Later P-releases per branch — check NTAP-20240701-0001"
+        ]
+      },
+      "mitigation": "Apply relevant ONTAP patch. Restrict SSH management access to trusted management VLANs only. Verify LoginGraceTime and MaxStartups are at ONTAP defaults.",
+      "published": "2024-07-01",
+      "link": "https://security.netapp.com/advisory/ntap-20240701-0001/"
+    },
+    {
+      "id": "NTAP-20240126-0001",
+      "cve": [
+        "CVE-2024-21985"
+      ],
+      "cvss": 7.6,
+      "severity": "high",
+      "category": "Privilege Escalation",
+      "title": "ONTAP REST API Privilege Escalation — Multi-Account Role Confusion",
+      "description": "An authenticated user with multiple remote accounts having different roles can perform actions via the ONTAP REST API exceeding their intended privileges, potentially enabling limited config/metrics access, setting modifications, or DoS.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.9.1",
+            "to": "9.9.1P17"
+          },
+          {
+            "from": "9.10.1",
+            "to": "9.10.1P15"
+          },
+          {
+            "from": "9.11.1",
+            "to": "9.11.1P12"
+          },
+          {
+            "from": "9.12.1",
+            "to": "9.12.1P9"
+          },
+          {
+            "from": "9.13.1",
+            "to": "9.13.1P3"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.9.1P18",
+          "9.10.1P16",
+          "9.11.1P13",
+          "9.12.1P10",
+          "9.13.1P4"
+        ]
+      },
+      "mitigation": "Upgrade to the fixed patch version. Audit user accounts for multiple role assignments. Enforce least-privilege principle in RBAC.",
+      "published": "2024-01-26",
+      "link": "https://security.netapp.com/advisory/ntap-20240126-0001/"
+    },
+    {
+      "id": "NTAP-20250228-0002",
+      "cve": [
+        "CVE-2025-26466"
+      ],
+      "cvss": 5.9,
+      "severity": "medium",
+      "category": "Denial of Service",
+      "title": "ONTAP OpenSSH Pre-Auth Denial of Service (SSH2_MSG_PING Flood)",
+      "description": "An unauthenticated attacker can flood ONTAP's OpenSSH daemon with SSH2_MSG_PING packets during pre-authentication, causing uncontrolled memory consumption and management SSH service unavailability.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "9.16.1P-check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Later 9.16.1 patch — check NTAP-20250228-0002"
+        ]
+      },
+      "mitigation": "Upgrade to fixed ONTAP 9.16.1 patch. Restrict SSH management access to trusted IPs via LIF firewall/service policy. Rate-limit SSH connections at network level.",
+      "published": "2025-02-28",
+      "link": "https://security.netapp.com/advisory/ntap-20250228-0002/"
+    },
+    {
+      "id": "NTAP-20250718-0013",
+      "cve": [
+        "CVE-2024-42516",
+        "CVE-2025-23048",
+        "CVE-2025-53020",
+        "CVE-2025-49812",
+        "CVE-2025-49630",
+        "CVE-2024-47252",
+        "CVE-2024-43394",
+        "CVE-2024-43204"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "Mixed — DoS / Information Disclosure / Remote Impact",
+      "title": "Apache HTTP Server Multiple Vulnerabilities (ONTAP: CVE-2024-42516)",
+      "description": "Multiple CVEs in Apache HTTP Server prior to 2.4.64 affect various NetApp products. ONTAP 9 is specifically listed as affected by CVE-2024-42516. CVE-2025-23048 (CVSS 9.1, Critical) affects other NetApp products within this advisory.",
+      "affectedProducts": [
+        "ONTAP",
+        "SnapCenter",
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory for branches"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patches incorporating Apache HTTP Server 2.4.64+"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch releases incorporating Apache HTTP Server 2.4.64 or later. Check NTAP-20250718-0013 for product-specific fix versions.",
+      "published": "2025-07-18",
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0013/"
+    },
+    {
+      "id": "NTAP-20250328-0010",
+      "cve": [
+        "CVE-2024-56171"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "Use-After-Free / Denial of Service / Information Disclosure",
+      "title": "ONTAP libxml2 Use-After-Free Vulnerability",
+      "description": "A use-after-free vulnerability in libxml2 triggered by a crafted XML document validated against a schema with identity constraints can lead to information disclosure, data modification, or DoS in ONTAP and other NetApp products.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patches incorporating libxml2 2.12.10+ or 2.13.6+"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch incorporating fixed libxml2. Restrict XML processing surfaces. Check NTAP-20250328-0010 for per-version fix details.",
+      "published": "2025-03-28",
+      "link": "https://security.netapp.com/advisory/ntap-20250328-0010/"
+    },
+    {
+      "id": "NTAP-20250613-0006",
+      "cve": [
+        "CVE-2025-24855"
+      ],
+      "cvss": 7.8,
+      "severity": "high",
+      "category": "Data Integrity / Denial of Service",
+      "title": "ONTAP libxslt Vulnerability — Unauthorized Data Modification / DoS",
+      "description": "A vulnerability in libxslt versions prior to 1.1.43 could allow unauthorized addition or modification of data or Denial of Service in ONTAP and other NetApp products.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patches incorporating libxslt 1.1.43+"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch incorporating libxslt 1.1.43+. Check NTAP-20250613-0006 for per-version patch availability.",
+      "published": "2025-06-13",
+      "link": "https://security.netapp.com/advisory/ntap-20250613-0006/"
+    },
+    {
+      "id": "NTAP-20260204-0012",
+      "cve": [
+        "CVE-2025-11187"
+      ],
+      "cvss": 6.1,
+      "severity": "medium",
+      "category": "Information Disclosure / Denial of Service",
+      "title": "OpenSSL Vulnerability in ONTAP 9.18.1 Only",
+      "description": "Multiple NetApp products incorporating OpenSSL 3.4–3.6 are susceptible to a vulnerability permitting information disclosure, data modification, or DoS. Only ONTAP 9.18.1 is affected in the ONTAP product line.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.18.1",
+            "to": "9.18.1P-check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Future ONTAP 9.18.x patch — monitor NTAP-20260204-0012"
+        ]
+      },
+      "mitigation": "Monitor NTAP-20260204-0012 for ONTAP 9.18.1 patch release. If on 9.18.1, assess risk and plan patch upgrade.",
+      "published": "2026-02-04",
+      "link": "https://security.netapp.com/advisory/ntap-20260204-0012/"
+    },
+    {
+      "id": "NTAP-20251003-0005",
+      "cve": [
+        "CVE-2025-55163"
+      ],
+      "cvss": 8.2,
+      "severity": "high",
+      "category": "Denial of Service",
+      "title": "Apache Netty HTTP/2 MadeYouReset DDoS in NetApp Products",
+      "description": "A logical flaw in Netty's HTTP/2 implementation allows malformed control frames to bypass maximum concurrent streams limits, enabling resource exhaustion and distributed DDoS in multiple NetApp products.",
+      "affectedProducts": [
+        "ONTAP",
+        "SnapCenter",
+        "Trident"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Patches incorporating Apache Netty 4.1.124.Final or 4.2.4.Final"
+        ]
+      },
+      "mitigation": "Apply NetApp product patches incorporating Netty 4.1.124.Final+. Limit exposure of management HTTP/2 endpoints.",
+      "published": "2025-10-03",
+      "link": "https://security.netapp.com/advisory/ntap-20251003-0005/"
+    },
+    {
+      "id": "NTAP-20260424-0001",
+      "cve": [
+        "Multiple Golang CVEs — see advisory"
+      ],
+      "cvss": null,
+      "severity": "high",
+      "category": "Mixed — see individual CVEs",
+      "title": "Multiple Golang Vulnerabilities in NetApp Products including Trident",
+      "description": "Multiple CVEs in bundled Golang components affect various NetApp products including Trident and Trident Protect. Advisory clarifies which CVEs are applicable per product version.",
+      "affectedProducts": [
+        "Trident"
+      ],
+      "affectedVersions": {
+        "trident": [
+          {
+            "from": "all",
+            "to": "check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "trident": [
+          "Latest Trident release incorporating fixed Golang — check NTAP-20260424-0001"
+        ]
+      },
+      "mitigation": "Upgrade Trident to the latest supported release. False-positive scanner alerts for Trident container images are common — always verify against official NTAP advisory before treating as confirmed.",
+      "published": "2026-04-24",
+      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/"
+    },
+    {
+      "id": "NTAP-20250124-0009",
+      "cve": [
+        "CVE-2025-21502"
+      ],
+      "cvss": 4.8,
+      "severity": "medium",
+      "category": "Data Exposure / Data Modification",
+      "title": "Java Platform SE Hotspot Vulnerability in NetApp Products",
+      "description": "A difficult-to-exploit vulnerability in Oracle Java SE Hotspot allows an unauthenticated network attacker to gain unauthorized read/write access to data accessible by the Java component in affected NetApp products.",
+      "affectedProducts": [
+        "ONTAP",
+        "SnapCenter"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Patches incorporating Java CPU January 2025"
+        ]
+      },
+      "mitigation": "Apply ONTAP and SnapCenter patches incorporating Java CPU January 2025 updates. Monitor NTAP-20250124-0009 for final status.",
+      "published": "2025-01-24",
+      "link": "https://security.netapp.com/advisory/ntap-20250124-0009/"
+    },
+    {
+      "id": "NTAP-20250324-0001",
+      "cve": [
+        "CVE-2025-26512"
+      ],
+      "cvss": 9.9,
+      "severity": "critical",
+      "category": "Privilege Escalation / Authorization Bypass",
+      "title": "SnapCenter Critical Privilege Escalation to Remote Admin",
+      "description": "An authenticated low-privileged SnapCenter Server user can escalate privileges to administrator on any remote system where a SnapCenter plug-in is installed, via improper access control over internal REST API calls. CVSS 9.9 Critical.",
+      "affectedProducts": [
+        "SnapCenter"
+      ],
+      "affectedVersions": {
+        "snapcenter": [
+          {
+            "from": "all",
+            "to": "6.0.1"
+          },
+          {
+            "from": "6.1",
+            "to": "6.1P0"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "snapcenter": [
+          "6.0.1P1",
+          "6.1P1"
+        ]
+      },
+      "mitigation": "IMMEDIATELY upgrade SnapCenter to 6.0.1P1 or 6.1P1. Audit SnapCenter user accounts for unauthorized privilege changes. Review all plug-in host access logs.",
+      "published": "2025-03-24",
+      "link": "https://security.netapp.com/advisory/ntap-20250324-0001/"
+    },
+    {
+      "id": "NTAP-20240705-0007",
+      "cve": [
+        "CVE-2024-21993"
+      ],
+      "cvss": 5.7,
+      "severity": "medium",
+      "category": "Information Disclosure / Credential Exposure",
+      "title": "SnapCenter Plaintext Credential Disclosure",
+      "description": "An authenticated SnapCenter attacker can discover plaintext credentials stored or transmitted by SnapCenter versions prior to 5.0p1.",
+      "affectedProducts": [
+        "SnapCenter"
+      ],
+      "affectedVersions": {
+        "snapcenter": [
+          {
+            "from": "all",
+            "to": "5.0"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "snapcenter": [
+          "5.0p1"
+        ]
+      },
+      "mitigation": "Upgrade to SnapCenter 5.0p1 or later. Rotate any credentials that may have been exposed.",
+      "published": "2024-07-05",
+      "link": "https://security.netapp.com/advisory/ntap-20240705-0007/"
+    },
+    {
+      "id": "NTAP-20240216-0001",
+      "cve": [
+        "CVE-2024-21987"
+      ],
+      "cvss": 5.4,
+      "severity": "medium",
+      "category": "Improper Authorization / Information Disclosure",
+      "title": "SnapCenter Improper Authorization — Logging Configuration Modification",
+      "description": "An authenticated SnapCenter user can modify system logging configuration settings, potentially enabling sensitive information disclosure or unauthorized data modification.",
+      "affectedProducts": [
+        "SnapCenter"
+      ],
+      "affectedVersions": {
+        "snapcenter": [
+          {
+            "from": "4.8",
+            "to": "4.x"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "snapcenter": [
+          "5.0"
+        ]
+      },
+      "mitigation": "Upgrade to SnapCenter 5.0 or later.",
+      "published": "2024-02-16",
+      "link": "https://security.netapp.com/advisory/ntap-20240216-0001/"
+    },
+    {
+      "id": "NTAP-20260217-0001",
+      "cve": [
+        "CVE-2026-22048"
+      ],
+      "cvss": 7.1,
+      "severity": "high",
+      "category": "Server-Side Request Forgery (SSRF)",
+      "title": "StorageGRID SSRF via SSO Microsoft Entra ID — Config Deletion / DoS",
+      "description": "An authenticated low-privileged attacker can exploit an SSRF flaw in the SSO/Microsoft Entra ID integration to delete configuration data or deny access to resources. Only affects deployments with SSO + Entra ID configured.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.9",
+            "to": "11.9.0.11"
+          },
+          {
+            "from": "12.0",
+            "to": "12.0.0.3"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.9.0.12",
+          "12.0.0.4"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.9.0.12 or 12.0.0.4. If upgrade is delayed, disable SSO with Microsoft Entra ID as interim workaround.",
+      "published": "2026-02-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260217-0001/"
+    },
+    {
+      "id": "NTAP-20250910-0003",
+      "cve": [
+        "CVE-2025-26516"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "Denial of Service",
+      "title": "StorageGRID Unauthenticated DoS on Admin Node",
+      "description": "An unauthenticated remote attacker can cause a Denial of Service condition on the StorageGRID Admin node via asymmetric resource consumption (CWE-405).",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.8",
+            "to": "11.8.0.14"
+          },
+          {
+            "from": "11.9",
+            "to": "11.9.0.7"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.8.0.15",
+          "11.9.0.8"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.8.0.15 or 11.9.0.8. Restrict Admin node access to trusted management networks.",
+      "published": "2025-09-10",
+      "link": "https://security.netapp.com/advisory/ntap-20250910-0003/"
+    },
+    {
+      "id": "NTAP-20250910-0004",
+      "cve": [
+        "CVE-2025-26517"
+      ],
+      "cvss": 5.4,
+      "severity": "medium",
+      "category": "Privilege Escalation / Information Disclosure",
+      "title": "StorageGRID Privilege Escalation — Grid Node Discovery / Storage Grade Modification",
+      "description": "An authenticated low-privileged attacker can discover Grid node names and IP addresses, or modify Storage Grades, enabling unauthorized data exposure or data modification.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.8",
+            "to": "11.8.0.14"
+          },
+          {
+            "from": "11.9",
+            "to": "11.9.0.7"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.8.0.15",
+          "11.9.0.8"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.8.0.15 or 11.9.0.8.",
+      "published": "2025-09-10",
+      "link": "https://security.netapp.com/advisory/ntap-20250910-0004/"
+    },
+    {
+      "id": "NTAP-20241108-0001",
+      "cve": [
+        "CVE-2024-21994"
+      ],
+      "cvss": 4.3,
+      "severity": "medium",
+      "category": "Denial of Service",
+      "title": "StorageGRID Authenticated DoS — Service Crash",
+      "description": "An authenticated attacker can cause a service crash in StorageGRID versions prior to 11.9.0.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.0",
+            "to": "11.8.x"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.9.0"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.9.0 or later.",
+      "published": "2024-11-08",
+      "link": "https://security.netapp.com/advisory/ntap-20241108-0001/"
+    },
+    {
+      "id": "NTAP-20240216-0012",
+      "cve": [
+        "CVE-2024-21983"
+      ],
+      "cvss": 6.5,
+      "severity": "medium",
+      "category": "Denial of Service",
+      "title": "StorageGRID Out-of-Memory / Node Reboot DoS",
+      "description": "An authenticated attacker can trigger an out-of-memory condition or node reboot via a specially crafted request in StorageGRID versions prior to 11.8.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.0",
+            "to": "11.7.x"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.8"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.8 or later.",
+      "published": "2024-02-16",
+      "link": "https://security.netapp.com/advisory/ntap-20240216-0012/"
+    },
+    {
+      "id": "NTAP-20240216-0013",
+      "cve": [
+        "CVE-2024-21984"
+      ],
+      "cvss": 5.9,
+      "severity": "medium",
+      "category": "Cross-Site Scripting (XSS)",
+      "title": "StorageGRID Reflected XSS — Configuration Modification",
+      "description": "A reflected XSS vulnerability requires an attacker to know specific instance information and trick a privileged user into clicking a crafted link, potentially enabling unauthorized configuration changes or user account manipulation.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.0",
+            "to": "11.7.x"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.8"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.8 or later. Enforce browser security headers.",
+      "published": "2024-02-16",
+      "link": "https://security.netapp.com/advisory/ntap-20240216-0013/"
+    },
+    {
+      "id": "NTAP-SG-2026-22051",
+      "cve": [
+        "CVE-2026-22051"
+      ],
+      "cvss": 2.3,
+      "severity": "low",
+      "category": "Information Disclosure",
+      "title": "StorageGRID Metrics Query Information Disclosure",
+      "description": "An authenticated attacker with low privileges can run arbitrary metrics queries to reveal sensitive metric data they are not authorized to see.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.9",
+            "to": "11.9.0.12"
+          },
+          {
+            "from": "12.0",
+            "to": "12.0.0.5"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "11.9.0.13",
+          "12.0.0.6"
+        ]
+      },
+      "mitigation": "Upgrade to StorageGRID 11.9.0.13 or 12.0.0.6 or later.",
+      "published": "2026-01-01",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20250806-0001",
+      "cve": [
+        "CVE-2025-26513"
+      ],
+      "cvss": 7.0,
+      "severity": "high",
+      "category": "Privilege Escalation",
+      "title": "NetApp SAN Host Utilities for Windows Installer Local Privilege Escalation",
+      "description": "The installer for SAN Host Utilities for Windows is susceptible to a local privilege escalation vulnerability. A local user could exploit this to modify data, disclose sensitive information, or cause DoS.",
+      "affectedProducts": [
+        "SAN Host Utilities for Windows"
+      ],
+      "affectedVersions": {
+        "sanHostUtils": [
+          {
+            "from": "all",
+            "to": "7.x"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "sanHostUtils": [
+          "8.0"
+        ]
+      },
+      "mitigation": "Upgrade SAN Host Utilities for Windows to version 8.0.",
+      "published": "2025-08-06",
+      "link": "https://security.netapp.com/advisory/ntap-20250806-0001/"
+    },
+    {
+      "id": "CONTAP-539599",
+      "cve": null,
+      "cvss": null,
+      "severity": "high",
+      "category": "Operational Stability / Memory Leak",
+      "title": "ONTAP 9.16.1/9.17.1 Node Instability — Unexpected Reboots (SU611 / mgwd / secd)",
+      "description": "Memory exhaustion under heavy workload on AFF A20/A30/A50, ASA, FAS50, FAS2720, AFF A220 triggers EMS alert wafl.memory.statusVeryLowMemory, causing mgwd/secd/vldb/bcomd processes to become unresponsive (>210s), triggering watchdog panic and unexpected node reboot.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "9.16.1P10"
+          },
+          {
+            "from": "9.17.1",
+            "to": "9.17.1P3"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.16.1P11",
+          "9.17.1P4",
+          "9.18.1"
+        ]
+      },
+      "mitigation": "Upgrade to 9.16.1P11, 9.17.1P4, or 9.18.1. Review EMS logs for wafl.memory.statusVeryLowMemory events. Open support case referencing CONTAP-539599 if reboots observed.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "CONTAP-480665",
+      "cve": null,
+      "cvss": null,
+      "severity": "high",
+      "category": "Operational Stability / Memory Leak",
+      "title": "ONTAP 9.16.1/9.17.1 Intel E810 NIC Memory Leak — Nodewatchdog Panic",
+      "description": "A memory leak in the Intel E810 network adapter driver causes gradual BSD memory exhaustion on ONTAP nodes with E810 NICs, eventually triggering nodewatchdog panics and unexpected node reboots.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "9.16.1P10"
+          },
+          {
+            "from": "9.17.1",
+            "to": "9.17.1P3"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.16.1P11",
+          "9.17.1P4"
+        ]
+      },
+      "mitigation": "Upgrade to 9.16.1P11 or 9.17.1P4. Verify NIC model via 'system node hardware show'. Reference CONTAP-480665 in support case.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "CONTAP-551221",
+      "cve": null,
+      "cvss": null,
+      "severity": "medium",
+      "category": "Operational Bug / UI / REST API",
+      "title": "ONTAP 9.17.1 System Manager 'API not found' Errors on ASAr1 Systems",
+      "description": "In ONTAP System Manager 9.17.1 GA on ASAr1 systems, multiple workflows fail with 'API not found' errors, affecting dashboard health cards, mediator visibility, node discovery, software update display, IPSpaces in network overview, and MetroCluster detection.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.17.1",
+            "to": "9.17.1P1"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.17.1P2"
+        ]
+      },
+      "mitigation": "Upgrade to ONTAP 9.17.1P2+. Use ONTAP CLI as workaround for affected System Manager workflows.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "CONTAP-391035",
+      "cve": null,
+      "cvss": null,
+      "severity": "low",
+      "category": "Operational Bug / Audit Log Noise",
+      "title": "ONTAP 9.17.1 Spurious 'Authentication Failed (unknown:unknown)' Audit Log Entries",
+      "description": "After upgrading to ONTAP 9.17.1, the audit log generates frequent false 'Authentication failed' messages for user 'unknown:unknown', creating noise that can obscure genuine security events.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.17.1",
+            "to": "9.17.1P-check KB"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Check KB CONTAP-391035 for fix P-release"
+        ]
+      },
+      "mitigation": "Filter audit log noise by user 'unknown:unknown' in SIEM. Cross-reference with actual security events. Apply fix P-release when available.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "KB-ManualUpgradeSignature",
+      "cve": null,
+      "cvss": null,
+      "severity": "medium",
+      "category": "Operational Bug / Upgrade Process",
+      "title": "ONTAP Manual Upgrade Fails — Signature Validation Error (Post-Sept 2025 Builds)",
+      "description": "Using 'system node image update' (manual upgrade) from ONTAP builds released before September 9, 2025 to builds released after that date fails with: 'Failed to verify the signatures of the image.' Also affects upgrades from ONTAP 9.8 or 9.9.1.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.8",
+            "to": "9.9.1 (multi-hop paths), any build pre-2025-09-09"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Use ANDU (automated upgrade) instead — no software fix for manual upgrade path"
+        ]
+      },
+      "mitigation": "Use ANDU via 'cluster image update' CLI or System Manager instead of 'system node image update'. Multi-stage upgrade required from 9.8 or 9.9.1. Contact NetApp Support if ANDU unavailable.",
+      "published": "2025-09-09",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "KB-NVMeDeallocate",
+      "cve": null,
+      "cvss": null,
+      "severity": "low",
+      "category": "Operational Bug / NVMe",
+      "title": "ONTAP 9.16.1–9.18.1 NVMe Host Deallocate Does Not Clear All Unused Namespace Blocks",
+      "description": "An issue in ONTAP 9.16.1, 9.17.1, and 9.18.1 means NVMe deallocate commands from a host do not clear all unused blocks from the NVMe namespace, preventing full space reclamation.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "9.18.1-check KB"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Check KB for fix release"
+        ]
+      },
+      "mitigation": "Monitor NVMe namespace utilization. If space reclamation is critical, open a support case referencing the NVMe deallocate issue. Consider periodic space rebalancing.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "KB-PFCDisabled-9161",
+      "cve": null,
+      "cvss": null,
+      "severity": "medium",
+      "category": "Operational Bug / Networking",
+      "title": "ONTAP 9.16.1 Upgrade May Disable Priority Flow Control (PFC) on CX6 Non-Shared Cluster Ports",
+      "description": "Following an upgrade to ONTAP 9.16.1+, Priority Flow Control (PFC) may be disabled on Mellanox CX6 non-shared cluster ports, potentially impacting cluster interconnect performance in RoCE environments.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "9.16.1P-check KB"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Check KB for specific P-release fix"
+        ]
+      },
+      "mitigation": "Verify PFC configuration post-upgrade via 'network interface show'. Re-enable PFC if disabled. Reference NetApp KB for CX6 PFC restoration procedure.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "KB-IntelNIC-CiscoNexus-9181",
+      "cve": null,
+      "cvss": null,
+      "severity": "high",
+      "category": "Operational Bug / Networking",
+      "title": "ONTAP 9.18.1 Intel NIC Communication Failures with Cisco Nexus 5K/7K",
+      "description": "After upgrading to ONTAP 9.18.1, certain Intel NICs may experience communication failures with Cisco Nexus 5K and 7K switches, causing data path interruptions.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.18.1",
+            "to": "9.18.1P-check KB"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Check KB for specific P-release fix or NIC firmware workaround"
+        ]
+      },
+      "mitigation": "Before upgrading to 9.18.1, verify Intel NIC and Cisco Nexus switch firmware compatibility. Check NetApp KB for specific affected NIC/switch combinations and workarounds.",
+      "published": "2025-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "NTAP-20260429-0005",
+      "cve": [
+        "CVE-2025-6965",
+        "CVE-2026-35237"
+      ],
+      "cvss": null,
+      "severity": "medium",
+      "category": "Mixed — per Oracle CPU",
+      "title": "MySQL Server Vulnerabilities in NetApp Management Products (Oracle CPU Recurring)",
+      "description": "Multiple advisories are periodically issued for MySQL vulnerabilities in bundled MySQL components across NetApp management products (SnapCenter, Active IQ Unified Manager). Arise from Oracle Critical Patch Updates.",
+      "affectedProducts": [
+        "SnapCenter"
+      ],
+      "affectedVersions": {
+        "snapcenter": [
+          {
+            "from": "all",
+            "to": "check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "snapcenter": [
+          "Latest patches incorporating Oracle CPU updates"
+        ]
+      },
+      "mitigation": "Apply latest NetApp management software patches incorporating Oracle CPU updates on a quarterly basis.",
+      "published": "2026-04-29",
+      "link": "https://security.netapp.com/advisory/ntap-20260429-0005/"
+    },
+    {
+      "id": "KB-KerberosCompat-CIFS",
+      "cve": [
+        "CVE-2026-20833"
+      ],
+      "cvss": null,
+      "severity": "medium",
+      "category": "Authentication Disruption / Compatibility",
+      "title": "Microsoft Kerberos KDC Update — CIFS/SMB Authentication Disruption Risk",
+      "description": "A Microsoft security update changing Kerberos/KDC behavior (KB5073381) can disrupt CIFS/SMB authentication on ONTAP clusters when AD accounts have a blank msds-SupportedEncryptionTypes attribute, causing authentication failures for CIFS clients.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — configuration-dependent"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Configuration fix — ensure AES-128/AES-256 encryption types set on CIFS SVM AD accounts"
+        ]
+      },
+      "mitigation": "Ensure ONTAP CIFS servers use AES-128/AES-256 encryption types. Update AD account msds-SupportedEncryptionTypes attribute. Test in staging before applying Windows updates. Review NetApp KB Kerberos compatibility guidance.",
+      "published": "2026-01-01",
+      "link": "https://kb.netapp.com/"
+    },
+    {
+      "id": "NTAP-20240712-0001",
+      "cve": [
+        "CVE-2024-38475"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "Information Disclosure / Remote Code Execution",
+      "title": "ONTAP Apache HTTP Server mod_rewrite URL Mapping — Critical",
+      "description": "A vulnerability in Apache HTTP Server mod_rewrite (CVE-2024-38475, CVSS 9.1) allows an attacker to map URLs to filesystem locations that are permitted but not intentionally reachable, leading to source code disclosure or remote code execution in ONTAP and other NetApp products.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240712-0001"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.12.1P16",
+          "9.13.1P14",
+          "9.14.1P8",
+          "9.15.1P3",
+          "9.16.1"
+        ]
+      },
+      "mitigation": "Upgrade to fixed ONTAP patch release (9.12.1P16, 9.13.1P14, 9.14.1P8, 9.15.1P3, or 9.16.1+). Check NTAP-20240712-0001 for your specific branch fix.",
+      "published": "2024-07-12",
+      "link": "https://security.netapp.com/advisory/ntap-20240712-0001/"
+    },
+    {
+      "id": "NTAP-20240808-0007",
+      "cve": [
+        "CVE-2024-40725"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Information Disclosure",
+      "title": "ONTAP Apache HTTP Server Content-Type Legacy Config Source Disclosure",
+      "description": "A vulnerability in Apache HTTP Server (CVE-2024-40725) related to incorrect handling of legacy content-type configurations can lead to source code disclosure of local content (e.g., PHP scripts served instead of interpreted) in ONTAP.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240808-0007"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.12.1P16",
+          "9.13.1P14",
+          "9.14.1P8",
+          "9.15.1P3",
+          "9.16.1"
+        ]
+      },
+      "mitigation": "Upgrade to ONTAP patch incorporating Apache HTTP Server 2.4.62+. Verify fixed patch level against NTAP-20240808-0007.",
+      "published": "2024-08-08",
+      "link": "https://security.netapp.com/advisory/ntap-20240808-0007/"
+    },
+    {
+      "id": "NTAP-20241220-0008",
+      "cve": [
+        "CVE-2024-11236"
+      ],
+      "cvss": 9.8,
+      "severity": "critical",
+      "category": "Buffer Overflow / Remote Code Execution",
+      "title": "ONTAP PHP ldap_escape Buffer Overflow — Critical CVSS 9.8",
+      "description": "A buffer overflow in PHP's ldap_escape() function (CVE-2024-11236) on 32-bit systems causes an integer overflow resulting in an out-of-bounds write, potentially enabling remote code execution or DoS in ONTAP and other NetApp products incorporating PHP.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.12.1",
+            "to": "current — check NTAP-20241220-0008"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patch incorporating PHP 8.1.30+, 8.2.24+, or 8.3.12+"
+        ]
+      },
+      "mitigation": "Upgrade to ONTAP patch release incorporating PHP 8.1.30+, 8.2.24+, or 8.3.12+. Check NTAP-20241220-0008 for specific branch patch versions.",
+      "published": "2024-12-20",
+      "link": "https://security.netapp.com/advisory/ntap-20241220-0008/"
+    },
+    {
+      "id": "NTAP-20241101-0003",
+      "cve": [
+        "CVE-2024-8927",
+        "CVE-2024-8925",
+        "CVE-2024-8926",
+        "CVE-2024-9026"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Information Disclosure / Denial of Service",
+      "title": "ONTAP PHP Multiple Vulnerabilities (8.1/8.2/8.3 Pre-Fix Versions)",
+      "description": "Multiple PHP vulnerabilities (CVE-2024-8927, CVE-2024-8925, CVE-2024-8926, CVE-2024-9026) in PHP versions prior to 8.1.30/8.2.24/8.3.12 affect ONTAP 9.12.1 and higher, potentially leading to information disclosure, data modification, or DoS.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.12.1",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patches incorporating PHP 8.1.30+, 8.2.24+, 8.3.12+"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch incorporating PHP 8.1.30+, 8.2.24+, or 8.3.12+. Check NTAP-20241101-0003 for your specific ONTAP branch fix version.",
+      "published": "2024-11-01",
+      "link": "https://security.netapp.com/advisory/ntap-20241101-0003/"
+    },
+    {
+      "id": "NTAP-Python-CVE-2025-4517",
+      "cve": [
+        "CVE-2025-4517"
+      ],
+      "cvss": 9.4,
+      "severity": "critical",
+      "category": "Arbitrary File Write / Path Traversal",
+      "title": "Python tarfile Path Traversal — Arbitrary File Write Outside Extraction Directory",
+      "description": "A path traversal flaw in Python's tarfile.extractall() with filter='data' or filter='tar' allows attackers to use malicious symlinks/hardlinks in tar archives to write arbitrary files outside the intended extraction directory, enabling potential RCE via configuration file overwrite.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NetApp advisory for affected Python versions"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patches incorporating fixed Python version — check security.netapp.com"
+        ]
+      },
+      "mitigation": "Apply NetApp patches incorporating fixed Python. Avoid processing untrusted tar archives. Isolate any archive extraction processes from privileged file paths.",
+      "published": "2025-05-01",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20250718-0013-CVE-2024-47252",
+      "cve": [
+        "CVE-2024-47252"
+      ],
+      "cvss": 8.0,
+      "severity": "high",
+      "category": "Information Disclosure / Denial of Service",
+      "title": "Apache HTTP Server CVE-2024-47252 in ONTAP (part of NTAP-20250718-0013)",
+      "description": "CVE-2024-47252 is one of multiple Apache HTTP Server vulnerabilities in NTAP-20250718-0013 affecting various NetApp products. Potential impacts include information disclosure or denial of service.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20250718-0013"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patches incorporating Apache HTTP Server 2.4.64+"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch release incorporating Apache HTTP Server 2.4.64+. Covered by NTAP-20250718-0013.",
+      "published": "2025-07-18",
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0013/"
+    },
+    {
+      "id": "NTAP-20241106-0001",
+      "cve": [
+        "CVE-2024-54085"
+      ],
+      "cvss": 10.0,
+      "severity": "critical",
+      "category": "Authentication Bypass / BMC Firmware — CISA KEV CONFIRMED",
+      "title": "AMI MegaRAC SPx BMC Authentication Bypass — Actively Exploited (CISA KEV)",
+      "description": "Authentication bypass in AMI MegaRAC SPx BMC firmware (CVSS 10.0). Attackers modify X-Server-Addr or Host HTTP headers to impersonate the BMC Redfish host interface, gaining unauthenticated full BMC control. Enables data destruction, persistent malware installation, and system bricking. CONFIRMED IN CISA KEV — actively exploited in the wild. Affects StorageGRID SG6160, SGF6112, SG110, SG1100 appliances.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.0",
+            "to": "11.9.0.6"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "Firmware update AMI MegaRAC SPx 12.7+ or 13.5+; StorageGRID 11.9.0.7+ hotfix"
+        ]
+      },
+      "mitigation": "URGENT — CISA KEV confirmed active exploitation. Apply firmware update to AMI MegaRAC SPx 12.7+ or 13.5+ immediately. Apply StorageGRID hotfix 11.9.0.7+. Isolate BMC management interfaces from untrusted networks. Unaffected models: SG6060, SGF6024, SG100, SG1000.",
+      "published": "2024-03-18",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-Golang-CVE-2024-45337",
+      "cve": [
+        "CVE-2024-45337"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "Authentication Bypass",
+      "title": "Golang x/crypto SSH Library Authentication Bypass — Trident / NetApp",
+      "description": "Authorization bypass in golang.org/x/crypto SSH library due to misuse of ServerConfig.PublicKeyCallback. Applications making incorrect assumptions about which key authenticated a connection may allow authentication bypass. Affects NetApp Trident and Trident Protect.",
+      "affectedProducts": [
+        "Trident"
+      ],
+      "affectedVersions": {
+        "trident": [
+          {
+            "from": "all",
+            "to": "check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "trident": [
+          "Updated Trident releases with patched Go crypto dependency"
+        ]
+      },
+      "mitigation": "Upgrade Trident to latest release incorporating fixed golang.org/x/crypto. Verify Trident's Go dependency versions. Check NetApp advisory for specific Trident version fix.",
+      "published": "2024-12-11",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20260204-0015",
+      "cve": [
+        "CVE-2025-15467"
+      ],
+      "cvss": 9.8,
+      "severity": "critical",
+      "category": "Stack Buffer Overflow / Remote Code Execution",
+      "title": "OpenSSL Stack Buffer Overflow in CMS AuthEnvelopedData — ONTAP 9.18.1",
+      "description": "Stack buffer overflow in OpenSSL (3.0–3.6) when parsing CMS (Auth)EnvelopedData messages with maliciously crafted AEAD parameters. Could enable remote code execution or DoS. Affects ONTAP 9.18.1 which incorporates vulnerable OpenSSL 3.x. SnapCenter confirmed NOT affected.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.18.1",
+            "to": "9.18.1P-check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP 9.18.1 patch incorporating fixed OpenSSL"
+        ]
+      },
+      "mitigation": "Apply ONTAP 9.18.1 patch incorporating fixed OpenSSL. If urgency high, consider reverting to 9.17.1P4+ (not affected) until 9.18.1 patch available. Monitor NetApp advisory for fix release date.",
+      "published": "2025-06-01",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-Golang-CVE-2026-27143",
+      "cve": [
+        "CVE-2026-27143"
+      ],
+      "cvss": 9.8,
+      "severity": "critical",
+      "category": "Memory Corruption / Integer Overflow",
+      "title": "Golang Compiler Integer Overflow — Trident / Trident Protect",
+      "description": "Integer overflow/underflow vulnerability in Golang compiler affecting arithmetic over loop induction variables, potentially causing memory corruption. Affects NetApp Trident and Trident Protect due to bundled Go runtime. Part of NTAP-20260424-0001.",
+      "affectedProducts": [
+        "Trident"
+      ],
+      "affectedVersions": {
+        "trident": [
+          {
+            "from": "all",
+            "to": "check NTAP-20260424-0001"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "trident": [
+          "Latest Trident release with patched Go runtime"
+        ]
+      },
+      "mitigation": "Upgrade Trident and Trident Protect to latest supported release. Check NTAP-20260424-0001 for specific version fix.",
+      "published": "2026-04-24",
+      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/"
+    },
+    {
+      "id": "NTAP-20240126-0002",
+      "cve": [
+        "CVE-2024-21989"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "Privilege Escalation",
+      "title": "ONTAP Select Deploy Administration Utility Read-Only Privilege Escalation",
+      "description": "A read-only user of ONTAP Select Deploy administration utility can escalate privileges to modify or delete Deploy-managed data in versions 9.12.1.x, 9.13.1.x, and 9.14.1.x.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.12.1",
+            "to": "9.14.1P-check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Per NTAP advisory — check mysupport.netapp.com for ONTAP Select Deploy patch"
+        ]
+      },
+      "mitigation": "Apply ONTAP Select Deploy patch. Restrict access to Deploy utility to admin-only accounts. Audit all Deploy users for unauthorized privilege levels.",
+      "published": "2024-01-26",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20240126-0003",
+      "cve": [
+        "CVE-2024-21982"
+      ],
+      "cvss": 4.8,
+      "severity": "medium",
+      "category": "Information Disclosure",
+      "title": "ONTAP object-store profiler Command Sensitive Information Disclosure",
+      "description": "When an administrative user executes the 'object-store profiler' command in ONTAP 9.4 and higher, sensitive information can be disclosed to unprivileged attackers who have access to the output.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.4",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Per NetApp advisory — specific patch per branch"
+        ]
+      },
+      "mitigation": "Restrict 'object-store profiler' command execution to trusted admins. Apply NetApp advisory patch. Do not share CLI output containing profiler data with untrusted parties.",
+      "published": "2024-01-26",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20240503-0013",
+      "cve": [
+        "CVE-2024-2511"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Denial of Service",
+      "title": "ONTAP OpenSSL TLSv1.3 Unbounded Memory Growth DoS",
+      "description": "A Denial of Service vulnerability in OpenSSL TLSv1.3 causes unbounded memory growth in non-default configurations using SSL_OP_NO_TICKET. Affects multiple NetApp products including ONTAP.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240503-0013"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Per NTAP-20240503-0013 patches"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch release from NTAP-20240503-0013. Review TLS configuration — SSL_OP_NO_TICKET is non-default. Limit management interface TLS connections from untrusted sources.",
+      "published": "2024-05-03",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20250613-0011",
+      "cve": [
+        "CVE-2024-47685"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "Information Disclosure / Denial of Service",
+      "title": "Linux Kernel Vulnerability — StorageGRID Hotfix Required",
+      "description": "A Linux kernel vulnerability affecting StorageGRID and other NetApp products. Successful exploitation could lead to disclosure of sensitive information or Denial of Service. A StorageGRID hotfix 11.9.0.7 is required; reboot of affected nodes required post-patch.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.9.0.5",
+            "to": "11.9.0.6"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "StorageGRID hotfix 11.9.0.7"
+        ]
+      },
+      "mitigation": "Apply StorageGRID hotfix 11.9.0.7 immediately. Schedule node reboots for affected appliances. Check NTAP-20250613-0011 for full product list.",
+      "published": "2025-06-13",
+      "link": "https://security.netapp.com/advisory/ntap-20250613-0011/"
+    },
+    {
+      "id": "NTAP-Libxslt-CVE-2024-55549",
+      "cve": [
+        "CVE-2024-55549"
+      ],
+      "cvss": 7.8,
+      "severity": "high",
+      "category": "Use-After-Free / Denial of Service",
+      "title": "libxslt Use-After-Free in xsltGetInheritedNsList — ONTAP / Multiple Products",
+      "description": "Use-after-free vulnerability in libxslt xsltGetInheritedNsList function related to exclusion of result prefixes. Can lead to information disclosure, data modification, or Denial of Service in NetApp products incorporating libxslt prior to 1.1.43.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "libxslt 1.1.43+ — ONTAP patch per advisory"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch incorporating libxslt 1.1.43+. Related to CVE-2025-24855 in same advisory group. Check NetApp security portal for per-version fix.",
+      "published": "2024-12-01",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-Curl-CVE-2024-2398",
+      "cve": [
+        "CVE-2024-2398"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Denial of Service / Memory Leak",
+      "title": "libcurl HTTP/2 Server Push Memory Leak — ONTAP / Multiple Products",
+      "description": "HTTP/2 server push memory leak in libcurl 7.44.0–8.6.0. When excessive headers are received with server push enabled, libcurl fails to free all allocated headers on abort, causing DoS via memory exhaustion in NetApp products incorporating curl.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Per NetApp advisory — curl 8.7.1+"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch incorporating curl 8.7.1+. If HTTP/2 server push is used, monitor for memory growth. Check NetApp security portal for per-version fix.",
+      "published": "2024-03-27",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20240517-0008",
+      "cve": [
+        "CVE-2024-22025"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Denial of Service",
+      "title": "Node.js Denial of Service in Multiple NetApp Products",
+      "description": "Node.js DoS vulnerability affecting multiple NetApp products that bundle Node.js (≤18.19.0, 19.x–20.11.0, 21.x–21.6.1) including Active IQ Unified Manager, ONTAP tools for VMware vSphere, and others. Remote unauthenticated attacker can cause service unavailability.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240517-0008"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "Per NTAP-20240517-0008 — update Node.js bundled components"
+        ]
+      },
+      "mitigation": "Apply NetApp product patches incorporating Node.js 18.20.0+, 20.12.0+, or 21.7.0+. Check NTAP-20240517-0008 for per-product fix versions.",
+      "published": "2024-05-17",
+      "link": "https://security.netapp.com/advisory/ntap-20240517-0008/"
+    },
+    {
+      "id": "NTAP-20250516-0007",
+      "cve": [
+        "CVE-2025-22872"
+      ],
+      "cvss": 6.1,
+      "severity": "medium",
+      "category": "Cross-Site Scripting (XSS)",
+      "title": "Golang x/net/html DOM Construction XSS — Trident / NetApp Products",
+      "description": "XSS/DOM manipulation vulnerability in golang.org/x/net/html tokenizer (prior to 0.38.0). HTML tokenizer incorrectly interprets unquoted attribute values ending in a solidus (/) as self-closing tags, causing incorrect DOM construction and potential XSS in foreign content (math/svg contexts). Affects NetApp Trident and other Golang-based products.",
+      "affectedProducts": [
+        "Trident"
+      ],
+      "affectedVersions": {
+        "trident": [
+          {
+            "from": "all",
+            "to": "check NTAP-20250516-0007"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "trident": [
+          "golang.org/x/net/html 0.38.0+; per NTAP-20250516-0007"
+        ]
+      },
+      "mitigation": "Upgrade Trident to latest release incorporating golang.org/x/net/html 0.38.0+. Check NTAP-20250516-0007 for product-specific fix details.",
+      "published": "2025-05-16",
+      "link": "https://security.netapp.com/advisory/ntap-20250516-0007/"
+    },
+    {
+      "id": "NTAP-20240916-0001",
+      "cve": [
+        "CVE-2024-43102"
+      ],
+      "cvss": 10.0,
+      "severity": "critical",
+      "category": "Use-After-Free / Kernel Code Execution",
+      "title": "FreeBSD UMTX Use-After-Free — ONTAP 9 Kernel Privilege Escalation (CVSS 10.0)",
+      "description": "Use-After-Free in FreeBSD kernel UMTX subsystem (UMTX_SHM_DESTROY). Race condition on concurrent anonymous shared memory unmapping leads to kernel panic, arbitrary code execution at kernel privilege, or Capsicum sandbox bypass. All ONTAP 9 versions incorporating FreeBSD ≤14.1p3 are potentially affected.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240916-0001"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patch incorporating FreeBSD 14.1-p4+ or 13.3-p6+ — check NTAP-20240916-0001"
+        ]
+      },
+      "mitigation": "Apply NTAP-20240916-0001 patch immediately. This is a critical kernel-level UAF requiring OS-level patch. Restrict direct kernel access. Check advisory for ONTAP branch-specific fix versions.",
+      "published": "2024-09-16",
+      "link": "https://security.netapp.com/advisory/ntap-20240916-0001/"
+    },
+    {
+      "id": "NTAP-20250718-0001-SQLite",
+      "cve": [
+        "CVE-2025-6965"
+      ],
+      "cvss": 9.8,
+      "severity": "critical",
+      "category": "Integer Overflow / Remote Code Execution",
+      "title": "SQLite Integer Overflow in SnapCenter Server — CVSS 9.8",
+      "description": "SQLite memory corruption vulnerability (CVE-2025-6965, CVSS 9.8): aggregate term count can exceed available columns causing integer overflow/truncation and memory corruption. When processing malicious SQL, could lead to DoS or arbitrary code execution. Affects SnapCenter Server and Active IQ Unified Manager which bundle SQLite.",
+      "affectedProducts": [
+        "SnapCenter"
+      ],
+      "affectedVersions": {
+        "snapcenter": [
+          {
+            "from": "5.0",
+            "to": "6.1P-check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "snapcenter": [
+          "SnapCenter with SQLite 3.50.2+ — check NTAP-20250718-0001"
+        ]
+      },
+      "mitigation": "Upgrade SnapCenter to latest release incorporating SQLite 3.50.2+. Restrict SnapCenter server access to authorized administrators only. Check NTAP-20250718-0001 for specific fix versions.",
+      "published": "2025-07-18",
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0001/"
+    },
+    {
+      "id": "NTAP-20260424-0001-b",
+      "cve": [
+        "CVE-2026-27140"
+      ],
+      "cvss": 8.8,
+      "severity": "high",
+      "category": "Memory Corruption / Code Execution",
+      "title": "Golang Standard Library Memory Corruption — Trident / ONTAP Tools",
+      "description": "Golang standard library vulnerability allowing authenticated network-based attackers to achieve code execution or cause significant data compromise in applications built with affected Go versions (< 1.25.9, < 1.26.2). Affects NetApp Trident and ONTAP tools for VMware vSphere. Part of NTAP-20260424-0001.",
+      "affectedProducts": [
+        "Trident"
+      ],
+      "affectedVersions": {
+        "trident": [
+          {
+            "from": "all",
+            "to": "check NTAP-20260424-0001"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "trident": [
+          "Go 1.25.9+ or 1.26.2+; rebuild/update Trident"
+        ]
+      },
+      "mitigation": "Upgrade Trident and ONTAP tools for VMware to latest release incorporating Go 1.25.9+ or 1.26.2+. Check NTAP-20260424-0001 for specific product fix versions.",
+      "published": "2026-04-24",
+      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/"
+    },
+    {
+      "id": "NTAP-20240712-0001-mod_proxy",
+      "cve": [
+        "CVE-2024-38473"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "Authentication Bypass / URL Encoding",
+      "title": "Apache HTTP Server mod_proxy Encoding Bypass — ONTAP 9",
+      "description": "Encoding problem in Apache HTTP Server mod_proxy (CVE-2024-38473) allows specially crafted request URLs to bypass authentication controls and reach backend services inappropriately. Part of the same advisory batch as CVE-2024-38475. Affects ONTAP 9 systems with management interfaces exposed via reverse proxy.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240712-0001"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "9.12.1P16",
+          "9.13.1P14",
+          "9.14.1P8",
+          "9.15.1P3",
+          "9.16.1"
+        ]
+      },
+      "mitigation": "Apply same NTAP-20240712-0001 patch as CVE-2024-38475 (Apache HTTP Server 2.4.60+). Restrict management interface exposure through reverse proxies. Do not expose ONTAP management to internet.",
+      "published": "2024-07-12",
+      "link": "https://security.netapp.com/advisory/ntap-20240712-0001/"
+    },
+    {
+      "id": "NTAP-20240731-0004",
+      "cve": [
+        "CVE-2024-0760"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "Denial of Service",
+      "title": "ISC BIND DNS Flood DoS — ONTAP 9 DNS Load Balancing",
+      "description": "ISC BIND vulnerability (CVE-2024-0760): remote attacker can flood DNS messages over TCP causing DNS service instability (DoS). Affects ONTAP 9 v9.14.1+ systems configured for DNS load balancing.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.14.1",
+            "to": "current — check NTAP-20240731-0004"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP 9 patch release per NTAP-20240731-0004"
+        ]
+      },
+      "mitigation": "Apply ONTAP patch from NTAP-20240731-0004. Rate-limit TCP DNS connections at network layer. Review DNS load balancing configuration. Consider restricting DNS listener to management networks only.",
+      "published": "2024-07-31",
+      "link": "https://security.netapp.com/advisory/ntap-20240731-0004/"
+    },
+    {
+      "id": "NTAP-20250124-0001",
+      "cve": [
+        "CVE-2025-0411"
+      ],
+      "cvss": 7.0,
+      "severity": "high",
+      "category": "Mark-of-the-Web Bypass / Code Execution",
+      "title": "7-Zip MoTW Bypass in Active IQ Unified Manager — Arbitrary Code Execution Risk",
+      "description": "Mark-of-the-Web (MoTW) Bypass in 7-Zip < 24.09 (CVE-2025-0411): When extracting archives from untrusted sources, 7-Zip fails to propagate the Windows security marker to extracted files, allowing bypass of Windows security warnings and potential code execution. Affects Active IQ Unified Manager 9.16x bundling 7-Zip 23.x/24.x < 24.09.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.16.1",
+            "to": "AIQUM 9.16x bundling 7-Zip < 24.09"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "7-Zip 24.09+ in AIQUM environment — check NTAP-20250124-0001"
+        ]
+      },
+      "mitigation": "Update 7-Zip to 24.09+ within Active IQ Unified Manager deployment. Do not extract archives from untrusted sources on AIQUM hosts. Apply OS-level controls restricting archive extraction.",
+      "published": "2025-01-24",
+      "link": "https://security.netapp.com/advisory/ntap-20250124-0001/"
+    },
+    {
+      "id": "NTAP-20240718-0005",
+      "cve": [
+        "CVE-2024-21988"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "Cryptographic Weakness / Information Disclosure",
+      "title": "StorageGRID SSH Cryptographic Flaw — Man-in-the-Middle Information Disclosure",
+      "description": "SSH cryptographic implementation flaw in StorageGRID (CVE-2024-21988) enables information disclosure via complex Man-in-the-Middle attacks. Affects StorageGRID < 11.7.0.9 and < 11.8.0.5.",
+      "affectedProducts": [
+        "StorageGRID"
+      ],
+      "affectedVersions": {
+        "storagegrid": [
+          {
+            "from": "11.0",
+            "to": "11.8.0.4"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "storagegrid": [
+          "StorageGRID 11.7.0.9+, 11.8.0.5+"
+        ]
+      },
+      "mitigation": "Upgrade StorageGRID to 11.7.0.9+ or 11.8.0.5+. Enforce network segmentation on StorageGRID admin networks to reduce MitM attack surface. Use only approved SSH key types.",
+      "published": "2024-07-18",
+      "link": "https://security.netapp.com/advisory/ntap-20240718-0005/"
+    },
+    {
+      "id": "NTAP-20240510-0010",
+      "cve": [
+        "CVE-2024-21990"
+      ],
+      "cvss": 5.4,
+      "severity": "medium",
+      "category": "Hard-Coded Credentials",
+      "title": "ONTAP Select Deploy Hard-Coded Default Credentials",
+      "description": "Hard-coded (default) credentials in ONTAP Select Deploy administration utility (CVE-2024-21990) could allow unauthorized access to configuration data or credential modification by any party with network access to the Deploy utility.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.12.1",
+            "to": "9.14.1 — check advisory"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP Select Deploy 9.15.1+"
+        ]
+      },
+      "mitigation": "Upgrade ONTAP Select Deploy to 9.15.1+. Change all default credentials immediately. Restrict network access to Deploy utility to trusted admin networks only. Audit all Deploy accounts.",
+      "published": "2024-05-10",
+      "link": "https://security.netapp.com/advisory/ntap-20240510-0010/"
+    },
+    {
+      "id": "NTAP-20250620-0007",
+      "cve": [
+        "CVE-2025-2884"
+      ],
+      "cvss": 6.6,
+      "severity": "medium",
+      "category": "Out-of-Bounds Read / TPM Firmware",
+      "title": "TPM 2.0 Library Out-of-Bounds Read — ONTAP 9.18.1+ Platforms",
+      "description": "Out-of-bounds read in TPM 2.0 reference library CryptHmacSign function (CVE-2025-2884) due to insufficient signature scheme validation. Requires physical access and ability to install custom packages bypassing ONTAP protections. Can lead to sensitive info disclosure or TPM denial of service. Affects ONTAP on newer platforms with TPM 2.0.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.18.1",
+            "to": "check NTAP-20250620-0007"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP 9.18.1P+ — check NTAP-20250620-0007"
+        ]
+      },
+      "mitigation": "Apply ONTAP 9.18.1 patch incorporating fixed TPM 2.0 library. Enforce physical access controls on all ONTAP nodes — this requires physical or elevated local access to exploit. Do not allow untrusted custom package installations.",
+      "published": "2025-06-20",
+      "link": "https://security.netapp.com/advisory/ntap-20250620-0007/"
+    },
+    {
+      "id": "NTAP-20240903-0001",
+      "cve": [
+        "CVE-2024-6119"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "Denial of Service",
+      "title": "OpenSSL Certificate Name Checking DoS — ONTAP Select Deploy",
+      "description": "OpenSSL Denial of Service (CVE-2024-6119): application may crash during certificate name checking in certain configurations. Affects ONTAP Select Deploy administration utility incorporating vulnerable OpenSSL versions.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20240903-0001"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "OpenSSL 3.3.2+; apply ONTAP Select Deploy patch"
+        ]
+      },
+      "mitigation": "Apply NTAP-20240903-0001 patch for ONTAP Select Deploy. Upgrade OpenSSL to 3.3.2+. Restrict certificate validation sources to trusted CAs only.",
+      "published": "2024-09-03",
+      "link": "https://security.netapp.com/advisory/ntap-20240903-0001/"
+    },
+    {
+      "id": "NTAP-20241220-0008-PHP",
+      "cve": [
+        "CVE-2024-11233",
+        "CVE-2024-11234"
+      ],
+      "cvss": 6.5,
+      "severity": "medium",
+      "category": "Information Disclosure / Denial of Service",
+      "title": "PHP Additional CVEs (Out-of-bounds Read / DoS) — ONTAP PHP Component",
+      "description": "Additional PHP vulnerabilities (CVE-2024-11233 — out-of-bounds read leading to DoS/info disclosure; CVE-2024-11234 — resource exhaustion DoS via specially crafted input) in PHP < 8.3.14. Affect ONTAP 9 PHP components under the same NTAP-20241220-0008 advisory as CVE-2024-11236.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.12.1",
+            "to": "current — check NTAP-20241220-0008"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP patch incorporating PHP 8.3.14+ — check NTAP-20241220-0008"
+        ]
+      },
+      "mitigation": "Apply same ONTAP patch as CVE-2024-11236 (NTAP-20241220-0008), which also covers CVE-2024-11233 and CVE-2024-11234.",
+      "published": "2024-11-24",
+      "link": "https://security.netapp.com/advisory/ntap-20241220-0008/"
+    },
+    {
+      "id": "NTAP-20251017-0010",
+      "cve": [
+        "CVE-2025-61984",
+        "CVE-2025-61985"
+      ],
+      "cvss": 3.6,
+      "severity": "low",
+      "category": "Code Execution via ProxyCommand",
+      "title": "OpenSSH ProxyCommand Injection via Control Characters — Multiple NetApp Products",
+      "description": "OpenSSH client vulnerabilities: CVE-2025-61984 allows control characters in usernames via ProxyCommand %n expansion to cause code execution; CVE-2025-61985 allows null characters in ssh:// URIs with ProxyCommand to achieve code execution. ONTAP 9 confirmed NOT susceptible. Affects other NetApp products using OpenSSH client < 10.1.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "ONTAP 9 NOT affected — check other products in NTAP-20251017-0010"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "OpenSSH 10.1+; apply advisory patch for affected products"
+        ]
+      },
+      "mitigation": "ONTAP 9 itself is NOT affected. For other NetApp products (AIQUM, ONTAP tools) using OpenSSH client, upgrade to OpenSSH 10.1+. Apply NTAP-20251017-0010 patch for affected product list.",
+      "published": "2025-10-17",
+      "link": "https://security.netapp.com/advisory/ntap-20251017-0010/"
+    },
+    {
+      "id": "NTAP-20250513-0002",
+      "cve": [
+        "CVE-2025-24296"
+      ],
+      "cvss": 4.4,
+      "severity": "low",
+      "category": "Information Disclosure",
+      "title": "Intel Ethernet Controller Info Disclosure — Specific ONTAP Platforms",
+      "description": "Intel Ethernet Controller vulnerability (CVE-2025-24296) allowing sensitive information disclosure in privileged local context. Affects ONTAP 9 on specific newer platforms using Intel E810 / Intel Ethernet Controller: A50, A30, A20, C60, C30, FAS50, A1K, A90, A70, C80, FAS90, FAS70.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "check NTAP-20250513-0002 — platform specific"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "ONTAP 9.18.1+ or platform-specific firmware patch — check NTAP-20250513-0002"
+        ]
+      },
+      "mitigation": "Apply NTAP-20250513-0002 firmware patch. Restrict local access to affected ONTAP controller nodes. Upgrade to ONTAP 9.18.1+ or apply Intel NIC firmware update per advisory.",
+      "published": "2025-05-13",
+      "link": "https://security.netapp.com/advisory/ntap-20250513-0002/"
+    },
+    {
+      "id": "NTAP-20260213-0011",
+      "cve": [
+        "CVE-2025-11002"
+      ],
+      "cvss": 5.9,
+      "severity": "medium",
+      "category": "Archive Processing / Denial of Service",
+      "title": "7-Zip Archive Processing Vulnerability — Multiple NetApp Products",
+      "description": "7-Zip vulnerability (CVE-2025-11002) leading to potential data disclosure, modification, or DoS when processing specially crafted archive files. Affects multiple NetApp products bundling 7-Zip < 25.x.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {
+        "ontap": [
+          {
+            "from": "9.0",
+            "to": "current — check NTAP-20260213-0011"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "ontap": [
+          "7-Zip 25.x; vendor product update — check NTAP-20260213-0011"
+        ]
+      },
+      "mitigation": "Upgrade 7-Zip to 25.x in all affected NetApp product deployments. Do not process untrusted archive files on NetApp product servers. Check NTAP-20260213-0011 for per-product fix versions.",
+      "published": "2026-02-13",
+      "link": "https://security.netapp.com/advisory/ntap-20260213-0011/"
+    },
+    {
+      "id": "NTAP-20261001-Trident-PATH",
+      "cve": [
+        "CVE-2026-24051"
+      ],
+      "cvss": 7.8,
+      "severity": "high",
+      "category": "PATH Hijacking / Local Privilege Escalation",
+      "title": "Astra Trident Driver PATH Hijacking — Local Privilege Escalation",
+      "description": "PATH hijacking vulnerability in Astra Trident driver (CVE-2026-24051, CVSS 7.8). Local privilege escalation via environment variable manipulation allowing execution of arbitrary binaries with elevated privileges. Affects Astra Trident v24.02 and earlier.",
+      "affectedProducts": [
+        "Trident"
+      ],
+      "affectedVersions": {
+        "trident": [
+          {
+            "from": "all",
+            "to": "24.02"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "trident": [
+          "Astra Trident v26.02+"
+        ]
+      },
+      "mitigation": "Upgrade Astra Trident to v26.02 or later immediately. Restrict local access to Kubernetes worker nodes running Trident. Validate PATH environment variable integrity in Trident deployment.",
+      "published": "2026-02-01",
+      "link": "https://security.netapp.com/advisory/"
+    },
+    {
+      "id": "NTAP-20260603-0001",
+      "cve": [
+        "CVE-2026-22054"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "Hard-Coded Credentials / Active IQ Tooling",
+      "title": "Active IQ Config Advisor 6.7.3 — Hard-Coded Credentials (CVE-2026-22054)",
+      "description": "Hard-coded credentials in Active IQ Config Advisor 6.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations. NetApp has noted public discussion of this vulnerability exists. Affects the standalone diagnostic tool, not ONTAP cluster software. CVSS v4.0 5.3 (AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:N/SA:N).",
+      "affectedProducts": [
+        "Active IQ Config Advisor"
+      ],
+      "affectedVersions": {
+        "generic": [
+          {
+            "from": "6.7.3",
+            "to": "6.7.3"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "generic": [
+          "Active IQ Config Advisor 6.7.4+"
+        ]
+      },
+      "mitigation": "Upgrade Active IQ Config Advisor to version 6.7.4 or later. Limit tool access to authorized administrators only. No ONTAP cluster-level patch required.",
+      "published": "2026-06-03",
+      "link": "https://security.netapp.com/advisory/ntap-20260603-0001/"
+    },
+    {
+      "id": "NTAP-20260603-0002",
+      "cve": [
+        "CVE-2026-22055"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "Hard-Coded Credentials / Active IQ Tooling",
+      "title": "Active IQ OneCollect 2.7.3 — Hard-Coded Credentials (CVE-2026-22055)",
+      "description": "Companion advisory to NTAP-20260603-0001. Hard-coded credentials in Active IQ OneCollect 2.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations via the same credential class of vulnerability. NetApp is aware of public discussion; no known in-the-wild exploitation reported as of 2026-07-13. Both advisories (0001/0002) were bundled together under CERT-FR CERTFR-2026-AVI-0686. Affects the standalone data-collection tool, not ONTAP cluster software. CVSS v4.0 5.3 (AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:N/SA:N).",
+      "affectedProducts": [
+        "Active IQ OneCollect"
+      ],
+      "affectedVersions": {
+        "generic": [
+          {
+            "from": "2.7.3",
+            "to": "2.7.3"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "generic": [
+          "Active IQ OneCollect 2.7.4+"
+        ]
+      },
+      "mitigation": "Upgrade Active IQ OneCollect to version 2.7.4 or later. Restrict tool access to authorized administrators. No ONTAP cluster-level patch required. Cross-reference NTAP-20260603-0001 (Config Advisor companion advisory).",
+      "published": "2026-06-03",
+      "link": "https://security.netapp.com/advisory/ntap-20260603-0002/"
+    }
+  ]
+}

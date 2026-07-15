@@ -6,12 +6,14 @@ Drop-in replacement for server.py. Adds a persistent SQLite cache
 while a background thread re-syncs from the AIQ GraphQL API.
 
 Endpoints:
-  GET /api/harvest         — returns cached data if available, triggers background sync
-  GET /api/harvest?force=1 — bypasses cache, full re-harvest from API
-  GET /api/sync-status     — returns sync metadata (last sync time, counts, is_syncing)
-  GET /api/*               — proxy to api.activeiq.netapp.com
-  POST /api/*              — proxy to api.activeiq.netapp.com
-  POST /api/app/update     — git pull
+  GET /api/harvest           — returns cached data if available, triggers background sync
+  GET /api/harvest?force=1   — bypasses cache, full re-harvest from API
+  GET /api/sync-status       — returns sync metadata (last sync time, counts, is_syncing)
+  GET /api/bulletins         — returns dynamic security bulletin DB (security_bulletins.json)
+  POST /api/bulletins        — add/update bulletin entries (called by daily scan agent)
+  GET /api/*                 — proxy to api.activeiq.netapp.com
+  POST /api/*                — proxy to api.activeiq.netapp.com
+  POST /api/app/update       — git pull
 """
 
 import http.server
@@ -30,6 +32,7 @@ PORT = 8080
 SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "aiq_cache.db"
 CONFIG_PATH = SCRIPT_DIR / "aiq_config.json"
+BULLETINS_PATH = SCRIPT_DIR / "security_bulletins.json"
 GQL_URL = "https://gql.aiq.netapp.com/graphql"
 REST_BASE = "https://api.activeiq.netapp.com"
 
@@ -1296,15 +1299,188 @@ def fetch_netapp_psirt(advisory_id):
         if not content_m:
             content_m = _re.search(r'<p>((?:(?!</p>).){80,500})</p>', text, _re.DOTALL)
         description = _strip_html_tags(content_m.group(1))[:800] if content_m else ''
+        # Extract CVE IDs from page
+        cves = list(dict.fromkeys(_re.findall(r'CVE-\d{4}-\d+', text)))[:10]
+        # Extract published date
+        date_m = _re.search(r'(?:published|date)[^>]*>\s*(\d{4}-\d{2}-\d{2})', text, _re.IGNORECASE)
+        published = date_m.group(1) if date_m else ''
         return {
             'id': advisory_id,
             'title': title.replace(' | NetApp', '').strip(),
             'description': description,
             'severity': severity,
+            'cve': cves,
+            'published': published,
             'link': url
         }
     except Exception as e:
         return {'id': advisory_id, 'error': str(e)}
+
+
+def scan_and_persist_advisories():
+    """
+    Full advisory scan pipeline:
+    1. Fetch the NTAP advisory index from security.netapp.com
+    2. Collect all advisory IDs (NTAP-YYYYMMDD-XXXX format)
+    3. Load existing IDs from security_bulletins.json
+    4. For each NEW advisory: fetch detail page + NVD CVSS data
+    5. Upsert into security_bulletins.json (atomic write)
+    Returns dict: {added, updated, total, scanned, errors, newIds}
+    """
+    import time
+    added = updated = errors = 0
+    new_ids = []
+
+    # ── 1. Fetch PSIRT advisory index ──────────────────────────────────────────
+    print('  [SCAN] Fetching NetApp PSIRT advisory index...', flush=True)
+    index_entries = []  # list of {id, title, link}
+    products = ['ONTAP', 'StorageGRID', 'SnapCenter', 'Trident', 'Active+IQ']
+    seen_ids = set()
+    for product in products:
+        url = f'https://security.netapp.com/advisory/?q={urllib.parse.quote(product)}'
+        text, err = _enrich_fetch(url, timeout=20)
+        if err or not text:
+            print(f'  [SCAN] Index fetch failed for {product}: {err}', flush=True)
+            continue
+        # Match advisory hrefs: /advisory/ntap-YYYYMMDD-XXXX/
+        matches = _re.findall(
+            r'href="(/advisory/(ntap-[\w-]+))/?"',
+            text, _re.IGNORECASE
+        )
+        for path, adv_id in matches:
+            adv_id_clean = adv_id.lower()
+            if adv_id_clean not in seen_ids:
+                seen_ids.add(adv_id_clean)
+                index_entries.append({
+                    'id': adv_id_clean,
+                    'link': f'https://security.netapp.com{path}'
+                })
+        time.sleep(0.3)  # be polite
+
+    print(f'  [SCAN] Found {len(index_entries)} unique advisories on index pages', flush=True)
+
+    # ── 2. Load existing DB ────────────────────────────────────────────────────
+    if BULLETINS_PATH.exists():
+        try:
+            existing_data = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+            bulletins = existing_data.get('bulletins', [])
+        except Exception:
+            bulletins = []
+    else:
+        bulletins = []
+
+    id_to_idx = {b['id']: i for i, b in enumerate(bulletins) if b.get('id')}
+    today = datetime.now(timezone.utc).isoformat()[:10]
+
+    # ── 3. Fetch detail for each new advisory ──────────────────────────────────
+    for entry in index_entries:
+        adv_id = entry['id']
+        is_new = adv_id not in id_to_idx
+        if not is_new:
+            continue  # already in DB, skip detail fetch
+
+        print(f'  [SCAN] Fetching new advisory: {adv_id}', flush=True)
+        try:
+            detail = fetch_netapp_psirt(adv_id) or {}
+            if detail.get('error'):
+                errors += 1
+                continue
+
+            # ── Augment with NVD CVSS if CVEs are present ──────────────────────
+            cvss_score = None
+            severity = (detail.get('severity') or 'UNKNOWN').upper()
+            cves = detail.get('cve', [])
+            if cves:
+                nvd_url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cves[0]}'
+                nvd_text, nvd_err = _enrich_fetch(nvd_url, timeout=15)
+                if not nvd_err and nvd_text:
+                    try:
+                        nvd_data = json.loads(nvd_text)
+                        vuln = nvd_data.get('vulnerabilities', [{}])[0].get('cve', {})
+                        metrics = vuln.get('metrics', {})
+                        for key in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
+                            if key in metrics and metrics[key]:
+                                m = metrics[key][0].get('cvssData', {})
+                                cvss_score = m.get('baseScore')
+                                severity = (m.get('baseSeverity') or severity).upper()
+                                break
+                    except Exception:
+                        pass
+                time.sleep(0.2)
+
+            # ── Build bulletin entry ────────────────────────────────────────────
+            bulletin = {
+                'id':               adv_id,
+                'cve':              cves,
+                'cvss':             cvss_score,
+                'severity':         severity.lower() if severity != 'UNKNOWN' else 'medium',
+                'category':         'PSIRT',
+                'title':            detail.get('title', adv_id),
+                'description':      detail.get('description', ''),
+                'affectedProducts': _infer_affected_products(adv_id, detail.get('title', '')),
+                'affectedVersions': {},
+                'fixedVersions':    {},
+                'mitigation':       'Refer to the NetApp advisory for mitigation guidance.',
+                'published':        detail.get('published', today),
+                'link':             entry['link'],
+                '_addedAt':         today,
+                '_source':          'scan'
+            }
+
+            bulletins.append(bulletin)
+            id_to_idx[adv_id] = len(bulletins) - 1
+            added += 1
+            new_ids.append(adv_id)
+            time.sleep(0.25)  # rate limit
+
+        except Exception as ex:
+            print(f'  [SCAN] Error processing {adv_id}: {ex}', flush=True)
+            errors += 1
+
+    # ── 4. Persist atomically ──────────────────────────────────────────────────
+    if added > 0:
+        out = {
+            'version': 1,
+            'lastUpdated': today,
+            'lastScanned': today,
+            'source': 'dynamic — authoritative store, updated by scan',
+            'bulletinCount': len(bulletins),
+            'bulletins': bulletins
+        }
+        payload = json.dumps(out, indent=2, ensure_ascii=False)
+        tmp_path = BULLETINS_PATH.with_suffix('.tmp')
+        bak_path = BULLETINS_PATH.with_suffix('.bak')
+        tmp_path.write_text(payload, encoding='utf-8')
+        if BULLETINS_PATH.exists():
+            import shutil
+            shutil.copy2(str(BULLETINS_PATH), str(bak_path))
+        tmp_path.replace(BULLETINS_PATH)
+        print(f'  [SCAN] Wrote {len(bulletins)} advisories to database (+{added} new)', flush=True)
+    else:
+        print(f'  [SCAN] No new advisories found (DB already has {len(bulletins)} entries)', flush=True)
+
+    return {
+        'added':   added,
+        'updated': updated,
+        'total':   len(bulletins),
+        'scanned': len(index_entries),
+        'errors':  errors,
+        'newIds':  new_ids
+    }
+
+
+def _infer_affected_products(adv_id, title):
+    """Heuristic: infer which products an advisory affects from its ID and title."""
+    title_l = title.lower()
+    products = []
+    if 'ontap'      in title_l: products.append('ONTAP')
+    if 'storagegrid' in title_l or 'storage grid' in title_l: products.append('StorageGRID')
+    if 'snapcenter'  in title_l or 'snap center' in title_l:  products.append('SnapCenter')
+    if 'trident'     in title_l: products.append('Astra Trident')
+    if 'active iq'   in title_l or 'activeiq' in title_l:     products.append('Active IQ Unified Manager')
+    if 'sanhost'     in title_l or 'san host' in title_l:     products.append('SAN Host Utilities')
+    return products or ['ONTAP']  # default to ONTAP if nothing matched
+
 
 
 def _parse_netapp_release_notes(text, version, platform):
@@ -1861,6 +2037,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_watchlists()
         elif self.path.startswith('/api/enrich'):
             self.handle_enrich()
+        elif self.path.startswith('/api/bulletins/scan'):
+            self.handle_bulletins_scan()
+        elif self.path.startswith('/api/bulletins'):
+            self.handle_bulletins_get()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -2080,6 +2260,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_app_update()
         elif self.path == '/api/config':
             self.handle_config_post()
+        elif self.path.startswith('/api/bulletins'):
+            self.handle_bulletins_post()
         elif self.path.startswith('/api/') or self.path == '/graphql':
             self.handle_proxy('POST')
         else:
@@ -2137,7 +2319,144 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
+    def handle_bulletins_get(self):
+        """GET /api/bulletins — Return the full security advisory database.
+
+        Reads security_bulletins.json — the single authoritative store for all
+        advisory data. On first run (file absent), returns an empty bulletin list.
+        The app populates NETAPP_SECURITY_BULLETIN_DB entirely from this response;
+        there is no hardcoded fallback in app.js.
+        """
+        try:
+            if BULLETINS_PATH.exists():
+                data = json.loads(BULLETINS_PATH.read_text(encoding="utf-8"))
+            else:
+                # First run — no dynamic bulletins yet; app.js hardcoded DB is the full set
+                data = {
+                    "version": 1,
+                    "lastUpdated": None,
+                    "source": "dynamic",
+                    "bulletinCount": 0,
+                    "bulletins": []
+                }
+            res = json.dumps(data, default=str).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(res)
+        except Exception as e:
+            print(f"  [BULLETINS] GET error: {e}", flush=True)
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e), "bulletins": []}).encode("utf-8"))
+
+    def handle_bulletins_scan(self):
+        """GET /api/bulletins/scan — Trigger a live pull from NetApp PSIRT + NVD.
+
+        Scrapes security.netapp.com for all NTAP advisory IDs, compares against
+        the current security_bulletins.json, fetches detail+CVSS for any new ones,
+        and persists them atomically. Returns a JSON summary of the results.
+        This is a synchronous call — the client should expect a response in ~30-60s
+        depending on how many new advisories are found.
+        """
+        try:
+            print("  [BULLETINS] Scan triggered via UI button", flush=True)
+            result = scan_and_persist_advisories()
+            res = json.dumps(result).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(res)
+        except Exception as e:
+            print(f"  [BULLETINS] Scan error: {e}", flush=True)
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e), "added": 0, "total": 0}).encode("utf-8"))
+
+    def handle_bulletins_post(self):
+
+        """POST /api/bulletins — Upsert bulletin entries into the persistent database.
+
+        Body: { "bulletins": [{id, cve, cvss, severity, title, description,
+                               affectedProducts, affectedVersions, fixedVersions,
+                               mitigation, published, link}, ...] }
+
+        Persistence guarantees:
+        - All EXISTING entries in security_bulletins.json are preserved.
+        - Incoming entries are merged by 'id' (update if exists, append if new).
+        - Write is ATOMIC: written to a .tmp file then renamed, so a crash or
+          disk error cannot leave the database in a corrupted state.
+        - The previous file is kept as security_bulletins.bak for recovery.
+        - Each entry receives a _addedAt date stamp (YYYY-MM-DD) when upserted.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            new_entries = body.get("bulletins", [])
+            if not isinstance(new_entries, list):
+                raise ValueError("'bulletins' must be a list")
+
+            # Load ALL existing bulletins — every one is preserved
+            if BULLETINS_PATH.exists():
+                existing_data = json.loads(BULLETINS_PATH.read_text(encoding="utf-8"))
+                bulletins = existing_data.get("bulletins", [])
+            else:
+                bulletins = []
+
+            # Upsert by ID: existing entries survive; new ones are appended
+            id_to_idx = {b["id"]: i for i, b in enumerate(bulletins) if b.get("id")}
+            added = updated = 0
+            today = datetime.now(timezone.utc).isoformat()[:10]
+            for entry in new_entries:
+                entry_id = entry.get("id")
+                if not entry_id:
+                    continue
+                entry["_addedAt"] = today
+                if entry_id in id_to_idx:
+                    bulletins[id_to_idx[entry_id]] = entry
+                    updated += 1
+                else:
+                    id_to_idx[entry_id] = len(bulletins)
+                    bulletins.append(entry)
+                    added += 1
+
+            # Build output document
+            out = {
+                "version": 1,
+                "lastUpdated": today,
+                "source": "dynamic — authoritative store, updated by daily advisory scan",
+                "bulletinCount": len(bulletins),
+                "bulletins": bulletins
+            }
+            payload = json.dumps(out, indent=2, ensure_ascii=False)
+
+            # Atomic write: .tmp → .bak rotation → rename
+            tmp_path = BULLETINS_PATH.with_suffix(".tmp")
+            bak_path = BULLETINS_PATH.with_suffix(".bak")
+            tmp_path.write_text(payload, encoding="utf-8")
+            if BULLETINS_PATH.exists():
+                import shutil
+                shutil.copy2(str(BULLETINS_PATH), str(bak_path))  # snapshot previous state
+            tmp_path.replace(BULLETINS_PATH)                       # atomic rename
+
+            print(f"  [BULLETINS] POST: +{added} new, {updated} updated, {len(bulletins)} total", flush=True)
+
+            res = json.dumps({"added": added, "updated": updated, "total": len(bulletins)}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(res)
+        except Exception as e:
+            print(f"  [BULLETINS] POST error: {e}", flush=True)
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
     def handle_enrich(self):
+
         """GET /api/enrich?type=TYPE&id=ID  — per-item enrichment.
         GET /api/enrich/dump               — return all cached enrichment as one JSON blob.
         """
