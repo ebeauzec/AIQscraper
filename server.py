@@ -698,36 +698,74 @@ def _do_full_harvest(watchlist_id=None):
             # Merge cluster-level switches (with model, firmware, validation data)
             cl_switches = serial_to_cluster_switches.get(serial, [])
             for csw in cl_switches:
-                sw_serial = csw.get("switchSerialNumber", "")
+                sw_serial = csw.get("switchSerialNumber", "") or ""
                 vi = csw.get("versionInfo") or {}
-                fw = vi.get("fwVersion", "")
-                rcf = vi.get("rcfVersion", "")
-                is_monitored = csw.get("isMonitored", False)
-                sw_model = csw.get("model") or ""
+                fw = vi.get("fwVersion", "") or ""
+                rcf = vi.get("rcfVersion", "") or ""
+                is_monitored  = csw.get("isMonitored", False)
+                is_discovered = csw.get("isDiscovered", False)
+                sw_model  = csw.get("model")  or ""
                 sw_vendor = csw.get("vendor") or ""
-                sw_name = csw.get("deviceName") or ""
-                sw_role = csw.get("role") or "Cluster Interconnect"
-                
+                sw_name   = csw.get("deviceName") or ""
+                sw_role   = csw.get("role") or "Cluster Interconnect"
+                sw_ip     = csw.get("ipAddress") or ""
+
+                # ── Infer model from device name when AIQ returns OTHER / blank ──
+                # Typical names: "zaDEL-DC1-LEAF-1001(FDO22452V0T)", "Nexus3132Q-V"
+                if not sw_model or sw_model.upper() == "OTHER":
+                    dn_lower = sw_name.lower()
+                    if any(x in dn_lower for x in ("nexus 9", "nexus9", "n9k", "93", "9336", "9364", "9332")):
+                        sw_model = "Cisco Nexus 9k"
+                    elif any(x in dn_lower for x in ("nexus 3", "nexus3", "n3k", "3132", "3064", "3548")):
+                        sw_model = "Cisco Nexus 3k"
+                    elif any(x in dn_lower for x in ("mds", "cisco mds")):
+                        sw_model = "Cisco MDS"
+                    elif any(x in dn_lower for x in ("sn2100", "nvidia", "cumulus")):
+                        sw_model = "NVIDIA SN2100"
+                    elif any(x in dn_lower for x in ("bes-53248", "bes53248", "efos", "broadcom")):
+                        sw_model = "Broadcom BES-53248"
+                    elif any(x in dn_lower for x in ("g620", "g630", "g720", "brocade", "fos")):
+                        sw_model = "Brocade FC Switch"
+                    elif sw_vendor:
+                        sw_model = sw_vendor
+                    # Still nothing — use the device name (already the most descriptive thing we have)
+                    if not sw_model:
+                        sw_model = sw_name or "Unknown Switch"
+
+                # ── Status / validation ──────────────────────────────────────────
                 status = "Optimal"
-                validation = "Switch firmware validated."
-                if not is_monitored:
+                if not is_monitored and not is_discovered:
+                    status = "Unknown"
+                    validation = (f"Switch '{sw_name}' (IP: {sw_ip}) was not discovered or monitored by Active IQ. "
+                                  f"Verify CSHM is configured and the switch is reachable.")
+                elif not is_monitored:
                     status = "Warning"
-                    validation = f"Switch '{sw_name}' is not monitored. Enable CSHM for proactive alerting."
-                if sw_model == "OTHER" or not sw_model:
-                    validation = f"Discovered switch: {sw_name}. Model not recognized by Active IQ — verify IMT compatibility."
-                
+                    validation = (f"Switch '{sw_name}' is discovered but not actively monitored by CSHM. "
+                                  f"Enable CSHM health monitoring for proactive alerting and firmware recommendations.")
+                elif csw.get("model", "").upper() in ("OTHER", "") or not csw.get("model"):
+                    status = "Warning"
+                    validation = (f"Switch '{sw_name}' (IP: {sw_ip}) is monitored but its model is not recognized "
+                                  f"by Active IQ. Verify IMT compatibility and confirm CSHM switch-type mapping.")
+                else:
+                    validation = f"Switch '{sw_name}' firmware validated by Active IQ CSHM."
+
+                # ── targetFirmware: only use RCF if it differs from current fw ──
+                # When rcf == fw (or rcf is blank) the API has no upgrade recommendation
+                target_fw = rcf if (rcf and rcf != fw) else ""
+
                 switches.append({
-                    "type": sw_role,
-                    "model": sw_model if sw_model != "OTHER" else sw_vendor or sw_name,
-                    "serialNumber": sw_serial,
-                    "firmware": fw,
-                    "targetFirmware": rcf or fw,
-                    "status": status,
-                    "ipAddress": csw.get("ipAddress") or "",
+                    "type":              sw_role,
+                    "model":             sw_model,
+                    "serialNumber":      sw_serial if sw_serial else "Not available",
+                    "firmware":          fw  if fw  else "Not reported",
+                    "targetFirmware":    target_fw,   # "" → UI shows "N/A"
+                    "status":            status,
+                    "ipAddress":         sw_ip,
                     "validationDetails": validation,
-                    "deviceName": sw_name,
-                    "vendor": sw_vendor,
-                    "isMonitored": is_monitored,
+                    "deviceName":        sw_name,
+                    "vendor":            sw_vendor,
+                    "isMonitored":       is_monitored,
+                    "isDiscovered":      is_discovered,
                 })
 
             # Merge cluster-level shelves

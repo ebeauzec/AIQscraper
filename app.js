@@ -14922,10 +14922,13 @@ function generateActionPlan() {
             <span class="${badgeClass}" style="font-size: 0.7rem;">${sw.status}</span>
           </div>
           <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;">
-            Switch S/N: <code style="color: var(--accent-cyan);">${sw.serialNumber}</code> | IP: <code>${sw.ipAddress}</code>
+            Switch S/N: <code style="color: var(--accent-cyan);">${sw.serialNumber}</code> | IP: <code>${sw.ipAddress || '—'}</code>
+            &nbsp;
+            <span style="font-size: 0.72rem; background: ${sw.isMonitored ? 'rgba(0,230,118,0.12)' : 'rgba(255,170,0,0.1)'}; color: ${sw.isMonitored ? 'var(--status-normal)' : 'var(--status-warning)'}; border: 1px solid ${sw.isMonitored ? 'rgba(0,230,118,0.25)' : 'rgba(255,170,0,0.25)'}; border-radius: 4px; padding: 1px 6px; font-weight: 600;">${sw.isMonitored ? '📡 CSHM Monitored' : '⚠ Not Monitored'}</span>
+            ${sw.isDiscovered ? `<span style="font-size: 0.72rem; background: rgba(0,200,255,0.08); color: var(--accent-cyan); border: 1px solid rgba(0,200,255,0.2); border-radius: 4px; padding: 1px 6px; margin-left: 4px; font-weight: 600;">🔍 Discovered</span>` : ''}
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
-            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Min. Required (To Fix): <strong style="color: var(--accent-cyan);">${sw.targetFirmware}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getLatestSupportedVersion(sw.model)}</strong>
+            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Min. Required (To Fix): <strong style="color: ${sw.targetFirmware ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${sw.targetFirmware || 'N/A — no RCF recommendation from Active IQ'}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getLatestSupportedVersion(sw.model)}</strong>
           </div>
           <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
             <strong>Validation Drift:</strong> ${sw.validationDetails}
