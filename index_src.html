@@ -612,13 +612,17 @@
               <div class="form-group" style="margin-top: 16px;">
                 <label class="form-label" for="settingsSyncInterval">Auto-Polling / Sync Interval</label>
                 <select id="settingsSyncInterval" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer;" onchange="updateScheduledSyncInfo()">
-                  <option value="0">Manual Sync Only</option>
+                  <option value="0">Manual Only (no auto-sync)</option>
+                  <option value="1">Every 1 Hour</option>
+                  <option value="2">Every 2 Hours</option>
+                  <option value="3">Every 3 Hours</option>
+                  <option value="4">Every 4 Hours</option>
                   <option value="6">Every 6 Hours</option>
                   <option value="12">Every 12 Hours</option>
-                  <option value="24">Every 24 Hours</option>
-                  <option value="168">Every 7 Days</option>
+                  <option value="24">Every 24 Hours (Daily)</option>
+                  <option value="168">Every 7 Days (Weekly)</option>
                 </select>
-                <div class="form-helper">Controls how often the app polls Active IQ API in the background.</div>
+                <div class="form-helper">Controls how often the app polls the Active IQ API and refreshes the security advisory database in the background. Requires the server to be running.</div>
               </div>
 
               <div class="form-group" style="margin-top: 16px;">

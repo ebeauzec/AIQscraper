@@ -17072,16 +17072,18 @@ async function checkAutoSync() {
   const intervalMs = state.syncInterval * 60 * 60 * 1000;
   
   if (Date.now() - lastTime >= intervalMs) {
-    console.log("Auto-polling interval reached. Querying Active IQ API...");
+    console.log('[AIQ] Auto-sync interval reached — polling Active IQ API...');
     try {
       await loadProductionData();
       state.lastSync = new Date().toISOString();
-      safeSetItem("aiq_last_sync", state.lastSync);
+      safeSetItem('aiq_last_sync', state.lastSync);
       updateScheduledSyncInfo();
       refreshUIState();
-      console.log("Auto-poll synchronized successfully.");
+      // Also refresh advisory DB on schedule (non-blocking)
+      setTimeout(() => loadDynamicBulletins(), 2000);
+      console.log('[AIQ] Auto-sync complete.');
     } catch (err) {
-      console.error("Auto-sync interval pull failed:", err);
+      console.error('[AIQ] Auto-sync failed:', err);
     }
   }
 }
@@ -17124,7 +17126,12 @@ async function manualRefresh() {
     //    Runs non-blocking via setTimeout so it never stalls the UI thread
     setTimeout(() => enrichmentEngine.syncFromServer(state.systems), 400);
 
-    // 3. Re-render current tab in-place — switches to same tab (no visual jump)
+    // 3. Reload security advisory DB from server (non-blocking — fires after render)
+    //    This refreshes the "X versions · Y CVEs" badge in the header and all
+    //    advisory panels without slowing down the main refresh response.
+    setTimeout(() => loadDynamicBulletins(), 1500);
+
+    // 4. Re-render current tab in-place — switches to same tab (no visual jump)
     //    refreshUIState() calls switchTab(state.activeTab || 'overview') which
     //    just re-renders without navigating away
     refreshUIState();
