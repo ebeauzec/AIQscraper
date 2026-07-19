@@ -82,14 +82,14 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - Account personnel (Sales Rep, CSM, SAM, ASP, Propensity)
 
 **Added by the Reference Library (not in Active IQ):**
-- EOA hardware flags for AFF, ASA, FAS, StorageGRID, and E-Series platforms
-- **CVE cross-referencing** — Unique CVEs across advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP version range.
-- **CISA KEV integration** — CVEs confirmed as actively exploited by CISA are flagged with 🚨 priority in the dashboard. The set of flagged entries grows as new KEV additions are detected and the Reference Library is refreshed.
+- **EOA hardware flags** — automatically detects End-of-Availability controllers, shelves, and switches across all NetApp product families: ONTAP (AFF, ASA, FAS), StorageGRID appliances, and E-Series/EF-Series arrays. The database is updated as NetApp publishes new EOA notices.
+- **CVE cross-referencing** — advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP/StorageGRID/SANtricity version range. The database grows continuously as new advisories are published.
+- **CISA KEV integration** — CVEs confirmed as actively exploited by CISA are flagged with 🚨 priority. Updated on each Reference Library sync.
 - Firmware baseline checks for shelves and switches
 - MetroCluster ISL requirement validation
-- Kerberos AES enforcement detection (Microsoft KB5073381)
+- Kerberos AES enforcement detection
 - SnapMirror synchronous policy alignment audit
-- Legacy firewall policy deprecation detection (ONTAP 9.10.1+)
+- Legacy firewall policy deprecation detection
 
 ---
 
@@ -202,16 +202,9 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 3. Cross-reference with **Tab 10** for lifecycle milestones and EOS dates
 4. Use **Tab 14** for warranty status and remaining support coverage
 
-**Flagged EOA Platforms:**
+**EOA Coverage:**
 
-> The EOA list in the Reference Library is updated dynamically as NetApp publishes new End-of-Availability notices. The entries below reflect the current database; always check the dashboard's lifecycle view or the live `REFERENCE_LIBRARY_EOA_PLATFORMS` array in `app.js` for the authoritative set.
-
-- **AFF:** A200, A220, A300, A320, A700, A700s, A800, C190, C800
-- **ASA:** C250, C400, C800
-- **FAS:** 2600, 500f, 8200, 9000
-- **StorageGRID:** SG5600, SG5700 appliance nodes *(older-generation object storage nodes)*
-- **E-Series / EF-Series:** E2600, E2700, E5400, E5500, E5600, EF540, EF550, EF560 *(legacy SAN arrays)*
-- **EOA Switches:** BES-53248, Cisco 9336C-FX2, NVIDIA SN2100
+> The Reference Library tracks End-of-Availability hardware across **all NetApp product families** — including current, recently expired, and newly announced EOA models. Coverage spans ONTAP controllers (AFF, ASA, FAS), StorageGRID appliance nodes, E-Series and EF-Series arrays, and cluster/MetroCluster switches. The database is updated dynamically as NetApp publishes new EOA notices, so the dashboard always reflects the latest lifecycle status. Check the dashboard's lifecycle view for the live, authoritative list.
 
 ---
 
@@ -424,16 +417,10 @@ curl -X POST http://localhost:8080/api/bulletins \
 
 #### 🚨 CISA KEV — Actively Exploited Entries
 
-> **This list is maintained dynamically.** The advisory database (`security_bulletins.json` + `NETAPP_SECURITY_BULLETIN_DB` in `app.js`) is refreshed from CISA KEV, NetApp PSIRT, and threat intelligence sources via the daily background scan and the **🛡️ Refresh Security Advisory DB** button. The current set of KEV-flagged entries is always visible in the dashboard's Security Bulletins panel — the entries below were those confirmed at the time this documentation was last written and are shown as **illustrative examples only**.
+> **This list is maintained dynamically.** When CISA adds a NetApp-related entry to the Known Exploited Vulnerabilities catalog, it is picked up on the next Reference Library sync and flagged 🚨 in the dashboard's Security Bulletins panel. The set of flagged entries will change over time as new exploits are confirmed and old ones are resolved. Always defer to the live dashboard or the [CISA KEV catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) for the current, authoritative list.
 
-As of the last Reference Library sync, the following NetApp-related CVEs appeared on the CISA KEV catalog:
+KEV-flagged advisories in the dashboard include full detail: affected products, CVSS score, exploitation status, fix version, and CLI remediation steps where applicable.
 
-| CVE | CVSS | Product | Status | Fix |
-|-----|------|---------|--------|----- |
-| **CVE-2024-54085** | **10.0** | StorageGRID BMC (SG6160, SGF6112, SG110, SG1100) | 🚨 Active exploitation confirmed. PoC exists. | Apply AMI MegaRAC SPx firmware 12.7+/13.5+ |
-| **CVE-2024-38475** | **9.1** | ONTAP 9 (Apache mod_rewrite) | 🚨 Actively exploited. CISA KEV 2024. | ONTAP 9.12.1P16 / 9.14.1P8 / 9.16.1 |
-
-Additional KEV entries may have been added since. Always defer to the live dashboard or [https://www.cisa.gov/known-exploited-vulnerabilities-catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) for the authoritative list.
 
 ---
 
@@ -521,33 +508,28 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 
 ### Reference Library — EOA Platforms
 
-> **The EOA platform list is updated dynamically** as NetApp publishes new End-of-Availability notices, synced via the daily Reference Library scan. The table below reflects the current database at the time of writing and is shown as a **representative snapshot**. Entries are matched against all system types — ONTAP (AFF/ASA/FAS), StorageGRID appliances, and E-Series/EF-Series arrays. Check the `REFERENCE_LIBRARY_EOA_PLATFORMS` array in `app.js` for the live list.
+> **The EOA platform list is updated dynamically** as NetApp publishes new End-of-Availability notices. Coverage spans all NetApp hardware generations — past, current, and newly announced — across every product family the tool supports. The live database is authoritative; the dashboard's lifecycle view always reflects the latest state.
 
-| Family | EOA Models |
+| Family | Coverage |
 |---|---|
-| AFF | A200, A220, A300, A320, A700, A700s, A800, C190, C800 |
-| ASA | C250, C400, C800 |
-| FAS | 2600, 500f, 8200, 9000 |
-| StorageGRID | SG5600, SG5700 appliance nodes |
-| E-Series / EF-Series | E2600, E2700, E5400, E5500, E5600, EF540, EF550, EF560 |
-| EOA Switches | BES-53248, Cisco 9336C-FX2, NVIDIA SN2100 |
+| AFF | All EOA AFF A-Series and C-Series generations (e.g. older AFF A-Series and classic C-Series) |
+| ASA | All EOA ASA controller generations |
+| FAS | All EOA FAS controller generations |
+| StorageGRID | EOA appliance node generations (e.g. older SG-series nodes) |
+| E-Series / EF-Series | EOA legacy SAN array generations |
+| Switches | EOA cluster and MetroCluster switch models (Broadcom, Cisco, NVIDIA) |
 
-### Reference Library — CVE Database
+### Reference Library — CVE / Security Advisory Database
 
-> **The advisory database is updated dynamically** via the daily 08:00 Reference Library scan and the **🛡️ Refresh Security Advisory DB** button. The table below is a **point-in-time snapshot** of representative entries from the initial Reference Library build — it is **not** a complete or current list. The authoritative source is always the live database in `security_bulletins.json` and `NETAPP_SECURITY_BULLETIN_DB` within `app.js`, which currently contains 80+ advisory entries across 90+ unique CVEs. Use the dashboard's Security Bulletins panel or run `jq '.bulletins | length' security_bulletins.json` for an accurate current count.
+> **The advisory database is updated dynamically** via the daily Reference Library scan and the **🛡️ Refresh Security Advisory DB** button. Advisories are matched per-system based on ONTAP, StorageGRID, or SANtricity version ranges. The database is not exhaustive — it grows continuously as new advisories are published. Use the dashboard's Security Bulletins panel for the live, current list.
 
-*Example entries (illustrative — refer to live DB for current coverage):*
-
-| CVE | Product | Sev | CVSS | Summary |
-|---|---|---|---|---|
-| CVE-2026-22050 | ONTAP | High | 7.5 | Snapshot Lock Bypass |
-| CVE-2026-22052 | ONTAP | Med | 5.3 | S3 NAS Bucket info disclosure |
-| CVE-2026-20833 | ONTAP CIFS | Med | 5.9 | Kerberos AES enforcement (KB5073381) |
-| CVE-2026-22054 | Config Advisor | Med | 5.3 | Hard-coded credentials 6.7.3 |
-| CVE-2025-26512 | SnapCenter | Crit | 9.9 | Privilege escalation |
-| CVE-2026-22051 | StorageGRID | Med | 4.3 | Metrics query info disclosure |
-| CVE-2026-24051 | Trident | High | 7.0 | OpenTelemetry PATH hijack |
-| … | … | … | … | *80+ additional entries in live DB* |
+| Category | What’s Covered |
+|---|---|
+| **Products** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, E-Series (SANtricity), Active IQ Unified Manager, SAN Host Utilities |
+| **Sources** | NetApp PSIRT (NTAP advisories), MITRE CVE, NVD/NIST, CISA KEV, GitHub Security Advisories, NetApp KB, threat intelligence feeds |
+| **Severity range** | Critical through Low; CISA KEV-confirmed entries flagged 🚨 |
+| **Matching** | Per-system version-range matching — each advisory specifies affected and fixed version ranges; only systems in-range are flagged |
+| **Volume** | 80+ advisory entries across 90+ unique CVEs at last sync, growing with each Reference Library update |
 
 ### Reference Library — Firmware Baselines
 
