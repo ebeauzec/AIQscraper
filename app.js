@@ -1,4 +1,4 @@
-// Active IQ Web Client - Core Application Logic
+﻿// Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
 // This tool is designed to be strictly READ-ONLY. Under no circumstances should
@@ -11,6 +11,130 @@
 // Determine API base dynamically to support zero-config CORS proxying when served locally
 const locOrigin = window.location && window.location.origin ? window.location.origin : "";
 const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.netapp.com/v1";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP CHANGELOG — shown once per version on startup via "What's New" modal.
+// To add a new release: prepend a new entry to the top of the array.
+// The modal fires automatically whenever APP_VERSION differs from the value
+// stored in localStorage key "aiq_seen_version".
+// ─────────────────────────────────────────────────────────────────────────────
+const APP_VERSION = "2026.07.19";
+
+const APP_CHANGELOG = [
+  {
+    version: "2026.07.19",
+    date: "19 July 2026",
+    title: "Knowledge Base Refresh + Syntax Fix",
+    sections: [
+      {
+        icon: "🛡️",
+        label: "Security Advisories",
+        color: "#f87171",
+        items: [
+          "Added NTAP-20250328-0008: Ingress NGINX 'IngressNightmare' (CVE-2025-1974 / CVSS 9.8) — affects BlueXP & Kubernetes-adjacent components",
+          "Added CVE-2026-22055 / NTAP-20260603-0002: Active IQ OneCollect 2.7.3 hard-coded credentials (CVSS 5.3) — upgrade to 2.7.4+",
+          "Security bulletins database updated to 70 entries (was 69)"
+        ]
+      },
+      {
+        icon: "📦",
+        label: "Software & Firmware Versions",
+        color: "#34d399",
+        items: [
+          "StorageGRID: Corrected to 12.0 GA (12.1 is announced-only, not yet on docs.netapp.com)",
+          "SnapCenter: Corrected to 6.2.1 GA (6.2.2 unconfirmed)",
+          "Trident 26.02.1 added as confirmed GA; 26.06.0 noted as GitHub-only",
+          "Cisco NX-OS updated to 10.4.2 for AFX switches (9332D-GX2B / 9364D-GX2A)",
+          "Broadcom EFOS updated to 3.12.0.1 for BES-53248 (requires 3.4.4.6 intermediate step)",
+          "NVIDIA Cumulus Linux 5.11.0 added for SN2100 cluster switch"
+        ]
+      },
+      {
+        icon: "🖥️",
+        label: "Platform & Hardware",
+        color: "#818cf8",
+        items: [
+          "Added complete 2026 current-gen platform map (AFF A/C-Series, ASA r2, FAS50/70/90, AFX 1K/2K, E-Series EF50/EF80)",
+          "Added ONTAP personality constraints (Unified / AFX / ASA r2 — immutable, no cross-personality mixing)",
+          "Removed FAS2720 / FAS2750 from EOA list — not confirmed on docs.netapp.com",
+          "Added full AFX configuration constraints (protocols, NSM140 shelves, switch types, FlexCache interop, scale caveats)"
+        ]
+      },
+      {
+        icon: "🔗",
+        label: "Integrations & Naming",
+        color: "#fbbf24",
+        items: [
+          "Added official product rename tracker: BlueXP → NetApp Console, BlueXP Classification → NetApp Data Classification, Cloud Tiering EOA",
+          "Integration status added: Proxmox VE (GA), Nutanix (EA), vSphere 8, CVO 9.18.1, ANF / GCNV / FSx status",
+          "StorageGRID 12.1 preview details added (12 TB/s, 10EB federated namespace) — annotated as announced-only"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Bug Fixes",
+        color: "#94a3b8",
+        items: [
+          "Fixed JavaScript SyntaxError: 'Unexpected token {' at app.js line 5312 — missing comma between CVE array entries"
+        ]
+      }
+    ]
+  },
+  {
+    version: "2026.07.15",
+    date: "15 July 2026",
+    title: "Switch CSHM Badges + Refresh Scheduler",
+    sections: [
+      {
+        icon: "🔄",
+        label: "UI Enhancements",
+        color: "#38bdf8",
+        items: [
+          "Switch panels now display discovery status and CSHM monitoring badges",
+          "Added scheduled sync indicator showing next auto-refresh time",
+          "Manual refresh button added to header"
+        ]
+      },
+      {
+        icon: "🔒",
+        label: "Security",
+        color: "#f87171",
+        items: [
+          "Daily background scan scheduled (08:00 local time) to sync local NetApp Reference Library changes",
+          "Bulletin DB now loads dynamically at startup — CVEs added by scan are live before enrichment"
+        ]
+      }
+    ]
+  },
+  {
+    version: "2026.07.13",
+    date: "13 July 2026",
+    title: "AFX / ASA r2 Platform Support + Security Enrichment",
+    sections: [
+      {
+        icon: "🖥️",
+        label: "Platform Support",
+        color: "#818cf8",
+        items: [
+          "AFX (All-Flash Fabric) platform family fully modelled with NX224 shelf, NSM140 module, and 400GbE switch constraints",
+          "ASA r2 personality separation enforced — prevents invalid cross-personality enrichment",
+          "ONTAP 9.19.1 added with AFX-specific features and Mediator 1.12 requirement"
+        ]
+      },
+      {
+        icon: "🛡️",
+        label: "Security",
+        color: "#f87171",
+        items: [
+          "FreeBSD RBAC (CVE-2026-4747) and kernel (CVE-2026-42511) vulnerabilities added",
+          "ONTAP iSCSI DoS (CVE-2025-27082) and NVMe/TCP auth bypass (CVE-2025-22399) added",
+          "Apache Tomcat embedded RCE (CVE-2024-50379, CVSS 9.8) added for ONTAP 9.8–9.13.1"
+        ]
+      }
+    ]
+  }
+];
+
 
 // 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins, Support Cases)
 const MOCK_SYSTEMS = [
@@ -17833,6 +17957,9 @@ window.onload = async function() {
     if (capacityChartInstance)      capacityChartInstance.resize();
     if (projectionsChartInstance)   projectionsChartInstance.resize();
   }, 200));
+
+  // Show "What's New" changelog popup if the user hasn't seen this version yet
+  setTimeout(() => checkAndShowChangelog(), 600);
 };
 
 // GraphQL Query Sandbox Execution handler
@@ -18843,3 +18970,123 @@ function renderSvmSecurityAudit(sys) {
   `;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WHAT'S NEW MODAL — Startup changelog popup
+// ─────────────────────────────────────────────────────────────────────────────
+
+function checkAndShowChangelog() {
+  var seenVersion = safeGetItem("aiq_seen_version");
+  if (seenVersion === APP_VERSION) return;
+  showWhatsNewModal();
+}
+
+function showWhatsNewModal() {
+  var existing = document.getElementById("whatsNewModal");
+  if (existing) existing.remove();
+
+  var latest = APP_CHANGELOG[0];
+  if (!latest) return;
+
+  var sectionsHtml = latest.sections.map(function(sec) {
+    var items = sec.items.map(function(item) {
+      return '<li style="padding:3px 0;color:var(--text-secondary);font-size:0.8rem;line-height:1.55;">' + item + '</li>';
+    }).join('');
+    return '<div style="margin-bottom:18px;">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+        '<span style="font-size:1rem;">' + sec.icon + '</span>' +
+        '<span style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:' + sec.color + ';">' + sec.label + '</span>' +
+      '</div>' +
+      '<ul style="margin:0;padding-left:18px;list-style:disc;">' + items + '</ul>' +
+      '</div>';
+  }).join('');
+
+  var prevVersionsHtml = APP_CHANGELOG.slice(1).map(function(entry) {
+    var entrySecs = entry.sections.map(function(s) {
+      return '<div style="margin-bottom:10px;">' +
+        '<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:' + s.color + ';margin-bottom:4px;">' + s.icon + ' ' + s.label + '</div>' +
+        '<ul style="margin:0;padding-left:16px;list-style:disc;">' +
+          s.items.map(function(i){ return '<li style="font-size:0.76rem;color:var(--text-muted);padding:2px 0;">' + i + '</li>'; }).join('') +
+        '</ul></div>';
+    }).join('');
+    return '<div style="padding:8px 12px;border-radius:6px;background:rgba(255,255,255,0.03);margin-bottom:6px;cursor:pointer;border:1px solid rgba(255,255,255,0.06);" onclick="var b=this.querySelector(\'.prev-body\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);">' + entry.title + '</span>' +
+        '<span style="font-size:0.7rem;color:var(--text-muted);">' + entry.date + ' \u203a</span>' +
+      '</div>' +
+      '<div class="prev-body" style="display:none;margin-top:10px;">' + entrySecs + '</div>' +
+      '</div>';
+  }).join('');
+
+  var overlay = document.createElement('div');
+  overlay.id = 'whatsNewModal';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:_wnFadeIn 0.25s ease';
+
+  var prevBlock = APP_CHANGELOG.length > 1
+    ? '<div style="margin-top:8px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);">' +
+        '<div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Previous Releases</div>' +
+        prevVersionsHtml +
+      '</div>'
+    : '';
+
+  overlay.innerHTML =
+    '<style>' +
+      '@keyframes _wnFadeIn{from{opacity:0}to{opacity:1}}' +
+      '@keyframes _wnSlideUp{from{opacity:0;transform:translateY(24px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}' +
+      '#whatsNewModal .wn-card{animation:_wnSlideUp 0.3s cubic-bezier(0.16,1,0.3,1) both}' +
+      '#whatsNewModal .wn-dismiss:hover{background:rgba(255,255,255,0.12)!important}' +
+      '#whatsNewModal .wn-got-it:hover{filter:brightness(1.1)}' +
+      '#whatsNewModal .wn-x:hover{color:var(--text-primary)!important}' +
+    '</style>' +
+    '<div class="wn-card" style="background:linear-gradient(160deg,#0f1629 0%,#111827 100%);border:1px solid rgba(45,212,191,0.25);border-radius:16px;width:560px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,0.6);position:relative;overflow:hidden;">' +
+      '<div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#2dd4bf,#818cf8,transparent);border-radius:16px 16px 0 0;"></div>' +
+      '<div style="padding:24px 24px 0;">' +
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;">' +
+          '<div>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">' +
+              '<div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#2dd4bf22,#818cf822);border:1px solid rgba(45,212,191,0.3);display:flex;align-items:center;justify-content:center;font-size:1.1rem;">\uD83D\uDE80</div>' +
+              '<div>' +
+                '<div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#2dd4bf;margin-bottom:1px;">What\'s New</div>' +
+                '<div style="font-size:1.05rem;font-weight:700;color:var(--text-primary);line-height:1.2;">' + latest.title + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;">' +
+              '<span style="display:inline-flex;align-items:center;padding:3px 10px;background:rgba(45,212,191,0.12);border:1px solid rgba(45,212,191,0.25);border-radius:20px;font-size:0.68rem;font-weight:700;color:#2dd4bf;letter-spacing:0.05em;">v' + latest.version + '</span>' +
+              '<span style="font-size:0.72rem;color:var(--text-muted);">' + latest.date + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<button class="wn-x" onclick="document.getElementById(\'whatsNewModal\').remove();" style="background:none;border:none;color:var(--text-muted);font-size:1.25rem;cursor:pointer;padding:4px;line-height:1;margin-top:-2px;transition:color 0.15s;" title="Dismiss">\u2715</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="padding:20px 24px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent;">' +
+        sectionsHtml +
+        prevBlock +
+      '</div>' +
+      '<div style="padding:16px 24px 20px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;">' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
+          '<input type="checkbox" id="wn-dont-show" style="cursor:pointer;accent-color:#2dd4bf;" onchange="if(this.checked){safeSetItem(\'aiq_seen_version\',\'' + APP_VERSION + '\');}else{safeSetItem(\'aiq_seen_version\',\'\');}">' +
+          '<span style="font-size:0.72rem;color:var(--text-muted);">Don\'t show again for this version</span>' +
+        '</label>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button class="wn-dismiss" onclick="document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 16px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--text-secondary);font-size:0.8rem;cursor:pointer;transition:background 0.15s;">Dismiss</button>' +
+          '<button class="wn-got-it" onclick="safeSetItem(\'aiq_seen_version\',\'' + APP_VERSION + '\');document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 20px;background:linear-gradient(135deg,#2dd4bf,#818cf8);border:none;border-radius:8px;color:#0f1629;font-size:0.8rem;font-weight:700;cursor:pointer;transition:filter 0.15s;">Got it \u2713</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  function escHandler(e) {
+    if (e.key === 'Escape') {
+      overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  }
+  document.addEventListener('keydown', escHandler);
+}
+
+// Allow manual re-open (e.g. from a Help menu)
+window.showWhatsNew = showWhatsNewModal;
