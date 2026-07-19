@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-15",
+  "lastUpdated": "2026-07-19",
   "source": "Authoritative bulletin database -- migrated from hardcoded NETAPP_SECURITY_BULLETIN_DB in app.js. Grows via POST /api/bulletins (daily scan agent).",
-  "bulletinCount": 69,
+  "bulletinCount": 70,
   "bulletins": [
     {
       "id": "NTAP-20260112-0001",
@@ -2174,6 +2174,41 @@
       "mitigation": "Upgrade Active IQ OneCollect to version 2.7.4 or later. Restrict tool access to authorized administrators. No ONTAP cluster-level patch required. Cross-reference NTAP-20260603-0001 (Config Advisor companion advisory).",
       "published": "2026-06-03",
       "link": "https://security.netapp.com/advisory/ntap-20260603-0002/"
+    },
+    {
+      "id": "NTAP-20250328-0008",
+      "cve": [
+        "CVE-2025-1974",
+        "CVE-2025-1097",
+        "CVE-2025-1098",
+        "CVE-2025-24514"
+      ],
+      "cvss": 8.8,
+      "severity": "high",
+      "category": "Remote Code Execution / Third-Party Component (Ingress NGINX)",
+      "title": "Ingress NGINX Controller Vulnerabilities in NetApp Products (IngressNightmare)",
+      "description": "Multiple critical and high-severity vulnerabilities in the Ingress NGINX controller (collectively known as 'IngressNightmare') affect NetApp products that bundle Ingress NGINX as a component, primarily BlueXP and Kubernetes-adjacent NetApp integrations. CVE-2025-1974 (CVSS 9.8) allows unauthenticated remote code execution via the Kubernetes admission controller webhook when accessible from within the pod network. Not core ONTAP cluster software. Check applicability against your specific product/version using the NetApp advisory.",
+      "affectedProducts": [
+        "BlueXP",
+        "Astra Control Center",
+        "NetApp Kubernetes-adjacent components"
+      ],
+      "affectedVersions": {
+        "generic": [
+          {
+            "from": "all",
+            "to": "pre-patch"
+          }
+        ]
+      },
+      "fixedVersions": {
+        "generic": [
+          "Update Ingress NGINX to patched version per advisory"
+        ]
+      },
+      "mitigation": "1. Identify if any NetApp product in your environment bundles Ingress NGINX (check advisory for product list). 2. Upgrade affected Ingress NGINX components to patched versions. 3. As interim mitigation: restrict network access to the Kubernetes admission controller webhook endpoint (TCP 8443) to only the Kubernetes API server, preventing external pod-network access.",
+      "published": "2025-03-28",
+      "link": "https://security.netapp.com/advisory/ntap-20250328-0008/"
     }
   ]
 }

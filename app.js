@@ -5034,34 +5034,80 @@ function updateTAMSelectLabel() {
 const SOFTWARE_VERSION_DATABASES = {
   ontap: [
     "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1", "9.17.1", "9.18.1", "9.19.1"
+    // Next GA expected Q4 2026 (twice-yearly Q2/Q4 cadence)
   ],
   santricity: [
     "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1"
+    // SANtricity OS 12.0 supports new EF50/EF80 NVMe platforms (announced 2026-03-17)
   ],
   storagegrid: [
-    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0", "12.1.0"
+    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0"
+    // StorageGRID 12.1 ANNOUNCED 2026-06-23 (12 TB/s, Global Federated Namespace up to 10EB,
+    // batch ops on billions of objects, multi-admin verification, AI-agent change tracking)
+    // but docs.netapp.com version selector still tops out at 12.0 as of 2026-07-19
+    // — do NOT include 12.1.0 until docs are live
   ],
   snapcenter: [
-    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1", "6.2.2"
+    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1"
+    // SnapCenter 6.2.1 is confirmed GA (docs.netapp.com tops out at 6.2, text references 6.2.1)
+    // SnapCenter 6.0 landmark: added Linux Server support (RHEL/Oracle Linux/SLES)
+    // No 6.2.2 doc tree confirmed as of 2026-07-19
+  ],
+  trident: [
+    "23.01", "23.04", "23.07", "23.10", "24.02", "24.06", "24.10", "25.02", "25.06", "25.10", "26.02", "26.02.1"
+    // Current GA: Trident 26.02.1 (re-confirmed 2026-07-19 — docs.netapp.com tops out at 26.02)
+    // GitHub-signed v26.06.0 release exists (2026-06-30) but not yet on docs.netapp.com
+    // Do NOT move to 26.06 until confirmed on docs.netapp.com
   ]
 };
 
-// ── NetApp Reference Library Data (synced 2026-07-11) ─────────────────────
+// ── NetApp Reference Library Data (synced 2026-07-19) ─────────────────────
 // Source: G:\My Drive\Cowork\NetApp\NetApp Reference Library
 // All data verified against docs.netapp.com primary sources.
 // Online cross-check: security.netapp.com, kb.netapp.com, NVD, CISA KEV
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Current-generation NetApp Platform Families (2026)
+// Source: docs.netapp.com/us-en/ontap-systems/ (verified 2026-07-19)
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_CURRENT_PLATFORMS = {
+  // AFF A-Series: Unified (block+file+object), performance-oriented, AI/VMware/DB workloads
+  "aff_a_series": ["AFF A20", "AFF A30", "AFF A50", "AFF A70", "AFF A90", "AFF A1K"],
+  // AFF C-Series: Unified, capacity-optimized, QLC flash, up to 1.5PB/2RU with 60TB drives
+  "aff_c_series": ["AFF C30", "AFF C60", "AFF C80"],
+  // ASA r2: SAN-only (block), simplified personality, Storage Units instead of FlexVol
+  // New naming aligns with A-series numbers (A20/A30/A50/A70/A90/A1K/C30)
+  "asa_r2":       ["ASA A20", "ASA A30", "ASA A50", "ASA A70", "ASA A90", "ASA A1K", "ASA C30"],
+  // FAS: Hybrid flash (current-gen)
+  "fas":          ["FAS50", "FAS70", "FAS90"],
+  // AFX: Disaggregated, AI-era platform (ONTAP 9.17.1+, REST-only, no ZAPI, no mixed clusters)
+  // Architecture: SAZ pooling, NSM140 shelves, 400GbE Cisco Nexus switches
+  "afx":          ["AFX 1K", "AFX 2K"],
+  // E-Series: SANtricity-based (NOT ONTAP), block-optimized
+  // EF50/EF80: New NVMe all-flash arrays announced 2026-03-17, 110+ GB/s, 1.5PB, AI/ML scratch
+  "e_series":     ["EF50", "EF80", "EF600", "EF300", "E2800", "E5700", "E4000"]
+};
+
+// ONTAP Personalities (immutable — cannot convert between personalities)
+// Source: docs.netapp.com/us-en/ontap-afx/faq-ontap-afx.html (verified 2026-07-05)
+const REFERENCE_LIBRARY_ONTAP_PERSONALITIES = {
+  "unified":  { desc: "AFF/FAS/CVO/ONTAP Select — full NAS+SAN+S3",         minVersion: "9.3" },
+  "afx":      { desc: "AFX — disaggregated, NAS/S3-only, AI/ML-focused, REST-only, no ZAPI", minVersion: "9.17.1" },
+  "asa_r2":   { desc: "ASA r2 — disaggregated, SAN-only (block), simplified Storage Units model", minVersion: "9.15.1" }
+};
+
 // EOA Platform List — confirmed by direct fetch of docs.netapp.com/us-en/ontap-systems/endofavail/ 2026-07-09
 // EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA
+// IMPORTANT: FAS2720/FAS2750 are NOT on the confirmed EOA list from docs.netapp.com
 const REFERENCE_LIBRARY_EOA_PLATFORMS = [
-  // AFF A-Series (classic)
+  // AFF A-Series (classic) — confirmed EOA
   "A200", "A220", "A300", "A320", "A700", "A700s", "A800",
-  // AFF C-Series (old)
+  // AFF C-Series (old) — confirmed EOA (C800 = AFF C800, distinct from ASA C800)
   "C190", "C800",
-  // ASA (classic)
+  // ASA (classic, old naming) — confirmed EOA
   "ASA C250", "ASA C400", "ASA C800",
-  // FAS
-  "FAS2600", "FAS2720", "FAS2750", "FAS500f", "FAS8200", "FAS9000"
+  // FAS — confirmed EOA
+  "FAS2600", "FAS500f", "FAS8200", "FAS9000"
 ];
 
 // EOA/EOS dates keyed by platform model — sourced from NetApp Support Communications
@@ -5079,16 +5125,40 @@ const REFERENCE_LIBRARY_EOA_DATES = {
   "ASA C400":{ eoaDate: "2024-03", eosDate: "2029-03", replacement: "ASA A50 / ASA A70" },
   "ASA C800":{ eoaDate: "2024-06", eosDate: "2029-06", replacement: "ASA A90 / ASA A1K" },
   "FAS2600": { eoaDate: "2021-03", eosDate: "2026-03", replacement: "FAS50 / FAS70" },
-  "FAS2720": { eoaDate: "2023-06", eosDate: "2028-06", replacement: "FAS50 / FAS70" },
-  "FAS2750": { eoaDate: "2023-06", eosDate: "2028-06", replacement: "FAS50 / FAS70" },
   "FAS500f": { eoaDate: "2022-06", eosDate: "2027-06", replacement: "FAS50" },
   "FAS8200": { eoaDate: "2022-06", eosDate: "2027-06", replacement: "FAS70 / FAS90" },
   "FAS9000": { eoaDate: "2023-10", eosDate: "2028-10", replacement: "FAS90" }
 };
 
+// EOA Switches — confirmed by direct fetch of docs.netapp.com/us-en/ontap-systems/endofavail/ 2026-07-09
+// All three are on the same official EOA page as the controller platforms above
 const REFERENCE_LIBRARY_EOA_SWITCHES = [
-  "BES-53248", "Cisco 9336C-FX2", "NVIDIA SN2100"
+  "BES-53248",         // Broadcom — both cluster and shared-config variants
+  "Cisco 9336C-FX2",   // both cluster and shared-configuration variants
+  "NVIDIA SN2100"      // NX224-based cluster switch
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Naming Conventions (NetApp Official Guidance)
+// Source: NetApp TR library, docs.netapp.com naming-convention guidance
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_NAMING_CONVENTIONS = {
+  svm:    { pattern: "[Function/Dept/App]-[Environment]",      example: "finance-prod, vmware-dev, sql-uat" },
+  volume: { pattern: "[App/Project]_[DataType]_[Environment]", example: "sql_data_prod, oracle_logs_dev" },
+  lif:    { pattern: "[SVM-Name]_[Protocol]_[SubnetRole][ID]", example: "finance_nfs_data01 — do NOT tie to node/port names" },
+  igroup: { pattern: "[Host/Cluster]_[Protocol]",              example: "esxi_cluster01_fcp, k8s_worker_iscsi" },
+  snapshot_policy: { pattern: "[Workload]-[RPO]-[Retention]",  example: "db_hourly_24h, vm_daily_30d" },
+  // BlueXP rebranding (2025): BlueXP → NetApp Console. URLs still use bluexp-* paths (transitional)
+  // Data Classification rename (2025-10-06): BlueXP Classification → NetApp Data Classification
+  // Trident: officially "Astra Trident" and "NetApp Trident" are both used; "Astra" prefix is retained in docs
+  product_names: {
+    "BlueXP":              "Now: NetApp Console (rebrand 2025)",
+    "BlueXP Classification": "Now: NetApp Data Classification (v1.55 as of 2026-06-08, rename 2025-10-06)",
+    "Cloud Tiering":       "EOA 2026-04-24 → Replaced by ONTAP-native FabricPool",
+    "Astra Trident":       "Current GA: 26.02.1 (also called NetApp Trident)",
+    "ONTAP Mediator":      "Latest: v1.12 (required for SnapMirror active sync)"
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CVE/Advisory Database
@@ -5238,6 +5308,31 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     remediation: "Upgrade to ONTAP 9.13.1P4 or 9.14.1+. Restrict System Manager (HTTPS port 443) access to management-only networks. Disable HTTP (port 80) if not already.",
     url: "https://security.netapp.com/advisory/ntap-20241015-0001"
   }
+  // ── New advisory (found 2026-07-13, companion to NTAP-20260603-0001) ──────
+  {
+    id: "CVE-2026-22055",
+    ntapId: "NTAP-20260603-0002",
+    title: "Active IQ OneCollect Hard-Coded Credentials",
+    product: "Active IQ OneCollect",
+    severity: "medium",
+    cvss: 5.3,
+    affectedVersions: { min: "2.7.3", max: "2.7.3" },
+    fixedIn: ["2.7.4"],
+    description: "Hard-coded credentials in Active IQ OneCollect 2.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations. Companion advisory to CVE-2026-22054 (Config Advisor), both published 2026-06-03 and bundled under CERT-FR CERTFR-2026-AVI-0686.",
+    remediation: "Upgrade Active IQ OneCollect to 2.7.4 or later.",
+    url: "https://security.netapp.com/advisory/ntap-20260603-0002"
+  },
+  // ── Ingress NGINX vulnerabilities in BlueXP/Kubernetes-adjacent NetApp products ──
+  {
+    id: "NTAP-20250328-0008",
+    title: "Ingress NGINX Controller Vulnerabilities in NetApp Products",
+    product: "BlueXP / Kubernetes-Adjacent Components",
+    severity: "high",
+    cvss: 8.8,
+    description: "Multiple Ingress NGINX controller vulnerabilities (including unauthenticated RCE via admission controller webhook) affect NetApp products that bundle Ingress NGINX as a component — primarily BlueXP and Kubernetes-adjacent integrations. Not core ONTAP.",
+    remediation: "Check applicability against your specific BlueXP/Kubernetes components. Update Ingress NGINX to a patched version per the advisory. Restrict cluster admission-webhook network access as interim mitigation.",
+    url: "https://security.netapp.com/advisory/ntap-20250328-0008/"
+  }
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5246,25 +5341,34 @@ const REFERENCE_LIBRARY_ADVISORIES = [
 // Updated: 2026-07-11
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
-  // NVMe shelf modules (current-gen)
-  "NSM100":   { recommended: "0220", label: "NSM100 NVMe Shelf Module (AFF A/C-Series)" },
-  "NSM100B":  { recommended: "0140", label: "NSM100B NVMe Shelf Module (next-gen)" },
-  "NSM100e":  { recommended: "0110", label: "NSM100e NVMe Shelf Module (AFF A-Series new)" },
-  // SAS shelf IOM modules
+  // NVMe shelf modules (current-gen for AFF A/C-Series, ASA r2, FAS)
+  // Do NOT mix NSM100/NSM100B/NSM100e with AFX shelves (AFX uses NSM140 only)
+  "NSM100":   { recommended: "0220", label: "NSM100 NVMe Shelf Module (AFF A/C-Series, ASA r2, FAS)" },
+  "NSM100B":  { recommended: "0140", label: "NSM100B NVMe Shelf Module (AFF/ASA r2 next-gen)" },
+  // SAS shelf IOM modules — note: mixing IOM models within same shelf is NOT supported
   "IOM12":    { recommended: "0260", label: "IOM12 SAS Module (DS224C)" },
   "IOM12G":   { recommended: "0280", label: "IOM12G SAS Module (DS460C, DS224C-G)" },
   "IOM12B":   { recommended: "0270", label: "IOM12B SAS Module (FAS/AFF hybrid)" },
   "IOM3":     { recommended: "0200", label: "IOM3 SAS Module (legacy DS2246/DS4243)" },
-  // Cluster/MetroCluster switches
-  "Cisco NX-OS":   { recommended: "9.3(12)", label: "Cisco Nexus 9000 Series (cluster/MC-IP)" },
-  "Cisco MDS":     { recommended: "9.2(2)",  label: "Cisco MDS 9000 Series (FC SAN)" },
-  "Brocade FOS":   { recommended: "9.2.1",   label: "Brocade FC Switch (Fabric OS)" },
-  "Broadcom EFOS": { recommended: "3.8.0.2", label: "Broadcom BES-53248 (cluster switch)" },
-  // AFX-specific components (distinct from AFF/ASA shelf modules)
-  // Source: Platforms-Hardware/README.md — confirmed 2026-07-07 against docs.netapp.com/us-en/ontap-technical-reports/afx-overview/afx-overview-hardware.html
-  "NSM140":        { recommended: "current", label: "NSM140 NVMe Shelf Module (AFX NX224 shelves only — NOT interchangeable with NSM100)" },
-  "Cisco 9332D-GX2B": { recommended: "current", label: "Cisco Nexus 9332D-GX2B (AFX cluster switch, 400GbE)" },
-  "Cisco 9364D-GX2A": { recommended: "current", label: "Cisco Nexus 9364D-GX2A (AFX cluster switch, 400GbE)" }
+  // Cluster/MetroCluster switches — EOA models: BES-53248, Cisco 9336C-FX2, NVIDIA SN2100
+  // NX-OS 10.4.2 is current for AFX switches (9332D-GX2B/9364D-GX2A)
+  "Cisco NX-OS":    { recommended: "10.4.2",  label: "Cisco Nexus 9000 Series (cluster/MC-IP, AFX switches)" },
+  "Cisco NX-OS Legacy": { recommended: "9.3(12)", label: "Cisco Nexus 9336C-FX2 legacy cluster switch (EOA — upgrade path to 9332D-GX2B)" },
+  "Cisco MDS":      { recommended: "9.2(2)",   label: "Cisco MDS 9000 Series (FC SAN)" },
+  // Brocade FOS: TruFOS certificates required from FOS 9.1.0 (G630) / 9.2.0 (G620/G720)
+  "Brocade FOS":    { recommended: "9.2.1",    label: "Brocade FC Switch (Fabric OS) — TruFOS certs required from FOS 9.1+ (G630) / 9.2+ (G620/G720)" },
+  // Broadcom BES-53248 (EOA): EFOS 3.12.0.1 current; 3.4.x→3.7.x requires intermediate 3.4.4.6 step
+  // FIPS and non-FIPS EFOS 3.7+ versions exist — transitioning requires factory reset + RCF reapply
+  "Broadcom EFOS":  { recommended: "3.12.0.1", label: "Broadcom BES-53248 (cluster switch, EOA) — requires intermediate 3.4.4.6 step when upgrading from 3.4.x" },
+  // NVIDIA SN2100 (EOA): Cumulus Linux 5.11.0 current
+  "NVIDIA Cumulus": { recommended: "5.11.0",   label: "NVIDIA SN2100 cluster switch — Cumulus Linux (switch is EOA)" },
+  // AFX-specific components — NSM140 is NOT interchangeable with NSM100 (different I/O module)
+  // Source: docs.netapp.com/us-en/ontap-technical-reports/afx-overview/afx-overview-hardware.html
+  // AFX 1K uses 9332D-GX2B or 9364D-GX2A; AFX 2K also supports Cisco Nexus 9808
+  "NSM140":           { recommended: "current", label: "NSM140 NVMe Shelf Module (AFX NX224 shelves ONLY — NOT interchangeable with NSM100/NSM100B)" },
+  "Cisco 9332D-GX2B": { recommended: "10.4.2",  label: "Cisco Nexus 9332D-GX2B (AFX 1K cluster switch, 400GbE, 1U)" },
+  "Cisco 9364D-GX2A": { recommended: "10.4.2",  label: "Cisco Nexus 9364D-GX2A (AFX 1K cluster switch, 400GbE, 2U)" },
+  "Cisco 9808":       { recommended: "current",  label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only)" }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5305,18 +5409,78 @@ const REFERENCE_LIBRARY_MC_REQUIREMENTS = {
 // Source: docs.netapp.com/us-en/ontap/release-notes, NetApp TR library
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ONTAP_HIGHLIGHTS = {
-  "9.19.1": "Released May 2026. SnapMirror active sync transparent failover for AIX (2-node); SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror Synchronous; scheduled snapshot replication to destination. ASA r2: direct-attach FC (no FC switch required); ARP/AI within SM active sync relationships. AFX: global deduplication across entire SAZ (enabled by default); intelligent prefetching for sequential video frames; per-SVM System Manager dashboard. S3 idle connection timeout reduced 20min→5min.",
-  "9.18.1": "SnapMirror cloud for MC FlexGroup; new controller replace combos (A70→A90, FAS70→FAS90) in MC-IP; 100Gbps ISL minimum for high-speed MC-IP platforms.",
-  "9.17.1": "MC-IP E2E encryption extended to AFF A20/A30/C30/A50/C60/A70/A90/A1K/C80, FAS50/70/90; MC-IP limit increases. AFX platform requires 9.17.1+.",
-  "9.16.1": "GA 2026-04-01. IPsec HW offload; NVMe space dealloc default-on; ARP/AI (99% precision, zero learning period on FlexVol); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA for System Manager. ARP/AI requires ONTAP 9.16.1+.",
-  "9.15.1": "NVMe/TCP over TLS 1.3 preview; SnapMirror active sync symmetric active/active (all-SAN); ARP FlexGroup support; MetroCluster E2E encryption; 3-node ROBO cluster support.",
-  "9.14.1": "CLI support for consistency groups; FlexCache unencrypted-from-encrypted source; NVMe/TCP auto-discovery; TSSE physical-used semantics change (impacts capacity reporting); OAuth 2.0 ADFS support.",
-  "9.13.1": "ARP extends to FlexGroup volumes; AES Kerberos encryption default-on for CIFS (important for KB5073381 compliance); NVMe/FC 4-node cluster support; ONTAP Mediator 1.6 required for SnapMirror active sync.",
-  "9.12.1": "SnapMirror Sync max FlexVol 300TB, file/LUN 128TB; System Manager integrated with NetApp Console; TSSE default-on for AFF C-Series; tamper-proof audit logging default-on.",
-  "9.10.1": "ARP introduced (FlexVol NAS, 30-day learning mode); firewall policies DEPRECATED → LIF service policies (BREAKING CHANGE); admin-down confirmation required (BREAKING CHANGE); NVMe/TCP introduced; SnapLock+non-SnapLock coexistence on same aggregate.",
-  "9.9.1":  "SnapMirror active sync (formerly SMBC) GA; MetroCluster IP 8-node support; NVMe/FC 2-node cluster; Consistency Groups introduced in System Manager.",
-  "9.8":    "Unified upgrade experience; ONTAP CLI REST API parity begins; NVMe improvements; simplified volume placement policies.",
-  "9.7":    "FabricPool for all platforms; WAFL metadata format upgrade (requires 15% free agg space); strict TLS 1.0/1.1 disabled for management APIs."
+  "9.19.1": "GA ~2026-06-11. SnapMirror active sync transparent failover for AIX (2-node); SnapMirror cloud S3 bucket limit raised to 100; tamperproof snapshot locking for SnapMirror Synchronous; scheduled snapshot replication to destination. ASA r2: direct-attach FC (no FC switch required); ARP/AI within SnapMirror active sync relationships. AFX: global deduplication across entire SAZ (enabled by default); intelligent prefetching for sequential video frames (AI/ML workloads); per-SVM System Manager dashboard. S3 idle connection timeout reduced 20min→5min. ONTAP Mediator 1.12 required for SnapMirror active sync on this release.",
+  "9.18.1": "SnapMirror cloud for MetroCluster FlexGroup volumes; new controller replace combos (A70→A90, FAS70→FAS90) in MC-IP; 100Gbps ISL minimum for high-speed MC-IP platforms; AFX ATM performance-aware balancing (node load weighting, not just volume count); FlexCache/SnapMirror support between AFX and Unified ONTAP (Unified side must be 9.16.1+).",
+  "9.17.1": "AFX platform GA (minimum ONTAP version for AFX 1K and AFX 2K); Zero Copy Volume Move (ZCVM) for AFX; JIT privilege elevation for RBAC; MetroCluster IP E2E encryption extended to full A/C/FAS lineup (A20/A30/C30/A50/C60/A70/A90/A1K/C80, FAS50/70/90); MC-IP limit increases.",
+  "9.16.1": "GA 2026-04-01. IPsec hardware offload; NVMe space deallocation default-on (verify host HBA driver UNMAP/TRIM support before upgrading SAN hosts); ARP/AI replaces classic ARP on FlexVol (99% precision, zero learning period — immediate protection on enable); NVMe/TCP over TLS 1.3; OAuth 2.0 Entra ID; WebAuthn MFA for System Manager; Advanced Capacity Balancing (prerequisite for AFX interop from Unified ONTAP side). ARP/AI requires ONTAP 9.16.1+. Mediator 1.9+ required for SnapMirror active sync.",
+  "9.15.1": "NVMe/TCP over TLS 1.3 preview; SnapMirror active sync symmetric active/active for all-SAN (ASA or AFF SAN-only volumes); ARP FlexGroup support; MetroCluster E2E encryption; 3-node ROBO cluster support; NFS over TLS GA.",
+  "9.14.1": "CLI support for consistency groups; FlexCache from encrypted source; NVMe/TCP auto-discovery (iSNS or manual host update required); TSSE physical-used semantics CHANGED (capacity dashboards may show different values — not a data issue, update thresholds); OAuth 2.0 ADFS support; FPolicy persistent stores; Cisco Duo 2FA for SSH.",
+  "9.13.1": "ARP extends to FlexGroup volumes (all nodes must be on 9.13.1+); AES Kerberos encryption DEFAULT-ON for new CIFS SVMs — critical for Microsoft KB5073381/CVE-2026-20833 compliance; NVMe/FC 4-node cluster support; ONTAP Mediator 1.6 required for SnapMirror active sync; TOTP profiles for SSH MFA.",
+  "9.12.1": "SnapMirror Sync max FlexVol 300TB, file/LUN 128TB; System Manager integrated with NetApp Console; TSSE default-on for AFF C-Series (changes efficiency ratio reporting); tamper-proof audit logging default-on; NVMe/FC in MetroCluster IP.",
+  "9.11.1": "Multi-Admin Verification (MAV) introduced — protects critical operations requiring dual approval; SnapMirror active sync expanded platform support; consistency groups GA in System Manager and CLI.",
+  "9.10.1": "ARP introduced (FlexVol NAS, 30-day learning mode — manually enabled per volume); firewall policies DEPRECATED → LIF service policies (BREAKING CHANGE — migrate before upgrade); admin-down confirmation required (BREAKING CHANGE); NVMe/TCP introduced; SnapLock+non-SnapLock coexistence on same aggregate.",
+  "9.9.1":  "SnapMirror active sync (formerly SMBC) GA; MetroCluster IP 8-node support; NVMe/FC 2-node cluster; Consistency Groups introduced in System Manager; L3 IP-routed MetroCluster backend.",
+  "9.8":    "Unified upgrade experience; ONTAP REST API parity begins (ZAPI deprecated — migrate to REST; ZAPI removed from AFX entirely); NVMe improvements; SnapDiff v3 for backup integrations.",
+  "9.7":    "FabricPool for all platforms; WAFL metadata format upgrade (requires 15% free agg space); TLS 1.0/1.1 disabled for management APIs."
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AFX-Specific Configuration Considerations
+// Source: docs.netapp.com/us-en/ontap-afx/ (verified 2026-07-13)
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_AFX_NOTES = {
+  minOntapVersion:    "9.17.1",
+  apiSupport:         "REST API only — ZAPI/ONTAPI not supported. Rewrite all automation to REST before deploying AFX.",
+  supportedProtocols: ["NFSv3", "NFSv4.x", "SMB2.x", "SMB3.x", "S3", "NDMP"],
+  unsupportedProtocols: ["iSCSI", "FCP", "NVMe/FC", "NVMe/TCP", "NVMe/RoCE"],
+  shelves:            "NX224 shelves with NSM140 I/O modules ONLY (NOT NSM100/NSM100B — different module)",
+  driveTypes:         "NVMe SSDs: 7.6TB/15.3TB (TLC), 30.1TB/60.6TB (QLC). QLC trails TLC on write-heavy workloads.",
+  switches:           "AFX 1K: Cisco Nexus 9332D-GX2B or 9364D-GX2A (400GbE). AFX 2K: also supports Cisco Nexus 9808.",
+  clusterInterop:     "Cannot mix AFX nodes with AFF/FAS/ASA in same cluster. Personality is immutable.",
+  flexcacheInterop:   "SnapMirror/FlexCache with Unified ONTAP: Unified side must be ONTAP 9.16.1+. FlexCache write-back NOT supported.",
+  scaleCeiling:       "Current-release docs state 32-node/32PB. Press figures cite 128-controller/1EB+. Conflict unresolved — verify against NetApp Hardware Universe for sizing.",
+  targetWorkloads:    "Deep-learning training, AI/ML pipelines, high-concurrency NAS/S3, NOT general-purpose block/file/object unified workloads."
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration & Ecosystem Notes (2026)
+// Sources: Kubernetes/Hypervisors/Migration/Cloud-BlueXP READMEs verified 2026-07-19
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_INTEGRATION_NOTES = {
+  trident: {
+    currentGA:  "26.02.1",
+    minK8s:     "Kubernetes 1.28+ (26.02 requires 1.35)",
+    keyDrivers: ["ontap-nas", "ontap-nas-economy", "ontap-san", "ontap-san-economy", "google-cloud-netapp-volumes-san", "azure-netapp-files", "aws-fsx-ontap"],
+    asarSupport: "Trident supports ASA r2 — see docs.netapp.com/us-en/trident/trident-asar2-support.html",
+    multitenancy: "Dedicate one SVM per tenant/namespace grouping; set volume-count limit per SVM."
+  },
+  vsphere: {
+    latestSupported: "vSphere 8.x",
+    snapcenterPlugin: "SnapCenter 6.x Plugin for VMware supports NVMe/TCP for VMFS datastores + SnapMirror active sync (zero RPO/RTO)",
+    tridentRWX: "RWX PVCs required for live VM migration on OpenShift Virtualization backed by Trident"
+  },
+  proxmox: {
+    status:    "GA as of 2026-07-02",
+    shiftToolkit: "Shift Toolkit supports ESXi→Proxmox VE migration (PVE 9.x+, 3+ node cluster, ONTAP NFSv3 storage pool)",
+    smp:       "Storage Manager for Proxmox (SMP) — Windows-hosted, direct ONTAP NFS/iSCSI provisioning, backup/restore, FlexClone-based cloning. SnapMirror replication toggle present but disabled in current release.",
+    pbs:       "Proxmox Backup Server (PBS) with ONTAP integration documented separately"
+  },
+  nutanix: {
+    status: "Early Access (EA) — GA targeted Q3 2026, no announcement as of 2026-07-19",
+    note:   "Shift Toolkit + Nutanix Move 'Fast Migration' pairing documented"
+  },
+  cloud: {
+    cvoCurrentGA: "CVO 9.18.1 (AWS/Azure/GCP)",
+    gcpNote:      "GCP now uses Infrastructure Manager (not Cloud Deployment Manager) + C3 compute/Hyperdisk, max 512TiB",
+    anf:          "ANF: migration assistant GA, cache volumes GA (2026-07-11)",
+    gcnv:         "GCNV: Flex Unified service level (file+block single pool, all regions), backup GA, replication GA, MCP server GA",
+    fsx:          "FSx for ONTAP: fully managed, sub-ms SSD latency, same Trident/SnapCenter/SnapMirror surface as on-prem",
+    cloudTiering:  "NetApp Cloud Tiering: EOA 2026-04-24, PAYGO last day 2026-11-01. Replacement = ONTAP-native FabricPool"
+  },
+  storagegrid121: {
+    status:   "Announced 2026-06-23, docs NOT yet on docs.netapp.com as of 2026-07-19",
+    features: "400% higher throughput vs 12.0 (up to 12 TB/s), batch ops on billions of objects, multi-admin verification, Global Federated Namespace (up to 10EB across distributed systems), AI-agent change tracking on buckets"
+  }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
