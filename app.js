@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.3";
+const APP_VERSION = "3.6.4";
 
 const APP_CHANGELOG = [
   {
@@ -7438,11 +7438,16 @@ function renderTAMTab() {
   // makes the intent clear and prevents accidental re-binding issues).
   const _tamSelectedSystems = selectedSystems;
 
-  // Defer the 4 heavy table sections. The outer requestAnimationFrame lets the
-  // browser paint the visual layout card first; the inner setTimeout(0) then
-  // yields to the event loop one more time before the innerHTML builds begin.
-  requestAnimationFrame(() => setTimeout(() => { // ── BEGIN DEFERRED SECTIONS ──
-  const selectedSystems = _tamSelectedSystems; // restore in deferred scope
+  // ── 4-stage pipelined render — one setTimeout(0) per section ────────────────
+  // Each stage yields the browser thread before starting, so the UI stays
+  // responsive and can paint between sections. This is the only correct fix
+  // for the TAM hang: a single setTimeout(0) still blocks for the entire
+  // duration of all 4 builds; separate tasks let the browser breathe.
+  const _pipe = _tamSelectedSystems; // closure capture
+
+  // ── STAGE 1: Risks ────────────────────────────────────────────────────────
+  requestAnimationFrame(() => setTimeout(() => {
+  const selectedSystems = _pipe;
 
   // ── Compile Combined Risks — grouped by system with collapsible drilldown ──
   // Groups risks per system to keep initial DOM at N rows (systems) not N×M (all risks).
@@ -7614,8 +7619,11 @@ function renderTAMTab() {
 
     document.getElementById('tamRisksTableBody').innerHTML = riskRows;
   }
-  
-  // Compile Combined OS Upgrades
+  }, 0)); // ── END STAGE 1
+
+  // ── STAGE 2: OS Upgrades ──────────────────────────────────────────────────
+  setTimeout(() => {
+  const selectedSystems = _pipe;
   const upgradeBox = document.getElementById("tamUpgradeContainer");
   upgradeBox.innerHTML = "";
   
@@ -7755,8 +7763,11 @@ function renderTAMTab() {
 
     upgradeBox.innerHTML = upgradeHtml;
   }
-  
-  // Compile Combined Switch Validation
+  }, 0); // ── END STAGE 2
+
+  // ── STAGE 3: Switch Validation ────────────────────────────────────────────
+  setTimeout(() => {
+  const selectedSystems = _pipe;
   let switchRows = "";
   const allSwitches = [];
   selectedSystems.forEach(sys => {
@@ -7820,10 +7831,11 @@ function renderTAMTab() {
     });
   }
   document.getElementById("tamSwitchesTableBody").innerHTML = switchRows;
-  
-  // ── Compile Combined Security & Technical Bulletins — severity-tiered display ──
-  // Critical + High: always rendered as full rows (high-priority, always visible).
-  // Medium / Low / Info: collapsed into a single summary row to reduce initial DOM.
+  }, 0); // ── END STAGE 3
+
+  // ── STAGE 4: Security Bulletins ───────────────────────────────────────────
+  setTimeout(() => {
+  const selectedSystems = _pipe;
   // CVE enrichment is batched (5 per 100ms) to avoid a burst of simultaneous fetches.
   const allBulletins = [];
   selectedSystems.forEach(sys => {
@@ -8000,7 +8012,9 @@ function renderTAMTab() {
   window._deferredBulletinEnrich = deferredEnrich;
 
   updateSortIndicators();
-  }, 0)); // ── END DEFERRED SECTIONS (requestAnimationFrame → setTimeout) ──
+  }, 0); // ── END STAGE 4
+
+  }, 0)); // ── END STAGE 0 (rAF guard — lets visual card paint first) ──
 }
 
 function getSystemSwitches(sys) {
