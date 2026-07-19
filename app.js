@@ -1,4 +1,4 @@
-﻿// Active IQ Web Client - Core Application Logic
+// Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
 // This tool is designed to be strictly READ-ONLY. Under no circumstances should
@@ -7466,68 +7466,162 @@ function renderTAMTab() {
       <p style="font-size: 0.9rem; color: var(--text-secondary);">All ${selectedSystems.length} selected systems are currently running fully supported, stable releases. No upgrades required.</p>
     `;
   } else {
-    let upgradeHtml = `<h3 style="font-size: 1.05rem; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Recommended OS Upgrades</h3>`;
-    upgradeItems.forEach(item => {
-      const latestVer = getLatestSupportedVersion(item.platform);
-      const hops = calculateUpgradePath(item.platform, item.currentVersion, item.targetVersion);
-      
-      let hopsHtml = "";
+    // ─── Collapsible system cards for Recommended OS Upgrades ─────────────────
+    let upgradeHtml = '<div style="display:flex;justify-content:space-between;align-items:center;' +
+      'margin-bottom:16px;border-bottom:1px solid var(--border-color);padding-bottom:10px;">' +
+      '<h3 style="font-size:1.05rem;margin:0;">Recommended OS Upgrades</h3>' +
+      '<button id="upgradeExpandToggle" data-state="closed"' +
+      ' onclick="(function(){' +
+        'var cards=document.querySelectorAll(\'.upgrade-detail-body\');' +
+        'var chevrons=document.querySelectorAll(\'.upgrade-chevron\');' +
+        'var btn=document.getElementById(\'upgradeExpandToggle\');' +
+        'var expanding=btn.dataset.state!==\'open\';' +
+        'cards.forEach(function(c){c.style.display=expanding?\'block\':\'none\';});' +
+        'chevrons.forEach(function(ch){ch.style.transform=expanding?\'rotate(90deg)\':\'rotate(0deg)\';});' +
+        'btn.dataset.state=expanding?\'open\':\'closed\';' +
+        'btn.textContent=expanding?\'\u2296 Collapse All\':\'\u2295 Expand All\';' +
+      '})()"' +
+      ' style="font-size:0.75rem;padding:5px 12px;background:rgba(255,255,255,0.06);' +
+        'border:1px solid rgba(255,255,255,0.12);border-radius:6px;' +
+        'color:var(--text-secondary);cursor:pointer;transition:background 0.15s;">' +
+      '\u2295 Expand All</button></div>';
+
+    upgradeItems.forEach((item, itemIdx) => {
+      const latestVer  = getLatestSupportedVersion(item.platform);
+      const hops       = calculateUpgradePath(item.platform, item.currentVersion, item.targetVersion);
+      const isMultiHop = hops.length > 1;
+      const cardId     = 'upgradeCard_' + itemIdx;
+
+      // ── Hop summary pills (shown in collapsed header) ─────────────────────
+      let hopPillsHtml = '';
       if (hops.length > 0) {
-        if (hops.length > 1) {
-          hopsHtml += `<div style="margin: 10px 0 6px 0; font-size: 0.78rem; font-weight: 600; color: var(--status-warning); display: flex; align-items: center; gap: 6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-            Multi-hop Upgrade Sequence Required:
-          </div>`;
-        }
-        
-        hops.forEach((hop, idx) => {
-          hopsHtml += `
-            <div style="margin-top: 10px; padding: 12px; background: rgba(255, 255, 255, 0.015); border-left: 3px solid var(--accent-cyan); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.03); border-top: none; border-bottom: none; border-right: none;">
-              <div style="font-weight: 700; font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                Hop ${idx + 1}: ${hop.from} &rarr; ${hop.to}
-              </div>
-              <div style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.45;">
-                <div style="margin-bottom: 4px;"><strong style="color: var(--text-primary);">Procedure:</strong></div>
-                <ul style="margin: 0 0 8px 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px;">
-                  ${hop.steps.map(s => `<li>${s}</li>`).join("")}
-                </ul>
-                <div style="margin-bottom: 4px;"><strong style="color: var(--status-warning);">Pre-upgrade Recommendations:</strong></div>
-                <ul style="margin: 0 0 8px 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px;">
-                  ${hop.recommendations.map(r => `<li>${r}</li>`).join("")}
-                </ul>
-                <div style="margin-bottom: 4px;"><strong style="color: var(--text-muted);">Important Considerations:</strong></div>
-                <ul style="margin: 0 0 8px 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px;">
-                  ${hop.considerations.map(c => `<li>${c}</li>`).join("")}
-                </ul>
-                <div style="margin-top: 8px;">
-                  <a href="${hop.docLink}" target="_blank" style="color: var(--accent-cyan); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
-                    View Upgrade Guide
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                  </a>
-                </div>
-              </div>
-            </div>
-          `;
-        });
+        const arrow = '<span style="color:var(--text-muted);font-size:0.7rem;margin:0 2px;">&rarr;</span>';
+        const vPills = hops.map((h, i) => {
+          const isLast = (i === hops.length - 1);
+          return '<span style="padding:1px 7px;border-radius:10px;font-size:0.7rem;font-weight:600;' +
+                   'background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.25);color:var(--accent-cyan);">' +
+                   h.from + '</span>' + arrow +
+                 (isLast
+                   ? '<span style="padding:1px 7px;border-radius:10px;font-size:0.7rem;font-weight:600;' +
+                       'background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.4);color:var(--accent-cyan);">' +
+                       h.to + '</span>'
+                   : '');
+        }).join(arrow);
+        hopPillsHtml =
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;">' +
+          (isMultiHop
+            ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;' +
+                'font-size:0.68rem;font-weight:700;background:rgba(251,191,36,0.12);' +
+                'border:1px solid rgba(251,191,36,0.3);color:var(--status-warning);">' +
+                '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+                '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>' +
+                '<line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' +
+                hops.length + '-hop sequence</span>'
+            : '') +
+          '<span style="font-size:0.72rem;color:var(--text-muted);">' + vPills + '</span></div>';
       }
-      
-      upgradeHtml += `
-        <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px dashed var(--border-color);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: var(--text-primary); font-size: 0.9rem;">${item.systemName} (${item.platform})</strong>
-            <span class="badge warning">${item.urgency}</span>
-          </div>
-          <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.4;">
-            Current: <strong style="color: var(--text-muted);">${item.currentVersion}</strong> | 
-            Target OS Version: <strong style="color: var(--accent-cyan);">${item.targetVersion}</strong> | 
-            Latest Available: <strong style="color: var(--status-normal);">${latestVer}</strong>
-          </div>
-          <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 10px 0; line-height: 1.4;">${item.benefits}</p>
-          ${hopsHtml}
-        </div>
-      `;
+
+      // ── Full hop detail (hidden until expanded) ───────────────────────────
+      let hopDetailHtml = '';
+      if (isMultiHop) {
+        hopDetailHtml +=
+          '<div style="font-size:0.78rem;font-weight:600;color:var(--status-warning);' +
+            'display:flex;align-items:center;gap:6px;margin-bottom:8px;">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+          '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>' +
+          '<line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' +
+          'Multi-hop Upgrade Sequence Required:</div>';
+      }
+
+      hops.forEach((hop, idx) => {
+        hopDetailHtml +=
+          '<div style="margin-top:10px;padding:12px;background:rgba(255,255,255,0.015);' +
+            'border-left:3px solid var(--accent-cyan);border-radius:var(--radius-sm);">' +
+          '<div style="font-weight:700;font-size:0.8rem;color:var(--accent-cyan);margin-bottom:8px;' +
+            'display:flex;align-items:center;gap:6px;">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+          '<polyline points="9 18 15 12 9 6"></polyline></svg>' +
+          'Hop ' + (idx + 1) + ': ' + hop.from + ' &rarr; ' + hop.to + '</div>' +
+          '<div style="font-size:0.74rem;color:var(--text-secondary);line-height:1.45;">' +
+          '<div style="margin-bottom:4px;"><strong style="color:var(--text-primary);">Procedure:</strong></div>' +
+          '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">' +
+            hop.steps.map(s => '<li>' + s + '</li>').join('') +
+          '</ul>' +
+          '<div style="margin-bottom:4px;"><strong style="color:var(--status-warning);">Pre-upgrade Recommendations:</strong></div>' +
+          '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">' +
+            hop.recommendations.map(r => '<li>' + r + '</li>').join('') +
+          '</ul>' +
+          '<div style="margin-bottom:4px;"><strong style="color:var(--text-muted);">Important Considerations:</strong></div>' +
+          '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">' +
+            hop.considerations.map(c => '<li>' + c + '</li>').join('') +
+          '</ul>' +
+          '<div style="margin-top:8px;">' +
+          '<a href="' + hop.docLink + '" target="_blank"' +
+            ' style="color:var(--accent-cyan);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">' +
+            'View Upgrade Guide ' +
+            '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+            '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>' +
+            '<polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>' +
+          '</a></div></div></div>';
+      });
+
+      // ── Assemble collapsible card ─────────────────────────────────────────
+      upgradeHtml +=
+        '<div id="' + cardId + '" style="margin-bottom:8px;border:1px solid rgba(255,255,255,0.07);border-radius:10px;overflow:hidden;">' +
+
+        // Header / summary row
+        '<div onclick="(function(){' +
+            'var body=document.getElementById(\'' + cardId + '_body\');' +
+            'var chevron=document.getElementById(\'' + cardId + '_chevron\');' +
+            'var open=body.style.display!==\'none\';' +
+            'body.style.display=open?\'none\':\'block\';' +
+            'chevron.style.transform=open?\'rotate(0deg)\':\'rotate(90deg)\';' +
+          '})()"' +
+          ' style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;' +
+            'cursor:pointer;background:rgba(255,255,255,0.03);transition:background 0.15s;user-select:none;"' +
+          ' onmouseover="this.style.background=\'rgba(255,255,255,0.06)\'"' +
+          ' onmouseout="this.style.background=\'rgba(255,255,255,0.03)\'">' +
+
+          // Left side: chevron + name + version summary + hop pills
+          '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
+            '<svg id="' + cardId + '_chevron" class="upgrade-chevron"' +
+              ' width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"' +
+              ' style="flex-shrink:0;transition:transform 0.2s;color:var(--text-muted);">' +
+              '<polyline points="9 18 15 12 9 6"></polyline></svg>' +
+            '<div style="min-width:0;">' +
+              '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<strong style="color:var(--text-primary);font-size:0.88rem;white-space:nowrap;">' + item.systemName + '</strong>' +
+                '<span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">(' + item.platform + ')</span>' +
+                '<span class="badge warning" style="font-size:0.65rem;padding:1px 7px;">' + item.urgency + '</span>' +
+              '</div>' +
+              '<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">' +
+                '<span style="color:var(--text-muted);">' + item.currentVersion + '</span>' +
+                '<span style="color:var(--text-muted);margin:0 4px;">&rarr;</span>' +
+                '<span style="color:var(--accent-cyan);font-weight:600;">' + item.targetVersion + '</span>' +
+                '<span style="color:var(--text-muted);margin:0 5px;">|</span>' +
+                '<span style="color:var(--text-muted);">Latest: </span>' +
+                '<span style="color:var(--status-normal);font-weight:600;">' + latestVer + '</span>' +
+              '</div>' +
+              hopPillsHtml +
+            '</div>' +
+          '</div>' +
+
+          // Right side: hop count
+          '<div style="flex-shrink:0;margin-left:12px;font-size:0.7rem;color:var(--text-muted);">' +
+            (hops.length > 0 ? hops.length + ' hop' + (hops.length > 1 ? 's' : '') : 'direct') +
+          '</div>' +
+        '</div>' +
+
+        // Collapsible detail body
+        '<div id="' + cardId + '_body" class="upgrade-detail-body" style="display:none;">' +
+          '<div style="padding:14px 16px 16px;border-top:1px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.15);">' +
+            '<p style="font-size:0.78rem;color:var(--text-secondary);margin:0 0 10px 0;line-height:1.4;">' + item.benefits + '</p>' +
+            (hopDetailHtml || '<p style="font-size:0.78rem;color:var(--text-muted);">Direct upgrade \u2014 no intermediate hops required.</p>') +
+          '</div>' +
+        '</div>' +
+      '</div>';
     });
+
     upgradeBox.innerHTML = upgradeHtml;
   }
   
