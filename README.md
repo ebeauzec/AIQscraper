@@ -82,7 +82,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - Account personnel (Sales Rep, CSM, SAM, ASP, Propensity)
 
 **Added by the Reference Library (not in Active IQ):**
-- EOA hardware flags for AFF, ASA, and FAS platforms
+- EOA hardware flags for AFF, ASA, FAS, StorageGRID, and E-Series platforms
 - **CVE cross-referencing** — Unique CVEs across advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP version range.
 - **CISA KEV integration** — CVEs confirmed as actively exploited by CISA are flagged with 🚨 priority in the dashboard. The set of flagged entries grows as new KEV additions are detected and the Reference Library is refreshed.
 - Firmware baseline checks for shelves and switches
@@ -203,9 +203,15 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 4. Use **Tab 14** for warranty status and remaining support coverage
 
 **Flagged EOA Platforms:**
-- **AFF:** A200, A220, A300, A320, A700, A700s, C190, C800
+
+> The EOA list in the Reference Library is updated dynamically as NetApp publishes new End-of-Availability notices. The entries below reflect the current database; always check the dashboard's lifecycle view or the live `REFERENCE_LIBRARY_EOA_PLATFORMS` array in `app.js` for the authoritative set.
+
+- **AFF:** A200, A220, A300, A320, A700, A700s, A800, C190, C800
 - **ASA:** C250, C400, C800
 - **FAS:** 2600, 500f, 8200, 9000
+- **StorageGRID:** SG5600, SG5700 appliance nodes *(older-generation object storage nodes)*
+- **E-Series / EF-Series:** E2600, E2700, E5400, E5500, E5600, EF540, EF550, EF560 *(legacy SAN arrays)*
+- **EOA Switches:** BES-53248, Cisco 9336C-FX2, NVIDIA SN2100
 
 ---
 
@@ -515,11 +521,16 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 
 ### Reference Library — EOA Platforms
 
+> **The EOA platform list is updated dynamically** as NetApp publishes new End-of-Availability notices, synced via the daily Reference Library scan. The table below reflects the current database at the time of writing and is shown as a **representative snapshot**. Entries are matched against all system types — ONTAP (AFF/ASA/FAS), StorageGRID appliances, and E-Series/EF-Series arrays. Check the `REFERENCE_LIBRARY_EOA_PLATFORMS` array in `app.js` for the live list.
+
 | Family | EOA Models |
 |---|---|
-| AFF | A200, A220, A300, A320, A700, A700s, C190, C800 |
+| AFF | A200, A220, A300, A320, A700, A700s, A800, C190, C800 |
 | ASA | C250, C400, C800 |
 | FAS | 2600, 500f, 8200, 9000 |
+| StorageGRID | SG5600, SG5700 appliance nodes |
+| E-Series / EF-Series | E2600, E2700, E5400, E5500, E5600, EF540, EF550, EF560 |
+| EOA Switches | BES-53248, Cisco 9336C-FX2, NVIDIA SN2100 |
 
 ### Reference Library — CVE Database
 
