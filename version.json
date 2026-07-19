@@ -4,5 +4,5 @@
   "minor": 6,
   "patch": 4,
   "date": "2026-07-19",
-  "notes": "TAM hang fix: split single monolithic deferred block into 4 separate staged setTimeout(0) tasks (risks, upgrades, switches, bulletins). Browser now yields between each section instead of blocking for all 4 at once."
+  "notes": "TAM hang fix: split single monolithic deferred block into 4 separate staged setTimeout(0) tasks (risks, upgrades, switches, bulletins). Browser now yields between each section. Syntax fix: removed orphaned closing brace in renderTAMTab() that caused a script-wide SyntaxError making all functions undefined. Branding: page title updated to 'ARIA — Active IQ Risk Intelligence Advisor'; policy disclaimer updated to clarify ARIA is an independent third-party tool not affiliated with NetApp."
 }

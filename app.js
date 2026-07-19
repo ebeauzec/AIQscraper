@@ -24,7 +24,7 @@ const APP_CHANGELOG = [
   {
     version: "2026.07.19",
     date: "19 July 2026",
-    title: "Knowledge Base Refresh + Syntax Fix",
+    title: "TAM Pipeline Render + Syntax Fix + Branding",
     sections: [
       {
         icon: "🛡️",
@@ -75,7 +75,26 @@ const APP_CHANGELOG = [
         label: "Bug Fixes",
         color: "#94a3b8",
         items: [
-          "Fixed JavaScript SyntaxError: 'Unexpected token {' at app.js line 5312 — missing comma between CVE array entries"
+          "Fixed JavaScript SyntaxError: 'Unexpected token {' at app.js line 5312 — missing comma between CVE array entries",
+          "Fixed critical script-wide SyntaxError: orphaned Stage 0 closing brace in renderTAMTab() caused all functions (including switchTab) to be undefined on load"
+        ]
+      },
+      {
+        icon: "⚡",
+        label: "Performance",
+        color: "#fbbf24",
+        items: [
+          "TAM tab render pipeline: split monolithic setTimeout build into 4 independent browser tasks (Risks → Upgrades → Switches → Bulletins) — browser can paint and respond between each stage, eliminating the 'tab hanging' freeze",
+          "Each TAM section now renders progressively rather than all-at-once, giving immediate visual feedback on large system lists"
+        ]
+      },
+      {
+        icon: "🏷️",
+        label: "Branding",
+        color: "#818cf8",
+        items: [
+          "Browser tab title updated: 'NetApp Active IQ Account Report Dashboard' → 'ARIA — Active IQ Risk Intelligence Advisor'",
+          "Policy compliance statement corrected: ARIA is now explicitly described as an independent, third-party tool not affiliated with or endorsed by NetApp, Inc."
         ]
       }
     ]
@@ -8013,9 +8032,8 @@ function renderTAMTab() {
 
   updateSortIndicators();
   }, 0); // ── END STAGE 4
-
-  }, 0)); // ── END STAGE 0 (rAF guard — lets visual card paint first) ──
 }
+
 
 function getSystemSwitches(sys) {
   if (sys.switches && sys.switches.length > 0) return sys.switches;
@@ -9177,15 +9195,17 @@ function renderCSMTab() {
       </div>
     `;
 
-    // 4. Checklist aggregate — TAM/MSP remediation readiness (9 checks)
+    // 4. Checklist aggregate — TAM/MSP remediation readiness (15 checks)
     const _latestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
     let _verPass = 0, _effPass = 0, _cloudPass = 0, _drPass = 0;
     let _riskPass = 0, _contractPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
-    let _verDetails = [];
+    // New checks (10-15)
+    let _capPass = 0, _haPass = 0, _casePass = 0, _encPass = 0, _arpPass = 0, _fsaPass = 0;
+    let _verDetails = [], _capDetails = [], _caseDetails = [], _haDetails = [];
 
     targetCSMSystems.forEach(s => {
       // 1. OS on recommended version (no outstanding upgrade recommendation)
-      const _hasUpgrade = !!(s.upgrades && s.upgrades.targetVersion);
+      const _hasUpgrade = !!(s.upgrades && s.upgrades.targetVersion && s.upgrades.targetVersion !== 'Up to Date');
       if (!_hasUpgrade) _verPass++;
       else _verDetails.push(`${s.systemName}: ${s.ontapVersion || '?'} \u2192 ${s.upgrades.targetVersion}`);
 
@@ -9216,11 +9236,69 @@ function renderCSMTab() {
       // 9. No active security CVEs applicable to system
       const _sec = getApplicableSecurityBulletins(s.ontapVersion, s.platform).filter(b => b.status !== 'resolved');
       if (_sec.length === 0) _secPass++;
+
+      // 10. Aggregate capacity headroom >= 20%
+      // Uses efficiency.usableCapacityTB and efficiency.physicalUsedTB — populated for both mock
+      // and live API systems by enrichSystemTelemetry (capacity backfill logic at line ~10245).
+      const _usable = s.efficiency && s.efficiency.usableCapacityTB > 0 ? s.efficiency.usableCapacityTB : 0;
+      const _phys   = s.efficiency ? (s.efficiency.physicalUsedTB || 0) : 0;
+      const _headroomPct = _usable > 0 ? ((_usable - _phys) / _usable) * 100 : 100;
+      if (_headroomPct >= 20) _capPass++;
+      else if (_usable > 0) _capDetails.push(`${s.systemName}: ${Math.round(_headroomPct)}% free`);
+
+      // 11. HA pair configured
+      // haConfigured is normalized by enrichSystemTelemetry from both s.haConfigured (mock)
+      // and s.isHAConfigured (real API via server.py harvest). null = unknown (single-node
+      // platforms like StorageGRID object nodes are inherently N/A — count as passing).
+      const _isStorageGrid = (s.platform || '').toLowerCase().includes('storagegrid');
+      const _isEseries = (s.platform || '').toLowerCase().includes('e-series') || (s.platform || '').toLowerCase().includes('ef6') || (s.platform || '').toLowerCase().includes('ef3');
+      if (_isStorageGrid || _isEseries || s.haConfigured === true) _haPass++;
+      else if (s.haConfigured === false) _haDetails.push(`${s.systemName}: no HA`);
+      else _haPass++; // haConfigured null / unknown — don't penalise (insufficient data)
+
+      // 12. No open S1/S2 severity support cases
+      // supportCases severity is normalized by enrichSystemTelemetry to 'S1 - Critical' / 'S2 - High' format.
+      // Closed cases are filtered by checking status — 'CLOSED', 'Closed', or 'Cancelled'.
+      const _openCritCases = (s.supportCases || []).filter(c => {
+        const sevStr = (c.severity || '').toUpperCase();
+        const statStr = (c.status || '').toUpperCase();
+        const isClosed = statStr.includes('CLOSED') || statStr.includes('CANCELLED') || statStr.includes('PENDING CLOSE');
+        return !isClosed && (sevStr.startsWith('S1') || sevStr.startsWith('S2'));
+      });
+      if (_openCritCases.length === 0) _casePass++;
+      else _caseDetails.push(`${s.systemName}: ${_openCritCases.length} critical case${_openCritCases.length > 1 ? 's' : ''}`);
+
+      // 13. Volume encryption (NVE/NAE) enabled
+      // nvEncryptionEnabled is derived by enrichSystemTelemetry: true for AFF/ASA running ONTAP 9.7+
+      // (NVE on-by-default with integrated OKM since 9.7). null means platform/version unknown
+      // — do not penalise. FAS, CVO, SG, E-Series return false (not encrypted by default).
+      if (s.nvEncryptionEnabled === true || s.nvEncryptionEnabled === null) _encPass++;
+
+      // 14. Anti-Ransomware Protection (ARP) active
+      // isARPEnabled is computed by enrichSystemTelemetry for both mock and live API systems.
+      // Real API: isARPEnabled is a direct boolean from the Active IQ GraphQL harvest (server.py line 933).
+      // Mock: derived to true for AFF/ASA/CVO/AFX platforms (ARP supported since ONTAP 9.10.1).
+      // StorageGRID and E-Series do not support ARP — count as passing (N/A).
+      if (_isStorageGrid || _isEseries || s.isARPEnabled === true || s.isARPEnabled === null) _arpPass++;
+
+      // 15. No outstanding Field Safety Alerts (Field Actions / FSAs)
+      // fieldActions[] is normalized by enrichSystemTelemetry: s.fieldActions || s.field_actions || []
+      // An empty array means no outstanding FAs — this system passes.
+      if (!s.fieldActions || s.fieldActions.length === 0) _fsaPass++;
     });
 
     const _n = targetCSMSystems.length;
     const _vDetail = _verDetails.length > 0
       ? _verDetails.slice(0, 2).join(' | ') + (_verDetails.length > 2 ? ` +${_verDetails.length - 2} more` : '')
+      : '';
+    const _capDetail = _capDetails.length > 0
+      ? _capDetails.slice(0, 2).join(' | ') + (_capDetails.length > 2 ? ` +${_capDetails.length - 2} more` : '')
+      : '';
+    const _caseDetail = _caseDetails.length > 0
+      ? _caseDetails.slice(0, 2).join(' | ') + (_caseDetails.length > 2 ? ` +${_caseDetails.length - 2} more` : '')
+      : '';
+    const _haDetail = _haDetails.length > 0
+      ? _haDetails.slice(0, 2).join(' | ') + (_haDetails.length > 2 ? ` +${_haDetails.length - 2} more` : '')
       : '';
 
     const _checklist = [
@@ -9232,15 +9310,23 @@ function renderCSMTab() {
       { name: 'Support Contract Active (> 90 days remaining)',                  completedCount: _contractPass, detail: '' },
       { name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',         completedCount: _asupPass,   detail: '' },
       { name: 'Hardware on Current Platform Generation (non-EOA)',              completedCount: _hwPass,     detail: '' },
-      { name: 'No Active Security CVEs Applicable (PSIRT)',                     completedCount: _secPass,    detail: '' }
+      { name: 'No Active Security CVEs Applicable (PSIRT)',                     completedCount: _secPass,    detail: '' },
+      { name: 'Aggregate Capacity Headroom \u2265 20%',                         completedCount: _capPass,    detail: _capDetail },
+      { name: 'HA Pair Configured (No Single Point of Failure)',                completedCount: _haPass,     detail: _haDetail },
+      { name: 'No Open S1/S2 Critical Support Cases',                           completedCount: _casePass,   detail: _caseDetail },
+      { name: 'Volume Encryption (NVE/NAE) Enabled',                           completedCount: _encPass,    detail: '' },
+      { name: 'Anti-Ransomware Protection (ARP) Active',                        completedCount: _arpPass,    detail: '' },
+      { name: 'No Outstanding Field Safety Alerts (FSA)',                       completedCount: _fsaPass,    detail: '' }
     ];
 
     let checklistHTML = '';
-    _checklist.forEach(item => {
+    _checklist.forEach((item, idx) => {
       const _allDone = item.completedCount === _n;
       const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
       const _pct = Math.round((item.completedCount / Math.max(_n, 1)) * 100);
-      checklistHTML += `
+      // Visual divider between original 9 checks and new 6 checks
+      const _divider = idx === 9 ? `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-purple);padding:6px 10px 2px;border-top:1px solid rgba(129,140,248,0.2);margin-top:4px;">\u2795 Extended Checks</div>` : '';
+      checklistHTML += _divider + `
         <div style="padding: 8px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${item.detail ? 3 : 2}px;">
             <span style="font-size: 0.82rem;">${item.name}</span>
@@ -9424,10 +9510,10 @@ function renderCSMTab() {
     `;
   }
 
-  // Single-system checklist — 9 TAM/MSP remediation checks
+  // Single-system checklist — 15 TAM/MSP remediation checks
   const _sLatestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
   const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
-  const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion);
+  const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date');
   const _sAsup       = sys.autosupport || {};
   const _sIsEOA      = REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => (sys.platform || sys.model || '').toUpperCase().includes(p.toUpperCase()));
   const _sCVEs       = getApplicableSecurityBulletins(sys.ontapVersion, sys.platform).filter(b => b.status !== 'resolved');
@@ -9484,14 +9570,96 @@ function renderCSMTab() {
       detail: _sCVEs.length > 0
         ? `${_sCVEs.length} active: ${_sCVEs.slice(0, 3).map(b => b.cve || b.id || '').filter(Boolean).join(', ')}${_sCVEs.length > 3 ? ` +${_sCVEs.length - 3} more` : ''}`
         : 'No active advisories for this version'
+    },
+    // ── Extended checks (10-15) ──
+    {
+      name: 'Aggregate Capacity Headroom \u2265 20%',
+      ok: (() => {
+        const _u = sys.efficiency && sys.efficiency.usableCapacityTB > 0 ? sys.efficiency.usableCapacityTB : 0;
+        const _p = sys.efficiency ? (sys.efficiency.physicalUsedTB || 0) : 0;
+        return _u > 0 ? ((_u - _p) / _u) * 100 >= 20 : true;
+      })(),
+      detail: (() => {
+        const _u = sys.efficiency && sys.efficiency.usableCapacityTB > 0 ? sys.efficiency.usableCapacityTB : 0;
+        const _p = sys.efficiency ? (sys.efficiency.physicalUsedTB || 0) : 0;
+        if (_u === 0) return 'Capacity data unavailable';
+        const pct = Math.round(((_u - _p) / _u) * 100);
+        return `${_p.toFixed(1)} TB used / ${_u.toFixed(1)} TB usable \u2014 ${pct}% headroom`;
+      })()
+    },
+    {
+      name: 'HA Pair Configured (No Single Point of Failure)',
+      ok: (() => {
+        const _isSG = (sys.platform || '').toLowerCase().includes('storagegrid');
+        const _isES = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3');
+        return _isSG || _isES || sys.haConfigured === true || sys.haConfigured === null;
+      })(),
+      detail: (() => {
+        const _isSG = (sys.platform || '').toLowerCase().includes('storagegrid');
+        const _isES = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3');
+        if (_isSG || _isES) return 'N/A \u2014 platform does not use traditional HA pairs';
+        if (sys.haConfigured === true) return 'HA pair active \u2014 automatic failover enabled';
+        if (sys.haConfigured === false) return 'No HA pair \u2014 single node, SPOF risk';
+        return 'HA status unknown \u2014 verify with: storage failover show';
+      })()
+    },
+    {
+      name: 'No Open S1/S2 Critical Support Cases',
+      ok: (() => {
+        const _open = (sys.supportCases || []).filter(c => {
+          const sev = (c.severity || '').toUpperCase();
+          const stat = (c.status || '').toUpperCase();
+          return !stat.includes('CLOSED') && !stat.includes('CANCELLED') && (sev.startsWith('S1') || sev.startsWith('S2'));
+        });
+        return _open.length === 0;
+      })(),
+      detail: (() => {
+        const _open = (sys.supportCases || []).filter(c => {
+          const sev = (c.severity || '').toUpperCase();
+          const stat = (c.status || '').toUpperCase();
+          return !stat.includes('CLOSED') && !stat.includes('CANCELLED') && (sev.startsWith('S1') || sev.startsWith('S2'));
+        });
+        if (_open.length === 0) return (sys.supportCases || []).length > 0 ? `${(sys.supportCases || []).length} case(s) open, none critical` : 'No open cases';
+        return `${_open.length} critical case(s): ${_open.slice(0, 2).map(c => c.id || 'CASE').join(', ')}${_open.length > 2 ? ' +more' : ''}`;
+      })()
+    },
+    {
+      name: 'Volume Encryption (NVE/NAE) Enabled',
+      ok: sys.nvEncryptionEnabled === true || sys.nvEncryptionEnabled === null,
+      detail: (() => {
+        if (sys.nvEncryptionEnabled === true) return 'NVE/NAE enabled \u2014 data at rest is protected';
+        if (sys.nvEncryptionEnabled === false) return 'Encryption not confirmed \u2014 verify with: security key-manager show';
+        return 'Encryption status unavailable \u2014 validate on-cluster';
+      })()
+    },
+    {
+      name: 'Anti-Ransomware Protection (ARP) Active',
+      ok: sys.isARPEnabled === true || sys.isARPEnabled === null || (sys.platform || '').toLowerCase().includes('storagegrid') || (sys.platform || '').toLowerCase().includes('e-series'),
+      detail: (() => {
+        const _isSG = (sys.platform || '').toLowerCase().includes('storagegrid');
+        const _isES = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6');
+        if (_isSG || _isES) return 'N/A \u2014 ARP is an ONTAP NAS feature';
+        if (sys.isARPEnabled === true) return 'ARP active \u2014 entropy analysis monitoring enabled on volumes';
+        if (sys.isARPEnabled === false) return 'ARP not enabled \u2014 enable via: security anti-ransomware volume enable';
+        return 'ARP status unavailable from API \u2014 verify on-cluster';
+      })()
+    },
+    {
+      name: 'No Outstanding Field Safety Alerts (FSA)',
+      ok: !sys.fieldActions || sys.fieldActions.length === 0,
+      detail: (() => {
+        if (!sys.fieldActions || sys.fieldActions.length === 0) return 'No outstanding field actions';
+        return `${sys.fieldActions.length} active FA(s): ${sys.fieldActions.slice(0, 2).map(f => f.id || 'FA').join(', ')}${sys.fieldActions.length > 2 ? ' +more' : ''}`;
+      })()
     }
   ];
 
   let checklistHTML = '';
-  _sSingle.forEach(item => {
+  _sSingle.forEach((item, idx) => {
     const _col = item.ok ? 'var(--status-normal)' : 'var(--status-critical)';
     const _dCol = item.ok ? 'var(--text-muted)' : 'var(--status-warning)';
-    checklistHTML += `
+    const _divider = idx === 9 ? `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-purple);padding:6px 10px 2px;border-top:1px solid rgba(129,140,248,0.2);margin-top:4px;">\u2795 Extended Checks</div>` : '';
+    checklistHTML += _divider + `
       <div style="padding: 8px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px;">
           <span style="font-size: 0.82rem; flex: 1;">${item.name}</span>
@@ -11091,6 +11259,27 @@ function enrichSystemTelemetry(s) {
     portInterface:     s.portInterface || {},
     networkPorts:      s.networkPorts || {},
     vcenters:          s.vcenters || [],
+    // ── Cluster Topology (readiness checks) ──
+    // haConfigured: normalize mock field name (haConfigured) vs real API field name (isHAConfigured)
+    haConfigured:      s.haConfigured != null ? s.haConfigured : (s.isHAConfigured != null ? s.isHAConfigured : null),
+    // nvEncryptionEnabled: Active IQ GraphQL does not expose NVE/NAE state directly.
+    // Derive from well-known ONTAP defaults: AFF/ASA platforms with ONTAP 9.7+
+    // ship with NVE enabled by default (OKM/ONTAP Key Manager auto-provisioned).
+    // FAS, CVO, StorageGRID, E-Series are treated as 'not confirmed encrypted'.
+    // TAMs should validate per-volume encryption state on-cluster directly.
+    nvEncryptionEnabled: (function() {
+      if (s.nvEncryptionEnabled != null) return s.nvEncryptionEnabled; // explicit mock/API override
+      if (isStorageGrid || isEseries || isCVO || isFAS) return false;
+      if (isAFF || isASA || isASAr2 || isAFX) {
+        const verNum = parseFloat((osVer || '9.0').replace(/^9\./, '').split('.')[0]) || 0;
+        return verNum >= 7; // NVE on by default from ONTAP 9.7 with integrated OKM
+      }
+      return null; // unknown platform — don't assume
+    })(),
+    // ── Raw Cluster Capacity (used by readiness checklist via efficiency object) ──
+    clusterUsableCapacityTB:  s.clusterUsableCapacityTB  || 0,
+    clusterPhysicalUsedTB:    s.clusterPhysicalUsedTB    || 0,
+    clusterRawCapacityTB:     s.clusterRawCapacityTB     || 0,
   };
 }
 

@@ -79,17 +79,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added — Security Intelligence Engine (Major)
 
 #### Multi-Source CVE Harvest
-- **77 advisory entries covering 82 unique CVEs** ingested into `NETAPP_SECURITY_BULLETIN_DB` in `app.js`
+- **77 advisory entries covering 82 unique CVEs** ingested into `NETAPP_SECURITY_BULLETIN_DB` in `app.js` *(count at v3.3.0 release — the database grows with each Reference Library sync)*
 - Sources scraped and cross-referenced:
   - `security.netapp.com` (NetApp PSIRT) — all NTAP-YYYYMMDD-XXXX advisories 2024–2026
   - **MITRE CVE** — NetApp ONTAP / StorageGRID / Trident keyword search
   - **NVD / NIST CVE API** — `keywordSearch=netapp+ontap` endpoint + web extraction
-  - **CISA Known Exploited Vulnerabilities (KEV)** catalog — confirmed 2 NetApp-related entries
+  - **CISA Known Exploited Vulnerabilities (KEV)** catalog — 2 NetApp-related entries confirmed at time of release *(KEV-flagged entries are re-evaluated on each sync)*
   - **GitHub Security Advisories** — Trident/Astra Trident Golang dependency CVEs
   - **NetApp KB** — operational bugs (CONTAP-xxxxxx IDs, upgrade-triggered instabilities)
   - **Tenable, SentinelOne, Eclypsium, CIRCL** — threat intelligence cross-reference
 
-#### CISA KEV — Actively Exploited (2 entries confirmed)
+#### CISA KEV — Actively Exploited (confirmed at v3.3.0 release)
 - **CVE-2024-54085** (CVSS 10.0) — AMI MegaRAC SPx BMC authentication bypass via HTTP header spoofing. Grants full unauthenticated BMC control on StorageGRID SG6160, SGF6112, SG110, SG1100. Added to CISA KEV June 25, 2025. PoC exists. Unaffected models: SG6060, SGF6024, SG100, SG1000.
 - **CVE-2024-38475** (CVSS 9.1) — Apache HTTP Server mod_rewrite URL mapping flaw allowing source code disclosure and RCE. Added to CISA KEV 2024. Fixed in ONTAP 9.12.1P16 / 9.13.1P14 / 9.14.1P8 / 9.15.1P3 / 9.16.1.
 
@@ -161,7 +161,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — NetApp Reference Library Enrichment Engine
 - **EOA Platform Flagging** — Automatic detection of systems running End-of-Availability hardware. Complete EOA list from docs.netapp.com (AFF A200/A220/A300/A320/A700/A700s/C190/C800, ASA C250/C400/C800, FAS2600/FAS500f/FAS8200/FAS9000) plus EOA switches (BES-53248, Cisco 9336C-FX2, NVIDIA SN2100)
-- **CVE/Security Advisory Database** — 7 tracked CVEs with version-range matching (CVE-2026-22050 ONTAP snapshot lock bypass, CVE-2026-22052 S3 NAS info disclosure, CVE-2026-20833 Kerberos AES enforcement, CVE-2026-22054 Config Advisor hard-coded creds, CVE-2025-26512 SnapCenter privilege escalation CVSS 9.9, CVE-2026-22051 StorageGRID metrics disclosure, CVE-2026-24051 Trident PATH hijacking)
+- **CVE/Security Advisory Database** — initial 7 tracked CVEs with version-range matching added at v3.1.0 (CVE-2026-22050 ONTAP snapshot lock bypass, CVE-2026-22052 S3 NAS info disclosure, CVE-2026-20833 Kerberos AES enforcement, CVE-2026-22054 Config Advisor hard-coded creds, CVE-2025-26512 SnapCenter privilege escalation CVSS 9.9, CVE-2026-22051 StorageGRID metrics disclosure, CVE-2026-24051 Trident PATH hijacking). *The database has since grown significantly via subsequent Reference Library syncs.*
 - **ONTAP Version Highlights Database** — Per-version feature summaries (9.10.1 through 9.19.1) for upgrade justification in deliverables
 - **MetroCluster ISL Requirements Database** — Distance limits (300 km FC Brocade, 700 km IP), packet loss/jitter thresholds, MTU 9216, feature-version matrix (9.9.1→9.18.1)
 - **Firmware Baselines Database** — Recommended minimums for NSM100 (0220), IOM12 (0260), Cisco NX-OS (9.3(12)), Brocade FOS (9.2.1), Broadcom EFOS (3.8.0.2)

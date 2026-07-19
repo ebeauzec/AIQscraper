@@ -84,7 +84,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Added by the Reference Library (not in Active IQ):**
 - EOA hardware flags for AFF, ASA, and FAS platforms
 - **CVE cross-referencing** — Unique CVEs across advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP version range.
-- **CISA KEV integration** — 2 confirmed actively exploited NetApp-related CVEs flagged with 🚨 priority (CVE-2024-54085 CVSS 10.0, CVE-2024-38475 CVSS 9.1)
+- **CISA KEV integration** — CVEs confirmed as actively exploited by CISA are flagged with 🚨 priority in the dashboard. The set of flagged entries grows as new KEV additions are detected and the Reference Library is refreshed.
 - Firmware baseline checks for shelves and switches
 - MetroCluster ISL requirement validation
 - Kerberos AES enforcement detection (Microsoft KB5073381)
@@ -418,10 +418,16 @@ curl -X POST http://localhost:8080/api/bulletins \
 
 #### 🚨 CISA KEV — Actively Exploited Entries
 
+> **This list is maintained dynamically.** The advisory database (`security_bulletins.json` + `NETAPP_SECURITY_BULLETIN_DB` in `app.js`) is refreshed from CISA KEV, NetApp PSIRT, and threat intelligence sources via the daily background scan and the **🛡️ Refresh Security Advisory DB** button. The current set of KEV-flagged entries is always visible in the dashboard's Security Bulletins panel — the entries below were those confirmed at the time this documentation was last written and are shown as **illustrative examples only**.
+
+As of the last Reference Library sync, the following NetApp-related CVEs appeared on the CISA KEV catalog:
+
 | CVE | CVSS | Product | Status | Fix |
-|-----|------|---------|--------|-----|
+|-----|------|---------|--------|----- |
 | **CVE-2024-54085** | **10.0** | StorageGRID BMC (SG6160, SGF6112, SG110, SG1100) | 🚨 Active exploitation confirmed. PoC exists. | Apply AMI MegaRAC SPx firmware 12.7+/13.5+ |
 | **CVE-2024-38475** | **9.1** | ONTAP 9 (Apache mod_rewrite) | 🚨 Actively exploited. CISA KEV 2024. | ONTAP 9.12.1P16 / 9.14.1P8 / 9.16.1 |
+
+Additional KEV entries may have been added since. Always defer to the live dashboard or [https://www.cisa.gov/known-exploited-vulnerabilities-catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) for the authoritative list.
 
 ---
 
@@ -517,6 +523,10 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 
 ### Reference Library — CVE Database
 
+> **The advisory database is updated dynamically** via the daily 08:00 Reference Library scan and the **🛡️ Refresh Security Advisory DB** button. The table below is a **point-in-time snapshot** of representative entries from the initial Reference Library build — it is **not** a complete or current list. The authoritative source is always the live database in `security_bulletins.json` and `NETAPP_SECURITY_BULLETIN_DB` within `app.js`, which currently contains 80+ advisory entries across 90+ unique CVEs. Use the dashboard's Security Bulletins panel or run `jq '.bulletins | length' security_bulletins.json` for an accurate current count.
+
+*Example entries (illustrative — refer to live DB for current coverage):*
+
 | CVE | Product | Sev | CVSS | Summary |
 |---|---|---|---|---|
 | CVE-2026-22050 | ONTAP | High | 7.5 | Snapshot Lock Bypass |
@@ -526,6 +536,7 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 | CVE-2025-26512 | SnapCenter | Crit | 9.9 | Privilege escalation |
 | CVE-2026-22051 | StorageGRID | Med | 4.3 | Metrics query info disclosure |
 | CVE-2026-24051 | Trident | High | 7.0 | OpenTelemetry PATH hijack |
+| … | … | … | … | *80+ additional entries in live DB* |
 
 ### Reference Library — Firmware Baselines
 
