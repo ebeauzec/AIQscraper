@@ -1,4 +1,4 @@
-﻿// Active IQ Web Client - Core Application Logic
+// Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
 // This tool is designed to be strictly READ-ONLY. Under no circumstances should
@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.2";
+const APP_VERSION = "3.6.3";
 
 const APP_CHANGELOG = [
   {
@@ -7018,6 +7018,45 @@ function _toggleUpgradeCard(cardId, idx) {
   }
 }
 
+// Expand/Collapse All upgrade cards â€” renders in async chunks to avoid blocking the main thread
+function _expandAllUpgradeCards(btn) {
+  var expanding = btn.dataset.state !== 'open';
+  btn.disabled = true;
+  if (expanding) { btn.textContent = 'Rendering...'; }
+
+  var items = window._tamUpgradeItems || [];
+  var total = items.length;
+  var CHUNK = 5;
+  var i = 0;
+
+  function renderChunk() {
+    var end = Math.min(i + CHUNK, total);
+    for (; i < end; i++) { _renderUpgradeDetail(i); }
+    if (i < total) { setTimeout(renderChunk, 0); return; }
+    // All rendered â€” now show/hide all at once
+    var cards    = document.querySelectorAll('.upgrade-detail-body');
+    var chevrons = document.querySelectorAll('.upgrade-chevron');
+    cards.forEach(function(c)    { c.style.display = expanding ? 'block' : 'none'; });
+    chevrons.forEach(function(ch){ ch.style.transform = expanding ? 'rotate(90deg)' : 'rotate(0deg)'; });
+    btn.dataset.state = expanding ? 'open' : 'closed';
+    btn.textContent   = expanding ? '\u2296 Collapse All' : '\u2295 Expand All';
+    btn.disabled = false;
+  }
+
+  if (expanding) {
+    renderChunk();
+  } else {
+    // Collapse is instant
+    var cards    = document.querySelectorAll('.upgrade-detail-body');
+    var chevrons = document.querySelectorAll('.upgrade-chevron');
+    cards.forEach(function(c)    { c.style.display = 'none'; });
+    chevrons.forEach(function(ch){ ch.style.transform = 'rotate(0deg)'; });
+    btn.dataset.state = 'closed';
+    btn.textContent   = '\u2295 Expand All';
+    btn.disabled = false;
+  }
+}
+
 
 // ── Risk group collapsible toggle ─────────────────────────────────────────────
 // Called from onclick on system-level header rows in the TAM risks table.
@@ -7623,18 +7662,7 @@ function renderTAMTab() {
       'margin-bottom:16px;border-bottom:1px solid var(--border-color);padding-bottom:10px;">' +
       '<h3 style="font-size:1.05rem;margin:0;">Recommended OS Upgrades</h3>' +
       '<button id="upgradeExpandToggle" data-state="closed"' +
-      ' onclick="(function(){' +
-        'var cards=document.querySelectorAll(\'.upgrade-detail-body\');' +
-        'var chevrons=document.querySelectorAll(\'.upgrade-chevron\');' +
-        'var btn=document.getElementById(\'upgradeExpandToggle\');' +
-        'var expanding=btn.dataset.state!==\'open\';' +
-        // Lazy-render all before expanding
-        'if(expanding){var items=window._tamUpgradeItems||[];items.forEach(function(_,i){_renderUpgradeDetail(i);});}' +
-        'cards.forEach(function(c){c.style.display=expanding?\'block\':\'none\';});' +
-        'chevrons.forEach(function(ch){ch.style.transform=expanding?\'rotate(90deg)\':\'rotate(0deg)\';});' +
-        'btn.dataset.state=expanding?\'open\':\'closed\';' +
-        'btn.textContent=expanding?\'\u2296 Collapse All\':\'\u2295 Expand All\';' +
-      '})()"' +
+      ' onclick="_expandAllUpgradeCards(this)"' +
       ' style="font-size:0.75rem;padding:5px 12px;background:rgba(255,255,255,0.06);' +
         'border:1px solid rgba(255,255,255,0.12);border-radius:6px;' +
         'color:var(--text-secondary);cursor:pointer;transition:background 0.15s;">' +
@@ -18018,6 +18046,10 @@ function handleJSONImport(event) {
 
 // 11. Initialization on Load
 window.onload = async function() {
+  // Stamp the nav footer version from the live APP_VERSION constant
+  const _nfv = document.getElementById('navFooterVersion');
+  if (_nfv) _nfv.textContent = 'v' + APP_VERSION;
+
   // Create global tooltip element
   const tEl = document.createElement("div");
   tEl.id = "globalTooltip";

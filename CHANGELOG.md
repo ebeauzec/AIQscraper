@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 
+
+## [3.6.3] - 2026-07-19
+
+### Fixed / Performance
+- **Expand All UI lockup** — replaced the synchronous inline IIFE on the "Expand All" button with a named `_expandAllUpgradeCards` function. Detail bodies are now rendered in async batches of 5 using `setTimeout(0)` yields between each chunk, keeping the UI responsive even for large system lists. Collapse remains synchronous/instant.
+- **Button state feedback** — button is disabled and shows "Rendering…" while the async pass runs, then flips to "⊖ Collapse All" when complete.
+
+---
 
 ## [3.6.0] - 2026-07-19
 
