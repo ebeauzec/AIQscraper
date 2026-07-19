@@ -1,8 +1,8 @@
 {
-  "version": "3.6.1",
+  "version": "3.6.2",
   "major": 3,
   "minor": 6,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-07-19",
-  "notes": "Fix upgrade card expand lockup — lazy-render hop detail HTML on first click only (data-loaded guard), add missing _toggleUpgradeCard and _renderUpgradeDetail functions"
+  "notes": "Fix hop display logic: direct upgrades now correctly labelled as Direct (not Hop 1); multi-hop shows N-of-total counter and Final target badge; removed orphaned dead code"
 }

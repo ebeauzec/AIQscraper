@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.1";
+const APP_VERSION = "3.6.2";
 
 const APP_CHANGELOG = [
   {
@@ -6907,25 +6907,29 @@ function _renderUpgradeDetail(idx) {
   var item = (window._tamUpgradeItems || [])[idx];
   if (!item) { body.dataset.loaded = 'true'; return; }
 
-  var hops       = calculateUpgradePath(item.platform, item.currentVersion, item.targetVersion);
-  var isMultiHop = hops.length > 1;
-  var hopHtml    = '';
+  var hops      = calculateUpgradePath(item.platform, item.currentVersion, item.targetVersion);
+  var isDirect  = hops.length <= 1;  // 0 or 1 hop objects = no intermediate stops
+  var hopHtml   = '';
 
-  if (isMultiHop) {
-    hopHtml +=
-      '<div style="font-size:0.78rem;font-weight:600;color:var(--status-warning);display:flex;align-items:center;gap:6px;margin-bottom:8px;">'
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
-      + '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>'
-      + '<line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>'
-      + 'Multi-hop Upgrade Sequence Required:</div>';
-  }
+  if (hops.length === 0) {
+    // No path resolved — show a fallback guidance card
+    hopHtml =
+      '<div style="margin-top:10px;padding:12px;background:rgba(255,255,255,0.015);border-left:3px solid var(--status-warning);border-radius:var(--radius-sm);">'
+      + '<div style="font-weight:700;font-size:0.8rem;color:var(--status-warning);margin-bottom:8px;">Upgrade Path Undetermined</div>'
+      + '<p style="font-size:0.74rem;color:var(--text-secondary);margin:0;">No structured upgrade path was found for this version combination. '
+      + 'Please consult the <a href="https://mysupport.netapp.com/site/tools/tool-eula/upgrade-advisor" target="_blank" '
+      + 'style="color:var(--accent-cyan);">NetApp Upgrade Advisor</a> or contact your NetApp SE.</p>'
+      + '</div>';
 
-  hops.forEach(function(hop, i) {
-    hopHtml +=
-      '<div style="margin-top:10px;padding:12px;background:rgba(255,255,255,0.015);border-left:3px solid var(--accent-cyan);border-radius:var(--radius-sm);">'
-      + '<div style="font-weight:700;font-size:0.8rem;color:var(--accent-cyan);margin-bottom:8px;display:flex;align-items:center;gap:6px;">'
-      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>'
-      + 'Hop ' + (i + 1) + ': ' + (hop.from || '') + ' &rarr; ' + (hop.to || '') + '</div>'
+  } else if (isDirect) {
+    // === DIRECT UPGRADE — single step, no intermediate stops ===
+    var hop = hops[0];
+    hopHtml =
+      '<div style="margin-top:10px;padding:12px;background:rgba(45,212,191,0.04);border-left:3px solid var(--status-normal);border-radius:var(--radius-sm);">'
+      + '<div style="font-weight:700;font-size:0.8rem;color:var(--status-normal);margin-bottom:8px;display:flex;align-items:center;gap:6px;">'
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
+      + '<polyline points="20 6 9 17 4 12"></polyline></svg>'
+      + 'Direct Upgrade: ' + (hop.from || '') + ' &rarr; ' + (hop.to || '') + '</div>'
       + '<div style="font-size:0.74rem;color:var(--text-secondary);line-height:1.45;">'
       + '<div style="margin-bottom:4px;"><strong style="color:var(--text-primary);">Procedure:</strong></div>'
       + '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">'
@@ -6945,12 +6949,53 @@ function _renderUpgradeDetail(idx) {
       + '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>'
       + '<polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>'
       + '</a></div></div></div>';
-  });
+
+  } else {
+    // === MULTI-HOP — hops.length > 1, has intermediate stops ===
+    var stopCount = hops.length - 1;
+    hopHtml =
+      '<div style="font-size:0.78rem;font-weight:600;color:var(--status-warning);display:flex;align-items:center;gap:6px;margin-bottom:8px;">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
+      + '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>'
+      + '<line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>'
+      + stopCount + ' Intermediate Stop' + (stopCount > 1 ? 's' : '') + ' Required \u2014 Follow Each Hop in Order:</div>';
+
+    hops.forEach(function(hop, i) {
+      var isLastHop = (i === hops.length - 1);
+      hopHtml +=
+        '<div style="margin-top:10px;padding:12px;background:rgba(255,255,255,0.015);border-left:3px solid var(--accent-cyan);border-radius:var(--radius-sm);">'
+        + '<div style="font-weight:700;font-size:0.8rem;color:var(--accent-cyan);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">'
+        + '<span style="display:flex;align-items:center;gap:6px;">'
+        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>'
+        + 'Hop ' + (i + 1) + ' of ' + hops.length + ': ' + (hop.from || '') + ' &rarr; ' + (hop.to || '') + '</span>'
+        + (isLastHop ? '<span style="font-size:0.65rem;padding:1px 7px;border-radius:10px;background:rgba(45,212,191,0.12);border:1px solid rgba(45,212,191,0.3);color:var(--accent-cyan);">Final target</span>' : '')
+        + '</div>'
+        + '<div style="font-size:0.74rem;color:var(--text-secondary);line-height:1.45;">'
+        + '<div style="margin-bottom:4px;"><strong style="color:var(--text-primary);">Procedure:</strong></div>'
+        + '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">'
+        + (hop.steps || []).map(function(s){ return '<li>' + s + '</li>'; }).join('')
+        + '</ul>'
+        + '<div style="margin-bottom:4px;"><strong style="color:var(--status-warning);">Pre-upgrade Recommendations:</strong></div>'
+        + '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">'
+        + (hop.recommendations || []).map(function(r){ return '<li>' + r + '</li>'; }).join('')
+        + '</ul>'
+        + '<div style="margin-bottom:4px;"><strong style="color:var(--text-muted);">Important Considerations:</strong></div>'
+        + '<ul style="margin:0 0 8px 0;padding-left:16px;display:flex;flex-direction:column;gap:2px;">'
+        + (hop.considerations || []).map(function(c){ return '<li>' + c + '</li>'; }).join('')
+        + '</ul>'
+        + '<div style="margin-top:8px;"><a href="' + (hop.docLink || '#') + '" target="_blank"'
+        + ' style="color:var(--accent-cyan);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">View Upgrade Guide '
+        + '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
+        + '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>'
+        + '<polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>'
+        + '</a></div></div></div>';
+    });
+  }
 
   body.innerHTML =
     '<div style="padding:14px 16px 16px;border-top:1px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.15);">'
-    + '<p style="font-size:0.78rem;color:var(--text-secondary);margin:0 0 10px 0;line-height:1.4;">' + (item.benefits || '') + '</p>'
-    + (hopHtml || '<p style="font-size:0.78rem;color:var(--text-muted);">Direct upgrade — no intermediate hops required.</p>')
+    + (item.benefits ? '<p style="font-size:0.78rem;color:var(--text-secondary);margin:0 0 10px 0;line-height:1.4;">' + item.benefits + '</p>' : '')
+    + hopHtml
     + '</div>';
 
   body.dataset.loaded = 'true';
@@ -7598,35 +7643,36 @@ function renderTAMTab() {
     upgradeItems.forEach((item, itemIdx) => {
       const latestVer  = getLatestSupportedVersion(item.platform);
       const hops       = calculateUpgradePath(item.platform, item.currentVersion, item.targetVersion);
-      const isMultiHop = hops.length > 1;
+      // A single hop object = direct upgrade (no intermediate stop required).
+      // Multi-hop (hops.length > 1) means there are intermediate stops.
+      const isDirect   = hops.length <= 1;
+      const hopStops   = hops.length > 0 ? hops.length - 1 : 0; // number of intermediate stops
       const cardId     = 'upgradeCard_' + itemIdx;
 
-      // ── Hop summary pills (compact header only) ───────────────────────────
+      // ── Hop summary pills — only shown when intermediate stops exist ──────
+      // Uses a stops array [from, ...each hop's .to] to avoid double-arrows.
       let hopPillsHtml = '';
-      if (hops.length > 0) {
+      if (!isDirect && hops.length > 0) {
         const arrow = '<span style="color:var(--text-muted);font-size:0.7rem;margin:0 2px;">&rarr;</span>';
-        const vPills = hops.map((h, i) => {
-          const isLast = (i === hops.length - 1);
+        // Build ordered list of stops: current → intermediate(s) → target
+        const stops = [hops[0].from, ...hops.map(h => h.to)];
+        const vPills = stops.map((stop, i) => {
+          const isLast  = (i === stops.length - 1);
+          const bgStyle = isLast
+            ? 'background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.4);'
+            : 'background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.25);';
           return '<span style="padding:1px 7px;border-radius:10px;font-size:0.7rem;font-weight:600;' +
-                   'background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.25);color:var(--accent-cyan);">' +
-                   h.from + '</span>' + arrow +
-                 (isLast
-                   ? '<span style="padding:1px 7px;border-radius:10px;font-size:0.7rem;font-weight:600;' +
-                       'background:rgba(45,212,191,0.18);border:1px solid rgba(45,212,191,0.4);color:var(--accent-cyan);">' +
-                       h.to + '</span>'
-                   : '');
+                   bgStyle + 'color:var(--accent-cyan);">' + stop + '</span>';
         }).join(arrow);
         hopPillsHtml =
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;">' +
-          (isMultiHop
-            ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;' +
-                'font-size:0.68rem;font-weight:700;background:rgba(251,191,36,0.12);' +
-                'border:1px solid rgba(251,191,36,0.3);color:var(--status-warning);">' +
-                '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
-                '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>' +
-                '<line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' +
-                hops.length + '-hop sequence</span>'
-            : '') +
+          '<span style="display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:10px;' +
+            'font-size:0.68rem;font-weight:700;background:rgba(251,191,36,0.12);' +
+            'border:1px solid rgba(251,191,36,0.3);color:var(--status-warning);">' +
+            '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+            '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>' +
+            '<line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' +
+            hopStops + ' intermediate stop' + (hopStops > 1 ? 's' : '') + '</span>' +
           '<span style="font-size:0.72rem;color:var(--text-muted);">' + vPills + '</span></div>';
       }
 
@@ -7664,9 +7710,13 @@ function renderTAMTab() {
             '</div>' +
           '</div>' +
 
-          // Right: hop count chip
+          // Right: direct / N hop(s) chip
+          // hops.length === 0 or 1 → direct (no intermediate stops)
+          // hops.length > 1       → (hops.length - 1) intermediate stop(s)
           '<div style="flex-shrink:0;margin-left:12px;font-size:0.7rem;color:var(--text-muted);">' +
-            (hops.length > 0 ? hops.length + ' hop' + (hops.length > 1 ? 's' : '') : 'direct') +
+            (isDirect
+              ? 'direct'
+              : hopStops + ' hop' + (hopStops > 1 ? 's' : '')) +
           '</div>' +
         '</div>' +
 

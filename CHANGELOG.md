@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.2] - 2026-07-19
+
+### Fixed
+- Fix hop display logic: direct upgrades now correctly labelled as Direct (not Hop 1); multi-hop shows N-of-total counter and Final target badge; removed orphaned dead code
+
+---
 ## [3.6.1] - 2026-07-19
 
 ### Fixed
