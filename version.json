@@ -1,8 +1,8 @@
 {
-  "version": "3.6.0",
+  "version": "3.6.1",
   "major": 3,
   "minor": 6,
-  "patch": 0,
+  "patch": 1,
   "date": "2026-07-19",
-  "notes": "What's New startup modal, collapsible OS upgrade cards, TAM tab performance overhaul (split fingerprint guard, CSS hover, deferred render guards)"
+  "notes": "Fix upgrade card expand lockup — lazy-render hop detail HTML on first click only (data-loaded guard), add missing _toggleUpgradeCard and _renderUpgradeDetail functions"
 }

@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.1] - 2026-07-19
+
+### Fixed
+- Fix upgrade card expand lockup — lazy-render hop detail HTML on first click only (data-loaded guard), add missing _toggleUpgradeCard and _renderUpgradeDetail functions
+
+---
 ## [3.3.0] - 2026-07-11
 
 ### Added — Security Intelligence Engine (Major)
