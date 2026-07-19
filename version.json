@@ -1,0 +1,8 @@
+{
+  "version": "3.6.0",
+  "major": 3,
+  "minor": 6,
+  "patch": 0,
+  "date": "2026-07-19",
+  "notes": "What's New startup modal, collapsible OS upgrade cards, TAM tab performance overhaul (split fingerprint guard, CSS hover, deferred render guards)"
+}

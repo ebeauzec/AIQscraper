@@ -1,4 +1,4 @@
-// Active IQ Web Client - Core Application Logic
+﻿// Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
 // This tool is designed to be strictly READ-ONLY. Under no circumstances should
@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "2026.07.19";
+const APP_VERSION = "3.6.0";
 
 const APP_CHANGELOG = [
   {
@@ -7321,6 +7321,16 @@ function renderTAMTab() {
   };
 
   const totalRisks = Object.values(risksBySystem).reduce((s, g) => s + g.risks.length, 0);
+
+  // Inject hover CSS once (avoids inline onmouseover/onmouseout on every row)
+  if (!document.getElementById('_tamRiskHoverStyle')) {
+    const _s = document.createElement('style');
+    _s.id = '_tamRiskHoverStyle';
+    _s.textContent =
+      '.tam-risk-sys-hdr:hover{background:rgba(255,255,255,0.03)!important}' +
+      '.tam-risk-detail-row:hover td{background:rgba(255,255,255,0.02)!important}';
+    document.head.appendChild(_s);
+  }
 
   if (totalRisks === 0) {
     document.getElementById('tamRisksTableBody').innerHTML =

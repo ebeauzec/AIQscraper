@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+
+
+## [3.6.0] - 2026-07-19
+
+### Added
+- **What's New startup modal** — version-gated popup on first load after each release; shows changelog sections with per-category icons, hop details, "Got it" / Dismiss, "Don't show again" checkbox, and previous-release collapse accordion.
+- **Collapsible OS upgrade cards** — Recommended OS Upgrades section now renders each system as a compact collapsed card (system name, urgency badge, version range, hop pills). Full procedure/pre-upgrade/considerations detail expands on click. Global Expand All / Collapse All toggle added.
+
+### Fixed / Performance
+- **TAM tab browser hang** — split render fingerprint into two stamps: _tamTableFP (triggers heavy table rebuild) and _tamVisFP (triggers visualizer/header only). Clicking between node tabs no longer re-renders risks/upgrades/switches/bulletins tables.
+- **Inline onmouseover/onmouseout removed** from all risk rows and upgrade card headers — replaced with injected CSS classes (.tam-risk-sys-hdr:hover, .tam-risk-detail-row:hover, .tam-upgrade-hdr:hover). Eliminates continuous style recalculation on mouse movement.
+- **Visualizer/SVM/E-Series renders guarded** — only fire when the active node serial or selection set changes, not on every keypress or auto-sync tick.
+
+---
+
+## [3.5.0] - 2026-07-19
+
+### Added
+- **APP_CHANGELOG constant** — versioned changelog data structure in pp.js for driving the What's New modal.
+- **checkAndShowChangelog()** — version gate that fires 600ms after load; reads iq_seen_version from localStorage.
+- **showWhatsNewModal()** — full-featured animated modal with previous-release accordion, "Got it" + "Don't show again" controls, ESC/backdrop dismissal, and window.showWhatsNew helper for manual re-open.
+
+### Fixed
+- NETAPP_SECURITY_BULLETIN_DB array syntax error (missing comma) causing SyntaxError: Unexpected token '{'.
+
+---
 ## [3.3.1] - 2026-07-12
 
 ### Fixed — UI Rendering
