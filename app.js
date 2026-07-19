@@ -5307,7 +5307,7 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     description: "Apache Tomcat vulnerability CVE-2024-50379 (Partial PUT RCE) affects ONTAP System Manager embedded in versions 9.8–9.13.1. A remote attacker can achieve unauthenticated remote code execution on the ONTAP management plane.",
     remediation: "Upgrade to ONTAP 9.13.1P4 or 9.14.1+. Restrict System Manager (HTTPS port 443) access to management-only networks. Disable HTTP (port 80) if not already.",
     url: "https://security.netapp.com/advisory/ntap-20241015-0001"
-  }
+  },
   // ── New advisory (found 2026-07-13, companion to NTAP-20260603-0001) ──────
   {
     id: "CVE-2026-22055",
