@@ -19560,6 +19560,34 @@ function closeAsupImportModal() {
   if (modal) modal.style.display = 'none';
 }
 
+// Reset the import form in-place (for "Import Another" flow)
+function resetAsupImportForm() {
+  _asupSelectedFile   = null;
+  _asupImportedSerial = null;
+
+  // Clear file input so re-selecting the same file fires onchange
+  const fileInput = _el('asupFileInput');
+  if (fileInput) fileInput.value = '';
+
+  _el('asupDropZoneFile').textContent     = 'No file selected';
+  _el('asupImportSubmitBtn').disabled     = true;
+  _el('asupImportBtnText').textContent    = 'Select a file to import';
+  _el('asupImportBtnIcon').textContent    = '📦';
+  _el('asupImportProgress').style.display = 'none';
+  _el('asupProgressBar').style.width      = '0%';
+  _el('asupCoverageReport').style.display = 'none';
+  _el('asupMatchBanner').style.display    = 'none';
+  _el('asupAssocPanel').style.display     = 'none';
+  _el('asupAssocResult').style.display    = 'none';
+
+  // Scroll back to top of modal so drop zone is visible
+  document.querySelector('#asupImportModal > div')?.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Refresh the imports list (shows any newly added entries)
+  loadAsupImportsList();
+  loadAsupCustomers();
+}
+
 document.addEventListener('click', function(e) {
   const modal = document.getElementById('asupImportModal');
   if (modal && e.target === modal) closeAsupImportModal();

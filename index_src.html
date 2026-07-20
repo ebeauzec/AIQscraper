@@ -1138,9 +1138,14 @@
       <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Not Available Offline</div>
       <div id="asupCoverageUnavailable" style="margin-bottom:16px;"></div>
       <div id="asupCoverageWarnings" style="display:none;margin-top:12px;"></div>
-      <button onclick="closeAsupImportModal();location.reload();" style="width:100%;margin-top:16px;background:rgba(168,85,247,0.12);color:#c084fc;border:1px solid rgba(168,85,247,0.3);border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;">
-        ✅ Done — Reload Dashboard
-      </button>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button onclick="resetAsupImportForm()" style="flex:1;background:rgba(168,85,247,0.12);color:#c084fc;border:1px solid rgba(168,85,247,0.3);border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;">
+          ➕ Import Another Bundle
+        </button>
+        <button onclick="closeAsupImportModal();location.reload();" style="flex:1;background:rgba(16,185,129,0.12);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;">
+          ✅ Done — Reload Dashboard
+        </button>
+      </div>
     </div>
 
     <!-- Existing imports list -->
