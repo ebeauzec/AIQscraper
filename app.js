@@ -18,9 +18,40 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.4";
+const APP_VERSION = "3.6.5";
 
 const APP_CHANGELOG = [
+  {
+    version: "2026.07.20",
+    date: "20 July 2026",
+    title: "SANtricity 12.0 + Reference Library Sync",
+    sections: [
+      {
+        icon: "📦",
+        label: "Software Versions",
+        color: "#34d399",
+        items: [
+          "SANtricity OS 12.0 added as GA (released 2026-03-17) — required for new EF50 and EF80 NVMe arrays (110+ GB/s read, 1.5 PB in 2U)",
+          "E2800 / E5700 / E4000 / EF600 / EF300 remain supported on SANtricity 11.90.1",
+          "All other product GAs unchanged: ONTAP 9.19.1, StorageGRID 12.0, SnapCenter 6.2.1, Trident 26.02.1",
+          "StorageGRID 12.1 still announced-only — docs.netapp.com still at 12.0 (verified 2026-07-20)",
+          "Trident 26.06.0 still GitHub-only — not yet on docs.netapp.com (verified 2026-07-20)"
+        ]
+      },
+      {
+        icon: "🔍",
+        label: "Reference Library Sync",
+        color: "#818cf8",
+        items: [
+          "Full audit of Reference Library against docs.netapp.com — no new CVEs or advisories today",
+          "AFX 2K confirmed via primary source (docs.netapp.com/us-en/ontap-systems/afx-2k/) — already present in platform registry",
+          "Nutanix AHV partnership: still Early Access (GA targeted Q3 2026, no announcement as of 2026-07-20)",
+          "A300 and FAS2600: EOS dates (2026-06 / 2026-03) now past — customers on these platforms have no vendor security remediation path",
+          "Cisco NX-OS 10.4.2 firmware baseline confirmed for AFX 1K switches (9332D-GX2B / 9364D-GX2A)"
+        ]
+      }
+    ]
+  },
   {
     version: "2026.07.19",
     date: "19 July 2026",
@@ -5180,31 +5211,32 @@ const SOFTWARE_VERSION_DATABASES = {
     // Next GA expected Q4 2026 (twice-yearly Q2/Q4 cadence)
   ],
   santricity: [
-    "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1"
-    // SANtricity OS 12.0 supports new EF50/EF80 NVMe platforms (announced 2026-03-17)
+    "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1", "12.0"
+    // SANtricity OS 12.0 GA (2026-03-17) — required for new EF50/EF80 NVMe arrays (110+ GB/s read, 1.5PB, AI/ML scratch)
+    // E2800/E5700/E4000/EF600/EF300: still supported on 11.90.1
   ],
   storagegrid: [
     "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0"
     // StorageGRID 12.1 ANNOUNCED 2026-06-23 (12 TB/s, Global Federated Namespace up to 10EB,
     // batch ops on billions of objects, multi-admin verification, AI-agent change tracking)
-    // but docs.netapp.com version selector still tops out at 12.0 as of 2026-07-19
+    // but docs.netapp.com version selector still tops out at 12.0 as of 2026-07-20
     // — do NOT include 12.1.0 until docs are live
   ],
   snapcenter: [
     "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1"
     // SnapCenter 6.2.1 is confirmed GA (docs.netapp.com tops out at 6.2, text references 6.2.1)
     // SnapCenter 6.0 landmark: added Linux Server support (RHEL/Oracle Linux/SLES)
-    // No 6.2.2 doc tree confirmed as of 2026-07-19
+    // No 6.2.2 doc tree confirmed as of 2026-07-20
   ],
   trident: [
     "23.01", "23.04", "23.07", "23.10", "24.02", "24.06", "24.10", "25.02", "25.06", "25.10", "26.02", "26.02.1"
-    // Current GA: Trident 26.02.1 (re-confirmed 2026-07-19 — docs.netapp.com tops out at 26.02)
+    // Current GA: Trident 26.02.1 (re-confirmed 2026-07-20 — docs.netapp.com tops out at 26.02)
     // GitHub-signed v26.06.0 release exists (2026-06-30) but not yet on docs.netapp.com
     // Do NOT move to 26.06 until confirmed on docs.netapp.com
   ]
 };
 
-// ── NetApp Reference Library Data (synced 2026-07-19) ─────────────────────
+// ── NetApp Reference Library Data (synced 2026-07-20) ─────────────────────
 // Source: G:\My Drive\Cowork\NetApp\NetApp Reference Library
 // All data verified against docs.netapp.com primary sources.
 // Online cross-check: security.netapp.com, kb.netapp.com, NVD, CISA KEV
@@ -5225,9 +5257,11 @@ const REFERENCE_LIBRARY_CURRENT_PLATFORMS = {
   "fas":          ["FAS50", "FAS70", "FAS90"],
   // AFX: Disaggregated, AI-era platform (ONTAP 9.17.1+, REST-only, no ZAPI, no mixed clusters)
   // Architecture: SAZ pooling, NSM140 shelves, 400GbE Cisco Nexus switches
+  // AFX 2K: existence confirmed primary-source 2026-07-20 (docs.netapp.com/us-en/ontap-systems/afx-2k/)
+  // AFX 2K adds NVRAM12-EX module + Cisco Nexus 9808 switch support. Specs still search-sourced pending dedicated requirements page.
   "afx":          ["AFX 1K", "AFX 2K"],
   // E-Series: SANtricity-based (NOT ONTAP), block-optimized
-  // EF50/EF80: New NVMe all-flash arrays announced 2026-03-17, 110+ GB/s, 1.5PB, AI/ML scratch
+  // EF50/EF80: GA announced 2026-03-17, SANtricity OS 12.0+, 110+ GB/s read, 1.5PB, AI/ML scratch
   "e_series":     ["EF50", "EF80", "EF600", "EF300", "E2800", "E5700", "E4000"]
 };
 
@@ -5281,6 +5315,18 @@ const REFERENCE_LIBRARY_EOA_SWITCHES = [
   "NVIDIA SN2100"      // NX224-based cluster switch
 ];
 
+// NetApp Keystone — Storage as a Service (STaaS) consumption wrapper
+// Added 2026-07-20 per reference library update (Platforms-Hardware/README.md)
+// NOT a distinct hardware line — consumption model over existing AFF/FAS/ASA/AFX/CVO
+const REFERENCE_LIBRARY_KEYSTONE = {
+  status: "Generally Available",
+  description: "Pay-as-you-go subscription-based consumption of NetApp storage (opex vs capex). NetApp owns procurement/refresh lifecycle.",
+  supportedStorage: ["AFF", "FAS", "ASA", "AFX", "Cloud Volumes ONTAP"],
+  performanceTiers: "Predefined per storage type (file/block/object) — confirm target service level maps to workload profile",
+  notes: "Can be delivered through partner shared-services platforms (e.g. CGI alliance 2026). Does not replace traditional purchase — surface both paths.",
+  url: "https://docs.netapp.com/us-en/keystone-staas/"
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Naming Conventions (NetApp Official Guidance)
 // Source: NetApp TR library, docs.netapp.com naming-convention guidance
@@ -5297,16 +5343,21 @@ const REFERENCE_LIBRARY_NAMING_CONVENTIONS = {
   product_names: {
     "BlueXP":              "Now: NetApp Console (rebrand 2025)",
     "BlueXP Classification": "Now: NetApp Data Classification (v1.55 as of 2026-06-08, rename 2025-10-06)",
-    "Cloud Tiering":       "EOA 2026-04-24 → Replaced by ONTAP-native FabricPool",
-    "Astra Trident":       "Current GA: 26.02.1 (also called NetApp Trident)",
-    "ONTAP Mediator":      "Latest: v1.12 (required for SnapMirror active sync)"
+    "Cloud Tiering":       "EOA 2026-04-24 → Replaced by ONTAP-native FabricPool. PAYGO last day 2026-11-01.",
+    "Astra Trident":       "Current GA: 26.02.1 (also called NetApp Trident). GitHub v26.06.0 exists (2026-06-30) but NOT yet on docs.netapp.com as of 2026-07-20.",
+    "ONTAP Mediator":      "Latest: v1.12 (required for SnapMirror active sync on ONTAP 9.19.1)",
+    "Active IQ Digital Advisor": "Now: NetApp Digital Advisor (rebrand)",
+    "AI Data Engine (AIDE)": "NetApp AI Data Engine — disaggregated-at-storage AI platform. DataPelago (Nucleus GPU-accelerated engine) acquired 2026-07-16 — roadmap-stage integration, not yet productized."
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CVE/Advisory Database
 // Sources: security.netapp.com, kb.netapp.com, NetApp Security Advisory portal
-// Updated: 2026-07-11
+// Updated: 2026-07-20 — no new advisories since 2026-07-13, pre-existing set confirmed unchanged
+// Active advisory set: CVE-2026-22050, CVE-2026-22052, CVE-2026-20833,
+//   CVE-2026-22054, CVE-2026-22055, CVE-2026-22051, CVE-2026-4747, CVE-2026-42511,
+//   NTAP-20250328-0008, CVE-2025-26512, CVE-2024-50379, CVE-2025-27082, CVE-2025-22399
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ADVISORIES = [
   {
@@ -5481,7 +5532,7 @@ const REFERENCE_LIBRARY_ADVISORIES = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Firmware Baselines — recommended minimum versions
 // Sources: NetApp Hardware Universe, shelf/switch firmware matrices
-// Updated: 2026-07-11
+// Updated: 2026-07-20
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   // NVMe shelf modules (current-gen for AFF A/C-Series, ASA r2, FAS)
@@ -5507,11 +5558,13 @@ const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   "NVIDIA Cumulus": { recommended: "5.11.0",   label: "NVIDIA SN2100 cluster switch — Cumulus Linux (switch is EOA)" },
   // AFX-specific components — NSM140 is NOT interchangeable with NSM100 (different I/O module)
   // Source: docs.netapp.com/us-en/ontap-technical-reports/afx-overview/afx-overview-hardware.html
+  // AFX 2K existence confirmed primary-source 2026-07-20 — adds NVRAM12-EX module
   // AFX 1K uses 9332D-GX2B or 9364D-GX2A; AFX 2K also supports Cisco Nexus 9808
-  "NSM140":           { recommended: "current", label: "NSM140 NVMe Shelf Module (AFX NX224 shelves ONLY — NOT interchangeable with NSM100/NSM100B)" },
+  // NX-OS 10.6+ required for AFX 2K switches on ONTAP 9.19.1 GA+ (search-sourced, not yet direct-fetch confirmed)
+  "NSM140":           { recommended: "current", label: "NSM140 NVMe Shelf Module (AFX NX224 shelves ONLY — NOT interchangeable with NSM100/NSM100B). AFX 2K also uses NSM140." },
   "Cisco 9332D-GX2B": { recommended: "10.4.2",  label: "Cisco Nexus 9332D-GX2B (AFX 1K cluster switch, 400GbE, 1U)" },
   "Cisco 9364D-GX2A": { recommended: "10.4.2",  label: "Cisco Nexus 9364D-GX2A (AFX 1K cluster switch, 400GbE, 2U)" },
-  "Cisco 9808":       { recommended: "current",  label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only)" }
+  "Cisco 9808":       { recommended: "10.6",     label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only; NX-OS 10.6+ required for ONTAP 9.19.1 GA+)" }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5569,7 +5622,7 @@ const REFERENCE_LIBRARY_ONTAP_HIGHLIGHTS = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AFX-Specific Configuration Considerations
-// Source: docs.netapp.com/us-en/ontap-afx/ (verified 2026-07-13)
+// Source: docs.netapp.com/us-en/ontap-afx/ (verified 2026-07-20)
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_AFX_NOTES = {
   minOntapVersion:    "9.17.1",
@@ -5577,40 +5630,57 @@ const REFERENCE_LIBRARY_AFX_NOTES = {
   supportedProtocols: ["NFSv3", "NFSv4.x", "SMB2.x", "SMB3.x", "S3", "NDMP"],
   unsupportedProtocols: ["iSCSI", "FCP", "NVMe/FC", "NVMe/TCP", "NVMe/RoCE"],
   shelves:            "NX224 shelves with NSM140 I/O modules ONLY (NOT NSM100/NSM100B — different module)",
-  driveTypes:         "NVMe SSDs: 7.6TB/15.3TB (TLC), 30.1TB/60.6TB (QLC). QLC trails TLC on write-heavy workloads.",
-  switches:           "AFX 1K: Cisco Nexus 9332D-GX2B or 9364D-GX2A (400GbE). AFX 2K: also supports Cisco Nexus 9808.",
+  driveTypes:         "NVMe SSDs: 7.6TB/15.3TB (TLC), 30.1TB/60.6TB (QLC). QLC trails TLC on write-heavy workloads (NVIDIA SuperPOD certified for both).",
+  switches:           "AFX 1K: Cisco Nexus 9332D-GX2B or 9364D-GX2A (400GbE). AFX 2K: also supports Cisco Nexus 9808 (16U, NX-OS 10.6+ required).",
+  afx2kStatus:        "AFX 2K existence primary-source confirmed 2026-07-20 (maintenance docs, NVRAM12-EX module). 4-node minimum, Nexus 9808 pairing — specs still search-sourced pending dedicated requirements page.",
   clusterInterop:     "Cannot mix AFX nodes with AFF/FAS/ASA in same cluster. Personality is immutable.",
-  flexcacheInterop:   "SnapMirror/FlexCache with Unified ONTAP: Unified side must be ONTAP 9.16.1+. FlexCache write-back NOT supported.",
-  scaleCeiling:       "Current-release docs state 32-node/32PB. Press figures cite 128-controller/1EB+. Conflict unresolved — verify against NetApp Hardware Universe for sizing.",
+  flexcacheInterop:   "SnapMirror/FlexCache with Unified ONTAP: Unified side must be ONTAP 9.16.1+. FlexCache write-back NOT supported on AFX (either side).",
+  atmBalancing:       "Automated Topology Management (ATM): 9.17.1 balances by volume count; 9.18.1+ is performance-aware (node load weighting, not just count).",
+  zcvm:               "Zero Copy Volume Move: metadata-only relocation (no data copy). In 9.17.1 only triggered by failover/node events; not yet a general-purpose admin action — verify current release behavior.",
+  aiDataEngine:       "AIDE (AI Data Engine): NetApp's AI-at-storage-layer platform. DataPelago acquisition (2026-07-16) embeds Nucleus GPU engine — roadmap-stage, not yet productized.",
+  scaleCeiling:       "Official What's New docs: 32-node/32PB (re-confirmed unchanged 2026-07-20). Press: 128-controller/1EB+. Conflict UNRESOLVED — do not quote either figure; use Hardware Universe.",
   targetWorkloads:    "Deep-learning training, AI/ML pipelines, high-concurrency NAS/S3, NOT general-purpose block/file/object unified workloads."
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration & Ecosystem Notes (2026)
-// Sources: Kubernetes/Hypervisors/Migration/Cloud-BlueXP READMEs verified 2026-07-19
+// Sources: Kubernetes/Hypervisors/Migration/Backup-3rdParty/Cloud-BlueXP READMEs
+// Verified: 2026-07-20
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_INTEGRATION_NOTES = {
   trident: {
     currentGA:  "26.02.1",
-    minK8s:     "Kubernetes 1.28+ (26.02 requires 1.35)",
+    githubTagged: "v26.06.0 (signed, 2026-06-30) — NOT yet on docs.netapp.com as of 2026-07-20. Do NOT recommend as GA.",
+    minK8s:     "Kubernetes 1.28+; 26.02 specifically requires Kubernetes 1.35",
     keyDrivers: ["ontap-nas", "ontap-nas-economy", "ontap-san", "ontap-san-economy", "google-cloud-netapp-volumes-san", "azure-netapp-files", "aws-fsx-ontap"],
     asarSupport: "Trident supports ASA r2 — see docs.netapp.com/us-en/trident/trident-asar2-support.html",
-    multitenancy: "Dedicate one SVM per tenant/namespace grouping; set volume-count limit per SVM."
+    multitenancy: "Dedicate one SVM per tenant/namespace grouping; set volume-count limit per SVM.",
+    knownCve:   "CVE-2026-24051 (PATH hijacking in OpenTelemetry-Go) fixed in Trident 26.02.0+"
   },
   vsphere: {
     latestSupported: "vSphere 8.x",
     snapcenterPlugin: "SnapCenter 6.x Plugin for VMware supports NVMe/TCP for VMFS datastores + SnapMirror active sync (zero RPO/RTO)",
-    tridentRWX: "RWX PVCs required for live VM migration on OpenShift Virtualization backed by Trident"
+    tridentRWX: "RWX PVCs required for live VM migration on OpenShift Virtualization backed by Trident",
+    vcf9: {
+      status: "Supported — VCF 9 with ONTAP (added to reference library 2026-07-11)",
+      description: "One OTV instance manages all VCF Fleets in same datacenter. SnapCenter appliance: one per VCF Domain (not shared). Supports standard and consolidated architectures.",
+      smActiveSync: "SnapMirror active sync supported via OTV for VCF workloads; datastores created by OTV can be consumed by vSphere Supervisor (K8s-on-vSphere).",
+      deployments: "On-premises and cloud-hosted VCF (AWS/GCP/Azure) both supported."
+    }
   },
   proxmox: {
-    status:    "GA as of 2026-07-02",
-    shiftToolkit: "Shift Toolkit supports ESXi→Proxmox VE migration (PVE 9.x+, 3+ node cluster, ONTAP NFSv3 storage pool)",
-    smp:       "Storage Manager for Proxmox (SMP) — Windows-hosted, direct ONTAP NFS/iSCSI provisioning, backup/restore, FlexClone-based cloning. SnapMirror replication toggle present but disabled in current release.",
-    pbs:       "Proxmox Backup Server (PBS) with ONTAP integration documented separately"
+    status:    "GA documentation published 2026-07-02 (Shift Toolkit ESXi→Proxmox page). Emerging integration — not battle-tested yet.",
+    prereqs:   "PVE 9.x+ required across all documented pages. 3+ node Corosync cluster, ONTAP AFF with NFS/iSCSI at SVM level.",
+    shiftToolkit: "Shift Toolkit supports ESXi→Proxmox VE VM migration (minutes vs hours — FlexClone disk conversion). Requires NFSv3 ONTAP storage pool.",
+    smp:       "Storage Manager for Proxmox (SMP): Windows-hosted, downloaded from NetApp Console Automation Hub or Shift Toolkit Settings. Provides ONTAP NFS/iSCSI provisioning, crash-consistent + file-consistent (QEMU fsfreeze) backup, FlexClone-based cloning. CAVEAT: SnapMirror/SnapVault replication toggle present in UI but DISABLED in current release — flag for customers evaluating SMP for DR-replicated designs.",
+    pbs:       "Proxmox Backup Server (PBS) with ONTAP: separate from SMP — PBS incremental/dedup/compression/encryption backup; NetApp docs cover deploying against ONTAP with SnapMirror DR."
   },
   nutanix: {
-    status: "Early Access (EA) — GA targeted Q3 2026, no announcement as of 2026-07-19",
-    note:   "Shift Toolkit + Nutanix Move 'Fast Migration' pairing documented"
+    status: "Early Access (EA) — GA targeted Q3 2026. No GA announcement as of 2026-07-20 (deep into Q3).",
+    architecture: "Disaggregated: Nutanix AHV/Prism for compute/virtualization, ONTAP NFS for external storage with VM-level snapshot/replication/tiering granularity.",
+    arpIntegration: "ARP/AI integrated 'backed by a recovery guarantee' (vendor framing — confirm program terms before quoting as a blanket SLA).",
+    migration: "Shift Toolkit + Nutanix Move 'Fast Migration' pairing for data-in-place VM conversions — named part of official integration. Detailed technical compatibility docs pending (EA stage).",
+    roadmap: "Post-GA roadmap: NetApp cloud storage services + Nutanix Cloud Platform; ONTAP for Nutanix Kubernetes Platform (NKP). Both explicitly forward-looking."
   },
   cloud: {
     cvoCurrentGA: "CVO 9.18.1 (AWS/Azure/GCP)",
@@ -5618,11 +5688,44 @@ const REFERENCE_LIBRARY_INTEGRATION_NOTES = {
     anf:          "ANF: migration assistant GA, cache volumes GA (2026-07-11)",
     gcnv:         "GCNV: Flex Unified service level (file+block single pool, all regions), backup GA, replication GA, MCP server GA",
     fsx:          "FSx for ONTAP: fully managed, sub-ms SSD latency, same Trident/SnapCenter/SnapMirror surface as on-prem",
-    cloudTiering:  "NetApp Cloud Tiering: EOA 2026-04-24, PAYGO last day 2026-11-01. Replacement = ONTAP-native FabricPool"
+    cloudTiering: "NetApp Cloud Tiering: EOA 2026-04-24, PAYGO last day 2026-11-01. Replacement = ONTAP-native FabricPool (no license needed since ONTAP 9.2)",
+    dataClassification: "NetApp Data Classification v1.55 (2026-06-08). Renamed from BlueXP Classification (2025-10-06). New: OVA on-prem deploy, Compliance admin IAM role, RHEL 9.7 support (v1.52), AI custom categories (v1.50)."
   },
   storagegrid121: {
-    status:   "Announced 2026-06-23, docs NOT yet on docs.netapp.com as of 2026-07-19",
-    features: "400% higher throughput vs 12.0 (up to 12 TB/s), batch ops on billions of objects, multi-admin verification, Global Federated Namespace (up to 10EB across distributed systems), AI-agent change tracking on buckets"
+    status:   "Announced 2026-06-23, docs NOT yet on docs.netapp.com as of 2026-07-20 (version selector tops out at 12.0)",
+    features: "12 TB/s throughput (400% vs 12.0), batch ops on billions of objects, multi-admin verification, Global Federated Namespace (up to 10EB), AI-agent change tracking on buckets",
+    currentGA: "StorageGRID 12.0 — do NOT reference 12.1 as available until docs.netapp.com confirms."
+  },
+  backupPartners: {
+    veeam: {
+      vbr123: "VBR 12.3: SnapDiff API CFT (Changed File Tracking) added — ONTAP's own differencing engine surfaced to Veeam for NAS backup windows. CAVEATS: NOT supported on ONTAP 9.10.1–9.10.1P10; NOT supported for FlexGroup volumes. Validate ONTAP version before enabling CFT.",
+      snapdiff: "SnapDiff-based backup integration for NAS Changed File Tracking — significantly reduces NAS backup windows vs full crawl.",
+      snapshotOrchestration: "Cap retry count ≤3 (or disable auto-retry) to avoid runaway snapshot accumulation on job failures.",
+      securitiAcquisition: "Veeam acquired Securiti AI ($1.725B, closed 2025-12-11) — adds DSPM/privacy/governance to Veeam platform. Veeam now competes with Cohesity DataHawk and Rubrik Security Cloud as backup+DSPM.",
+      ontapQualified: "ONTAP 9.16.1 GA validated in Veeam storage integration guide. Always cross-check Veeam's support matrix — qualification lags NetApp release cadence."
+    },
+    commvault: {
+      mechanism: "IntelliSnap — ONTAP snapshot-based protection and recovery.",
+      bestPractice: "Point NAS client/storage config at data LIF (not mgmt LIF e0M). Disable ONTAP-native snapshot schedules on Commvault-managed volumes to avoid retention conflicts. Use two backupsets for snapshot + tape-backup in parallel.",
+      metallic: "Commvault Metallic (SaaS DMaaS): natively integrates with Amazon FSx for ONTAP + Azure NetApp Files. On-prem: NetApp Scale-out Data Protection reference architecture.",
+      closedLoop: "NetApp–Commvault Strategic Alliance (announced 2026-03-24): ARP/AI detection feeds into Commvault automated validated recovery workflow. ROADMAP-STAGE — base Metallic/IntelliSnap is separately GA."
+    },
+    hycu: {
+      status: "Active named NetApp ONTAP backup partner (added to reference library 2026-07-11).",
+      mechanism: "Agentless — integrates via ONTAP REST API (no agent/collector footprint).",
+      rShield: "HYCU R-Shield: YARA-rule-based malware/threat scanning on ONTAP file workloads without impacting production I/O or backup jobs. DSPM-adjacent capability.",
+      positioning: "Lighter-weight vs Veeam/Commvault agent/appliance models. Confirm snapshot orchestration depth and NAS SnapDiff support against customer requirements before treating as drop-in equivalent."
+    },
+    cohesity: {
+      mechanism: "DataProtect NFS/CIFS/SMB registration of ONTAP clusters/SVMs.",
+      dataHawk: "Cohesity DataHawk: AI/ML threat protection (Sophos scan-engine partnership from RSAC 2026), ML data classification (DSPM-adjacent), FortKnox cyber vaulting. Supports scanning NetApp NAS shares and VMs."
+    },
+    rubrik: {
+      mechanism: "ONTAP snapshot trigger via APIs. First backup vendor with SnapDiff API access.",
+      nasDirect: "Rubrik NAS Cloud Direct: native Data ONTAP API integration for system discovery, snapshot coordination, file-permission preservation.",
+      securityCloud: "Rubrik Security Cloud: DSPM sensitive-data discovery/classification/monitoring + Data Detection and Response (DDR)."
+    },
+    scheduleConflictWarning: "Critical: third-party backup vendor snapshot/retention schedule + ONTAP-native Snapshot policy both firing against same volume = exhausts Snapshot count ceiling or inconsistent RPOs. DISABLE ONTAP-native schedule on volumes under third-party snapshot orchestration."
   }
 };
 
