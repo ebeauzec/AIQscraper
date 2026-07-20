@@ -19848,7 +19848,10 @@ async function saveAsupAssociation() {
         break;
       }
     }
-    if (typeof renderSidebar          === 'function') renderSidebar();
+    // Force sidebar redraw — customerName changed but system count didn't,
+    // so we must bust the dirty-guard stamp before calling renderSidebarGroups.
+    _sidebarStamp = null;
+    if (typeof renderSidebarGroups     === 'function') renderSidebarGroups();
     if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
 
     _el('asupAssocSaveBtnIcon').textContent = '✅';
@@ -19993,7 +19996,9 @@ async function deleteAsupImport(serial) {
     const data = await resp.json();
     if (data.ok) {
       state.systems = state.systems.filter(s => s.serialNumber !== serial);
-      if (typeof renderSidebar === 'function') renderSidebar();
+      _sidebarStamp = null;
+      if (typeof renderSidebarGroups     === 'function') renderSidebarGroups();
+      if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
       loadAsupImportsList();
     }
   } catch (e) {
@@ -20028,8 +20033,10 @@ function _asupInjectIntoState(system, matchInfo) {
     state.systems.push(system);
   }
 
-  if (typeof renderSidebar           === 'function') renderSidebar();
-  if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
+  // Force sidebar redraw (bust the dirty-guard stamp)
+  _sidebarStamp = null;
+  if (typeof renderSidebarGroups      === 'function') renderSidebarGroups();
+  if (typeof populateFilterDropdowns  === 'function') populateFilterDropdowns();
 }
 
 // ── Startup: load persisted imports ─────────────────────────────────────────
@@ -20074,7 +20081,8 @@ async function loadPersistedAsupImports() {
     }
     if (added > 0 || merged > 0) {
       console.log(`[ASUP] Startup: ${added} new offline import(s) added, ${merged} merged into AIQ records`);
-      if (typeof renderSidebar           === 'function') renderSidebar();
+      _sidebarStamp = null;
+      if (typeof renderSidebarGroups     === 'function') renderSidebarGroups();
       if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
     }
   } catch (e) {
