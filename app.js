@@ -18,24 +18,45 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.5";
+const APP_VERSION = "3.6.6";
 
 const APP_CHANGELOG = [
   {
     version: "2026.07.20",
     date: "20 July 2026",
-    title: "SANtricity 12.0 + Reference Library Sync",
+    title: "Full Reference Library Sync — DataPelago, AFX Scale, Keystone, EOA Switches",
     sections: [
+      {
+        icon: "🤖",
+        label: "New: DataPelago / AIDE",
+        color: "#a78bfa",
+        items: [
+          "NetApp acquired DataPelago (2026-07-16) — GPU-accelerated data processing (Nucleus engine) embedded at storage layer; zero-copy activation, CPU+GPU heterogeneous compute",
+          "Tied to existing AI Data Engine (AIDE) and AFX portfolio — confirms NetApp AI-at-the-storage-layer strategy",
+          "Status: roadmap-stage only (Statement of Product Direction). Do not scope customer designs around DataPelago yet."
+        ]
+      },
+      {
+        icon: "📅",
+        label: "AFX Official Scale Limit (9.19.1RC1)",
+        color: "#34d399",
+        items: [
+          "Official 'What's New in NetApp AFX' page (docs.netapp.com, dated 2026-05-13) states: 32-node cluster / 32PB capacity — current release entitlement for ONTAP 9.19.1RC1",
+          "Press-reported 128 controllers / 1EB remains unconfirmed by any directly-fetchable primary source — do not use in customer sizing conversations",
+          "Hardware Universe is authoritative for per-release limits; scale ceiling is explicitly release-dependent and still expanding",
+          "AFX ATM (Automated Topology Management) is performance-aware from ONTAP 9.18.1 — prior releases balanced on volume count only, not node load",
+          "AFX 2K existence: primary-source confirmed (docs.netapp.com/us-en/ontap-systems/afx/, contributor-dated 2026-06-30). Form factor / 4-node min / NX-OS 10.6 for 9808 switches still unconfirmed via direct-fetch spec page."
+        ]
+      },
       {
         icon: "📦",
         label: "Software Versions",
-        color: "#34d399",
+        color: "#60a5fa",
         items: [
-          "SANtricity OS 12.0 added as GA (released 2026-03-17) — required for new EF50 and EF80 NVMe arrays (110+ GB/s read, 1.5 PB in 2U)",
-          "E2800 / E5700 / E4000 / EF600 / EF300 remain supported on SANtricity 11.90.1",
+          "SANtricity OS 12.0 added as GA (released 2026-03-17) — required for EF50 / EF80 NVMe arrays (110+ GB/s read, 1.5 PB in 2U)",
           "All other product GAs unchanged: ONTAP 9.19.1, StorageGRID 12.0, SnapCenter 6.2.1, Trident 26.02.1",
-          "StorageGRID 12.1 still announced-only — docs.netapp.com still at 12.0 (verified 2026-07-20)",
-          "Trident 26.06.0 still GitHub-only — not yet on docs.netapp.com (verified 2026-07-20)"
+          "StorageGRID 12.1 still announced-only (verified 2026-07-20)",
+          "Trident 26.06.0 still GitHub-only (not on docs.netapp.com, verified 2026-07-20)"
         ]
       },
       {
@@ -43,11 +64,11 @@ const APP_CHANGELOG = [
         label: "Reference Library Sync",
         color: "#818cf8",
         items: [
-          "Full audit of Reference Library against docs.netapp.com — no new CVEs or advisories today",
-          "AFX 2K confirmed via primary source (docs.netapp.com/us-en/ontap-systems/afx-2k/) — already present in platform registry",
-          "Nutanix AHV partnership: still Early Access (GA targeted Q3 2026, no announcement as of 2026-07-20)",
-          "A300 and FAS2600: EOS dates (2026-06 / 2026-03) now past — customers on these platforms have no vendor security remediation path",
-          "Cisco NX-OS 10.4.2 firmware baseline confirmed for AFX 1K switches (9332D-GX2B / 9364D-GX2A)"
+          "Keystone STaaS added to integration notes: subscription-based opex storage across AFF/FAS/ASA/AFX/CVO",
+          "EOA switch list confirmed: BES-53248, Cisco 9336C-FX2, NVIDIA SN2100 are officially End-of-Availability alongside their matched controller hardware",
+          "Nutanix AHV partnership: still Early Access (GA targeted Q3 2026, not yet announced as of 2026-07-20)",
+          "A300 and FAS2600: EOS dates now past — no vendor security remediation path",
+          "AFX interop: Unified ONTAP partner cluster must be 9.16.1+ for SnapMirror/FlexCache with AFX. FlexCache write-back NOT supported on AFX."
         ]
       }
     ]
@@ -5309,10 +5330,11 @@ const REFERENCE_LIBRARY_EOA_DATES = {
 
 // EOA Switches — confirmed by direct fetch of docs.netapp.com/us-en/ontap-systems/endofavail/ 2026-07-09
 // All three are on the same official EOA page as the controller platforms above
+// Note: switch EOA often coincides with matched controller EOA — flag during controller refresh scoping.
 const REFERENCE_LIBRARY_EOA_SWITCHES = [
-  "BES-53248",         // Broadcom — both cluster and shared-config variants
-  "Cisco 9336C-FX2",   // both cluster and shared-configuration variants
-  "NVIDIA SN2100"      // NX224-based cluster switch
+  { model: "Broadcom BES-53248",    type: "cluster",        note: "EOA per docs.netapp.com endofavail page. Replacement: Cisco Nexus 9336C-FX2S or 9332D-GX2B depending on cluster type." },
+  { model: "Cisco Nexus 9336C-FX2", type: "cluster/shared", note: "Both cluster-only and shared-configuration variants are EOA. Replacement: Cisco Nexus 9336C-FX2S." },
+  { model: "NVIDIA SN2100",          type: "cluster",        note: "EOA per same source. Commonly used with AFF A-Series — flag when those controllers are also EOA. NVIDIA Cumulus Linux 5.11.0 was the last qualified firmware." }
 ];
 
 // NetApp Keystone — Storage as a Service (STaaS) consumption wrapper
@@ -5690,6 +5712,21 @@ const REFERENCE_LIBRARY_INTEGRATION_NOTES = {
     fsx:          "FSx for ONTAP: fully managed, sub-ms SSD latency, same Trident/SnapCenter/SnapMirror surface as on-prem",
     cloudTiering: "NetApp Cloud Tiering: EOA 2026-04-24, PAYGO last day 2026-11-01. Replacement = ONTAP-native FabricPool (no license needed since ONTAP 9.2)",
     dataClassification: "NetApp Data Classification v1.55 (2026-06-08). Renamed from BlueXP Classification (2025-10-06). New: OVA on-prem deploy, Compliance admin IAM role, RHEL 9.7 support (v1.52), AI custom categories (v1.50)."
+  },
+  keystone: {
+    status: "GA — consumption/STaaS model across current on-prem lineup and CVO",
+    description: "Pay-as-you-go, subscription-based (opex) NetApp storage. NetApp owns procurement/refresh lifecycle. Delivered against predefined performance service levels (file/block/object) per storage type — not raw IOPS.",
+    supportedPlatforms: "AFF/FAS (unified), ASA (block), AFX, CVO — full current-gen on-prem and cloud ONTAP lineup.",
+    partnerChannel: "Can be delivered via partner shared-services platform (e.g., CGI/NetApp 2026 alliance). Relevant when customer procurement runs through a systems integrator.",
+    positioning: "Capital-vs-opex trade-off decision (finance/procurement-driven), not a technical sizing decision. Surface both capex and Keystone paths rather than defaulting to one.",
+    links: ["https://docs.netapp.com/us-en/keystone-staas/", "https://www.netapp.com/keystone/"]
+  },
+  dataPelago: {
+    status: "Roadmap-stage — Statement of Product Direction. NetApp acquired DataPelago 2026-07-16.",
+    description: "DataPelago's Nucleus engine: universal data processing using CPU+GPU heterogeneous accelerated compute, processes data at the storage layer without moving it to external compute clusters. Vendor-claimed: 80% lower infrastructure cost, 10x performance vs conventional approaches, zero-copy data activation.",
+    integration: "Tied to NetApp AI Data Engine (AIDE) and AFX portfolio. DataPelago becomes a wholly-owned NetApp subsidiary.",
+    caveat: "No specific product, feature, or timeline has been committed to. Do NOT scope customer designs around DataPelago integration until it reaches GA. Use for directional/roadmap conversations only.",
+    links: ["https://www.netapp.com/aide/", "https://www.netapp.com/newsroom/press-releases/news-rel-20260716-210092/"]
   },
   storagegrid121: {
     status:   "Announced 2026-06-23, docs NOT yet on docs.netapp.com as of 2026-07-20 (version selector tops out at 12.0)",
@@ -6167,19 +6204,29 @@ const REFERENCE_LIBRARY_PLATFORM_REPLACEMENTS = {
   // AFX 1K — disaggregated NAS/AI platform (separate product from ASA r2)
   // ONTAP 9.17.1+, pNFS + S3, NVIDIA DGX SuperPOD certified
   // Requires RoCE networking (Cisco Nexus 9332D-GX2B or 9364D-GX2A)
+  // Official current-release scale (ONTAP 9.19.1RC1, per docs.netapp.com 'What's New' 2026-05-13):
+  //   32-node cluster max, 32PB capacity max — release-dependent, check Hardware Universe for latest.
+  //   Press-reported 128 controllers/1EB NOT confirmed by any primary source — do not use in sizing.
+  // ATM: performance-aware volume placement from ONTAP 9.18.1 (prior releases: count-based only).
+  // AIDE/DataPelago integration: GPU-accelerated Nucleus engine planned (roadmap, not yet GA, 2026-07-16).
   "AFX 1K":   { use: "Disaggregated NAS/AI (pNFS + S3)", minOntap: "9.17.1", asaR2: false, isAFX: true, noSAN: false, requiresRoCE: true,
-                notes: "Independently scalable compute (DX50 optional) and capacity (NX224 NVMe shelves). NVIDIA DGX SuperPOD certified. Switches: Cisco Nexus 9332D-GX2B (1U) or 9364D-GX2A (2U)." },
+                maxNodesCurrentRelease: 32, maxCapacityPBCurrentRelease: 32,
+                notes: "Independently scalable compute and capacity (NX224 NVMe shelves, NSM140 module). NVIDIA DGX SuperPOD certified. Switches: Cisco Nexus 9332D-GX2B (1U) or 9364D-GX2A (2U). REST-only API, no ZAPI. SAZ: all shelves pooled across all nodes. HA over cluster network (no direct HA cable). ZCVM: zero-copy volume move (metadata only). FlexCache write-back NOT supported. Unified ONTAP partner must be 9.16.1+ for SnapMirror/FlexCache interop." },
   // AFX 2K — higher-tier AFX controller (2U, added July 2026)
-  // Same SAZ/ONTAP AFX personality, larger/higher-throughput than AFX 1K
-  // Adds Cisco Nexus 9808 (16U) switch support for larger-scale deployments
+  // Primary-source confirmed: docs.netapp.com/us-en/ontap-systems/afx/ (contributor-dated 2026-06-30).
+  // Has own NVRAM12-EX module (not present on AFX 1K). Adds Cisco Nexus 9808 (16U) switch support.
+  // NX-OS 10.6+ reported as requirement for AFX 2K on 9.19.1GA+ — still needs direct-fetch confirmation.
+  // Form-factor/4-node-min/Nexus 9808 details: search-sourced, not yet confirmed via dedicated spec page.
   "AFX 2K":   { use: "Disaggregated NAS/AI — high-throughput (pNFS + S3)", minOntap: "9.17.1", asaR2: false, isAFX: true, noSAN: false, requiresRoCE: true,
-                notes: "Higher-performance AFX controller tier (2U, 4-node minimum). Supports Cisco Nexus 9808 (16U) switches for large-scale AI factory deployments, alongside 9332D-GX2B and 9364D-GX2A. Same SAZ architecture, ONTAP AFX personality, and NX224 shelf ecosystem as AFX 1K. NVIDIA AIDE integration. REST-only API, no ZAPI." },
+                maxNodesCurrentRelease: 32, maxCapacityPBCurrentRelease: 32,
+                notes: "Higher-tier AFX controller (2U, 4-node minimum — search-sourced). Adds Cisco Nexus 9808 (16U) to supported switch lineup alongside 9332D-GX2B and 9364D-GX2A. Same SAZ architecture, ONTAP AFX personality, NX224/NSM140 shelf ecosystem, REST-only API as AFX 1K. NVIDIA AIDE / DataPelago GPU-engine integration (roadmap). Includes NVRAM12-EX module (primary-source confirmed 2026-07-20)." },
   // E-Series new generation (SANtricity OS — NOT ONTAP)
   "EF50":     { use: "HPC/AI scratch block (SANtricity)", minOntap: "N/A (SANtricity)", isEseries: true, asaR2: false,
                 notes: "Announced March 2026. >110 GBps read, >55 GBps write. 1.5 PB in 2U. AI/HPC/BeeGFS/Lustre target. Not ONTAP." },
   "EF80":     { use: "HPC/AI enterprise block (SANtricity)", minOntap: "N/A (SANtricity)", isEseries: true, asaR2: false,
                 notes: "Announced March 2026. 63.7 GBps/kW efficiency. 1.5 PB in 2U. 250% perf vs EF600/EF300. Not ONTAP." }
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ASA r2 (AFX) Architecture Reference
@@ -11077,19 +11124,20 @@ function enrichSystemTelemetry(s) {
   // Sourced from 2026-07-10 Reference Library: Platforms-Hardware/README.md
   if (s.switches && s.switches.length > 0) {
     const switchNames = s.switches.map(sw => (sw.name || sw.model || "").toUpperCase());
-    const matchedSwitch = REFERENCE_LIBRARY_EOA_SWITCHES.find(eoaSw =>
-      switchNames.some(sn => sn.includes(eoaSw.toUpperCase()))
+    const matchedSwitchObj = REFERENCE_LIBRARY_EOA_SWITCHES.find(eoaSw =>
+      switchNames.some(sn => sn.includes((eoaSw.model || "").toUpperCase()))
     );
+    const matchedSwitch = matchedSwitchObj ? matchedSwitchObj.model : null;
     if (matchedSwitch && !risks.some(r => r.id === 505)) {
       risks.push({
         id: 505,
         severity: "medium",
         category: "Lifecycle",
-        description: `Cluster/MetroCluster switch ${matchedSwitch} has reached End-of-Availability. Plan switch refresh alongside controller upgrade.`,
-        recommendation: "Replace with current-generation switch. For cluster interconnect: Cisco Nexus 9336C-FX2 or BES-53248 replacement models. For MetroCluster IP: check MetroCluster-compliant switch list.",
+        description: `Cluster switch "${matchedSwitch}" has reached End-of-Availability. ${matchedSwitchObj.note || "Plan switch refresh alongside controller upgrade."}`,
+        recommendation: "Replace with current-generation switch. For cluster interconnect: Cisco Nexus 9336C-FX2S or 9332D-GX2B (cluster-only) / Cisco 9336C-FX2S (shared). For MetroCluster IP: verify MetroCluster-compliant switch list.",
         kbLink: "https://docs.netapp.com/us-en/ontap-systems/endofavail/",
         remediationPlan: {
-          cause: `The ${matchedSwitch} switch is listed on NetApp's official End-of-Availability page.`,
+          cause: `The ${matchedSwitch} switch is listed on NetApp's official End-of-Availability page (type: ${matchedSwitchObj.type || "cluster"}).`,
           impact: "EOA switches will eventually reach End-of-Support with no further firmware patches. A controller refresh often coincides with the switch generation qualified for it going EOA.",
           steps: [
             "1. Verify current switch firmware: 'system cluster-switch show'.",
