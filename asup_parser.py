@@ -28,6 +28,7 @@ _AUTOSUPPORT_STEMS    = {"autosupport", "autosupport-history"}
 _HA_STEMS             = {"storage-failover", "ha-config"}
 
 def _try_7z(data_bytes, extract_dir):
+    # ── Attempt 1: py7zr (pure-Python, no external binary needed) ──────────
     try:
         import py7zr
         with py7zr.SevenZipFile(io.BytesIO(data_bytes), mode="r") as z:
@@ -37,19 +38,38 @@ def _try_7z(data_bytes, extract_dir):
         pass
     except Exception as e:
         return False, f"py7zr: {e}"
-    try:
-        import subprocess
-        tmp = Path(extract_dir) / "_in.7z"
-        tmp.write_bytes(data_bytes)
-        r = subprocess.run(["7z", "x", str(tmp), f"-o{extract_dir}", "-y"], capture_output=True, timeout=120)
-        tmp.unlink(missing_ok=True)
-        if r.returncode == 0:
-            return True, None
-        return False, f"7z exit {r.returncode}"
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        return False, f"7z CLI: {e}"
+
+    # ── Attempt 2: system 7z / 7-Zip CLI ────────────────────────────────────
+    import subprocess, sys as _sys
+    _7Z_CANDIDATES = ["7z", "7za"]
+    # Common Windows 7-Zip install paths (both 64-bit and 32-bit)
+    if _sys.platform == "win32":
+        _7Z_CANDIDATES += [
+            r"C:\Program Files\7-Zip\7z.exe",
+            r"C:\Program Files (x86)\7-Zip\7z.exe",
+        ]
+    for cmd in _7Z_CANDIDATES:
+        try:
+            tmp = Path(extract_dir) / "_in.7z"
+            tmp.write_bytes(data_bytes)
+            r = subprocess.run([cmd, "x", str(tmp), f"-o{extract_dir}", "-y"],
+                               capture_output=True, timeout=120)
+            tmp.unlink(missing_ok=True)
+            if r.returncode == 0:
+                return True, None
+        except FileNotFoundError:
+            try:
+                tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+            continue
+        except Exception as e:
+            try:
+                tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return False, f"7z CLI ({cmd}): {e}"
+
     return False, ("7z unavailable. Install py7zr (`pip install py7zr`) or 7-Zip, "
                    "or extract the .7z manually and import the inner .tgz or .xml.")
 
