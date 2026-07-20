@@ -99,6 +99,24 @@
         
         <div class="header-status">
 
+          <!-- Import ASUP Bundle Button -->
+          <button
+            id="importAsupBtn"
+            onclick="openAsupImportModal()"
+            class="action-btn"
+            style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(245,158,11,0.45); color: #fbbf24; background: rgba(245,158,11,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
+            onmouseover="this.style.background='rgba(245,158,11,0.18)'; this.style.borderColor='rgba(245,158,11,0.7)';"
+            onmouseout="this.style.background='rgba(245,158,11,0.08)'; this.style.borderColor='rgba(245,158,11,0.45)';"
+            onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
+            data-tooltip="Import an offline ASUP bundle (.zip or .7z) for a system that is not connected to Active IQ. The imported data will be added to your customer list.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Import ASUP</span>
+          </button>
+
           <!-- Manual Refresh Button -->
           <button
             id="manualRefreshBtn"

@@ -9350,21 +9350,24 @@ function renderCSMTab() {
     
     targetCSMSystems.forEach(s => {
       const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
-      totalGrowth += p.growthRateGBPerDay;
-      if (p.daysToLimit < minDaysToLimit) {
-        minDaysToLimit = p.daysToLimit;
-        worstLimitDate = p.limitDate;
-        worstSystemName = s.systemName;
+      const pGrowth = (p.growthRateGBPerDay != null) ? p.growthRateGBPerDay : 0;
+      const pDays   = (p.daysToLimit   != null && p.daysToLimit   >= 0) ? p.daysToLimit   : 9999;
+      const pIops   = (p.peakIops      != null) ? p.peakIops      : 0;
+      const pLat    = (p.avgLatencyMs  != null) ? p.avgLatencyMs  : 0;
+      totalGrowth += pGrowth;
+      if (pDays < minDaysToLimit) {
+        minDaysToLimit = pDays;
+        worstLimitDate = p.limitDate || "N/A";
+        worstSystemName = s.systemName || "";
       }
-      totalPeakIops += p.peakIops;
-      sumAvgLatency += p.avgLatencyMs;
-      countAvgLatency++;
+      totalPeakIops += pIops;
+      if (pLat > 0) { sumAvgLatency += pLat; countAvgLatency++; }
       
       for (let m = 0; m < 6; m++) {
-        aggHist[m] += p.historicalCapacityMonths[m] || 0;
+        aggHist[m] += (p.historicalCapacityMonths || [])[m] || 0;
       }
       for (let m = 0; m < 3; m++) {
-        aggProj[m] += p.projectedCapacityMonths[m] || 0;
+        aggProj[m] += (p.projectedCapacityMonths || [])[m] || 0;
       }
     });
     
@@ -9372,10 +9375,10 @@ function renderCSMTab() {
 
     const growthSrc = (targetCSMSystems[0]?.projections?.growthSource) || 'estimated';
     const srcLabel = {'actual-monthly':'Actual','qoq':'QoQ','yoy':'YoY','estimated':'Est.'}[growthSrc] || 'Est.';
-    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${totalGrowth.toFixed(0)} GB/day (${srcLabel})`;
+    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${(totalGrowth || 0).toFixed(0)} GB/day (${srcLabel})`;
     
     const limitLabel = document.getElementById("csmDaysToLimitText");
-    limitLabel.innerText = minDaysToLimit >= 9999 ? '> 10 Years' : `${minDaysToLimit.toLocaleString()} Days`;
+    limitLabel.innerText = minDaysToLimit >= 9999 ? '> 10 Years' : `${(minDaysToLimit != null ? minDaysToLimit.toLocaleString() : "N/A")} Days`;
     limitLabel.style.color = minDaysToLimit <= 60 ? "var(--status-critical)" : (minDaysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
     
     document.getElementById("csmLimitDateText").innerText = `Est. limit reached on ${worstSystemName}: ${worstLimitDate}`;
@@ -9437,23 +9440,23 @@ function renderCSMTab() {
       <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
         <div>
           <span style="font-size: 0.75rem; color: var(--text-muted);">Logical (Dedup Savings)</span>
-          <div style="font-weight: 600;">${sys.efficiency.logicalUsedTB.toFixed(1)} TB</div>
+          <div style="font-weight: 600;">${(sys.efficiency.logicalUsedTB || 0).toFixed(1)} TB</div>
         </div>
         <div>
           <span style="font-size: 0.75rem; color: var(--text-muted);">Physical Space Used</span>
-          <div style="font-weight: 600;">${sys.efficiency.physicalUsedTB.toFixed(1)} TB</div>
+          <div style="font-weight: 600;">${(sys.efficiency.physicalUsedTB || 0).toFixed(1)} TB</div>
         </div>
       </div>
       <div style="background-color: rgba(0, 230, 118, 0.08); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0, 230, 118, 0.2);">
         <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Data Reduction Saved</div>
-        <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${sys.efficiency.spaceSavedTB.toFixed(1)} TB</div>
+        <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${(sys.efficiency.spaceSavedTB || 0).toFixed(1)} TB</div>
         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction savings only</div>
       </div>
     </div>
   `;
 
 
-  const fpTiered = sys.efficiency.fabricPoolTieredTB;
+  const fpTiered = sys.efficiency.fabricPoolTieredTB || 0;
   let fpAdoptionBadge = "";
   let fpStatusText = "";
   
@@ -9462,7 +9465,7 @@ function renderCSMTab() {
     fpStatusText = `ASA platforms prioritize high-speed symmetric SAN block access. Snapshot copy space optimization is managed directly via local aggregates and active block deduplication/compression.`;
   } else if (fpTiered > 0) {
     fpAdoptionBadge = `<span class="badge normal">Tiering Active</span>`;
-    fpStatusText = `System is tiering <strong>${fpTiered.toFixed(1)} TB</strong> of cold data to public/private cloud object storage. This saves premium flash tier capacity.`;
+    fpStatusText = `System is tiering <strong>${(fpTiered || 0).toFixed(1)} TB</strong> of cold data to public/private cloud object storage. This saves premium flash tier capacity.`;
   } else {
     fpAdoptionBadge = `<span class="badge warning">No FabricPool Tiering</span>`;  // Note: NetApp Cloud Tiering service EOA April 24 2026 — FabricPool is the current term
     fpStatusText = `<span style="color: var(--status-warning);">Potential opportunity!</span> Enable FabricPool tiering to offload cold backup/snapshot data to cheaper object storage and free up premium flash capacity.`;
@@ -9474,7 +9477,7 @@ function renderCSMTab() {
       ${fpAdoptionBadge}
     </div>
     <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${fpTiered > 0 && !isASA ? "var(--status-info)" : "var(--status-warning)"};">
-      Cloud Tiered: ${fpTiered.toFixed(1)} TB
+      Cloud Tiered: ${(fpTiered || 0).toFixed(1)} TB
     </div>
     <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
       ${fpStatusText}
@@ -9482,7 +9485,15 @@ function renderCSMTab() {
   `;
 
   const smContainer = document.getElementById("csmSnapmirrorCard");
-  if (smContainer && sys.snapmirror) {
+  if (smContainer && !sys.snapmirror) {
+    smContainer.innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">SnapMirror replication</h4>
+        <span class="badge warning">No Data</span>
+      </div>
+      <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">SnapMirror data not available for offline/ASUP-imported systems.</div>
+    `;
+  } else if (smContainer && sys.snapmirror) {
     let smBadge = `<span class="badge normal">Inactive</span>`;
     let relationshipsHTML = "";
     
@@ -9517,7 +9528,7 @@ function renderCSMTab() {
   const _sAsup       = sys.autosupport || {};
   const _sIsEOA      = REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => (sys.platform || sys.model || '').toUpperCase().includes(p.toUpperCase()));
   const _sCVEs       = getApplicableSecurityBulletins(sys.ontapVersion, sys.platform).filter(b => b.status !== 'resolved');
-  const _sCritH      = sys.risks.filter(r => r.severity === 'critical' || r.severity === 'high');
+  const _sCritH      = (sys.risks || []).filter(r => r.severity === 'critical' || r.severity === 'high');
   const _sCrit       = _sCritH.filter(r => r.severity === 'critical').length;
   const _sHigh       = _sCritH.filter(r => r.severity === 'high').length;
 
@@ -9535,12 +9546,12 @@ function renderCSMTab() {
     {
       name: 'Cloud FabricPool / Cold-Data Tiering Active',
       ok: fpTiered > 0,
-      detail: fpTiered > 0 ? `${fpTiered.toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
+      detail: fpTiered > 0 ? `${(fpTiered || 0).toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
     },
     {
       name: 'SnapMirror Async/Sync Replication Configured',
-      ok: sys.snapmirror.enabled,
-      detail: sys.snapmirror.enabled ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
+      ok: !!(sys.snapmirror && sys.snapmirror.enabled),
+      detail: (sys.snapmirror && sys.snapmirror.enabled) ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
     },
     {
       name: 'Zero High/Critical Risks Outstanding',
@@ -9675,17 +9686,17 @@ function renderCSMTab() {
   const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
   
   const srcLabel = {'actual-monthly':'Actual','qoq':'QoQ','yoy':'YoY','estimated':'Est.'}[proj.growthSource || 'estimated'] || 'Est.';
-  document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay} GB/day (${srcLabel})`;
+  document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay ?? 0} GB/day (${srcLabel})`;
   
   const limitLabel = document.getElementById("csmDaysToLimitText");
-  limitLabel.innerText = proj.daysToLimit >= 9999 ? '> 10 Years' : `${proj.daysToLimit.toLocaleString()} Days`;
-  limitLabel.style.color = proj.daysToLimit <= 60 ? "var(--status-critical)" : (proj.daysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
+  limitLabel.innerText = (proj.daysToLimit == null || proj.daysToLimit >= 9999) ? '> 10 Years' : `${(proj.daysToLimit ?? 9999).toLocaleString()} Days`;
+  limitLabel.style.color = (proj.daysToLimit != null && proj.daysToLimit <= 60) ? "var(--status-critical)" : ((proj.daysToLimit != null && proj.daysToLimit <= 120) ? "var(--status-warning)" : "var(--status-normal)");
   
-  document.getElementById("csmLimitDateText").innerText = `Est. Limit reached: ${proj.limitDate}`;
+  document.getElementById("csmLimitDateText").innerText = proj.limitDate ? `Est. Limit reached: ${proj.limitDate}` : 'Limit date: N/A (insufficient capacity data)';
   document.getElementById("csmPeakIopsText").innerHTML = proj.peakIops > 0
-    ? `${proj.peakIops.toLocaleString()} IOPS`
+    ? `${(proj.peakIops || 0).toLocaleString()} IOPS`
     : '<span style="font-size:0.85rem;color:var(--text-muted);font-weight:400;">Not available via API</span>';
-  document.getElementById("csmAvgLatencyText").innerText = proj.peakIops > 0 ? `Avg Latency: ${proj.avgLatencyMs.toFixed(1)} ms` : 'IOPS/Latency requires Cloud Insights';
+  document.getElementById("csmAvgLatencyText").innerText = proj.peakIops > 0 ? `Avg Latency: ${(proj.avgLatencyMs || 0).toFixed(1)} ms` : 'IOPS/Latency requires Cloud Insights';
 
   // Cache for toggle (single-system view)
   _csmAllSystems = [sys];
@@ -10384,15 +10395,20 @@ function enrichSystemTelemetry(s) {
   }
 
   // ── Capacity backfill ─────────────────────────────────────────────────────
-  // Mock systems set s.efficiency directly with physicalUsedTB / logicalUsedTB
-  // but omit usableCapacityTB and rawCapacityTB.  The overview charts read
-  //   availableCapacity = usableCapacityTB - physicalUsedTB
-  // so without this backfill, Available always renders as 0.
+  // Non-live (mock/ASUP) systems set s.efficiency directly with physicalUsedTB /
+  // logicalUsedTB but omit usableCapacityTB and rawCapacityTB.  The overview
+  // charts read availableCapacity = usableCapacityTB - physicalUsedTB so without
+  // this backfill, Available always renders as 0 for those systems.
+  //
+  // For LIVE systems the API always populates clusterUsableCapacityTB and
+  // clusterRawCapacityTB — they are passed into the efficiency object above.
+  // We must NOT overwrite real API values with synthetic multipliers here.
+  //
   // Realistic ONTAP model (RAID-DP, 2 hot spares / shelf):
   //   rawCapacityTB   ≈ physical × 2.5   (marketed raw before RAID overhead)
   //   usableCapacityTB ≈ physical × 1.75  (net after RAID, spares, root aggr)
   // E-Series / StorageGRID use different models — kept proportional.
-  if (efficiency && (!efficiency.usableCapacityTB || efficiency.usableCapacityTB === 0)) {
+  if (!isLiveData && efficiency && (!efficiency.usableCapacityTB || efficiency.usableCapacityTB === 0)) {
     const p       = efficiency.physicalUsedTB || 0;
     const ratioNum = parseFloat((efficiency.ratio || '1.0:1').split(':')[0]) || 1.0;
     const rawMult    = isFAS ? 3.0 : isEseries ? 2.8 : isStorageGrid ? 4.0 : 2.5;
@@ -10537,14 +10553,21 @@ function enrichSystemTelemetry(s) {
       projectedCapacityMonths: proj
     };
   } else {
+    // Non-live (mock / ASUP import) — use stored projections if present,
+    // otherwise mark as unavailable. Never fabricate IOPS or latency figures
+    // for offline systems: capacity projections may be derived from ASUP data
+    // (handled by the ASUP enrichment path), but performance metrics are
+    // unavailable without Cloud Insights or a live API connection.
     projections = s.projections || {
-      growthRateGBPerDay: 150,
-      daysToLimit: 420,
-      limitDate: `${new Date().getFullYear() + 1}-08-15`,
-      peakIops: 7500,
-      avgLatencyMs: 1.8,
-      historicalCapacityMonths: [32.5, 34.2, 36.8, 38.4, 40.1, 42.5],
-      projectedCapacityMonths: [44.8, 46.2, 48.0]
+      growthRateGBPerDay: null,
+      growthSource: 'unavailable',
+      daysToLimit: null,
+      limitDate: 'N/A',
+      peakIops: null,
+      avgLatencyMs: null,
+      historicalCapacityMonths: [],
+      projectedCapacityMonths: [],
+      _unavailable: true  // signals the UI to show "Data unavailable" instead of zeros
     };
   }
 
@@ -10634,6 +10657,38 @@ function enrichSystemTelemetry(s) {
     return normRisk;
   });
 
+  // B. Check for third-party FPolicy collector health (self-hosted vs. cloud-native)
+  // Only injected for non-live (mock/demo) systems — live systems should only
+  // show risks that come directly from the Active IQ API.
+  if (!isLiveData && osVer && !isStorageGrid && !isEseries) {
+    const hasFPolicyAudit = risks.some(r => r.id === 502);
+    if (!hasFPolicyAudit) {
+      risks.push({
+        id: 502,
+        severity: "high",
+        category: "Security",
+        description: "Self-hosted FPolicy collector engine may be approaching end-of-support. Review third-party audit tool versions.",
+        recommendation: "Audit active FPolicy external-engine configurations and verify collector vendor support timelines. Migrate to cloud-native or supported collector versions as needed.",
+        kbLink: "https://kb.netapp.com/onprem/ontap/os/How_to_configure_FPolicy_external_engine_on_ONTAP",
+        remediationPlan: {
+          cause: "Self-hosted FPolicy collector integrations can fall out of vendor support, causing connection timeouts or silent audit gaps on NAS shares.",
+          impact: "Stale or unsupported FPolicy engines may trigger block errors on NAS mounts or silently drop file-access audit events, creating compliance gaps.",
+          steps: [
+            "1. List active FPolicy engines: 'vserver fpolicy policy external-engine show'.",
+            "2. Verify vendor support status for each external engine server listed.",
+            "3. Update or migrate external-engine server IPs: 'vserver fpolicy policy external-engine modify -vserver <svm> -engine-name <name> -server-ips <new_ips>'",
+            "4. Test FPolicy connectivity after any changes: 'vserver fpolicy show-engine -fields connected-to'."
+          ],
+          options: [
+            "Option A: Migrate to a cloud-native or SaaS-based FPolicy collector (vendor-agnostic, out-of-band, no latency impact).",
+            "Option B: Temporarily disable non-critical FPolicy policies during migration: 'vserver fpolicy disable -vserver <svm> -policy-name <policy>'"
+          ],
+          thirdParty: "Coordinate with your file-audit or DSPM vendor to confirm compatibility with the current ONTAP version and FPolicy protocol level."
+        }
+      });
+    }
+  }
+
   // Dynamic AutoSupport Telemetry Status
   let autosupport = s.autosupport;
   if (!autosupport && isLiveData) {
@@ -10705,9 +10760,11 @@ function enrichSystemTelemetry(s) {
 
   // B. Check for Varonis FPolicy Self-Hosted EOL (2026-12-31 EOL)
   // Sourced from July 9, 2026 DSPM library update
-  if (osVer && !isStorageGrid && !isEseries) {
+  // Only injected for non-live (mock/demo) systems — live systems should only
+  // show risks that come directly from the Active IQ API.
+  if (!isLiveData && osVer && !isStorageGrid && !isEseries) {
     const hasVaronisAudit = risks.some(r => r.description.includes("Varonis") || r.id === 502);
-    if (!hasVaronisAudit && name.includes("primary")) {
+    if (!hasVaronisAudit) {
       risks.push({
         id: 502,
         severity: "high",
@@ -10735,6 +10792,8 @@ function enrichSystemTelemetry(s) {
 
   // C. Check for legacy firewall policies vs service policies (ONTAP 9.10.1+)
   // Sourced from July 9, 2026 CLI version history update
+  // Only injected for non-live (mock/demo) systems — live systems should only
+  // show risks that come directly from the Active IQ API.
   const verMatch = (osVer || "").match(/^([0-9]+)\.([0-9]+)/);
   let major = 9;
   let minor = 12;
@@ -10743,9 +10802,9 @@ function enrichSystemTelemetry(s) {
     minor = parseInt(verMatch[2]);
   }
   const is910OrNewer = (major > 9) || (major === 9 && minor >= 10);
-  if (is910OrNewer && !isStorageGrid && !isEseries) {
+  if (!isLiveData && is910OrNewer && !isStorageGrid && !isEseries) {
     const hasFirewallRisk = risks.some(r => r.description.includes("firewall policy") || r.id === 503);
-    if (!hasFirewallRisk && name.includes("primary")) {
+    if (!hasFirewallRisk) {
       risks.push({
         id: 503,
         severity: "medium",
@@ -17920,7 +17979,47 @@ function refreshUIState() {
   }
 }
 
+// ── First-run setup banner ────────────────────────────────────────────────────
+// Shown when no Active IQ credentials are configured (needsSetup: true from server).
+function _showSetupBanner(message) {
+  // Only inject once
+  if (document.getElementById("setupRequiredBanner")) return;
+
+  const banner = document.createElement("div");
+  banner.id = "setupRequiredBanner";
+  banner.innerHTML = `
+    <div style="
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #1c1a12; padding: 14px 24px;
+      display: flex; align-items: center; gap: 16px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+      <span style="font-size: 22px;">⚙️</span>
+      <div style="flex: 1;">
+        <strong style="font-size: 15px;">Setup Required — Active IQ Credentials Not Configured</strong><br>
+        <span style="opacity: 0.85;">${message}</span>
+      </div>
+      <button onclick="switchTab('settings'); document.getElementById('setupRequiredBanner').remove();"
+        style="
+          background: #1c1a12; color: #f59e0b; border: none; border-radius: 8px;
+          padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+          white-space: nowrap; transition: opacity 0.2s;"
+        onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+        → Open Settings & Config
+      </button>
+      <button onclick="document.getElementById('setupRequiredBanner').remove();"
+        style="background: none; border: none; color: #1c1a12; font-size: 20px; cursor: pointer; padding: 0 4px; opacity: 0.6;"
+        title="Dismiss">×</button>
+    </div>`;
+  document.body.prepend(banner);
+
+  // Also switch to the settings tab automatically so the user lands right there
+  setTimeout(() => switchTab("settings"), 400);
+}
+
 async function loadProductionData(forceRefresh = false) {
+
   const textLabel = document.getElementById("connectionStatusText");
   const indicator  = document.querySelector(".indicator");
 
@@ -17950,6 +18049,13 @@ async function loadProductionData(forceRefresh = false) {
       "risks:", result.totalRisks);
 
     if (result.status === "error") {
+      // First-run: no credentials configured — show setup banner, don't crash
+      if (result.needsSetup) {
+        if (textLabel) textLabel.innerText = "Setup Required";
+        if (indicator)  indicator.className = "indicator disconnected";
+        _showSetupBanner(result.message || "Active IQ credentials not configured.");
+        return;
+      }
       throw new Error(result.message || "Harvest failed");
     }
 
@@ -18004,6 +18110,9 @@ async function loadProductionData(forceRefresh = false) {
     const totalCasesLoaded = state.systems.reduce((sum, s) => sum + (s.supportCases ? s.supportCases.length : 0), 0);
     const sysWithCases = state.systems.filter(s => s.supportCases && s.supportCases.length > 0).length;
     console.log(`[AIQ] Cases loaded: ${totalCasesLoaded} across ${sysWithCases} systems (of ${state.systems.length} total)`);
+    // Re-inject ASUP offline imports -- state.systems was just replaced so any previously
+    // hydrated ASUP systems would be wiped. Re-running loadPersistedAsupImports restores them.
+    if (typeof loadPersistedAsupImports === 'function') loadPersistedAsupImports();
     saveSystems();
     state.lastSync = new Date().toISOString();
     safeSetItem("aiq_last_sync", state.lastSync);

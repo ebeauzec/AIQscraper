@@ -238,11 +238,15 @@ def _do_full_harvest(watchlist_id=None):
     try:
         # 1. Read refresh token
         if not CONFIG_PATH.exists():
-            raise Exception("No aiq_config.json found")
+            # Auto-create a blank template so the user can fill it in via Settings
+            blank = {"refreshToken": "", "watchlistId": "", "tamName": "", "tamEmail": ""}
+            CONFIG_PATH.write_text(json.dumps(blank, indent=2), encoding="utf-8")
+            print("  [HARVEST] Created blank aiq_config.json template", flush=True)
+            raise Exception("setup_required: No Active IQ credentials configured")
         cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
         if not refresh_token:
-            raise Exception("No refresh token configured")
+            raise Exception("setup_required: No refresh token configured — open Settings & Config to add your Active IQ refresh token")
 
         print("  [HARVEST] Getting access token...", flush=True)
 
@@ -2289,44 +2293,56 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(res_bytes)
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"  [HARVEST] FAILED: {e}", flush=True)
+            err_str = str(e)
+            is_setup_error = err_str.startswith("setup_required:")
+            if is_setup_error:
+                # Expected first-run condition — no traceback needed
+                print(f"  [HARVEST] Setup required: {err_str}", flush=True)
+            else:
+                import traceback
+                traceback.print_exc()
+                print(f"  [HARVEST] FAILED: {err_str}", flush=True)
 
-            # On failure, try to serve stale cache if available
-            try:
-                db = _init_db()
+            # On failure, try to serve stale cache if available (skip for setup errors — no cache yet)
+            if not is_setup_error:
                 try:
-                    cached_result, meta = _load_cached(db)
-                finally:
-                    db.close()
+                    db = _init_db()
+                    try:
+                        cached_result, meta = _load_cached(db)
+                    finally:
+                        db.close()
 
-                if cached_result:
-                    last_sync = meta.get("harvested_at", "unknown")
-                    print(f"  [CACHE] Serving stale cache after error (last sync: {last_sync})", flush=True)
-                    cached_result["_cache"] = {
-                        "hit": True,
-                        "stale": True,
-                        "lastSync": last_sync,
-                        "error": str(e),
-                    }
-                    res_bytes = json.dumps(cached_result, default=str).encode("utf-8")
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("X-Cache", "STALE")
-                    self.send_header("X-Last-Sync", last_sync)
-                    self.end_headers()
-                    self.wfile.write(res_bytes)
-                    return
-            except Exception:
-                pass
+                    if cached_result:
+                        last_sync = meta.get("harvested_at", "unknown")
+                        print(f"  [CACHE] Serving stale cache after error (last sync: {last_sync})", flush=True)
+                        cached_result["_cache"] = {
+                            "hit": True,
+                            "stale": True,
+                            "lastSync": last_sync,
+                            "error": err_str,
+                        }
+                        res_bytes = json.dumps(cached_result, default=str).encode("utf-8")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("X-Cache", "STALE")
+                        self.send_header("X-Last-Sync", last_sync)
+                        self.end_headers()
+                        self.wfile.write(res_bytes)
+                        return
+                except Exception:
+                    pass
 
-            # No cache at all — return error
+            # Return structured error — needsSetup flag triggers the UI setup banner
+            human_msg = err_str.replace("setup_required: ", "") if is_setup_error else err_str
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({
-                "status": "error", "message": str(e), "systems": [], "watchlists": []
+                "status": "error",
+                "message": human_msg,
+                "needsSetup": is_setup_error,
+                "systems": [],
+                "watchlists": []
             }).encode("utf-8"))
 
     def do_POST(self):
