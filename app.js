@@ -19523,27 +19523,36 @@ function showWhatsNewModal() {
 // Allow manual re-open (e.g. from a Help menu)
 window.showWhatsNew = showWhatsNewModal;
 // ═══════════════════════════════════════════════════════════════════════════════
-// ASUP OFFLINE IMPORT
+// ASUP OFFLINE IMPORT  (v3.7.1 — match-aware, association-capable)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let _asupSelectedFile = null;
+let _asupSelectedFile   = null;
+let _asupImportedSerial = null;   // set after successful import, used by saveAsupAssociation
+
+// ── Modal open / close ──────────────────────────────────────────────────────
 
 function openAsupImportModal() {
   const modal = document.getElementById('asupImportModal');
   if (!modal) return;
-  // Reset state
-  _asupSelectedFile = null;
-  document.getElementById('asupDropZoneFile').textContent = 'No file selected';
-  document.getElementById('asupCustomerName').value = '';
-  document.getElementById('asupImportSubmitBtn').disabled = true;
-  document.getElementById('asupImportBtnText').textContent = 'Select a file to import';
-  document.getElementById('asupImportBtnIcon').textContent = '📦';
-  document.getElementById('asupImportProgress').style.display = 'none';
-  document.getElementById('asupProgressBar').style.width = '0%';
-  document.getElementById('asupCoverageReport').style.display = 'none';
+
+  // Reset file state
+  _asupSelectedFile   = null;
+  _asupImportedSerial = null;
+
+  _el('asupDropZoneFile').textContent = 'No file selected';
+  _el('asupImportSubmitBtn').disabled = true;
+  _el('asupImportBtnText').textContent = 'Select a file to import';
+  _el('asupImportBtnIcon').textContent = '📦';
+  _el('asupImportProgress').style.display = 'none';
+  _el('asupProgressBar').style.width = '0%';
+  _el('asupCoverageReport').style.display = 'none';
+  _el('asupMatchBanner').style.display = 'none';
+  _el('asupAssocPanel').style.display = 'none';
+  _el('asupAssocResult').style.display = 'none';
+
   modal.style.display = 'flex';
-  // Load existing imports
   loadAsupImportsList();
+  loadAsupCustomers();  // pre-load dropdowns
 }
 
 function closeAsupImportModal() {
@@ -19551,24 +19560,28 @@ function closeAsupImportModal() {
   if (modal) modal.style.display = 'none';
 }
 
-// Close on backdrop click
 document.addEventListener('click', function(e) {
   const modal = document.getElementById('asupImportModal');
   if (modal && e.target === modal) closeAsupImportModal();
 });
 
+// Shorthand
+function _el(id) { return document.getElementById(id); }
+
+// ── Drag-and-drop ───────────────────────────────────────────────────────────
+
 function asupDragOver(e) {
   e.preventDefault();
-  const dz = document.getElementById('asupDropZone');
+  const dz = _el('asupDropZone');
   if (dz) { dz.style.borderColor = '#a855f7'; dz.style.background = 'rgba(168,85,247,0.12)'; }
 }
-function asupDragLeave(e) {
-  const dz = document.getElementById('asupDropZone');
+function asupDragLeave() {
+  const dz = _el('asupDropZone');
   if (dz) { dz.style.borderColor = 'rgba(168,85,247,0.4)'; dz.style.background = 'rgba(168,85,247,0.04)'; }
 }
 function asupDrop(e) {
   e.preventDefault();
-  asupDragLeave(e);
+  asupDragLeave();
   const file = e.dataTransfer?.files?.[0];
   if (file) _asupSetFile(file);
 }
@@ -19581,48 +19594,51 @@ function handleAsupFileSelected(event) {
 function _asupSetFile(file) {
   _asupSelectedFile = file;
   const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-  document.getElementById('asupDropZoneFile').textContent = `${file.name}  (${sizeMB} MB)`;
-  const btn = document.getElementById('asupImportSubmitBtn');
-  btn.disabled = false;
-  document.getElementById('asupImportBtnText').textContent = `Import  "${file.name}"`;
-  document.getElementById('asupImportBtnIcon').textContent = '⬆️';
-  document.getElementById('asupImportProgress').style.display = 'none';
-  document.getElementById('asupCoverageReport').style.display = 'none';
+  _el('asupDropZoneFile').textContent = `${file.name}  (${sizeMB} MB)`;
+  _el('asupImportSubmitBtn').disabled = false;
+  _el('asupImportBtnText').textContent = `Import  "${file.name}"`;
+  _el('asupImportBtnIcon').textContent = '⬆️';
+  _el('asupImportProgress').style.display = 'none';
+  _el('asupCoverageReport').style.display  = 'none';
+  _el('asupMatchBanner').style.display     = 'none';
+  _el('asupAssocPanel').style.display      = 'none';
 }
+
+// ── Upload & parse ──────────────────────────────────────────────────────────
 
 async function submitAsupImport() {
   if (!_asupSelectedFile) return;
 
-  const btn       = document.getElementById('asupImportSubmitBtn');
-  const progress  = document.getElementById('asupImportProgress');
-  const bar       = document.getElementById('asupProgressBar');
-  const label     = document.getElementById('asupProgressLabel');
-  const coverage  = document.getElementById('asupCoverageReport');
-  const customer  = (document.getElementById('asupCustomerName')?.value || '').trim();
+  const btn    = _el('asupImportSubmitBtn');
+  const bar    = _el('asupProgressBar');
+  const label  = _el('asupProgressLabel');
 
   btn.disabled = true;
-  progress.style.display = 'block';
-  coverage.style.display = 'none';
+  _el('asupImportProgress').style.display  = 'block';
+  _el('asupCoverageReport').style.display  = 'none';
+  _el('asupMatchBanner').style.display     = 'none';
+  _el('asupAssocPanel').style.display      = 'none';
   bar.style.width = '15%';
   label.textContent = 'Reading file…';
+  label.style.color = 'var(--text-secondary)';
 
   try {
     const arrayBuffer = await _asupSelectedFile.arrayBuffer();
-    bar.style.width = '40%';
+    bar.style.width   = '40%';
     label.textContent = 'Uploading to server…';
 
     const response = await fetch('/api/asup/import', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': arrayBuffer.byteLength.toString(),
-        'X-Filename': _asupSelectedFile.name,
-        'X-Customer-Name': customer,
+        'Content-Type':    'application/octet-stream',
+        'Content-Length':  arrayBuffer.byteLength.toString(),
+        'X-Filename':      _asupSelectedFile.name,
+        'X-Customer-Name': '',   // customer filled via association panel
       },
       body: arrayBuffer,
     });
 
-    bar.style.width = '80%';
+    bar.style.width   = '80%';
     label.textContent = 'Parsing bundle…';
 
     const result = await response.json();
@@ -19635,30 +19651,22 @@ async function submitAsupImport() {
       return;
     }
 
-    label.textContent = '✅ Import successful!';
+    label.textContent = '✅ Bundle parsed successfully';
     label.style.color = 'var(--status-ok)';
 
-    // Inject into state so dashboard reflects the new system immediately
-    if (result.system) {
-      const sys = result.system;
-      // Remove any existing entry with same serial
-      state.systems = state.systems.filter(s => s.serialNumber !== sys.serialNumber);
-      // Enrich via the existing enrichment pipeline if available
-      if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(sys);
-      state.systems.push(sys);
-      // Add to customer list
-      if (sys.customerName && !state.customers.some(c => c.name === sys.customerName)) {
-        state.customers.push({ name: sys.customerName, id: sys.customerName });
-      }
-      if (typeof renderSidebar === 'function') renderSidebar();
-      if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
-    }
+    // Store serial for association step
+    _asupImportedSerial = result.system?.serialNumber || null;
+
+    // Inject into state (or merge if already present)
+    if (result.system) _asupInjectIntoState(result.system, result.matchInfo);
+
+    // Show match banner + association form
+    _handleAsupMatchResult(result.matchInfo, result.system);
 
     // Show coverage report
     if (result.coverage) _renderAsupCoverage(result.coverage);
-    coverage.style.display = 'block';
+    _el('asupCoverageReport').style.display = 'block';
 
-    // Refresh imports list
     loadAsupImportsList();
 
   } catch (err) {
@@ -19668,44 +19676,237 @@ async function submitAsupImport() {
   }
 }
 
+// ── Match banner & association form ─────────────────────────────────────────
+
+function _handleAsupMatchResult(matchInfo, system) {
+  const mi      = matchInfo || {};
+  const type    = mi.type || 'new';
+  const banner  = _el('asupMatchBanner');
+  const panel   = _el('asupAssocPanel');
+
+  // --- Render match banner ---
+  let bannerHtml = '';
+  if (type === 'api_synced') {
+    const es = mi.existingSystem || {};
+    bannerHtml = `
+      <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.35);border-radius:8px;padding:14px 16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:1.1rem;">🔎</span>
+          <span style="font-weight:700;color:#10b981;font-size:0.9rem;">Matched to existing AIQ-synced system</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.8rem;">
+          <div><span style="color:var(--text-secondary);">System:</span> <strong style="color:var(--text-primary);">${_esc(es.systemName || es.serialNumber)}</strong></div>
+          <div><span style="color:var(--text-secondary);">Customer:</span> <strong style="color:var(--text-primary);">${_esc(es.customerName || '—')}</strong></div>
+          <div><span style="color:var(--text-secondary);">Platform:</span> ${_esc(es.platform || '—')}</div>
+          <div><span style="color:var(--text-secondary);">ONTAP:</span> ${_esc(es.osVersion || '—')}</div>
+        </div>
+        <div style="margin-top:8px;font-size:0.78rem;color:#6ee7b7;">
+          ✅ ASUP data will fill any null fields in the AIQ record and be persisted alongside it.
+        </div>
+      </div>`;
+  } else if (type === 'asup_import') {
+    bannerHtml = `
+      <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:14px 16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:1.1rem;">🔄</span>
+          <span style="font-weight:700;color:#60a5fa;font-size:0.9rem;">Matched to a previous ASUP import</span>
+        </div>
+        <div style="font-size:0.8rem;color:var(--text-secondary);">
+          This serial number was already imported. The bundle data will be refreshed and your existing association details are pre-filled below — update as needed.
+        </div>
+      </div>`;
+  } else {
+    bannerHtml = `
+      <div style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.25);border-radius:8px;padding:12px 16px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:1rem;">🆕</span>
+          <span style="font-weight:700;color:#c084fc;font-size:0.88rem;">New system — not found in database</span>
+          <span style="font-size:0.78rem;color:var(--text-secondary);margin-left:4px;">Complete the association below to add it.</span>
+        </div>
+      </div>`;
+  }
+  banner.innerHTML = bannerHtml;
+  banner.style.display = 'block';
+
+  // --- Pre-fill association form ---
+  const existingCustomer = mi.existingCustomer || system?.customerName || '';
+  const existingSite     = mi.existingSite     || system?._siteName    || '';
+  const existingNotes    = mi.existingNotes    || system?._notes       || '';
+
+  // Set the free-text fields (dropdown is populated by loadAsupCustomers)
+  _el('asupAssocCustomerNew').value = existingCustomer;
+  _el('asupAssocSiteNew').value     = existingSite;
+  _el('asupAssocNotes').value       = existingNotes;
+
+  // Reset save button
+  _el('asupAssocSaveBtnIcon').textContent = '💾';
+  _el('asupAssocSaveBtnText').textContent = type === 'new' ? 'Create & Associate' : 'Update Association';
+  _el('asupAssocResult').style.display    = 'none';
+
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Customer / site dropdowns ────────────────────────────────────────────────
+
+async function loadAsupCustomers() {
+  try {
+    const resp = await fetch('/api/asup/customers');
+    const data = await resp.json();
+    if (!data.ok) return;
+
+    const custSel = _el('asupAssocCustomerSelect');
+    const siteSel = _el('asupAssocSiteSelect');
+
+    // Populate customers
+    const existingCust = custSel.value;
+    custSel.innerHTML  = '<option value="">— Select existing —</option>';
+    (data.customers || []).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = c;
+      if (c === existingCust) opt.selected = true;
+      custSel.appendChild(opt);
+    });
+
+    // Populate sites
+    const existingSite = siteSel.value;
+    siteSel.innerHTML  = '<option value="">— Select existing site —</option>';
+    (data.sites || []).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = s;
+      if (s === existingSite) opt.selected = true;
+      siteSel.appendChild(opt);
+    });
+
+    // Sync pre-filled text back to dropdown if it matches
+    const newCust = _el('asupAssocCustomerNew').value;
+    if (newCust) {
+      for (const opt of custSel.options) {
+        if (opt.value === newCust) { custSel.value = newCust; _el('asupAssocCustomerNew').value = ''; break; }
+      }
+    }
+  } catch (e) {
+    console.warn('[ASUP] Could not load customers/sites:', e);
+  }
+}
+
+function asupCustomerSelectChanged() {
+  const val = _el('asupAssocCustomerSelect').value;
+  if (val) _el('asupAssocCustomerNew').value = '';  // clear free-text when dropdown chosen
+}
+function asupSiteSelectChanged() {
+  const val = _el('asupAssocSiteSelect').value;
+  if (val) _el('asupAssocSiteNew').value = '';
+}
+
+// Resolve the effective customer / site from the dual-input controls
+function _asupResolveField(selectId, inputId) {
+  const fromInput  = (_el(inputId)?.value  || '').trim();
+  const fromSelect = (_el(selectId)?.value || '').trim();
+  return fromInput || fromSelect;  // free-text wins if both set
+}
+
+// ── Save association ─────────────────────────────────────────────────────────
+
+async function saveAsupAssociation() {
+  if (!_asupImportedSerial) {
+    alert('No import pending — please import a bundle first.');
+    return;
+  }
+
+  const customerName = _asupResolveField('asupAssocCustomerSelect', 'asupAssocCustomerNew');
+  const siteName     = _asupResolveField('asupAssocSiteSelect',     'asupAssocSiteNew');
+  const notes        = (_el('asupAssocNotes')?.value || '').trim();
+
+  if (!customerName) {
+    alert('Please enter or select a customer name before saving.');
+    return;
+  }
+
+  const saveBtn  = _el('asupAssocSaveBtn');
+  const resultEl = _el('asupAssocResult');
+  saveBtn.disabled = true;
+  _el('asupAssocSaveBtnIcon').textContent = '⏳';
+  _el('asupAssocSaveBtnText').textContent = 'Saving…';
+
+  try {
+    const resp = await fetch('/api/asup/associate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serial: _asupImportedSerial, customerName, siteName, notes }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) throw new Error(data.error || 'Server error');
+
+    // Update state in-memory
+    for (const sys of state.systems) {
+      if (sys.serialNumber === _asupImportedSerial) {
+        sys.customerName = customerName;
+        sys._siteName    = siteName;
+        sys._notes       = notes;
+        break;
+      }
+    }
+    if (typeof renderSidebar          === 'function') renderSidebar();
+    if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
+
+    _el('asupAssocSaveBtnIcon').textContent = '✅';
+    _el('asupAssocSaveBtnText').textContent = 'Association Saved';
+    resultEl.style.display = 'block';
+    resultEl.style.color   = 'var(--status-ok)';
+    resultEl.textContent   = data.merged
+      ? `✅ Associated with "${customerName}" and merged into the AIQ-synced record.`
+      : `✅ Associated with "${customerName}" and saved.`;
+
+    // Refresh dropdowns & list
+    loadAsupCustomers();
+    loadAsupImportsList();
+
+  } catch (err) {
+    _el('asupAssocSaveBtnIcon').textContent = '❌';
+    _el('asupAssocSaveBtnText').textContent = 'Save Failed';
+    resultEl.style.display = 'block';
+    resultEl.style.color   = 'var(--status-critical)';
+    resultEl.textContent   = '❌ ' + err.message;
+  } finally {
+    setTimeout(() => { saveBtn.disabled = false; }, 1500);
+  }
+}
+
+// ── Coverage renderer ────────────────────────────────────────────────────────
+
 function _renderAsupCoverage(cov) {
-  // Parsed sections
-  const sectionsEl = document.getElementById('asupCoverageSections');
+  const sectionsEl = _el('asupCoverageSections');
   if (sectionsEl && cov.sections) {
     sectionsEl.innerHTML = (cov.sections || []).map(s => `
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
-        <span style="font-size:0.95rem;">${s.found ? '✅' : '❌'}</span>
+        <span>${s.found ? '✅' : '❌'}</span>
         <span style="color:${s.found ? 'var(--text-primary)' : 'var(--text-secondary)'};">${s.label}</span>
         ${s.note ? `<span style="color:var(--text-secondary);font-size:0.75rem;margin-left:auto;">${s.note}</span>` : ''}
       </div>`).join('');
   }
-
-  // Computed sections
-  const computedEl = document.getElementById('asupCoverageComputed');
+  const computedEl = _el('asupCoverageComputed');
   if (computedEl && cov.computed) {
     computedEl.innerHTML = (cov.computed || []).map(s => `
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
-        <span style="font-size:0.95rem;">⚡</span>
+        <span>⚡</span>
         <span style="color:var(--accent-cyan);">${s.label}</span>
         <span style="color:var(--text-secondary);font-size:0.75rem;margin-left:auto;">${s.note || ''}</span>
       </div>`).join('');
   }
-
-  // Unavailable
-  const unavailEl = document.getElementById('asupCoverageUnavailable');
+  const unavailEl = _el('asupCoverageUnavailable');
   if (unavailEl && cov.unavailable) {
     unavailEl.innerHTML = (cov.unavailable || []).map(s => `
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
-        <span style="font-size:0.95rem;">🔒</span>
+        <span>🔒</span>
         <span style="color:var(--text-secondary);">${s.label}</span>
         <span style="color:var(--text-secondary);font-size:0.75rem;margin-left:auto;opacity:0.6;">${s.reason || ''}</span>
       </div>`).join('');
   }
-
-  // Warnings
-  const warnEl = document.getElementById('asupCoverageWarnings');
+  const warnEl = _el('asupCoverageWarnings');
   if (warnEl) {
-    const warnings = (cov.warnings || []).filter(w => w);
+    const warnings = (cov.warnings || []).filter(Boolean);
     if (warnings.length) {
       warnEl.style.display = 'block';
       warnEl.innerHTML = `<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.25);border-radius:6px;padding:10px 12px;font-size:0.78rem;color:#fbbf24;">
@@ -19717,39 +19918,72 @@ function _renderAsupCoverage(cov) {
   }
 }
 
+// ── Imports list ─────────────────────────────────────────────────────────────
+
+const _matchBadge = {
+  api_synced:  '<span style="font-size:0.7rem;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:3px;padding:1px 5px;">AIQ synced</span>',
+  asup_import: '<span style="font-size:0.7rem;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:3px;padding:1px 5px;">ASUP import</span>',
+  new:         '<span style="font-size:0.7rem;background:rgba(168,85,247,0.12);color:#c084fc;border:1px solid rgba(168,85,247,0.25);border-radius:3px;padding:1px 5px;">offline only</span>',
+};
+
 async function loadAsupImportsList() {
-  const listEl = document.getElementById('asupImportsList');
+  const listEl = _el('asupImportsList');
   if (!listEl) return;
   try {
     const resp = await fetch('/api/asup/imports');
     const data = await resp.json();
-    if (!data.ok || !data.imports?.length) {
-      listEl.innerHTML = '';
-      return;
-    }
+    if (!data.ok || !data.imports?.length) { listEl.innerHTML = ''; return; }
+
     listEl.innerHTML = `
       <div style="font-weight:700;font-size:0.82rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;border-top:1px solid var(--border-color);padding-top:16px;">
-        Previously Imported (${data.imports.length})
+        Managed Imports (${data.imports.length})
       </div>
       ${data.imports.map(imp => `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;margin-bottom:6px;font-size:0.82rem;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;color:#c084fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              🔌 ${_esc(imp.customerName || imp.serialNumber)}
+        <div style="padding:10px 12px;background:rgba(168,85,247,0.05);border:1px solid rgba(168,85,247,0.15);border-radius:8px;margin-bottom:8px;font-size:0.82rem;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">
+                <span style="font-weight:700;color:#c084fc;">🔌 ${_esc(imp.customerName || imp.serialNumber)}</span>
+                ${_matchBadge[imp.matchType] || _matchBadge.new}
+              </div>
+              <div style="color:var(--text-secondary);font-size:0.76rem;">
+                ${_esc(imp.system?.clusterName || imp.serialNumber)}
+                ${imp.system?.osVersion ? ' · ' + _esc(imp.system.osVersion) : ''}
+                ${imp.system?.platform  ? ' · ' + _esc(imp.system.platform)  : ''}
+              </div>
+              ${imp.siteName ? `<div style="color:var(--text-secondary);font-size:0.76rem;">📍 ${_esc(imp.siteName)}</div>` : ''}
+              ${imp.notes    ? `<div style="color:var(--text-secondary);font-size:0.75rem;font-style:italic;opacity:0.8;">${_esc(imp.notes)}</div>` : ''}
+              <div style="color:var(--text-secondary);font-size:0.72rem;opacity:0.6;margin-top:2px;">Imported ${new Date(imp.importedAt).toLocaleString()} · ${_esc(imp.filename)}</div>
             </div>
-            <div style="color:var(--text-secondary);font-size:0.75rem;">
-              ${_esc(imp.system?.osVersion || '')} · ${_esc(imp.system?.platform || '')} · ${_esc(imp.filename)}
+            <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+              <button onclick="asupEditAssociation('${_esc(imp.serialNumber)}','${_esc(imp.customerName)}','${_esc(imp.siteName)}','${_esc(imp.notes)}')"
+                style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);color:#60a5fa;border-radius:4px;padding:4px 8px;font-size:0.75rem;cursor:pointer;white-space:nowrap;">
+                ✏️ Edit
+              </button>
+              <button onclick="deleteAsupImport('${_esc(imp.serialNumber)}')"
+                style="background:rgba(255,51,102,0.08);border:1px solid rgba(255,51,102,0.2);color:var(--status-critical);border-radius:4px;padding:4px 8px;font-size:0.75rem;cursor:pointer;white-space:nowrap;">
+                🗑 Remove
+              </button>
             </div>
-            <div style="color:var(--text-secondary);font-size:0.72rem;opacity:0.7;">Imported ${new Date(imp.importedAt).toLocaleString()}</div>
           </div>
-          <button onclick="deleteAsupImport('${_esc(imp.serialNumber)}')"
-            style="background:rgba(255,51,102,0.1);border:1px solid rgba(255,51,102,0.2);color:var(--status-critical);border-radius:4px;padding:4px 8px;font-size:0.75rem;cursor:pointer;white-space:nowrap;">
-            🗑 Remove
-          </button>
         </div>`).join('')}`;
   } catch (e) {
     console.warn('[ASUP] Could not load imports list:', e);
   }
+}
+
+// Open association panel pre-filled for an existing import (edit flow)
+function asupEditAssociation(serial, customer, site, notes) {
+  _asupImportedSerial = serial;
+  _el('asupAssocCustomerNew').value = customer || '';
+  _el('asupAssocSiteNew').value     = site     || '';
+  _el('asupAssocNotes').value       = notes    || '';
+  _el('asupAssocSaveBtnIcon').textContent = '💾';
+  _el('asupAssocSaveBtnText').textContent = 'Update Association';
+  _el('asupAssocResult').style.display    = 'none';
+  _el('asupAssocPanel').style.display     = 'block';
+  _el('asupMatchBanner').style.display    = 'none';
+  _el('asupAssocPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function deleteAsupImport(serial) {
@@ -19767,26 +20001,80 @@ async function deleteAsupImport(serial) {
   }
 }
 
-// On startup: load any persisted ASUP imports into state
+// ── State injection ──────────────────────────────────────────────────────────
+
+function _asupInjectIntoState(system, matchInfo) {
+  const type   = (matchInfo || {}).type || 'new';
+  const serial = system.serialNumber;
+
+  const existing = state.systems.find(s => s.serialNumber === serial);
+  if (existing) {
+    // Merge: ASUP fills null/empty fields only — never overwrites good AIQ data
+    const fillFields = ['osVersion','platform','nodeCount','clusterRawCapacityTB',
+                        'clusterUsableCapacityTB','clusterPhysicalUsedTB','clusterCapacityUtilPct',
+                        'isHAConfigured','snapMirrorCount','asupStatus','asupTransport',
+                        'asupOnDemand','latestAsupDate'];
+    for (const f of fillFields) {
+      if ((existing[f] === null || existing[f] === undefined || existing[f] === '') && system[f] != null) {
+        existing[f] = system[f];
+      }
+    }
+    existing._asupImported   = true;
+    existing._asupFilename   = system._asupFilename || '';
+    existing._asupImportedAt = system._importedAt   || '';
+    if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(existing);
+  } else {
+    if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(system);
+    state.systems.push(system);
+  }
+
+  if (typeof renderSidebar           === 'function') renderSidebar();
+  if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
+}
+
+// ── Startup: load persisted imports ─────────────────────────────────────────
+
 async function loadPersistedAsupImports() {
   try {
     const resp = await fetch('/api/asup/imports');
     if (!resp.ok) return;
     const data = await resp.json();
     if (!data.ok || !data.imports?.length) return;
-    let added = 0;
+
+    let added = 0, merged = 0;
     for (const imp of data.imports) {
       if (!imp.system) continue;
-      // Only inject if not already present (API sync may have same serial)
-      if (!state.systems.some(s => s.serialNumber === imp.system.serialNumber)) {
-        if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(imp.system);
-        state.systems.push(imp.system);
+      const sys    = imp.system;
+      // Apply stored association back onto the system object
+      if (imp.customerName) sys.customerName = imp.customerName;
+      if (imp.siteName)     sys._siteName    = imp.siteName;
+      if (imp.notes)        sys._notes       = imp.notes;
+
+      const existing = state.systems.find(s => s.serialNumber === sys.serialNumber);
+      if (existing) {
+        // Merge ASUP fill-nulls into the AIQ-synced system
+        const fillFields = ['osVersion','platform','nodeCount','clusterRawCapacityTB',
+                            'clusterUsableCapacityTB','clusterPhysicalUsedTB','clusterCapacityUtilPct',
+                            'isHAConfigured','snapMirrorCount','asupStatus','asupTransport','asupOnDemand'];
+        for (const f of fillFields) {
+          if ((existing[f] === null || existing[f] === undefined || existing[f] === '') && sys[f] != null) {
+            existing[f] = sys[f];
+          }
+        }
+        if (imp.customerName) existing.customerName = imp.customerName;
+        if (imp.siteName)     existing._siteName    = imp.siteName;
+        if (imp.notes)        existing._notes       = imp.notes;
+        existing._asupImported = true;
+        merged++;
+      } else {
+        if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(sys);
+        state.systems.push(sys);
         added++;
       }
     }
-    if (added > 0) {
-      console.log(`[ASUP] Loaded ${added} persisted offline import(s) into state`);
-      if (typeof renderSidebar === 'function') renderSidebar();
+    if (added > 0 || merged > 0) {
+      console.log(`[ASUP] Startup: ${added} new offline import(s) added, ${merged} merged into AIQ records`);
+      if (typeof renderSidebar           === 'function') renderSidebar();
       if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
     }
   } catch (e) {
@@ -19794,19 +20082,21 @@ async function loadPersistedAsupImports() {
   }
 }
 
-// Escape helper for HTML attribute injection
+// ── Escape helper ────────────────────────────────────────────────────────────
+
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Load ASUP imports after initial harvest completes
+// ── Hooks ─────────────────────────────────────────────────────────────────────
+
 const _origAfterHarvest = window.afterHarvestComplete;
 window.afterHarvestComplete = function(...args) {
   if (typeof _origAfterHarvest === 'function') _origAfterHarvest(...args);
   loadPersistedAsupImports();
 };
 
-// Also load on DOMContentLoaded in case harvest is cached / fast
 document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(loadPersistedAsupImports, 3000); // slight delay to let state populate first
+  setTimeout(loadPersistedAsupImports, 3000);
 });
+

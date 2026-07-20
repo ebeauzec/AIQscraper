@@ -78,11 +78,22 @@ def _init_db():
             system_json   TEXT NOT NULL,
             coverage_json TEXT NOT NULL,
             customer_name TEXT DEFAULT '',
+            site_name     TEXT DEFAULT '',
+            notes         TEXT DEFAULT '',
             filename      TEXT DEFAULT '',
-            imported_at   TEXT NOT NULL
+            imported_at   TEXT NOT NULL,
+            matched_serial TEXT DEFAULT '',
+            match_type     TEXT DEFAULT 'new'
         );
     """)
     db.commit()
+    # Migrate existing asup_imports rows that lack the new columns (safe no-op if cols exist)
+    for col, default in [("site_name","''"), ("notes","''"), ("matched_serial","''"), ("match_type","'new'")]:
+        try:
+            db.execute(f"ALTER TABLE asup_imports ADD COLUMN {col} TEXT DEFAULT {default}")
+            db.commit()
+        except Exception:
+            pass  # column already exists
     db.executescript("""
         CREATE TABLE IF NOT EXISTS enrich_cache (
             cache_key   TEXT PRIMARY KEY,
@@ -2102,6 +2113,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_list()
         elif self.path == '/api/asup/import':
             self.handle_asup_import()
+        elif self.path == '/api/asup/customers':
+            self.handle_asup_customers()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -2325,6 +2338,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_post()
         elif self.path == '/api/asup/import':
             self.handle_asup_import()
+        elif self.path == '/api/asup/associate':
+            self.handle_asup_associate()
         elif self.path.startswith('/api/') or self.path == '/graphql':
             self.handle_proxy('POST')
         else:
@@ -2358,10 +2373,11 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def handle_asup_import(self):
         """POST /api/asup/import
         Accepts the ASUP bundle as the raw POST body.
-        Required headers:
-          X-Filename: <original filename> (used for format detection)
-          X-Customer-Name: <customer name> (optional)
-        Returns: { ok, system, coverage, warnings, error }
+        Headers: X-Filename, X-Customer-Name (optional)
+        Returns: { ok, system, coverage, warnings, error, matchInfo }
+          matchInfo: { type: 'api_synced'|'asup_import'|'new',
+                       existingSystem: {...}|null,
+                       existingCustomer: str, existingSite: str }
         """
         if not _ASUP_AVAILABLE:
             self._json_response(503, {"ok": False, "error": "asup_parser.py not found on server"})
@@ -2372,7 +2388,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if content_length == 0:
                 self._json_response(400, {"ok": False, "error": "Empty request body"})
                 return
-            if content_length > 600 * 1024 * 1024:  # 600 MB hard limit
+            if content_length > 600 * 1024 * 1024:
                 self._json_response(413, {"ok": False, "error": "Bundle too large (600 MB limit)"})
                 return
 
@@ -2384,34 +2400,102 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             result = asup_parser.parse_bundle(filename, data_bytes, customer_name)
 
+            match_info = {"type": "new", "existingSystem": None,
+                          "existingCustomer": "", "existingSite": "", "existingNotes": ""}
+
             if result["ok"] and result.get("system"):
-                system   = result["system"]
-                serial   = system.get("serialNumber", f"ASUP-{datetime.now(timezone.utc).isoformat()[:10]}")
-                now_str  = datetime.now(timezone.utc).isoformat()
+                system = result["system"]
+                serial = system.get("serialNumber", f"ASUP-{datetime.now(timezone.utc).isoformat()[:10]}")
+                now_str = datetime.now(timezone.utc).isoformat()
+
                 db = _init_db()
                 try:
+                    # ── 1. Check harvest_cache (AIQ-synced systems) ──────────────────
+                    cached_row = db.execute(
+                        "SELECT result_json FROM harvest_cache WHERE id = 1"
+                    ).fetchone()
+                    if cached_row:
+                        try:
+                            cached = json.loads(cached_row[0])
+                            for s in cached.get("systems", []):
+                                if s.get("serialNumber") == serial:
+                                    match_info["type"] = "api_synced"
+                                    match_info["existingSystem"] = {
+                                        "serialNumber":  s.get("serialNumber"),
+                                        "systemName":    s.get("systemName") or s.get("clusterName"),
+                                        "customerName":  s.get("customerName"),
+                                        "platform":      s.get("platform"),
+                                        "osVersion":     s.get("osVersion"),
+                                        "clusterRawCapacityTB": s.get("clusterRawCapacityTB"),
+                                    }
+                                    match_info["existingCustomer"] = s.get("customerName") or ""
+                                    print(f"  [ASUP] Matched serial {serial} → AIQ system '{s.get('systemName')}'", flush=True)
+                                    break
+                        except Exception as me:
+                            print(f"  [ASUP] harvest_cache search error: {me}", flush=True)
+
+                    # ── 2. Check asup_imports (previous offline imports) ─────────────
+                    if match_info["type"] == "new":
+                        prev_row = db.execute(
+                            "SELECT customer_name, site_name, notes FROM asup_imports WHERE serial_number = ?",
+                            (serial,)
+                        ).fetchone()
+                        if prev_row:
+                            match_info["type"] = "asup_import"
+                            match_info["existingCustomer"] = prev_row[0] or ""
+                            match_info["existingSite"]     = prev_row[1] or ""
+                            match_info["existingNotes"]    = prev_row[2] or ""
+                            print(f"  [ASUP] Matched serial {serial} → previous ASUP import", flush=True)
+
+                    # ── 3. Persist / update asup_imports ────────────────────────────
+                    # Preserve existing customer/site/notes if not overriding
+                    existing_assoc = db.execute(
+                        "SELECT customer_name, site_name, notes FROM asup_imports WHERE serial_number = ?",
+                        (serial,)
+                    ).fetchone()
+                    resolved_customer = (customer_name or
+                                         (existing_assoc[0] if existing_assoc else None) or
+                                         match_info["existingCustomer"] or
+                                         system.get("customerName") or "")
+
                     db.execute("""
-                        INSERT OR REPLACE INTO asup_imports
-                        (serial_number, system_json, coverage_json, customer_name, filename, imported_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO asup_imports
+                          (serial_number, system_json, coverage_json, customer_name,
+                           site_name, notes, filename, imported_at, matched_serial, match_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(serial_number) DO UPDATE SET
+                          system_json   = excluded.system_json,
+                          coverage_json = excluded.coverage_json,
+                          filename      = excluded.filename,
+                          imported_at   = excluded.imported_at,
+                          matched_serial = excluded.matched_serial,
+                          match_type    = excluded.match_type
                     """, (
                         serial,
                         json.dumps(system, default=str),
                         json.dumps(result.get("coverage", {}), default=str),
-                        system.get("customerName", customer_name),
+                        resolved_customer,
+                        existing_assoc[1] if existing_assoc else "",
+                        existing_assoc[2] if existing_assoc else "",
                         filename,
                         now_str,
+                        serial if match_info["type"] == "api_synced" else "",
+                        match_info["type"],
                     ))
                     db.commit()
-                    print(f"  [ASUP] Persisted: serial={serial}, customer={system.get('customerName')}", flush=True)
+                    system["customerName"] = resolved_customer
+                    print(f"  [ASUP] Persisted: serial={serial}, match={match_info['type']}, customer={resolved_customer}", flush=True)
+
                 finally:
                     db.close()
 
+            result["matchInfo"] = match_info
             self._json_response(200 if result["ok"] else 422, result)
 
         except Exception as e:
             print(f"  [ASUP] Import error: {e}", flush=True)
-            self._json_response(500, {"ok": False, "error": str(e), "system": None, "coverage": {}, "warnings": []})
+            self._json_response(500, {"ok": False, "error": str(e), "system": None,
+                                      "coverage": {}, "warnings": [], "matchInfo": {}})
 
     def handle_asup_list(self):
         """GET /api/asup/imports — return list of all imported ASUP systems."""
@@ -2419,7 +2503,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             db = _init_db()
             try:
                 rows = db.execute(
-                    "SELECT serial_number, system_json, coverage_json, customer_name, filename, imported_at FROM asup_imports ORDER BY imported_at DESC"
+                    "SELECT serial_number, system_json, coverage_json, customer_name, site_name, notes, filename, imported_at, matched_serial, match_type FROM asup_imports ORDER BY imported_at DESC"
                 ).fetchall()
             finally:
                 db.close()
@@ -2430,21 +2514,160 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     system   = json.loads(row[1])
                     coverage = json.loads(row[2])
                     imports.append({
-                        "serialNumber": row[0],
-                        "customerName": row[3],
-                        "filename":     row[4],
-                        "importedAt":   row[5],
-                        "system":       system,
-                        "coverage":     coverage,
+                        "serialNumber":  row[0],
+                        "customerName":  row[3],
+                        "siteName":      row[4] or "",
+                        "notes":         row[5] or "",
+                        "filename":      row[6],
+                        "importedAt":    row[7],
+                        "matchedSerial": row[8] or "",
+                        "matchType":     row[9] or "new",
+                        "system":        system,
+                        "coverage":      coverage,
                     })
                 except Exception:
-                    pass  # Skip corrupt rows silently
+                    pass
 
             self._json_response(200, {"ok": True, "imports": imports, "count": len(imports)})
 
         except Exception as e:
             print(f"  [ASUP] List error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e), "imports": []})
+
+    def handle_asup_associate(self):
+        """POST /api/asup/associate
+        Body: { serial, customerName, siteName, notes }
+        Updates asup_imports with the association details.
+        If the serial matches an AIQ-synced system (match_type='api_synced'),
+        also patches the harvest_cache result_json to update that system's
+        customerName, siteName, and notes fields.
+        Returns: { ok, serial, matchType, merged }
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            serial        = (body.get("serial") or "").strip()
+            customer_name = (body.get("customerName") or "").strip()
+            site_name     = (body.get("siteName") or "").strip()
+            notes         = (body.get("notes") or "").strip()
+
+            if not serial:
+                self._json_response(400, {"ok": False, "error": "serial required"})
+                return
+
+            db = _init_db()
+            merged_into_harvest = False
+            try:
+                # Update asup_imports association
+                db.execute("""
+                    UPDATE asup_imports
+                    SET customer_name = ?, site_name = ?, notes = ?
+                    WHERE serial_number = ?
+                """, (customer_name, site_name, notes, serial))
+
+                # Also update the system_json inside asup_imports to reflect the new customer
+                row = db.execute(
+                    "SELECT system_json, match_type FROM asup_imports WHERE serial_number = ?", (serial,)
+                ).fetchone()
+                if row:
+                    try:
+                        sys_dict = json.loads(row[0])
+                        sys_dict["customerName"] = customer_name
+                        sys_dict["_siteName"]    = site_name
+                        sys_dict["_notes"]       = notes
+                        db.execute(
+                            "UPDATE asup_imports SET system_json = ? WHERE serial_number = ?",
+                            (json.dumps(sys_dict, default=str), serial)
+                        )
+                    except Exception:
+                        pass
+                    match_type = row[1] or "new"
+
+                    # If this serial is matched to an AIQ-synced system, patch harvest_cache too
+                    if match_type == "api_synced":
+                        cached_row = db.execute(
+                            "SELECT result_json FROM harvest_cache WHERE id = 1"
+                        ).fetchone()
+                        if cached_row:
+                            try:
+                                cached = json.loads(cached_row[0])
+                                changed = False
+                                for s in cached.get("systems", []):
+                                    if s.get("serialNumber") == serial:
+                                        # Patch with ASUP-provided data — fill nulls only for critical fields
+                                        asup_sys = sys_dict
+                                        for field in ["osVersion", "platform", "nodeCount",
+                                                       "clusterRawCapacityTB", "clusterUsableCapacityTB",
+                                                       "clusterPhysicalUsedTB", "isHAConfigured",
+                                                       "snapMirrorCount", "asupStatus", "asupTransport"]:
+                                            if (s.get(field) is None or s.get(field) == "") and asup_sys.get(field) is not None:
+                                                s[field] = asup_sys[field]
+                                        # Always update customer/site from association
+                                        if customer_name:
+                                            s["customerName"] = customer_name
+                                        s["_asupImported"]  = True
+                                        s["_asupFilename"]  = asup_sys.get("_asupFilename", "")
+                                        s["_asupImportedAt"]= asup_sys.get("_importedAt", "")
+                                        s["_siteName"]      = site_name
+                                        s["_notes"]         = notes
+                                        changed = True
+                                        break
+                                if changed:
+                                    db.execute(
+                                        "UPDATE harvest_cache SET result_json = ? WHERE id = 1",
+                                        (json.dumps(cached, default=str),)
+                                    )
+                                    merged_into_harvest = True
+                                    print(f"  [ASUP] Merged serial {serial} into harvest_cache", flush=True)
+                            except Exception as me:
+                                print(f"  [ASUP] harvest_cache merge error: {me}", flush=True)
+
+                db.commit()
+                print(f"  [ASUP] Association saved: serial={serial}, customer={customer_name}, site={site_name}", flush=True)
+
+            finally:
+                db.close()
+
+            self._json_response(200, {
+                "ok": True, "serial": serial,
+                "customerName": customer_name, "siteName": site_name,
+                "merged": merged_into_harvest,
+            })
+
+        except Exception as e:
+            print(f"  [ASUP] Associate error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_asup_customers(self):
+        """GET /api/asup/customers — return unique customer names and sites for dropdowns."""
+        try:
+            customers = set()
+            sites     = set()
+            db = _init_db()
+            try:
+                # From harvest_cache
+                cached_row = db.execute("SELECT result_json FROM harvest_cache WHERE id = 1").fetchone()
+                if cached_row:
+                    try:
+                        for s in json.loads(cached_row[0]).get("systems", []):
+                            c = s.get("customerName") or ""
+                            if c: customers.add(c)
+                    except Exception:
+                        pass
+                # From asup_imports
+                for row in db.execute("SELECT customer_name, site_name FROM asup_imports").fetchall():
+                    if row[0]: customers.add(row[0])
+                    if row[1]: sites.add(row[1])
+            finally:
+                db.close()
+
+            self._json_response(200, {
+                "ok": True,
+                "customers": sorted(customers),
+                "sites":     sorted(sites),
+            })
+        except Exception as e:
+            self._json_response(500, {"ok": False, "error": str(e), "customers": [], "sites": []})
 
     def handle_asup_delete(self):
         """DELETE /api/asup/imports?serial=XXX — remove an ASUP import."""

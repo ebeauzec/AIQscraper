@@ -1063,20 +1063,13 @@
       <div id="asupDropZoneFile" style="color:#c084fc;font-size:0.8rem;">No file selected</div>
     </div>
 
-    <!-- Customer name -->
-    <div style="margin-bottom:16px;">
-      <label style="display:block;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Customer / Account Name (optional)</label>
-      <input id="asupCustomerName" type="text" placeholder="e.g. Acme Corp — leave blank to use cluster name from bundle"
-        style="width:100%;background:var(--bg-sidebar);border:1px solid var(--border-color);border-radius:6px;padding:9px 12px;color:var(--text-primary);font-size:0.85rem;box-sizing:border-box;">
-    </div>
-
     <!-- Import button -->
     <button id="asupImportSubmitBtn" onclick="submitAsupImport()" style="width:100%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:8px;padding:11px;font-size:0.9rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity 0.2s;" disabled>
       <span id="asupImportBtnIcon">📦</span>
       <span id="asupImportBtnText">Select a file to import</span>
     </button>
 
-    <!-- Progress / result -->
+    <!-- Progress bar -->
     <div id="asupImportProgress" style="display:none;margin-top:16px;">
       <div style="height:4px;background:rgba(168,85,247,0.15);border-radius:2px;overflow:hidden;">
         <div id="asupProgressBar" style="height:100%;background:linear-gradient(90deg,#7c3aed,#c084fc);width:0%;transition:width 0.4s;"></div>
@@ -1084,21 +1077,67 @@
       <div id="asupProgressLabel" style="font-size:0.8rem;color:var(--text-secondary);margin-top:8px;text-align:center;">Uploading…</div>
     </div>
 
+    <!-- ════════════════════════════════════════════════════════
+         MATCH BANNER (shown after import if serial was recognised)
+         ════════════════════════════════════════════════════════ -->
+    <div id="asupMatchBanner" style="display:none;margin-top:20px;"></div>
+
+    <!-- ════════════════════════════════════════════════════════
+         ASSOCIATION FORM (shown after import for every result)
+         ════════════════════════════════════════════════════════ -->
+    <div id="asupAssocPanel" style="display:none;margin-top:20px;background:rgba(255,255,255,0.03);border:1px solid var(--border-color);border-radius:10px;padding:20px;">
+      <div style="font-weight:700;font-size:0.85rem;color:var(--text-primary);margin-bottom:14px;">🔗 Confirm Association</div>
+
+      <!-- Customer: dropdown (existing) + free text (new) -->
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Customer / Account</label>
+        <div style="display:flex;gap:8px;">
+          <select id="asupAssocCustomerSelect" style="flex:1;background:var(--bg-sidebar);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.85rem;" onchange="asupCustomerSelectChanged()">
+            <option value="">— Select existing —</option>
+          </select>
+          <span style="line-height:36px;color:var(--text-secondary);font-size:0.8rem;">or</span>
+          <input id="asupAssocCustomerNew" type="text" placeholder="Type new customer name"
+            style="flex:1;background:var(--bg-sidebar);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.85rem;">
+        </div>
+      </div>
+
+      <!-- Site / Location -->
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Site / Location</label>
+        <div style="display:flex;gap:8px;">
+          <select id="asupAssocSiteSelect" style="flex:1;background:var(--bg-sidebar);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.85rem;" onchange="asupSiteSelectChanged()">
+            <option value="">— Select existing site —</option>
+          </select>
+          <span style="line-height:36px;color:var(--text-secondary);font-size:0.8rem;">or</span>
+          <input id="asupAssocSiteNew" type="text" placeholder="Type new site / DC name"
+            style="flex:1;background:var(--bg-sidebar);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.85rem;">
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Notes (optional)</label>
+        <textarea id="asupAssocNotes" rows="2" placeholder="e.g. Onsite visit 2026-07-20, migrating to AFF A90"
+          style="width:100%;background:var(--bg-sidebar);border:1px solid var(--border-color);border-radius:6px;padding:8px 10px;color:var(--text-primary);font-size:0.85rem;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+
+      <button id="asupAssocSaveBtn" onclick="saveAsupAssociation()" style="width:100%;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:8px;padding:10px;font-size:0.88rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span id="asupAssocSaveBtnIcon">💾</span>
+        <span id="asupAssocSaveBtnText">Save Association</span>
+      </button>
+      <div id="asupAssocResult" style="display:none;margin-top:10px;font-size:0.82rem;text-align:center;"></div>
+    </div>
+
     <!-- Coverage report (shown after import) -->
     <div id="asupCoverageReport" style="display:none;margin-top:20px;">
       <div style="font-weight:700;font-size:0.85rem;margin-bottom:12px;color:var(--text-primary);">📊 Import Coverage Report</div>
-
       <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Parsed from Bundle</div>
       <div id="asupCoverageSections" style="margin-bottom:16px;"></div>
-
       <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Computed by ARIA (no API needed)</div>
       <div id="asupCoverageComputed" style="margin-bottom:16px;"></div>
-
       <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Not Available Offline</div>
       <div id="asupCoverageUnavailable" style="margin-bottom:16px;"></div>
-
       <div id="asupCoverageWarnings" style="display:none;margin-top:12px;"></div>
-
       <button onclick="closeAsupImportModal();location.reload();" style="width:100%;margin-top:16px;background:rgba(168,85,247,0.12);color:#c084fc;border:1px solid rgba(168,85,247,0.3);border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;">
         ✅ Done — Reload Dashboard
       </button>
@@ -1111,3 +1150,4 @@
 
 </body>
 </html>
+
