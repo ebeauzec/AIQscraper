@@ -10,6 +10,10 @@ beautifulsoup4>=4.12.0
 # Build tool to create the distributable executable
 pyinstaller>=6.0
 
+# Optional: 7z extraction for ASUP offline bundle import (.7z ONTAP bundles)
+# Falls back to system 7z CLI if not installed
+py7zr>=0.20.0
+
 # Windows-specific: pywebview WinForms backend (auto-installed on Windows)
 # pythonnet>=3.0.3
 # pywin32>=306

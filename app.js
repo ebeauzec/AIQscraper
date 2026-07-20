@@ -19522,3 +19522,291 @@ function showWhatsNewModal() {
 
 // Allow manual re-open (e.g. from a Help menu)
 window.showWhatsNew = showWhatsNewModal;
+// ═══════════════════════════════════════════════════════════════════════════════
+// ASUP OFFLINE IMPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _asupSelectedFile = null;
+
+function openAsupImportModal() {
+  const modal = document.getElementById('asupImportModal');
+  if (!modal) return;
+  // Reset state
+  _asupSelectedFile = null;
+  document.getElementById('asupDropZoneFile').textContent = 'No file selected';
+  document.getElementById('asupCustomerName').value = '';
+  document.getElementById('asupImportSubmitBtn').disabled = true;
+  document.getElementById('asupImportBtnText').textContent = 'Select a file to import';
+  document.getElementById('asupImportBtnIcon').textContent = '📦';
+  document.getElementById('asupImportProgress').style.display = 'none';
+  document.getElementById('asupProgressBar').style.width = '0%';
+  document.getElementById('asupCoverageReport').style.display = 'none';
+  modal.style.display = 'flex';
+  // Load existing imports
+  loadAsupImportsList();
+}
+
+function closeAsupImportModal() {
+  const modal = document.getElementById('asupImportModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Close on backdrop click
+document.addEventListener('click', function(e) {
+  const modal = document.getElementById('asupImportModal');
+  if (modal && e.target === modal) closeAsupImportModal();
+});
+
+function asupDragOver(e) {
+  e.preventDefault();
+  const dz = document.getElementById('asupDropZone');
+  if (dz) { dz.style.borderColor = '#a855f7'; dz.style.background = 'rgba(168,85,247,0.12)'; }
+}
+function asupDragLeave(e) {
+  const dz = document.getElementById('asupDropZone');
+  if (dz) { dz.style.borderColor = 'rgba(168,85,247,0.4)'; dz.style.background = 'rgba(168,85,247,0.04)'; }
+}
+function asupDrop(e) {
+  e.preventDefault();
+  asupDragLeave(e);
+  const file = e.dataTransfer?.files?.[0];
+  if (file) _asupSetFile(file);
+}
+
+function handleAsupFileSelected(event) {
+  const file = event.target?.files?.[0];
+  if (file) _asupSetFile(file);
+}
+
+function _asupSetFile(file) {
+  _asupSelectedFile = file;
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+  document.getElementById('asupDropZoneFile').textContent = `${file.name}  (${sizeMB} MB)`;
+  const btn = document.getElementById('asupImportSubmitBtn');
+  btn.disabled = false;
+  document.getElementById('asupImportBtnText').textContent = `Import  "${file.name}"`;
+  document.getElementById('asupImportBtnIcon').textContent = '⬆️';
+  document.getElementById('asupImportProgress').style.display = 'none';
+  document.getElementById('asupCoverageReport').style.display = 'none';
+}
+
+async function submitAsupImport() {
+  if (!_asupSelectedFile) return;
+
+  const btn       = document.getElementById('asupImportSubmitBtn');
+  const progress  = document.getElementById('asupImportProgress');
+  const bar       = document.getElementById('asupProgressBar');
+  const label     = document.getElementById('asupProgressLabel');
+  const coverage  = document.getElementById('asupCoverageReport');
+  const customer  = (document.getElementById('asupCustomerName')?.value || '').trim();
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+  coverage.style.display = 'none';
+  bar.style.width = '15%';
+  label.textContent = 'Reading file…';
+
+  try {
+    const arrayBuffer = await _asupSelectedFile.arrayBuffer();
+    bar.style.width = '40%';
+    label.textContent = 'Uploading to server…';
+
+    const response = await fetch('/api/asup/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': arrayBuffer.byteLength.toString(),
+        'X-Filename': _asupSelectedFile.name,
+        'X-Customer-Name': customer,
+      },
+      body: arrayBuffer,
+    });
+
+    bar.style.width = '80%';
+    label.textContent = 'Parsing bundle…';
+
+    const result = await response.json();
+    bar.style.width = '100%';
+
+    if (!result.ok) {
+      label.textContent = '❌ Import failed: ' + (result.error || 'Unknown error');
+      label.style.color = 'var(--status-critical)';
+      btn.disabled = false;
+      return;
+    }
+
+    label.textContent = '✅ Import successful!';
+    label.style.color = 'var(--status-ok)';
+
+    // Inject into state so dashboard reflects the new system immediately
+    if (result.system) {
+      const sys = result.system;
+      // Remove any existing entry with same serial
+      state.systems = state.systems.filter(s => s.serialNumber !== sys.serialNumber);
+      // Enrich via the existing enrichment pipeline if available
+      if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(sys);
+      state.systems.push(sys);
+      // Add to customer list
+      if (sys.customerName && !state.customers.some(c => c.name === sys.customerName)) {
+        state.customers.push({ name: sys.customerName, id: sys.customerName });
+      }
+      if (typeof renderSidebar === 'function') renderSidebar();
+      if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
+    }
+
+    // Show coverage report
+    if (result.coverage) _renderAsupCoverage(result.coverage);
+    coverage.style.display = 'block';
+
+    // Refresh imports list
+    loadAsupImportsList();
+
+  } catch (err) {
+    label.textContent = '❌ Error: ' + err.message;
+    label.style.color = 'var(--status-critical)';
+    btn.disabled = false;
+  }
+}
+
+function _renderAsupCoverage(cov) {
+  // Parsed sections
+  const sectionsEl = document.getElementById('asupCoverageSections');
+  if (sectionsEl && cov.sections) {
+    sectionsEl.innerHTML = (cov.sections || []).map(s => `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
+        <span style="font-size:0.95rem;">${s.found ? '✅' : '❌'}</span>
+        <span style="color:${s.found ? 'var(--text-primary)' : 'var(--text-secondary)'};">${s.label}</span>
+        ${s.note ? `<span style="color:var(--text-secondary);font-size:0.75rem;margin-left:auto;">${s.note}</span>` : ''}
+      </div>`).join('');
+  }
+
+  // Computed sections
+  const computedEl = document.getElementById('asupCoverageComputed');
+  if (computedEl && cov.computed) {
+    computedEl.innerHTML = (cov.computed || []).map(s => `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
+        <span style="font-size:0.95rem;">⚡</span>
+        <span style="color:var(--accent-cyan);">${s.label}</span>
+        <span style="color:var(--text-secondary);font-size:0.75rem;margin-left:auto;">${s.note || ''}</span>
+      </div>`).join('');
+  }
+
+  // Unavailable
+  const unavailEl = document.getElementById('asupCoverageUnavailable');
+  if (unavailEl && cov.unavailable) {
+    unavailEl.innerHTML = (cov.unavailable || []).map(s => `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.82rem;">
+        <span style="font-size:0.95rem;">🔒</span>
+        <span style="color:var(--text-secondary);">${s.label}</span>
+        <span style="color:var(--text-secondary);font-size:0.75rem;margin-left:auto;opacity:0.6;">${s.reason || ''}</span>
+      </div>`).join('');
+  }
+
+  // Warnings
+  const warnEl = document.getElementById('asupCoverageWarnings');
+  if (warnEl) {
+    const warnings = (cov.warnings || []).filter(w => w);
+    if (warnings.length) {
+      warnEl.style.display = 'block';
+      warnEl.innerHTML = `<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.25);border-radius:6px;padding:10px 12px;font-size:0.78rem;color:#fbbf24;">
+        ⚠️ <strong>Warnings:</strong><br>${warnings.map(w => `• ${w}`).join('<br>')}
+      </div>`;
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
+}
+
+async function loadAsupImportsList() {
+  const listEl = document.getElementById('asupImportsList');
+  if (!listEl) return;
+  try {
+    const resp = await fetch('/api/asup/imports');
+    const data = await resp.json();
+    if (!data.ok || !data.imports?.length) {
+      listEl.innerHTML = '';
+      return;
+    }
+    listEl.innerHTML = `
+      <div style="font-weight:700;font-size:0.82rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;border-top:1px solid var(--border-color);padding-top:16px;">
+        Previously Imported (${data.imports.length})
+      </div>
+      ${data.imports.map(imp => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;margin-bottom:6px;font-size:0.82rem;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;color:#c084fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              🔌 ${_esc(imp.customerName || imp.serialNumber)}
+            </div>
+            <div style="color:var(--text-secondary);font-size:0.75rem;">
+              ${_esc(imp.system?.osVersion || '')} · ${_esc(imp.system?.platform || '')} · ${_esc(imp.filename)}
+            </div>
+            <div style="color:var(--text-secondary);font-size:0.72rem;opacity:0.7;">Imported ${new Date(imp.importedAt).toLocaleString()}</div>
+          </div>
+          <button onclick="deleteAsupImport('${_esc(imp.serialNumber)}')"
+            style="background:rgba(255,51,102,0.1);border:1px solid rgba(255,51,102,0.2);color:var(--status-critical);border-radius:4px;padding:4px 8px;font-size:0.75rem;cursor:pointer;white-space:nowrap;">
+            🗑 Remove
+          </button>
+        </div>`).join('')}`;
+  } catch (e) {
+    console.warn('[ASUP] Could not load imports list:', e);
+  }
+}
+
+async function deleteAsupImport(serial) {
+  if (!confirm(`Remove ASUP import for serial "${serial}"?`)) return;
+  try {
+    const resp = await fetch(`/api/asup/imports?serial=${encodeURIComponent(serial)}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.ok) {
+      state.systems = state.systems.filter(s => s.serialNumber !== serial);
+      if (typeof renderSidebar === 'function') renderSidebar();
+      loadAsupImportsList();
+    }
+  } catch (e) {
+    console.warn('[ASUP] Delete failed:', e);
+  }
+}
+
+// On startup: load any persisted ASUP imports into state
+async function loadPersistedAsupImports() {
+  try {
+    const resp = await fetch('/api/asup/imports');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.ok || !data.imports?.length) return;
+    let added = 0;
+    for (const imp of data.imports) {
+      if (!imp.system) continue;
+      // Only inject if not already present (API sync may have same serial)
+      if (!state.systems.some(s => s.serialNumber === imp.system.serialNumber)) {
+        if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(imp.system);
+        state.systems.push(imp.system);
+        added++;
+      }
+    }
+    if (added > 0) {
+      console.log(`[ASUP] Loaded ${added} persisted offline import(s) into state`);
+      if (typeof renderSidebar === 'function') renderSidebar();
+      if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
+    }
+  } catch (e) {
+    console.warn('[ASUP] Could not load persisted imports:', e);
+  }
+}
+
+// Escape helper for HTML attribute injection
+function _esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Load ASUP imports after initial harvest completes
+const _origAfterHarvest = window.afterHarvestComplete;
+window.afterHarvestComplete = function(...args) {
+  if (typeof _origAfterHarvest === 'function') _origAfterHarvest(...args);
+  loadPersistedAsupImports();
+};
+
+// Also load on DOMContentLoaded in case harvest is cached / fast
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(loadPersistedAsupImports, 3000); // slight delay to let state populate first
+});

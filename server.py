@@ -11,6 +11,9 @@ Endpoints:
   GET /api/sync-status       — returns sync metadata (last sync time, counts, is_syncing)
   GET /api/bulletins         — returns dynamic security bulletin DB (security_bulletins.json)
   POST /api/bulletins        — add/update bulletin entries (called by daily scan agent)
+  POST /api/asup/import      — import an ASUP bundle (multipart or raw bytes + X-Filename header)
+  GET /api/asup/imports      — list all ASUP-imported systems
+  DELETE /api/asup/imports   — remove an ASUP import by serial number
   GET /api/*                 — proxy to api.activeiq.netapp.com
   POST /api/*                — proxy to api.activeiq.netapp.com
   POST /api/app/update       — git pull
@@ -27,6 +30,14 @@ import threading
 import time
 from pathlib import Path
 from datetime import datetime, timezone
+
+# ASUP offline import parser (stdlib-only core, py7zr optional)
+try:
+    import asup_parser
+    _ASUP_AVAILABLE = True
+except ImportError:
+    _ASUP_AVAILABLE = False
+    print("[ASUP] asup_parser.py not found — offline import disabled", flush=True)
 
 PORT = 8080
 SCRIPT_DIR = Path(__file__).parent
@@ -61,6 +72,14 @@ def _init_db():
             risk_count INTEGER DEFAULT 0,
             case_count INTEGER DEFAULT 0,
             risk_instance_count INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS asup_imports (
+            serial_number TEXT PRIMARY KEY,
+            system_json   TEXT NOT NULL,
+            coverage_json TEXT NOT NULL,
+            customer_name TEXT DEFAULT '',
+            filename      TEXT DEFAULT '',
+            imported_at   TEXT NOT NULL
         );
     """)
     db.commit()
@@ -2079,6 +2098,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_scan()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_get()
+        elif self.path.startswith('/api/asup/imports'):
+            self.handle_asup_list()
+        elif self.path == '/api/asup/import':
+            self.handle_asup_import()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -2300,8 +2323,16 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_config_post()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_post()
+        elif self.path == '/api/asup/import':
+            self.handle_asup_import()
         elif self.path.startswith('/api/') or self.path == '/graphql':
             self.handle_proxy('POST')
+        else:
+            self.send_error(404, "Not Found")
+
+    def do_DELETE(self):
+        if self.path.startswith('/api/asup/imports'):
+            self.handle_asup_delete()
         else:
             self.send_error(404, "Not Found")
 
@@ -2310,6 +2341,132 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_proxy('PUT')
         else:
             self.send_error(404, "Not Found")
+
+    # ─────────────────────────────────────────────────────────────────────
+    # ASUP Offline Import Handlers
+    # ─────────────────────────────────────────────────────────────────────
+
+    def _json_response(self, code, payload):
+        """Helper: send JSON response."""
+        body = json.dumps(payload, default=str).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def handle_asup_import(self):
+        """POST /api/asup/import
+        Accepts the ASUP bundle as the raw POST body.
+        Required headers:
+          X-Filename: <original filename> (used for format detection)
+          X-Customer-Name: <customer name> (optional)
+        Returns: { ok, system, coverage, warnings, error }
+        """
+        if not _ASUP_AVAILABLE:
+            self._json_response(503, {"ok": False, "error": "asup_parser.py not found on server"})
+            return
+
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length == 0:
+                self._json_response(400, {"ok": False, "error": "Empty request body"})
+                return
+            if content_length > 600 * 1024 * 1024:  # 600 MB hard limit
+                self._json_response(413, {"ok": False, "error": "Bundle too large (600 MB limit)"})
+                return
+
+            data_bytes    = self.rfile.read(content_length)
+            filename      = self.headers.get("X-Filename", "bundle.7z")
+            customer_name = self.headers.get("X-Customer-Name", "").strip()
+
+            print(f"  [ASUP] Import request: {filename} ({len(data_bytes):,} bytes) customer='{customer_name}'", flush=True)
+
+            result = asup_parser.parse_bundle(filename, data_bytes, customer_name)
+
+            if result["ok"] and result.get("system"):
+                system   = result["system"]
+                serial   = system.get("serialNumber", f"ASUP-{datetime.now(timezone.utc).isoformat()[:10]}")
+                now_str  = datetime.now(timezone.utc).isoformat()
+                db = _init_db()
+                try:
+                    db.execute("""
+                        INSERT OR REPLACE INTO asup_imports
+                        (serial_number, system_json, coverage_json, customer_name, filename, imported_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        serial,
+                        json.dumps(system, default=str),
+                        json.dumps(result.get("coverage", {}), default=str),
+                        system.get("customerName", customer_name),
+                        filename,
+                        now_str,
+                    ))
+                    db.commit()
+                    print(f"  [ASUP] Persisted: serial={serial}, customer={system.get('customerName')}", flush=True)
+                finally:
+                    db.close()
+
+            self._json_response(200 if result["ok"] else 422, result)
+
+        except Exception as e:
+            print(f"  [ASUP] Import error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e), "system": None, "coverage": {}, "warnings": []})
+
+    def handle_asup_list(self):
+        """GET /api/asup/imports — return list of all imported ASUP systems."""
+        try:
+            db = _init_db()
+            try:
+                rows = db.execute(
+                    "SELECT serial_number, system_json, coverage_json, customer_name, filename, imported_at FROM asup_imports ORDER BY imported_at DESC"
+                ).fetchall()
+            finally:
+                db.close()
+
+            imports = []
+            for row in rows:
+                try:
+                    system   = json.loads(row[1])
+                    coverage = json.loads(row[2])
+                    imports.append({
+                        "serialNumber": row[0],
+                        "customerName": row[3],
+                        "filename":     row[4],
+                        "importedAt":   row[5],
+                        "system":       system,
+                        "coverage":     coverage,
+                    })
+                except Exception:
+                    pass  # Skip corrupt rows silently
+
+            self._json_response(200, {"ok": True, "imports": imports, "count": len(imports)})
+
+        except Exception as e:
+            print(f"  [ASUP] List error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e), "imports": []})
+
+    def handle_asup_delete(self):
+        """DELETE /api/asup/imports?serial=XXX — remove an ASUP import."""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            params = parse_qs(urlparse(self.path).query)
+            serial = params.get("serial", [None])[0]
+            if not serial:
+                self._json_response(400, {"ok": False, "error": "serial parameter required"})
+                return
+            db = _init_db()
+            try:
+                db.execute("DELETE FROM asup_imports WHERE serial_number = ?", (serial,))
+                db.commit()
+            finally:
+                db.close()
+            print(f"  [ASUP] Deleted import: serial={serial}", flush=True)
+            self._json_response(200, {"ok": True, "deleted": serial})
+        except Exception as e:
+            print(f"  [ASUP] Delete error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
 
     def handle_config_get(self):
         """GET /api/config — return current config (without sensitive tokens)."""

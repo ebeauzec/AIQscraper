@@ -1,8 +1,8 @@
 {
-  "version": "3.6.4",
+  "version": "3.7.0",
   "major": 3,
-  "minor": 6,
-  "patch": 4,
-  "date": "2026-07-19",
-  "notes": "TAM hang fix: split single monolithic deferred block into 4 separate staged setTimeout(0) tasks (risks, upgrades, switches, bulletins). Browser now yields between each section. Syntax fix: removed orphaned closing brace in renderTAMTab() that caused a script-wide SyntaxError making all functions undefined. Branding: page title updated to 'ARIA — Active IQ Risk Intelligence Advisor'; policy disclaimer updated to clarify ARIA is an independent third-party tool not affiliated with NetApp."
+  "minor": 7,
+  "patch": 0,
+  "date": "2026-07-20",
+  "notes": "ASUP Offline Import (v3.7.0): import AutoSupport bundles (.7z, .tgz, .zip, .xml, .gz) onsite when Active IQ is unavailable. Parses ONTAP, StorageGRID, and E-Series bundles into ARIA normalized schema. Runs full Reference Library enrichment (CVE matching, EOA detection, upgrade path, 15-point readiness) from bundle data alone. Graceful degradation for partial/truncated bundles. Coverage report shows what was and wasn't parseable. Persisted in SQLite across sessions."
 }
