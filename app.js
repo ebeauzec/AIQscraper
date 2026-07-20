@@ -4233,11 +4233,11 @@ function getFilteredSystems(excludeKpiFilter = false) {
   // 3. KPI Card Drill-Down filter (except when calculating the KPI values themselves)
   if (!excludeKpiFilter && state.activeKpiFilter && state.activeKpiFilter !== "NONE") {
     if (state.activeKpiFilter === "CRITICAL") {
-      filtered = filtered.filter(s => s.status === "critical" || s.risks.some(r => r.severity === "critical"));
+      filtered = filtered.filter(s => s.status === "critical" || (s.risks || []).some(r => r.severity === "critical"));
     } else if (state.activeKpiFilter === "WARNING") {
-      filtered = filtered.filter(s => s.status === "warning" || s.risks.some(r => r.severity === "high" || r.severity === "medium"));
+      filtered = filtered.filter(s => s.status === "warning" || (s.risks || []).some(r => r.severity === "high" || r.severity === "medium"));
     } else if (state.activeKpiFilter === "CONTRACT") {
-      filtered = filtered.filter(s => s.contracts.daysRemaining <= 90);
+      filtered = filtered.filter(s => s.contracts?.daysRemaining <= 90);
     }
   }
 
@@ -20027,10 +20027,17 @@ function _asupInjectIntoState(system, matchInfo) {
     existing._asupImported   = true;
     existing._asupFilename   = system._asupFilename || '';
     existing._asupImportedAt = system._importedAt   || '';
-    if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(existing);
+    // Re-enrich the existing record now that ASUP fill-nulls have been applied
+    if (typeof enrichSystemTelemetry === 'function') {
+      const enriched = enrichSystemTelemetry(existing);
+      Object.assign(existing, enriched);
+    }
   } else {
-    if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(system);
-    state.systems.push(system);
+    // enrichSystemTelemetry returns a NEW object — push the enriched version, not the bare ASUP system
+    const toAdd = (typeof enrichSystemTelemetry === 'function')
+      ? enrichSystemTelemetry(system)
+      : system;
+    state.systems.push(toAdd);
   }
 
   // Force sidebar redraw (bust the dirty-guard stamp)
@@ -20074,8 +20081,11 @@ async function loadPersistedAsupImports() {
         existing._asupImported = true;
         merged++;
       } else {
-        if (typeof enrichSystemTelemetry === 'function') enrichSystemTelemetry(sys);
-        state.systems.push(sys);
+        // enrichSystemTelemetry returns a NEW object — push the enriched version
+        const toAdd = (typeof enrichSystemTelemetry === 'function')
+          ? enrichSystemTelemetry(sys)
+          : sys;
+        state.systems.push(toAdd);
         added++;
       }
     }
