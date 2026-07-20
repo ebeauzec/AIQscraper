@@ -117,6 +117,24 @@
             <span id="refreshBtnText">Refresh</span>
           </button>
 
+          <!-- Import ASUP Bundle Button -->
+          <button
+            id="asupImportToolbarBtn"
+            onclick="openAsupImportModal()"
+            class="action-btn"
+            style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
+            onmouseover="this.style.background='rgba(168,85,247,0.18)'; this.style.borderColor='rgba(168,85,247,0.7)';"
+            onmouseout="this.style.background='rgba(168,85,247,0.08)'; this.style.borderColor='rgba(168,85,247,0.45)';"
+            onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
+            data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable. Parsed data is persisted to the local database and added to the dashboard.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Import ASUP</span>
+          </button>
+
           <div class="status-badge-header">
             <span class="indicator disconnected"></span>
             <span id="connectionStatusText" style="font-weight: 500;">Offline</span>
