@@ -548,6 +548,7 @@ def _do_full_harvest(watchlist_id=None):
         #    privilege will get a GQL error here; we just skip it gracefully since
         #    these counts are only used for logging, not for downstream logic).
         total_sys = total_cl = total_sites = 0
+        summary = {}  # initialise here so it's always defined even if summary query is skipped
         try:
             print("  [HARVEST] Fetching summary...", flush=True)
             # Use watchlist-scoped summary when a watchlist_id is configured
@@ -859,10 +860,14 @@ def _do_full_harvest(watchlist_id=None):
                   }
                 }
               }""")
-            ri_data = (ri_resp.get("data") or {}).get("riskInstances", {})
-            ri_page_items = ri_data.get("riskInstances") or []
+            if not isinstance(ri_resp, dict) or ri_resp.get("errors"):
+                err_msg = (ri_resp["errors"][0].get("message", "")[:120] if isinstance(ri_resp, dict) else "non-dict response")
+                print(f"  [HARVEST] Risk instances GQL error (skipping): {err_msg}", flush=True)
+                break
+            ri_data = (ri_resp.get("data") or {}).get("riskInstances") or {}
+            ri_page_items = ri_data.get("riskInstances") or [] if isinstance(ri_data, dict) else []
             all_risk_instances.extend(ri_page_items)
-            new_cursor = ri_data.get("cursor")
+            new_cursor = ri_data.get("cursor") if isinstance(ri_data, dict) else None
             print(f"  [HARVEST] Risk instances page {ri_page}: {len(ri_page_items)} (total so far: {len(all_risk_instances)})", flush=True)
             if not ri_page_items or not new_cursor or new_cursor == cursor:
                 break
@@ -893,16 +898,16 @@ def _do_full_harvest(watchlist_id=None):
             }
           }
         }""")
-        cases_data = (cases_resp.get("data") or {}).get("cases", {})
-        all_cases = cases_data.get("cases") or []
-        print(f"  [HARVEST] Cases: {len(all_cases)} (totalCount={cases_data.get('totalCount','?')})", flush=True)
+        cases_data = (cases_resp.get("data") or {}).get("cases") or {} if isinstance(cases_resp, dict) else {}
+        all_cases = cases_data.get("cases") or [] if isinstance(cases_data, dict) else []
+        print(f"  [HARVEST] Cases: {len(all_cases)} (totalCount={cases_data.get('totalCount','?') if isinstance(cases_data, dict) else '?'})", flush=True)
 
         # 8. Fetch customers (with sustainability)
         _, cust_resp = _gql(token, """{ customers(pageSize: 100) { customers {
             id cmatId name
             sustainabilityScorePercentage { overall }
         } } }""")
-        customers = ((cust_resp.get("data") or {}).get("customers", {}).get("customers")) or []
+        customers = ((cust_resp.get("data") or {}).get("customers", {}).get("customers")) or [] if isinstance(cust_resp, dict) else []
 
         # ── TAM: Recommendations ──
         tam_recommendations = []
@@ -911,7 +916,7 @@ def _do_full_harvest(watchlist_id=None):
             _, rec_resp = _gql(token, """{ recommendations(isTopKeyRecommendation: true, limit: 50) {
                 recommendation rank category subCategory score
             } }""")
-            tam_recommendations = (rec_resp.get("data") or {}).get("recommendations") or []
+            tam_recommendations = (rec_resp.get("data") or {}).get("recommendations") or [] if isinstance(rec_resp, dict) else []
             print(f"  [HARVEST] Recommendations: {len(tam_recommendations)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Recommendations failed: {e}", flush=True)
@@ -937,7 +942,7 @@ def _do_full_harvest(watchlist_id=None):
             _, sust_resp = _gql(token, """{ sustainabilityScore { sustainabilityScores {
                 scorePercentage percentageChange generatedDate changeFactors
             } } }""")
-            tam_sustainability = ((sust_resp.get("data") or {}).get("sustainabilityScore", {}).get("sustainabilityScores")) or []
+            tam_sustainability = ((sust_resp.get("data") or {}).get("sustainabilityScore", {}).get("sustainabilityScores")) or [] if isinstance(sust_resp, dict) else []
             print(f"  [HARVEST] Sustainability scores: {len(tam_sustainability)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
@@ -955,7 +960,7 @@ def _do_full_harvest(watchlist_id=None):
                 bundledShelfFirmwares { shelfName shelfModuleName firmwareType shelfModuleFirmwareVersion sysShelfModuleFirmwareVersion }
                 bundledSecurityFiles { fileType version }
             } } }""")
-            tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or []
+            tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or [] if isinstance(osv_resp, dict) else []
             print(f"  [HARVEST] OS versions: {len(tam_os_versions)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: OS versions failed: {e}", flush=True)
@@ -970,7 +975,7 @@ def _do_full_harvest(watchlist_id=None):
                 hardwareModel { name endOfAvailability endOfSupport }
                 endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
             } } }""")
-            tam_renewals = ((ren_resp.get("data") or {}).get("systemContractRenewals", {}).get("systems")) or []
+            tam_renewals = ((ren_resp.get("data") or {}).get("systemContractRenewals", {}).get("systems")) or [] if isinstance(ren_resp, dict) else []
             print(f"  [HARVEST] Renewals with lifecycle events: {len(tam_renewals)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Contract renewals failed: {e}", flush=True)
