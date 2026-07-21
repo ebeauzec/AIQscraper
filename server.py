@@ -544,22 +544,29 @@ def _do_full_harvest(watchlist_id=None):
             raise Exception("No access token in response")
         print("  [HARVEST] Authenticated OK", flush=True)
 
-        # 3. Fetch summary
-        print("  [HARVEST] Fetching summary...", flush=True)
-        sum_status, summary_resp = _gql(token, "{ summary { system cluster site } }")
-        # Guard: if the API returned errors (proxy block, auth failure, etc.) raise cleanly
-        if not isinstance(summary_resp, dict):
-            raise Exception(f"Summary API returned unexpected type: {type(summary_resp).__name__}")
-        if summary_resp.get("errors"):
-            err_msg = summary_resp["errors"][0].get("message", "Unknown GQL error")
-            raise Exception(f"GraphQL error fetching summary: {err_msg}")
-        if sum_status not in (200, 201):
-            raise Exception(f"Summary API returned HTTP {sum_status} — check network/proxy access to {GQL_URL}")
-        summary = (summary_resp.get("data") or {}).get("summary") or {}
-        total_sys = summary.get("system", 0)
-        total_cl = summary.get("cluster", 0)
-        total_sites = summary.get("site", 0)
-        print(f"  [HARVEST] Fleet: {total_sys} systems, {total_cl} clusters, {total_sites} sites", flush=True)
+        # 3. Fetch summary (best-effort — accounts without unfiltered_system_access
+        #    privilege will get a GQL error here; we just skip it gracefully since
+        #    these counts are only used for logging, not for downstream logic).
+        total_sys = total_cl = total_sites = 0
+        try:
+            print("  [HARVEST] Fetching summary...", flush=True)
+            # Use watchlist-scoped summary when a watchlist_id is configured
+            if watchlist_id:
+                sum_query = f'{{ summary(watchlistId: "{watchlist_id}") {{ system cluster site }} }}'
+            else:
+                sum_query = "{ summary { system cluster site } }"
+            sum_status, summary_resp = _gql(token, sum_query)
+            if isinstance(summary_resp, dict) and not summary_resp.get("errors") and sum_status in (200, 201):
+                summary = (summary_resp.get("data") or {}).get("summary") or {}
+                total_sys   = summary.get("system", 0)
+                total_cl    = summary.get("cluster", 0)
+                total_sites = summary.get("site", 0)
+                print(f"  [HARVEST] Fleet: {total_sys} systems, {total_cl} clusters, {total_sites} sites", flush=True)
+            else:
+                err = (summary_resp.get("errors") or [{}])[0].get("message", "unknown") if isinstance(summary_resp, dict) else "non-dict response"
+                print(f"  [HARVEST] Summary skipped (will count from fetched data): {err}", flush=True)
+        except Exception as sum_err:
+            print(f"  [HARVEST] Summary query failed (non-fatal): {sum_err}", flush=True)
 
         # 4. Fetch ALL systems with full details (pagination)
         #    Strategy: try the expanded TAM query first; if GraphQL rejects any
@@ -638,17 +645,42 @@ def _do_full_harvest(watchlist_id=None):
                     }
                   }"""
 
-        # Try expanded first, fall back to minimal
-        all_systems = []
-        used_tam_query = False
-        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
-            all_systems = []
+        # ── Early watchlist auto-discovery ──────────────────────────────────────
+        # Fetch watchlists from REST *before* the systems query so we can use them
+        # as a fallback scope when the account lacks unfiltered_system_access.
+        _early_watchlists = []  # list of watchlist id strings
+        if not watchlist_id:
+            try:
+                for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action"]:
+                    wl_st, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
+                        {"Authorization": f"Bearer {token}", "Accept": "application/json"})
+                    if wl_st == 200:
+                        wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
+                        wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", []))
+                        if isinstance(wl_list, list):
+                            for wl in wl_list:
+                                if isinstance(wl, dict):
+                                    wid = wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", "")
+                                    if wid:
+                                        _early_watchlists.append(wid)
+                        if _early_watchlists:
+                            print(f"  [HARVEST] Auto-discovered {len(_early_watchlists)} watchlist(s) for scoped fallback", flush=True)
+                            break
+            except Exception as _wl_disc_err:
+                print(f"  [HARVEST] Watchlist pre-discovery skipped: {_wl_disc_err}", flush=True)
+
+        _PRIVILEGE_PHRASES = ("unfiltered_system_access", "mandatory argument", "privilege")
+
+        def _fetch_systems_for_scope(fields, scope_wl_id=None):
+            """Fetch all systems pages for a given fields set and optional watchlist scope."""
+            systems = []
             cursor = None
             page = 0
+            privilege_blocked = False
             while True:
                 page += 1
                 after_arg = f', after: "{cursor}"' if cursor else ""
-                wl_arg = f', watchlistId: "{watchlist_id}"' if watchlist_id else ""
+                wl_arg = f', watchlistId: "{scope_wl_id}"' if scope_wl_id else ""
                 query_text = """{
                   systems(pageSize: 100""" + after_arg + wl_arg + """) {
                     totalCount cursor
@@ -657,20 +689,50 @@ def _do_full_harvest(watchlist_id=None):
                   }
                 }"""
                 if page == 1:
-                    print(f"  [HARVEST] Query attempt {attempt+1} first 300 chars: {query_text[:300]}", flush=True)
+                    scope_label = scope_wl_id or "unfiltered"
+                    print(f"  [HARVEST] Systems query (scope={scope_label}) attempt...", flush=True)
                 _, sys_resp = _gql(token, query_text)
+                # Detect privilege block
+                if sys_resp.get("errors"):
+                    err_msg = sys_resp["errors"][0].get("message", "")
+                    if any(p in err_msg.lower() for p in _PRIVILEGE_PHRASES):
+                        print(f"  [HARVEST] Privilege block detected: {err_msg[:120]}", flush=True)
+                        privilege_blocked = True
+                        break
+                    elif page == 1:
+                        print(f"  [HARVEST] GraphQL errors: {err_msg[:200]}", flush=True)
                 sys_data = (sys_resp.get("data") or {}).get("systems", {})
-                # Log GraphQL errors if present
-                if sys_resp.get("errors") and page == 1:
-                    err_msg = sys_resp["errors"][0].get("message", "")[:200]
-                    print(f"  [HARVEST] GraphQL errors: {err_msg}", flush=True)
-                systems_page = sys_data.get("systems") or []
-                all_systems.extend(systems_page)
+                page_systems = sys_data.get("systems") or []
+                systems.extend(page_systems)
                 new_cursor = sys_data.get("cursor")
-                print(f"  [HARVEST] Page {page}: {len(systems_page)} systems (total so far: {len(all_systems)})", flush=True)
-                if not systems_page or not new_cursor or new_cursor == cursor:
+                print(f"  [HARVEST] Page {page}: {len(page_systems)} systems (total so far: {len(systems)})", flush=True)
+                if not page_systems or not new_cursor or new_cursor == cursor:
                     break
                 cursor = new_cursor
+            return systems, privilege_blocked
+
+        # Try expanded first, fall back to minimal
+        all_systems = []
+        used_tam_query = False
+        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
+            all_systems = []
+
+            # First: try with configured watchlist_id (or unfiltered)
+            fetched, blocked = _fetch_systems_for_scope(fields, watchlist_id)
+            all_systems.extend(fetched)
+
+            # If blocked by privilege and we have auto-discovered watchlists, retry per-watchlist
+            if blocked and _early_watchlists:
+                print(f"  [HARVEST] Retrying with {len(_early_watchlists)} auto-scoped watchlist(s)...", flush=True)
+                seen_serials = set()
+                for wl_id_auto in _early_watchlists:
+                    wl_systems, _ = _fetch_systems_for_scope(fields, wl_id_auto)
+                    for s in wl_systems:
+                        sn = s.get("serialNumber", "")
+                        if sn not in seen_serials:
+                            seen_serials.add(sn)
+                            all_systems.append(s)
+                print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
 
             if len(all_systems) > 0:
                 if attempt == 0:
