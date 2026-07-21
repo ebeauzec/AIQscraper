@@ -1460,10 +1460,6 @@ def _do_full_harvest(watchlist_ids=None):
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),
                 "dataReductionRatio": _data_red or cap_eff.get("dataReductionRatio"),
-                "clusterPhysicalUsedTB": round(_used_kib  / (1024**3), 2),
-                "clusterRawCapacityTB":  round(_raw_kib   / (1024**3), 2),
-                "clusterLogicalUsedTB":  round(_log_kib   / (1024**3), 2),
-                "clusterUsableCapacityTB": round((_usbl_kib or _raw_kib) / (1024**3), 2),
                 "clusterQoQUtilPct": _qoq,
                 "clusterYoYUtilPct": _yoy,
                 "clusterCapacityUtilPct": _util_pct,
@@ -1503,11 +1499,10 @@ def _do_full_harvest(watchlist_ids=None):
                         if isinstance(wl_list, list) and len(wl_list) > 0:
                             for wl in wl_list:
                                 if isinstance(wl, dict):
-                                    watchlists_out.append({
-                                        "id": wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", ""),
-                                        "name": wl.get("watchListName") or wl.get("watchlistName") or wl.get("name", "Watchlist"),
-                                        "systemSerials": [],
-                                    })
+                                    wid = wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", "")
+                                    wname = wl.get("watchListName") or wl.get("watchlistName") or wl.get("name", "Watchlist")
+                                    if wid:
+                                        watchlists_out.append({"id": wid, "name": wname, "systemSerials": []})
                             if watchlists_out:
                                 print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from {wl_path}", flush=True)
                                 break
@@ -1516,7 +1511,40 @@ def _do_full_harvest(watchlist_ids=None):
         except Exception as e:
             print(f"  [HARVEST] Watchlist fetch skipped: {e}", flush=True)
 
-        # 14b. Resolve system serial numbers for each watchlist via GraphQL
+        # 14a. Fallback: try GQL watchlists query if REST returned nothing
+        if not watchlists_out:
+            try:
+                _, wl_gql_resp = _gql(token, "{ watchlists { id name } }")
+                wl_gql_list = ((wl_gql_resp.get("data") or {}).get("watchlists") or []) if isinstance(wl_gql_resp, dict) else []
+                for wl in wl_gql_list:
+                    if isinstance(wl, dict):
+                        wid = wl.get("id") or wl.get("watchListId") or wl.get("watchlistId") or ""
+                        wname = wl.get("name") or wl.get("watchListName") or wl.get("watchlistName") or "Watchlist"
+                        if wid:
+                            watchlists_out.append({"id": wid, "name": wname, "systemSerials": []})
+                if watchlists_out:
+                    print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from GQL", flush=True)
+            except Exception as _wl_gql_e:
+                print(f"  [HARVEST] GQL watchlist discovery skipped: {_wl_gql_e}", flush=True)
+
+        # 14b. Final fallback: use watchlist_ids from config — still re-resolve serials
+        #      so membership changes in AIQ are always reflected, even outside network.
+        if not watchlists_out and watchlist_ids:
+            _cfg_names = {}
+            try:
+                _cfg_tmp = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                _cfg_names = _cfg_tmp.get("watchlistNames", {})
+            except Exception:
+                pass
+            for wid in watchlist_ids:
+                watchlists_out.append({
+                    "id": wid,
+                    "name": _cfg_names.get(wid, f"Watchlist {wid[:8]}"),
+                    "systemSerials": []
+                })
+            print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from config (fallback)", flush=True)
+
+        # 14c. Resolve system serial numbers for each watchlist via GraphQL
         if watchlists_out:
             print(f"  [HARVEST] Resolving system serials for {len(watchlists_out)} watchlist(s)...", flush=True)
             for wl in watchlists_out[:20]:  # Limit to 20 watchlists to avoid excessive API calls
@@ -1534,7 +1562,7 @@ def _do_full_harvest(watchlist_ids=None):
                             systems { serialNumber }
                           }
                         }""")
-                        wl_sys_data = (wl_sys_resp.get("data") or {}).get("systems", {})
+                        wl_sys_data = (wl_sys_resp.get("data") or {}).get("systems", {}) if isinstance(wl_sys_resp, dict) else {}
                         wl_systems = wl_sys_data.get("systems") or []
                         for ws in wl_systems:
                             sn = ws.get("serialNumber") or ""

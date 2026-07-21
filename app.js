@@ -18240,7 +18240,7 @@ async function loadProductionData(forceRefresh = false) {
     const globalRisks = result.risks || [];
     console.log(`[AIQ] Global risks: ${globalRisks.length}`);
 
-    // Handle watchlists from harvest
+    // Handle watchlists from harvest — auto-sync to reflect AIQ changes on every refresh
     if (result.watchlists && result.watchlists.length > 0) {
       state.watchlists = result.watchlists.map(wl => ({
         id: wl.watchListId || wl.watchlistId || wl.id || ("wl_" + Date.now()),
@@ -18249,6 +18249,29 @@ async function loadProductionData(forceRefresh = false) {
       }));
       console.log(`[AIQ] Loaded ${state.watchlists.length} watchlist(s):`, state.watchlists.map(w => `${w.name} (${w.systemSerials.length} systems)`));
       saveWatchlists();
+
+      // Sync discovered IDs back to localStorage (keeps Settings textarea current)
+      const freshIdsText = state.watchlists.map(w => `${w.name} = ${w.id}`).join("\n");
+      safeSetItem("aiq_watchlist_ids_text", freshIdsText);
+      const wlTextarea = document.getElementById("settingsWatchlistIds");
+      if (wlTextarea && freshIdsText) wlTextarea.value = freshIdsText;
+
+      // Also push fresh IDs to server config so they survive restarts
+      if (state.isRunningViaProxy) {
+        const freshIds = state.watchlists.map(w => w.id).join(",");
+        fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ watchlistIds: freshIds })
+        }).catch(e => console.warn("[AIQ] Could not sync watchlist IDs to server config:", e));
+      }
+
+      // Update the watchlist scope status in Settings
+      const scopeStatus = document.getElementById("watchlistScopeStatus");
+      if (scopeStatus) {
+        const summary = state.watchlists.map(w => `${w.name} (${w.systemSerials.length})`).join(", ");
+        scopeStatus.innerHTML = `📋 Active watchlists (auto-synced): ${summary}`;
+      }
     }
 
     if (systemsList.length === 0) {
