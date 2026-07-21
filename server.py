@@ -707,6 +707,61 @@ def _do_full_harvest(watchlist_ids=None):
                     }
                   }"""
 
+        # ── TAM_SAFE: same as TAM but omits the efficiency.ratio sub-fields
+        #    (efficiencyRatio, dataReductionRatio, withSnapshotRatio) that the
+        #    AIQ API can return as NaN when a system has no capacity history.
+        #    GQL spec forbids NaN in JSON floats, so the API rejects the whole
+        #    response with: "Float cannot represent non numeric value: NaN".
+        #    This field set preserves every other TAM-enriched field.
+        SYSTEMS_FIELDS_TAM_SAFE = """
+                  hostName systemId serialNumber osVersion recommendedOSVersion
+                  type platformType productType ageInYears serviceTier
+                  techRefreshStatus incumbentResellerCompany
+                  isFabricPool hasPvr
+                  customer { id name }
+                  site { id name city countryCode postalCode state }
+                  nagp { id name }
+                  hardwareModel { name modelRevision endOfAvailability endOfSupport }
+                  contactPerson { firstName lastName phone email }
+                  salesRepresentative { name emailAddress managerEmailAddress }
+                  csm { name emailAddress }
+                  sam { name emailAddress }
+                  gard { worldwide geo area region district territory }
+                  authorizedSupportPartner { name endDate }
+                  domesticParent { id name }
+                  contract {
+                    softwareContractId hardwareContractId
+                    softwareContractStartDate hardwareContractStartDate
+                    expiryDate softwareContractEndDate hardwareContractEndDate
+                    nrdContractEndDate overallContractEndDate isContractActive
+                    hardwareServiceLevel hardwareWarrantyEndDate hardwareWarrantyStartDate
+                  }
+                  autoSupportConfig { autoSupportStatus isAutoSupportOnDemandEnabled isAutoSupportOnDemandCapable autoSupportTransport systemDomain }
+                  latestAsup { asupId generatedDate receivedDate subject type isManual }
+                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
+                  autoSupports { asupId generatedDate receivedDate subject type isManual }
+                  ... on ONTAPSystem {
+                    isMetroCluster isAllFlashOptimized operatingMode
+                    propensityCategory serviceProcessorIPAddress
+                    isARPEnabled autoUpdateEnabled nextBestAction
+                    lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
+                    swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
+                    systemFirmware { type currentVersion recommendedVersion }
+                    capacity {
+                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
+                      logical { usedKiB usedWithoutSnapshotsClonesKiB }
+                      efficiency {
+                        saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
+                      }
+                      reportedOn
+                    }
+                    monthlyCapacity {
+                      month
+                      physical { rawMarketingKiB usedKiB utilizationPercentage qoqUtilizationPercentage }
+                      logical { usedKiB }
+                    }
+                  }"""
+
         # ── Early watchlist auto-discovery ──────────────────────────────────────
         # Fetch watchlists from REST *before* the systems query so we can use them
         # as a fallback scope when the account lacks unfiltered_system_access.
@@ -756,12 +811,20 @@ def _do_full_harvest(watchlist_ids=None):
 
         _PRIVILEGE_PHRASES = ("unfiltered_system_access", "mandatory argument", "privilege")
 
+        _NAN_PHRASE = "float cannot represent non numeric value: nan"
+
         def _fetch_systems_for_scope(fields, scope_wl_id=None):
-            """Fetch all systems pages for a given fields set and optional watchlist scope."""
+            """Fetch all systems pages for a given fields set and optional watchlist scope.
+
+            Returns (systems, privilege_blocked, nan_error).
+            nan_error is True when the API refused the request specifically because a
+            Float field returned NaN — the caller should retry with TAM_SAFE fields.
+            """
             systems = []
             cursor = None
             page = 0
             privilege_blocked = False
+            nan_error = False
             while True:
                 page += 1
                 after_arg = f', after: "{cursor}"' if cursor else ""
@@ -781,12 +844,16 @@ def _do_full_harvest(watchlist_ids=None):
                 if not isinstance(sys_resp, dict):
                     print(f"  [HARVEST] Systems GQL: non-dict response (network error?), stopping pagination", flush=True)
                     break
-                # Detect privilege block or watchlist-not-found errors
+                # Detect privilege block or NaN error or watchlist-not-found errors
                 if sys_resp.get("errors"):
                     err_msg = sys_resp["errors"][0].get("message", "")
                     if any(p in err_msg.lower() for p in _PRIVILEGE_PHRASES):
                         print(f"  [HARVEST] Privilege block detected: {err_msg[:120]}", flush=True)
                         privilege_blocked = True
+                        break
+                    elif _NAN_PHRASE in err_msg.lower():
+                        print(f"  [HARVEST] NaN float error in GQL response — will retry with TAM_SAFE fields", flush=True)
+                        nan_error = True
                         break
                     elif "does not exist" in err_msg.lower() or "not found" in err_msg.lower():
                         print(f"  [HARVEST] Watchlist not found (stale ID?): {err_msg[:200]}", flush=True)
@@ -804,21 +871,32 @@ def _do_full_harvest(watchlist_ids=None):
                 if not page_systems or not new_cursor or new_cursor == cursor:
                     break
                 cursor = new_cursor
-            return systems, privilege_blocked
+            return systems, privilege_blocked, nan_error
 
-        # Try expanded first, fall back to minimal
+        # Three-tier fallback: TAM (full) → TAM_SAFE (NaN-proof) → MINIMAL
+        # TAM_SAFE is only used when the API specifically refuses with a NaN float error;
+        # it preserves all rich fields except efficiency.ratio which triggers the bug.
+        _FIELD_TIERS = [
+            (SYSTEMS_FIELDS_TAM,      "Expanded TAM"),
+            (SYSTEMS_FIELDS_TAM_SAFE, "TAM-safe (NaN-proof)"),
+            (SYSTEMS_FIELDS_MINIMAL,  "Minimal"),
+        ]
         all_systems = []
         used_tam_query = False
-        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
-            all_systems = []
 
+        for attempt, (fields, tier_label) in enumerate(_FIELD_TIERS):
+            all_systems = []
+            _any_nan = False  # set if any scope call raises a NaN error on this tier
 
             # First: try with configured watchlist_ids (fetching + deduplicating across all)
             if watchlist_ids:
-                print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s)...", flush=True)
+                print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s) [{tier_label}]...", flush=True)
                 seen_serials = set()
                 for wl_id_cfg in watchlist_ids:
-                    wl_systems, wl_blocked = _fetch_systems_for_scope(fields, wl_id_cfg)
+                    wl_systems, wl_blocked, wl_nan = _fetch_systems_for_scope(fields, wl_id_cfg)
+                    if wl_nan:
+                        _any_nan = True
+                        break
                     for s in wl_systems:
                         sn = s.get("serialNumber", "")
                         if sn not in seen_serials:
@@ -826,44 +904,56 @@ def _do_full_harvest(watchlist_ids=None):
                             all_systems.append(s)
                     if wl_blocked:
                         print(f"  [HARVEST] Privilege block on watchlist {wl_id_cfg} (skipping)", flush=True)
-                blocked = len(all_systems) == 0
+                blocked = len(all_systems) == 0 and not _any_nan
                 fetched = all_systems[:]
             else:
-                fetched, blocked = _fetch_systems_for_scope(fields, None)
+                fetched, blocked, _any_nan = _fetch_systems_for_scope(fields, None)
                 # ── BUG FIX: assign the unfiltered result to all_systems ──────
                 # Previously `fetched` was populated but `all_systems` stayed []
                 # causing the server to always store 0 systems even when the API
                 # returned hundreds of systems.
                 all_systems = list(fetched)
 
-            # If blocked by privilege OR returned 0 systems (outside corp network the API
-            # returns success+empty instead of a privilege error), retry with auto-discovered watchlists.
-            # Also retry if configured watchlist_ids produced 0 (they may be stale/invalid).
+            # NaN error: skip straight to next tier (TAM_SAFE or MINIMAL)
+            if _any_nan:
+                print(f"  [HARVEST] WARNING: {tier_label} query hit NaN serialisation error — falling back to next tier...", flush=True)
+                continue
+
+            # If blocked by privilege OR returned 0 systems, retry with auto-discovered watchlists.
             if (blocked or len(all_systems) == 0) and _early_watchlists:
                 already_tried = set(watchlist_ids or [])
                 new_wls = [w for w in _early_watchlists if w not in already_tried]
                 if new_wls:
-                    print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) (reason: {'privilege block' if blocked else '0 systems from unfiltered/configured query'})...", flush=True)
+                    reason = 'privilege block' if blocked else '0 systems from unfiltered/configured query'
+                    print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) [{tier_label}] (reason: {reason})...", flush=True)
                     seen_serials = {s.get('serialNumber', '') for s in all_systems}
                     for wl_id_auto in new_wls:
-                        wl_systems, _ = _fetch_systems_for_scope(fields, wl_id_auto)
+                        wl_systems, _, wl_nan2 = _fetch_systems_for_scope(fields, wl_id_auto)
+                        if wl_nan2:
+                            _any_nan = True
+                            break
                         for s in wl_systems:
                             sn = s.get("serialNumber", "")
                             if sn not in seen_serials:
                                 seen_serials.add(sn)
                                 all_systems.append(s)
-                    print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
-
+                    if _any_nan:
+                        print(f"  [HARVEST] WARNING: {tier_label} watchlist retry also hit NaN — falling back to next tier...", flush=True)
+                        continue
+                    print(f"  [HARVEST] Combined from watchlists [{tier_label}]: {len(all_systems)} unique systems", flush=True)
 
             if len(all_systems) > 0:
                 if attempt == 0:
                     used_tam_query = True
-                    print(f"  [HARVEST] Expanded TAM query succeeded: {len(all_systems)} systems", flush=True)
+                    print(f"  [HARVEST] {tier_label} query succeeded: {len(all_systems)} systems", flush=True)
+                elif attempt == 1:
+                    used_tam_query = True  # TAM_SAFE still gives rich data
+                    print(f"  [HARVEST] {tier_label} query succeeded: {len(all_systems)} systems (efficiency ratios excluded)", flush=True)
                 else:
-                    print(f"  [HARVEST] Minimal query succeeded: {len(all_systems)} systems", flush=True)
+                    print(f"  [HARVEST] {tier_label} query succeeded: {len(all_systems)} systems", flush=True)
                 break
-            elif attempt == 0:
-                print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
+            elif attempt < len(_FIELD_TIERS) - 1:
+                print(f"  [HARVEST] WARNING: {tier_label} query returned 0 systems — trying next tier...", flush=True)
 
 
 
