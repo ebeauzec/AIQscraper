@@ -542,12 +542,14 @@ def _gql(token, query, variables=None):
         return status, {"errors": [{"message": f"Non-JSON response (HTTP {status}): {snippet}"}]}
 
 
-def _do_full_harvest(watchlist_id=None):
+def _do_full_harvest(watchlist_ids=None):
     """Execute the full AIQ GraphQL harvest. Returns the result dict.
     This is the core logic extracted from handle_harvest, now reusable
     for both synchronous and background calls.
     
-    If watchlist_id is provided, only systems in that watchlist are fetched.
+    If watchlist_ids is provided (list of ID strings), only systems in those
+    watchlists are fetched and merged (deduplicated by serialNumber).
+    For backward compatibility, a bare string is also accepted.
     """
     global _is_syncing, _last_sync_error
 
@@ -556,6 +558,11 @@ def _do_full_harvest(watchlist_id=None):
             raise Exception("Sync already in progress")
         _is_syncing = True
         _last_sync_error = None
+
+    # Normalise: accept a bare string or a list of strings
+    if isinstance(watchlist_ids, str):
+        watchlist_ids = [w.strip() for w in watchlist_ids.split(",") if w.strip()]
+    watchlist_ids = watchlist_ids or []  # empty list == no filter (all systems)
 
     start_time = time.time()
     try:
@@ -595,9 +602,10 @@ def _do_full_harvest(watchlist_id=None):
         summary = {}  # initialise here so it's always defined even if summary query is skipped
         try:
             print("  [HARVEST] Fetching summary...", flush=True)
-            # Use watchlist-scoped summary when a watchlist_id is configured
-            if watchlist_id:
-                sum_query = f'{{ summary(watchlistId: "{watchlist_id}") {{ system cluster site }} }}'
+            # Use watchlist-scoped summary when watchlists are configured
+            # (use only the first ID for the summary count — it's informational only)
+            if watchlist_ids:
+                sum_query = f'{{ summary(watchlistId: "{watchlist_ids[0]}") {{ system cluster site }} }}'
             else:
                 sum_query = "{ summary { system cluster site } }"
             sum_status, summary_resp = _gql(token, sum_query)
@@ -695,7 +703,7 @@ def _do_full_harvest(watchlist_id=None):
         # as a fallback scope when the account lacks unfiltered_system_access.
         # Falls back to GraphQL watchlist query if REST paths return nothing.
         _early_watchlists = []  # list of watchlist id strings
-        if not watchlist_id:
+        if not watchlist_ids:
             # 1. Try REST paths first
             try:
                 for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action",
@@ -785,12 +793,26 @@ def _do_full_harvest(watchlist_id=None):
         for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
             all_systems = []
 
-            # First: try with configured watchlist_id (or unfiltered)
-            fetched, blocked = _fetch_systems_for_scope(fields, watchlist_id)
-            all_systems.extend(fetched)
+            # First: try with configured watchlist_ids (fetching + deduplicating across all)
+            if watchlist_ids:
+                print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s)...", flush=True)
+                seen_serials = set()
+                for wl_id_cfg in watchlist_ids:
+                    wl_systems, wl_blocked = _fetch_systems_for_scope(fields, wl_id_cfg)
+                    for s in wl_systems:
+                        sn = s.get("serialNumber", "")
+                        if sn not in seen_serials:
+                            seen_serials.add(sn)
+                            all_systems.append(s)
+                    if wl_blocked:
+                        print(f"  [HARVEST] Privilege block on watchlist {wl_id_cfg} (skipping)", flush=True)
+                blocked = len(all_systems) == 0
+                fetched = all_systems[:]
+            else:
+                fetched, blocked = _fetch_systems_for_scope(fields, None)
 
-            # If blocked by privilege and we have auto-discovered watchlists, retry per-watchlist
-            if blocked and _early_watchlists:
+            # If blocked by privilege and no configured watchlists, retry with auto-discovered ones
+            if blocked and not watchlist_ids and _early_watchlists:
                 print(f"  [HARVEST] Retrying with {len(_early_watchlists)} auto-scoped watchlist(s)...", flush=True)
                 seen_serials = set()
                 for wl_id_auto in _early_watchlists:
@@ -1666,21 +1688,24 @@ def _enrich_all_versions(harvest_result):
 def _background_sync():
     """Run a full harvest in the background. Errors are logged, not raised."""
     try:
-        # Read watchlistId from config for background sync
-        wl_id = None
+        # Read all watchlist IDs from config for background sync
+        wl_ids = []
         try:
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-            wl_id = cfg.get("watchlistId") or cfg.get("watchlist_id") or None
+            # Support both new watchlistIds (comma-sep) and legacy watchlistId (single)
+            ids_str = cfg.get("watchlistIds") or cfg.get("watchlistId") or cfg.get("watchlist_id") or ""
+            wl_ids = [w.strip() for w in ids_str.split(",") if w.strip()]
         except Exception:
             pass
-        scope_msg = f" (watchlist: {wl_id})" if wl_id else " (all systems)"
+        scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
         print(f"  [BACKGROUND] Starting background re-sync{scope_msg}...", flush=True)
-        _do_full_harvest(watchlist_id=wl_id)
+        _do_full_harvest(watchlist_ids=wl_ids)
         print("  [BACKGROUND] Background re-sync complete.", flush=True)
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f"  [BACKGROUND] Sync failed: {e}", flush=True)
+
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2656,22 +2681,24 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         force = params.get("force", ["0"])[0] == "1"
-        watchlist_id = params.get("watchlistId", [None])[0]
-
-        # If no watchlistId in query params, check config
-        if not watchlist_id:
-            try:
-                cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-                watchlist_id = cfg.get("watchlistId") or cfg.get("watchlist_id") or None
-            except Exception:
-                pass
+        # Support legacy single-ID query param or read all IDs from config
+        param_id = params.get("watchlistId", [None])[0]
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+            ids_str = cfg.get("watchlistIds") or cfg.get("watchlistId") or cfg.get("watchlist_id") or ""
+            wl_ids = [w.strip() for w in ids_str.split(",") if w.strip()]
+        except Exception:
+            wl_ids = []
+        # Query param overrides config (for manual/test requests)
+        if param_id and param_id not in wl_ids:
+            wl_ids = [param_id]
 
         try:
             if force:
                 # Force mode: full synchronous harvest, bypass cache
-                scope_msg = f" (watchlist: {watchlist_id})" if watchlist_id else " (all systems)"
+                scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
                 print(f"  [HARVEST] Force sync requested{scope_msg}", flush=True)
-                result = _do_full_harvest(watchlist_id=watchlist_id)
+                result = _do_full_harvest(watchlist_ids=wl_ids)
                 res_bytes = json.dumps(result, default=str).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -2719,9 +2746,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             # No cache — do full synchronous harvest
-            scope_msg = f" (watchlist: {watchlist_id})" if watchlist_id else " (all systems)"
+            scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
             print(f"  [CACHE] No cached data — doing full harvest{scope_msg}", flush=True)
-            result = _do_full_harvest(watchlist_id=watchlist_id)
+            result = _do_full_harvest(watchlist_ids=wl_ids)
             res_bytes = json.dumps(result, default=str).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -3151,6 +3178,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Return only non-sensitive fields
             safe_cfg = {
                 "watchlistId": cfg.get("watchlistId") or cfg.get("watchlist_id") or "",
+                "watchlistIds": cfg.get("watchlistIds") or cfg.get("watchlistId") or cfg.get("watchlist_id") or "",
                 "watchlistName": cfg.get("watchlistName", ""),
                 "hasToken": bool(cfg.get("refreshToken") or cfg.get("refresh_token")),
             }
@@ -3173,8 +3201,17 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Read existing config
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
             # Merge allowed fields
-            if "watchlistId" in body:
+            # Support both new watchlistIds (comma-sep) and legacy watchlistId (single)
+            if "watchlistIds" in body:
+                cfg["watchlistIds"] = body["watchlistIds"] or ""
+                # Also backfill legacy key with first ID for older code paths
+                first_id = (body["watchlistIds"] or "").split(",")[0].strip()
+                if first_id:
+                    cfg["watchlistId"] = first_id
+            elif "watchlistId" in body:
                 cfg["watchlistId"] = body["watchlistId"] or ""
+                if not cfg.get("watchlistIds"):
+                    cfg["watchlistIds"] = cfg["watchlistId"]
             if "watchlistName" in body:
                 cfg["watchlistName"] = body["watchlistName"] or ""
             if "refreshToken" in body and body["refreshToken"].strip():
@@ -3187,7 +3224,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Write back
             CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             has_token = bool(cfg.get("refreshToken") or cfg.get("refresh_token"))
-            print(f"  [CONFIG] Saved: watchlistId={cfg.get('watchlistId', '')}, hasToken={has_token}", flush=True)
+            wl_ids_saved = cfg.get("watchlistIds") or cfg.get("watchlistId", "")
+            print(f"  [CONFIG] Saved: watchlistIds={wl_ids_saved}, hasToken={has_token}", flush=True)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()

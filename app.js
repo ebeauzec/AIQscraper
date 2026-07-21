@@ -17754,14 +17754,14 @@ async function saveSettings() {
   // The server reads from disk — not localStorage — so this POST is essential.
   if (state.isRunningViaProxy && refresh) {
     try {
-        // Include the first resolved watchlist ID so the server can scope harvests
+        // Include all resolved watchlist IDs so the server can scope harvests across all watchlists
         const wlIds = state.watchlists && state.watchlists.length > 0
-          ? state.watchlists[0].id
-          : (safeGetItem("aiq_watchlist_ids_text") || "").split(/[,\n]+/).map(s => s.trim()).filter(Boolean)[0] || "";
+          ? state.watchlists.map(w => w.id).join(",")
+          : (safeGetItem("aiq_watchlist_ids_text") || "").split(/[\n]+/).map(s => s.split("=").pop().trim()).filter(s => s.length > 5).join(",");
         const cfgRes = await fetch("/api/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: refresh, watchlistId: wlIds })
+          body: JSON.stringify({ refreshToken: refresh, watchlistIds: wlIds })
       });
       if (cfgRes.ok) {
         console.log("[CONFIG] Refresh token persisted to server config.");
@@ -20440,16 +20440,16 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!check) return;
       const data = await check.json().catch(() => ({}));
       if (data && data.status === "setup_required") {
-        // Server lost config — restore from localStorage
+        // Server lost config — restore from localStorage (all watchlist IDs)
         const wlIds = state.watchlists && state.watchlists.length > 0
-          ? state.watchlists[0].id
-          : (safeGetItem("aiq_watchlist_ids_text") || "").split(/[,\n]+/).map(s => s.trim()).filter(Boolean)[0] || "";
+          ? state.watchlists.map(w => w.id).join(",")
+          : (safeGetItem("aiq_watchlist_ids_text") || "").split(/[\n]+/).map(s => s.split("=").pop().trim()).filter(s => s.length > 5).join(",");
         await fetch("/api/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: token, watchlistId: wlIds })
+          body: JSON.stringify({ refreshToken: token, watchlistIds: wlIds })
         });
-        console.log("[CONFIG] Auto-restored server config from localStorage (token + watchlistId).");
+        console.log("[CONFIG] Auto-restored server config from localStorage (token + watchlistIds).");
       }
     } catch (e) {
       console.warn("[CONFIG] Auto-restore failed:", e);
