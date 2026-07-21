@@ -9950,7 +9950,8 @@ function renderCSMTab() {
   const bd2 = document.getElementById('csmNodeBreakdown'); if (bd2) bd2.style.display = 'none';
   // Draw capacity/performance projection line chart
   renderProjectionsChart(proj, sys.systemName);
-}
+  } // end else (ONTAP/standard platform — capacity data available)
+} // end renderCSMTab
 
 function renderProjectionsChart(proj, systemName) {
   const ctx = document.getElementById("csmProjectionsChart");

@@ -2654,6 +2654,32 @@ def handle_enrich_request(params, db):
 # ─────────────────────────────────────────────────────────────────────
 
 class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def guess_type(self, path):
+        """Override to force UTF-8 charset on all text and JavaScript responses.
+
+        Python's SimpleHTTPRequestHandler serves static files without a charset
+        declaration by default.  Corporate-network browsers (and DLP/security
+        proxies) may then interpret the file as ISO-8859-1, which corrupts the
+        12,000+ non-ASCII Unicode characters (emoji, box-drawing dividers, etc.)
+        embedded in app.js.  The resulting decode error is a SyntaxError at the
+        very start of script execution — before any function definition is
+        hoisted — which is why the browser reports "switchTab is not defined"
+        with a blank Source field (no filename, because the script never parsed).
+
+        Adding '; charset=utf-8' here fixes the corporate-network instance
+        without touching any application logic.
+        """
+        ctype = super().guess_type(path)
+        if not ctype:
+            return ctype
+        # text/* types (text/html, text/css, text/plain …)
+        if ctype.startswith('text/') and 'charset' not in ctype:
+            return ctype + '; charset=utf-8'
+        # JavaScript — may be reported as application/javascript or text/javascript
+        if ctype in ('application/javascript', 'text/javascript'):
+            return ctype + '; charset=utf-8'
+        return ctype
+
     def end_headers(self):
         # Inject CORS headers for local origin access
         self.send_header('Access-Control-Allow-Origin', '*')

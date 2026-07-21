@@ -2,13 +2,25 @@
 <html lang="en">
 <head>
   <script>
+    var _errFired = false;
     window.addEventListener('error', function(e) {
+      if (_errFired) return; // Show only first error to avoid alert spam
+      _errFired = true;
+      var src = e.filename || '(no source)';
+      var stack = (e.error && e.error.stack) ? '\n\nStack:\n' + e.error.stack : '';
       alert("❌ JAVASCRIPT ERROR DETECTED:\n\n" +
             "Message: " + e.message + "\n" +
-            "Source: " + (e.filename ? e.filename.split('/').pop() : 'inline') + "\n" +
-            "Line: " + e.lineno + " | Col: " + e.colno + "\n\n" +
+            "Source: " + src + "\n" +
+            "Line: " + e.lineno + " | Col: " + e.colno +
+            stack + "\n\n" +
             "Please copy or screenshot this message to help debug the issue.");
     }, true);
+    window.addEventListener('unhandledrejection', function(e) {
+      if (_errFired) return;
+      _errFired = true;
+      var reason = e.reason ? (e.reason.stack || String(e.reason)) : 'Unknown promise rejection';
+      alert("❌ UNHANDLED PROMISE REJECTION:\n\n" + reason + "\n\nPlease copy or screenshot this message.");
+    });
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
