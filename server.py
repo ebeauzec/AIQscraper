@@ -28,6 +28,10 @@ import ssl
 import sqlite3
 import threading
 import time
+import subprocess
+import os
+import re
+import tempfile
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -51,6 +55,259 @@ REST_BASE = "https://api.activeiq.netapp.com"
 _sync_lock = threading.Lock()
 _is_syncing = False
 _last_sync_error = None
+
+# ─────────────────────────────────────────────────────────────────────
+# TLS Certificate Auto-Scraping
+# Detects corporate SSL-inspection proxies (Zscaler, BlueCoat, etc.)
+# by catching TLS handshake failures, scraping the Windows cert store
+# and Firefox NSS database, injecting found CAs, and retrying.
+# Requires zero third-party packages — uses certutil.exe (Windows
+# built-in) and Firefox's own certutil.exe for NSS databases.
+# ─────────────────────────────────────────────────────────────────────
+
+_ssl_ctx_lock = threading.Lock()
+_ssl_ctx_cache = None          # shared ssl.SSLContext, rebuilt on demand
+_ssl_extra_certs = []          # list of PEM strings injected so far
+_ssl_probe_done = False        # True once the startup probe has run
+
+# Known corporate proxy CA patterns (CN/O substrings, case-insensitive)
+_CORP_PROXY_HINTS = [
+    "zscaler", "bluecoat", "netskope", "symantec web gateway",
+    "cisco umbrella", "forcepoint", "palo alto", "checkpoint",
+    "mcafee web gateway", "iboss", "menlo security", "contentkeeper",
+    "broadcom", "websense"
+]
+
+
+def _scrape_win_certs():
+    """Return list of PEM strings from the Windows Root + CA certificate stores.
+    Uses certutil.exe (built-in on all Windows versions) — no pip installs needed.
+    Also checks CurrentUser\\Root and LocalMachine\\Root stores."""
+    pems = []
+    if sys.platform != "win32":
+        return pems
+
+    stores = ["Root", "CA", "AuthRoot"]
+    for store in stores:
+        for store_loc in ["-user", ""]:
+            try:
+                args = ["certutil.exe", "-store"]
+                if store_loc == "-user":
+                    args.append("-user")
+                args.append(store)
+                result = subprocess.run(
+                    args,
+                    capture_output=True, text=True, timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                )
+                output = result.stdout or ""
+                # Extract PEM blocks — certutil outputs base64 with header/footer
+                # Pattern: "-----BEGIN CERTIFICATE-----" ... "-----END CERTIFICATE-----"
+                found = re.findall(
+                    r'(-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----)',
+                    output
+                )
+                pems.extend(found)
+            except Exception as exc:
+                print(f"  [TLS] certutil store={store} loc={store_loc}: {exc}", flush=True)
+
+    # Deduplicate by content
+    seen = set()
+    unique = []
+    for p in pems:
+        key = p.strip()
+        if key not in seen:
+            seen.add(key)
+            unique.append(key)
+    print(f"  [TLS] Windows cert store: found {len(unique)} certificates", flush=True)
+    return unique
+
+
+def _scrape_firefox_certs():
+    """Return list of PEM strings from Firefox's NSS certificate database.
+    Uses Firefox's bundled certutil.exe (NSS tool) to export from cert9.db.
+    Falls back gracefully if Firefox is not installed."""
+    pems = []
+    if sys.platform != "win32":
+        return pems
+
+    # Find Firefox certutil.exe (NSS certutil, not Windows certutil)
+    firefox_dirs = [
+        r"C:\Program Files\Mozilla Firefox",
+        r"C:\Program Files (x86)\Mozilla Firefox",
+    ]
+    nss_certutil = None
+    for d in firefox_dirs:
+        candidate = Path(d) / "certutil.exe"
+        if candidate.exists():
+            nss_certutil = str(candidate)
+            break
+
+    if not nss_certutil:
+        return pems  # Firefox not installed
+
+    # Find Firefox profile directory (cert9.db)
+    appdata = os.environ.get("APPDATA", "")
+    ff_profiles_root = Path(appdata) / "Mozilla" / "Firefox" / "Profiles"
+    if not ff_profiles_root.exists():
+        return pems
+
+    profile_dirs = list(ff_profiles_root.glob("*.default*"))
+    if not profile_dirs:
+        profile_dirs = [d for d in ff_profiles_root.iterdir() if d.is_dir()]
+    if not profile_dirs:
+        return pems
+
+    profile = profile_dirs[0]  # Use the first profile found
+    print(f"  [TLS] Firefox profile: {profile.name}", flush=True)
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # List all certs in the Firefox NSS DB
+            list_result = subprocess.run(
+                [nss_certutil, "-L", "-d", f"sql:{profile}", "-h", "all"],
+                capture_output=True, text=True, timeout=20,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+            )
+            # Each line: "Nickname                                         Trust Attributes"
+            nicknames = []
+            for line in list_result.stdout.splitlines():
+                # Lines look like: "DigiCert Global Root CA                  CT,C,C"
+                if line.strip() and not line.startswith("Certificate") and ',' in line:
+                    # Nick is everything before the last whitespace-padded trust field
+                    parts = line.rsplit(None, 1)
+                    if len(parts) == 2:
+                        nicknames.append(parts[0].strip())
+
+            # Export each cert as PEM
+            for nick in nicknames[:200]:  # cap at 200 to avoid slowness
+                try:
+                    exp = subprocess.run(
+                        [nss_certutil, "-L", "-d", f"sql:{profile}",
+                         "-n", nick, "-a"],
+                        capture_output=True, text=True, timeout=10,
+                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                    )
+                    found = re.findall(
+                        r'(-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----)',
+                        exp.stdout
+                    )
+                    pems.extend(found)
+                except Exception:
+                    pass
+    except Exception as exc:
+        print(f"  [TLS] Firefox NSS export error: {exc}", flush=True)
+
+    print(f"  [TLS] Firefox NSS store: found {len(pems)} certificates", flush=True)
+    return pems
+
+
+def _build_ssl_ctx(extra_pems=None):
+    """Build a new ssl.SSLContext loaded with system defaults plus any extra PEM certs."""
+    ctx = ssl.create_default_context()
+    if extra_pems:
+        for pem in extra_pems:
+            try:
+                ctx.load_verify_locations(cadata=pem)
+            except Exception as e:
+                pass  # Malformed cert — skip silently
+    return ctx
+
+
+def _ssl_ctx():
+    """Return the current shared SSL context. Thread-safe."""
+    global _ssl_ctx_cache
+    with _ssl_ctx_lock:
+        if _ssl_ctx_cache is None:
+            _ssl_ctx_cache = _build_ssl_ctx(_ssl_extra_certs)
+    return _ssl_ctx_cache
+
+
+def _refresh_ssl_ctx():
+    """Scrape Windows + Firefox cert stores, inject new CAs, rebuild SSL context.
+    Logs a summary of any corporate proxy CAs detected."""
+    global _ssl_ctx_cache, _ssl_extra_certs
+
+    print("  [TLS] Scanning certificate stores for proxy/enterprise CAs...", flush=True)
+    win_pems = _scrape_win_certs()
+    ff_pems  = _scrape_firefox_certs()
+    all_pems = win_pems + ff_pems
+
+    # Log any corporate proxy CA hits
+    corp_found = []
+    for pem in all_pems:
+        # Try to find CN/O in the pem text (certutil -store embeds subject info above the PEM block)
+        pass  # Detection is done via the probe pattern — PEM itself is binary-encoded
+
+    with _ssl_ctx_lock:
+        _ssl_extra_certs = all_pems
+        _ssl_ctx_cache = _build_ssl_ctx(all_pems)
+
+    print(f"  [TLS] SSL context rebuilt with {len(all_pems)} extra CA certificates", flush=True)
+    return _ssl_ctx_cache
+
+
+def _tls_probe_and_refresh(host="api.activeiq.netapp.com", port=443):
+    """Probe the target host for TLS errors at startup.
+    If the default SSL context fails, auto-scrape cert stores and retry.
+    This runs once at server startup and logs the result clearly."""
+    global _ssl_probe_done
+    if _ssl_probe_done:
+        return
+    _ssl_probe_done = True
+
+    import socket
+    print(f"  [TLS] Startup probe: {host}:{port}", flush=True)
+
+    # Step 1: Try with default SSL context
+    default_ok = False
+    default_err = None
+    try:
+        default_ctx = ssl.create_default_context()
+        with socket.create_connection((host, port), timeout=10) as sock:
+            with default_ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                cert = ssock.getpeercert()
+                issuer = dict(x[0] for x in cert.get('issuer', []))
+                subject = dict(x[0] for x in cert.get('subject', []))
+                issuer_org = issuer.get('organizationName', '')
+                issuer_cn  = issuer.get('commonName', '')
+                subject_cn = subject.get('commonName', '')
+                print(f"  [TLS] Direct TLS OK — cert issuer: {issuer_cn or issuer_org}", flush=True)
+
+                # Check if issuer looks like a corporate proxy
+                issuer_str = (issuer_cn + ' ' + issuer_org).lower()
+                for hint in _CORP_PROXY_HINTS:
+                    if hint in issuer_str:
+                        print(f"  [TLS] ⚠ Corporate SSL inspection detected: '{issuer_cn}'", flush=True)
+                        print(f"  [TLS]   Proxy is intercepting TLS for {host}", flush=True)
+                        print(f"  [TLS]   Triggering cert store scrape to ensure full trust chain...", flush=True)
+                        _refresh_ssl_ctx()
+                        break
+                else:
+                    # Legitimate cert — still build ctx normally (no corporate proxy detected)
+                    _refresh_ssl_ctx()  # builds ctx from stores without forcing it
+                default_ok = True
+    except ssl.SSLError as e:
+        default_err = e
+        print(f"  [TLS] Default context FAILED: {e}", flush=True)
+    except Exception as e:
+        default_err = e
+        print(f"  [TLS] Probe connection FAILED: {e}", flush=True)
+
+    if not default_ok:
+        # Step 2: TLS failed — scrape stores and try again
+        print("  [TLS] Attempting cert store scrape and retry...", flush=True)
+        new_ctx = _refresh_ssl_ctx()
+        retry_ok = False
+        try:
+            import socket
+            with socket.create_connection((host, port), timeout=10) as sock:
+                with new_ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                    print(f"  [TLS] ✓ Retry succeeded after injecting enterprise CAs", flush=True)
+                    retry_ok = True
+        except Exception as e2:
+            print(f"  [TLS] ✗ Retry also failed: {e2}", flush=True)
+            print(f"  [TLS]   If on a corporate network, ask IT to add '{host}' to SSL inspection bypass", flush=True)
 
 # ─────────────────────────────────────────────────────────────────────
 # SQLite Cache Layer
@@ -187,7 +444,9 @@ def _get_sync_meta(db):
 # API Harvest Logic (extracted from original handle_harvest)
 # ─────────────────────────────────────────────────────────────────────
 
-def _http(method, url, headers=None, body=None):
+def _http(method, url, headers=None, body=None, _retry=True):
+    """Make an HTTP/HTTPS request using the shared SSL context.
+    On TLS errors, auto-scrapes cert stores and retries once."""
     hdrs = headers or {}
     data = None
     if body is not None:
@@ -197,13 +456,30 @@ def _http(method, url, headers=None, body=None):
         elif isinstance(body, str):
             data = body.encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
-    ctx = ssl.create_default_context()
+    ctx = _ssl_ctx()
     try:
         with urllib.request.urlopen(req, timeout=120, context=ctx) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
+    except ssl.SSLError as e:
+        print(f"  [TLS] SSL error on {url}: {e}", flush=True)
+        if _retry:
+            print("  [TLS] Attempting cert store refresh and retry...", flush=True)
+            _refresh_ssl_ctx()
+            return _http(method, url, headers=headers, body=body, _retry=False)
+        return 0, f"SSL error: {e}".encode("utf-8")
     except Exception as e:
+        # Check if it's a TLS-related urllib wrapper error
+        err_str = str(e)
+        if _retry and any(k in err_str for k in (
+            'SSL', 'CERTIFICATE', 'certificate verify failed',
+            'UNABLE_TO_VERIFY', 'DEPTH_ZERO', 'CERT_UNTRUSTED'
+        )):
+            print(f"  [TLS] TLS-related error on {url}: {e}", flush=True)
+            print("  [TLS] Attempting cert store refresh and retry...", flush=True)
+            _refresh_ssl_ctx()
+            return _http(method, url, headers=headers, body=body, _retry=False)
         return 0, str(e).encode("utf-8")
 
 
@@ -1266,12 +1542,20 @@ _ENRICH_UA = 'AIQ-Advisor/1.0 (enrichment; public data only)'
 
 
 def _enrich_fetch(url, timeout=12):
-    """Fetch URL, return (text, error). Uses urllib only."""
+    """Fetch URL, return (text, error). Uses urllib only.
+    Uses the shared SSL context so enterprise proxy CAs are trusted."""
     req = urllib.request.Request(url, headers={'User-Agent': _ENRICH_UA})
-    ctx = ssl.create_default_context()
     try:
-        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
+        with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as r:
             return r.read().decode('utf-8', errors='replace'), None
+    except ssl.SSLError as e:
+        # Auto-refresh cert store and retry once
+        _refresh_ssl_ctx()
+        try:
+            with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as r:
+                return r.read().decode('utf-8', errors='replace'), None
+        except Exception as e2:
+            return None, str(e2)
     except Exception as e:
         return None, str(e)
 
@@ -3030,16 +3314,15 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             # If the endpoint already carries an explicit version (/v2/...), use it
             # as-is on the base domain. Otherwise, default to /v1.
-            import re
             if re.match(r'^/v\d+/', endpoint):
                 target_url = f"https://api.activeiq.netapp.com{endpoint}"
             else:
                 target_url = f"https://api.activeiq.netapp.com/v1{endpoint}"
-        
+
         # Read request body data for POST
         content_length = int(self.headers.get('Content-Length', 0))
         req_data = self.rfile.read(content_length) if content_length > 0 else None
-        
+
         # Clone headers (skipping host and connection to prevent conflicts)
         headers = {}
         for key, val in self.headers.items():
@@ -3049,37 +3332,65 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         if method == 'POST' and 'Content-Type' not in headers:
             headers['Content-Type'] = 'application/json'
 
-        # Query NetApp API using standard urllib
-        print(f"  → PROXY {method} {target_url}", flush=True)
-        req = urllib.request.Request(target_url, data=req_data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req) as response:
+        def _do_proxy_request(ctx):
+            """Inner helper: make the proxied request with the given SSL context."""
+            req = urllib.request.Request(target_url, data=req_data, headers=headers, method=method)
+            with urllib.request.urlopen(req, context=ctx) as response:
                 res_data = response.read()
-                print(f"  ← {response.status} ({len(res_data)} bytes)", flush=True)
+                print(f"  \u2190 {response.status} ({len(res_data)} bytes)", flush=True)
                 self.send_response(response.status)
-                
-                # Forward remote response headers
                 for key, val in response.getheaders():
                     if key.lower() not in ['transfer-encoding', 'content-encoding', 'access-control-allow-origin']:
                         self.send_header(key, val)
-                
                 self.end_headers()
                 self.wfile.write(res_data)
+
+        # Query NetApp API using the shared (enterprise-CA-aware) SSL context
+        print(f"  \u2192 PROXY {method} {target_url}", flush=True)
+        try:
+            _do_proxy_request(_ssl_ctx())
         except urllib.error.HTTPError as e:
             res_data = e.read()
             body_preview = res_data[:200].decode('utf-8', errors='replace')
-            print(f"  ← HTTP {e.code} ERROR: {body_preview}", flush=True)
+            print(f"  \u2190 HTTP {e.code} ERROR: {body_preview}", flush=True)
+            # Detect if Zscaler/proxy is blocking at app layer (TLS succeeded but request rejected)
+            if e.code in (404, 403, 407) and 'Unsupported endpoint' in body_preview:
+                print(f"  [TLS] \u26a0 Corporate proxy blocking this endpoint at application layer.", flush=True)
+                print(f"  [TLS]   TLS handshake succeeded but the proxy is filtering the request content.", flush=True)
+                print(f"  [TLS]   Ask IT to add 'api.activeiq.netapp.com' to the SSL inspection bypass list.", flush=True)
             self.send_response(e.code)
             for key, val in e.headers.items():
                 if key.lower() not in ['transfer-encoding', 'content-encoding', 'access-control-allow-origin']:
                     self.send_header(key, val)
             self.end_headers()
             self.wfile.write(res_data)
+        except ssl.SSLError as e:
+            # TLS handshake failed — refresh cert store and retry once
+            print(f"  [TLS] SSL error in proxy: {e} — refreshing cert store and retrying...", flush=True)
+            _refresh_ssl_ctx()
+            try:
+                _do_proxy_request(_ssl_ctx())
+            except Exception as e2:
+                print(f"  \u2190 PROXY RETRY FAILED: {e2}", flush=True)
+                self.send_response(502)
+                self.end_headers()
+                self.wfile.write(f"TLS error after cert refresh: {e2}".encode('utf-8'))
         except Exception as e:
-            print(f"  ← PROXY EXCEPTION: {e}", flush=True)
+            err_str = str(e)
+            # Check for TLS-related errors wrapped in urllib exceptions
+            if any(k in err_str for k in ('SSL', 'CERTIFICATE', 'certificate verify failed',
+                                           'UNABLE_TO_VERIFY', 'DEPTH_ZERO', 'CERT_UNTRUSTED')):
+                print(f"  [TLS] TLS-related proxy error: {e} — refreshing cert store and retrying...", flush=True)
+                _refresh_ssl_ctx()
+                try:
+                    _do_proxy_request(_ssl_ctx())
+                    return
+                except Exception as e2:
+                    err_str = str(e2)
+            print(f"  \u2190 PROXY EXCEPTION: {err_str}", flush=True)
             self.send_response(500)
             self.end_headers()
-            self.wfile.write(str(e).encode('utf-8'))
+            self.wfile.write(err_str.encode('utf-8'))
 
 
 if __name__ == '__main__':
@@ -3087,6 +3398,15 @@ if __name__ == '__main__':
     db = _init_db()
     cached, meta = _load_cached(db)
     db.close()
+
+    # TLS probe: detect corporate SSL inspection proxies and auto-import CAs
+    # This runs in a background thread so it doesn't block server startup
+    threading.Thread(
+        target=_tls_probe_and_refresh,
+        args=("api.activeiq.netapp.com", 443),
+        daemon=True,
+        name="tls-probe"
+    ).start()
 
     print(f"Starting CORS Proxy Web Server on port {PORT}...")
     if cached:
