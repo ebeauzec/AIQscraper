@@ -61,6 +61,9 @@ body {
   display: flex;
   flex-direction: column;
   padding: 24px;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .logo-container {
@@ -788,6 +791,8 @@ input:checked + .slider:before {
 .sidebar-groups-section {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* critical: lets flex child shrink below content size */
 }
 
 .tree-menu {
