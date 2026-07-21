@@ -648,26 +648,49 @@ def _do_full_harvest(watchlist_id=None):
         # ── Early watchlist auto-discovery ──────────────────────────────────────
         # Fetch watchlists from REST *before* the systems query so we can use them
         # as a fallback scope when the account lacks unfiltered_system_access.
+        # Falls back to GraphQL watchlist query if REST paths return nothing.
         _early_watchlists = []  # list of watchlist id strings
         if not watchlist_id:
+            # 1. Try REST paths first
             try:
-                for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action"]:
-                    wl_st, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
-                        {"Authorization": f"Bearer {token}", "Accept": "application/json"})
-                    if wl_st == 200:
-                        wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
-                        wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", []))
-                        if isinstance(wl_list, list):
-                            for wl in wl_list:
-                                if isinstance(wl, dict):
-                                    wid = wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", "")
-                                    if wid:
-                                        _early_watchlists.append(wid)
-                        if _early_watchlists:
-                            print(f"  [HARVEST] Auto-discovered {len(_early_watchlists)} watchlist(s) for scoped fallback", flush=True)
-                            break
+                for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action",
+                                 "/v1/watchlist", "/v1/watchlists"]:
+                    try:
+                        wl_st, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
+                            {"Authorization": f"Bearer {token}", "Accept": "application/json"})
+                        if wl_st == 200:
+                            wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
+                            wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", wl_data.get("data", [])))
+                            if isinstance(wl_list, list):
+                                for wl in wl_list:
+                                    if isinstance(wl, dict):
+                                        wid = wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", "")
+                                        if wid:
+                                            _early_watchlists.append(wid)
+                            if _early_watchlists:
+                                print(f"  [HARVEST] Auto-discovered {len(_early_watchlists)} watchlist(s) via REST ({wl_path})", flush=True)
+                                break
+                    except Exception:
+                        pass
             except Exception as _wl_disc_err:
-                print(f"  [HARVEST] Watchlist pre-discovery skipped: {_wl_disc_err}", flush=True)
+                print(f"  [HARVEST] Watchlist REST pre-discovery skipped: {_wl_disc_err}", flush=True)
+
+            # 2. Fallback: try GraphQL watchlists query
+            if not _early_watchlists:
+                try:
+                    _, wl_gql_resp = _gql(token, "{ watchlists { id name } }")
+                    wl_gql_list = ((wl_gql_resp.get("data") or {}).get("watchlists") or []) if isinstance(wl_gql_resp, dict) else []
+                    for wl in wl_gql_list:
+                        if isinstance(wl, dict):
+                            wid = wl.get("id", "")
+                            if wid:
+                                _early_watchlists.append(wid)
+                    if _early_watchlists:
+                        print(f"  [HARVEST] Auto-discovered {len(_early_watchlists)} watchlist(s) via GraphQL", flush=True)
+                    else:
+                        print("  [HARVEST] No watchlists found via REST or GraphQL — account may need a watchlist configured", flush=True)
+                except Exception as _wl_gql_err:
+                    print(f"  [HARVEST] Watchlist GQL pre-discovery skipped: {_wl_gql_err}", flush=True)
 
         _PRIVILEGE_PHRASES = ("unfiltered_system_access", "mandatory argument", "privilege")
 
@@ -791,10 +814,18 @@ def _do_full_harvest(watchlist_id=None):
                 }
               }
             }""")
-            cl_data = (cl_resp.get("data") or {}).get("clusters", {})
-            clusters_page = cl_data.get("clusters") or []
+            # Guard: privilege error or proxy block returns errors/null data
+            if not isinstance(cl_resp, dict):
+                print(f"  [HARVEST] Clusters: non-dict response, skipping", flush=True)
+                break
+            if cl_resp.get("errors"):
+                err_msg = cl_resp["errors"][0].get("message", "")[:150]
+                print(f"  [HARVEST] Clusters GQL error (skipping): {err_msg}", flush=True)
+                break
+            cl_data = (cl_resp.get("data") or {}).get("clusters") or {}
+            clusters_page = cl_data.get("clusters") or [] if isinstance(cl_data, dict) else []
             all_clusters.extend(clusters_page)
-            new_cursor = cl_data.get("cursor")
+            new_cursor = cl_data.get("cursor") if isinstance(cl_data, dict) else None
             if not clusters_page or not new_cursor or new_cursor == cursor:
                 break
             cursor = new_cursor
