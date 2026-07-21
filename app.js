@@ -18303,12 +18303,9 @@ async function loadProductionData(forceRefresh = false) {
     }
 
     if (systemsList.length === 0) {
-      if (textLabel) textLabel.innerText = "No Systems Found";
+      if (textLabel) textLabel.innerText = "No Systems Found — check API token permissions";
       if (indicator)  indicator.className = "indicator disconnected";
-      alert(
-        "Active IQ API: Connected | Authentication: Valid | Data: Empty\n\n" +
-        "GraphQL returned 0 systems. Check your API token permissions."
-      );
+      console.warn("[AIQ] GraphQL returned 0 systems. Authentication is valid but API returned no data. Check watchlist configuration or API token permissions.");
       updateStatusIndicators();
       return;
     }
