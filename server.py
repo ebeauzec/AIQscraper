@@ -812,18 +812,24 @@ def _do_full_harvest(watchlist_ids=None):
             else:
                 fetched, blocked = _fetch_systems_for_scope(fields, None)
 
-            # If blocked by privilege and no configured watchlists, retry with auto-discovered ones
-            if blocked and not watchlist_ids and _early_watchlists:
-                print(f"  [HARVEST] Retrying with {len(_early_watchlists)} auto-scoped watchlist(s)...", flush=True)
-                seen_serials = set()
-                for wl_id_auto in _early_watchlists:
-                    wl_systems, _ = _fetch_systems_for_scope(fields, wl_id_auto)
-                    for s in wl_systems:
-                        sn = s.get("serialNumber", "")
-                        if sn not in seen_serials:
-                            seen_serials.add(sn)
-                            all_systems.append(s)
-                print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
+            # If blocked by privilege OR returned 0 systems (outside corp network the API
+            # returns success+empty instead of a privilege error), retry with auto-discovered watchlists.
+            # Also retry if configured watchlist_ids produced 0 (they may be stale/invalid).
+            if (blocked or len(all_systems) == 0) and _early_watchlists:
+                already_tried = set(watchlist_ids or [])
+                new_wls = [w for w in _early_watchlists if w not in already_tried]
+                if new_wls:
+                    print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) (reason: {'privilege block' if blocked else '0 systems from unfiltered/configured query'})...", flush=True)
+                    seen_serials = {s.get('serialNumber', '') for s in all_systems}
+                    for wl_id_auto in new_wls:
+                        wl_systems, _ = _fetch_systems_for_scope(fields, wl_id_auto)
+                        for s in wl_systems:
+                            sn = s.get("serialNumber", "")
+                            if sn not in seen_serials:
+                                seen_serials.add(sn)
+                                all_systems.append(s)
+                    print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
+
 
             if len(all_systems) > 0:
                 if attempt == 0:
@@ -834,6 +840,7 @@ def _do_full_harvest(watchlist_ids=None):
                 break
             elif attempt == 0:
                 print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
+
 
 
         # 5. Fetch clusters with full details (including switches and shelves)
