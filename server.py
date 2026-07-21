@@ -492,7 +492,18 @@ def _gql(token, query, variables=None):
         "Content-Type": "application/json",
         "Accept": "application/json",
     }, body)
-    return status, json.loads(raw.decode("utf-8", errors="replace"))
+    raw_text = raw.decode("utf-8", errors="replace")
+    try:
+        parsed = json.loads(raw_text)
+        # json.loads("null") returns None — treat as empty response
+        if parsed is None:
+            parsed = {}
+        return status, parsed
+    except json.JSONDecodeError:
+        # Non-JSON body (e.g. HTML error page from proxy/Zscaler)
+        snippet = raw_text[:300].strip()
+        print(f"  [GQL] Non-JSON response (HTTP {status}): {snippet}", flush=True)
+        return status, {"errors": [{"message": f"Non-JSON response (HTTP {status}): {snippet}"}]}
 
 
 def _do_full_harvest(watchlist_id=None):
@@ -543,8 +554,16 @@ def _do_full_harvest(watchlist_id=None):
 
         # 3. Fetch summary
         print("  [HARVEST] Fetching summary...", flush=True)
-        _, summary_resp = _gql(token, "{ summary { system cluster site } }")
-        summary = (summary_resp.get("data") or {}).get("summary", {})
+        sum_status, summary_resp = _gql(token, "{ summary { system cluster site } }")
+        # Guard: if the API returned errors (proxy block, auth failure, etc.) raise cleanly
+        if not isinstance(summary_resp, dict):
+            raise Exception(f"Summary API returned unexpected type: {type(summary_resp).__name__}")
+        if summary_resp.get("errors"):
+            err_msg = summary_resp["errors"][0].get("message", "Unknown GQL error")
+            raise Exception(f"GraphQL error fetching summary: {err_msg}")
+        if sum_status not in (200, 201):
+            raise Exception(f"Summary API returned HTTP {sum_status} — check network/proxy access to {GQL_URL}")
+        summary = (summary_resp.get("data") or {}).get("summary") or {}
         total_sys = summary.get("system", 0)
         total_cl = summary.get("cluster", 0)
         total_sites = summary.get("site", 0)
