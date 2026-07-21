@@ -18237,15 +18237,66 @@ async function loadProductionData(forceRefresh = false) {
     const forceParam = forceRefresh ? '&force=1' : '';
     console.log(`[AIQ] Calling /api/harvest (force=${forceRefresh})...`);
 
-    const response = await fetch(`/api/harvest?t=${Date.now()}${forceParam}`, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache" }
-    });
-    if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status}`);
-    }
+    // ── Fetch harvest data, handling both 200 (cached) and 202 (background sync) ──
+    // Extracted as an async IIFE so it always resolves to the final result object.
+    const result = await (async () => {
+      const response = await fetch(`/api/harvest?t=${Date.now()}${forceParam}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" }
+      });
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`);
+      }
 
-    const result = await response.json();
+      // 202: background sync was kicked off — poll until complete then re-fetch
+      if (response.status === 202) {
+        console.log("[AIQ] Server started background sync (202). Polling for completion...");
+        if (textLabel) textLabel.innerText = "Syncing with Active IQ... (this may take ~90s)";
+        if (indicator)  indicator.className = "indicator warning";
+
+        const pollStart = Date.now();
+        const POLL_TIMEOUT = 3 * 60 * 1000;
+        const POLL_INTERVAL = 3000;
+        let pollDot = 0;
+        await new Promise((resolve, reject) => {
+          const timer = setInterval(async () => {
+            try {
+              const sr = await fetch(`/api/sync-status?t=${Date.now()}`, { cache: "no-store" });
+              const ss = sr.ok ? await sr.json() : {};
+              pollDot++;
+              const dots = ".".repeat((pollDot % 3) + 1);
+              const elapsed = Math.round((Date.now() - pollStart) / 1000);
+              if (textLabel) textLabel.innerText = `Syncing with Active IQ${dots} (${elapsed}s)`;
+              if (!ss.isSyncing) {
+                clearInterval(timer);
+                if (ss.lastError) reject(new Error(`Sync error: ${ss.lastError}`));
+                else resolve(ss);
+              } else if (Date.now() - pollStart > POLL_TIMEOUT) {
+                clearInterval(timer);
+                reject(new Error("Sync timed out after 3 minutes"));
+              }
+            } catch (pe) {
+              clearInterval(timer);
+              reject(pe);
+            }
+          }, POLL_INTERVAL);
+        });
+
+        // Sync done — re-fetch the now-populated cache
+        console.log("[AIQ] Background sync complete. Re-fetching cached data...");
+        if (textLabel) textLabel.innerText = "Loading refreshed data...";
+        const cacheResp = await fetch(`/api/harvest?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" }
+        });
+        if (!cacheResp.ok) throw new Error(`Cache re-fetch failed: HTTP ${cacheResp.status}`);
+        return cacheResp.json();
+      }
+
+      // 200: cached data served immediately
+      return response.json();
+    })();
+
     console.log("[AIQ] Harvest result:", result.status,
       "systems:", result.totalSystems,
       "clusters:", result.totalClusters,
