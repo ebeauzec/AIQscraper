@@ -436,9 +436,52 @@ def _get_sync_meta(db):
 # API Harvest Logic (extracted from original handle_harvest)
 # ─────────────────────────────────────────────────────────────────────
 
+# ── Proxy-aware opener cache ──────────────────────────────────────────
+# Built once per SSL context generation so we pick up both OS proxy
+# settings (Zscaler/WPAD inside corp) and direct routing (outside corp).
+_opener_lock  = threading.Lock()
+_opener_cache = None
+_opener_ssl_ctx_id = None  # tracks which ssl ctx the opener was built for
+
+def _build_opener(ctx):
+    """Build a urllib opener that honours OS/env proxy settings + the given SSL ctx."""
+    proxies = urllib.request.getproxies()  # reads env vars + Windows registry/WPAD
+    handlers = [urllib.request.HTTPSHandler(context=ctx)]
+    if proxies:
+        # ProxyHandler must come before HTTPSHandler
+        handlers.insert(0, urllib.request.ProxyHandler(proxies))
+        proxy_str = ", ".join(f"{k}={v}" for k, v in proxies.items() if k in ("http", "https"))
+        if proxy_str:
+            print(f"  [HTTP] Proxy detected: {proxy_str}", flush=True)
+    else:
+        # Explicit no-proxy handler — avoids urllib falling back to system defaults
+        # that might inject an unwanted proxy when env vars are cleared outside corp.
+        handlers.insert(0, urllib.request.ProxyHandler({}))
+    return urllib.request.build_opener(*handlers)
+
+
+def _get_opener():
+    """Return the cached opener, rebuilding if the SSL context changed."""
+    global _opener_cache, _opener_ssl_ctx_id
+    ctx = _ssl_ctx()
+    ctx_id = id(ctx)
+    with _opener_lock:
+        if _opener_cache is None or _opener_ssl_ctx_id != ctx_id:
+            _opener_cache = _build_opener(ctx)
+            _opener_ssl_ctx_id = ctx_id
+    return _opener_cache
+
+
 def _http(method, url, headers=None, body=None, _retry=True):
     """Make an HTTP/HTTPS request using the shared SSL context.
-    On TLS errors, auto-scrapes cert stores and retries once."""
+
+    Works transparently inside and outside the corporate network:
+    - Inside (Zscaler/proxy): urllib.request.getproxies() reads the OS proxy
+      settings (env vars, Windows registry, WPAD) and routes via the proxy.
+    - Outside (direct): getproxies() returns {} and requests go direct.
+    - TLS: uses the shared ssl.SSLContext with corporate CA certs injected;
+      on any TLS failure auto-scrapes cert stores and retries once.
+    """
     hdrs = headers or {}
     data = None
     if body is not None:
@@ -448,9 +491,9 @@ def _http(method, url, headers=None, body=None, _retry=True):
         elif isinstance(body, str):
             data = body.encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
-    ctx = _ssl_ctx()
+    opener = _get_opener()
     try:
-        with urllib.request.urlopen(req, timeout=120, context=ctx) as r:
+        with opener.open(req, timeout=120) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
@@ -459,10 +502,10 @@ def _http(method, url, headers=None, body=None, _retry=True):
         if _retry:
             print("  [TLS] Attempting cert store refresh and retry...", flush=True)
             _refresh_ssl_ctx()
+            global _opener_cache; _opener_cache = None  # force rebuild
             return _http(method, url, headers=headers, body=body, _retry=False)
         return 0, f"SSL error: {e}".encode("utf-8")
     except Exception as e:
-        # Check if it's a TLS-related urllib wrapper error
         err_str = str(e)
         if _retry and any(k in err_str for k in (
             'SSL', 'CERTIFICATE', 'certificate verify failed',
@@ -471,6 +514,7 @@ def _http(method, url, headers=None, body=None, _retry=True):
             print(f"  [TLS] TLS-related error on {url}: {e}", flush=True)
             print("  [TLS] Attempting cert store refresh and retry...", flush=True)
             _refresh_ssl_ctx()
+            global _opener_cache; _opener_cache = None  # force rebuild
             return _http(method, url, headers=headers, body=body, _retry=False)
         return 0, str(e).encode("utf-8")
 
