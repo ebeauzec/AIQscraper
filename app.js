@@ -18442,7 +18442,7 @@ function switchTab(tabId) {
 
   // Hide search/star-filter toolbar on Settings — those are fleet-view controls
   const searchBox = document.querySelector(".search-box");
-  if (searchBox) searchBox.style.visibility = tabId === "settings" ? "hidden" : "";
+  if (searchBox) searchBox.style.display = tabId === "settings" ? "none" : "";
 
   // Render specific tab scopes
   if (tabId === "overview") {
