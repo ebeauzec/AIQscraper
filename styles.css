@@ -149,20 +149,26 @@ body {
 .top-header {
   height: 70px;
   border-bottom: 1px solid var(--border-color);
-  padding: 0 32px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   background-color: rgba(11, 15, 25, 0.8);
   backdrop-filter: blur(10px);
   position: sticky;
   top: 0;
   z-index: 10;
+  overflow: visible;
 }
 
 .search-box {
   position: relative;
-  width: 450px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .search-input {
@@ -238,7 +244,9 @@ body {
 .header-status {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .status-badge-header {
@@ -813,10 +821,10 @@ input:checked + .slider:before {
 .tree-item {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 11px 14px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
@@ -848,11 +856,11 @@ input:checked + .slider:before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  font-size: 0.65rem;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;

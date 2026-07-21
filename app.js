@@ -17865,15 +17865,36 @@ async function resolveAndImportWatchlists() {
     }
   }
 
-  // Store in state
+  // Store in state — MERGE new results into existing watchlists (don't replace)
   const successful = resolved.filter(w => w.systemSerials.length > 0);
   const failed = resolved.filter(w => w.systemSerials.length === 0);
 
   if (successful.length > 0) {
-    state.watchlists = successful;
+    // Merge: keep existing watchlists that aren't in this batch, then add/update the resolved ones
+    const incomingIds = new Set(successful.map(w => w.id));
+    const kept = state.watchlists.filter(w => !incomingIds.has(w.id));
+    state.watchlists = [...kept, ...successful];
     saveWatchlists();
-    // Also persist the watchlist IDs text
-    safeSetItem("aiq_watchlist_ids_text", raw);
+    // Also persist the full textarea text (all watchlists, including kept ones)
+    const fullText = state.watchlists.map(w => `${w.name} = ${w.id}`).join("\n");
+    safeSetItem("aiq_watchlist_ids_text", fullText);
+    // Keep textarea in sync with the merged list
+    if (textarea) textarea.value = fullText;
+
+    // Push updated watchlist IDs to server config so /api/harvest uses them all
+    if (state.isRunningViaProxy) {
+      const allIds = state.watchlists.map(w => w.id).join(",");
+      try {
+        await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ watchlistIds: allIds })
+        });
+      } catch (e) {
+        console.warn("[AIQ] Could not push updated watchlist IDs to server:", e);
+      }
+    }
+
     renderSidebarGroups();
 
     const summary = successful.map(w => `${w.name} (${w.systemSerials.length})`).join(", ");
@@ -17881,7 +17902,14 @@ async function resolveAndImportWatchlists() {
     if (failed.length > 0) {
       msg += `<br><span style="color: var(--accent-amber);">⚠ ${failed.length} watchlist(s) had 0 systems (invalid ID?): ${failed.map(w => w.name).join(", ")}</span>`;
     }
+    msg += `<br><span style="color: var(--accent-blue);">🔄 Syncing fleet data for new watchlist(s)…</span>`;
     if (status) status.innerHTML = msg;
+
+    // Trigger a fresh harvest so the new watchlist's systems appear in the customer list
+    await loadProductionData(true);
+
+    const postSummary = state.watchlists.map(w => `${w.name} (${w.systemSerials.length})`).join(", ");
+    if (status) status.innerHTML = `✅ Sync complete — ${state.watchlists.length} watchlist(s) active: ${postSummary}`;
   } else {
     if (status) status.innerHTML = '<span style="color: var(--accent-red);">❌ No watchlists resolved successfully. Check your IDs and try again.</span>';
   }
