@@ -1700,14 +1700,45 @@ def _enrich_all_versions(harvest_result):
 
     # Collect unique (version, platform_family) pairs
     to_enrich = {}  # key → (enrich_type, version_string)
+
+    # ── Shared StorageGRID platform detector ──────────────────────────────────
+    # Active IQ API returns platformType as raw codes (e.g. 'SG6160', 'SG5712',
+    # 'SGF6112', 'SG100', 'SG1000') — NOT the human-readable prefix 'StorageGRID'.
+    # We must test every known SG family prefix to avoid misclassifying these nodes
+    # as ONTAP (which causes wrong enrichment type, wrong security bulletins, and
+    # wrong version catalogue lookups — the corporate-network specific bug).
+    def _is_storagegrid_platform(platform_str, system_type='', product_type=''):
+        p = platform_str.lower()
+        st = system_type.lower()
+        pt = product_type.lower()
+        return (
+            'storagegrid' in p or 'webscale' in p or
+            # SG6xxx family: SG6060, SG6160, SG6112, SG6024, SG6000-CN…
+            'sg60' in p or 'sg61' in p or 'sg61' in p or 'sg6' in p or
+            # SG5xxx family: SG5712, SG5760, SG5612…
+            'sg5' in p or
+            # SGF6xxx family: SGF6112, SGF6024, SGF6112-C…
+            'sgf' in p or
+            # SG100 / SG1000 admin nodes
+            'sg100' in p or 'sg1000' in p or
+            # Catch-all 'sg1' prefix for future SG1xxx appliances
+            # (but NOT 'sg1' matching ONTAP strings – guarded by 'sg' prefix check)
+            (p.startswith('sg') and any(c.isdigit() for c in p[2:4])) or
+            # systemType / productType fields
+            st == 'storagegrid' or
+            'storagegrid' in pt or 'object' in pt
+        )
+
     for sys in systems:
-        ver = sys.get('ontapVersion') or sys.get('osVersion') or sys.get('softwareVersion') or ''
+        ver = sys.get('osVersion') or sys.get('ontapVersion') or sys.get('softwareVersion') or ''
         if not ver or len(ver) < 4:
             continue
-        platform = (sys.get('platform') or sys.get('platformModel') or sys.get('platformType') or '').lower()
-        if 'storagegrid' in platform or 'sg60' in platform or 'sg61' in platform or 'sg10' in platform:
+        platform = sys.get('platform') or sys.get('platformModel') or sys.get('platformType') or ''
+        sys_type = sys.get('systemType') or ''
+        prod_type = sys.get('productType') or ''
+        if _is_storagegrid_platform(platform, sys_type, prod_type):
             etype = 'sg-version'
-        elif 'e-series' in platform or 'ef6' in platform or 'ef3' in platform or 'e5700' in platform or 'e2800' in platform:
+        elif any(k in platform.lower() for k in ('e-series', 'ef6', 'ef3', 'e5700', 'e2800', 'ef50', 'ef80', 'e4000')):
             etype = 'santricity-version'
         else:
             etype = 'ontap-version'

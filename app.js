@@ -4562,12 +4562,22 @@ const enrichmentEngine = {
 
   // Dispatch by platform type
   async enrichVersion(sys) {
-    const ver = sys.ontapVersion || sys.osVersion || '';
+    const ver = sys.ontapVersion || sys.osVersion || sys.softwareVersion || '';
     if (!ver) return null;
     const model = (sys.platform || sys.model || '').toLowerCase();
-    if (model.includes('storagegrid') || model.includes('sg60') || model.includes('sg61') || model.includes('sg10')) {
+    const stype = (sys.systemType || sys.productType || '').toLowerCase();
+    // Active IQ API returns raw platformType codes (SG6160, SG5712, SGF6112, SG100…)
+    // — not the human-readable 'StorageGRID' string. Match all SG appliance families.
+    const _isSG = model.includes('storagegrid') || model.includes('webscale') ||
+      model.includes('sg6') || model.includes('sg5') || model.includes('sgf') ||
+      model.includes('sg60') || model.includes('sg61') || model.includes('sg10') ||
+      model.includes('sg100') || model.includes('sg1000') ||
+      stype === 'storagegrid' || stype.includes('storagegrid') || stype.includes('object');
+    if (_isSG) {
       return this.enrichSG(ver);
-    } else if (model.includes('e-series') || model.includes('ef6') || model.includes('ef3') || model.includes('e5700') || model.includes('e2800')) {
+    } else if (model.includes('e-series') || model.includes('ef6') || model.includes('ef3') ||
+               model.includes('e5700') || model.includes('e2800') || model.includes('ef50') ||
+               model.includes('ef80') || model.includes('e4000')) {
       return this.enrichSANtricity(ver);
     } else {
       return this.enrichONTAP(ver);
@@ -4790,12 +4800,21 @@ const enrichmentEngine = {
     if (!systems || systems.length === 0) return;
     const uncached = [];
     for (const sys of systems) {
-      const ver = sys.ontapVersion || sys.osVersion || '';
+      const ver = sys.ontapVersion || sys.osVersion || sys.softwareVersion || '';
       if (!ver || ver.length < 4) continue;
       const model = (sys.platform || sys.model || '').toLowerCase();
+      const stype = (sys.systemType || sys.productType || '').toLowerCase();
       let etype = 'ontap-version';
-      if (model.includes('storagegrid') || model.includes('sg60') || model.includes('sg61')) etype = 'sg-version';
-      else if (model.includes('e-series') || model.includes('ef6') || model.includes('e5700') || model.includes('e2800')) etype = 'santricity-version';
+      // Match all StorageGRID appliance family codes returned by the Active IQ API
+      const _isSGBulk = model.includes('storagegrid') || model.includes('webscale') ||
+        model.includes('sg6') || model.includes('sg5') || model.includes('sgf') ||
+        model.includes('sg60') || model.includes('sg61') || model.includes('sg10') ||
+        model.includes('sg100') || model.includes('sg1000') ||
+        stype === 'storagegrid' || stype.includes('storagegrid') || stype.includes('object');
+      if (_isSGBulk) etype = 'sg-version';
+      else if (model.includes('e-series') || model.includes('ef6') || model.includes('ef3') ||
+               model.includes('e5700') || model.includes('e2800') || model.includes('ef50') ||
+               model.includes('ef80') || model.includes('e4000')) etype = 'santricity-version';
       const key = `${etype}:${ver}`;
       if (!this._cache.has(key)) uncached.push({ etype, ver, key });
     }
@@ -6017,7 +6036,11 @@ function getApplicableSecurityBulletins(ontapVersion, platformType) {
 
   const results = [];
   const pType = (platformType || '').toLowerCase();
-  const isStorageGrid = pType.includes('storagegrid') || pType.includes('sg');
+  // Use explicit prefix matching — 'pType.includes("sg")' is too broad and
+  // false-positives on non-SG strings that happen to contain 'sg'.
+  const isStorageGrid = pType.includes('storagegrid') || pType.includes('webscale') ||
+    pType.includes('sg6') || pType.includes('sg5') || pType.includes('sgf') ||
+    pType.includes('sg60') || pType.includes('sg61') || pType.includes('sg100') || pType.includes('sg1000');
   const isSnapCenter  = pType.includes('snapcenter');
   const isTrident     = pType.includes('trident');
 
@@ -7550,9 +7573,13 @@ function renderTAMTab() {
       }
     }
 
+    // StorageGRID has no SVMs — hide the SVM/Protocol Security panel entirely.
+    // Use _isPlatformStorageGRID() which matches both mock ('StorageGRID SG6160')
+    // and live API platform strings ('SG6160', 'SG6060X', 'SG100', etc.)
+    const isSGNode = activeSys && _isPlatformStorageGRID(activeSys);
     if (svmCard) {
-      const svms = getSystemSvms(activeSys);
-      if (svms && svms.length > 0) {
+      const svms = !isSGNode ? getSystemSvms(activeSys) : null;
+      if (!isSGNode && svms && svms.length > 0) {
         svmCard.style.display = "block";
         renderSvmSecurityAudit(activeSys);
       } else {
@@ -7568,7 +7595,8 @@ function renderTAMTab() {
   // Update header text
   if (selectedSystems.length === 1) {
     const sys = selectedSystems[0];
-    const osLabel = sys.santricityVersion ? "SANtricity OS" : "ONTAP";
+    const _isSGSys = _isPlatformStorageGRID(sys);
+    const osLabel = sys.santricityVersion ? "SANtricity OS" : _isSGSys ? "StorageGRID" : "ONTAP";
     const osVer = sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion;
     
     document.getElementById("tamActiveSystem").innerHTML = `
@@ -7628,9 +7656,11 @@ function renderTAMTab() {
   selectedSystems.forEach(sys => {
     const risks = sys.risks || [];
     if (risks.length > 0) {
+      const _isSGRiskSys = _isPlatformStorageGRID(sys);
       risksBySystem[sys.systemName] = {
         systemName: sys.systemName,
         platform:   sys.platform   || '',
+        osLabel:    sys.santricityVersion ? 'SANtricity OS' : _isSGRiskSys ? 'StorageGRID' : 'ONTAP',
         version:    sys.ontapVersion || sys.santricityVersion || '',
         risks: risks.map(r => ({ ...r, systemName: sys.systemName }))
       };
@@ -7731,7 +7761,7 @@ function renderTAMTab() {
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <span style="font-weight:700;font-size:0.92rem;color:var(--text-primary);">${sysName}</span>
               ${grp.platform ? `<span style="font-size:0.72rem;color:var(--text-muted);font-family:monospace;">${grp.platform}</span>` : ''}
-              ${grp.version  ? `<span style="font-size:0.72rem;color:var(--text-muted);">ONTAP ${grp.version}</span>` : ''}
+              ${grp.version  ? `<span style="font-size:0.72rem;color:var(--text-muted);">${grp.osLabel || 'ONTAP'} ${grp.version}</span>` : ''}
               <div style="display:flex;gap:5px;flex-wrap:wrap;">${pills.join('')}</div>
             </div>
           </td>
@@ -9576,6 +9606,34 @@ function renderCSMTab() {
   `;
 
   const isASA = (sys.platform || "").includes("ASA");
+  // ── StorageGRID / E-Series: capacity not available via Active IQ API ──────
+  // When _capacityUnavailable is true the efficiency object is all-zeros.
+  // Render a platform-appropriate informational note instead of the standard
+  // efficiency ratio / capacity panel so no misleading "0.0 TB" numbers show.
+  if (sys.efficiency && sys.efficiency._capacityUnavailable) {
+    const _sgNote = sys.efficiency.platformNote || 'Capacity data is not exposed via the Active IQ GraphQL API for this platform type.';
+    const _sgIcon = _isPlatformStorageGRID(sys) ? '⬡' : '⬡';
+    const _sgColor = _isPlatformStorageGRID(sys) ? '#a855f7' : '#f59e0b';
+    const _sgLabel = _isPlatformStorageGRID(sys) ? 'StorageGRID Object Node' : 'E-Series Block Array';
+    document.getElementById("csmEfficiencyCard").innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 8px 0; text-align: center;">
+        <div style="font-size: 2.4rem; color: ${_sgColor}; filter: drop-shadow(0 0 8px ${_sgColor}55);">${_sgIcon}</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: ${_sgColor}; text-transform: uppercase; letter-spacing: 0.6px;">${_sgLabel}</div>
+        <div style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; max-width: 320px; background: rgba(0,0,0,0.25); border: 1px solid ${_sgColor}44; border-radius: var(--radius-sm); padding: 12px 14px;">
+          ${_sgNote}
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">For capacity utilisation data, use the platform's native management interface.</div>
+      </div>
+    `;
+    document.getElementById("csmCloudCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
+        <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-color);">N/A</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">FabricPool tiering is an ONTAP feature and does not apply to ${_sgLabel} systems.</div>
+    `;
+  } else {
+
   const effLabelBase = isASA ? "Storage Efficiency (Block SAN)" : "Data Reduction";
   const withSnaps = sys.efficiency.efficiencyRatioWithSnaps;
   const withSnapsStr = withSnaps && withSnaps > 1 ? `${withSnaps.toFixed(1)}:1` : null;
@@ -10323,7 +10381,10 @@ function enrichSystemTelemetry(s) {
   const name = s.systemName || s.system_name || s.name || "unknown";
   const cluster = s.clusterName || s.cluster_name || s.clusterUuid || "unknown";
   const customer = s.customerName || s.customer_name || s.accountName || s.account_name || "customer";
-  const osVer = s.ontapVersion || s.ontap_version || s.osVersion || s.os_version || s.softwareVersion || "9.12.1";
+  // osVer: read the raw version string from whatever field the source provides.
+  // NOTE: Do NOT apply a platform-specific default here — we must first detect the
+  // platform family (below) before choosing the right fallback and field name.
+  const osVer = s.ontapVersion || s.ontap_version || s.osVersion || s.os_version || s.softwareVersion || s.sgVersion || s.santricityVersion || "";
   const model = s.platform || s.platformModel || s.platform_model || s.model || s.systemType || "AFF A400";
   // Normalize status: API may send 'NORMAL', 'WARNING', 'CRITICAL' in uppercase
   const status = (s.status || "normal").toLowerCase();
@@ -10335,7 +10396,24 @@ function enrichSystemTelemetry(s) {
   const isASA = modelLower.includes("asa");
   const isFAS = modelLower.includes("fas");
   const isCVO = modelLower.includes("cloud volumes ontap") || modelLower.includes("cvo") || (name || "").toLowerCase().includes("cvo");
-  const isStorageGrid = modelLower.includes("storagegrid") || modelLower.includes("sg60") || modelLower.includes("sg61") || modelLower.includes("sg10");
+  // StorageGRID: covers all appliance families — SG5xxx, SG6xxx, SGF6xxx, SG100/1000.
+  // The Active IQ API returns raw platformType codes (e.g. 'SG6160', 'SG5712', 'SGF6112',
+  // 'SG100', 'SG1000') — NOT the human-readable 'StorageGRID' string.  This is the
+  // root cause of the corporate-network misclassification: these codes must be explicitly
+  // matched here. Note: 'sg1' would also match unintended strings, so we use precise prefixes.
+  const isStorageGrid = modelLower.includes("storagegrid") || modelLower.includes("webscale") ||
+    // SG6xxx: SG6060, SG6160, SG6112, SG6024, SG6000-CN
+    modelLower.includes("sg60") || modelLower.includes("sg61") || modelLower.includes("sg6") ||
+    // SG5xxx: SG5712, SG5760, SG5612
+    modelLower.includes("sg5") ||
+    // SGF6xxx: SGF6112, SGF6024
+    modelLower.includes("sgf") ||
+    // SG100 / SG1000 admin/gateway nodes
+    modelLower.includes("sg100") || modelLower.includes("sg1000") ||
+    // systemType / productType fields set by server.py from GQL response
+    (s.systemType || '').toLowerCase() === 'storagegrid' ||
+    (s.productType || '').toLowerCase().includes('storagegrid') ||
+    (s.productType || '').toLowerCase().includes('object');
   // E-Series: classic (EF600/EF300/E2800/E5700) + new gen (EF50/EF80 announced Mar 2026 — SANtricity OS, not ONTAP)
   const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800") || modelLower.includes("ef50") || modelLower.includes("ef80") || modelLower.includes("e4000");
 
@@ -10505,8 +10583,16 @@ function enrichSystemTelemetry(s) {
     // The overview chart now shows used vs available capacity instead.
     const fpTieredTB = 0;
 
+    // ── StorageGRID / E-Series capacity gap ─────────────────────────────────
+    // The Active IQ GraphQL API does not expose cluster-level capacity for
+    // StorageGRID (object nodes) or E-Series (SANtricity block arrays). The
+    // /clusters query returns nothing for these platform families, so physTB
+    // and rawTB are always 0. Flag _capacityUnavailable so the UI can render
+    // a clear informational note instead of "0.0 TB / N/A" placeholders.
+    const _sgEseriesCapGap = (isStorageGrid || isEseries) && physTBfinal === 0 && rawTBfinal === 0;
+
     efficiency = {
-      ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : 'N/A'),
+      ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : (_sgEseriesCapGap ? 'N/A' : 'N/A')),
       dataReductionRatio: parseFloat((dataRedRatio > 1 ? dataRedRatio : 1).toFixed(2)),  // numeric DR ratio (dedup+compression only, excl. snapshots)
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
@@ -10516,8 +10602,13 @@ function enrichSystemTelemetry(s) {
       rawCapacityTB: rawTBfinal,
       usableCapacityTB: usableTBfinal,
       efficiencyRatioWithSnaps: effRatioFull,
+      // _capacityUnavailable: true signals the UI to render a platform note
+      // instead of misleading zero-value capacity bars and donut charts.
+      _capacityUnavailable: _sgEseriesCapGap || false,
       platformNote: isASAr2 ? 'ASA r2 — capacity via Storage Availability Zone (SAZ). 4:1 efficiency SLA guaranteed by NetApp.' :
-                   isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' : null,
+                   isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' :
+                   _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — node-level capacity is not reported via the Active IQ GraphQL API. Capacity data is managed at the grid level through the StorageGRID Grid Manager.' :
+                   _sgEseriesCapGap && isEseries    ? 'E-Series — block-array capacity is managed via SANtricity System Manager and is not exposed through the Active IQ GraphQL clusters API.' : null,
     };
 
   } else if (!efficiency) {
@@ -11356,7 +11447,12 @@ function enrichSystemTelemetry(s) {
     systemName:        name,
     clusterName:       cluster,
     customerName:      customer,
-    ontapVersion:      osVer,
+    // Platform-conditional version fields — ensures non-ONTAP systems are never
+    // misidentified as ONTAP. SG and E-Series get their own version fields;
+    // ONTAP systems get a sensible default if no version is available.
+    ontapVersion:      isONTAPBased ? (osVer || "9.12.1") : null,
+    sgVersion:         isStorageGrid ? (osVer || null) : null,
+    santricityVersion: isEseries ? (s.santricityVersion || osVer || null) : (s.santricityVersion || null),
     platform:          model,
     status:            computedStatus,
     risks:             risks,
@@ -18357,9 +18453,37 @@ async function loadProductionData(forceRefresh = false) {
     }
 
     if (systemsList.length === 0) {
-      if (textLabel) textLabel.innerText = "No Systems Found — check API token permissions";
+      if (textLabel) textLabel.innerText = "No Systems Found";
       if (indicator)  indicator.className = "indicator disconnected";
-      console.warn("[AIQ] GraphQL returned 0 systems. Authentication is valid but API returned no data. Check watchlist configuration or API token permissions.");
+      console.warn("[AIQ] GraphQL returned 0 systems. Auth valid but no data. Check watchlist config or API token permissions.");
+      // Show a non-blocking toast instead of a jarring alert()
+      const _zeroToast = document.createElement('div');
+      _zeroToast.style.cssText = [
+        'position:fixed', 'bottom:28px', 'right:28px', 'z-index:99999',
+        'background:rgba(20,28,46,0.97)', 'border:1px solid rgba(239,68,68,0.5)',
+        'border-left:4px solid #ef4444', 'border-radius:10px',
+        'padding:14px 18px', 'max-width:390px', 'box-shadow:0 8px 32px rgba(0,0,0,0.5)',
+        'animation:_toastSlideUp 0.3s ease'
+      ].join(';');
+      _zeroToast.innerHTML = [
+        '<div style="font-weight:700;font-size:0.85rem;color:#ef4444;margin-bottom:6px;">Active IQ: API Connected — No Systems Returned</div>',
+        '<div style="font-size:0.8rem;color:rgba(255,255,255,0.8);line-height:1.5;">',
+        'GraphQL returned 0 systems. Possible causes:<br>',
+        '&bull; API token lacks <code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">unfiltered_system_access</code><br>',
+        '&bull; Watchlist IDs are stale or not set<br>',
+        '&bull; Account has no registered systems',
+        '</div>',
+        '<div style="margin-top:10px;display:flex;gap:8px;">',
+        '<button onclick="switchTab(\'settings\');this.closest(\'div[style*=position:fixed]\').remove();"',
+        ' style="font-size:0.75rem;padding:5px 12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);',
+        'color:#ef4444;border-radius:6px;cursor:pointer;">Open Settings</button>',
+        '<button onclick="this.closest(\'div[style*=position:fixed]\').remove();"',
+        ' style="font-size:0.75rem;padding:5px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);',
+        'color:rgba(255,255,255,0.6);border-radius:6px;cursor:pointer;">Dismiss</button>',
+        '</div>'
+      ].join('');
+      document.body.appendChild(_zeroToast);
+      setTimeout(() => { if (_zeroToast.parentNode) _zeroToast.remove(); }, 18000);
       updateStatusIndicators();
       return;
     }
@@ -18842,9 +18966,26 @@ async function runSandboxGraphQLQuery() {
   }
 }
 
+function _isPlatformStorageGRID(sys) {
+  if (!sys) return false;
+  const p = (sys.platform || sys.platformModel || sys.model || '').toLowerCase();
+  const pt = (sys.productType || sys.systemType || '').toLowerCase();
+  return p.includes('storagegrid') || p.includes('sg60') || p.includes('sg61') || p.includes('sg10') ||
+         p.includes('sg57') || p.includes('sg57') || p.includes('sg10') || p.includes('sg516') ||
+         p.includes('sg6') || p.includes('sg1') ||
+         pt.includes('storagegrid') || pt.includes('object') ||
+         (sys.systemType || '').toLowerCase() === 'storagegrid';
+}
+
 function getSystemSvms(sys) {
-  // If it is StorageGRID or SANtricity/E-Series, return null (SVMs are an ONTAP feature)
-  if (!sys || !sys.platform || sys.platform.includes("StorageGRID") || sys.platform.includes("E-Series") || sys.platform.includes("EF600") || sys.santricityVersion) {
+  // SVMs are an ONTAP concept — StorageGRID, E-Series/SANtricity have no SVMs.
+  // Live API StorageGRID nodes return platform = 'SG6160' / 'SG100' etc. (no
+  // 'StorageGRID' string), so we use the broader _isPlatformStorageGRID() helper.
+  if (!sys || !sys.platform || _isPlatformStorageGRID(sys) ||
+      sys.platform.includes("E-Series") || sys.platform.includes("EF600") ||
+      sys.platform.includes("EF300") || sys.platform.includes("E5700") ||
+      sys.platform.includes("EF50")  || sys.platform.includes("EF80")  ||
+      sys.platform.includes("E4000") || sys.santricityVersion) {
     return null;
   }
 
@@ -19373,7 +19514,22 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   let backplateHtml = "";
   const isEseries = sys.santricityVersion !== undefined || sys.platform.includes("E-Series");
   const isCloud = sys.platform.toLowerCase().includes("cloud");
-  const isStorageGrid = sys.platform.toLowerCase().includes("storagegrid");
+  // isStorageGrid: match both mock ('StorageGRID SG6160') and live API ('SG6160', 'SG6060X', 'SG100')
+  const isStorageGrid = _isPlatformStorageGRID(sys);
+
+  // Update the card title to be platform-appropriate
+  const _cardTitleEl = document.getElementById('tamNodeVisualCardTitle');
+  if (_cardTitleEl) {
+    if (isStorageGrid) {
+      _cardTitleEl.textContent = 'StorageGRID Node Port Assignments \u0026 Grid Network Topology';
+    } else if (isEseries) {
+      _cardTitleEl.textContent = 'E-Series Controller Port Assignments \u0026 Drive Shelf Topology';
+    } else if (isCloud) {
+      _cardTitleEl.textContent = 'Cloud Volumes ONTAP Network Interface Topology';
+    } else {
+      _cardTitleEl.textContent = 'Controller Node Port Assignments \u0026 Link Topology';
+    }
+  }
 
   if (isCloud) {
     backplateHtml = `
@@ -19489,10 +19645,12 @@ function selectVisualNode(serial) {
       }
     }
     
+    // StorageGRID has no SVMs — guard against live API platform strings like 'SG6160'
+    const isSGNodeCtx = activeSys && _isPlatformStorageGRID(activeSys);
     const svmCard = document.getElementById("tamSvmCard");
     if (svmCard) {
-      const svms = getSystemSvms(activeSys);
-      if (svms && svms.length > 0) {
+      const svms = !isSGNodeCtx ? getSystemSvms(activeSys) : null;
+      if (!isSGNodeCtx && svms && svms.length > 0) {
         svmCard.style.display = "block";
         renderSvmSecurityAudit(activeSys);
       } else {
