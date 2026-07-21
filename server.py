@@ -3024,13 +3024,21 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["watchlistId"] = body["watchlistId"] or ""
             if "watchlistName" in body:
                 cfg["watchlistName"] = body["watchlistName"] or ""
+            if "refreshToken" in body and body["refreshToken"].strip():
+                cfg["refreshToken"] = body["refreshToken"].strip()
+                print(f"  [CONFIG] Refresh token updated ({len(cfg['refreshToken'])} chars)", flush=True)
+            if "tamName" in body:
+                cfg["tamName"] = body["tamName"] or ""
+            if "tamEmail" in body:
+                cfg["tamEmail"] = body["tamEmail"] or ""
             # Write back
             CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-            print(f"  [CONFIG] Updated: watchlistId={cfg.get('watchlistId', '')}, watchlistName={cfg.get('watchlistName', '')}", flush=True)
+            has_token = bool(cfg.get("refreshToken") or cfg.get("refresh_token"))
+            print(f"  [CONFIG] Saved: watchlistId={cfg.get('watchlistId', '')}, hasToken={has_token}", flush=True)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ok", "hasToken": has_token}).encode("utf-8"))
         except Exception as e:
             self.send_response(500)
             self.send_header("Content-Type", "application/json")

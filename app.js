@@ -17748,7 +17748,27 @@ async function saveSettings() {
   
   setMockMode(mockToggle);
   saveConfig(refresh, safeGetItem("aiq_access_token") || "", safeGetItem("aiq_token_expiry") || "");
-  
+
+  // Persist the refresh token to server-side aiq_config.json so that
+  // the Python proxy (server.py) can read it for harvest requests.
+  // The server reads from disk — not localStorage — so this POST is essential.
+  if (state.isRunningViaProxy && refresh) {
+    try {
+      const cfgRes = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: refresh })
+      });
+      if (cfgRes.ok) {
+        console.log("[CONFIG] Refresh token persisted to server config.");
+      } else {
+        console.warn("[CONFIG] Server config save returned:", cfgRes.status);
+      }
+    } catch (err) {
+      console.warn("[CONFIG] Could not persist token to server:", err);
+    }
+  }
+
   if (!mockToggle) {
     // Switching to live API mode: clear all mock data from state and localStorage
     // so stale mock systems don't persist across the mode switch
