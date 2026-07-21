@@ -769,16 +769,26 @@ def _do_full_harvest(watchlist_ids=None):
                     scope_label = scope_wl_id or "unfiltered"
                     print(f"  [HARVEST] Systems query (scope={scope_label}) attempt...", flush=True)
                 _, sys_resp = _gql(token, query_text)
-                # Detect privilege block
+                # Guard: _gql may return None on network failure
+                if not isinstance(sys_resp, dict):
+                    print(f"  [HARVEST] Systems GQL: non-dict response (network error?), stopping pagination", flush=True)
+                    break
+                # Detect privilege block or watchlist-not-found errors
                 if sys_resp.get("errors"):
                     err_msg = sys_resp["errors"][0].get("message", "")
                     if any(p in err_msg.lower() for p in _PRIVILEGE_PHRASES):
                         print(f"  [HARVEST] Privilege block detected: {err_msg[:120]}", flush=True)
                         privilege_blocked = True
                         break
+                    elif "does not exist" in err_msg.lower() or "not found" in err_msg.lower():
+                        print(f"  [HARVEST] Watchlist not found (stale ID?): {err_msg[:200]}", flush=True)
+                        break
                     elif page == 1:
                         print(f"  [HARVEST] GraphQL errors: {err_msg[:200]}", flush=True)
-                sys_data = (sys_resp.get("data") or {}).get("systems", {})
+                        break
+                sys_data = (sys_resp.get("data") or {}).get("systems") or {}
+                if not isinstance(sys_data, dict):
+                    break
                 page_systems = sys_data.get("systems") or []
                 systems.extend(page_systems)
                 new_cursor = sys_data.get("cursor")
@@ -1747,8 +1757,13 @@ def _background_sync():
         wl_ids = []
         try:
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-            # Support both new watchlistIds (comma-sep) and legacy watchlistId (single)
-            ids_str = cfg.get("watchlistIds") or cfg.get("watchlistId") or cfg.get("watchlist_id") or ""
+            # Support both new watchlistIds (comma-sep) and legacy watchlistId (single).
+            # Only use watchlistId (legacy) if watchlistIds is empty; ignore placeholder 'wl_prod'.
+            ids_str = cfg.get("watchlistIds") or cfg.get("watchlist_id") or ""
+            if not ids_str:
+                legacy = cfg.get("watchlistId") or ""
+                if legacy and legacy != "wl_prod" and not legacy.startswith("wl_"):
+                    ids_str = legacy
             wl_ids = [w.strip() for w in ids_str.split(",") if w.strip()]
         except Exception:
             pass
@@ -2740,8 +2755,13 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         param_id = params.get("watchlistId", [None])[0]
         try:
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-            ids_str = cfg.get("watchlistIds") or cfg.get("watchlistId") or cfg.get("watchlist_id") or ""
+            ids_str = cfg.get("watchlistIds") or cfg.get("watchlist_id") or ""
+            if not ids_str:
+                legacy = cfg.get("watchlistId") or ""
+                if legacy and legacy != "wl_prod" and not legacy.startswith("wl_"):
+                    ids_str = legacy
             wl_ids = [w.strip() for w in ids_str.split(",") if w.strip()]
+
         except Exception:
             wl_ids = []
         # Query param overrides config (for manual/test requests)
