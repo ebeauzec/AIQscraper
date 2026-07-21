@@ -581,262 +581,175 @@
 
       <!-- VIEW: SETTINGS & CONFIG -->
       <div id="settingsTab" class="tab-content">
-        <!-- Page Header -->
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px;">
+
+        <!-- ── Page Header ──────────────────────────────────── -->
+        <div class="settings-header">
           <div>
-            <h2 style="font-weight: 700; font-size: 1.4rem; margin-bottom: 4px;">Settings &amp; Configuration</h2>
-            <p style="color: var(--text-secondary); font-size: 0.83rem; margin: 0;">Connect your Active IQ API, configure watchlists, and manage your fleet metadata.</p>
+            <h2 class="settings-title">Settings &amp; Configuration</h2>
+            <p class="settings-subtitle">Connect your Active IQ API, configure watchlists, and manage fleet metadata.</p>
           </div>
-          <!-- Global Save button pinned top-right for quick access -->
-          <button class="action-btn" onclick="saveSettings()" style="padding: 11px 22px; font-size: 0.88rem; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, rgba(52,211,153,0.25), rgba(16,185,129,0.2)); border-color: rgba(52,211,153,0.5);">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <button class="action-btn settings-save-btn" onclick="saveSettings()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
             Save Configuration
           </button>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════
-             SECTION 1 — CONNECTION & SYNC
-             3-column: API Auth | Watchlist Scope | Sync Controls
-             ═══════════════════════════════════════════════════════════════ -->
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <div style="height: 1px; flex: 1; background: var(--border-color);"></div>
-          <span style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 700; white-space: nowrap;">Connection &amp; Sync</span>
-          <div style="height: 1px; flex: 1; background: var(--border-color);"></div>
-        </div>
+        <!-- ── Section: Connection & Sync ───────────────────── -->
+        <div class="settings-section-label">Connection &amp; Sync</div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 280px; gap: 16px; margin-bottom: 28px; align-items: start;">
+        <!-- Primary 2-col: API Auth | Watchlist -->
+        <div class="settings-2col" style="margin-bottom: 12px;">
 
           <!-- CARD: API Authentication -->
-          <div class="card" style="border-top: 3px solid var(--accent-cyan);">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 18px;">
-              <div style="width: 34px; height: 34px; border-radius: 50%; background: rgba(0,229,255,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          <div class="card settings-card" style="border-top: 2px solid var(--accent-cyan);">
+            <div class="settings-card-header">
+              <div class="settings-card-icon" style="background: rgba(56,189,248,0.12);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
               </div>
               <div>
-                <div style="font-weight: 700; font-size: 0.95rem; color: var(--accent-cyan);">API Authentication</div>
-                <div style="font-size: 0.71rem; color: var(--text-secondary); margin-top: 1px;">Active IQ refresh token — required for all data sync</div>
+                <div class="settings-card-title" style="color: var(--accent-cyan);">API Authentication</div>
+                <div class="settings-card-desc">Active IQ refresh token — required for all data sync</div>
               </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label" for="settingsRefreshToken" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label" for="settingsRefreshToken" style="display:flex; justify-content:space-between; align-items:center;">
                 <span>Refresh Token</span>
-                <span style="font-size: 0.68rem; color: var(--accent-cyan); font-weight: 400; cursor: pointer;" onclick="const t=document.getElementById('settingsRefreshToken'); t.type=t.type==='password'?'text':'password'">👁 Toggle</span>
+                <span class="settings-toggle-link" onclick="const t=document.getElementById('settingsRefreshToken'); t.type=t.type==='password'?'text':'password'">👁 Toggle</span>
               </label>
-              <textarea id="settingsRefreshToken" class="form-input" rows="3" placeholder="Paste your Active IQ Refresh Token here..." style="font-family: var(--font-mono); font-size: 0.8rem; border-color: rgba(0,229,255,0.25); resize: vertical;"></textarea>
+              <textarea id="settingsRefreshToken" class="form-input" rows="3" placeholder="Paste your Active IQ Refresh Token here..." style="font-family: var(--font-mono); font-size: 0.79rem; resize: vertical; border-color: rgba(56,189,248,0.25);"></textarea>
               <div class="form-helper">Stored locally. Never sent to any third party. Auto-rotated on expiry.</div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 14px;">
+            <div class="form-group" style="margin-bottom: 12px;">
               <label class="form-label" for="settingsApiBaseUrl">API Base URL</label>
               <input type="text" id="settingsApiBaseUrl" class="form-input" placeholder="https://api.activeiq.netapp.com/v1">
               <div class="form-helper">Leave as default unless using a regional endpoint.</div>
             </div>
 
-            <div class="toggle-container" style="margin: 0; padding: 10px; background: rgba(0,0,0,0.15); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <label class="switch">
-                <input type="checkbox" id="settingsMockModeToggle">
-                <span class="slider"></span>
-              </label>
+            <div class="settings-toggle-row">
+              <label class="switch"><input type="checkbox" id="settingsMockModeToggle"><span class="slider"></span></label>
               <div>
-                <span style="font-weight: 600; display: block; font-size: 0.83rem;">Offline Demo Mode</span>
-                <span style="font-size: 0.7rem; color: var(--text-secondary);">Use mock data — no API token required.</span>
+                <span class="settings-toggle-label">Offline Demo Mode</span>
+                <span class="settings-toggle-desc">Use mock data — no API token required.</span>
               </div>
             </div>
           </div>
 
           <!-- CARD: Watchlist Scope -->
-          <div class="card" style="border-top: 3px solid #a78bfa;">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 18px;">
-              <div style="width: 34px; height: 34px; border-radius: 50%; background: rgba(167,139,250,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+          <div class="card settings-card" style="border-top: 2px solid #a78bfa;">
+            <div class="settings-card-header">
+              <div class="settings-card-icon" style="background: rgba(167,139,250,0.12);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
               </div>
               <div>
-                <div style="font-weight: 700; font-size: 0.95rem; background: linear-gradient(135deg, #a78bfa, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Watchlist Scope</div>
-                <div style="font-size: 0.71rem; color: var(--text-secondary); margin-top: 1px;">Filter your fleet by Active IQ watchlist membership</div>
+                <div class="settings-card-title" style="background: linear-gradient(135deg, #a78bfa, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Watchlist Scope</div>
+                <div class="settings-card-desc">Filter fleet by Active IQ watchlist membership</div>
               </div>
             </div>
 
-            <div class="toggle-container" style="margin-bottom: 14px; padding: 10px; background: rgba(167,139,250,0.06); border-radius: var(--radius-sm); border: 1px solid rgba(167,139,250,0.2);">
-              <label class="switch">
-                <input type="checkbox" id="settingsWatchlistOnlyToggle">
-                <span class="slider"></span>
-              </label>
+            <div class="settings-toggle-row" style="margin-bottom: 12px; border-color: rgba(167,139,250,0.2); background: rgba(167,139,250,0.05);">
+              <label class="switch"><input type="checkbox" id="settingsWatchlistOnlyToggle"><span class="slider"></span></label>
               <div>
-                <span style="font-weight: 600; display: block; font-size: 0.83rem;">Watchlist-Only Mode</span>
-                <span style="font-size: 0.7rem; color: var(--text-secondary);">Only show systems that belong to your watchlists.</span>
+                <span class="settings-toggle-label">Watchlist-Only Mode</span>
+                <span class="settings-toggle-desc">Only show systems that belong to your watchlists.</span>
               </div>
             </div>
 
             <div class="form-group" style="margin-bottom: 10px;">
               <label class="form-label">Watchlist IDs</label>
-              <textarea id="settingsWatchlistIds" class="form-input" rows="6" placeholder="One per line — Name = UUID or just UUID:&#10;&#10;My TAM Accounts = abc123-def456&#10;Priority Fleet = xyz987-uvw654&#10;&#10;IDs auto-discovered on next sync." style="resize: vertical; font-family: var(--font-mono); font-size: 0.76rem; border-color: rgba(167,139,250,0.25);"></textarea>
+              <textarea id="settingsWatchlistIds" class="form-input" rows="5" placeholder="One per line — Name = UUID or just UUID:&#10;&#10;My TAM Accounts = abc123-def456&#10;Priority Fleet = xyz987-uvw654&#10;&#10;IDs auto-discovered on next sync." style="resize: vertical; font-family: var(--font-mono); font-size: 0.76rem; border-color: rgba(167,139,250,0.25);"></textarea>
             </div>
 
-            <div id="watchlistScopeStatus" style="font-size: 0.71rem; color: var(--text-secondary); margin-bottom: 10px; padding: 6px 8px; background: rgba(167,139,250,0.05); border-radius: 4px; border-left: 2px solid rgba(167,139,250,0.4);">No watchlists imported. Showing all systems.</div>
+            <div id="watchlistScopeStatus" class="settings-status-banner" style="border-left-color: rgba(167,139,250,0.5); margin-bottom: 10px;">No watchlists imported. Showing all systems.</div>
 
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
               <button class="action-btn" style="font-size: 0.76rem; padding: 7px 12px; flex: 1; background: linear-gradient(135deg, rgba(167,139,250,0.2), rgba(129,140,248,0.15)); border-color: rgba(167,139,250,0.4);" onclick="resolveAndImportWatchlists()">📋 Resolve &amp; Sync</button>
               <button class="action-btn secondary" style="font-size: 0.76rem; padding: 7px 12px;" onclick="clearImportedWatchlists()">✕ Clear</button>
             </div>
-            <div class="form-helper" style="margin-top: 8px;">Find IDs at <a href="https://activeiq.netapp.com" target="_blank" style="color: #a78bfa;">activeiq.netapp.com</a> → Watchlists → copy UUID from URL.</div>
-          </div>
-
-          <!-- CARD: Sync Controls (right column — compact stack) -->
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-
-            <!-- Data Sync -->
-            <div class="card" style="border-top: 3px solid var(--accent-cyan); padding: 16px;">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(0,229,255,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                </div>
-                <div style="font-weight: 700; font-size: 0.85rem;">Data Sync</div>
-              </div>
-
-              <!-- Last / Next sync times -->
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.15); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                <div>
-                  <div style="color: var(--text-secondary); font-size: 0.64rem; text-transform: uppercase; margin-bottom: 2px;">Last Sync</div>
-                  <div id="syncLastTime" style="font-weight: 600; color: var(--text-primary); font-size: 0.76rem;">Never</div>
-                </div>
-                <div>
-                  <div style="color: var(--text-secondary); font-size: 0.64rem; text-transform: uppercase; margin-bottom: 2px;">Next</div>
-                  <div id="syncNextTime" style="font-weight: 600; color: var(--text-primary); font-size: 0.76rem;">Not set</div>
-                </div>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 10px;">
-                <label class="form-label" for="settingsSyncInterval" style="font-size: 0.68rem;">Auto-Sync Interval</label>
-                <select id="settingsSyncInterval" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer; font-size: 0.8rem;" onchange="updateScheduledSyncInfo()">
-                  <option value="0">Manual Only</option>
-                  <option value="6">Every 6 Hours</option>
-                  <option value="12">Every 12 Hours</option>
-                  <option value="24">Every 24 Hours</option>
-                  <option value="168">Every 7 Days</option>
-                </select>
-              </div>
-
-              <button class="action-btn" style="width: 100%; padding: 10px; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 7px; margin-bottom: 6px;" onclick="triggerManualSync()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncSpinnerIcon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                Sync Now
-              </button>
-              <button class="action-btn secondary" style="width: 100%; font-size: 0.74rem; padding: 7px;" onclick="runAPIDiagnostics()">🔬 Run Diagnostics</button>
-            </div>
-
-            <!-- Config Import / Export -->
-            <div class="card" style="padding: 14px; border: 1px solid var(--border-color);">
-              <div style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Config File</div>
-              <div style="display: flex; gap: 8px;">
-                <button class="action-btn secondary" onclick="triggerImportFileInput()" style="flex: 1; font-size: 0.74rem; padding: 7px 6px;">📥 Import</button>
-                <button class="action-btn secondary" onclick="exportConfigJSON()" style="flex: 1; font-size: 0.74rem; padding: 7px 6px;">📤 Export</button>
-              </div>
-            </div>
-
-            <!-- App Update -->
-            <div class="card" style="padding: 14px; border: 1px solid var(--border-color);">
-              <div style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Application</div>
-              <button class="action-btn secondary" id="appUpdateButton" onclick="updateApplicationCode()" style="width: 100%; font-size: 0.74rem; padding: 8px;">🔄 Update Application</button>
-            </div>
+            <div class="form-helper">Find IDs at <a href="https://activeiq.netapp.com" target="_blank" style="color: #a78bfa;">activeiq.netapp.com</a> → Watchlists → copy UUID from URL.</div>
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════
-             SECTION 2 — FLEET CONFIGURATION
-             3-column: Serial Numbers | Subgroup Manager | Setup Guide
-             ═══════════════════════════════════════════════════════════════ -->
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <div style="height: 1px; flex: 1; background: var(--border-color);"></div>
-          <span style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 700; white-space: nowrap;">Fleet Configuration</span>
-          <div style="height: 1px; flex: 1; background: var(--border-color);"></div>
+        <!-- Sync Controls Bar -->
+        <div class="settings-sync-bar">
+          <div class="settings-sync-times">
+            <div class="settings-sync-stat">
+              <div class="settings-sync-label">Last Sync</div>
+              <div id="syncLastTime" class="settings-sync-value">Never</div>
+            </div>
+            <div class="settings-sync-stat">
+              <div class="settings-sync-label">Next Scheduled</div>
+              <div id="syncNextTime" class="settings-sync-value">Not set</div>
+            </div>
+            <div class="settings-sync-stat">
+              <div class="settings-sync-label">Auto-Sync Interval</div>
+              <select id="settingsSyncInterval" class="form-input settings-sync-select" onchange="updateScheduledSyncInfo()">
+                <option value="0">Manual Only</option>
+                <option value="6">Every 6 Hours</option>
+                <option value="12">Every 12 Hours</option>
+                <option value="24">Every 24 Hours</option>
+                <option value="168">Every 7 Days</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-sync-actions">
+            <button class="action-btn secondary" style="font-size: 0.78rem; padding: 7px 14px;" onclick="runAPIDiagnostics()">🔬 Diagnostics</button>
+            <button class="action-btn" style="font-size: 0.85rem; padding: 9px 20px; font-weight: 700; display: flex; align-items: center; gap: 7px;" onclick="triggerManualSync()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncSpinnerIcon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Sync Now
+            </button>
+          </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 28px; align-items: start;">
+        <!-- ── Section: Fleet Configuration ─────────────────── -->
+        <div class="settings-section-label" style="margin-top: 24px;">Fleet Configuration</div>
+
+        <div class="settings-2col">
 
           <!-- CARD: Serial Numbers -->
-          <div class="card">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-              <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <div class="card settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
               </div>
               <div>
-                <div style="font-weight: 700; font-size: 0.88rem;">System Serial Numbers</div>
-                <div style="font-size: 0.69rem; color: var(--text-secondary);">Fallback when watchlists are not configured</div>
+                <div class="settings-card-title">System Serial Numbers</div>
+                <div class="settings-card-desc">Fallback when watchlists are not configured</div>
               </div>
             </div>
-            <div class="form-group" style="margin: 0;">
-              <textarea id="settingsSerialNumbers" class="form-input" rows="9" placeholder="Enter serial numbers (one per line):&#10;&#10;211839000195&#10;952239002356" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
-              <div class="form-helper" style="margin-top: 6px;">NetApp system serials to monitor directly.</div>
-            </div>
+            <textarea id="settingsSerialNumbers" class="form-input" rows="8" placeholder="Enter serial numbers (one per line):&#10;&#10;211839000195&#10;952239002356" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
+            <div class="form-helper" style="margin-top: 6px;">NetApp system serials to monitor directly.</div>
           </div>
 
-          <!-- CARD: Custom Subgroups Manager -->
-          <div class="card">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-              <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(255,179,0,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--status-warning)" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <!-- CARD: Custom Subgroups -->
+          <div class="card settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-icon" style="background: rgba(251,191,36,0.1);">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--status-warning)" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div>
-                <div style="font-weight: 700; font-size: 0.88rem;">Custom Subgroups</div>
-                <div style="font-size: 0.69rem; color: var(--text-secondary);">Named fleet partitions for filtered views</div>
+                <div class="settings-card-title">Custom Subgroups</div>
+                <div class="settings-card-desc">Named fleet partitions for filtered views</div>
               </div>
             </div>
             <div id="settingsGroupsManagerList" style="display: flex; flex-direction: column; gap: 6px; min-height: 60px;"></div>
           </div>
-
-          <!-- CARD: Setup Guide + Privacy -->
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            <div class="setup-box" style="margin: 0;">
-              <h3 style="font-size: 0.88rem; font-weight: 700; margin-bottom: 16px; color: var(--text-primary);">API Setup Guide</h3>
-              <div class="setup-step">
-                <div style="display: flex; align-items: center; margin-bottom: 6px;"><span class="step-num">1</span><span class="step-title">Log in to Portal</span></div>
-                <div class="step-desc">Open <a href="https://activeiq.netapp.com" target="_blank" class="external-link" onclick="window.open(this.href,'_blank');return false;">activeiq.netapp.com</a> and sign in with your NSS credentials.</div>
-              </div>
-              <div class="setup-step">
-                <div style="display: flex; align-items: center; margin-bottom: 6px;"><span class="step-num">2</span><span class="step-title">Generate API Token</span></div>
-                <div class="step-desc">Navigate to <strong>Quick Links</strong> → <strong>API Services</strong> → <strong>Generate Token</strong>.</div>
-              </div>
-              <div class="setup-step">
-                <div style="display: flex; align-items: center; margin-bottom: 6px;"><span class="step-num">3</span><span class="step-title">Paste &amp; Save</span></div>
-                <div class="step-desc">Paste the <strong>Refresh Token</strong> into the API Authentication card, then click <strong>Save Configuration</strong>.</div>
-              </div>
-              <div class="setup-step" style="margin-bottom: 0;">
-                <div style="display: flex; align-items: center; margin-bottom: 6px;"><span class="step-num">4</span><span class="step-title">Sync Data</span></div>
-                <div class="step-desc">Click <strong>Sync Now</strong>. Watchlists are auto-discovered — no manual ID entry needed.</div>
-              </div>
-            </div>
-
-            <div class="card" style="padding: 14px; border-left: 3px solid var(--status-info); background-color: rgba(0,188,212,0.02);">
-              <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 8px;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <div style="font-size: 0.76rem; font-weight: 700; color: var(--accent-cyan);">Data Privacy</div>
-              </div>
-              <p style="font-size: 0.7rem; line-height: 1.5; color: var(--text-secondary); margin: 0 0 4px;"><strong>AI-Free</strong>: Deterministic, local JS logic. No LLMs.</p>
-              <p style="font-size: 0.7rem; line-height: 1.5; color: var(--text-secondary); margin: 0 0 4px;"><strong>Local-only</strong>: Tokens in <code style="color: var(--accent-cyan);">localStorage</code>. No tracking.</p>
-              <p style="font-size: 0.7rem; line-height: 1.5; color: var(--text-secondary); margin: 0;"><strong>Read-only</strong>: NetApp TLS-secured API only. Not affiliated with NetApp, Inc.</p>
-            </div>
-          </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════
-             SECTION 3 — ADVANCED: SYSTEM METADATA EDITOR (collapsible)
-             ═══════════════════════════════════════════════════════════════ -->
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <div style="height: 1px; flex: 1; background: var(--border-color);"></div>
-          <span style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); font-weight: 700; white-space: nowrap;">Advanced</span>
-          <div style="height: 1px; flex: 1; background: var(--border-color);"></div>
-        </div>
+        <!-- ── Section: Advanced ─────────────────────────────── -->
+        <div class="settings-section-label" style="margin-top: 24px;">Advanced</div>
 
-        <!-- Metadata Editor -->
-        <div class="card" style="margin-bottom: 12px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="const b=document.getElementById('metadataEditorBody');const a=document.getElementById('metadataEditorArrow');const open=b.style.display!=='none';b.style.display=open?'none':'block';a.style.transform=open?'rotate(0deg)':'rotate(90deg)';">
+        <!-- Accordion: Metadata Editor -->
+        <div class="card settings-accordion" style="margin-bottom: 10px;">
+          <div class="settings-accordion-header" onclick="const b=document.getElementById('metadataEditorBody');const a=document.getElementById('metadataEditorArrow');const open=b.style.display!=='none';b.style.display=open?'none':'block';a.style.transform=open?'rotate(0deg)':'rotate(90deg)';">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 30px; height: 30px; border-radius: 50%; background: rgba(0,229,255,0.08); display: flex; align-items: center; justify-content: center;">
+              <div class="settings-card-icon" style="background: rgba(56,189,248,0.08);">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               </div>
               <div>
-                <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-cyan);">System Metadata &amp; Logistics Editor</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 1px;">Edit per-system contacts, logistics, CSAT, capacity projections, and support case data</div>
+                <div class="settings-card-title" style="color: var(--accent-cyan);">System Metadata &amp; Logistics Editor</div>
+                <div class="settings-card-desc">Edit per-system contacts, logistics, CSAT, capacity projections, and support data</div>
               </div>
             </div>
             <svg id="metadataEditorArrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" style="transform: rotate(90deg); transition: transform 0.2s; flex-shrink: 0;"><polyline points="9 18 15 12 9 6"/></svg>
@@ -850,7 +763,7 @@
               </div>
               <div style="display: flex; gap: 8px; padding-bottom: 0;">
                 <button class="action-btn" style="font-size: 0.78rem; padding: 9px 14px; white-space: nowrap;" onclick="createNewSystemPrompt()">+ New System</button>
-                <button class="action-btn secondary" style="font-size: 0.78rem; padding: 9px 14px; white-space: nowrap; border-color: rgba(255,51,102,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()">Delete</button>
+                <button class="action-btn secondary" style="font-size: 0.78rem; padding: 9px 14px; white-space: nowrap; border-color: rgba(248,113,113,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()">Delete</button>
               </div>
             </div>
 
@@ -858,8 +771,8 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px;">
               <!-- System Identity -->
-              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 14px; border-radius: var(--radius-sm);">
-                <h4 style="font-size: 0.72rem; color: var(--accent-cyan); margin-bottom: 10px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px;">System Identity</h4>
+              <div class="settings-meta-panel">
+                <h4 class="settings-meta-heading" style="color: var(--accent-cyan);">System Identity</h4>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editSystemName">System Name</label><input type="text" id="editSystemName" class="form-input"></div>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editSerialNumber">Serial Number</label><input type="text" id="editSerialNumber" class="form-input"></div>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editCustomerName">Customer Account</label><input type="text" id="editCustomerName" class="form-input"></div>
@@ -868,8 +781,8 @@
                 <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="editOntapVersion">ONTAP / GRID Version</label><input type="text" id="editOntapVersion" class="form-input"></div>
               </div>
               <!-- Logistics & Contact -->
-              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 14px; border-radius: var(--radius-sm);">
-                <h4 style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px;">Logistics &amp; Contact</h4>
+              <div class="settings-meta-panel">
+                <h4 class="settings-meta-heading">Logistics &amp; Contact</h4>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editDeliveryAddress">Site Address</label><input type="text" id="editDeliveryAddress" class="form-input"></div>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editAccessRestrictions">Access Restrictions</label><input type="text" id="editAccessRestrictions" class="form-input"></div>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editShippingAlert">Transit Alert</label><input type="text" id="editShippingAlert" class="form-input"></div>
@@ -879,8 +792,8 @@
                 <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="editNssUsername">NSS Account ID</label><input type="text" id="editNssUsername" class="form-input"></div>
               </div>
               <!-- Sales & Capacity -->
-              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 14px; border-radius: var(--radius-sm);">
-                <h4 style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px;">Sales &amp; Capacity</h4>
+              <div class="settings-meta-panel">
+                <h4 class="settings-meta-heading">Sales &amp; Capacity</h4>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editAccountManager">Account Manager</label><input type="text" id="editAccountManager" class="form-input"></div>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editSupportTam">TAM / SAM</label><input type="text" id="editSupportTam" class="form-input"></div>
                 <div class="form-group" style="margin-bottom: 8px;"><label class="form-label" for="editSentimentScore">CSAT Score</label><input type="number" id="editSentimentScore" class="form-input" min="1" max="10" step="0.1"></div>
@@ -899,34 +812,34 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-top: 14px; border-top: 1px dashed var(--border-color);">
               <div>
-                <h4 style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 700;">Security &amp; Technical Bulletins (JSON)</h4>
+                <h4 class="settings-meta-heading">Security &amp; Technical Bulletins (JSON)</h4>
                 <textarea id="editSecurityBulletinsJSON" class="form-input" rows="7" style="font-family: monospace; font-size: 0.78rem;"></textarea>
                 <div class="form-helper" style="margin-top: 4px;">Format: <code>[{"id":"NTAP-SA-XXX","title":"...","severity":"high","status":"Vulnerable","mitigation":"..."}]</code></div>
               </div>
               <div>
-                <h4 style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 700;">Open Support Cases (JSON)</h4>
+                <h4 class="settings-meta-heading">Open Support Cases (JSON)</h4>
                 <textarea id="editSupportCasesJSON" class="form-input" rows="7" style="font-family: monospace; font-size: 0.78rem;"></textarea>
                 <div class="form-helper" style="margin-top: 4px;">Format: <code>[{"id":"200981XXXX","title":"...","severity":"S3","status":"Open","createdDate":"2026-06-25"}]</code></div>
               </div>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
-              <button class="action-btn secondary" onclick="loadSelectedSystemMetadataForEdit()">↺ Discard Changes</button>
+              <button class="action-btn secondary" onclick="loadSelectedSystemMetadataForEdit()">&#8635; Discard Changes</button>
               <button class="action-btn" onclick="saveSystemMetadata()">💾 Save System Metadata</button>
             </div>
           </div>
         </div>
 
-        <!-- Subgroup Creator + GraphQL Console -->
-        <div class="card" style="margin-bottom: 20px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="const b=document.getElementById('advancedToolsBody');const a=document.getElementById('advancedToolsArrow');const open=b.style.display!=='none';b.style.display=open?'none':'block';a.style.transform=open?'rotate(0deg)':'rotate(90deg)';">
+        <!-- Accordion: Developer Tools -->
+        <div class="card settings-accordion" style="margin-bottom: 10px;">
+          <div class="settings-accordion-header" onclick="const b=document.getElementById('advancedToolsBody');const a=document.getElementById('advancedToolsArrow');const open=b.style.display!=='none';b.style.display=open?'none':'block';a.style.transform=open?'rotate(0deg)':'rotate(90deg)';">
             <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 30px; height: 30px; border-radius: 50%; background: rgba(0,229,255,0.08); display: flex; align-items: center; justify-content: center;">
+              <div class="settings-card-icon" style="background: rgba(56,189,248,0.08);">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
               </div>
               <div>
-                <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-cyan);">Developer Tools</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 1px;">Subgroup creator and live GraphQL query console</div>
+                <div class="settings-card-title" style="color: var(--accent-cyan);">Developer Tools</div>
+                <div class="settings-card-desc">Subgroup creator and live GraphQL query console</div>
               </div>
             </div>
             <svg id="advancedToolsArrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" style="transform: rotate(0deg); transition: transform 0.2s; flex-shrink: 0;"><polyline points="9 18 15 12 9 6"/></svg>
@@ -935,7 +848,7 @@
           <div id="advancedToolsBody" style="display: none; margin-top: 20px;">
             <div style="display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start;">
               <!-- Subgroup Creator -->
-              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+              <div class="settings-meta-panel">
                 <div class="section-title" id="subgroupFormTitle" style="margin-bottom: 14px; font-size: 0.85rem;">Create Custom Subgroup</div>
                 <div class="form-group">
                   <label class="form-label" for="newGroupNameInput">Subgroup Name</label>
@@ -950,9 +863,8 @@
                   <button id="cancelSubgroupEditBtn" class="action-btn secondary" style="display: none; font-size: 0.8rem;" onclick="cancelSubgroupEdit()">Cancel</button>
                 </div>
               </div>
-
               <!-- GraphQL Console -->
-              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+              <div class="settings-meta-panel">
                 <div style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan); margin-bottom: 4px;">GraphQL Query Console</div>
                 <div style="font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 14px;">Execute GraphQL queries to filter or aggregate Active IQ telemetry.</div>
                 <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-bottom: 14px;">
@@ -981,6 +893,45 @@
             </div>
           </div>
         </div>
+
+        <!-- Utility strip: Config file + App update + API Setup Guide + Privacy -->
+        <div class="settings-utility-strip">
+          <!-- Config File -->
+          <div class="settings-utility-card">
+            <div class="settings-utility-label">Config File</div>
+            <div style="display: flex; gap: 8px;">
+              <button class="action-btn secondary" onclick="triggerImportFileInput()" style="flex: 1; font-size: 0.74rem; padding: 7px 6px;">📥 Import</button>
+              <button class="action-btn secondary" onclick="exportConfigJSON()" style="flex: 1; font-size: 0.74rem; padding: 7px 6px;">📤 Export</button>
+            </div>
+          </div>
+          <!-- App Update -->
+          <div class="settings-utility-card">
+            <div class="settings-utility-label">Application</div>
+            <button class="action-btn secondary" id="appUpdateButton" onclick="updateApplicationCode()" style="width: 100%; font-size: 0.74rem; padding: 8px;">🔄 Update Application</button>
+          </div>
+          <!-- Setup Guide (compact) -->
+          <div class="settings-utility-card" style="flex: 2;">
+            <div class="settings-utility-label">API Setup Guide</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div class="settings-guide-step"><span class="step-num" style="width:18px;height:18px;font-size:0.65rem;">1</span> Log in to <a href="https://activeiq.netapp.com" target="_blank" onclick="window.open(this.href,'_blank');return false;" style="color:var(--accent-cyan);">activeiq.netapp.com</a></div>
+              <div class="settings-guide-step"><span class="step-num" style="width:18px;height:18px;font-size:0.65rem;">2</span> Quick Links → API Services → Generate Token</div>
+              <div class="settings-guide-step"><span class="step-num" style="width:18px;height:18px;font-size:0.65rem;">3</span> Paste Refresh Token above → Save Configuration</div>
+              <div class="settings-guide-step"><span class="step-num" style="width:18px;height:18px;font-size:0.65rem;">4</span> Click Sync Now — watchlists auto-discovered</div>
+            </div>
+          </div>
+          <!-- Privacy notice -->
+          <div class="settings-utility-card">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div style="font-size: 0.72rem; font-weight: 700; color: var(--accent-cyan);">Data Privacy</div>
+            </div>
+            <p style="font-size: 0.68rem; color: var(--text-secondary); margin: 0 0 3px; line-height: 1.45;"><strong>AI-Free</strong>: Deterministic, local JS. No LLMs.</p>
+            <p style="font-size: 0.68rem; color: var(--text-secondary); margin: 0 0 3px; line-height: 1.45;"><strong>Local-only</strong>: Tokens in <code style="color:var(--accent-cyan);">localStorage</code>. No tracking.</p>
+            <p style="font-size: 0.68rem; color: var(--text-secondary); margin: 0; line-height: 1.45;"><strong>Read-only</strong>: NetApp TLS API. Not affiliated with NetApp, Inc.</p>
+          </div>
+        </div>
+
+      </div>
 
 
 
