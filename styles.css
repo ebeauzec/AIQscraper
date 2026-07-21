@@ -1086,16 +1086,25 @@ input:checked + .slider:before {
   flex-shrink: 0;
 }
 
-/* Section divider label */
+/* Section divider label  ── CONNECTION & SYNC ── */
 .settings-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-weight: 700;
   color: var(--text-muted);
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 12px;
+  white-space: nowrap;
+}
+.settings-section-label::before,
+.settings-section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
 }
 
 /* Two-column card grid */
