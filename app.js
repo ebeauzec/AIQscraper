@@ -18440,6 +18440,10 @@ function switchTab(tabId) {
   const target = document.getElementById(`${tabId}Tab`);
   if (target) target.classList.add("active");
 
+  // Hide search/star-filter toolbar on Settings — those are fleet-view controls
+  const searchBox = document.querySelector(".search-box");
+  if (searchBox) searchBox.style.visibility = tabId === "settings" ? "hidden" : "";
+
   // Render specific tab scopes
   if (tabId === "overview") {
     updateOverviewKpis();
@@ -18470,6 +18474,7 @@ function switchTab(tabId) {
     updateScheduledSyncInfo();
   }
 }
+
 
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
