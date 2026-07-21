@@ -482,6 +482,7 @@ def _http(method, url, headers=None, body=None, _retry=True):
     - TLS: uses the shared ssl.SSLContext with corporate CA certs injected;
       on any TLS failure auto-scrapes cert stores and retries once.
     """
+    global _opener_cache
     hdrs = headers or {}
     data = None
     if body is not None:
@@ -502,7 +503,7 @@ def _http(method, url, headers=None, body=None, _retry=True):
         if _retry:
             print("  [TLS] Attempting cert store refresh and retry...", flush=True)
             _refresh_ssl_ctx()
-            global _opener_cache; _opener_cache = None  # force rebuild
+            _opener_cache = None  # force rebuild
             return _http(method, url, headers=headers, body=body, _retry=False)
         return 0, f"SSL error: {e}".encode("utf-8")
     except Exception as e:
@@ -514,7 +515,7 @@ def _http(method, url, headers=None, body=None, _retry=True):
             print(f"  [TLS] TLS-related error on {url}: {e}", flush=True)
             print("  [TLS] Attempting cert store refresh and retry...", flush=True)
             _refresh_ssl_ctx()
-            global _opener_cache; _opener_cache = None  # force rebuild
+            _opener_cache = None  # force rebuild
             return _http(method, url, headers=headers, body=body, _retry=False)
         return 0, str(e).encode("utf-8")
 
