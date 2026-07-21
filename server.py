@@ -932,6 +932,58 @@ def _do_full_harvest(watchlist_ids=None):
 
         print(f"  [HARVEST] Clusters: {len(all_clusters)}", flush=True)
 
+        # RC-3 Fix: if unscoped clusters returned 0 (privilege-restricted corp account)
+        # retry scoped to each known watchlist to recover SnapMirror/HA/switch/shelf data.
+        if len(all_clusters) == 0:
+            _wl_ids_for_cl = list(watchlist_ids or [])
+            for _w in _early_watchlists:
+                if _w not in set(_wl_ids_for_cl):
+                    _wl_ids_for_cl.append(_w)
+            if _wl_ids_for_cl:
+                print(f"  [HARVEST] Clusters=0 — retrying scoped to {len(_wl_ids_for_cl)} watchlist(s)...", flush=True)
+                _seen_cl_ids: set = set()
+                for _wl_cl_id in _wl_ids_for_cl[:10]:  # cap at 10 watchlists
+                    _cl_wl_cursor = None
+                    while True:
+                        _cl_after_arg = f', after: "{_cl_wl_cursor}"' if _cl_wl_cursor else ""
+                        _cl_wl_query = (
+                            '{ clusters(pageSize: 100, watchlistId: "' + _wl_cl_id + '"' + _cl_after_arg + ') {'
+                            ' cursor clusters {'
+                            ' id name managementIPAddress osVersion isHAConfigured ageInYears'
+                            ' osRecommendation { recommendedVersion }'
+                            ' snapMirrorRelationships { totalCount }'
+                            ' systems { serialNumber }'
+                            ' switches { switchSerialNumber deviceName role vendor model ipAddress'
+                            '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
+                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
+                            ' capacity {'
+                            '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
+                            '             qoqUtilizationPercentage yoyUtilizationPercentage }'
+                            '   logical { usedKiB } reportedOn }'
+                            ' monthlyCapacity { month'
+                            '   physical { usedKiB rawMarketingKiB qoqUtilizationPercentage } }'
+                            ' } } }'
+                        )
+                        _, _cl_r = _gql(token, _cl_wl_query)
+                        if not isinstance(_cl_r, dict):
+                            break
+                        if _cl_r.get("errors"):
+                            _cl_err = _cl_r["errors"][0].get("message", "")[:150]
+                            print(f"  [HARVEST] Clusters watchlist retry error (skipping): {_cl_err}", flush=True)
+                            break
+                        _cl_wl_data = (_cl_r.get("data") or {}).get("clusters") or {}
+                        _cl_wl_page = _cl_wl_data.get("clusters") or [] if isinstance(_cl_wl_data, dict) else []
+                        for _cl in _cl_wl_page:
+                            _cl_uid = _cl.get("id") or _cl.get("name")
+                            if _cl_uid and _cl_uid not in _seen_cl_ids:
+                                _seen_cl_ids.add(_cl_uid)
+                                all_clusters.append(_cl)
+                        _cl_new_cur = _cl_wl_data.get("cursor") if isinstance(_cl_wl_data, dict) else None
+                        if not _cl_wl_page or not _cl_new_cur or _cl_new_cur == _cl_wl_cursor:
+                            break
+                        _cl_wl_cursor = _cl_new_cur
+                print(f"  [HARVEST] Clusters (after watchlist retry): {len(all_clusters)}", flush=True)
+
         # 6. Fetch risk instances (paginated, 500 per page)
         print("  [HARVEST] Fetching risk instances...", flush=True)
         all_risk_instances = []
@@ -973,33 +1025,56 @@ def _do_full_harvest(watchlist_ids=None):
             cursor = new_cursor
         print(f"  [HARVEST] Total risk instances: {len(all_risk_instances)}", flush=True)
 
-        # 7. Fetch all support cases (active + closed — client will sort/highlight)
+        # 7. Fetch all support cases — paginated + fallback without productTypes if the
+        #    corp-network GQL proxy rejects the enum value.
         print("  [HARVEST] Fetching support cases...", flush=True)
-        _, cases_resp = _gql(token, """{
-          cases(pageSize: 500, productTypes: [FILER, SWApp]) {
-            totalCount
-            cases {
-              caseId
-              symptom
-              description
-              status
-              priority
-              highestPriority
-              created
-              lastUpdated
-              closed
-              type
-              category
-              subCategory
-              caseReceivedVia
-              reporterContact { name }
-              system { serialNumber hostName }
-            }
-          }
-        }""")
-        cases_data = (cases_resp.get("data") or {}).get("cases") or {} if isinstance(cases_resp, dict) else {}
-        all_cases = cases_data.get("cases") or [] if isinstance(cases_data, dict) else []
-        print(f"  [HARVEST] Cases: {len(all_cases)} (totalCount={cases_data.get('totalCount','?') if isinstance(cases_data, dict) else '?'})", flush=True)
+        all_cases = []
+
+        def _fetch_cases_pages(with_product_types=True):
+            """Paginate all cases. Returns list of case dicts, or None on GQL error."""
+            cases_out = []
+            c_cursor = None
+            c_page = 0
+            while True:
+                c_page += 1
+                c_after = f', after: "{c_cursor}"' if c_cursor else ""
+                c_pt    = ', productTypes: [FILER, SWApp]' if with_product_types else ''
+                _, cr = _gql(token, '{ cases(pageSize: 200' + c_after + c_pt + ''') {
+                    totalCount cursor
+                    cases {
+                      caseId symptom description status priority highestPriority
+                      created lastUpdated closed type category subCategory
+                      caseReceivedVia
+                      reporterContact { name }
+                      system { serialNumber hostName }
+                    }
+                  } }''')
+                if not isinstance(cr, dict):
+                    print(f"  [HARVEST] Cases GQL: non-dict response (network/proxy error)", flush=True)
+                    break
+                if cr.get("errors"):
+                    err_msg = cr["errors"][0].get("message", "")[:200]
+                    print(f"  [HARVEST] Cases GQL error: {err_msg}", flush=True)
+                    return None  # caller will retry without productTypes
+                c_data  = (cr.get("data") or {}).get("cases") or {}
+                c_items = c_data.get("cases") or [] if isinstance(c_data, dict) else []
+                cases_out.extend(c_items)
+                new_cur = c_data.get("cursor") if isinstance(c_data, dict) else None
+                print(f"  [HARVEST] Cases page {c_page}: {len(c_items)} "
+                      f"(total so far: {len(cases_out)}, totalCount={c_data.get('totalCount','?')})",
+                      flush=True)
+                if not c_items or not new_cur or new_cur == c_cursor:
+                    break
+                c_cursor = new_cur
+            return cases_out
+
+        # First attempt with productTypes filter; if corp proxy rejects enum, retry without
+        _cases_result = _fetch_cases_pages(with_product_types=True)
+        if _cases_result is None:
+            print("  [HARVEST] Cases: retrying without productTypes filter...", flush=True)
+            _cases_result = _fetch_cases_pages(with_product_types=False) or []
+        all_cases = _cases_result or []
+        print(f"  [HARVEST] Cases total: {len(all_cases)}", flush=True)
 
         # 8. Fetch customers (with sustainability)
         _, cust_resp = _gql(token, """{ customers(pageSize: 100) { customers {
@@ -1714,15 +1789,14 @@ def _enrich_all_versions(harvest_result):
         return (
             'storagegrid' in p or 'webscale' in p or
             # SG6xxx family: SG6060, SG6160, SG6112, SG6024, SG6000-CN…
-            'sg60' in p or 'sg61' in p or 'sg61' in p or 'sg6' in p or
+            'sg60' in p or 'sg61' in p or 'sg62' in p or 'sg6' in p or
             # SG5xxx family: SG5712, SG5760, SG5612…
             'sg5' in p or
             # SGF6xxx family: SGF6112, SGF6024, SGF6112-C…
             'sgf' in p or
             # SG100 / SG1000 admin nodes
             'sg100' in p or 'sg1000' in p or
-            # Catch-all 'sg1' prefix for future SG1xxx appliances
-            # (but NOT 'sg1' matching ONTAP strings – guarded by 'sg' prefix check)
+            # Catch-all: any 'sg' prefix followed by digits (future SG families)
             (p.startswith('sg') and any(c.isdigit() for c in p[2:4])) or
             # systemType / productType fields
             st == 'storagegrid' or
@@ -1738,7 +1812,9 @@ def _enrich_all_versions(harvest_result):
         prod_type = sys.get('productType') or ''
         if _is_storagegrid_platform(platform, sys_type, prod_type):
             etype = 'sg-version'
-        elif any(k in platform.lower() for k in ('e-series', 'ef6', 'ef3', 'e5700', 'e2800', 'ef50', 'ef80', 'e4000')):
+        elif (any(k in platform.lower() for k in ('e-series', 'ef6', 'ef3', 'e5700', 'e2800', 'ef50', 'ef80', 'e4000'))
+              or sys_type.lower() in ('eseries', 'e-series', 'e_series')
+              or prod_type.lower() in ('eseries', 'e-series', 'e_series', 'santricity')):
             etype = 'santricity-version'
         else:
             etype = 'ontap-version'
@@ -1836,22 +1912,38 @@ _ENRICH_UA = 'AIQ-Advisor/1.0 (enrichment; public data only)'
 
 
 def _enrich_fetch(url, timeout=12):
-    """Fetch URL, return (text, error). Uses urllib only.
-    Uses the shared SSL context so enterprise proxy CAs are trusted."""
+    """Fetch URL, return (text, error). Uses the shared proxy-aware opener so that
+    on corporate networks (Zscaler/WPAD) the request is correctly routed through
+    the system HTTP proxy — docs.netapp.com, nvd.nist.gov, security.netapp.com
+    are all proxied on corporate networks and fail silently without this.
+    Falls back to a cert-store refresh + opener rebuild on any TLS error."""
+    global _opener_cache
     req = urllib.request.Request(url, headers={'User-Agent': _ENRICH_UA})
     try:
-        with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as r:
+        with _get_opener().open(req, timeout=timeout) as r:
             return r.read().decode('utf-8', errors='replace'), None
     except ssl.SSLError as e:
-        # Auto-refresh cert store and retry once
+        # Auto-refresh cert store, rebuild opener, and retry once
         _refresh_ssl_ctx()
+        _opener_cache = None  # force rebuild with refreshed SSL context
         try:
-            with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=timeout) as r:
+            with _get_opener().open(req, timeout=timeout) as r:
                 return r.read().decode('utf-8', errors='replace'), None
         except Exception as e2:
             return None, str(e2)
     except Exception as e:
-        return None, str(e)
+        err_str = str(e)
+        # Also catch TLS errors wrapped inside urllib exceptions (e.g. from proxy)
+        if any(k in err_str for k in ('SSL', 'CERTIFICATE', 'certificate verify failed',
+                                       'UNABLE_TO_VERIFY', 'DEPTH_ZERO', 'CERT_UNTRUSTED')):
+            _refresh_ssl_ctx()
+            _opener_cache = None
+            try:
+                with _get_opener().open(req, timeout=timeout) as r:
+                    return r.read().decode('utf-8', errors='replace'), None
+            except Exception as e2:
+                return None, str(e2)
+        return None, err_str
 
 
 def _strip_html_tags(text):
@@ -3773,6 +3865,36 @@ if __name__ == '__main__':
         daemon=True,
         name="tls-probe"
     ).start()
+
+    # Advisory scan: run in background if bulletins DB is absent or stale (>12 h old).
+    # This ensures the security bulletin database is always fresh without blocking startup.
+    def _startup_advisory_scan():
+        import time as _time
+        _time.sleep(45)  # wait for TLS probe + cert-store rebuild to complete first
+        try:
+            should_scan = not BULLETINS_PATH.exists()
+            if not should_scan:
+                try:
+                    _bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+                    _last = _bdata.get('lastUpdated') or _bdata.get('lastScanned', '')
+                    if _last:
+                        _last_dt = datetime.fromisoformat(_last.replace('Z', '+00:00'))
+                        _age_h = (datetime.now(timezone.utc) - _last_dt).total_seconds() / 3600
+                        should_scan = _age_h > 12
+                    else:
+                        should_scan = True
+                except Exception:
+                    should_scan = True
+            if should_scan:
+                print("  [STARTUP] Bulletins DB absent or stale — running background advisory scan...", flush=True)
+                scan_and_persist_advisories()
+                print("  [STARTUP] Background advisory scan complete.", flush=True)
+            else:
+                print("  [STARTUP] Bulletins DB is fresh — skipping advisory scan.", flush=True)
+        except Exception as _scan_err:
+            print(f"  [STARTUP] Advisory scan failed: {_scan_err}", flush=True)
+
+    threading.Thread(target=_startup_advisory_scan, daemon=True, name="startup-advisory-scan").start()
 
     print(f"Starting CORS Proxy Web Server on port {PORT}...")
     if cached:
