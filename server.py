@@ -1460,6 +1460,11 @@ def _do_full_harvest(watchlist_ids=None):
                 "capacityAllocatedKB": 0,
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),
+                # TB-scale aliases that app.js enrichSystemTelemetry reads directly
+                "clusterPhysicalUsedTB": round(_used_kib / (1024**3), 3) if _used_kib else 0,
+                "clusterRawCapacityTB":  round(_raw_kib  / (1024**3), 3) if _raw_kib  else 0,
+                "clusterUsableCapacityTB": round(_usbl_kib / (1024**3), 3) if _usbl_kib else 0,
+                "clusterLogicalUsedTB": round(_log_kib / (1024**3), 3) if _log_kib else 0,
                 "dataReductionRatio": _data_red or cap_eff.get("dataReductionRatio"),
                 "clusterQoQUtilPct": _qoq,
                 "clusterYoYUtilPct": _yoy,
@@ -1506,6 +1511,13 @@ def _do_full_harvest(watchlist_ids=None):
                                         watchlists_out.append({"id": wid, "name": wname, "systemSerials": []})
                             if watchlists_out:
                                 print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from {wl_path}", flush=True)
+                                # Persist resolved names so fallback runs keep real names
+                                try:
+                                    _cfg_w = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                                    _cfg_w["watchlistNames"] = {w["id"]: w["name"] for w in watchlists_out}
+                                    CONFIG_PATH.write_text(json.dumps(_cfg_w, indent=2), encoding="utf-8")
+                                except Exception:
+                                    pass
                                 break
                 except Exception:
                     pass
@@ -1525,6 +1537,13 @@ def _do_full_harvest(watchlist_ids=None):
                             watchlists_out.append({"id": wid, "name": wname, "systemSerials": []})
                 if watchlists_out:
                     print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from GQL", flush=True)
+                    # Persist GQL-resolved names so fallback uses real names
+                    try:
+                        _cfg_w = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                        _cfg_w["watchlistNames"] = {w["id"]: w["name"] for w in watchlists_out}
+                        CONFIG_PATH.write_text(json.dumps(_cfg_w, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
             except Exception as _wl_gql_e:
                 print(f"  [HARVEST] GQL watchlist discovery skipped: {_wl_gql_e}", flush=True)
 
