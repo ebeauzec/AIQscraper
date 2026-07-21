@@ -2902,6 +2902,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/api/app/update':
             self.handle_app_update()
+        elif self.path.startswith('/api/harvest'):
+            # POST /api/harvest and POST /api/harvest?force=1 both trigger harvest
+            self.handle_harvest()
         elif self.path == '/api/config':
             self.handle_config_post()
         elif self.path.startswith('/api/bulletins'):
@@ -2910,7 +2913,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_import()
         elif self.path == '/api/asup/associate':
             self.handle_asup_associate()
-        elif self.path.startswith('/api/') or self.path == '/graphql':
+        elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
             self.send_error(404, "Not Found")
