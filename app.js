@@ -17754,10 +17754,14 @@ async function saveSettings() {
   // The server reads from disk — not localStorage — so this POST is essential.
   if (state.isRunningViaProxy && refresh) {
     try {
-      const cfgRes = await fetch("/api/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: refresh })
+        // Include the first resolved watchlist ID so the server can scope harvests
+        const wlIds = state.watchlists && state.watchlists.length > 0
+          ? state.watchlists[0].id
+          : (safeGetItem("aiq_watchlist_ids_text") || "").split(/[,\n]+/).map(s => s.trim()).filter(Boolean)[0] || "";
+        const cfgRes = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: refresh, watchlistId: wlIds })
       });
       if (cfgRes.ok) {
         console.log("[CONFIG] Refresh token persisted to server config.");
@@ -20424,5 +20428,32 @@ window.afterHarvestComplete = function(...args) {
 
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(loadPersistedAsupImports, 3000);
+
+  // Auto-restore token + watchlist ID from localStorage to the server on every
+  // page load — so a server restart never requires a manual re-save.
+  setTimeout(async function autoRestoreServerConfig() {
+    try {
+      const token = safeGetItem("aiq_refresh_token") || safeGetItem("aiq_token") || "";
+      if (!token || !state.isRunningViaProxy) return;
+      // Check if server already has a token
+      const check = await fetch("/api/harvest?t=" + Date.now()).catch(() => null);
+      if (!check) return;
+      const data = await check.json().catch(() => ({}));
+      if (data && data.status === "setup_required") {
+        // Server lost config — restore from localStorage
+        const wlIds = state.watchlists && state.watchlists.length > 0
+          ? state.watchlists[0].id
+          : (safeGetItem("aiq_watchlist_ids_text") || "").split(/[,\n]+/).map(s => s.trim()).filter(Boolean)[0] || "";
+        await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: token, watchlistId: wlIds })
+        });
+        console.log("[CONFIG] Auto-restored server config from localStorage (token + watchlistId).");
+      }
+    } catch (e) {
+      console.warn("[CONFIG] Auto-restore failed:", e);
+    }
+  }, 2000);
 });
 
