@@ -18,13 +18,13 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.6";
+const APP_VERSION = "3.6.7";
 
 const APP_CHANGELOG = [
   {
-    version: "2026.07.20",
-    date: "20 July 2026",
-    title: "Full Reference Library Sync — DataPelago, AFX Scale, Keystone, EOA Switches",
+    version: "2026.07.21",
+    date: "21 July 2026",
+    title: "Reference Library Sync — AFX 2K/Nexus 9808 NX-OS requirement + Nutanix AHV platform subset both upgraded to primary-source-confirmed",
     sections: [
       {
         icon: "🤖",
@@ -45,7 +45,7 @@ const APP_CHANGELOG = [
           "Press-reported 128 controllers / 1EB remains unconfirmed by any directly-fetchable primary source — do not use in customer sizing conversations",
           "Hardware Universe is authoritative for per-release limits; scale ceiling is explicitly release-dependent and still expanding",
           "AFX ATM (Automated Topology Management) is performance-aware from ONTAP 9.18.1 — prior releases balanced on volume count only, not node load",
-          "AFX 2K existence: primary-source confirmed (docs.netapp.com/us-en/ontap-systems/afx/, contributor-dated 2026-06-30). Form factor / 4-node min / NX-OS 10.6 for 9808 switches still unconfirmed via direct-fetch spec page."
+          "AFX 2K existence: primary-source confirmed (docs.netapp.com/us-en/ontap-systems/afx/, contributor-dated 2026-06-30). NX-OS 10.6 + ONTAP 9.19.1GA+ requirement for Nexus 9808: now primary-source-confirmed (docs.netapp.com configure-upgrade-nxos-9808.html, dated 07/09/2026). 4-node minimum still search-sourced pending dedicated AFX 2K requirements page."
         ]
       },
       {
@@ -66,7 +66,7 @@ const APP_CHANGELOG = [
         items: [
           "Keystone STaaS added to integration notes: subscription-based opex storage across AFF/FAS/ASA/AFX/CVO",
           "EOA switch list confirmed: BES-53248, Cisco 9336C-FX2, NVIDIA SN2100 are officially End-of-Availability alongside their matched controller hardware",
-          "Nutanix AHV partnership: still Early Access (GA targeted Q3 2026, not yet announced as of 2026-07-20)",
+          "Nutanix AHV partnership: still Early Access (GA targeted Q3 2026, not yet announced as of 2026-07-21). Platform subset now primary-source-confirmed: AFF all-flash A-series + select FAS hybrid-flash (NetApp press release news-rel-20260407-695711, direct-fetched 2026-07-21).",
           "A300 and FAS2600: EOS dates now past — no vendor security remediation path",
           "AFX interop: Unified ONTAP partner cluster must be 9.16.1+ for SnapMirror/FlexCache with AFX. FlexCache write-back NOT supported on AFX."
         ]
@@ -5582,11 +5582,13 @@ const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   // Source: docs.netapp.com/us-en/ontap-technical-reports/afx-overview/afx-overview-hardware.html
   // AFX 2K existence confirmed primary-source 2026-07-20 — adds NVRAM12-EX module
   // AFX 1K uses 9332D-GX2B or 9364D-GX2A; AFX 2K also supports Cisco Nexus 9808
-  // NX-OS 10.6+ required for AFX 2K switches on ONTAP 9.19.1 GA+ (search-sourced, not yet direct-fetch confirmed)
+  // NX-OS 10.6+ + ONTAP 9.19.1GA+ required for AFX 2K Nexus 9808 switches: PRIMARY-SOURCE CONFIRMED 2026-07-21
+  // Source: docs.netapp.com/us-en/ontap-systems-switches/switch-cisco-9808/configure-upgrade-nxos-9808.html (dated 07/09/2026)
+  // Verbatim: "For switches in an AFX 2K system, running ONTAP 9.19.1GA or later and NX-OS 10.6 and later is supported."
   "NSM140":           { recommended: "current", label: "NSM140 NVMe Shelf Module (AFX NX224 shelves ONLY — NOT interchangeable with NSM100/NSM100B). AFX 2K also uses NSM140." },
   "Cisco 9332D-GX2B": { recommended: "10.4.2",  label: "Cisco Nexus 9332D-GX2B (AFX 1K cluster switch, 400GbE, 1U)" },
   "Cisco 9364D-GX2A": { recommended: "10.4.2",  label: "Cisco Nexus 9364D-GX2A (AFX 1K cluster switch, 400GbE, 2U)" },
-  "Cisco 9808":       { recommended: "10.6",     label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only; NX-OS 10.6+ required for ONTAP 9.19.1 GA+)" }
+  "Cisco 9808":       { recommended: "10.6",     label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only; NX-OS 10.6+ required for ONTAP 9.19.1GA+). PRIMARY-SOURCE CONFIRMED 2026-07-21 (docs.netapp.com configure-upgrade-nxos-9808.html, 07/09/2026)." }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5698,7 +5700,8 @@ const REFERENCE_LIBRARY_INTEGRATION_NOTES = {
     pbs:       "Proxmox Backup Server (PBS) with ONTAP: separate from SMP — PBS incremental/dedup/compression/encryption backup; NetApp docs cover deploying against ONTAP with SnapMirror DR."
   },
   nutanix: {
-    status: "Early Access (EA) — GA targeted Q3 2026. No GA announcement as of 2026-07-20 (deep into Q3).",
+    status: "Early Access (EA) — GA targeted Q3 2026. No GA announcement as of 2026-07-21 (deep into Q3).",
+    gaTargetPlatforms: "GA platform subset PRIMARY-SOURCE CONFIRMED 2026-07-21: NetApp AFF all-flash A-series + select FAS hybrid-flash systems. Source: NetApp press release news-rel-20260407-695711, 'Availability' section direct-fetched. Cisco FlexPod with Nutanix also mentioned for later availability. No specific GA month announced.",
     architecture: "Disaggregated: Nutanix AHV/Prism for compute/virtualization, ONTAP NFS for external storage with VM-level snapshot/replication/tiering granularity.",
     arpIntegration: "ARP/AI integrated 'backed by a recovery guarantee' (vendor framing — confirm program terms before quoting as a blanket SLA).",
     migration: "Shift Toolkit + Nutanix Move 'Fast Migration' pairing for data-in-place VM conversions — named part of official integration. Detailed technical compatibility docs pending (EA stage).",
