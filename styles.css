@@ -61,9 +61,9 @@ body {
   display: flex;
   flex-direction: column;
   padding: 24px;
-  height: 100%;
-  overflow: hidden;
   box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .logo-container {
