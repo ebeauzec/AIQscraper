@@ -81,35 +81,26 @@ _CORP_PROXY_HINTS = [
 
 def _scrape_win_certs():
     """Return list of PEM strings from the Windows Root + CA certificate stores.
-    Uses certutil.exe (built-in on all Windows versions) — no pip installs needed.
-    Also checks CurrentUser\\Root and LocalMachine\\Root stores."""
+    Uses ssl.enum_certificates() — built into Python's ssl module on Windows.
+    This is the correct stdlib approach: reads the Windows cert store directly
+    in DER format and converts each certificate to PEM. No certutil parsing needed."""
     pems = []
     if sys.platform != "win32":
         return pems
 
-    stores = ["Root", "CA", "AuthRoot"]
+    import base64
+
+    stores = ["ROOT", "CA", "AUTHROOT", "MY"]
     for store in stores:
-        for store_loc in ["-user", ""]:
-            try:
-                args = ["certutil.exe", "-store"]
-                if store_loc == "-user":
-                    args.append("-user")
-                args.append(store)
-                result = subprocess.run(
-                    args,
-                    capture_output=True, text=True, timeout=15,
-                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-                )
-                output = result.stdout or ""
-                # Extract PEM blocks — certutil outputs base64 with header/footer
-                # Pattern: "-----BEGIN CERTIFICATE-----" ... "-----END CERTIFICATE-----"
-                found = re.findall(
-                    r'(-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----)',
-                    output
-                )
-                pems.extend(found)
-            except Exception as exc:
-                print(f"  [TLS] certutil store={store} loc={store_loc}: {exc}", flush=True)
+        try:
+            for cert_der, encoding, trust in ssl.enum_certificates(store):
+                if encoding == "x509_asn":
+                    # Convert DER → PEM
+                    b64 = base64.encodebytes(cert_der).decode("ascii")
+                    pem = f"-----BEGIN CERTIFICATE-----\n{b64}-----END CERTIFICATE-----\n"
+                    pems.append(pem)
+        except Exception as exc:
+            print(f"  [TLS] ssl.enum_certificates store={store}: {exc}", flush=True)
 
     # Deduplicate by content
     seen = set()
@@ -121,6 +112,7 @@ def _scrape_win_certs():
             unique.append(key)
     print(f"  [TLS] Windows cert store: found {len(unique)} certificates", flush=True)
     return unique
+
 
 
 def _scrape_firefox_certs():
