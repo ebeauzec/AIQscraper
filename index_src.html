@@ -575,420 +575,324 @@
           <div id="generatedPlanBody" class="plan-document-body">
             <!-- Action plan compiles here -->
           </div>
-        <!-- VIEW: SETTINGS & CONFIG -->
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: SETTINGS & CONFIG -->
       <div id="settingsTab" class="tab-content">
-              <div class="section-title" style="margin-bottom: 24px;">API Authentication Configuration</div>
-              
-              <div class="toggle-container">
-                <label class="switch">
-                  <input type="checkbox" id="settingsMockModeToggle">
-                  <span class="slider"></span>
-                </label>
+        <h2 style="font-weight: 700; font-size: 1.5rem; margin-bottom: 8px;">Settings &amp; Configuration</h2>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 32px;">Connect your Active IQ API, configure watchlists, and manage your fleet metadata below.</p>
+
+        <!-- ROW 1 — HERO: API Key + Watchlists + Quick Actions (3-column) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 320px; gap: 20px; margin-bottom: 20px; align-items: start;">
+
+          <!-- CARD 1A: API Authentication -->
+          <div class="card" style="border-top: 3px solid var(--accent-cyan); position: relative;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+              <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(0,229,255,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+              </div>
+              <div>
+                <div class="section-title" style="margin-bottom: 2px; font-size: 1rem;">API Authentication</div>
+                <div style="font-size: 0.72rem; color: var(--text-secondary);">Your Active IQ refresh token — required for all data sync</div>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="form-label" for="settingsRefreshToken">
+                Active IQ Refresh Token
+                <span style="float: right; font-size: 0.7rem; color: var(--accent-cyan); font-weight: 400; cursor: pointer;" onclick="document.getElementById('settingsRefreshToken').type = document.getElementById('settingsRefreshToken').type === 'password' ? 'text' : 'password'">👁 Toggle visibility</span>
+              </label>
+              <textarea id="settingsRefreshToken" class="form-input" rows="3" placeholder="Paste your Active IQ Refresh Token here..." style="font-family: var(--font-mono); font-size: 0.82rem; border-color: rgba(0,229,255,0.3);"></textarea>
+              <div class="form-helper">Stored locally in your browser's private localStorage. Never sent to any third party. Auto-rotated on expiry.</div>
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="form-label" for="settingsApiBaseUrl">API Base URL</label>
+              <input type="text" id="settingsApiBaseUrl" class="form-input" placeholder="https://api.activeiq.netapp.com/v1">
+              <div class="form-helper">Leave as default unless using a regional or internal endpoint.</div>
+            </div>
+            <div class="toggle-container" style="margin-bottom: 12px;">
+              <label class="switch">
+                <input type="checkbox" id="settingsMockModeToggle">
+                <span class="slider"></span>
+              </label>
+              <div>
+                <span style="font-weight: 600; display: block; font-size: 0.85rem;">Offline Demo Mode</span>
+                <span style="font-size: 0.72rem; color: var(--text-secondary);">Use mock data — no API token required.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 1B: Watchlist Configuration -->
+          <div class="card" style="border-top: 3px solid #a78bfa; position: relative;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+              <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(167,139,250,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+              </div>
+              <div>
+                <div class="section-title" style="margin-bottom: 2px; font-size: 1rem; background: linear-gradient(135deg, #a78bfa, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Watchlist Scope</div>
+                <div style="font-size: 0.72rem; color: var(--text-secondary);">Filter your fleet by Active IQ watchlist membership</div>
+              </div>
+            </div>
+            <div class="toggle-container" style="margin-bottom: 16px; padding: 10px; background: rgba(167,139,250,0.06); border-radius: var(--radius-sm); border: 1px solid rgba(167,139,250,0.2);">
+              <label class="switch">
+                <input type="checkbox" id="settingsWatchlistOnlyToggle">
+                <span class="slider"></span>
+              </label>
+              <div>
+                <span style="font-weight: 600; display: block; font-size: 0.85rem;">Watchlist-Only Mode</span>
+                <span style="font-size: 0.72rem; color: var(--text-secondary);">Only show systems that are in your watchlists.</span>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label">Watchlist IDs</label>
+              <textarea id="settingsWatchlistIds" class="form-input" rows="5" placeholder="One per line — Name = UUID or just UUID:&#10;&#10;My TAM Accounts = abc123-def456&#10;Priority Fleet = xyz987-uvw654&#10;&#10;IDs auto-discovered on next sync." style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem; border-color: rgba(167,139,250,0.3);"></textarea>
+              <div id="watchlistScopeStatus" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; padding: 6px 8px; background: rgba(167,139,250,0.05); border-radius: 4px; border-left: 2px solid rgba(167,139,250,0.4);">No watchlists imported. Showing all systems.</div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="action-btn" style="font-size: 0.78rem; padding: 7px 14px; flex: 1; background: linear-gradient(135deg, rgba(167,139,250,0.2), rgba(129,140,248,0.15)); border-color: rgba(167,139,250,0.4);" onclick="resolveAndImportWatchlists()">📋 Resolve &amp; Sync</button>
+              <button class="action-btn secondary" style="font-size: 0.78rem; padding: 7px 14px;" onclick="clearImportedWatchlists()">✕ Clear</button>
+            </div>
+            <div class="form-helper" style="margin-top: 8px;">Find IDs at <a href="https://activeiq.netapp.com" target="_blank" style="color: #a78bfa;">activeiq.netapp.com</a> → Watchlists → copy UUID from URL. Watchlists are also <strong>auto-discovered</strong> from the API on every sync.</div>
+          </div>
+
+          <!-- CARD 1C: Quick Actions + Sync Status -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="card" style="border-top: 3px solid #34d399; padding: 20px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(52,211,153,0.15); display: flex; align-items: center; justify-content: center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </div>
+                <div class="section-title" style="margin: 0; font-size: 0.9rem; color: #34d399;">Save &amp; Apply</div>
+              </div>
+              <button class="action-btn" onclick="saveSettings()" style="width: 100%; padding: 12px; font-size: 0.9rem; font-weight: 700; background: linear-gradient(135deg, rgba(52,211,153,0.2), rgba(16,185,129,0.15)); border-color: rgba(52,211,153,0.4); margin-bottom: 8px;">💾 Save Configuration</button>
+              <div style="display: flex; gap: 8px;">
+                <button class="action-btn secondary" onclick="triggerImportFileInput()" style="flex: 1; font-size: 0.75rem; padding: 7px 8px;">📥 Import</button>
+                <button class="action-btn secondary" onclick="exportConfigJSON()" style="flex: 1; font-size: 0.75rem; padding: 7px 8px;">📤 Export</button>
+              </div>
+            </div>
+
+            <div class="card" style="border-top: 3px solid var(--accent-cyan); padding: 20px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,229,255,0.1); display: flex; align-items: center; justify-content: center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                </div>
+                <div class="section-title" style="margin: 0; font-size: 0.9rem;">Data Sync</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.15); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
                 <div>
-                  <span style="font-weight: 600; display: block; font-size: 0.9rem;">Enable Offline Demo Mode (Mock Data)</span>
-                  <span style="font-size: 0.75rem; color: var(--text-secondary);">Render mock customer systems, risks, and lifecycle data to test application layout.</span>
+                  <div style="color: var(--text-secondary); font-size: 0.68rem; text-transform: uppercase; margin-bottom: 2px;">Last Sync</div>
+                  <div id="syncLastTime" style="font-weight: 600; color: var(--text-primary); font-size: 0.8rem;">Never</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-secondary); font-size: 0.68rem; text-transform: uppercase; margin-bottom: 2px;">Next Scheduled</div>
+                  <div id="syncNextTime" style="font-weight: 600; color: var(--text-primary); font-size: 0.8rem;">Not set</div>
                 </div>
               </div>
-              
-              <div class="toggle-container" style="margin-top: 16px;">
-                <label class="switch">
-                  <input type="checkbox" id="settingsWatchlistOnlyToggle">
-                  <span class="slider"></span>
-                </label>
-                <div>
-                  <span style="font-weight: 600; display: block; font-size: 0.9rem;">Watchlist-Only Synchronization</span>
-                  <span style="font-size: 0.75rem; color: var(--text-secondary);">Only synchronize and display systems that are member nodes of your Active IQ Watchlists.</span>
-                </div>
-              </div>
-              
-              <div class="form-group">
-                <label class="form-label" for="settingsRefreshToken">Active IQ Developer Refresh Token</label>
-                <textarea id="settingsRefreshToken" class="form-input" rows="3" placeholder="Enter your Active IQ Refresh Token..."></textarea>
-                <div class="form-helper">This token is persisted locally inside your browser's private localStorage and rotated automatically.</div>
-              </div>
-
-              <div class="form-group" style="margin-top: 16px;">
-                <label class="form-label" for="settingsApiBaseUrl">Active IQ API Base Endpoint URL</label>
-                <input type="text" id="settingsApiBaseUrl" class="form-input" placeholder="https://api.activeiq.netapp.com/v1">
-                <div class="form-helper">The REST API gateway URL for NetApp Active IQ endpoints.</div>
-              </div>
-
-              <div class="form-group" style="margin-top: 16px;">
-                <label class="form-label" for="settingsSerialNumbers">System Serial Numbers</label>
-                <textarea id="settingsSerialNumbers" class="form-input" rows="4" placeholder="Enter serial numbers (one per line, or comma-separated)&#10;e.g. 211839000195, 952239002356" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
-                <div class="form-helper">Serial numbers of NetApp systems to monitor. The app queries each serial via the Active IQ cluster view API. Add more serials to expand your inventory.</div>
-              </div>
-
-              <div class="form-group" style="margin-top: 16px;">
-                <label class="form-label" for="settingsSyncInterval">Auto-Polling / Sync Interval</label>
-                <select id="settingsSyncInterval" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer;" onchange="updateScheduledSyncInfo()">
-                  <option value="0">Manual Only (no auto-sync)</option>
-                  <option value="1">Every 1 Hour</option>
-                  <option value="2">Every 2 Hours</option>
-                  <option value="3">Every 3 Hours</option>
-                  <option value="4">Every 4 Hours</option>
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label class="form-label" for="settingsSyncInterval" style="font-size: 0.72rem;">Auto-Sync Interval</label>
+                <select id="settingsSyncInterval" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer; font-size: 0.82rem;" onchange="updateScheduledSyncInfo()">
+                  <option value="0">Manual Only</option>
                   <option value="6">Every 6 Hours</option>
                   <option value="12">Every 12 Hours</option>
-                  <option value="24">Every 24 Hours (Daily)</option>
-                  <option value="168">Every 7 Days (Weekly)</option>
-                </select>
-                <div class="form-helper">Controls how often the app polls the Active IQ API and refreshes the security advisory database in the background. Requires the server to be running.</div>
-              </div>
-
-              <div class="form-group" style="margin-top: 16px;">
-                <label class="form-label">Watchlist Import</label>
-                <textarea id="settingsWatchlistIds" class="form-input" rows="4" placeholder="Paste your watchlist entries (one per line):&#10;My TAM Accounts = abc123-def456-ghi789&#10;Priority Customers = xyz987-uvw654-rst321&#10;&#10;Find IDs at activeiq.netapp.com → Watchlists → URL" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
-                <div id="watchlistScopeStatus" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px;">
-                  No watchlists imported. Showing all systems.
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                  <button class="action-btn" style="font-size: 0.78rem; padding: 6px 16px;" onclick="resolveAndImportWatchlists()" data-tooltip="Query Active IQ GraphQL to resolve which systems belong to each watchlist ID, then show them in the sidebar.">
-                    📋 Resolve & Import Watchlists
-                  </button>
-                  <button class="action-btn secondary" style="font-size: 0.78rem; padding: 6px 16px;" onclick="clearImportedWatchlists()" data-tooltip="Remove all imported watchlists and show the full fleet again.">
-                    Clear
-                  </button>
-                </div>
-                <div class="form-helper" style="margin-top: 4px;">
-                  <strong>How to find your watchlist IDs:</strong> Go to <a href="https://activeiq.netapp.com" target="_blank" style="color: var(--accent-cyan);">activeiq.netapp.com</a> → click a watchlist → copy the ID from the URL bar (the UUID after <code>/watchlist/</code>).
-                  Enter one watchlist per line in the format: <code>Name = ID</code> (or just the ID alone).
-                  After resolving, your watchlists appear in the sidebar under "Active IQ Watchlists" as filters.
-                </div>
-              </div>
-
-              <div id="syncStatusPanel" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-top: 16px;">
-                <h4 style="font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 8px; font-weight: 700; text-transform: uppercase;">Synchronization Metrics</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.8rem; margin-bottom: 12px;">
-                  <div>
-                    <span style="color: var(--text-secondary); display: block; font-size: 0.72rem; text-transform: uppercase;">Last Poll Time</span>
-                    <span id="syncLastTime" style="font-weight: 600; color: var(--text-primary);">Never Synced</span>
-                  </div>
-                  <div>
-                    <span style="color: var(--text-secondary); display: block; font-size: 0.72rem; text-transform: uppercase;">Next Scheduled Poll</span>
-                    <span id="syncNextTime" style="font-weight: 600; color: var(--text-primary);">Not Scheduled</span>
-                  </div>
-                </div>
-                <div style="background: rgba(0,200,255,0.04); border: 1px solid rgba(0,200,255,0.15); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px;">
-                  <span style="color: var(--text-secondary); display: block; font-size: 0.72rem; text-transform: uppercase; margin-bottom: 4px;">Security Advisory Database</span>
-                  <span id="bulletinDbStatus" style="font-size: 0.8rem; color: var(--text-primary);">📦 loading…</span>
-                </div>
-                <button class="action-btn" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="triggerManualSync()" data-tooltip="Immediately connect to the API to pull fresh metrics.">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncSpinnerIcon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                  Synchronize Data Now
-                </button>
-                <button id="securityDbRefreshBtn" class="action-btn secondary" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;" onclick="refreshSecurityAdvisoryDB()" data-tooltip="Pull new advisories from security.netapp.com and NVD, add any new ones to the database, then reload the in-memory advisory set.">
-                  <span id="securityDbRefreshIcon">🛡️</span>
-                  <span id="securityDbRefreshText">Refresh Security Advisory DB</span>
-                </button>
-                <button class="action-btn secondary" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;" onclick="runAPIDiagnostics()" data-tooltip="Probe all API endpoints and show a detailed table of HTTP status and response structure.">
-                  🔬 Run API Diagnostics
-                </button>
-                <button id="asupImportBtn" class="action-btn secondary" style="width: 100%; font-size: 0.8rem; padding: 8px 16px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; border-color: rgba(168,85,247,0.4); color: #c084fc;" onclick="openAsupImportModal()" data-tooltip="Import an AutoSupport bundle (.7z, .tgz, .zip, .xml) when Active IQ is unavailable onsite.">
-                  📦 Import ASUP Bundle (Offline)
-                </button>
-              </div>
-
-              <div style="display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;">
-                <button class="action-btn" onclick="saveSettings()" data-tooltip="Save general configuration settings (like Offline Mode or API refresh tokens).">Save Configuration</button>
-                <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database configuration from a JSON file.">Import Config (JSON)</button>
-                <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export local database configuration to a JSON file.">Export Config (JSON)</button>
-                <button class="action-btn secondary" id="appUpdateButton" onclick="updateApplicationCode()" data-tooltip="Pull the latest version of the dashboard code from Git.">Update Application</button>
-              </div>
-            </div>
-
-            <!-- Logistics, Contacts & Sales Health Metadata Editor -->
-            <div class="card">
-              <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">System Metadata & Logistics Editor</div>
-              
-              <div class="form-group">
-                <label class="form-label" for="editorSystemSelect">Select System to Edit</label>
-                <select id="editorSystemSelect" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer;" onchange="loadSelectedSystemMetadataForEdit()">
-                  <!-- Injected by JS -->
+                  <option value="24">Every 24 Hours</option>
+                  <option value="168">Every 7 Days</option>
                 </select>
               </div>
-
-              <div class="form-group" style="display: flex; gap: 12px; margin-bottom: 20px;">
-                <button class="action-btn" style="flex: 1;" onclick="createNewSystemPrompt()" data-tooltip="Create a brand new system template with default settings.">+ Create New System</button>
-                <button class="action-btn secondary" style="flex: 1; border-color: rgba(255,51,102,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()" data-tooltip="Completely remove the selected system from the database.">Delete Selected System</button>
-              </div>
-
-              <div id="editorCurrentValuesSummary" style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border-color); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: 0.8rem; display: none; line-height: 1.4;">
-                <!-- Injected by JS -->
-              </div>
-
-              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 20px;">
-                <h4 style="font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">System Core Identity</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                  <div class="form-group">
-                    <label class="form-label" for="editSystemName">System Name</label>
-                    <input type="text" id="editSystemName" class="form-input">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="editSerialNumber">Serial Number (S/N)</label>
-                    <input type="text" id="editSerialNumber" class="form-input">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="editCustomerName">Customer Account Name</label>
-                    <input type="text" id="editCustomerName" class="form-input">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="editClusterName">Cluster Name</label>
-                    <input type="text" id="editClusterName" class="form-input">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="editPlatform">Platform Model</label>
-                    <input type="text" id="editPlatform" class="form-input">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="editOntapVersion">ONTAP/GRID Version</label>
-                    <input type="text" id="editOntapVersion" class="form-input">
-                  </div>
-                </div>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-                <div>
-                  <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Logistics & Site Access</h4>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editDeliveryAddress">Delivery Site Address</label>
-                    <input type="text" id="editDeliveryAddress" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editAccessRestrictions">Access & Security Restrictions</label>
-                    <input type="text" id="editAccessRestrictions" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editShippingAlert">Transit Logistics Alert</label>
-                    <input type="text" id="editShippingAlert" class="form-input">
-                  </div>
-                </div>
-                <div>
-                  <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Primary Site Contact</h4>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editContactName">Contact Name</label>
-                    <input type="text" id="editContactName" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editContactPhone">Phone Number</label>
-                    <input type="text" id="editContactPhone" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editContactEmail">Email Address</label>
-                    <input type="email" id="editContactEmail" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editNssUsername">NSS Account ID</label>
-                    <input type="text" id="editNssUsername" class="form-input">
-                  </div>
-                </div>
-              </div>
-
-              <!-- Sales Details row -->
-              <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" for="editAccountManager">Account Sales Rep (AM)</label>
-                  <input type="text" id="editAccountManager" class="form-input">
-                </div>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" for="editSupportTam">Support TAM / SAM</label>
-                  <input type="text" id="editSupportTam" class="form-input">
-                </div>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" for="editSentimentScore">CSAT Score (1.0 - 10.0)</label>
-                  <input type="number" id="editSentimentScore" class="form-input" min="1" max="10" step="0.1">
-                </div>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" for="editHealthStatus">CSAT Status Label</label>
-                  <input type="text" id="editHealthStatus" class="form-input">
-                </div>
-                <div class="form-group" style="margin-bottom: 12px; grid-column: span 2;">
-                  <label class="form-label" for="editUpsellPotential">CSM Upsell Pipeline Opportunity</label>
-                  <input type="text" id="editUpsellPotential" class="form-input">
-                </div>
-                <div class="form-group" style="margin-bottom: 12px; grid-column: span 2;">
-                  <label class="form-label" for="editRefreshWindow">Target Tech Refresh Timeline</label>
-                  <input type="text" id="editRefreshWindow" class="form-input">
-                </div>
-              </div>
-
-              <!-- Capacity & Performance Projections fields -->
-              <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 12px;">
-                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Capacity & Performance Projections</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editGrowthRate">Daily Growth (GB/day)</label>
-                    <input type="number" id="editGrowthRate" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editDaysToLimit">Days to 90% Limit</label>
-                    <input type="number" id="editDaysToLimit" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px; grid-column: span 2;">
-                    <label class="form-label" for="editLimitDate">Limit Date (YYYY-MM-DD)</label>
-                    <input type="text" id="editLimitDate" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editPeakIops">Peak Performance (IOPS)</label>
-                    <input type="number" id="editPeakIops" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="editAvgLatency">Average Latency (ms)</label>
-                    <input type="number" id="editAvgLatency" class="form-input" step="0.1">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px; grid-column: span 2;">
-                    <label class="form-label" for="editHistCapacityCSV">Historical 6 Months Capacity (TB, comma separated)</label>
-                    <input type="text" id="editHistCapacityCSV" class="form-input">
-                  </div>
-                  <div class="form-group" style="margin-bottom: 12px; grid-column: span 2;">
-                    <label class="form-label" for="editProjCapacityCSV">Projected 3 Months Capacity (TB, comma separated)</label>
-                    <input type="text" id="editProjCapacityCSV" class="form-input">
-                  </div>
-                </div>
-              </div>
-
-              <!-- Security Bulletins Edit panel -->
-              <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 12px;">
-                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Security & Technical Bulletins (JSON Array)</h4>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <textarea id="editSecurityBulletinsJSON" class="form-input" rows="8" style="font-family: monospace; font-size: 0.8rem;"></textarea>
-                  <div class="form-helper">Ensure valid JSON array format, e.g. [{"id": "NTAP-SA-XXX", "title": "Desc", "severity": "high", "status": "Vulnerable", "mitigation": "Mitigate"}].</div>
-                </div>
-              </div>
-
-              <!-- Support Cases Edit panel -->
-              <div style="border-top: 1px dashed var(--border-color); padding-top: 16px; margin-top: 12px;">
-                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Open Technical Support Cases (JSON Array)</h4>
-                <div class="form-group" style="margin-bottom: 12px;">
-                  <textarea id="editSupportCasesJSON" class="form-input" rows="8" style="font-family: monospace; font-size: 0.8rem;"></textarea>
-                  <div class="form-helper">Ensure valid JSON array format, e.g. [{"id": "200981XXXX", "title": "Desc", "severity": "S3 - Medium", "status": "Open", "createdDate": "2026-06-25", "lastUpdated": "2026-07-03", "ownerNotes": "Notes"}].</div>
-                </div>
-              </div>
-
-              <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
-                <button class="action-btn" onclick="saveSystemMetadata()" data-tooltip="Save changes to system identity, logistics logs, support cases, and bulletins.">Save System Metadata</button>
-              </div>
+              <button class="action-btn" style="width: 100%; padding: 11px; font-size: 0.88rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;" onclick="triggerManualSync()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncSpinnerIcon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                Sync Now
+              </button>
+              <button class="action-btn secondary" style="width: 100%; font-size: 0.78rem; padding: 8px;" onclick="runAPIDiagnostics()">🔬 Run Diagnostics</button>
             </div>
-            
-            <!-- Dynamic Custom Subgroups Creator panel -->
-            <div class="card">
-              <div class="section-title" id="subgroupFormTitle" style="margin-bottom: 16px;">Create Custom Subgroup</div>
-              <div class="form-group">
-                <label class="form-label" for="newGroupNameInput">Subgroup Name</label>
-                <input type="text" id="newGroupNameInput" class="form-input" placeholder="e.g. US Production, StorageGRID grid node sub-tier...">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Select Systems to Add to Group</label>
-                <div id="groupManagerSystemsList" style="max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.15); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column;">
-                  <!-- Checkbox list -->
-                </div>
-              </div>
-              <div style="display: flex; gap: 12px;">
-                <button id="saveSubgroupBtn" class="action-btn" onclick="handleCreateGroup()" data-tooltip="Create or update this custom subgroup with the selected systems.">Create Subgroup</button>
-                <button id="cancelSubgroupEditBtn" class="action-btn secondary" style="display: none;" onclick="cancelSubgroupEdit()" data-tooltip="Cancel subgroup editing and clear form inputs.">Cancel</button>
-              </div>
+
+            <div class="card" style="padding: 16px; border: 1px solid var(--border-color);">
+              <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px; font-weight: 600;">Application</div>
+              <button class="action-btn secondary" id="appUpdateButton" onclick="updateApplicationCode()" style="width: 100%; font-size: 0.78rem; padding: 8px;">🔄 Update Application</button>
             </div>
           </div>
-          
-          <!-- Instructions Panel and Subgroup deletion manager -->
-          <div style="display: flex; flex-direction: column; gap: 24px;">
-            <div class="setup-box">
-              <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 20px;">API Authorization Setup</h3>
-              
-              <div class="setup-step">
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span class="step-num">1</span>
-                  <span class="step-title">Log in to Portal</span>
-                </div>
-                <div class="step-desc">Open <a href="https://activeiq.netapp.com" target="_blank" class="external-link" onclick="window.open(this.href, '_blank'); return false;">activeiq.netapp.com</a> and sign in with your NetApp Support Site (NSS) credentials.</div>
-              </div>
-              
-              <div class="setup-step">
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span class="step-num">2</span>
-                  <span class="step-title">Generate API Token</span>
-                </div>
-                <div class="step-desc">Navigate to <strong>Quick Links</strong> in the top header and click <strong>API Services</strong>. Select <strong>Generate Token</strong>.</div>
-              </div>
-              
-              <div class="setup-step">
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                  <span class="step-num">3</span>
-                  <span class="step-title">Copy & Save</span>
-                </div>
-                <div class="step-desc">Copy the generated <strong>Refresh Token</strong> and paste it into the input box on the left, then click <strong>Save Configuration</strong>.</div>
-              </div>
-            </div>
+        </div>
 
-            <!-- Manage Subgroups list -->
+        <!-- ROW 2 — SECONDARY: Serial Numbers + Setup Guide + Groups -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start;">
+          <div class="card">
+            <div class="section-title" style="margin-bottom: 16px;">System Serial Numbers</div>
+            <div class="form-group">
+              <textarea id="settingsSerialNumbers" class="form-input" rows="7" placeholder="Enter serial numbers (one per line, or comma-separated)&#10;e.g. 211839000195&#10;     952239002356" style="resize: vertical; font-family: var(--font-mono); font-size: 0.78rem;"></textarea>
+              <div class="form-helper">NetApp system serials to monitor directly. Used as a fallback when watchlists are not configured.</div>
+            </div>
+          </div>
+
+          <div class="setup-box" style="margin: 0;">
+            <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 20px;">API Setup Guide</h3>
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;"><span class="step-num">1</span><span class="step-title">Log in to Portal</span></div>
+              <div class="step-desc">Open <a href="https://activeiq.netapp.com" target="_blank" class="external-link" onclick="window.open(this.href, '_blank'); return false;">activeiq.netapp.com</a> and sign in with your NetApp Support Site (NSS) credentials.</div>
+            </div>
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;"><span class="step-num">2</span><span class="step-title">Generate API Token</span></div>
+              <div class="step-desc">Navigate to <strong>Quick Links</strong> → <strong>API Services</strong> → <strong>Generate Token</strong>.</div>
+            </div>
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;"><span class="step-num">3</span><span class="step-title">Paste &amp; Save</span></div>
+              <div class="step-desc">Paste the <strong>Refresh Token</strong> into the API Authentication card above, then click <strong>Save Configuration</strong>.</div>
+            </div>
+            <div class="setup-step">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;"><span class="step-num">4</span><span class="step-title">Sync Data</span></div>
+              <div class="step-desc">Click <strong>Sync Now</strong>. Watchlists are auto-discovered from the API — no manual ID entry needed.</div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 16px;">
             <div class="card">
               <div class="section-title" style="margin-bottom: 16px;">Manage Custom Subgroups</div>
-              <div id="settingsGroupsManagerList" style="display: flex; flex-direction: column; gap: 6px;">
-                <!-- List for deletion -->
-              </div>
+              <div id="settingsGroupsManagerList" style="display: flex; flex-direction: column; gap: 6px;"></div>
             </div>
-
-            <!-- AI Compliance & Data Privacy Statement -->
             <div class="card" style="border-left: 4px solid var(--status-info); background-color: rgba(0, 188, 212, 0.02);">
-              <div class="section-title" style="margin-bottom: 12px; color: var(--accent-cyan); font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                Security, Data Sovereignty & AI Disclaimer
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--accent-cyan);">Data Privacy &amp; Compliance</div>
               </div>
-              <p style="font-size: 0.76rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 8px;">
-                <strong>AI-Free Processing Statement</strong>: This application is completely free of any internal or external artificial intelligence (AI), machine learning (ML), or Large Language Model (LLM) processing. All telemetry analysis, remediation recommendations, and printed action plan reports are compiled locally using deterministic, static JavaScript logic. No data is sent to third-party AI or LLM systems.
-              </p>
-              <p style="font-size: 0.76rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 8px;">
-                <strong>Data Sovereignty & Privacy</strong>: The tool runs entirely in your local browser sandbox and is 100% self-contained. Your API refresh tokens, settings configurations, and custom logistics databases are stored locally in your browser's private <code style="color: var(--accent-cyan);">localStorage</code> partition. No analytics scripts, cookies, or external trackers are loaded.
-              </p>
-              <p style="font-size: 0.76rem; line-height: 1.5; color: var(--text-secondary);">
-                <strong>Policy Compliance</strong>: Access is strictly read-only. All metrics are retrieved directly from NetApp's official, TLS-secured Active IQ API endpoint (<code style="color: var(--accent-cyan);">activeiq.netapp.com</code>). ARIA is an independent, third-party tool and is not affiliated with or endorsed by NetApp, Inc.
-              </p>
+              <p style="font-size: 0.72rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 6px;"><strong>AI-Free</strong>: No AI/ML/LLM processing. All analysis is deterministic, local JavaScript logic.</p>
+              <p style="font-size: 0.72rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 6px;"><strong>Local-only</strong>: Tokens and settings stored in <code style="color: var(--accent-cyan);">localStorage</code>. No external tracking.</p>
+              <p style="font-size: 0.72rem; line-height: 1.5; color: var(--text-secondary);"><strong>Read-only</strong>: Data retrieved from NetApp's TLS-secured Active IQ API only. Not affiliated with NetApp, Inc.</p>
             </div>
           </div>
-          
-          <!-- GraphQL Query Console & Sandbox Panel -->
-          <div class="card" style="margin-top: 24px; grid-column: span 2;">
-            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">GraphQL Query Console & Sandbox</div>
-            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 16px;">
-              Execute GraphQL queries to filter or aggregate Active IQ telemetry. Enter query parameters and JSON variables below.
+        </div>
+
+        <!-- ROW 3 — METADATA EDITOR (collapsible) -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="const b=document.getElementById('metadataEditorBody'); const a=document.getElementById('metadataEditorArrow'); b.style.display=b.style.display==='none'?'block':'none'; a.style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(90deg)';">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,229,255,0.1); display: flex; align-items: center; justify-content: center;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </div>
+              <div>
+                <div class="section-title" style="margin: 0; color: var(--accent-cyan);">System Metadata &amp; Logistics Editor</div>
+                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 2px;">Edit per-system contacts, logistics, CSAT, capacity projections, and support case data</div>
+              </div>
             </div>
+            <svg id="metadataEditorArrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" style="transform: rotate(90deg); transition: transform 0.2s; flex-shrink: 0;"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div id="metadataEditorBody" style="margin-top: 20px;">
+            <div class="form-group">
+              <label class="form-label" for="editorSystemSelect">Select System to Edit</label>
+              <select id="editorSystemSelect" class="form-input" style="background-color: var(--bg-sidebar); cursor: pointer;" onchange="loadSelectedSystemMetadataForEdit()"></select>
+            </div>
+            <div class="form-group" style="display: flex; gap: 12px; margin-bottom: 20px;">
+              <button class="action-btn" style="flex: 1;" onclick="createNewSystemPrompt()">+ Create New System</button>
+              <button class="action-btn secondary" style="flex: 1; border-color: rgba(255,51,102,0.3); color: var(--status-critical);" onclick="deleteCurrentSystem()">Delete Selected System</button>
+            </div>
+            <div id="editorCurrentValuesSummary" style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border-color); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: 0.8rem; display: none; line-height: 1.4;"></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px;">
+              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+                <h4 style="font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">System Identity</h4>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editSystemName">System Name</label><input type="text" id="editSystemName" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editSerialNumber">Serial Number</label><input type="text" id="editSerialNumber" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editCustomerName">Customer Account</label><input type="text" id="editCustomerName" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editClusterName">Cluster Name</label><input type="text" id="editClusterName" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editPlatform">Platform Model</label><input type="text" id="editPlatform" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="editOntapVersion">ONTAP/GRID Version</label><input type="text" id="editOntapVersion" class="form-input"></div>
+              </div>
+              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Logistics &amp; Contact</h4>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editDeliveryAddress">Site Address</label><input type="text" id="editDeliveryAddress" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editAccessRestrictions">Access Restrictions</label><input type="text" id="editAccessRestrictions" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editShippingAlert">Transit Alert</label><input type="text" id="editShippingAlert" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editContactName">Contact Name</label><input type="text" id="editContactName" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editContactPhone">Phone</label><input type="text" id="editContactPhone" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editContactEmail">Email</label><input type="email" id="editContactEmail" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="editNssUsername">NSS Account ID</label><input type="text" id="editNssUsername" class="form-input"></div>
+              </div>
+              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Sales &amp; Capacity</h4>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editAccountManager">Account Manager</label><input type="text" id="editAccountManager" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editSupportTam">TAM / SAM</label><input type="text" id="editSupportTam" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editSentimentScore">CSAT Score</label><input type="number" id="editSentimentScore" class="form-input" min="1" max="10" step="0.1"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editHealthStatus">CSAT Status</label><input type="text" id="editHealthStatus" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editUpsellPotential">Upsell Opportunity</label><input type="text" id="editUpsellPotential" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editRefreshWindow">Tech Refresh Target</label><input type="text" id="editRefreshWindow" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editGrowthRate">Daily Growth (GB/day)</label><input type="number" id="editGrowthRate" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editDaysToLimit">Days to 90% Limit</label><input type="number" id="editDaysToLimit" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editLimitDate">Limit Date</label><input type="text" id="editLimitDate" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editPeakIops">Peak IOPS</label><input type="number" id="editPeakIops" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editAvgLatency">Avg Latency (ms)</label><input type="number" id="editAvgLatency" class="form-input" step="0.1"></div>
+                <div class="form-group" style="margin-bottom: 10px;"><label class="form-label" for="editHistCapacityCSV">Historical Capacity (TB, CSV)</label><input type="text" id="editHistCapacityCSV" class="form-input"></div>
+                <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="editProjCapacityCSV">Projected Capacity (TB, CSV)</label><input type="text" id="editProjCapacityCSV" class="form-input"></div>
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
+              <div>
+                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Security &amp; Technical Bulletins (JSON)</h4>
+                <textarea id="editSecurityBulletinsJSON" class="form-input" rows="8" style="font-family: monospace; font-size: 0.8rem;"></textarea>
+                <div class="form-helper" style="margin-top: 4px;">Format: <code>[{"id":"NTAP-SA-XXX","title":"...","severity":"high","status":"Vulnerable","mitigation":"..."}]</code></div>
+              </div>
+              <div>
+                <h4 style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; font-weight: 700;">Open Support Cases (JSON)</h4>
+                <textarea id="editSupportCasesJSON" class="form-input" rows="8" style="font-family: monospace; font-size: 0.8rem;"></textarea>
+                <div class="form-helper" style="margin-top: 4px;">Format: <code>[{"id":"200981XXXX","title":"...","severity":"S3","status":"Open","createdDate":"2026-06-25"}]</code></div>
+              </div>
+            </div>
+            <div style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 12px;">
+              <button class="action-btn secondary" onclick="loadSelectedSystemMetadataForEdit()">↺ Discard Changes</button>
+              <button class="action-btn" onclick="saveSystemMetadata()">💾 Save System Metadata</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 4 — SUBGROUP CREATOR + GRAPHQL SANDBOX -->
+        <div style="display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start;">
+          <div class="card">
+            <div class="section-title" id="subgroupFormTitle" style="margin-bottom: 16px;">Create Custom Subgroup</div>
+            <div class="form-group">
+              <label class="form-label" for="newGroupNameInput">Subgroup Name</label>
+              <input type="text" id="newGroupNameInput" class="form-input" placeholder="e.g. US Production, SG nodes...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Select Systems</label>
+              <div id="groupManagerSystemsList" style="max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.15); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column;"></div>
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <button id="saveSubgroupBtn" class="action-btn" onclick="handleCreateGroup()">Create Subgroup</button>
+              <button id="cancelSubgroupEditBtn" class="action-btn secondary" style="display: none;" onclick="cancelSubgroupEdit()">Cancel</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan);">GraphQL Query Console &amp; Sandbox</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 16px;">Execute GraphQL queries to filter or aggregate Active IQ telemetry.</div>
             <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px;">
               <div>
                 <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" for="sandboxGraphQLQuery">GraphQL Query Selection Set</label>
+                  <label class="form-label" for="sandboxGraphQLQuery">GraphQL Query</label>
                   <textarea id="sandboxGraphQLQuery" class="form-input" rows="12" style="font-family: monospace; font-size: 0.8rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: #fff;"></textarea>
                 </div>
               </div>
               <div>
                 <div class="form-group" style="margin-bottom: 12px;">
-                  <label class="form-label" for="sandboxGraphQLVariables">Query Variables (JSON)</label>
+                  <label class="form-label" for="sandboxGraphQLVariables">Variables (JSON)</label>
                   <textarea id="sandboxGraphQLVariables" class="form-input" rows="4" style="font-family: monospace; font-size: 0.8rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: #fff;" placeholder="{}"></textarea>
                 </div>
                 <div style="margin-top: 16px;">
-                  <button class="action-btn" style="width: 100%;" onclick="runSandboxGraphQLQuery()" data-tooltip="Execute the custom GraphQL query against simulated or live servers.">Execute GraphQL Query</button>
+                  <button class="action-btn" style="width: 100%;" onclick="runSandboxGraphQLQuery()">Execute Query</button>
                 </div>
                 <div style="margin-top: 16px; background-color: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm);">
-                  <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Query Execution Metrics</div>
-                  <div style="margin-top: 6px; font-size: 0.78rem; display: flex; justify-content: space-between;">
-                    <span>Status:</span>
-                    <strong id="sandboxQueryStatus" style="color: var(--text-muted);">Idle</strong>
-                  </div>
-                  <div style="margin-top: 4px; font-size: 0.78rem; display: flex; justify-content: space-between;">
-                    <span>Latency:</span>
-                    <strong id="sandboxQueryLatency" style="color: var(--text-muted);">-</strong>
-                  </div>
+                  <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Execution Metrics</div>
+                  <div style="margin-top: 6px; font-size: 0.78rem; display: flex; justify-content: space-between;"><span>Status:</span><strong id="sandboxQueryStatus" style="color: var(--text-muted);">Idle</strong></div>
+                  <div style="margin-top: 4px; font-size: 0.78rem; display: flex; justify-content: space-between;"><span>Latency:</span><strong id="sandboxQueryLatency" style="color: var(--text-muted);">-</strong></div>
                 </div>
               </div>
             </div>
             <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-              <label class="form-label">Query Response (JSON Output)</label>
+              <label class="form-label">Response (JSON)</label>
               <div style="background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); max-height: 250px; overflow-y: auto; font-family: monospace; font-size: 0.78rem; color: var(--status-normal); white-space: pre-wrap;" id="sandboxGraphQLOutput">// Executed query result payload will render here...</div>
             </div>
           </div>
         </div>
       </div>
-      
-    </div>
-  </div>
+
+
+
 
   <!-- SLIDING MODAL DIALOG: DETAILED REMEDIATION PLANS -->
   <div id="remediationModal" class="modal-overlay" style="display: none;">
