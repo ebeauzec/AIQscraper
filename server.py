@@ -804,6 +804,7 @@ def _do_full_harvest(watchlist_ids=None):
         for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
             all_systems = []
 
+
             # First: try with configured watchlist_ids (fetching + deduplicating across all)
             if watchlist_ids:
                 print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s)...", flush=True)
@@ -821,6 +822,11 @@ def _do_full_harvest(watchlist_ids=None):
                 fetched = all_systems[:]
             else:
                 fetched, blocked = _fetch_systems_for_scope(fields, None)
+                # ── BUG FIX: assign the unfiltered result to all_systems ──────
+                # Previously `fetched` was populated but `all_systems` stayed []
+                # causing the server to always store 0 systems even when the API
+                # returned hundreds of systems.
+                all_systems = list(fetched)
 
             # If blocked by privilege OR returned 0 systems (outside corp network the API
             # returns success+empty instead of a privilege error), retry with auto-discovered watchlists.
@@ -850,6 +856,7 @@ def _do_full_harvest(watchlist_ids=None):
                 break
             elif attempt == 0:
                 print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
+
 
 
 
@@ -3580,8 +3587,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(res_json).encode('utf-8'))
 
     def handle_proxy(self, method):
-        if self.path == '/graphql':
-            target_url = "https://api.activeiq.netapp.com/graphql"
+        if self.path in ('/graphql', '/api/graphql'):
+            # GQL lives on a different host from the REST API
+            target_url = GQL_URL
         else:
             # Strip /api prefix, leaving e.g. /watchlist/all or /v2/watchlist/action
             endpoint = self.path[4:]  # removes leading /api
