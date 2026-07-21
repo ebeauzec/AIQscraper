@@ -18,9 +18,38 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.7";
+const APP_VERSION = "3.6.8";
 
 const APP_CHANGELOG = [
+  {
+    version: "3.6.8",
+    date: "21 July 2026",
+    title: "Platform Detection Fix — StorageGRID/E-Series raw API codes + AFX 2K NX-OS confirmation",
+    sections: [
+      {
+        icon: "🔌",
+        label: "Fix: StorageGRID & E-Series Platform Detection",
+        color: "#a855f7",
+        items: [
+          "Fixed corporate-network instance misclassifying StorageGRID appliances (SG6160, SG5712, SGF6112, SG100, SG1000) as ONTAP — Active IQ API returns raw platform codes, not the 'StorageGRID' string",
+          "Updated server.py and app.js enrichment to match all SG5xxx, SG6xxx, SGF6xxx, SG100/1000 prefixes for correct version enrichment and security bulletin matching",
+          "CSM tab now shows a platform-appropriate informational note instead of misleading '0.0 TB' capacity charts for StorageGRID and E-Series (capacity not reported via Active IQ GraphQL)",
+          "E-Series: added EF50/EF80/E4000 detection; OS label in TAM risk tab now correctly shows 'SANtricity OS' / 'StorageGRID' instead of defaulting to 'ONTAP'"
+        ]
+      },
+      {
+        icon: "✅",
+        label: "AFX 2K: NX-OS Requirement Primary-Source Confirmed",
+        color: "#34d399",
+        items: [
+          "NX-OS 10.6 + ONTAP 9.19.1GA+ requirement for AFX 2K Nexus 9808 switches: NOW PRIMARY-SOURCE CONFIRMED (2026-07-21)",
+          "Source: docs.netapp.com/us-en/ontap-systems-switches/switch-cisco-9808/configure-upgrade-nxos-9808.html (contributor-dated 07/09/2026)",
+          "Verbatim: 'For switches in an AFX 2K system, running ONTAP 9.19.1GA or later and NX-OS 10.6 and later is supported.'",
+          "Updated all 'search-sourced' qualifiers in internal reference data — status now: existence + NVRAM12-EX + NX-OS/ONTAP floor all primary-source confirmed"
+        ]
+      }
+    ]
+  },
   {
     version: "2026.07.21",
     date: "21 July 2026",
@@ -5276,7 +5305,7 @@ const SOFTWARE_VERSION_DATABASES = {
   ]
 };
 
-// ── NetApp Reference Library Data (synced 2026-07-20) ─────────────────────
+// ── NetApp Reference Library Data (synced 2026-07-21) ─────────────────────
 // Source: G:\My Drive\Cowork\NetApp\NetApp Reference Library
 // All data verified against docs.netapp.com primary sources.
 // Online cross-check: security.netapp.com, kb.netapp.com, NVD, CISA KEV
@@ -5675,7 +5704,7 @@ const REFERENCE_LIBRARY_AFX_NOTES = {
   shelves:            "NX224 shelves with NSM140 I/O modules ONLY (NOT NSM100/NSM100B — different module)",
   driveTypes:         "NVMe SSDs: 7.6TB/15.3TB (TLC), 30.1TB/60.6TB (QLC). QLC trails TLC on write-heavy workloads (NVIDIA SuperPOD certified for both).",
   switches:           "AFX 1K: Cisco Nexus 9332D-GX2B or 9364D-GX2A (400GbE). AFX 2K: also supports Cisco Nexus 9808 (16U, NX-OS 10.6+ required).",
-  afx2kStatus:        "AFX 2K existence primary-source confirmed 2026-07-20 (maintenance docs, NVRAM12-EX module). 4-node minimum, Nexus 9808 pairing — specs still search-sourced pending dedicated requirements page.",
+  afx2kStatus:        "AFX 2K: existence + NVRAM12-EX module + NX-OS 10.6+/ONTAP 9.19.1GA+ floor on Nexus 9808 ALL primary-source confirmed (2026-07-20/2026-07-21). 4-node minimum is illustrative from NX-OS upgrade page example topology — a dedicated AFX 2K requirements page has not yet been published; do not state as a hard minimum.",
   clusterInterop:     "Cannot mix AFX nodes with AFF/FAS/ASA in same cluster. Personality is immutable.",
   flexcacheInterop:   "SnapMirror/FlexCache with Unified ONTAP: Unified side must be ONTAP 9.16.1+. FlexCache write-back NOT supported on AFX (either side).",
   atmBalancing:       "Automated Topology Management (ATM): 9.17.1 balances by volume count; 9.18.1+ is performance-aware (node load weighting, not just count).",
@@ -6241,11 +6270,13 @@ const REFERENCE_LIBRARY_PLATFORM_REPLACEMENTS = {
   // AFX 2K — higher-tier AFX controller (2U, added July 2026)
   // Primary-source confirmed: docs.netapp.com/us-en/ontap-systems/afx/ (contributor-dated 2026-06-30).
   // Has own NVRAM12-EX module (not present on AFX 1K). Adds Cisco Nexus 9808 (16U) switch support.
-  // NX-OS 10.6+ reported as requirement for AFX 2K on 9.19.1GA+ — still needs direct-fetch confirmation.
-  // Form-factor/4-node-min/Nexus 9808 details: search-sourced, not yet confirmed via dedicated spec page.
+  // NX-OS 10.6+ + ONTAP 9.19.1GA+ requirement: PRIMARY-SOURCE CONFIRMED 2026-07-21
+  //   Source: docs.netapp.com/us-en/ontap-systems-switches/switch-cisco-9808/configure-upgrade-nxos-9808.html (07/09/2026)
+  //   Verbatim: "For switches in an AFX 2K system, running ONTAP 9.19.1GA or later and NX-OS 10.6 and later is supported."
+  // 4-node minimum: illustrative from 4-node example topology on NX-OS upgrade page; no dedicated AFX 2K requirements page yet published.
   "AFX 2K":   { use: "Disaggregated NAS/AI — high-throughput (pNFS + S3)", minOntap: "9.17.1", asaR2: false, isAFX: true, noSAN: false, requiresRoCE: true,
                 maxNodesCurrentRelease: 32, maxCapacityPBCurrentRelease: 32,
-                notes: "Higher-tier AFX controller (2U, 4-node minimum — search-sourced). Adds Cisco Nexus 9808 (16U) to supported switch lineup alongside 9332D-GX2B and 9364D-GX2A. Same SAZ architecture, ONTAP AFX personality, NX224/NSM140 shelf ecosystem, REST-only API as AFX 1K. NVIDIA AIDE / DataPelago GPU-engine integration (roadmap). Includes NVRAM12-EX module (primary-source confirmed 2026-07-20)." },
+                notes: "Higher-tier AFX controller (2U). Adds Cisco Nexus 9808 (16U, NX-OS 10.6+) to supported switch lineup alongside 9332D-GX2B and 9364D-GX2A (primary-source confirmed 2026-07-21: ONTAP 9.19.1GA+ required). Same SAZ architecture, ONTAP AFX personality, NX224/NSM140 shelf ecosystem, REST-only API as AFX 1K. NVIDIA AIDE / DataPelago GPU-engine integration (roadmap-stage). Includes NVRAM12-EX module (primary-source confirmed 2026-07-20). 4-node minimum: illustrative from NX-OS upgrade page topology; dedicated AFX 2K requirements page not yet published." },
   // E-Series new generation (SANtricity OS — NOT ONTAP)
   "EF50":     { use: "HPC/AI scratch block (SANtricity)", minOntap: "N/A (SANtricity)", isEseries: true, asaR2: false,
                 notes: "Announced March 2026. >110 GBps read, >55 GBps write. 1.5 PB in 2U. AI/HPC/BeeGFS/Lustre target. Not ONTAP." },
@@ -6380,7 +6411,7 @@ const REFERENCE_LIBRARY_INTEGRATIONS = {
   kubernetes: {
     name: "Kubernetes / OpenShift",
     tool: "Astra Trident (NetApp CSI Driver)",
-    currentVersion: "26.06.0",
+    currentVersion: "26.02.1", // CONFIRMED GA (docs.netapp.com tops out at 26.02, direct-fetch re-confirmed 2026-07-21). v26.06.0 is GitHub-signed only — NOT on docs.netapp.com. Do NOT recommend as GA.
     minOntap: "9.5",
     protocols: ["NFS v3/v4.1 (NAS)", "iSCSI (SAN)", "FC (SAN)", "NVMe/TCP (9.14.1+)"],
     supportedBackends: [

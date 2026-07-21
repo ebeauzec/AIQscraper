@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-19",
+  "lastUpdated": "2026-07-21",
   "source": "Authoritative bulletin database -- migrated from hardcoded NETAPP_SECURITY_BULLETIN_DB in app.js. Grows via POST /api/bulletins (daily scan agent).",
   "bulletinCount": 70,
   "bulletins": [
