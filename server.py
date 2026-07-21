@@ -2785,17 +2785,27 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         try:
             if force:
-                # Force mode: full synchronous harvest, bypass cache
+                # Fire harvest in a background thread and return 202 immediately.
+                # NEVER run _do_full_harvest() synchronously in the request handler
+                # thread -- it takes ~2 min, clients time out, the resulting
+                # BrokenPipeError kills the handler and crashes the server.
                 scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
-                print(f"  [HARVEST] Force sync requested{scope_msg}", flush=True)
-                result = _do_full_harvest(watchlist_ids=wl_ids)
-                res_bytes = json.dumps(result, default=str).encode("utf-8")
-                self.send_response(200)
+                print(f"  [HARVEST] Force sync requested{scope_msg} -- firing background thread", flush=True)
+                if not _is_syncing:
+                    t = threading.Thread(target=_background_sync, daemon=True)
+                    t.start()
+                    print("  [HARVEST] Background harvest thread started", flush=True)
+                else:
+                    print("  [HARVEST] Sync already in progress -- skipping new thread", flush=True)
+                # Return 202 immediately; client polls /api/sync-status for progress
+                self.send_response(202)
                 self.send_header("Content-Type", "application/json")
-                self.send_header("X-Cache", "BYPASS")
-                self.send_header("X-Sync-Mode", "force")
                 self.end_headers()
-                self.wfile.write(res_bytes)
+                self.wfile.write(json.dumps({
+                    "status": "started",
+                    "message": "Harvest running in background. Poll /api/sync-status for progress.",
+                    "isSyncing": True,
+                }).encode("utf-8"))
                 return
 
             # Check cache first
@@ -2835,16 +2845,22 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     print("  [CACHE] Sync already in progress, skipping background sync", flush=True)
                 return
 
-            # No cache — do full synchronous harvest
+            # No cache -- fire background harvest and return 202
             scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
-            print(f"  [CACHE] No cached data — doing full harvest{scope_msg}", flush=True)
-            result = _do_full_harvest(watchlist_ids=wl_ids)
-            res_bytes = json.dumps(result, default=str).encode("utf-8")
-            self.send_response(200)
+            print(f"  [CACHE] No cached data -- starting background harvest{scope_msg}", flush=True)
+            if not _is_syncing:
+                t = threading.Thread(target=_background_sync, daemon=True)
+                t.start()
+            self.send_response(202)
             self.send_header("Content-Type", "application/json")
-            self.send_header("X-Cache", "MISS")
             self.end_headers()
-            self.wfile.write(res_bytes)
+            self.wfile.write(json.dumps({
+                "status": "started",
+                "message": "Initial harvest running in background. Poll /api/sync-status for progress.",
+                "isSyncing": True,
+                "systems": [],
+                "watchlists": [],
+            }).encode("utf-8"))
 
         except Exception as e:
             err_str = str(e)
