@@ -23,6 +23,14 @@ import http.server
 import urllib.request
 import urllib.error
 import sys
+
+# ── Force UTF-8 output so Unicode chars in print() don't crash on Windows
+# cp1252 consoles (e.g. when server is run directly without log redirection).
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import json
 import ssl
 import sqlite3
@@ -270,7 +278,7 @@ def _tls_probe_and_refresh(host="api.activeiq.netapp.com", port=443):
                 issuer_str = (issuer_cn + ' ' + issuer_org).lower()
                 for hint in _CORP_PROXY_HINTS:
                     if hint in issuer_str:
-                        print(f"  [TLS] ⚠ Corporate SSL inspection detected: '{issuer_cn}'", flush=True)
+                        print(f"  [TLS] WARN Corporate SSL inspection detected: '{issuer_cn}'", flush=True)
                         print(f"  [TLS]   Proxy is intercepting TLS for {host}", flush=True)
                         print(f"  [TLS]   Triggering cert store scrape to ensure full trust chain...", flush=True)
                         _refresh_ssl_ctx()
@@ -295,10 +303,10 @@ def _tls_probe_and_refresh(host="api.activeiq.netapp.com", port=443):
             import socket
             with socket.create_connection((host, port), timeout=10) as sock:
                 with new_ctx.wrap_socket(sock, server_hostname=host) as ssock:
-                    print(f"  [TLS] ✓ Retry succeeded after injecting enterprise CAs", flush=True)
+                    print(f"  [TLS] OK Retry succeeded after injecting enterprise CAs", flush=True)
                     retry_ok = True
         except Exception as e2:
-            print(f"  [TLS] ✗ Retry also failed: {e2}", flush=True)
+            print(f"  [TLS] FAIL Retry also failed: {e2}", flush=True)
             print(f"  [TLS]   If on a corporate network, ask IT to add '{host}' to SSL inspection bypass", flush=True)
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2991,7 +2999,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                                         "clusterRawCapacityTB": s.get("clusterRawCapacityTB"),
                                     }
                                     match_info["existingCustomer"] = s.get("customerName") or ""
-                                    print(f"  [ASUP] Matched serial {serial} → AIQ system '{s.get('systemName')}'", flush=True)
+                                    print(f"  [ASUP] Matched serial {serial} -> AIQ system '{s.get('systemName')}'", flush=True)
                                     break
                         except Exception as me:
                             print(f"  [ASUP] harvest_cache search error: {me}", flush=True)
@@ -3007,7 +3015,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                             match_info["existingCustomer"] = prev_row[0] or ""
                             match_info["existingSite"]     = prev_row[1] or ""
                             match_info["existingNotes"]    = prev_row[2] or ""
-                            print(f"  [ASUP] Matched serial {serial} → previous ASUP import", flush=True)
+                            print(f"  [ASUP] Matched serial {serial} -> previous ASUP import", flush=True)
 
                     # ── 3. Persist / update asup_imports ────────────────────────────
                     # Preserve existing customer/site/notes if not overriding
@@ -3628,16 +3636,16 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(res_data)
 
         # Query NetApp API using the shared (enterprise-CA-aware) SSL context
-        print(f"  \u2192 PROXY {method} {target_url}", flush=True)
+        print(f"  >> PROXY {method} {target_url}", flush=True)
         try:
             _do_proxy_request(_ssl_ctx())
         except urllib.error.HTTPError as e:
             res_data = e.read()
             body_preview = res_data[:200].decode('utf-8', errors='replace')
-            print(f"  \u2190 HTTP {e.code} ERROR: {body_preview}", flush=True)
+            print(f"  << HTTP {e.code} ERROR: {body_preview}", flush=True)
             # Detect if Zscaler/proxy is blocking at app layer (TLS succeeded but request rejected)
             if e.code in (404, 403, 407) and 'Unsupported endpoint' in body_preview:
-                print(f"  [TLS] \u26a0 Corporate proxy blocking this endpoint at application layer.", flush=True)
+                print(f"  [TLS] WARN Corporate proxy blocking this endpoint at application layer.", flush=True)
                 print(f"  [TLS]   TLS handshake succeeded but the proxy is filtering the request content.", flush=True)
                 print(f"  [TLS]   Ask IT to add 'api.activeiq.netapp.com' to the SSL inspection bypass list.", flush=True)
             self.send_response(e.code)
@@ -3653,7 +3661,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 _do_proxy_request(_ssl_ctx())
             except Exception as e2:
-                print(f"  \u2190 PROXY RETRY FAILED: {e2}", flush=True)
+                print(f"  << PROXY RETRY FAILED: {e2}", flush=True)
                 self.send_response(502)
                 self.end_headers()
                 self.wfile.write(f"TLS error after cert refresh: {e2}".encode('utf-8'))
@@ -3669,7 +3677,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     return
                 except Exception as e2:
                     err_str = str(e2)
-            print(f"  \u2190 PROXY EXCEPTION: {err_str}", flush=True)
+            print(f"  << PROXY EXCEPTION: {err_str}", flush=True)
             self.send_response(500)
             self.end_headers()
             self.wfile.write(err_str.encode('utf-8'))
