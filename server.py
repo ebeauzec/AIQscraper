@@ -1002,9 +1002,6 @@ def _do_full_harvest(watchlist_ids=None):
                   shelves {
                     serialNumber
                     hardwareModel { name endOfAvailability endOfHwSupport }
-                    moduleType
-                    firmwareVersion
-                    recommendedFirmwareVersion
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -1059,7 +1056,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } moduleType firmwareVersion recommendedFirmwareVersion }'
+                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
