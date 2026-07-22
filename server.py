@@ -707,12 +707,21 @@ def _do_full_harvest(watchlist_ids=None):
                     }
                   }"""
 
-        # ── TAM_SAFE: same as TAM but omits the efficiency.ratio sub-fields
-        #    (efficiencyRatio, dataReductionRatio, withSnapshotRatio) that the
-        #    AIQ API can return as NaN when a system has no capacity history.
-        #    GQL spec forbids NaN in JSON floats, so the API rejects the whole
-        #    response with: "Float cannot represent non numeric value: NaN".
-        #    This field set preserves every other TAM-enriched field.
+        # ── TAM_SAFE: same as TAM but omits ALL fields that the AIQ API can
+        #    return as NaN when a system has no capacity/telemetry history.
+        #    GQL spec forbids NaN in JSON floats — one NaN field poisons the
+        #    entire page response: "Float cannot represent non numeric value: NaN".
+        #
+        #    Known NaN sources (all are derived ratio/delta fields, undefined
+        #    when the divisor — a prior period or total — is zero/absent):
+        #      • efficiency.ratio.*          — data-reduction ratios (no capacity history)
+        #      • capacity.physical.qoqUtilizationPercentage — QoQ delta (no prior quarter)
+        #      • capacity.physical.yoyUtilizationPercentage — YoY delta (no prior year)
+        #      • monthlyCapacity[].physical.qoqUtilizationPercentage — same, monthly
+        #      • monthlyCapacity[].efficiency.ratio.* — same as efficiency.ratio above
+        #
+        #    All absolute capacity values, firmware, lifecycle, contract, ASUP,
+        #    and every other TAM-enriched field are preserved.
         SYSTEMS_FIELDS_TAM_SAFE = """
                   hostName systemId serialNumber osVersion recommendedOSVersion
                   type platformType productType ageInYears serviceTier
@@ -748,7 +757,7 @@ def _do_full_harvest(watchlist_ids=None):
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
                     systemFirmware { type currentVersion recommendedVersion }
                     capacity {
-                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
+                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
                       efficiency {
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
@@ -757,7 +766,7 @@ def _do_full_harvest(watchlist_ids=None):
                     }
                     monthlyCapacity {
                       month
-                      physical { rawMarketingKiB usedKiB utilizationPercentage qoqUtilizationPercentage }
+                      physical { rawMarketingKiB usedKiB utilizationPercentage }
                       logical { usedKiB }
                     }
                   }"""
@@ -852,7 +861,7 @@ def _do_full_harvest(watchlist_ids=None):
                         privilege_blocked = True
                         break
                     elif _NAN_PHRASE in err_msg.lower():
-                        print(f"  [HARVEST] NaN float error in GQL response — will retry with TAM_SAFE fields", flush=True)
+                        print(f"  [HARVEST] NaN float error in GQL response — will retry with next field tier", flush=True)
                         nan_error = True
                         break
                     elif "does not exist" in err_msg.lower() or "not found" in err_msg.lower():
