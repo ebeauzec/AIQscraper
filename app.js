@@ -19175,9 +19175,33 @@ function switchTab(tabId) {
   const target = document.getElementById(`${tabId}Tab`);
   if (target) target.classList.add("active");
 
-  // Hide search/star-filter toolbar on Settings — those are fleet-view controls
+  // On Settings tab: replace the search box with a settings title bar.
+  // On other tabs: restore the search box and remove the settings title bar.
   const searchBox = document.querySelector(".search-box");
-  if (searchBox) searchBox.style.display = tabId === "settings" ? "none" : "";
+  let settingsBar = document.getElementById("settingsHeaderBar");
+
+  if (tabId === "settings") {
+    if (searchBox) searchBox.style.display = "none";
+    if (!settingsBar) {
+      settingsBar = document.createElement("div");
+      settingsBar.id = "settingsHeaderBar";
+      settingsBar.style.cssText = "display:flex; align-items:center; gap:12px; flex:1;";
+      settingsBar.innerHTML = `
+        <div style="display:flex; flex-direction:column; justify-content:center;">
+          <div style="font-weight:700; font-size:1rem; color:var(--text-primary); line-height:1.2;">Settings &amp; Configuration</div>
+          <div style="font-size:0.7rem; color:var(--text-secondary); margin-top:1px;">Connect your Active IQ API, configure watchlists, and manage fleet metadata.</div>
+        </div>
+        <button onclick="saveSettings()" class="action-btn" style="margin-left:auto; padding:8px 16px; font-size:0.8rem; font-weight:700; display:flex; align-items:center; gap:6px; flex-shrink:0; background:linear-gradient(135deg,rgba(52,211,153,0.2),rgba(16,185,129,0.15)); border-color:rgba(52,211,153,0.4);" data-tooltip="Save all settings to localStorage and sync to server.">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Configuration
+        </button>`;
+      if (searchBox) searchBox.parentNode.insertBefore(settingsBar, searchBox);
+    }
+    settingsBar.style.display = "flex";
+  } else {
+    if (searchBox) searchBox.style.display = "";
+    if (settingsBar) settingsBar.style.display = "none";
+  }
 
   // Render specific tab scopes
   if (tabId === "overview") {
