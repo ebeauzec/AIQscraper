@@ -111,6 +111,30 @@
         
         <div class="header-status">
 
+          <!-- Import ASUP button -->
+          <button
+            id="asupImportToolbarBtn"
+            onclick="openAsupImportModal()"
+            class="action-btn secondary"
+            style="font-size: 0.78rem; padding: 7px 14px; display: flex; align-items: center; gap: 6px; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08); flex-shrink:0;"
+            onmouseover="this.style.background='rgba(168,85,247,0.18)'; this.style.borderColor='rgba(168,85,247,0.7)';"
+            onmouseout="this.style.background='rgba(168,85,247,0.08)'; this.style.borderColor='rgba(168,85,247,0.45)';"
+            data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable.">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import ASUP
+          </button>
+
+          <!-- Sync Now button -->
+          <button
+            id="headerSyncBtn"
+            onclick="triggerManualSync()"
+            class="action-btn"
+            style="font-size: 0.78rem; padding: 7px 16px; display: flex; align-items: center; gap: 6px; flex-shrink:0; font-weight:700;"
+            data-tooltip="Force a full re-sync from Active IQ API. Pulls latest system state, risks, firmware baselines, and version catalog. Takes ~60–120 seconds.">
+            <svg id="headerSyncIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Sync Now
+          </button>
+
           <div class="status-badge-header">
             <span class="indicator disconnected"></span>
             <span id="connectionStatusText" style="font-weight: 500;">Offline</span>

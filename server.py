@@ -1004,6 +1004,7 @@ def _do_full_harvest(watchlist_ids=None):
                     shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
                     moduleHardwareModel { name }
+                    shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -1058,7 +1059,8 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } }'
+                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name }'
+                            '   shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
@@ -1493,6 +1495,8 @@ def _do_full_harvest(watchlist_ids=None):
             for csh in cl_shelves:
                 hm  = csh.get("hardwareModel") or {}
                 mhm = csh.get("moduleHardwareModel") or {}
+                # Extract live shelfFirmware if the API returned it
+                _live_shfw = csh.get("shelfFirmware") or {}
                 shelves_out.append({
                     "serialNumber": csh.get("serialNumber", ""),
                     "shelfId": csh.get("shelfId", ""),
@@ -1501,10 +1505,11 @@ def _do_full_harvest(watchlist_ids=None):
                     "endOfHwSupport": hm.get("endOfHwSupport", ""),
                     # moduleHardwareModel.name gives IOM/NSM module type (e.g. "IOM12C", "NSM100")
                     "moduleType": mhm.get("name", "") or csh.get("moduleType", ""),
-                    # Live per-shelf firmware is not available on the cluster shelves GQL endpoint;
-                    # these fields will be populated from shelfFirmwareBaselines catalog fallback in app.js
-                    "firmwareVersion": csh.get("firmwareVersion", ""),
-                    "recommendedFirmwareVersion": csh.get("recommendedFirmwareVersion", ""),
+                    # Live shelfFirmware from API (populated if API returned data; otherwise empty strings)
+                    "firmwareVersion": _live_shfw.get("currentVersion", "") or csh.get("firmwareVersion", ""),
+                    "recommendedFirmwareVersion": _live_shfw.get("recommendedVersion", "") or csh.get("recommendedFirmwareVersion", ""),
+                    "shelfFirmwareAutoUpdate": _live_shfw.get("autoUpdateEligible"),
+                    "shelfFirmwarePostingDate": _live_shfw.get("postingDate", ""),
                 })
 
             # ── Cross-reference firmware baselines from OS version catalog ──
@@ -1584,6 +1589,39 @@ def _do_full_harvest(watchlist_ids=None):
                     _bios_fw_ver = _bfw0.get("biosVersion", "")
             _disk_fw_baselines  = (_os_fw_entry.get("bundledDriveFirmwares") or []) if _os_fw_entry else []
             _shelf_fw_baselines = (_os_fw_entry.get("bundledShelfFirmwares") or []) if _os_fw_entry else []
+
+            # ── Backfill shelf firmware from catalog when live API is empty ─────
+            # Build lookup: moduleType (e.g. "IOM12C") → catalog firmware baseline
+            if _shelf_fw_baselines:
+                _shelf_fw_catalog = {
+                    (bl.get("shelfModuleName") or "").upper(): bl
+                    for bl in _shelf_fw_baselines
+                    if bl.get("shelfModuleName")
+                }
+                for _sh in shelves_out:
+                    if not _sh.get("firmwareVersion"):
+                        _mtype = (_sh.get("moduleType") or "").upper()
+                        _cat_bl = _shelf_fw_catalog.get(_mtype)
+                        if _cat_bl:
+                            _sh["firmwareVersion"] = _cat_bl.get("shelfModuleFirmwareVersion", "")
+                            _sh["recommendedFirmwareVersion"] = _cat_bl.get("shelfModuleFirmwareVersion", "")
+                            _sh["fromCatalog"] = True
+
+            # ── Populate DQP from catalog when live API returns empty ──────────
+            # The diskQualificationPackage field returns {} for most accounts.
+            # The drive firmware catalog (bundledDriveFirmwares) IS populated
+            # and represents the DQP version bundled with this ONTAP release.
+            # We synthesize a DQP baseline entry from the catalog count/version.
+            _live_dqp = s.get("diskQualificationPackage") or {}
+            if not _live_dqp.get("currentVersion") and _disk_fw_baselines:
+                # Use OS version as the DQP version identifier (ONTAP-bundled DQP)
+                _live_dqp = {
+                    "currentVersion": _os_ver_raw,
+                    "recommendedVersion": _os_ver_raw,
+                    "autoUpdateEligible": True,
+                    "driveCount": len(_disk_fw_baselines),
+                    "fromCatalog": True,
+                }
 
             # ── Pre-compute capacity from system-level ONTAPSystemPhysicalCapacity ──
             # System-level is preferred; cluster-level used as fallback for systems without cluster data.
@@ -1761,7 +1799,7 @@ def _do_full_harvest(watchlist_ids=None):
                 # ── Firmware ──
                 "systemFirmware": s.get("systemFirmware") or [],
                 "motherboardFirmware": s.get("motherboardFirmware") or {},
-                "diskQualificationPackage": s.get("diskQualificationPackage") or {},
+                "diskQualificationPackage": _live_dqp or s.get("diskQualificationPackage") or {},
                 "autoUpdateSettings": s.get("autoUpdateSettings") or {},
                 # ── Firmware baselines cross-referenced from OS version catalog ──
                 "spFirmwareBaseline":    _sp_fw_baseline,    # {type, version, biosVersion} expected for this ONTAP version

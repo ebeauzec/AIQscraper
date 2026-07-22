@@ -7576,8 +7576,12 @@ function renderFirmwarePanel(selectedSystems) {
   };
 
   // ── Section 1: Controller Firmware (SP/BMC + BIOS) per system ──────
+  // NOTE: The ActiveIQ API does not expose live SP/BMC currentVersion via GraphQL.
+  // systemFirmware[] is always empty for all systems. We show the catalog baseline
+  // (bundled SP/BMC version for this ONTAP release) as the authoritative reference.
   let spRows = '';
   let anySpData = false;
+  let anyLiveSpData = false; // tracks if any system returned live data
   ontapSystems.forEach(sys => {
     const fwList = sys.systemFirmware || [];
     const biosVer = sys.biosVersion || '';
@@ -7585,10 +7589,12 @@ function renderFirmwarePanel(selectedSystems) {
     const osVer = sys.osVersion || sys.ontapVersion || '';
     const hasLiveData     = fwList.length > 0;
     const hasBaselineData = !!(spBaseline.version || spBaseline.biosVersion || biosVer);
-    anySpData = true;  // always show — every ONTAP system deserves a row
+    if (!hasLiveData && !hasBaselineData) return; // skip if truly nothing
+    anySpData = true;
 
-    // SP / BMC rows from systemFirmware[] (live API)
     if (hasLiveData) {
+      // Live data from API (rare — requires specific access level)
+      anyLiveSpData = true;
       fwList.forEach(fw => {
         const typeLabel = (fw.type || 'SP').toUpperCase();
         const current = fw.currentVersion || '';
@@ -7603,61 +7609,67 @@ function renderFirmwarePanel(selectedSystems) {
         spRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${typeLabel}</td>
+          <td style="padding:8px 12px;">ONTAP ${osVer}</td>
           <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel)}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${recommended || '—'}</td>
           <td style="padding:8px 12px;">${autoUpdBadge}</td>
           <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate}</td>
         </tr>`;
       });
-    } else {
-      // No live systemFirmware from API — always show a row with whatever we have
-      const baselineSP = spBaseline.version || '';
-      const noDataMsg = osVer
-        ? `<span style="font-size:0.75rem;color:var(--text-muted);">No live data (ONTAP ${osVer}) — run Sync</span>`
-        : `<span style="font-size:0.75rem;color:var(--text-muted);">No data — run Sync Now</span>`;
-      spRows += `<tr>
-        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary);">SP/BMC</td>
-        <td style="padding:8px 12px;">${noDataMsg}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${baselineSP || '—'}</td>
-        <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
-        <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">—</td>
-      </tr>`;
-    }
+    } else if (hasBaselineData) {
+      // Catalog-only: show what the SP/BMC SHOULD be for this ONTAP version
+      const baselineSP  = spBaseline.version || '';
+      const baselineBMC = spBaseline.type === 'BMC' ? baselineSP : '';
+      const baselineSPType = (spBaseline.type || 'SP').toUpperCase();
 
-    // BIOS row from catalog cross-reference (only if we have data)
-    if (biosVer || spBaseline.biosVersion) {
-      const bCurrent = biosVer || '';
-      const bBaseline = spBaseline.biosVersion || '';
-      spRows += `<tr>
-        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary);">BIOS</td>
-        <td style="padding:8px 12px;">${driftBadge(bCurrent, bBaseline, 'BIOS')}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${bBaseline || '—'}</td>
-        <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
-        <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">—</td>
-      </tr>`;
+      if (baselineSP) {
+        spRows += `<tr>
+          <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+          <td style="padding:8px 12px;color:var(--text-secondary);">${baselineSPType}</td>
+          <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-weight:700;color:var(--accent-cyan);">${baselineSP}</td>
+          <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
+          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Catalog ref</td>
+        </tr>`;
+      }
+      if (biosVer || spBaseline.biosVersion) {
+        const bVer = biosVer || spBaseline.biosVersion || '';
+        spRows += `<tr>
+          <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+          <td style="padding:8px 12px;color:var(--text-secondary);">BIOS</td>
+          <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-weight:700;color:var(--accent-cyan);">${bVer}</td>
+          <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
+          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Catalog ref</td>
+        </tr>`;
+      }
     }
   });
+
+  const spApiNote = !anyLiveSpData && anySpData ? `
+    <div style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
+      ℹ️ <strong style="color:var(--accent-purple);">Catalog reference only</strong> — the ActiveIQ API does not expose live SP/BMC firmware versions via GraphQL.
+      Values shown are the versions bundled with each system's ONTAP release. For live installed versions, check the SP/BMC directly or via ONTAP CLI: <code style="font-family:monospace;color:var(--accent-cyan);">system service-processor show</code>
+    </div>` : '';
 
   const spSection = anySpData ? `
     <div style="margin-bottom:20px;">
       <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
         🖥 Controller Firmware (SP / BMC / BIOS)
       </div>
+      ${spApiNote}
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-color);">
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Component</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current → Status</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Baseline</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">ONTAP Version</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Bundled Firmware</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Posted</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Source</th>
             </tr>
           </thead>
-          <tbody>${spRows || '<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--text-muted);">No SP/BMC firmware data available (requires live harvest)</td></tr>'}</tbody>
+          <tbody>${spRows || '<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--text-muted);">No SP/BMC firmware data available</td></tr>'}</tbody>
         </table>
       </div>
     </div>` : '';
@@ -7688,24 +7700,26 @@ function renderFirmwarePanel(selectedSystems) {
       anyShelfData = true;
       const moduleType  = bl.shelfModuleName || '—';
       const shelfModel  = bl.shelfName || '—';
-      const blVersion   = bl.sysShelfModuleFirmwareVersion || bl.shelfModuleFirmwareVersion || '';
+      // sysShelfModuleFirmwareVersion = short form (e.g. "0111"), use as primary display
+      const blVersionShort = bl.sysShelfModuleFirmwareVersion || '';
+      const blVersionFull  = bl.shelfModuleFirmwareVersion || '';  // e.g. "IOM12C.0111.SFW"
+      const displayVersion = blVersionShort || blVersionFull || '';
       const liveVersion = liveShelvesMap[moduleType] || '';
-      const current     = liveVersion || '—';
-      // If no live version, show baseline as the "expected" target
-      const recommended = blVersion || '';
-      const isDrift     = liveVersion && recommended && liveVersion !== recommended;
-      const statusColor = !liveVersion ? 'var(--text-muted)'
-                        : isDrift      ? '#fb923c'
-                        :                '#4ade80';
-      const statusText  = !liveVersion ? `<span style="font-size:0.72rem;color:var(--text-muted);">Baseline only</span>`
-                        : isDrift      ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
-                        :                `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+      const isDrift     = liveVersion && displayVersion && liveVersion !== blVersionShort && liveVersion !== blVersionFull;
+      const statusText  = liveVersion
+                        ? (isDrift ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${displayVersion}</span>`
+                                   : `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`)
+                        : `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`;
+      // Display live version if available, otherwise show catalog version prominently
+      const versionCell = liveVersion
+        ? `<span style="font-family:monospace;font-weight:700;">${liveVersion}</span>`
+        : `<span style="font-family:monospace;font-weight:700;color:var(--accent-cyan);">${displayVersion || '—'}</span>`;
       shelfFwRows += `<tr>
         <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
         <td style="padding:8px 12px;color:var(--text-secondary);">${shelfModel}</td>
         <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${moduleType}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${current}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--text-muted);">${recommended || '—'}</td>
+        <td style="padding:8px 12px;">${versionCell}</td>
+        <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);font-family:monospace;">${blVersionFull || displayVersion || '—'}</td>
         <td style="padding:8px 12px;">${statusText}</td>
       </tr>`;
     });
@@ -7754,6 +7768,9 @@ function renderFirmwarePanel(selectedSystems) {
       <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
         🗄 Disk Shelf Module Firmware
       </div>
+      <div style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
+        ℹ️ <strong style="color:var(--accent-purple);">Catalog reference</strong> — shelf module firmware versions are sourced from the ONTAP release catalog (bundled versions). Live per-shelf versions are not available via the ActiveIQ API.
+      </div>
       <div style="overflow-x:auto;margin-bottom:12px;">
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
           <thead>
@@ -7761,8 +7778,8 @@ function renderFirmwarePanel(selectedSystems) {
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Shelf Model</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module (IOM/NSM)</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Live Version</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Baseline Target</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">ONTAP Bundled</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Full Bundle Name</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
             </tr>
           </thead>
@@ -9908,7 +9925,7 @@ function renderCSMTab() {
     const aggProj = Array(3).fill(0);
     
     targetCSMSystems.forEach(s => {
-      const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
+      const p = s.projections || { growthRateGBPerDay: 0, daysToLimit: 9999, limitDate: null, peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [] };
       const pGrowth = (p.growthRateGBPerDay != null) ? p.growthRateGBPerDay : 0;
       const pDays   = (p.daysToLimit   != null && p.daysToLimit   >= 0) ? p.daysToLimit   : 9999;
       const pIops   = (p.peakIops      != null) ? p.peakIops      : 0;
@@ -10270,7 +10287,7 @@ function renderCSMTab() {
   document.getElementById('csmAdoptionChecklist').innerHTML = checklistHTML;
 
   // Render Projections & Forecasting Metrics & Line Chart
-  const proj = sys.projections || { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", peakIops: 10000, avgLatencyMs: 2.5, historicalCapacityMonths: [10, 11, 12, 13, 14, 15], projectedCapacityMonths: [16, 17, 18] };
+  const proj = sys.projections || { growthRateGBPerDay: 0, daysToLimit: 9999, limitDate: null, peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [] };
   
   const srcLabel = {'actual-monthly':'Actual','qoq':'QoQ','yoy':'YoY','estimated':'Est.'}[proj.growthSource || 'estimated'] || 'Est.';
   document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay ?? 0} GB/day (${srcLabel})`;
@@ -10318,54 +10335,90 @@ function renderProjectionsChart(proj, systemName) {
     labels.push(monthNames[d.getMonth()] + ' ' + d.getFullYear() + suffix);
   }
   
-  // Format datasets: historical capacity stops at "Current", projected capacity continues from "Current"
-  const histData = [...proj.historicalCapacityMonths, ...Array(3).fill(null)];
-  const projData = [...Array(5).fill(null), proj.historicalCapacityMonths[5], ...proj.projectedCapacityMonths];
+  // Format datasets: historical stops at "Current"; projected line bridges from last historical point.
+  // Guard against hist arrays shorter than 6 entries (systems with limited data history).
+  const hist6    = proj.historicalCapacityMonths || [];
+  const proj3    = proj.projectedCapacityMonths  || [];
+  const padHist  = [...hist6, ...Array(Math.max(0, 6 - hist6.length)).fill(null)];  // always 6 slots
+  const lastHistVal = hist6.length > 0 ? hist6[hist6.length - 1] : null;
+  const histData = [...padHist, ...Array(3).fill(null)];
+  // Bridge: nulls for the first (6 - hist6.length) historical slots, then lastHistVal as bridge, then proj3
+  const projData = [
+    ...Array(Math.max(0, hist6.length - 1)).fill(null),
+    lastHistVal,               // connect projected line to end of historical line
+    ...proj3
+  ];
+  // Ensure projData has exactly 9 slots to match labels
+  while (projData.length < 9) projData.push(null);
+
+  // Build optional capacity-ceiling dataset (90% of usable capacity)
+  const usableTB   = proj.usableCapacityTB || proj.rawCapacityTB || 0;
+  const ceilVal    = usableTB > 0 ? parseFloat((usableTB * 0.9).toFixed(2)) : null;
+  const ceilData   = ceilVal ? Array(9).fill(ceilVal) : null;
+
+  const datasets = [
+    {
+      label: 'Historical Utilised (TB)',
+      data: histData,
+      borderColor: '#0ea5e9',
+      backgroundColor: 'rgba(14, 165, 233, 0.06)',
+      borderWidth: 2.5,
+      tension: 0.2,
+      fill: true,
+      pointRadius: 4
+    },
+    {
+      label: 'Projected Growth (TB)',
+      data: projData,
+      borderColor: '#f59e0b',
+      borderDash: [6, 4],
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      tension: 0.2,
+      pointStyle: 'rectRot',
+      pointRadius: 5
+    }
+  ];
+
+  if (ceilData) {
+    datasets.push({
+      label: '90% Capacity Ceiling (TB)',
+      data: ceilData,
+      borderColor: 'rgba(239, 68, 68, 0.55)',
+      borderDash: [3, 3],
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0
+    });
+  }
 
   projectionsChartInstance = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Historical Storage Utilized (TB)',
-          data: histData,
-          borderColor: '#0073e6',
-          backgroundColor: 'rgba(0, 115, 230, 0.05)',
-          borderWidth: 3,
-          tension: 0.2,
-          fill: true
-        },
-        {
-          label: 'Projected Growth Trend (TB)',
-          data: projData,
-          borderColor: '#ffb300',
-          borderDash: [5, 5],
-          backgroundColor: 'transparent',
-          borderWidth: 3,
-          tension: 0.2,
-          pointStyle: 'rectRot',
-          pointRadius: 6
-        }
-      ]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
         x: {
           ticks: { color: '#9ca3af', font: { size: 10 } },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+          grid: { color: 'rgba(255, 255, 255, 0.04)' }
         },
         y: {
-          ticks: { color: '#9ca3af', font: { size: 10 } },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+          ticks: { color: '#9ca3af', font: { size: 10 }, callback: v => v + ' TB' },
+          grid: { color: 'rgba(255, 255, 255, 0.04)' },
+          title: { display: true, text: 'Storage Used (TB)', color: '#6b7280', font: { size: 10 } }
         }
       },
       plugins: {
         legend: {
           position: 'top',
-          labels: { color: '#f3f4f6', boxWidth: 12, font: { size: 11 } }
+          labels: { color: '#e5e7eb', boxWidth: 12, font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + ' TB' : 'N/A'}`
+          }
         }
       }
     }
@@ -11129,13 +11182,17 @@ function enrichSystemTelemetry(s) {
       const last  = validMonths[validMonths.length - 1].usedTB;
       growthPerDayTB = Math.max(0, (last - first) / ((validMonths.length - 1) * 30));
       growthSource = 'actual-monthly';
-    } else if (qoqPct > 0 && rawTB > 0) {
-      // 2. QoQ% of raw capacity over 90 days
-      growthPerDayTB = (rawTB * qoqPct / 100) / 90;
+    } else if (qoqPct !== 0 && rawTB > 0) {
+      // 2. QoQ: clusterQoQUtilPct is a decimal fraction (0.027 = 2.7%), NOT a percent.
+      // Do NOT divide by 100 — the API already gives it as a fraction.
+      // Clamp to 0 if negative (utilisation shrank — treat as flat, not inverted growth).
+      const qoqFraction = Math.max(0, qoqPct);  // e.g. 0.027
+      growthPerDayTB = (rawTB * qoqFraction) / 90;
       growthSource = 'qoq';
-    } else if (yoyPct > 0 && rawTB > 0) {
-      // 3. YoY% of raw capacity over 365 days
-      growthPerDayTB = (rawTB * yoyPct / 100) / 365;
+    } else if (yoyPct !== 0 && rawTB > 0) {
+      // 3. YoY: same — decimal fraction, NOT percent. Clamp negative to 0.
+      const yoyFraction = Math.max(0, yoyPct);
+      growthPerDayTB = (rawTB * yoyFraction) / 365;
       growthSource = 'yoy';
     } else {
       // 4. Conservative estimate: 0.5%/month of current physical
@@ -11163,15 +11220,19 @@ function enrichSystemTelemetry(s) {
     const daysToLimit = growthPerDayTB > 0 ? Math.round(remainingTB / growthPerDayTB) : 9999;
     const limitDate   = new Date(Date.now() + daysToLimit * 86400000).toISOString().split('T')[0];
 
-    projections = s.projections || {
+    // Always use freshly-computed projections for live data — never keep stale stored values.
+    // Merging with s.projections would cause old mock/stale data to shadow the real calculation.
+    projections = {
       growthRateGBPerDay: Math.round(growthPerDayTB * 1024),
       growthSource: growthSource,
       daysToLimit: daysToLimit,
       limitDate: daysToLimit > 3650 ? 'N/A' : limitDate,
-      peakIops: 0,
-      avgLatencyMs: 0,
+      peakIops: (s.projections && s.projections.peakIops > 0) ? s.projections.peakIops : 0,
+      avgLatencyMs: (s.projections && s.projections.avgLatencyMs > 0) ? s.projections.avgLatencyMs : 0,
       historicalCapacityMonths: hist,
-      projectedCapacityMonths: proj
+      projectedCapacityMonths: proj,
+      rawCapacityTB: rawTB,          // Stored so chart can draw a capacity ceiling line
+      usableCapacityTB: s.clusterUsableCapacityTB || rawTB
     };
   } else {
     // Non-live (mock / ASUP import) — use stored projections if present,

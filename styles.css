@@ -258,6 +258,11 @@ body {
   border-radius: var(--radius-sm);
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
+  /* Reserve space for the longest possible sync message so buttons stay static */
+  min-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .indicator {
