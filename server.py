@@ -1515,6 +1515,12 @@ def _do_full_harvest(watchlist_ids=None):
             _ver_parts = _os_ver_raw.split(".")
             _os_ver_minor_prefix = ".".join(_ver_parts[:2]) if len(_ver_parts) >= 2 else ""
             _os_ver_major_prefix = _ver_parts[0] if _ver_parts else ""
+            # Semantic version sort key: converts '9.13.1P4' → (9,13,1,4) for correct ordering
+            def _semver_key(entry):
+                import re as _re
+                raw = (entry.get("osVersion") or "")
+                nums = [int(n) for n in _re.split(r'[.P]', raw) if n.isdigit()]
+                return tuple(nums)
             # Pass 1: exact
             for _ov in (tam_os_versions or []):
                 if _ov.get("osVersion") == _os_ver_raw:
@@ -1534,8 +1540,8 @@ def _do_full_harvest(watchlist_ids=None):
                     and (_ov.get("bundledSystemFirmwares") or [])
                 ]
                 if _branch_candidates:
-                    # Pick the entry with the highest version string (lexicographic is fine for ONTAP)
-                    _os_fw_entry = max(_branch_candidates, key=lambda x: x.get("osVersion", ""))
+                    # Pick the entry with the highest semantic version
+                    _os_fw_entry = max(_branch_candidates, key=_semver_key)
             # Pass 4: closest available entry in same major ONTAP version
             if not _os_fw_entry and _os_ver_major_prefix:
                 _major_candidates = [
@@ -1544,7 +1550,7 @@ def _do_full_harvest(watchlist_ids=None):
                     and (_ov.get("bundledSystemFirmwares") or [])
                 ]
                 if _major_candidates:
-                    _os_fw_entry = max(_major_candidates, key=lambda x: x.get("osVersion", ""))
+                    _os_fw_entry = max(_major_candidates, key=_semver_key)
             # SP / BMC firmware baseline (matched by hardware model name)
             _sp_fw_baseline = {}
             _bios_fw_ver = ""
