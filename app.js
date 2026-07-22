@@ -7582,32 +7582,50 @@ function renderFirmwarePanel(selectedSystems) {
     const fwList = sys.systemFirmware || [];
     const biosVer = sys.biosVersion || '';
     const spBaseline = sys.spFirmwareBaseline || {};
-    if (fwList.length === 0 && !biosVer) return;
-    anySpData = true;
+    const osVer = sys.osVersion || sys.ontapVersion || '';
+    const hasLiveData     = fwList.length > 0;
+    const hasBaselineData = !!(spBaseline.version || spBaseline.biosVersion || biosVer);
+    anySpData = true;  // always show — every ONTAP system deserves a row
 
-    // SP / BMC rows from systemFirmware[]
-    fwList.forEach(fw => {
-      const typeLabel = (fw.type || 'SP').toUpperCase();
-      const current = fw.currentVersion || '';
-      const recommended = fw.recommendedVersion || spBaseline.version || '';
-      const autoUpd = fw.autoUpdateEligible;
-      const autoUpdBadge = autoUpd === true
-        ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
-        : autoUpd === false
-          ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
-          : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
-      const postDate = fw.postingDate ? fw.postingDate.split('T')[0] : '—';
+    // SP / BMC rows from systemFirmware[] (live API)
+    if (hasLiveData) {
+      fwList.forEach(fw => {
+        const typeLabel = (fw.type || 'SP').toUpperCase();
+        const current = fw.currentVersion || '';
+        const recommended = fw.recommendedVersion || spBaseline.version || '';
+        const autoUpd = fw.autoUpdateEligible;
+        const autoUpdBadge = autoUpd === true
+          ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
+          : autoUpd === false
+            ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
+            : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+        const postDate = fw.postingDate ? fw.postingDate.split('T')[0] : '—';
+        spRows += `<tr>
+          <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+          <td style="padding:8px 12px;color:var(--text-secondary);">${typeLabel}</td>
+          <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel)}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${recommended || '—'}</td>
+          <td style="padding:8px 12px;">${autoUpdBadge}</td>
+          <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate}</td>
+        </tr>`;
+      });
+    } else {
+      // No live systemFirmware from API — always show a row with whatever we have
+      const baselineSP = spBaseline.version || '';
+      const noDataMsg = osVer
+        ? `<span style="font-size:0.75rem;color:var(--text-muted);">No live data (ONTAP ${osVer}) — run Sync</span>`
+        : `<span style="font-size:0.75rem;color:var(--text-muted);">No data — run Sync Now</span>`;
       spRows += `<tr>
         <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary);">${typeLabel}</td>
-        <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel)}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${recommended || '—'}</td>
-        <td style="padding:8px 12px;">${autoUpdBadge}</td>
-        <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate}</td>
+        <td style="padding:8px 12px;color:var(--text-secondary);">SP/BMC</td>
+        <td style="padding:8px 12px;">${noDataMsg}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${baselineSP || '—'}</td>
+        <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
+        <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">—</td>
       </tr>`;
-    });
+    }
 
-    // BIOS row from catalog cross-reference
+    // BIOS row from catalog cross-reference (only if we have data)
     if (biosVer || spBaseline.biosVersion) {
       const bCurrent = biosVer || '';
       const bBaseline = spBaseline.biosVersion || '';
@@ -8491,6 +8509,12 @@ function renderTAMTab() {
 
   updateSortIndicators();
   }, 0); // ── END STAGE 4
+
+  // ── STAGE 5: Firmware Panel ───────────────────────────────────────────────
+  setTimeout(() => {
+    const selectedSystems = _pipe;
+    renderFirmwarePanel(selectedSystems);
+  }, 0); // ── END STAGE 5
 }
 
 

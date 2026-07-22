@@ -1222,21 +1222,44 @@ def _do_full_harvest(watchlist_ids=None):
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
 
-        # ── TAM: OS Version Catalog ──
+        # ── TAM: OS Version Catalog (paginated — fetches ALL pages) ──
         tam_os_versions = []
         try:
-            print("  [HARVEST] Fetching OS version catalog...", flush=True)
-            _, osv_resp = _gql(token, """{ osVersions(pageSize: 500) { osVersions {
+            print("  [HARVEST] Fetching OS version catalog (paginated)...", flush=True)
+            _osv_cursor = None
+            _osv_page = 0
+            _osv_max_pages = 25  # safety cap (~5000 entries max)
+            _osv_fields = """
                 osVersion majorOsVersion osType operatingMode
                 releaseDate endOfVersionFullSupport endOfVersionLimitedSupport endOfSelfServiceSupport
                 supportState progressionPath
                 bundledSystemFirmwares { type version biosVersion systemModel }
                 bundledDriveFirmwares { driveModel version }
                 bundledShelfFirmwares { shelfName shelfModuleName firmwareType shelfModuleFirmwareVersion sysShelfModuleFirmwareVersion }
-                bundledSecurityFiles { fileType version }
-            } } }""")
-            tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or [] if isinstance(osv_resp, dict) else []
-            print(f"  [HARVEST] OS versions: {len(tam_os_versions)}", flush=True)
+                bundledSecurityFiles { fileType version }"""
+            while _osv_page < _osv_max_pages:
+                _after_arg = f', after: "{_osv_cursor}"' if _osv_cursor else ""
+                _osv_query = (
+                    "{ osVersions(pageSize: 200" + _after_arg + """) {
+                    cursor
+                    osVersions {""" + _osv_fields + """
+                    }
+                } }"
+                )
+                _, _osv_resp = _gql(token, _osv_query)
+                _osv_page += 1
+                if not isinstance(_osv_resp, dict):
+                    break
+                _osv_data = ((_osv_resp.get("data") or {}).get("osVersions") or {})
+                _osv_page_items = _osv_data.get("osVersions") or []
+                if not _osv_page_items:
+                    break
+                tam_os_versions.extend(_osv_page_items)
+                _new_cursor = _osv_data.get("cursor")
+                if not _new_cursor or _new_cursor == _osv_cursor:
+                    break  # no more pages
+                _osv_cursor = _new_cursor
+            print(f"  [HARVEST] OS versions: {len(tam_os_versions)} (across {_osv_page} page(s))", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: OS versions failed: {e}", flush=True)
 
@@ -1481,18 +1504,47 @@ def _do_full_harvest(watchlist_ids=None):
             # ── Cross-reference firmware baselines from OS version catalog ──
             _os_ver_raw = s.get("osVersion") or ""
             _model_name = hw.get("name", "").upper()
-            # Find matching catalog entry (exact match first, then without patch suffix)
+            # Find matching catalog entry with progressive fuzzy fallback:
+            #   1. Exact match  (e.g. 9.16.1P11)
+            #   2. Base without patch suffix  (e.g. 9.16.1)
+            #   3. Closest lower version in same major.minor  (e.g. latest 9.16.x)
+            #   4. Closest lower version in same major  (e.g. latest 9.x)
             _os_fw_entry = None
             _os_ver_base = _os_ver_raw.split("P")[0] if "P" in _os_ver_raw else _os_ver_raw
+            # Derive major.minor prefix for fuzzy matching (e.g. "9.16" from "9.16.1P11")
+            _ver_parts = _os_ver_raw.split(".")
+            _os_ver_minor_prefix = ".".join(_ver_parts[:2]) if len(_ver_parts) >= 2 else ""
+            _os_ver_major_prefix = _ver_parts[0] if _ver_parts else ""
+            # Pass 1: exact
             for _ov in (tam_os_versions or []):
                 if _ov.get("osVersion") == _os_ver_raw:
                     _os_fw_entry = _ov
                     break
+            # Pass 2: base (strip patch)
             if not _os_fw_entry and _os_ver_base:
                 for _ov in (tam_os_versions or []):
                     if _ov.get("osVersion") == _os_ver_base:
                         _os_fw_entry = _ov
                         break
+            # Pass 3: closest available entry in same major.minor branch
+            if not _os_fw_entry and _os_ver_minor_prefix:
+                _branch_candidates = [
+                    _ov for _ov in (tam_os_versions or [])
+                    if (_ov.get("osVersion") or "").startswith(_os_ver_minor_prefix)
+                    and (_ov.get("bundledSystemFirmwares") or [])
+                ]
+                if _branch_candidates:
+                    # Pick the entry with the highest version string (lexicographic is fine for ONTAP)
+                    _os_fw_entry = max(_branch_candidates, key=lambda x: x.get("osVersion", ""))
+            # Pass 4: closest available entry in same major ONTAP version
+            if not _os_fw_entry and _os_ver_major_prefix:
+                _major_candidates = [
+                    _ov for _ov in (tam_os_versions or [])
+                    if (_ov.get("osVersion") or "").startswith(_os_ver_major_prefix + ".")
+                    and (_ov.get("bundledSystemFirmwares") or [])
+                ]
+                if _major_candidates:
+                    _os_fw_entry = max(_major_candidates, key=lambda x: x.get("osVersion", ""))
             # SP / BMC firmware baseline (matched by hardware model name)
             _sp_fw_baseline = {}
             _bios_fw_ver = ""
