@@ -1479,7 +1479,7 @@ def _do_full_harvest(watchlist_ids=None):
                 })
 
             # ── Cross-reference firmware baselines from OS version catalog ──
-            _os_ver_raw = s.get("osVersion", "")
+            _os_ver_raw = s.get("osVersion") or ""
             _model_name = hw.get("name", "").upper()
             # Find matching catalog entry (exact match first, then without patch suffix)
             _os_fw_entry = None
