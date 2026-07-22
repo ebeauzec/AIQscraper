@@ -1244,7 +1244,7 @@ def _do_full_harvest(watchlist_ids=None):
                     cursor
                     osVersions {""" + _osv_fields + """
                     }
-                } }"
+                } }"""
                 )
                 _, _osv_resp = _gql(token, _osv_query)
                 _osv_page += 1
