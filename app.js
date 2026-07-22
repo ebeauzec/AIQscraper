@@ -7675,102 +7675,127 @@ function renderFirmwarePanel(selectedSystems) {
     </div>` : '';
 
   // ── Section 2: Shelf Module Firmware ─────────────────────────────────
-  // Strategy: use shelfFirmwareBaselines (ONTAP version catalog cross-ref) as the primary
-  // source for module-level firmware versions. The live cluster shelves GQL only returns
-  // serialNumber/hardwareModel/moduleHardwareModel — no live firmware version — so the
-  // catalog baseline is the best available data. Physical shelf inventory (S/N, model, EOS)
-  // from shelves[] is shown in a separate sub-table below.
+  // Primary source: live shelfFirmware { currentVersion, recommendedVersion, autoUpdateEligible, postingDate }
+  // from each shelf object in sys.shelves[] (fetched via per-system GQL).
+  // Secondary source: shelfFirmwareBaselines catalog cross-ref (ONTAP bundled versions).
   let shelfFwRows = '';
   let shelfInvRows = '';
   let anyShelfData = false;
+  let anyLiveShelfData = false;
 
-  // Build a map of shelfModel -> {moduleType, baseline} from shelfFirmwareBaselines
-  // and a map of moduleType -> liveVersion from shelves[].moduleType + firmwareVersion
   ontapSystems.forEach(sys => {
     const sysLabel = sys.systemName || sys.clusterName || sys.serialNumber || '—';
+    const shelves   = sys.shelves || [];
     const baselines = sys.shelfFirmwareBaselines || [];
-    const liveShelvesMap = {};   // moduleType -> live firmwareVersion from shelves[]
-    (sys.shelves || []).forEach(sh => {
-      const mt = sh.moduleType || '';
-      if (mt && sh.firmwareVersion) liveShelvesMap[mt] = sh.firmwareVersion;
+
+    // Build a lookup: moduleType -> baseline catalog entry
+    const blByModule = {};
+    baselines.forEach(bl => {
+      const mt = bl.shelfModuleName || '';
+      if (mt) blByModule[mt] = bl;
     });
 
-    // Show one row per unique module type in the baseline catalog
-    baselines.forEach(bl => {
-      anyShelfData = true;
-      const moduleType  = bl.shelfModuleName || '—';
-      const shelfModel  = bl.shelfName || '—';
-      // sysShelfModuleFirmwareVersion = short form (e.g. "0111"), use as primary display
+    // Render one row per physical shelf (live data preferred)
+    shelves.forEach(sh => {
+      const liveVer  = sh.firmwareVersion || '';
+      const recVer   = sh.recommendedFirmwareVersion || '';
+      const autoUpd  = sh.shelfFirmwareAutoUpdate;
+      const postDate = sh.shelfFirmwarePostingDate ? sh.shelfFirmwarePostingDate.split('T')[0] : '';
+      const moduleType = sh.moduleType || '—';
+      const shelfModel = sh.model || '—';
+
+      // Fallback: use catalog version if no live version
+      const bl = blByModule[moduleType] || {};
       const blVersionShort = bl.sysShelfModuleFirmwareVersion || '';
-      const blVersionFull  = bl.shelfModuleFirmwareVersion || '';  // e.g. "IOM12C.0111.SFW"
-      const displayVersion = blVersionShort || blVersionFull || '';
-      const liveVersion = liveShelvesMap[moduleType] || '';
-      const isDrift     = liveVersion && displayVersion && liveVersion !== blVersionShort && liveVersion !== blVersionFull;
-      const statusText  = liveVersion
-                        ? (isDrift ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${displayVersion}</span>`
-                                   : `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`)
-                        : `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`;
-      // Display live version if available, otherwise show catalog version prominently
-      const versionCell = liveVersion
-        ? `<span style="font-family:monospace;font-weight:700;">${liveVersion}</span>`
-        : `<span style="font-family:monospace;font-weight:700;color:var(--accent-cyan);">${displayVersion || '—'}</span>`;
+      const blVersionFull  = bl.shelfModuleFirmwareVersion || '';
+      const catalogVer = blVersionShort || blVersionFull || '';
+
+      const displayCurrent = liveVer || '';
+      const displayRec     = recVer || catalogVer || '';
+      if (!displayCurrent && !displayRec && !sh.serialNumber) return;
+      anyShelfData = true;
+      if (liveVer) anyLiveShelfData = true;
+
+      const isDrift = displayCurrent && displayRec && displayCurrent !== displayRec;
+      const autoUpdBadge = autoUpd === true
+        ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Auto</span>`
+        : autoUpd === false
+          ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
+          : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+      const statusBadge = !displayCurrent
+        ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
+        : isDrift
+          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
+          : `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+      const currentCell = displayCurrent
+        ? `<span style="font-family:monospace;font-weight:700;">${displayCurrent}</span>`
+        : `<span style="font-size:0.75rem;color:var(--text-muted);">—</span>`;
+      const recCell = displayRec
+        ? `<span style="font-family:monospace;${!liveVer ? 'color:var(--accent-cyan);' : 'color:var(--text-muted);'}">${displayRec}</span>`
+        : `<span style="color:var(--text-muted);">—</span>`;
+
       shelfFwRows += `<tr>
         <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary);">${shelfModel}</td>
+        <td style="padding:8px 12px;color:var(--text-secondary);font-size:0.82rem;">${shelfModel}</td>
         <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${moduleType}</td>
-        <td style="padding:8px 12px;">${versionCell}</td>
-        <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);font-family:monospace;">${blVersionFull || displayVersion || '—'}</td>
-        <td style="padding:8px 12px;">${statusText}</td>
+        <td style="padding:8px 12px;">${currentCell}</td>
+        <td style="padding:8px 12px;">${recCell}</td>
+        <td style="padding:8px 12px;">${statusBadge}</td>
+        <td style="padding:8px 12px;">${autoUpdBadge}</td>
+        <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">${postDate || '—'}</td>
       </tr>`;
     });
 
-    // If no baselines but live shelves have moduleType, show those
-    if (baselines.length === 0) {
-      (sys.shelves || []).forEach(sh => {
-        if (!sh.moduleType && !sh.firmwareVersion) return;
+    // If no shelves with live data, fall back to pure catalog baselines
+    if (shelves.length === 0 && baselines.length > 0) {
+      baselines.forEach(bl => {
         anyShelfData = true;
-        const current     = sh.firmwareVersion || '—';
-        const recommended = sh.recommendedFirmwareVersion || '';
-        const isDrift     = sh.firmwareVersion && recommended && sh.firmwareVersion !== recommended;
-        const statusColor = isDrift ? '#fb923c' : (sh.firmwareVersion ? '#4ade80' : 'var(--text-muted)');
-        const statusText  = !sh.firmwareVersion ? `<span style="font-size:0.72rem;color:var(--text-muted);">Unknown</span>`
-                          : isDrift             ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
-                          :                       `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+        const moduleType     = bl.shelfModuleName || '—';
+        const shelfModel     = bl.shelfName || '—';
+        const blVersionShort = bl.sysShelfModuleFirmwareVersion || '';
+        const blVersionFull  = bl.shelfModuleFirmwareVersion || '';
+        const displayVersion = blVersionShort || blVersionFull || '';
         shelfFwRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
-          <td style="padding:8px 12px;color:var(--text-secondary);">${sh.model || '—'}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${sh.moduleType || '—'}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${current}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--text-muted);">${recommended || '—'}</td>
-          <td style="padding:8px 12px;">${statusText}</td>
+          <td style="padding:8px 12px;color:var(--text-secondary);font-size:0.82rem;">${shelfModel}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${moduleType}</td>
+          <td style="padding:8px 12px;"><span style="font-family:monospace;color:var(--accent-cyan);font-weight:700;">${displayVersion || '—'}</span></td>
+          <td style="padding:8px 12px;"><span style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${blVersionFull || '—'}</span></td>
+          <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span></td>
+          <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
+          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">—</td>
         </tr>`;
       });
     }
 
-    // Physical shelf inventory rows
-    (sys.shelves || []).forEach(sh => {
+    // Physical shelf inventory rows (with per-shelf drive count)
+    shelves.forEach(sh => {
       if (!sh.serialNumber && !sh.model) return;
-      const eosDate = sh.endOfHwSupport ? sh.endOfHwSupport.split('T')[0] : '—';
-      const eosColor = sh.endOfHwSupport && new Date(sh.endOfHwSupport) < new Date()
-        ? '#fb923c' : 'var(--text-muted)';
+      const eosDate  = sh.endOfHwSupport ? sh.endOfHwSupport.split('T')[0] : '—';
+      const eosColor = sh.endOfHwSupport && new Date(sh.endOfHwSupport) < new Date() ? '#fb923c' : 'var(--text-muted)';
+      const drvCount = sh.driveCount || (sh.drives || []).length || 0;
       shelfInvRows += `<tr>
         <td style="padding:6px 12px;font-weight:600;color:var(--text-primary);font-size:0.8rem;">${sysLabel}</td>
         <td style="padding:6px 12px;font-family:monospace;font-size:0.78rem;">${sh.serialNumber || '—'}</td>
         <td style="padding:6px 12px;color:var(--text-secondary);font-size:0.8rem;">${sh.model || '—'}</td>
         <td style="padding:6px 12px;font-family:monospace;font-size:0.78rem;">${sh.moduleType || '—'}</td>
+        <td style="padding:6px 12px;font-size:0.78rem;text-align:center;color:var(--text-muted);">${drvCount || '—'}</td>
         <td style="padding:6px 12px;font-size:0.78rem;color:${eosColor};">${eosDate}</td>
       </tr>`;
     });
   });
+
+  const shelfApiNote = anyLiveShelfData ? '' : `
+    <div style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
+      ℹ️ <strong style="color:var(--accent-purple);">Catalog reference</strong> — no live shelf firmware versions returned by the API for these systems. Versions shown are ONTAP-bundled baselines from the release catalog.
+    </div>`;
 
   const shelfSection = anyShelfData ? `
     <div style="margin-bottom:20px;">
       <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
         🗄 Disk Shelf Module Firmware
       </div>
-      <div style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
-        ℹ️ <strong style="color:var(--accent-purple);">Catalog reference</strong> — shelf module firmware versions are sourced from the ONTAP release catalog (bundled versions). Live per-shelf versions are not available via the ActiveIQ API.
-      </div>
+      ${shelfApiNote}
       <div style="overflow-x:auto;margin-bottom:12px;">
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
           <thead>
@@ -7778,17 +7803,19 @@ function renderFirmwarePanel(selectedSystems) {
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Shelf Model</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module (IOM/NSM)</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">ONTAP Bundled</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Full Bundle Name</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Recommended</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Posted</th>
             </tr>
           </thead>
-          <tbody>${shelfFwRows || '<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--text-muted);">No shelf module firmware data — run Sync Now</td></tr>'}</tbody>
+          <tbody>${shelfFwRows || '<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--text-muted);">No shelf module firmware data — run Sync Now</td></tr>'}</tbody>
         </table>
       </div>
       ${shelfInvRows ? `
       <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Physical Shelf Inventory</div>
-      <div style="overflow-x:auto;max-height:180px;overflow-y:auto;">
+      <div style="overflow-x:auto;max-height:200px;overflow-y:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-color);">
@@ -7796,6 +7823,7 @@ function renderFirmwarePanel(selectedSystems) {
               <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Serial Number</th>
               <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Model</th>
               <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module</th>
+              <th style="padding:4px 12px;text-align:center;color:var(--text-muted);font-weight:600;">Drives</th>
               <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">HW EOS</th>
             </tr>
           </thead>
@@ -7850,42 +7878,94 @@ function renderFirmwarePanel(selectedSystems) {
       </table>
     </div>` : '';
 
-  // ── Section 4: Drive Firmware Baselines (from tamOsVersions catalog) ──
-  // Show for the first selected system only (all with same ONTAP version share baseline)
-  let driveBaselineSection = '';
-  const sysWithBaseline = ontapSystems.find(s => (s.diskFirmwareBaselines || []).length > 0);
-  if (sysWithBaseline) {
-    const baselines = sysWithBaseline.diskFirmwareBaselines;
-    const driveRows = baselines.slice(0, 30).map(b => {
-      const model = b.driveModel || b.model || '—';
-      const ver   = b.version || b.firmwareVersion || '—';
-      return `<tr>
-        <td style="padding:6px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-secondary);">${model}</td>
-        <td style="padding:6px 12px;font-family:monospace;font-size:0.8rem;">${ver}</td>
+  // ── Section 4: Drive Firmware (live per-system → fleet map → catalog baselines) ──
+  // Primary: driveFirmware[] from per-system GQL (driveModel, currentVersion, recommendedVersion,
+  //          autoUpdateEligible, postingDate).
+  // Secondary: fleet-level drive firmware map (recommendedVersion only).
+  // Tertiary: diskFirmwareBaselines catalog (bundled expected versions per ONTAP release).
+  let driveSection = '';
+  let driveSectionRows = '';
+  let anyLiveDriveData = false;
+  let anyDriveData = false;
+
+  ontapSystems.forEach(sys => {
+    const sysLabel    = sys.systemName || sys.clusterName || sys.serialNumber || '—';
+    const liveDrvList = sys.driveFirmware || [];
+    const fromFleet   = liveDrvList.some(d => d._fromFleet);
+    const fromCatalog = liveDrvList.some(d => d._fromCatalog);
+    const isLive      = liveDrvList.length > 0 && !fromFleet && !fromCatalog;
+    if (isLive) anyLiveDriveData = true;
+
+    liveDrvList.forEach(d => {
+      anyDriveData = true;
+      const model    = d.driveModel || '—';
+      const curVer   = d.currentVersion || '';
+      const recVer   = d.recommendedVersion || '';
+      const autoUpd  = d.autoUpdateEligible;
+      const postDate = d.postingDate ? d.postingDate.split('T')[0] : '';
+      const isDrift  = curVer && recVer && curVer !== recVer;
+      const autoUpdBadge = autoUpd === true
+        ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Auto</span>`
+        : autoUpd === false
+          ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
+          : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+      const statusBadge = !curVer
+        ? (d._fromCatalog
+          ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
+          : `<span style="font-size:0.72rem;color:var(--accent-purple);">Fleet ref</span>`)
+        : isDrift
+          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
+          : `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+      const curCell = curVer
+        ? `<span style="font-family:monospace;font-weight:700;">${curVer}</span>`
+        : `<span style="color:var(--text-muted);font-size:0.75rem;">—</span>`;
+      const recCell = recVer
+        ? `<span style="font-family:monospace;${!curVer ? 'color:var(--accent-cyan);font-weight:700;' : isDrift ? 'color:#fb923c;' : 'color:var(--text-muted);'}">${recVer}</span>`
+        : `<span style="color:var(--text-muted);">—</span>`;
+      driveSectionRows += `<tr>
+        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);font-size:0.82rem;">${sysLabel}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--text-secondary);">${model}</td>
+        <td style="padding:8px 12px;">${curCell}</td>
+        <td style="padding:8px 12px;">${recCell}</td>
+        <td style="padding:8px 12px;">${statusBadge}</td>
+        <td style="padding:8px 12px;">${autoUpdBadge}</td>
+        <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">${postDate || '—'}</td>
       </tr>`;
-    }).join('');
-    const moreCount = baselines.length > 30 ? `<tr><td colspan="2" style="padding:6px 12px;color:var(--text-muted);font-size:0.75rem;">… and ${baselines.length - 30} more drive models</td></tr>` : '';
-    driveBaselineSection = `
+    });
+  });
+
+  if (anyDriveData) {
+    const driveApiNote = !anyLiveDriveData ? `
+      <div style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
+        ℹ️ <strong style="color:var(--accent-purple);">No live drive firmware data returned</strong> — showing fleet-level recommendations or ONTAP catalog baselines. For installed firmware revisions per drive, check: <code style="font-family:monospace;color:var(--accent-cyan);">storage disk show -fields firmware-revision</code>
+      </div>` : '';
+    driveSection = `
       <div style="margin-bottom:8px;">
         <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
-          💿 Drive Firmware Baseline — ONTAP ${sysWithBaseline.ontapVersion || ''}
+          💿 Drive Firmware
         </div>
-        <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
+        ${driveApiNote}
+        <div style="overflow-x:auto;max-height:280px;overflow-y:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
             <thead>
               <tr style="border-bottom:1px solid var(--border-color);">
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
                 <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Drive Model</th>
-                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Expected Firmware</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Recommended</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Posted</th>
               </tr>
             </thead>
-            <tbody>${driveRows}${moreCount}</tbody>
+            <tbody>${driveSectionRows}</tbody>
           </table>
         </div>
       </div>`;
   }
 
   // ── Assemble all sections ──────────────────────────────────────────────
-  const noData = !anySpData && !anyShelfData && !dqpRows && !driveBaselineSection;
+  const noData = !anySpData && !anyShelfData && !dqpRows && !anyDriveData;
   if (noData) {
     container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.85rem;">
       No firmware data available. Trigger a fresh harvest to populate firmware baselines.
@@ -7896,7 +7976,7 @@ function renderFirmwarePanel(selectedSystems) {
         ${spSection}
         ${shelfSection}
         ${dqpSection}
-        ${driveBaselineSection}
+        ${driveSection}
       </div>`;
   }
 }
@@ -11989,6 +12069,14 @@ function enrichSystemTelemetry(s) {
     biosVersion:           s.biosVersion || '',
     diskFirmwareBaselines: s.diskFirmwareBaselines || [],
     shelfFirmwareBaselines: s.shelfFirmwareBaselines || [],
+    // ── Live per-system drive firmware list (populated by server.py from GQL driveFirmware[] field
+    //    or synthesised from fleet/catalog fallback). Must be forwarded here so the firmware panel
+    //    and export functions can read sys.driveFirmware correctly. ──
+    driveFirmware:         s.driveFirmware || [],
+    // ── Fleet-level firmware recommendation maps (forwarded for export/reporting) ──
+    fleetDriveFirmwareMap: s.fleetDriveFirmwareMap || {},
+    fleetShelfFirmwareMap: s.fleetShelfFirmwareMap || {},
+    fleetDqpLatest:        s.fleetDqpLatest || {},
     // ── Computed SP/BMC firmware drift ──
     systemFirmwareDrift: (() => {
       const fwList = s.systemFirmware || [];
@@ -16457,10 +16545,13 @@ function generateActionPlan() {
   html += `
     </div>
 
-    <!-- OS/Firmware Upgrades Section -->
+    <!-- OS Version Upgrades Section (ONTAP / StorageGRID / SANtricity) -->
     <div class="plan-section" data-section-index="5" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">5. Recommended OS Upgrade Roadmaps</h2>
+        <div>
+          <h2 style="font-size: 1.15rem; margin: 0 0 4px 0; border: none; padding: 0;">5. OS Version Upgrades</h2>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">ONTAP &nbsp;·&nbsp; StorageGRID &nbsp;·&nbsp; SANtricity (E-Series) &nbsp;—&nbsp; <em>Software version upgrades only. Component firmware is in Tab&nbsp;5b.</em></div>
+        </div>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps (TXT)</button>
       </div>
   `;
@@ -16557,7 +16648,166 @@ function generateActionPlan() {
     });
   }
 
+  // ── Build Firmware Currency section data ─────────────────────────────────────
+  const _fwSpBmcItems = [], _fwShelfItems = [], _fwDiskDqpItems = [];
+  targetSystems.forEach(sys => {
+    const spBase = sys.spFirmwareBaseline || {};
+    // SP / BMC / Mainboard controller firmware
+    (sys.systemFirmware || []).forEach(fw => {
+      const current = fw.currentVersion || '';
+      const recommended = fw.recommendedVersion || spBase.version || '';
+      const isDrift = current && recommended && current !== recommended;
+      _fwSpBmcItems.push({
+        systemName: sys.systemName, serialNumber: sys.serialNumber,
+        type: (fw.type || fw.componentType || 'SP/BMC').toUpperCase(),
+        current: current || '—', recommended: recommended || '—',
+        isDrift
+      });
+    });
+    // BIOS / Mainboard
+    const biosVer = sys.biosVersion || sys.motherboardFirmware || '';
+    const biosBase = spBase.biosVersion || '';
+    if (biosVer) {
+      _fwSpBmcItems.push({
+        systemName: sys.systemName, serialNumber: sys.serialNumber,
+        type: 'BIOS/Mainboard',
+        current: biosVer, recommended: biosBase || '—',
+        isDrift: biosBase && biosVer !== biosBase
+      });
+    }
+    // Shelf module firmware
+    (sys.shelves || []).forEach(sh => {
+      const apiRec = sh.recommendedFirmwareVersion || '';
+      const catRec = (sys.shelfFirmwareBaselines || []).find(b => b.shelfModuleName === (sh.moduleType || sh.model));
+      const recommended = apiRec || (catRec ? catRec.sysShelfModuleFirmwareVersion : '') || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '—';
+      const current = sh.firmwareVersion || '—';
+      const isDrift = current !== '—' && recommended !== '—' && current !== recommended;
+      _fwShelfItems.push({
+        systemName: sys.systemName, serialNumber: sys.serialNumber,
+        shelfSerial: sh.serialNumber || sh.id || '—',
+        model: sh.model || '—', moduleType: sh.moduleType || '—',
+        current, recommended, isDrift
+      });
+    });
+    // Disk Qualification Package (DQP)
+    const dqp = sys.diskQualificationPackage || {};
+    const dqpCur = dqp.currentVersion || dqp.version || '—';
+    const dqpRec = dqp.recommendedVersion || '—';
+    _fwDiskDqpItems.push({
+      systemName: sys.systemName, serialNumber: sys.serialNumber,
+      current: dqpCur, recommended: dqpRec,
+      isDrift: dqpCur !== '—' && dqpRec !== '—' && dqpCur !== dqpRec
+    });
+  });
+  const _fwSpBmcDriftCount  = _fwSpBmcItems.filter(x => x.isDrift).length;
+  const _fwShelfDriftCount  = _fwShelfItems.filter(x => x.isDrift).length;
+  const _fwDiskDqpDriftCount = _fwDiskDqpItems.filter(x => x.isDrift).length;
+  const _fwTotalDriftCount  = _fwSpBmcDriftCount + _fwShelfDriftCount + _fwDiskDqpDriftCount;
+
+  // Helper: render a firmware table
+  function _renderFwTable(rows, cols) {
+    if (rows.length === 0) return `<div style="font-size:0.83rem;color:var(--text-muted);">No data available for this firmware category in the current scope.</div>`;
+    let h = `<table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:8px;">`;
+    h += `<thead><tr style="border-bottom:1px solid var(--border-color);text-align:left;">`;
+    cols.forEach(c => { h += `<th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">${c.label}</th>`; });
+    h += `</tr></thead><tbody>`;
+    rows.forEach(row => {
+      const drift = row.isDrift;
+      h += `<tr style="border-bottom:1px dashed rgba(255,255,255,0.05);">`;
+      cols.forEach(c => {
+        let cell = row[c.key] ?? '—';
+        let style = 'padding:7px 8px;color:var(--text-secondary);';
+        if (c.key === 'systemName') style += 'font-weight:600;color:#e2e8f0;';
+        if (c.key === 'current' && drift) style += 'color:var(--status-warning);font-weight:600;';
+        if (c.key === 'current' && !drift && cell !== '—') style += 'color:var(--status-normal);';
+        if (c.key === 'recommended') style += 'color:var(--accent-cyan);font-weight:600;';
+        if (c.key === 'isDrift') { cell = drift ? `<span class="badge warning" style="font-size:0.62rem;padding:1px 5px;">DRIFT</span>` : `<span class="badge" style="font-size:0.62rem;padding:1px 5px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>`; style = 'padding:7px 8px;'; }
+        h += `<td style="${style}">${cell}</td>`;
+      });
+      h += `</tr>`;
+    });
+    h += `</tbody></table>`;
+    return h;
+  }
+
   html += `
+    </div>
+
+    <!-- Firmware Currency Section (SP/BMC, Shelf, Disk/DQP) -->
+    <div class="plan-section" data-section-index="16" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 8px;">
+        <div>
+          <h2 style="font-size: 1.15rem; margin: 0 0 4px 0; border: none; padding: 0;">5b. Firmware Currency</h2>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">SP/BMC &nbsp;·&nbsp; Mainboard/BIOS &nbsp;·&nbsp; Disk Shelf modules &nbsp;·&nbsp; Disk Qualification Package (DQP) &nbsp;—&nbsp; <em>Component firmware, separate from OS versions.</em></div>
+        </div>
+        ${_fwTotalDriftCount > 0 ? `<span class="badge warning" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;">${_fwTotalDriftCount} drift item${_fwTotalDriftCount !== 1 ? 's' : ''}</span>` : `<span class="badge" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`}
+      </div>
+
+      <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">
+        Component firmware is independent of the OS version. SP/BMC, shelf module, and disk qualification firmware 
+        are maintained separately and must be tracked and upgraded on their own cadence. Drift in any of these 
+        components may introduce stability or compatibility risks even when the OS version is current.
+      </p>
+
+      <!-- SP / BMC / Mainboard firmware -->
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:var(--accent-cyan);border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">Controller Firmware — SP / BMC / Mainboard / BIOS</h3>
+          ${_fwSpBmcDriftCount > 0 ? `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${_fwSpBmcDriftCount} drift</span>` : (_fwSpBmcItems.length > 0 ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>` : '')}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">Includes Service Processor (SP), Baseboard Management Controller (BMC), and motherboard/BIOS firmware. Updated via <code>system service-processor image update -node * -update-type latest</code> (non-disruptive, background).</p>
+        <div style="margin-left:14px;">
+        ${_renderFwTable(_fwSpBmcItems, [
+          {key:'systemName',label:'System'},
+          {key:'serialNumber',label:'S/N'},
+          {key:'type',label:'Component'},
+          {key:'current',label:'Installed Version'},
+          {key:'recommended',label:'Recommended Version'},
+          {key:'isDrift',label:'Status'}
+        ])}
+        </div>
+      </div>
+
+      <!-- Shelf module firmware -->
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#a78bfa;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">Disk Shelf Module Firmware</h3>
+          ${_fwShelfDriftCount > 0 ? `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${_fwShelfDriftCount} drift</span>` : (_fwShelfItems.length > 0 ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>` : '')}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">Shelf module (IOM/ESM) firmware is separate from the OS and SP firmware. Updated non-disruptively via <code>storage firmware download</code>. Source: <a href="https://mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com → Disk Shelf Firmware</a>.</p>
+        <div style="margin-left:14px;">
+        ${_renderFwTable(_fwShelfItems, [
+          {key:'systemName',label:'System'},
+          {key:'shelfSerial',label:'Shelf S/N'},
+          {key:'moduleType',label:'Module Type'},
+          {key:'current',label:'Installed Version'},
+          {key:'recommended',label:'Recommended Version'},
+          {key:'isDrift',label:'Status'}
+        ])}
+        </div>
+      </div>
+
+      <!-- Disk Qualification Package -->
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#f59e0b;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">Disk Qualification Package (DQP)</h3>
+          ${_fwDiskDqpDriftCount > 0 ? `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${_fwDiskDqpDriftCount} drift</span>` : (_fwDiskDqpItems.some(x => x.current !== '—') ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>` : '')}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">The Disk Qualification Package validates drive firmware and compatibility for ONTAP. An outdated DQP may prevent qualified drive FW updates or new drive types. Install via <code>storage disk qualification package upload -package &lt;file&gt;</code>. Source: <a href="https://mysupport.netapp.com/site/downloads/firmware/disk-drive-firmware" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com → Disk Drive Firmware &amp; DQP</a>.</p>
+        <div style="margin-left:14px;">
+        ${_renderFwTable(_fwDiskDqpItems.filter(x => x.current !== '—' || x.recommended !== '—'), [
+          {key:'systemName',label:'System'},
+          {key:'serialNumber',label:'S/N'},
+          {key:'current',label:'Installed DQP'},
+          {key:'recommended',label:'Recommended DQP'},
+          {key:'isDrift',label:'Status'}
+        ])}
+        </div>
+      </div>
+
     </div>
 
     <!-- Network Switch & Fabric Infrastructure Remediation Section -->
@@ -16988,7 +17238,8 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)">4. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)">5. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)">5. OS Versions ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="SP/BMC, Shelf, Disk/DQP firmware — distinct from OS version upgrades">5b. Firmware ${_fwTotalDriftCount > 0 ? `<span style="background:rgba(255,170,0,0.25);color:#fbbf24;border-radius:3px;padding:0 4px;font-size:0.7rem;margin-left:2px;">${_fwTotalDriftCount}</span>` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)">7. Logistics &amp; Health</button>
       <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)">8. Guidelines</button>
