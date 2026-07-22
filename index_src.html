@@ -255,6 +255,17 @@
           </div>
         </div>
 
+        <!-- Controller & Shelf Firmware Health Card — populated by renderFirmwarePanel() -->
+        <div id="tamFirmwareCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
+          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
+            <span>🖥 Controller &amp; Shelf Firmware Health</span>
+            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">SP/BMC · BIOS · IOM/NSM Modules · DQP · Drive Baselines</span>
+          </div>
+          <div id="tamFirmwareContainer">
+            <!-- Injected dynamically by renderFirmwarePanel() -->
+          </div>
+        </div>
+
         <div class="settings-grid">
           <!-- Main Risks Table -->
           <div class="card table-card" style="margin-bottom: 0;">

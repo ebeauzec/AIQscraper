@@ -7663,27 +7663,88 @@ function renderFirmwarePanel(selectedSystems) {
     </div>` : '';
 
   // ── Section 2: Shelf Module Firmware ─────────────────────────────────
-  let shelfRows = '';
+  // Strategy: use shelfFirmwareBaselines (ONTAP version catalog cross-ref) as the primary
+  // source for module-level firmware versions. The live cluster shelves GQL only returns
+  // serialNumber/hardwareModel/moduleHardwareModel — no live firmware version — so the
+  // catalog baseline is the best available data. Physical shelf inventory (S/N, model, EOS)
+  // from shelves[] is shown in a separate sub-table below.
+  let shelfFwRows = '';
+  let shelfInvRows = '';
   let anyShelfData = false;
+
+  // Build a map of shelfModel -> {moduleType, baseline} from shelfFirmwareBaselines
+  // and a map of moduleType -> liveVersion from shelves[].moduleType + firmwareVersion
   ontapSystems.forEach(sys => {
+    const sysLabel = sys.systemName || sys.clusterName || sys.serialNumber || '—';
+    const baselines = sys.shelfFirmwareBaselines || [];
+    const liveShelvesMap = {};   // moduleType -> live firmwareVersion from shelves[]
     (sys.shelves || []).forEach(sh => {
-      if (!sh.moduleType && !sh.firmwareVersion) return;
+      const mt = sh.moduleType || '';
+      if (mt && sh.firmwareVersion) liveShelvesMap[mt] = sh.firmwareVersion;
+    });
+
+    // Show one row per unique module type in the baseline catalog
+    baselines.forEach(bl => {
       anyShelfData = true;
-      const apiRec = sh.recommendedFirmwareVersion || '';
-      const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
-      const recommended = apiRec || (baseline ? baseline.recommended : '');
-      const current = sh.firmwareVersion || '';
-      const isDrift = current && recommended && current !== recommended;
-      const statusColor = isDrift ? '#fb923c' : (current ? '#4ade80' : 'var(--text-muted)');
-      const statusText  = !current ? 'Unknown' : isDrift ? '⚠ UPDATE' : '✓ Current';
-      shelfRows += `<tr>
-        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${sh.serialNumber || '—'}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary);">${sh.model || '—'}</td>
-        <td style="padding:8px 12px;color:var(--text-muted);">${sh.moduleType || '—'}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${current || '—'}</td>
+      const moduleType  = bl.shelfModuleName || '—';
+      const shelfModel  = bl.shelfName || '—';
+      const blVersion   = bl.sysShelfModuleFirmwareVersion || bl.shelfModuleFirmwareVersion || '';
+      const liveVersion = liveShelvesMap[moduleType] || '';
+      const current     = liveVersion || '—';
+      // If no live version, show baseline as the "expected" target
+      const recommended = blVersion || '';
+      const isDrift     = liveVersion && recommended && liveVersion !== recommended;
+      const statusColor = !liveVersion ? 'var(--text-muted)'
+                        : isDrift      ? '#fb923c'
+                        :                '#4ade80';
+      const statusText  = !liveVersion ? `<span style="font-size:0.72rem;color:var(--text-muted);">Baseline only</span>`
+                        : isDrift      ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
+                        :                `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+      shelfFwRows += `<tr>
+        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
+        <td style="padding:8px 12px;color:var(--text-secondary);">${shelfModel}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${moduleType}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${current}</td>
         <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--text-muted);">${recommended || '—'}</td>
-        <td style="padding:8px 12px;font-size:0.75rem;font-weight:700;color:${statusColor};">${statusText}</td>
+        <td style="padding:8px 12px;">${statusText}</td>
+      </tr>`;
+    });
+
+    // If no baselines but live shelves have moduleType, show those
+    if (baselines.length === 0) {
+      (sys.shelves || []).forEach(sh => {
+        if (!sh.moduleType && !sh.firmwareVersion) return;
+        anyShelfData = true;
+        const current     = sh.firmwareVersion || '—';
+        const recommended = sh.recommendedFirmwareVersion || '';
+        const isDrift     = sh.firmwareVersion && recommended && sh.firmwareVersion !== recommended;
+        const statusColor = isDrift ? '#fb923c' : (sh.firmwareVersion ? '#4ade80' : 'var(--text-muted)');
+        const statusText  = !sh.firmwareVersion ? `<span style="font-size:0.72rem;color:var(--text-muted);">Unknown</span>`
+                          : isDrift             ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
+                          :                       `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+        shelfFwRows += `<tr>
+          <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
+          <td style="padding:8px 12px;color:var(--text-secondary);">${sh.model || '—'}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${sh.moduleType || '—'}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${current}</td>
+          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--text-muted);">${recommended || '—'}</td>
+          <td style="padding:8px 12px;">${statusText}</td>
+        </tr>`;
+      });
+    }
+
+    // Physical shelf inventory rows
+    (sys.shelves || []).forEach(sh => {
+      if (!sh.serialNumber && !sh.model) return;
+      const eosDate = sh.endOfHwSupport ? sh.endOfHwSupport.split('T')[0] : '—';
+      const eosColor = sh.endOfHwSupport && new Date(sh.endOfHwSupport) < new Date()
+        ? '#fb923c' : 'var(--text-muted)';
+      shelfInvRows += `<tr>
+        <td style="padding:6px 12px;font-weight:600;color:var(--text-primary);font-size:0.8rem;">${sysLabel}</td>
+        <td style="padding:6px 12px;font-family:monospace;font-size:0.78rem;">${sh.serialNumber || '—'}</td>
+        <td style="padding:6px 12px;color:var(--text-secondary);font-size:0.8rem;">${sh.model || '—'}</td>
+        <td style="padding:6px 12px;font-family:monospace;font-size:0.78rem;">${sh.moduleType || '—'}</td>
+        <td style="padding:6px 12px;font-size:0.78rem;color:${eosColor};">${eosDate}</td>
       </tr>`;
     });
   });
@@ -7693,22 +7754,37 @@ function renderFirmwarePanel(selectedSystems) {
       <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
         🗄 Disk Shelf Module Firmware
       </div>
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;margin-bottom:12px;">
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-color);">
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">S/N</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Model</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Recommended</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Shelf Model</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module (IOM/NSM)</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Live Version</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Baseline Target</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
             </tr>
           </thead>
-          <tbody>${shelfRows}</tbody>
+          <tbody>${shelfFwRows || '<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--text-muted);">No shelf module firmware data — run Sync Now</td></tr>'}</tbody>
         </table>
       </div>
+      ${shelfInvRows ? `
+      <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Physical Shelf Inventory</div>
+      <div style="overflow-x:auto;max-height:180px;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
+              <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Serial Number</th>
+              <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Model</th>
+              <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module</th>
+              <th style="padding:4px 12px;text-align:left;color:var(--text-muted);font-weight:600;">HW EOS</th>
+            </tr>
+          </thead>
+          <tbody>${shelfInvRows}</tbody>
+        </table>
+      </div>` : ''}
     </div>` : '';
 
   // ── Section 3: Disk Qualification Package ─────────────────────────────

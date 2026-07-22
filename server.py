@@ -1001,7 +1001,9 @@ def _do_full_harvest(watchlist_ids=None):
                   }
                   shelves {
                     serialNumber
+                    shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
+                    moduleHardwareModel { name }
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -1056,7 +1058,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
+                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
@@ -1489,14 +1491,18 @@ def _do_full_harvest(watchlist_ids=None):
             cl_shelves = serial_to_cluster_shelves.get(serial, [])
             shelves_out = s.get("shelves") or []
             for csh in cl_shelves:
-                hm = csh.get("hardwareModel") or {}
+                hm  = csh.get("hardwareModel") or {}
+                mhm = csh.get("moduleHardwareModel") or {}
                 shelves_out.append({
                     "serialNumber": csh.get("serialNumber", ""),
+                    "shelfId": csh.get("shelfId", ""),
                     "model": hm.get("name", ""),
                     "endOfAvailability": hm.get("endOfAvailability", ""),
                     "endOfHwSupport": hm.get("endOfHwSupport", ""),
-                    # ── Shelf firmware fields (added to GQL query) ──
-                    "moduleType": csh.get("moduleType", ""),
+                    # moduleHardwareModel.name gives IOM/NSM module type (e.g. "IOM12C", "NSM100")
+                    "moduleType": mhm.get("name", "") or csh.get("moduleType", ""),
+                    # Live per-shelf firmware is not available on the cluster shelves GQL endpoint;
+                    # these fields will be populated from shelfFirmwareBaselines catalog fallback in app.js
                     "firmwareVersion": csh.get("firmwareVersion", ""),
                     "recommendedFirmwareVersion": csh.get("recommendedFirmwareVersion", ""),
                 })
