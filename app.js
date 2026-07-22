@@ -7546,7 +7546,252 @@ function closeRemediationModal() {
   if (modal) modal.style.display = "none";
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Firmware Status Panel — renders SP/BMC, BIOS, Shelf, DQP, Disk FW
+// ═══════════════════════════════════════════════════════════════════════
+function renderFirmwarePanel(selectedSystems) {
+  const card = document.getElementById('tamFirmwareCard');
+  const container = document.getElementById('tamFirmwareContainer');
+  if (!card || !container) return;
+
+  // Only show for ONTAP systems (SP/BMC is ONTAP-specific)
+  const ontapSystems = selectedSystems.filter(s => !s.santricityVersion);
+  if (ontapSystems.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+
+  // ── Helper: drift badge ─────────────────────────────────────────────
+  const driftBadge = (current, recommended, label) => {
+    if (!current && !recommended) return `<span style="color:var(--text-muted);font-size:0.75rem;">N/A</span>`;
+    if (!recommended) return `<span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>`;
+    const isDrift = current && recommended && current !== recommended;
+    const color = isDrift ? '#fb923c' : '#4ade80';
+    const icon  = isDrift ? '⚠' : '✓';
+    return `<span style="display:inline-flex;align-items:center;gap:5px;">
+      <span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>
+      <span style="font-size:0.72rem;color:${color};font-weight:700;">${icon} ${isDrift ? `→ ${recommended}` : 'current'}</span>
+    </span>`;
+  };
+
+  // ── Section 1: Controller Firmware (SP/BMC + BIOS) per system ──────
+  let spRows = '';
+  let anySpData = false;
+  ontapSystems.forEach(sys => {
+    const fwList = sys.systemFirmware || [];
+    const biosVer = sys.biosVersion || '';
+    const spBaseline = sys.spFirmwareBaseline || {};
+    if (fwList.length === 0 && !biosVer) return;
+    anySpData = true;
+
+    // SP / BMC rows from systemFirmware[]
+    fwList.forEach(fw => {
+      const typeLabel = (fw.type || 'SP').toUpperCase();
+      const current = fw.currentVersion || '';
+      const recommended = fw.recommendedVersion || spBaseline.version || '';
+      const autoUpd = fw.autoUpdateEligible;
+      const autoUpdBadge = autoUpd === true
+        ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
+        : autoUpd === false
+          ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
+          : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+      const postDate = fw.postingDate ? fw.postingDate.split('T')[0] : '—';
+      spRows += `<tr>
+        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+        <td style="padding:8px 12px;color:var(--text-secondary);">${typeLabel}</td>
+        <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel)}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${recommended || '—'}</td>
+        <td style="padding:8px 12px;">${autoUpdBadge}</td>
+        <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate}</td>
+      </tr>`;
+    });
+
+    // BIOS row from catalog cross-reference
+    if (biosVer || spBaseline.biosVersion) {
+      const bCurrent = biosVer || '';
+      const bBaseline = spBaseline.biosVersion || '';
+      spRows += `<tr>
+        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+        <td style="padding:8px 12px;color:var(--text-secondary);">BIOS</td>
+        <td style="padding:8px 12px;">${driftBadge(bCurrent, bBaseline, 'BIOS')}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${bBaseline || '—'}</td>
+        <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
+        <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">—</td>
+      </tr>`;
+    }
+  });
+
+  const spSection = anySpData ? `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+        🖥 Controller Firmware (SP / BMC / BIOS)
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Component</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current → Status</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Baseline</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Posted</th>
+            </tr>
+          </thead>
+          <tbody>${spRows || '<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--text-muted);">No SP/BMC firmware data available (requires live harvest)</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  // ── Section 2: Shelf Module Firmware ─────────────────────────────────
+  let shelfRows = '';
+  let anyShelfData = false;
+  ontapSystems.forEach(sys => {
+    (sys.shelves || []).forEach(sh => {
+      if (!sh.moduleType && !sh.firmwareVersion) return;
+      anyShelfData = true;
+      const apiRec = sh.recommendedFirmwareVersion || '';
+      const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
+      const recommended = apiRec || (baseline ? baseline.recommended : '');
+      const current = sh.firmwareVersion || '';
+      const isDrift = current && recommended && current !== recommended;
+      const statusColor = isDrift ? '#fb923c' : (current ? '#4ade80' : 'var(--text-muted)');
+      const statusText  = !current ? 'Unknown' : isDrift ? '⚠ UPDATE' : '✓ Current';
+      shelfRows += `<tr>
+        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${sh.serialNumber || '—'}</td>
+        <td style="padding:8px 12px;color:var(--text-secondary);">${sh.model || '—'}</td>
+        <td style="padding:8px 12px;color:var(--text-muted);">${sh.moduleType || '—'}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${current || '—'}</td>
+        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--text-muted);">${recommended || '—'}</td>
+        <td style="padding:8px 12px;font-size:0.75rem;font-weight:700;color:${statusColor};">${statusText}</td>
+      </tr>`;
+    });
+  });
+
+  const shelfSection = anyShelfData ? `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+        🗄 Disk Shelf Module Firmware
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border-color);">
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">S/N</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Model</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Recommended</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
+            </tr>
+          </thead>
+          <tbody>${shelfRows}</tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  // ── Section 3: Disk Qualification Package ─────────────────────────────
+  let dqpRows = '';
+  let anyDqpData = false;
+  ontapSystems.forEach(sys => {
+    const dqp = sys.diskQualificationPackage || {};
+    // API returns currentVersion/recommendedVersion (probe-confirmed field names)
+    const ver = dqp.currentVersion || dqp.version || '';
+    const recVer = dqp.recommendedVersion || '';
+    if (!ver && !recVer) return;
+    anyDqpData = true;
+    const isDrift = ver && recVer && ver !== recVer;
+    const autoUpd = dqp.autoUpdateEligible;
+    const statusColor = isDrift ? '#fb923c' : (ver ? '#4ade80' : 'var(--text-muted)');
+    const statusText  = isDrift ? `⚠ UPDATE → ${recVer}` : (ver ? '✓ Current' : '—');
+    const autoUpdBadge = autoUpd === true
+      ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
+      : autoUpd === false
+        ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
+        : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+    dqpRows += `<tr>
+      <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
+      <td style="padding:8px 12px;font-family:monospace;">${ver || '—'}</td>
+      <td style="padding:8px 12px;font-family:monospace;color:var(--text-muted);">${recVer || '—'}</td>
+      <td style="padding:8px 12px;font-size:0.75rem;font-weight:700;color:${statusColor};">${statusText}</td>
+      <td style="padding:8px 12px;">${autoUpdBadge}</td>
+    </tr>`;
+  });
+  const dqpSection = anyDqpData ? `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+        📦 Disk Qualification Package (DQP)
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-color);">
+            <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
+            <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Installed DQP Version</th>
+            <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Recommended</th>
+            <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
+            <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
+          </tr>
+        </thead>
+        <tbody>${dqpRows}</tbody>
+      </table>
+    </div>` : '';
+
+  // ── Section 4: Drive Firmware Baselines (from tamOsVersions catalog) ──
+  // Show for the first selected system only (all with same ONTAP version share baseline)
+  let driveBaselineSection = '';
+  const sysWithBaseline = ontapSystems.find(s => (s.diskFirmwareBaselines || []).length > 0);
+  if (sysWithBaseline) {
+    const baselines = sysWithBaseline.diskFirmwareBaselines;
+    const driveRows = baselines.slice(0, 30).map(b => {
+      const model = b.driveModel || b.model || '—';
+      const ver   = b.version || b.firmwareVersion || '—';
+      return `<tr>
+        <td style="padding:6px 12px;font-family:monospace;font-size:0.8rem;color:var(--text-secondary);">${model}</td>
+        <td style="padding:6px 12px;font-family:monospace;font-size:0.8rem;">${ver}</td>
+      </tr>`;
+    }).join('');
+    const moreCount = baselines.length > 30 ? `<tr><td colspan="2" style="padding:6px 12px;color:var(--text-muted);font-size:0.75rem;">… and ${baselines.length - 30} more drive models</td></tr>` : '';
+    driveBaselineSection = `
+      <div style="margin-bottom:8px;">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+          💿 Drive Firmware Baseline — ONTAP ${sysWithBaseline.ontapVersion || ''}
+        </div>
+        <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-color);">
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Drive Model</th>
+                <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Expected Firmware</th>
+              </tr>
+            </thead>
+            <tbody>${driveRows}${moreCount}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  // ── Assemble all sections ──────────────────────────────────────────────
+  const noData = !anySpData && !anyShelfData && !dqpRows && !driveBaselineSection;
+  if (noData) {
+    container.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+      No firmware data available. Trigger a fresh harvest to populate firmware baselines.
+    </div>`;
+  } else {
+    container.innerHTML = `
+      <div style="display:grid;gap:24px;">
+        ${spSection}
+        ${shelfSection}
+        ${dqpSection}
+        ${driveBaselineSection}
+      </div>`;
+  }
+}
+
 function renderTAMTab() {
+
   populateSystemSelectors();
   
   const currentFiltered = getFilteredSystems();
@@ -11578,7 +11823,56 @@ function enrichSystemTelemetry(s) {
     motherboardFirmware: s.motherboardFirmware || {},
     diskQualificationPackage: s.diskQualificationPackage || {},
     autoUpdateSettings: s.autoUpdateSettings || {},
-    // ── Lifecycle Events & Licenses ──
+    // ── Firmware baselines from OS version catalog (cross-referenced in server.py) ──
+    spFirmwareBaseline:    s.spFirmwareBaseline || {},
+    biosVersion:           s.biosVersion || '',
+    diskFirmwareBaselines: s.diskFirmwareBaselines || [],
+    shelfFirmwareBaselines: s.shelfFirmwareBaselines || [],
+    // ── Computed SP/BMC firmware drift ──
+    systemFirmwareDrift: (() => {
+      const fwList = s.systemFirmware || [];
+      return fwList.filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion);
+    })(),
+    systemFirmwareDriftCount: (() => {
+      const fwList = s.systemFirmware || [];
+      return fwList.filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+    })(),
+    // ── Computed shelf firmware drift ──
+    shelfFirmwareDrift: (() => {
+      const out = [];
+      for (const sh of (s.shelves || [])) {
+        const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
+        if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) {
+          out.push({ serialNumber: sh.serialNumber, model: sh.model, moduleType: sh.moduleType, current: sh.firmwareVersion, recommended: rec });
+        }
+      }
+      return out;
+    })(),
+    shelfFirmwareDriftCount: (() => {
+      let n = 0;
+      for (const sh of (s.shelves || [])) {
+        const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
+        if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) n++;
+      }
+      return n;
+    })(),
+    // ── Total firmware drift count (all categories) ──
+    totalFirmwareDriftCount: (() => {
+      const fwList = s.systemFirmware || [];
+      let n = fwList.filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+      for (const sh of (s.shelves || [])) {
+        const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
+        if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) n++;
+      }
+      for (const sw of (s.switches || [])) {
+        if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) n++;
+      }
+      const dqp = s.diskQualificationPackage || {};
+      const dqpCur = dqp.currentVersion || dqp.version || '';
+      const dqpRec = dqp.recommendedVersion || '';
+      if (dqpCur && dqpRec && dqpCur !== dqpRec) n++;
+      return n;
+    })(),
     lifecycleEvents:   s.lifecycleEvents || [],
     licenses:          s.licenses || [],
     pvrs:              s.pvrs || [],
@@ -12826,8 +13120,8 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const switchDrift = [];
   targetSystems.forEach(sys => {
     (sys.switches || []).forEach(sw => {
-      if (sw.recommendedFirmware && sw.firmware && sw.firmware !== sw.recommendedFirmware) {
-        switchDrift.push({ systemName: sys.systemName, model: sw.model, current: sw.firmware, recommended: sw.recommendedFirmware });
+      if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) {
+        switchDrift.push({ systemName: sys.systemName, model: sw.model, current: sw.firmware, recommended: sw.targetFirmware });
       }
     });
   });
@@ -12836,11 +13130,40 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const shelfDrift = [];
   targetSystems.forEach(sys => {
     (sys.shelves || []).forEach(sh => {
+      // Prefer recommendedFirmwareVersion from API; fall back to REFERENCE_LIBRARY_FIRMWARE_BASELINES
+      const apiRec = sh.recommendedFirmwareVersion || '';
       const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
-      if (baseline && sh.firmwareVersion && sh.firmwareVersion !== baseline.recommended) {
-        shelfDrift.push({ systemName: sys.systemName, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
+      const recommended = apiRec || (baseline ? baseline.recommended : null);
+      if (recommended && sh.firmwareVersion && sh.firmwareVersion !== recommended) {
+        shelfDrift.push({ systemName: sys.systemName, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended });
+      } else if (!sh.firmwareVersion && sh.moduleType) {
+        // Check against catalog shelfFirmwareBaselines if no API version known
+        const catRec = (sys.shelfFirmwareBaselines || []).find(b => b.shelfModuleName === sh.moduleType);
+        if (catRec && catRec.sysShelfModuleFirmwareVersion) {
+          shelfDrift.push({ systemName: sys.systemName, model: sh.model, module: sh.moduleType, current: 'Unknown', recommended: catRec.sysShelfModuleFirmwareVersion });
+        }
       }
     });
+  });
+
+  // ── SP / BMC / BIOS controller firmware drift ──
+  const spBmcDrift = [];
+  targetSystems.forEach(sys => {
+    const fwList = sys.systemFirmware || [];
+    const spBaseline = sys.spFirmwareBaseline || {};
+    fwList.forEach(fw => {
+      const current = fw.currentVersion || '';
+      const recommended = fw.recommendedVersion || spBaseline.version || '';
+      if (current && recommended && current !== recommended) {
+        spBmcDrift.push({ systemName: sys.systemName, type: (fw.type || 'SP').toUpperCase(), current, recommended });
+      }
+    });
+    // BIOS check via catalog cross-reference
+    const biosVer = sys.biosVersion || '';
+    const biosBaseline = spBaseline.biosVersion || '';
+    if (biosVer && biosBaseline && biosVer !== biosBaseline) {
+      spBmcDrift.push({ systemName: sys.systemName, type: 'BIOS', current: biosVer, recommended: biosBaseline });
+    }
   });
 
   // ── Security bulletins ──
@@ -13071,9 +13394,11 @@ ${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(
   - Install: 'storage disk firmware update -disk *' (non-disruptive, per-disk background)
   - Verify: 'storage disk qualification package show'
 
-* ACTION 2.5: Service Processor / BMC Firmware
+* ACTION 2.5: Service Processor / BMC / BIOS Firmware
   - Update: 'system service-processor image update -node * -update-type latest'
   - Verify: 'system service-processor show -fields firmware-version'
+  - Cross-reference firmware baselines: mysupport.netapp.com/site/global/dashboard
+${spBmcDrift.length > 0 ? '  SP / BMC / BIOS FIRMWARE DRIFT DETECTED:\n' + spBmcDrift.map(f => `    ⚠ ${f.systemName} — ${f.type}: current=${f.current}, baseline=${f.recommended}`).join('\n') : '  ✓ All SP / BMC / BIOS components at recommended baseline (or not yet reported — run live harvest to confirm).'}
 
 PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30)
 -----------------------------------------------------------
@@ -13308,6 +13633,41 @@ Prepared: ${salesRep}
   Security Advisories: ${secCount}
   Open Support Cases:  ${allSupportCases.length}
 
+  FIRMWARE COMPLIANCE SUMMARY:
+${(() => {
+    // Compute drift for QBR pack inline (same logic as CSP)
+    const _swD = [], _shD = [], _spD = [];
+    targetSystems.forEach(sys => {
+      (sys.switches || []).forEach(sw => {
+        if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware)
+          _swD.push(`    ⚠ ${sys.systemName} — Switch ${sw.model}: ${sw.firmware} → ${sw.targetFirmware}`);
+      });
+      (sys.shelves || []).forEach(sh => {
+        const rec = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES||{})[sh.moduleType]||{}).recommended || '';
+        if (rec && sh.firmwareVersion && sh.firmwareVersion !== rec)
+          _shD.push(`    ⚠ ${sys.systemName} — Shelf ${sh.moduleType||sh.model}: ${sh.firmwareVersion} → ${rec}`);
+      });
+      const spBase = sys.spFirmwareBaseline || {};
+      (sys.systemFirmware || []).forEach(fw => {
+        const rec = fw.recommendedVersion || spBase.version || '';
+        if (fw.currentVersion && rec && fw.currentVersion !== rec)
+          _spD.push(`    ⚠ ${sys.systemName} — ${(fw.type||'SP').toUpperCase()}: ${fw.currentVersion} → ${rec}`);
+      });
+      const biosVer = sys.biosVersion || ''; const biosBase = spBase.biosVersion || '';
+      if (biosVer && biosBase && biosVer !== biosBase)
+        _spD.push(`    ⚠ ${sys.systemName} — BIOS: ${biosVer} → ${biosBase}`);
+    });
+    const lines = [];
+    if (_spD.length)  lines.push('  Controller (SP/BMC/BIOS) drift:\n' + _spD.join('\n'));
+    else              lines.push('  Controller (SP/BMC/BIOS):  ✓ All at recommended baseline (or no live data yet)');
+    if (_swD.length)  lines.push('  Switch firmware drift:\n' + _swD.join('\n'));
+    else              lines.push('  Switch Firmware:           ✓ All at validated baseline');
+    if (_shD.length)  lines.push('  Shelf module firmware drift:\n' + _shD.join('\n'));
+    else              lines.push('  Shelf Firmware:            ✓ All at recommended baseline');
+    return lines.join('\n');
+  })()
+}
+
   TOP CORRECTIVE ACTIONS (with root cause context):
 ${topActions || '  No critical or high-severity corrective actions identified.'}
 
@@ -13344,6 +13704,23 @@ ${recsSection}
   □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
   □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}
   □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
+${(() => {
+    const _spCount = [], _swCount = [], _shCount = [];
+    targetSystems.forEach(sys => {
+      const spBase = sys.spFirmwareBaseline || {};
+      (sys.systemFirmware || []).forEach(fw => { const r = fw.recommendedVersion || spBase.version || ''; if (fw.currentVersion && r && fw.currentVersion !== r) _spCount.push(fw); });
+      const biosVer = sys.biosVersion || ''; const biosBase = spBase.biosVersion || '';
+      if (biosVer && biosBase && biosVer !== biosBase) _spCount.push({type:'BIOS'});
+      (sys.switches || []).forEach(sw => { if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) _swCount.push(sw); });
+      (sys.shelves || []).forEach(sh => { const r = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES||{})[sh.moduleType]||{}).recommended || ''; if (r && sh.firmwareVersion && sh.firmwareVersion !== r) _shCount.push(sh); });
+    });
+    const items = [];
+    if (_spCount.length)  items.push(`  □ Schedule SP/BMC/BIOS firmware update for ${_spCount.length} drifted component${_spCount.length !== 1 ? 's' : ''} (run: system service-processor image update -node * -update-type latest)`);
+    if (_swCount.length)  items.push(`  □ Plan ISSU switch firmware upgrades for ${_swCount.length} switch${_swCount.length !== 1 ? 'es' : ''} — one switch at a time, validate IMT compatibility first`);
+    if (_shCount.length)  items.push(`  □ Initiate non-disruptive shelf firmware download for ${_shCount.length} shelf module${_shCount.length !== 1 ? 's' : ''} (storage firmware download)`);
+    return items.join('\n') || '';
+  })()
+}
   □ Validate ITIL Change Control process for all planned remediation items
 ================================================================================`;
 }
@@ -13908,6 +14285,78 @@ OPERATIONAL HEALTH
     problemStatements += '\n';
   }
 
+  // ── Firmware Health Assessment ─────────────────────────────────────
+  const _fwSpDrift = [], _fwSwDrift = [], _fwShDrift = [], _fwDqpDrift = [];
+  targetSystems.forEach(sys => {
+    const spBase = sys.spFirmwareBaseline || {};
+    // SP/BMC drift
+    (sys.systemFirmware || []).forEach(fw => {
+      const rec = fw.recommendedVersion || spBase.version || '';
+      if (fw.currentVersion && rec && fw.currentVersion !== rec)
+        _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: (fw.type || 'SP').toUpperCase(), current: fw.currentVersion, recommended: rec });
+    });
+    // BIOS drift
+    const biosVer = sys.biosVersion || '', biosBase = spBase.biosVersion || '';
+    if (biosVer && biosBase && biosVer !== biosBase)
+      _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: 'BIOS', current: biosVer, recommended: biosBase });
+    // Switch drift
+    (sys.switches || []).forEach(sw => {
+      if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware)
+        _fwSwDrift.push({ system: sys.systemName, serial: sys.serialNumber, model: sw.model || sw.deviceName || 'Switch', current: sw.firmware, recommended: sw.targetFirmware });
+    });
+    // Shelf drift
+    (sys.shelves || []).forEach(sh => {
+      const rec = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '';
+      if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec)
+        _fwShDrift.push({ system: sys.systemName, serial: sys.serialNumber, shelf: sh.serialNumber || sh.model || '—', moduleType: sh.moduleType || '—', current: sh.firmwareVersion, recommended: rec });
+    });
+    // DQP drift
+    const dqp = sys.diskQualificationPackage || {};
+    const dqpCur = dqp.currentVersion || dqp.version || '';
+    const dqpRec = dqp.recommendedVersion || '';
+    if (dqpCur && dqpRec && dqpCur !== dqpRec)
+      _fwDqpDrift.push({ system: sys.systemName, serial: sys.serialNumber, current: dqpCur, recommended: dqpRec });
+  });
+  const _fwTotalDrift = _fwSpDrift.length + _fwSwDrift.length + _fwShDrift.length + _fwDqpDrift.length;
+
+  if (_fwTotalDrift > 0) {
+    problemStatements += `FIRMWARE HEALTH (${_fwTotalDrift} component${_fwTotalDrift !== 1 ? 's' : ''} require update)
+--------------------------------------------------------------------------------
+`;
+    if (_fwSpDrift.length > 0) {
+      problemStatements += `Controller Firmware (SP/BMC/BIOS) — ${_fwSpDrift.length} item${_fwSpDrift.length !== 1 ? 's' : ''}:\n`;
+      _fwSpDrift.forEach(f => {
+        problemStatements += `  ⚠ ${f.system} (${f.serial}) — ${f.component}: ${f.current} → ${f.recommended}\n`;
+      });
+      problemStatements += '\n';
+    }
+    if (_fwSwDrift.length > 0) {
+      problemStatements += `Switch Firmware — ${_fwSwDrift.length} switch${_fwSwDrift.length !== 1 ? 'es' : ''}:\n`;
+      _fwSwDrift.forEach(f => {
+        problemStatements += `  ⚠ ${f.system} — ${f.model}: ${f.current} → ${f.recommended}\n`;
+      });
+      problemStatements += '\n';
+    }
+    if (_fwShDrift.length > 0) {
+      problemStatements += `Shelf Module Firmware — ${_fwShDrift.length} shelf${_fwShDrift.length !== 1 ? 's' : ''}:\n`;
+      _fwShDrift.forEach(f => {
+        problemStatements += `  ⚠ ${f.system} — Shelf ${f.shelf} [${f.moduleType}]: ${f.current} → ${f.recommended}\n`;
+      });
+      problemStatements += '\n';
+    }
+    if (_fwDqpDrift.length > 0) {
+      problemStatements += `Disk Qualification Package (DQP) — ${_fwDqpDrift.length} system${_fwDqpDrift.length !== 1 ? 's' : ''}:\n`;
+      _fwDqpDrift.forEach(f => {
+        problemStatements += `  ⚠ ${f.system} (${f.serial}) — DQP: ${f.current} → ${f.recommended}\n`;
+      });
+      problemStatements += '\n';
+    }
+  } else if (targetSystems.some(s => (s.systemFirmware || []).length > 0 || (s.shelves || []).some(sh => sh.firmwareVersion))) {
+    problemStatements += `FIRMWARE HEALTH
+--------------------------------------------------------------------------------
+  ✓ All monitored firmware components are at recommended baselines.\n\n`;
+  }
+
   if (expiringContracts.length > 0) {
     problemStatements += `EXPIRING CONTRACTS (${expiringContracts.length})
 --------------------------------------------------------------------------------
@@ -14145,6 +14594,33 @@ PRIORITISED CORRECTIVE ACTIONS
     if (g.fixUrl) solutionProposals += `   Reference: ${g.fixUrl}\n`;
     solutionProposals += '\n';
   });
+
+  // Firmware Health section in solution proposals
+  if (_fwTotalDrift > 0) {
+    solutionProposals += `FIRMWARE HEALTH — ${_fwTotalDrift} COMPONENT${_fwTotalDrift !== 1 ? 'S' : ''} REQUIRE UPDATE
+--------------------------------------------------------------------------------
+`;
+    if (_fwSpDrift.length > 0) {
+      solutionProposals += `Controller Firmware (SP/BMC/BIOS) — Non-Disruptive (background update):\n`;
+      _fwSpDrift.forEach(f => { solutionProposals += `  ⚠ ${f.system} — ${f.component}: ${f.current} → ${f.recommended}\n`; });
+      solutionProposals += `  Action: system service-processor image update -node * -update-type latest\n\n`;
+    }
+    if (_fwSwDrift.length > 0) {
+      solutionProposals += `Switch Firmware — ISSU (one switch at a time):\n`;
+      _fwSwDrift.forEach(f => { solutionProposals += `  ⚠ ${f.system} — ${f.model}: ${f.current} → ${f.recommended}\n`; });
+      solutionProposals += `  Action: install all nxos bootflash:<target>.bin (or EFOS equivalent)\n\n`;
+    }
+    if (_fwShDrift.length > 0) {
+      solutionProposals += `Shelf Module Firmware — Non-Disruptive (background download):\n`;
+      _fwShDrift.forEach(f => { solutionProposals += `  ⚠ ${f.system} — Shelf ${f.shelf} [${f.moduleType}]: ${f.current} → ${f.recommended}\n`; });
+      solutionProposals += `  Action: storage firmware download\n\n`;
+    }
+    if (_fwDqpDrift.length > 0) {
+      solutionProposals += `Disk Qualification Package (DQP):\n`;
+      _fwDqpDrift.forEach(f => { solutionProposals += `  ⚠ ${f.system} — DQP: ${f.current} → ${f.recommended}\n`; });
+      solutionProposals += `  Action: storage disk qualification show  (then: storage disk qualification upload)\n\n`;
+    }
+  }
 
   if (allUpgrades.length > 0) {
     solutionProposals += `OS & FIRMWARE UPGRADES (${allUpgrades.length})

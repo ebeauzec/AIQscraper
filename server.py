@@ -689,7 +689,8 @@ def _do_full_harvest(watchlist_ids=None):
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
-                    systemFirmware { type currentVersion recommendedVersion }
+                    systemFirmware { type currentVersion recommendedVersion autoUpdateEligible postingDate }
+                    diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -755,7 +756,8 @@ def _do_full_harvest(watchlist_ids=None):
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
-                    systemFirmware { type currentVersion recommendedVersion }
+                    systemFirmware { type currentVersion recommendedVersion autoUpdateEligible postingDate }
+                    diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -1000,6 +1002,9 @@ def _do_full_harvest(watchlist_ids=None):
                   shelves {
                     serialNumber
                     hardwareModel { name endOfAvailability endOfHwSupport }
+                    moduleType
+                    firmwareVersion
+                    recommendedFirmwareVersion
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -1054,7 +1059,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
+                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } moduleType firmwareVersion recommendedFirmwareVersion }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
@@ -1470,7 +1475,54 @@ def _do_full_harvest(watchlist_ids=None):
                     "model": hm.get("name", ""),
                     "endOfAvailability": hm.get("endOfAvailability", ""),
                     "endOfHwSupport": hm.get("endOfHwSupport", ""),
+                    # ── Shelf firmware fields (added to GQL query) ──
+                    "moduleType": csh.get("moduleType", ""),
+                    "firmwareVersion": csh.get("firmwareVersion", ""),
+                    "recommendedFirmwareVersion": csh.get("recommendedFirmwareVersion", ""),
                 })
+
+            # ── Cross-reference firmware baselines from OS version catalog ──
+            _os_ver_raw = s.get("osVersion", "")
+            _model_name = hw.get("name", "").upper()
+            # Find matching catalog entry (exact match first, then without patch suffix)
+            _os_fw_entry = None
+            _os_ver_base = _os_ver_raw.split("P")[0] if "P" in _os_ver_raw else _os_ver_raw
+            for _ov in (tam_os_versions or []):
+                if _ov.get("osVersion") == _os_ver_raw:
+                    _os_fw_entry = _ov
+                    break
+            if not _os_fw_entry and _os_ver_base:
+                for _ov in (tam_os_versions or []):
+                    if _ov.get("osVersion") == _os_ver_base:
+                        _os_fw_entry = _ov
+                        break
+            # SP / BMC firmware baseline (matched by hardware model name)
+            _sp_fw_baseline = {}
+            _bios_fw_ver = ""
+            if _os_fw_entry:
+                for _bfw in (_os_fw_entry.get("bundledSystemFirmwares") or []):
+                    _bfw_model = (_bfw.get("systemModel") or "").upper()
+                    if not _bfw_model or _bfw_model in _model_name or any(
+                        part in _model_name for part in _bfw_model.split("-") if len(part) > 2
+                    ):
+                        _sp_fw_baseline = {
+                            "type": _bfw.get("type", "SP"),
+                            "version": _bfw.get("version", ""),
+                            "biosVersion": _bfw.get("biosVersion", ""),
+                        }
+                        _bios_fw_ver = _bfw.get("biosVersion", "")
+                        break
+                if not _sp_fw_baseline and (_os_fw_entry.get("bundledSystemFirmwares") or []):
+                    # Fall back to first entry if no model match
+                    _bfw0 = _os_fw_entry["bundledSystemFirmwares"][0]
+                    _sp_fw_baseline = {
+                        "type": _bfw0.get("type", "SP"),
+                        "version": _bfw0.get("version", ""),
+                        "biosVersion": _bfw0.get("biosVersion", ""),
+                    }
+                    _bios_fw_ver = _bfw0.get("biosVersion", "")
+            _disk_fw_baselines  = (_os_fw_entry.get("bundledDriveFirmwares") or []) if _os_fw_entry else []
+            _shelf_fw_baselines = (_os_fw_entry.get("bundledShelfFirmwares") or []) if _os_fw_entry else []
 
             # ── Pre-compute capacity from system-level ONTAPSystemPhysicalCapacity ──
             # System-level is preferred; cluster-level used as fallback for systems without cluster data.
@@ -1650,6 +1702,11 @@ def _do_full_harvest(watchlist_ids=None):
                 "motherboardFirmware": s.get("motherboardFirmware") or {},
                 "diskQualificationPackage": s.get("diskQualificationPackage") or {},
                 "autoUpdateSettings": s.get("autoUpdateSettings") or {},
+                # ── Firmware baselines cross-referenced from OS version catalog ──
+                "spFirmwareBaseline":    _sp_fw_baseline,    # {type, version, biosVersion} expected for this ONTAP version
+                "biosVersion":           _bios_fw_ver,       # BIOS version from catalog
+                "diskFirmwareBaselines": _disk_fw_baselines, # [{driveModel, version}] bundled with this ONTAP release
+                "shelfFirmwareBaselines": _shelf_fw_baselines, # [{shelfModuleName, shelfModuleFirmwareVersion, ...}]
                 # ── Lifecycle & TAM intelligence ──
                 "lifecycleEvents": s.get("lifecycleEvents") or [],
                 "licenses": s.get("licenses") or [],
