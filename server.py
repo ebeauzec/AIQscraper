@@ -653,6 +653,38 @@ def _do_full_harvest(watchlist_ids=None):
                   }
                   latestAsup { asupId generatedDate receivedDate subject type isManual }
                   latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
+                  autoSupports { asupId generatedDate receivedDate subject type isManual }
+                  ... on ONTAPSystem {
+                    capacity {
+                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
+                      logical { usedKiB }
+                      reportedOn
+                    }
+                    monthlyCapacity {
+                      month
+                      physical { rawMarketingKiB usedKiB }
+                      logical { usedKiB }
+                    }
+                  }"""
+
+        # ── ULTRA_SAFE: absolute minimum — no Float ratio/pct fields at all.
+        #    Only used when MINIMAL also returns a NaN error (very rare edge case
+        #    where even usedKiB triggers a bug on a specific API build).
+        SYSTEMS_FIELDS_ULTRA_SAFE = """
+                  hostName systemId serialNumber osVersion recommendedOSVersion
+                  type platformType ageInYears serviceTier incumbentResellerCompany
+                  customer { id name }
+                  site { id name city countryCode postalCode state }
+                  hardwareModel { name endOfAvailability endOfSupport }
+                  contactPerson { firstName lastName phone email }
+                  contract {
+                    softwareContractStartDate hardwareContractStartDate
+                    expiryDate softwareContractEndDate hardwareContractEndDate
+                    overallContractEndDate isContractActive
+                    hardwareServiceLevel hardwareWarrantyEndDate
+                  }
+                  latestAsup { asupId generatedDate receivedDate subject type isManual }
+                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
                   autoSupports { asupId generatedDate receivedDate subject type isManual }"""
 
         # ── Extended: original + safe additional fields ──
@@ -690,14 +722,13 @@ def _do_full_harvest(watchlist_ids=None):
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
                     systemFirmware { type currentVersion recommendedVersion autoUpdateEligible postingDate }
-                    motherboardFirmware { currentVersion recommendedVersion }
+                    motherboardFirmware { currentVersion recommendedVersion postingDate }
                     diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
-                    driveFirmware { driveModel currentVersion recommendedVersion autoUpdateEligible postingDate }
+                    drivesSummary { driveModel model count firmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }
                     shelves {
                       shelfId serialNumber
                       hardwareModel { name endOfAvailability endOfHwSupport }
                       moduleHardwareModel { name }
-                      shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                       drives {
                         totalCount
                         drives { firmwareRevision vendor hardwareModel { name } }
@@ -718,7 +749,7 @@ def _do_full_harvest(watchlist_ids=None):
                       logical { usedKiB }
                       efficiency { ratio { efficiencyRatio dataReductionRatio } }
                     }
-                  """
+                  }"""
 
         # ── TAM_SAFE: same as TAM but omits ALL fields that the AIQ API can
         #    return as NaN when a system has no capacity/telemetry history.
@@ -769,21 +800,20 @@ def _do_full_harvest(watchlist_ids=None):
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
                     systemFirmware { type currentVersion recommendedVersion autoUpdateEligible postingDate }
-                    motherboardFirmware { currentVersion recommendedVersion }
+                    motherboardFirmware { currentVersion recommendedVersion postingDate }
                     diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
-                    driveFirmware { driveModel currentVersion recommendedVersion autoUpdateEligible postingDate }
+                    drivesSummary { driveModel model count firmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }
                     shelves {
                       shelfId serialNumber
                       hardwareModel { name endOfAvailability endOfHwSupport }
                       moduleHardwareModel { name }
-                      shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                       drives {
                         totalCount
                         drives { firmwareRevision vendor hardwareModel { name } }
                       }
                     }
                     capacity {
-                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB utilizationPercentage }
+                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
                       efficiency {
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
@@ -792,7 +822,7 @@ def _do_full_harvest(watchlist_ids=None):
                     }
                     monthlyCapacity {
                       month
-                      physical { rawMarketingKiB usedKiB utilizationPercentage }
+                      physical { rawMarketingKiB usedKiB }
                       logical { usedKiB }
                     }
                   }"""
@@ -908,13 +938,15 @@ def _do_full_harvest(watchlist_ids=None):
                 cursor = new_cursor
             return systems, privilege_blocked, nan_error
 
-        # Three-tier fallback: TAM (full) → TAM_SAFE (NaN-proof) → MINIMAL
-        # TAM_SAFE is only used when the API specifically refuses with a NaN float error;
-        # it preserves all rich fields except efficiency.ratio which triggers the bug.
+        # Four-tier fallback: TAM (full) → TAM_SAFE (NaN-proof) → MINIMAL → ULTRA_SAFE
+        # TAM_SAFE removes all ratio/delta Float fields that can be NaN.
+        # MINIMAL removes utilizationPercentage too (can be NaN for brand-new systems).
+        # ULTRA_SAFE is the last resort: no Float fields at all — guaranteed to work.
         _FIELD_TIERS = [
-            (SYSTEMS_FIELDS_TAM,      "Expanded TAM"),
-            (SYSTEMS_FIELDS_TAM_SAFE, "TAM-safe (NaN-proof)"),
-            (SYSTEMS_FIELDS_MINIMAL,  "Minimal"),
+            (SYSTEMS_FIELDS_TAM,        "Expanded TAM"),
+            (SYSTEMS_FIELDS_TAM_SAFE,   "TAM-safe (NaN-proof)"),
+            (SYSTEMS_FIELDS_MINIMAL,    "Minimal"),
+            (SYSTEMS_FIELDS_ULTRA_SAFE, "Ultra-safe (no floats)"),
         ]
         all_systems = []
         used_tam_query = False
@@ -1028,7 +1060,6 @@ def _do_full_harvest(watchlist_ids=None):
                     shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
                     moduleHardwareModel { name }
-                    shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -2133,37 +2164,26 @@ def _do_full_harvest(watchlist_ids=None):
                         "_fromFleet": True,
                     } if _fleet_dqp_latest else {})
                 ) or {},
-                # ── Drive firmware: live per-system list (new field) → fleet map → catalog baselines
-                # The GQL driveFirmware[] field on ONTAPSystem returns one entry per drive model
-                # with currentVersion/recommendedVersion. If empty, fall back to fleet-level map,
-                # then to catalog disk firmware baselines (ONTAP-bundled versions).
+                # ── Drive firmware: live per-system list via drivesSummary (GQL field that replaced
+                # the defunct driveFirmware[] field). Each entry has driveModel/model, count, and
+                # firmware { currentVersion, recommendedVersion, autoUpdateEligible, postingDate }.
+                # Firmware versions are independent of OS version — flag any downrev component.
+                # Normalised to a flat list matching the old driveFirmware[] shape for compatibility.
                 "driveFirmware": (
-                    (lambda _df: (
-                        _df if isinstance(_df, list) and len(_df) > 0 else
-                        # Fallback 1: build list from fleet drive firmware map
-                        ([
-                            {
-                                "driveModel": _dm,
-                                "currentVersion": "",
-                                "recommendedVersion": _fv.get("firmwareVersion", ""),
-                                "autoUpdateEligible": None,
-                                "postingDate": _fv.get("creationDate", ""),
-                                "_fromFleet": True,
-                            } for _dm, _fv in _fleet_drive_map.items()
-                        ] if _fleet_drive_map else
-                        # Fallback 2: build list from ONTAP catalog disk firmware baselines
-                        [
-                            {
-                                "driveModel": _bl.get("driveModel", _bl.get("model", "")),
-                                "currentVersion": "",
-                                "recommendedVersion": _bl.get("version", _bl.get("firmwareVersion", "")),
-                                "autoUpdateEligible": None,
-                                "postingDate": "",
-                                "_fromCatalog": True,
-                            } for _bl in _disk_fw_baselines
-                        ])
-                    ))(s.get("driveFirmware") or [])
+                    (lambda _ds: [
+                        {
+                            "driveModel": d.get("driveModel") or d.get("model", ""),
+                            "count": d.get("count", 0),
+                            "currentVersion": (d.get("firmware") or {}).get("currentVersion", ""),
+                            "recommendedVersion": (d.get("firmware") or {}).get("recommendedVersion", ""),
+                            "autoUpdateEligible": (d.get("firmware") or {}).get("autoUpdateEligible"),
+                            "postingDate": (d.get("firmware") or {}).get("postingDate", ""),
+                        } for d in _ds if d.get("driveModel") or d.get("model")
+                    ] if _ds else []
+                    )(s.get("drivesSummary") or [])
                 ),
+                # ── Raw drivesSummary passthrough (for debugging/export) ──
+                "drivesSummary": s.get("drivesSummary") or [],
                 "autoUpdateSettings": s.get("autoUpdateSettings") or {},
                 # ── Firmware baselines cross-referenced from OS version catalog ──
                 "spFirmwareBaseline":    _sp_fw_baseline,    # {type, version, biosVersion} expected for this ONTAP version

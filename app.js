@@ -12105,6 +12105,20 @@ function enrichSystemTelemetry(s) {
       }
       return n;
     })(),
+    // ── Computed drive firmware drift (per-model, from drivesSummary via server.py) ──
+    driveFirmwareDrift: (() => {
+      return (s.driveFirmware || []).filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion);
+    })(),
+    driveFirmwareDriftCount: (() => {
+      return (s.driveFirmware || []).filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+    })(),
+    // ── Computed motherboard firmware drift (biosVersion vs spFirmwareBaseline.biosVersion) ──
+    motherboardFirmwareDriftCount: (() => {
+      const spBase = s.spFirmwareBaseline || {};
+      const biosVer = s.biosVersion || '';
+      const biosBase = spBase.biosVersion || '';
+      return (biosVer && biosBase && biosVer !== biosBase) ? 1 : 0;
+    })(),
     // ── Total firmware drift count (all categories) ──
     totalFirmwareDriftCount: (() => {
       const fwList = s.systemFirmware || [];
@@ -12120,6 +12134,13 @@ function enrichSystemTelemetry(s) {
       const dqpCur = dqp.currentVersion || dqp.version || '';
       const dqpRec = dqp.recommendedVersion || '';
       if (dqpCur && dqpRec && dqpCur !== dqpRec) n++;
+      // Drive firmware (per-model, independent of OS version)
+      n += (s.driveFirmware || []).filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+      // Motherboard/BIOS drift
+      const spBase2 = s.spFirmwareBaseline || {};
+      const biosVer2 = s.biosVersion || '';
+      const biosBase2 = spBase2.biosVersion || '';
+      if (biosVer2 && biosBase2 && biosVer2 !== biosBase2) n++;
       return n;
     })(),
     lifecycleEvents:   s.lifecycleEvents || [],
@@ -14535,7 +14556,9 @@ OPERATIONAL HEALTH
   }
 
   // ── Firmware Health Assessment ─────────────────────────────────────
-  const _fwSpDrift = [], _fwSwDrift = [], _fwShDrift = [], _fwDqpDrift = [];
+  // Policy: disk, shelf, SP/BMC firmware are always measured against the latest
+  // recommended version, independent of ONTAP/StorageGRID/SANtricity OS version.
+  const _fwSpDrift = [], _fwSwDrift = [], _fwShDrift = [], _fwDqpDrift = [], _fwDrvDrift = [], _fwMbDrift = [];
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
     // SP/BMC drift
@@ -14544,10 +14567,10 @@ OPERATIONAL HEALTH
       if (fw.currentVersion && rec && fw.currentVersion !== rec)
         _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: (fw.type || 'SP').toUpperCase(), current: fw.currentVersion, recommended: rec });
     });
-    // BIOS drift
+    // Motherboard / BIOS drift (independent of OS version)
     const biosVer = sys.biosVersion || '', biosBase = spBase.biosVersion || '';
     if (biosVer && biosBase && biosVer !== biosBase)
-      _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: 'BIOS', current: biosVer, recommended: biosBase });
+      _fwMbDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: 'BIOS/Motherboard', current: biosVer, recommended: biosBase });
     // Switch drift
     (sys.switches || []).forEach(sw => {
       if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware)
@@ -14565,16 +14588,28 @@ OPERATIONAL HEALTH
     const dqpRec = dqp.recommendedVersion || '';
     if (dqpCur && dqpRec && dqpCur !== dqpRec)
       _fwDqpDrift.push({ system: sys.systemName, serial: sys.serialNumber, current: dqpCur, recommended: dqpRec });
+    // Drive firmware drift (per-model, from drivesSummary via server.py — independent of OS version)
+    (sys.driveFirmware || []).forEach(drv => {
+      if (drv.currentVersion && drv.recommendedVersion && drv.currentVersion !== drv.recommendedVersion)
+        _fwDrvDrift.push({ system: sys.systemName, serial: sys.serialNumber, model: drv.driveModel || drv.model || 'Unknown', count: drv.count || 1, current: drv.currentVersion, recommended: drv.recommendedVersion });
+    });
   });
-  const _fwTotalDrift = _fwSpDrift.length + _fwSwDrift.length + _fwShDrift.length + _fwDqpDrift.length;
+  const _fwTotalDrift = _fwSpDrift.length + _fwSwDrift.length + _fwShDrift.length + _fwDqpDrift.length + _fwDrvDrift.length + _fwMbDrift.length;
 
   if (_fwTotalDrift > 0) {
     problemStatements += `FIRMWARE HEALTH (${_fwTotalDrift} component${_fwTotalDrift !== 1 ? 's' : ''} require update)
 --------------------------------------------------------------------------------
 `;
     if (_fwSpDrift.length > 0) {
-      problemStatements += `Controller Firmware (SP/BMC/BIOS) — ${_fwSpDrift.length} item${_fwSpDrift.length !== 1 ? 's' : ''}:\n`;
+      problemStatements += `Controller Firmware (SP/BMC) — ${_fwSpDrift.length} item${_fwSpDrift.length !== 1 ? 's' : ''}:\n`;
       _fwSpDrift.forEach(f => {
+        problemStatements += `  ⚠ ${f.system} (${f.serial}) — ${f.component}: ${f.current} → ${f.recommended}\n`;
+      });
+      problemStatements += '\n';
+    }
+    if (_fwMbDrift.length > 0) {
+      problemStatements += `Motherboard Firmware (BIOS) — ${_fwMbDrift.length} system${_fwMbDrift.length !== 1 ? 's' : ''}:\n`;
+      _fwMbDrift.forEach(f => {
         problemStatements += `  ⚠ ${f.system} (${f.serial}) — ${f.component}: ${f.current} → ${f.recommended}\n`;
       });
       problemStatements += '\n';
@@ -14593,6 +14628,13 @@ OPERATIONAL HEALTH
       });
       problemStatements += '\n';
     }
+    if (_fwDrvDrift.length > 0) {
+      problemStatements += `Drive Firmware — ${_fwDrvDrift.length} drive model${_fwDrvDrift.length !== 1 ? 's' : ''} downrev:\n`;
+      _fwDrvDrift.forEach(f => {
+        problemStatements += `  ⚠ ${f.system} — ${f.model} (${f.count} drive${f.count !== 1 ? 's' : ''}): ${f.current} → ${f.recommended}\n`;
+      });
+      problemStatements += '\n';
+    }
     if (_fwDqpDrift.length > 0) {
       problemStatements += `Disk Qualification Package (DQP) — ${_fwDqpDrift.length} system${_fwDqpDrift.length !== 1 ? 's' : ''}:\n`;
       _fwDqpDrift.forEach(f => {
@@ -14600,7 +14642,7 @@ OPERATIONAL HEALTH
       });
       problemStatements += '\n';
     }
-  } else if (targetSystems.some(s => (s.systemFirmware || []).length > 0 || (s.shelves || []).some(sh => sh.firmwareVersion))) {
+  } else if (targetSystems.some(s => (s.systemFirmware || []).length > 0 || (s.driveFirmware || []).length > 0 || (s.shelves || []).some(sh => sh.firmwareVersion))) {
     problemStatements += `FIRMWARE HEALTH
 --------------------------------------------------------------------------------
   ✓ All monitored firmware components are at recommended baselines.\n\n`;
@@ -16649,7 +16691,7 @@ function generateActionPlan() {
   }
 
   // ── Build Firmware Currency section data ─────────────────────────────────────
-  const _fwSpBmcItems = [], _fwShelfItems = [], _fwDiskDqpItems = [];
+  const _fwSpBmcItems = [], _fwShelfItems = [], _fwDiskDqpItems = [], _fwDriveItems = [];
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
     // SP / BMC / Mainboard controller firmware
@@ -16698,11 +16740,25 @@ function generateActionPlan() {
       current: dqpCur, recommended: dqpRec,
       isDrift: dqpCur !== '—' && dqpRec !== '—' && dqpCur !== dqpRec
     });
+    // Drive firmware (per-model, from drivesSummary via server.py — independent of OS version)
+    (sys.driveFirmware || []).forEach(drv => {
+      const curVer = drv.currentVersion || '—';
+      const recVer = drv.recommendedVersion || '—';
+      const isDrift = curVer !== '—' && recVer !== '—' && curVer !== recVer;
+      _fwDriveItems.push({
+        systemName: sys.systemName, serialNumber: sys.serialNumber,
+        model: drv.driveModel || drv.model || '—',
+        count: drv.count || 1,
+        current: curVer, recommended: recVer,
+        isDrift
+      });
+    });
   });
-  const _fwSpBmcDriftCount  = _fwSpBmcItems.filter(x => x.isDrift).length;
-  const _fwShelfDriftCount  = _fwShelfItems.filter(x => x.isDrift).length;
+  const _fwSpBmcDriftCount   = _fwSpBmcItems.filter(x => x.isDrift).length;
+  const _fwShelfDriftCount   = _fwShelfItems.filter(x => x.isDrift).length;
   const _fwDiskDqpDriftCount = _fwDiskDqpItems.filter(x => x.isDrift).length;
-  const _fwTotalDriftCount  = _fwSpBmcDriftCount + _fwShelfDriftCount + _fwDiskDqpDriftCount;
+  const _fwDriveDriftCount   = _fwDriveItems.filter(x => x.isDrift).length;
+  const _fwTotalDriftCount   = _fwSpBmcDriftCount + _fwShelfDriftCount + _fwDiskDqpDriftCount + _fwDriveDriftCount;
 
   // Helper: render a firmware table
   function _renderFwTable(rows, cols) {
@@ -16738,7 +16794,7 @@ function generateActionPlan() {
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 8px;">
         <div>
           <h2 style="font-size: 1.15rem; margin: 0 0 4px 0; border: none; padding: 0;">5b. Firmware Currency</h2>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">SP/BMC &nbsp;·&nbsp; Mainboard/BIOS &nbsp;·&nbsp; Disk Shelf modules &nbsp;·&nbsp; Disk Qualification Package (DQP) &nbsp;—&nbsp; <em>Component firmware, separate from OS versions.</em></div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">SP/BMC &nbsp;·&nbsp; Mainboard/BIOS &nbsp;·&nbsp; Disk Shelf modules &nbsp;·&nbsp; Disk Qualification Package (DQP) &nbsp;·&nbsp; Drive Firmware &nbsp;—&nbsp; <em>Component firmware, separate from OS versions.</em></div>
         </div>
         ${_fwTotalDriftCount > 0 ? `<span class="badge warning" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;">${_fwTotalDriftCount} drift item${_fwTotalDriftCount !== 1 ? 's' : ''}</span>` : `<span class="badge" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`}
       </div>
@@ -16803,6 +16859,27 @@ function generateActionPlan() {
           {key:'serialNumber',label:'S/N'},
           {key:'current',label:'Installed DQP'},
           {key:'recommended',label:'Recommended DQP'},
+          {key:'isDrift',label:'Status'}
+        ])}
+        </div>
+      </div>
+
+      <!-- Drive Firmware (per-model, from drivesSummary — independent of OS version) -->
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#34d399;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">Drive Firmware</h3>
+          ${_fwDriveDriftCount > 0 ? `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${_fwDriveDriftCount} drift</span>` : (_fwDriveItems.length > 0 ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>` : '')}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">Per-model drive firmware revisions are tracked independently of the ONTAP OS and DQP versions. Downrev drive firmware should be updated via <code>storage disk firmware update</code> or non-disruptive automatic firmware download. Source: <a href="https://mysupport.netapp.com/site/downloads/firmware/disk-drive-firmware" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com → Disk Drive Firmware</a>.</p>
+        <div style="margin-left:14px;">
+        ${_renderFwTable(_fwDriveItems, [
+          {key:'systemName',label:'System'},
+          {key:'serialNumber',label:'S/N'},
+          {key:'model',label:'Drive Model'},
+          {key:'count',label:'Count'},
+          {key:'current',label:'Installed Version'},
+          {key:'recommended',label:'Recommended Version'},
           {key:'isDrift',label:'Status'}
         ])}
         </div>
