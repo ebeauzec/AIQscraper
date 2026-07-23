@@ -744,6 +744,7 @@ def _do_full_harvest(watchlist_ids=None):
                       shelfId serialNumber
                       hardwareModel { name endOfAvailability endOfHwSupport }
                       moduleHardwareModel { name }
+                      shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                       drives {
                         totalCount
                         drives { firmwareRevision vendor hardwareModel { name } }
@@ -822,6 +823,7 @@ def _do_full_harvest(watchlist_ids=None):
                       shelfId serialNumber
                       hardwareModel { name endOfAvailability endOfHwSupport }
                       moduleHardwareModel { name }
+                      shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                       drives {
                         totalCount
                         drives { firmwareRevision vendor hardwareModel { name } }
@@ -1075,6 +1077,7 @@ def _do_full_harvest(watchlist_ids=None):
                     shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
                     moduleHardwareModel { name }
+                    shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -1129,7 +1132,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } }'
+                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
@@ -1943,10 +1946,28 @@ def _do_full_harvest(watchlist_ids=None):
                         _mtype = (_sh.get("moduleType") or "").upper()
                         _cat_bl = _shelf_fw_catalog.get(_mtype)
                         if _cat_bl:
-                            _sh["firmwareVersion"] = _cat_bl.get("shelfModuleFirmwareVersion", "")
-                            # recommended = fleet-latest (global), not the ONTAP-bundled catalog value
+                            _raw_cat_ver = _cat_bl.get("shelfModuleFirmwareVersion", "")
+                            # Normalize firmware filename to short numeric version so it can be
+                            # compared directly against the fleet recommendedFirmwareVersion.
+                            # Catalog field contains filenames like "IOM12A.0411.SFW"; the fleet
+                            # GQL shelfFirmwares returns a short version like "0411".
+                            # Extract the first segment of 2-4 pure digits (e.g. "0411", "0303").
+                            import re as _re
+                            _cat_ver_m = _re.search(r'(?:^|\.)(\d{2,4})(?:\.|$)', _raw_cat_ver)
+                            _sh["firmwareVersion"] = _cat_ver_m.group(1) if _cat_ver_m else _raw_cat_ver
+                            # recommended priority: fleet-latest → API per-system recommendation → empty (⚠ Unverified).
+                            # Never fall back to the catalog version here — catalog = installed (same source = circular comparison).
                             _fleet_sh_ver = (_fleet_shelf_map.get(_mtype) or {}).get("firmwareVersion", "")
-                            _sh["recommendedFirmwareVersion"] = _fleet_sh_ver or _cat_bl.get("shelfModuleFirmwareVersion", "")
+                            # Priority: fleet-latest (global authoritative) > API per-system recommendation.
+                            # Do NOT overwrite a valid API-provided recommendedFirmwareVersion with an empty
+                            # fleet string — that would erroneously cause ⚠ Unverified when AIQ itself
+                            # knows the recommended version for this system's shelf module.
+                            if _fleet_sh_ver:
+                                _sh["recommendedFirmwareVersion"] = _fleet_sh_ver
+                            elif not _sh.get("recommendedFirmwareVersion"):
+                                # Neither fleet nor API has a recommendation — leave empty → ⚠ Unverified
+                                _sh["recommendedFirmwareVersion"] = ""
+                            # else: preserve the API's existing per-system recommendedFirmwareVersion
                             _sh["fromCatalog"] = True
             # Override recommendedFirmwareVersion with fleet-latest for ALL shelves that have a matching fleet entry
             # This ensures live-data shelves whose recommendedFirmwareVersion came from the ONTAP catalog
@@ -2161,12 +2182,31 @@ def _do_full_harvest(watchlist_ids=None):
                 # ── Firmware ──
                 # systemFirmware from API is a single dict {type, currentVersion, recommendedVersion,
                 # autoUpdateEligible, postingDate} or null/empty. Normalise to a list so app.js can
-                # uniformly call .forEach(). If the API returned a non-empty dict, wrap it in a list.
-                # Also backfill from fleet-level SP/BMC firmware map when per-system field is empty.
+                # uniformly call .forEach(). Resolution hierarchy:
+                #   1. Live: API returned currentVersion → use directly (green ✓ Current / ⚠ UPDATE)
+                #   2. Semi-live: API returned recommendedVersion but no currentVersion → the API
+                #      knows this system's recommended firmware; use catalog baseline as the estimated
+                #      installed version for comparison. If they match → green ✓ Est. Current.
+                #      If they differ → orange ⚠ UPDATE. Mark _fromCatalog=True so UI can differentiate.
+                #   3. Fleet-only: API returned nothing useful → backfill from fleet-level GQL map
+                #      (recommendedVersion only, no per-system currentVersion). Show ⚠ Unverified.
                 "systemFirmware": (lambda _sf: (
+                    # Path 1: Live per-system currentVersion from API
                     [_sf] if isinstance(_sf, dict) and _sf.get("currentVersion") else
+                    # Path 2: API has recommendedVersion but no currentVersion.
+                    # Use catalog SP baseline as estimated installed version for comparison.
                     (
-                        # Build list from fleet SP/BMC map (one entry per firmware type)
+                        [{
+                            "type": (_sf.get("type") or _sp_fw_baseline.get("type") or "SP"),
+                            "currentVersion": _sp_fw_baseline.get("version", ""),  # catalog-estimated installed version
+                            "recommendedVersion": _sf.get("recommendedVersion", ""),  # API's per-system recommendation
+                            "autoUpdateEligible": _sf.get("autoUpdateEligible"),
+                            "postingDate": _sf.get("postingDate", ""),
+                            "_fromCatalog": True,  # estimated — not live-confirmed installed version
+                        }]
+                        if (isinstance(_sf, dict) and _sf.get("recommendedVersion") and _sp_fw_baseline.get("version"))
+                        else
+                        # Path 3: Fleet-only backfill (no per-system data at all)
                         [{
                             "type": _fv.get("firmwareType", "SP"),
                             "currentVersion": "",  # live current not available per-system from fleet queries

@@ -7725,7 +7725,10 @@ function renderFirmwarePanel(selectedSystems) {
   card.style.display = 'block';
 
   // ── Helper: drift badge ─────────────────────────────────────────────
-  const driftBadge = (current, recommended, label) => {
+  // driftBadge: renders a firmware version + status badge.
+  // fromCatalog=true → show '✓ Est. Current' (green) to indicate catalog-estimated (not live-confirmed) currency.
+  // fromCatalog=false (default) → show '✓ Current' for live-confirmed matches.
+  const driftBadge = (current, recommended, label, fromCatalog = false) => {
     if (!current && !recommended) return `<span style="color:var(--text-muted);font-size:0.75rem;">N/A</span>`;
     // No recommended version = we cannot confirm currency — show amber ⚠ Unverified
     // (Bundled ONTAP baseline ≠ globally latest available firmware)
@@ -7736,16 +7739,22 @@ function renderFirmwarePanel(selectedSystems) {
     const isDrift = current && current !== recommended;
     const color = isDrift ? '#fb923c' : '#4ade80';
     const icon  = isDrift ? '⚠' : '✓';
+    // When not drifted: live-confirmed shows '✓ Current'; catalog-estimated shows '✓ Est. Current'
+    const currentLabel = isDrift ? `→ ${recommended}` : (fromCatalog ? 'Est. Current' : 'Current');
+    const currentTitle = (!isDrift && fromCatalog)
+      ? ' title="Version matches catalog baseline and fleet recommendation — estimated current (two independent sources agree). Validate via ONTAP CLI for live confirmation."'
+      : '';
     return `<span style="display:inline-flex;align-items:center;gap:5px;">
       <span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>
-      <span style="font-size:0.72rem;color:${color};font-weight:700;">${icon} ${isDrift ? `→ ${recommended}` : 'Current'}</span>
+      <span style="font-size:0.72rem;color:${color};font-weight:700;"${currentTitle}>${icon} ${currentLabel}</span>
     </span>`;
   };
 
   // ── Section 1: Controller Firmware (SP/BMC + BIOS) per system ──────
-  // NOTE: The ActiveIQ API does not expose live SP/BMC currentVersion via GraphQL.
-  // systemFirmware[] is always empty for all systems. We show the catalog baseline
-  // (bundled SP/BMC version for this ONTAP release) as the authoritative reference.
+  // The ActiveIQ API DOES return live SP/BMC firmware via systemFirmware[].currentVersion
+  // for most systems. When it does, we compare directly against recommendedVersion from the
+  // same API response (which is AIQ's authoritative recommendation, not just the ONTAP catalog).
+  // Only show ⚠ Unverified when the API returned no currentVersion at all.
   let spRows = '';
   let anySpData = false;
   let anyLiveSpData = false; // tracks if any system returned live data
@@ -7757,6 +7766,7 @@ function renderFirmwarePanel(selectedSystems) {
     const hasLiveData     = fwList.length > 0;
     // A fleet-backfilled entry (_fromFleet:true) is NOT real per-system live data —
     // it carries a fleet-level recommended version but no confirmed installed version.
+    // A catalog-estimated entry (_fromCatalog:true) has a version for display but is not live-confirmed.
     const hasRealLiveData = fwList.some(fw => fw.currentVersion && !fw._fromFleet);
     const hasBaselineData = !!(spBaseline.version || spBaseline.biosVersion || biosVer);
     if (!hasLiveData && !hasBaselineData) return; // skip if truly nothing
@@ -7768,38 +7778,39 @@ function renderFirmwarePanel(selectedSystems) {
       if (hasRealLiveData) anyLiveSpData = true;
       fwList.forEach(fw => {
         const typeLabel = (fw.type || 'SP').toUpperCase();
-        // fw._fromFleet = true means server.py backfilled from fleet GQL (no per-system currentVersion).
-        // In that case we show the ONTAP catalog baseline as an estimate, but CANNOT confirm currency.
-        // Pass empty recommended so driftBadge renders "⚠ Unverified" instead of falsely "✓ Current".
-        const isFleetBackfill = !!fw._fromFleet;
-        const liveCurrentVer  = fw.currentVersion || '';
-        // Display version: show live if available, else fall back to catalog for informational display
+        // fw._fromFleet = true  → fleet GQL backfill only; no per-system currentVersion → ⚠ Unverified.
+        // fw._fromCatalog = true → catalog-estimated installed version + API per-system recommendedVersion.
+        //   These two independent sources can confirm currency → green ✓ Est. Current when they match.
+        const isFleetBackfill   = !!fw._fromFleet;
+        const isCatalogEstimate = !!fw._fromCatalog;
+        const liveCurrentVer    = fw.currentVersion || '';
+        // Display version: live first, then catalog-estimated, then spBaseline fallback
         const current = liveCurrentVer || spBaseline.version || '';
         // ── Determine authoritative recommended version ──────────────────────
-        // Priority 1: fleet-level systemFirmwares query (external, authoritative).
-        // Priority 2: per-system API recommendedVersion — BUT only if it differs from
-        //   the ONTAP-bundled catalog baseline. When recommendedVersion === spBaseline.version
-        //   the API is just echoing the ONTAP-bundled value back (circular self-reference);
-        //   this tells us nothing about global currency and must be treated as Unverified.
-        // Fleet-backfill entries (no per-system currentVersion) are always Unverified.
+        // Priority 1: fleet-level systemFirmwares map (externally-validated global recommendation).
+        // Priority 2: per-system API recommendedVersion (AIQ's own firmware intelligence per system).
+        //   For catalog-estimated entries, fw.recommendedVersion IS the API's per-system recommendation
+        //   (not derived from the catalog), so it's valid as the comparison target.
+        // Fleet-backfill only entries: cannot confirm currency → pass empty → ⚠ Unverified.
         let recommended = '';
-        if (!isFleetBackfill && liveCurrentVer) {
-          // Check fleet-level systemFirmwares map for this firmware type (authoritative).
-          const _fleetSpM       = sys.fleetSpFirmwareMap || {};
-          const _fleetSpEntry   = _fleetSpM[typeLabel] || _fleetSpM['SP'] || null;
+        let badgeFromCatalog = false;
+        if (!isFleetBackfill && (liveCurrentVer || isCatalogEstimate)) {
+          // Check fleet-level systemFirmwares map for this firmware type.
+          const _fleetSpM        = sys.fleetSpFirmwareMap || {};
+          const _fleetSpEntry    = _fleetSpM[typeLabel] || _fleetSpM['SP'] || null;
           const fleetRecommended = _fleetSpEntry ? (_fleetSpEntry.firmwareVersion || '') : '';
           if (fleetRecommended) {
             // Fleet data provides an externally-validated recommendation → use it.
             recommended = fleetRecommended;
           } else {
-            // No fleet data. Check whether the API's recommendedVersion is independent
-            // or just a circular echo of the ONTAP-bundled baseline.
-            const apiRec = fw.recommendedVersion || '';
-            const bundledVer = spBaseline.version || '';
-            // If apiRec === bundledVer the comparison is tautological (installed-vs-itself).
-            // Treat as Unverified so driftBadge shows ⚠ instead of falsely ✓ Current.
-            recommended = (apiRec && apiRec !== bundledVer) ? apiRec : '';
+            // Use the API's own per-system recommendedVersion — authoritative from AIQ.
+            // For catalog-estimated entries this is the API's recommendation for THIS system.
+            // When cur == rec: AIQ confirms system is on the recommended version.
+            recommended = fw.recommendedVersion || '';
           }
+          // If the currentVersion is catalog-estimated (not live-confirmed), pass that
+          // context to driftBadge so it renders ✓ Est. Current (green) rather than ✓ Current.
+          if (isCatalogEstimate) badgeFromCatalog = true;
         }
         const autoUpd = fw.autoUpdateEligible;
         const autoUpdBadge = autoUpd === true
@@ -7808,13 +7819,16 @@ function renderFirmwarePanel(selectedSystems) {
             ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
             : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
         const postDate = fw.postingDate ? fw.postingDate.split('T')[0] : '—';
+        const installLabel = isCatalogEstimate
+          ? `<span style="font-size:0.75rem;color:var(--text-muted);">Est. installed</span>`
+          : `<span style="font-size:0.75rem;color:var(--text-muted);">—</span>`;
         spRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${typeLabel}</td>
           <td style="padding:8px 12px;">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel)}</td>
+          <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel, badgeFromCatalog)}</td>
           <td style="padding:8px 12px;">${autoUpdBadge}</td>
-          <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate}</td>
+          <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate} ${installLabel}</td>
         </tr>`;
       });
     } else if (hasBaselineData) {
@@ -7845,7 +7859,7 @@ function renderFirmwarePanel(selectedSystems) {
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${baselineSPType}</td>
           <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;">${driftBadge(baselineSP, effectiveSpRec, baselineSPType)}${_bmcRefNote}</td>
+          <td style="padding:8px 12px;">${driftBadge(baselineSP, effectiveSpRec, baselineSPType, true)}${_bmcRefNote}</td>
           <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
           <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Est. installed</td>
         </tr>`;
@@ -7858,7 +7872,7 @@ function renderFirmwarePanel(selectedSystems) {
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">BIOS</td>
           <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;">${driftBadge(bVer, biosFleetLatest, 'BIOS')}</td>
+          <td style="padding:8px 12px;">${driftBadge(bVer, biosFleetLatest, 'BIOS', true)}</td>
           <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
           <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Est. installed</td>
         </tr>`;
@@ -7919,6 +7933,17 @@ function renderFirmwarePanel(selectedSystems) {
       if (mt) blByModule[mt] = bl;
     });
 
+    // Reference-library latest versions for shelf modules (from firmware_baselines.json /
+    // Platforms-Hardware/Firmware-Versions.md — direct-fetch-confirmed 2026-07-23).
+    // Used to flag shelves the API reports as 'current' but are actually below the global latest.
+    const SHELF_MODULE_LATEST = {
+      'IOM12':  { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12 latest: 04.11 (CONTAP-617167)' },
+      'IOM12B': { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12B latest: 04.11 (CONTAP-617167)' },
+      'IOM12C': { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12C latest: 04.11 (CONTAP-617167)' },
+      'NSM100': { latest: '03.03',            norm: '0303', label: 'NSM100 latest: 03.03 (CONTAP-335905)' },
+      'NSM100B':{ latest: '03.03',            norm: '0303', label: 'NSM100B latest: 03.03 (CONTAP-335905)' },
+    };
+
     // Render one row per physical shelf (live data preferred)
     shelves.forEach(sh => {
       const liveVer  = sh.firmwareVersion || '';
@@ -7928,35 +7953,72 @@ function renderFirmwarePanel(selectedSystems) {
       const moduleType = sh.moduleType || '—';
       const shelfModel = sh.model || '—';
 
-      // Fallback: use catalog version if no live version
+      // Fallback: catalog version can inform what's installed (displayed only)
+      // but is NEVER used as the recommended version — that would be a circular
+      // comparison (installed ≡ recommended from same source = false ✓ match).
       const bl = blByModule[moduleType] || {};
       const blVersionShort = bl.sysShelfModuleFirmwareVersion || '';
       const blVersionFull  = bl.shelfModuleFirmwareVersion || '';
       const catalogVer = blVersionShort || blVersionFull || '';
 
       const displayCurrent = liveVer || '';
-      const displayRec     = recVer || catalogVer || '';
+      // Recommended version: live recVer from API only.
+      // catalogVer is intentionally excluded — same source as installed = circular comparison.
+      const displayRec     = recVer || '';
       if (!displayCurrent && !displayRec && !sh.serialNumber) return;
       anyShelfData = true;
-      if (liveVer) anyLiveShelfData = true;
+      if (liveVer && !sh.fromCatalog) anyLiveShelfData = true;
 
-      const isDrift = displayCurrent && displayRec && displayCurrent !== displayRec;
+      // Normalise shelf firmware version strings for drift comparison.
+      // Catalog uses filenames like IOM12A.0411.SFW; live API may return "0411".
+      // Fleet GQL returns short versions like "0411" or "0303".
+      // Prefer a purely-numeric segment (the actual version number) over alphanumeric module prefixes.
+      const _normSh = v => {
+        if (!v) return v;
+        // First: try to match a purely numeric segment (e.g. "0411" in "IOM12A.0411.SFW")
+        const mNum = v.match(/(?:^|\.)(\d{2,6})(?:\.|$)/);
+        if (mNum) return mNum[1];
+        // Fallback: any alphanumeric segment (handles short versions without dots)
+        const mAny = v.match(/(?:^|\.)([0-9A-Z]{4,6})(?:\.|$)/i);
+        return mAny ? mAny[1].toUpperCase() : v.toUpperCase();
+      };
+      const isDrift = displayCurrent && displayRec && _normSh(displayCurrent) !== _normSh(displayRec);
+
+      // Reference-library check: even if API says current == recommended, check against
+      // our known global latest for this module type. The API's shelfFirmware.recommendedVersion
+      // reflects the ONTAP-bundled recommendation, NOT the globally latest available firmware.
+      const _moduleKey = (moduleType || '').replace(/[_\s]/g, '').toUpperCase();
+      const _shelfRef  = SHELF_MODULE_LATEST[_moduleKey] || SHELF_MODULE_LATEST[_moduleKey.replace(/[BC]$/, '')] || null;
+      // isRefOutdated: current version is below the global latest known from reference library
+      const isRefOutdated = !isDrift && displayCurrent && _shelfRef &&
+        _normSh(displayCurrent) !== _shelfRef.norm && _normSh(displayCurrent) < _shelfRef.norm;
+      // referenceLatest: the version string to show as target when ref-outdated
+      const referenceLatest = _shelfRef ? _shelfRef.latest : '';
       const autoUpdBadge = autoUpd === true
         ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Auto</span>`
         : autoUpd === false
           ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
           : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
-      // isLiveSh: true only when firmwareVersion came from a live API call, not a catalog backfill.
-      // Without live confirmation we can only say versions match the catalog estimate — not that the
-      // shelf is globally current. Show amber "~ Est. Current" to avoid false green confidence.
-      const isLiveSh = liveVer && !sh.fromCatalog;
+      // isLiveSh: true when firmwareVersion was populated from live API (not a catalog backfill).
+      // Live = sh has a firmwareVersion AND was not flagged as fromCatalog by server.py.
+      const isLiveSh = !!(liveVer && !sh.fromCatalog);
+      // isCatalogConfirmed: catalog version AND fleet recommended agree — two independent sources
+      // confirm this firmware is current. Show green (not amber) even without live per-system data.
+      const isCatalogConfirmed = !isLiveSh && sh.fromCatalog && displayCurrent && displayRec &&
+        _normSh(displayCurrent) === _normSh(displayRec);
       const statusBadge = !displayCurrent
         ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
         : isDrift
-          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
-          : isLiveSh
-            ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
-            : `<span style="font-weight:700;color:#f59e0b;" title="Version matches catalog reference — not live-confirmed. Verify via ONTAP CLI: storage shelf firmware show.">~ Est. Current</span>`;
+          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${displayRec}</span>`
+          : isRefOutdated
+            ? `<span style="font-weight:700;color:#fb923c;" title="${_shelfRef ? _shelfRef.label : ''} — Reference Library (Firmware-Versions.md). API recommendation may reflect ONTAP-bundled version, not global latest. Validate on mysupport.netapp.com before updating.">⚠ UPDATE → ${referenceLatest}</span>`
+            : (!displayRec)
+              ? `<span style="font-weight:700;color:#f59e0b;" title="No global recommended version available — currency cannot be confirmed. Verify via ONTAP CLI: storage shelf firmware show.">⚠ Unverified</span>`
+              : isCatalogConfirmed
+                ? `<span style="font-weight:700;color:#4ade80;" title="ONTAP catalog bundled version matches fleet-level recommended version — estimated current by two independent data sources. Verify live via ONTAP CLI: storage shelf firmware show.">✓ Est. Current</span>`
+                : isLiveSh
+                  ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
+                  : `<span style="font-weight:700;color:#f59e0b;" title="Version matches catalog reference but no fleet recommendation available — currency cannot be fully confirmed. Verify via ONTAP CLI: storage shelf firmware show.">~ Est. Current</span>`;
       const currentCell = displayCurrent
         ? `<span style="font-family:monospace;font-weight:700;">${displayCurrent}</span>`
         : `<span style="font-size:0.75rem;color:var(--text-muted);">—</span>`;
@@ -8074,8 +8136,9 @@ function renderFirmwarePanel(selectedSystems) {
     anyDqpData = true;
     const isDrift = ver && recVer && ver !== recVer;
     const autoUpd = dqp.autoUpdateEligible;
-    const statusColor = isDrift ? '#fb923c' : (ver ? '#4ade80' : 'var(--text-muted)');
-    const statusText  = isDrift ? `⚠ UPDATE → ${recVer}` : (ver ? '✓ Current' : '—');
+    // No recommended version = cannot confirm currency; must show ⚠ Unverified, not ✓ Current.
+    const statusColor = isDrift ? '#fb923c' : (!recVer ? '#f59e0b' : (ver ? '#4ade80' : 'var(--text-muted)'));
+    const statusText  = isDrift ? `⚠ UPDATE → ${recVer}` : (!ver ? '—' : !recVer ? '⚠ Unverified' : '✓ Current');
     const autoUpdBadge = autoUpd === true
       ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
       : autoUpd === false
@@ -8142,15 +8205,24 @@ function renderFirmwarePanel(selectedSystems) {
       // isLiveDrv: true only when currentVersion came from live per-system GQL drivesSummary,
       // not a fleet-map or catalog backfill. Catalog/fleet values are estimates — show amber.
       const isLiveDrv = curVer && !d._fromFleet && !d._fromCatalog;
+      // isDriveConfirmed: cur AND rec both present from live drivesSummary and match.
+      // Even if not "live" (e.g. fleet/catalog backfill), when cur === rec we have
+      // two independent sources agreeing — show green.
+      const isDriveConfirmed = !isLiveDrv && curVer && recVer && curVer === recVer;
+      // No recommended version = cannot confirm currency; ✓ Current only when cur && rec && cur===rec.
       const statusBadge = !curVer
         ? (d._fromCatalog
           ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
           : `<span style="font-size:0.72rem;color:var(--accent-purple);">Fleet ref</span>`)
         : isDrift
-          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
-          : isLiveDrv
-            ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
-            : `<span style="font-weight:700;color:#f59e0b;" title="Version matches fleet/catalog reference — not live-confirmed per-system. Verify via ONTAP CLI: storage disk show -fields firmware-revision.">~ Est. Current</span>`;
+          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${recVer}</span>`
+          : !recVer
+            ? `<span style="font-weight:700;color:#f59e0b;" title="No recommended version available — currency cannot be confirmed. Verify via ONTAP CLI: storage disk show -fields firmware-revision.">⚠ Unverified</span>`
+            : isLiveDrv
+              ? `<span style="font-weight:700;color:#4ade80;" title="Live per-system data confirmed current.">✓ Current</span>`
+              : isDriveConfirmed
+                ? `<span style="font-weight:700;color:#4ade80;" title="Version matches fleet/catalog recommended — estimated current by two independent data sources. Verify via ONTAP CLI: storage disk show -fields firmware-revision.">✓ Est. Current</span>`
+              : `<span style="font-weight:700;color:#f59e0b;" title="Version source unverifiable — no fleet or catalog match available. Verify via ONTAP CLI: storage disk show -fields firmware-revision.">~ Est. Current</span>`;
       const curCell = curVer
         ? `<span style="font-family:monospace;font-weight:700;">${curVer}</span>`
         : `<span style="color:var(--text-muted);font-size:0.75rem;">—</span>`;
