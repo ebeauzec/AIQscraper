@@ -1,0 +1,80 @@
+{
+  "_comment": "Ground-truth latest GA versions for NetApp products. Updated by daily Reference Library scan (0 8 * * *). Edit this file manually if the scan agent identifies a newer GA release not yet reflected here. See CHANGELOG.md in the Reference Library for authoritative update history.",
+  "_lastUpdated": "2026-07-23",
+  "_sources": {
+    "ontap":            "ONTAP-Core/README.md — verified 2026-07-22 via docs.netapp.com/us-en/ontap",
+    "cloudVolumesOntap":"Cloud-BlueXP/README.md — What's New page verified 2026-07-22",
+    "storageGrid":      "Cloud-BlueXP/README.md — storagegrid/release-notes/ verified 2026-07-22 (12.1 announced 2026-06-23, docs not yet live)",
+    "santricity":       "mysupport.netapp.com/site/downloads/eseries (authenticated; manually verified)",
+    "snapCenter":       "Data-Protection/README.md — snapcenter/release-notes/ verified 2026-07-22",
+    "trident":          "Kubernetes-Containers/README.md — trident/trident-rn.html verified 2026-07-22",
+    "hostUtilities":    "Host-Integration-Cabling/README.md — verified 2026-07-22"
+  },
+  "ontap": {
+    "latestGA": "9.19.1",
+    "previousGA": "9.18.1",
+    "gaDate": "2026-06-11",
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/ontap/release-notes/whats-new-9191.html"
+  },
+  "cloudVolumesOntap": {
+    "latestGA": "9.18.1",
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/storage-management-cloud-volumes-ontap/whats-new.html"
+  },
+  "storageGrid": {
+    "latestGA": "12.0",
+    "announced": "12.1",
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/storagegrid/release-notes/"
+  },
+  "santricity": {
+    "latestGA": "11.80",
+    "note": "SANtricity OS (E-Series). Verify via mysupport.netapp.com/site/downloads/eseries — requires NetApp Support login.",
+    "releaseNotesUrl": "https://mysupport.netapp.com/site/downloads/eseries"
+  },
+  "snapCenter": {
+    "latestGA": "6.2.1",
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/snapcenter/release-notes/release-notes.html"
+  },
+  "trident": {
+    "latestGA": "26.02.1",
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/trident/trident-rn.html"
+  },
+  "hostUtilities": {
+    "latestGA": "8.0",
+    "windows": "8.0",
+    "linux": "8.0",
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/ontap-sanhost/"
+  },
+  "spBmc": {
+    "_comment": "SP/BMC firmware is hardware model-specific. NetApp best practice: always run the latest available version regardless of ONTAP release. The ONTAP-bundled catalog baseline is NOT the same as the globally latest available firmware.",
+    "validationNote": "Firmware currency cannot be confirmed without live API data. Validate installed version via ONTAP CLI: 'system service-processor show'. Download latest from mysupport.netapp.com/site/downloads.",
+    "cliCommand": "system service-processor show",
+    "downloadUrl": "https://mysupport.netapp.com/site/downloads",
+    "families": {
+      "SP": {
+        "note": "AFF/FAS Service Processor firmware — model-specific, verify via mysupport.netapp.com",
+        "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
+      },
+      "BMC": {
+        "note": "AFF A-series / ASA / AFX Baseboard Management Controller firmware — model-specific, verify via mysupport.netapp.com",
+        "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
+      },
+      "BIOS": {
+        "note": "System BIOS — bundled with ONTAP releases; verify via mysupport.netapp.com for standalone updates",
+        "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
+      }
+    }
+  },
+  "diskFirmware": {
+    "_comment": "Drive (disk) firmware is drive model-specific. NetApp best practice: always run the latest available drive firmware. Currency can only be confirmed against live fleet data from ActiveIQ or manual CLI comparison.",
+    "validationNote": "Validate via ONTAP CLI: 'storage disk show -fields firmware-revision'. Download latest Disk Qualification Package (DQP) and drive firmware from mysupport.netapp.com.",
+    "cliCommand": "storage disk show -fields firmware-revision",
+    "downloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/disk-drive-firmware",
+    "dqpDownloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/disk-qualification-package"
+  },
+  "shelfFirmware": {
+    "_comment": "Shelf module firmware (IOM, NSM, ESM) is module-model-specific. NetApp best practice: always run the latest available shelf firmware.",
+    "validationNote": "Validate via ONTAP CLI: 'storage shelf show -fields module-type,fw-version'. Download latest from mysupport.netapp.com.",
+    "cliCommand": "storage shelf show -fields module-type,fw-version",
+    "downloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/shelf-firmware"
+  }
+}

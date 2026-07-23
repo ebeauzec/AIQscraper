@@ -56,8 +56,22 @@ SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "aiq_cache.db"
 CONFIG_PATH = SCRIPT_DIR / "aiq_config.json"
 BULLETINS_PATH = SCRIPT_DIR / "security_bulletins.json"
+FW_BASELINES_PATH = SCRIPT_DIR / "firmware_baselines.json"
 GQL_URL = "https://gql.aiq.netapp.com/graphql"
 REST_BASE = "https://api.activeiq.netapp.com"
+
+# ── Ground-truth firmware / OS version baselines (from firmware_baselines.json) ──
+# Loaded once at startup; refreshed by the daily Reference Library scan agent.
+def _load_fw_baselines():
+    try:
+        with open(FW_BASELINES_PATH, "r", encoding="utf-8") as _f:
+            return json.load(_f)
+    except Exception as _e:
+        print(f"[FW_BASELINES] Could not load firmware_baselines.json: {_e}", flush=True)
+        return {}
+
+FIRMWARE_BASELINES = _load_fw_baselines()
+print(f"[FW_BASELINES] Loaded. ONTAP latest GA: {FIRMWARE_BASELINES.get('ontap', {}).get('latestGA', 'unknown')}, StorageGRID: {FIRMWARE_BASELINES.get('storageGrid', {}).get('latestGA', 'unknown')}", flush=True)
 
 # Global sync state
 _sync_lock = threading.Lock()
@@ -1929,8 +1943,18 @@ def _do_full_harvest(watchlist_ids=None):
                         _cat_bl = _shelf_fw_catalog.get(_mtype)
                         if _cat_bl:
                             _sh["firmwareVersion"] = _cat_bl.get("shelfModuleFirmwareVersion", "")
-                            _sh["recommendedFirmwareVersion"] = _cat_bl.get("shelfModuleFirmwareVersion", "")
+                            # recommended = fleet-latest (global), not the ONTAP-bundled catalog value
+                            _fleet_sh_ver = (_fleet_shelf_map.get(_mtype) or {}).get("firmwareVersion", "")
+                            _sh["recommendedFirmwareVersion"] = _fleet_sh_ver or _cat_bl.get("shelfModuleFirmwareVersion", "")
                             _sh["fromCatalog"] = True
+            # Override recommendedFirmwareVersion with fleet-latest for ALL shelves that have a matching fleet entry
+            # This ensures live-data shelves whose recommendedFirmwareVersion came from the ONTAP catalog
+            # are also corrected to reflect the globally latest recommended version.
+            for _sh in shelves_out:
+                _mtype = (_sh.get("moduleType") or "").upper()
+                _fleet_sh_ver = (_fleet_shelf_map.get(_mtype) or {}).get("firmwareVersion", "")
+                if _fleet_sh_ver:
+                    _sh["recommendedFirmwareVersion"] = _fleet_sh_ver
 
             # ── Populate DQP from catalog when live API returns empty ──────────
             # The diskQualificationPackage field returns {} for most accounts.
@@ -2191,6 +2215,10 @@ def _do_full_harvest(watchlist_ids=None):
                 "diskFirmwareBaselines": _disk_fw_baselines, # [{driveModel, version}] bundled with this ONTAP release
                 "shelfFirmwareBaselines": _shelf_fw_baselines, # [{shelfModuleName, shelfModuleFirmwareVersion, ...}]
                 # ── Fleet-level firmware recommendation maps (from root-level GQL queries) ──
+                # ── Ground-truth OS version baselines (from firmware_baselines.json) ──
+                "firmwareBaselines":      FIRMWARE_BASELINES,         # {ontap, storageGrid, santricity, ...} latest GA versions
+                # ── Fleet-level firmware recommendation maps (from root-level GQL queries) ──
+                "fleetSpFirmwareMap":     _fleet_sp_map,     # {firmwareType.upper() → {firmwareVersion, status, priority}} global fleet latest SP/BMC
                 "fleetDriveFirmwareMap":  _fleet_drive_map,  # {driveModel → {firmwareVersion, status, priority}}
                 "fleetShelfFirmwareMap":  _fleet_shelf_map,  # {shelfModuleName → {firmwareVersion, status, priority}}
                 "fleetDqpLatest":         _fleet_dqp_latest or {},  # latest DQP from fleet query

@@ -7565,13 +7565,18 @@ function renderFirmwarePanel(selectedSystems) {
   // ── Helper: drift badge ─────────────────────────────────────────────
   const driftBadge = (current, recommended, label) => {
     if (!current && !recommended) return `<span style="color:var(--text-muted);font-size:0.75rem;">N/A</span>`;
-    if (!recommended) return `<span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>`;
-    const isDrift = current && recommended && current !== recommended;
+    // No recommended version = we cannot confirm currency — show amber ⚠ Unverified
+    // (Bundled ONTAP baseline ≠ globally latest available firmware)
+    if (!recommended) return `<span style="display:inline-flex;align-items:center;gap:5px;">
+      <span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>
+      <span style="font-size:0.72rem;color:#f59e0b;font-weight:700;" title="No global recommended version available — currency cannot be confirmed. Validate via mysupport.netapp.com.">⚠ Unverified</span>
+    </span>`;
+    const isDrift = current && current !== recommended;
     const color = isDrift ? '#fb923c' : '#4ade80';
     const icon  = isDrift ? '⚠' : '✓';
     return `<span style="display:inline-flex;align-items:center;gap:5px;">
       <span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>
-      <span style="font-size:0.72rem;color:${color};font-weight:700;">${icon} ${isDrift ? `→ ${recommended}` : 'current'}</span>
+      <span style="font-size:0.72rem;color:${color};font-weight:700;">${icon} ${isDrift ? `→ ${recommended}` : 'Current'}</span>
     </span>`;
   };
 
@@ -7597,8 +7602,11 @@ function renderFirmwarePanel(selectedSystems) {
       anyLiveSpData = true;
       fwList.forEach(fw => {
         const typeLabel = (fw.type || 'SP').toUpperCase();
-        const current = fw.currentVersion || '';
-        const recommended = fw.recommendedVersion || spBaseline.version || '';
+        // The ActiveIQ API never exposes a live SP/BMC currentVersion; use the ONTAP-bundled
+        // baseline version as the best estimate of what's actually installed on this system.
+        const current = fw.currentVersion || spBaseline.version || '';
+        // recommendedVersion is fleet-latest (set by server.py fleet fallback — not ONTAP-bundled)
+        const recommended = fw.recommendedVersion || '';
         const autoUpd = fw.autoUpdateEligible;
         const autoUpdBadge = autoUpd === true
           ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
@@ -7616,39 +7624,48 @@ function renderFirmwarePanel(selectedSystems) {
         </tr>`;
       });
     } else if (hasBaselineData) {
-      // Catalog-only: show what the SP/BMC SHOULD be for this ONTAP version
-      const baselineSP  = spBaseline.version || '';
-      const baselineBMC = spBaseline.type === 'BMC' ? baselineSP : '';
+      // Catalog-only path: no live systemFirmware[] entries and fleet map is empty.
+      // Show the ONTAP-bundled version as the installed estimate, compared against fleet-latest if available.
+      const baselineSP     = spBaseline.version || '';
       const baselineSPType = (spBaseline.type || 'SP').toUpperCase();
+      // Fleet-latest SP/BMC from fleetSpFirmwareMap (populated by server.py from GQL fleet queries)
+      const _fleetSpM   = sys.fleetSpFirmwareMap || {};
+      const _fleetSpEnt = _fleetSpM[baselineSPType] || _fleetSpM['SP'] || Object.values(_fleetSpM)[0];
+      const fleetSpLatest = (_fleetSpEnt || {}).firmwareVersion || '';
 
       if (baselineSP) {
         spRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${baselineSPType}</td>
           <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-weight:700;color:var(--accent-cyan);">${baselineSP}</td>
+          <td style="padding:8px 12px;">${driftBadge(baselineSP, fleetSpLatest, baselineSPType)}</td>
           <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
-          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Catalog ref</td>
+          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Est. installed</td>
         </tr>`;
       }
       if (biosVer || spBaseline.biosVersion) {
         const bVer = biosVer || spBaseline.biosVersion || '';
+        const _biosFleetEnt = _fleetSpM['BIOS'] || null;
+        const biosFleetLatest = (_biosFleetEnt || {}).firmwareVersion || '';
         spRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">BIOS</td>
           <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-weight:700;color:var(--accent-cyan);">${bVer}</td>
+          <td style="padding:8px 12px;">${driftBadge(bVer, biosFleetLatest, 'BIOS')}</td>
           <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
-          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Catalog ref</td>
+          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Est. installed</td>
         </tr>`;
       }
     }
   });
 
   const spApiNote = !anyLiveSpData && anySpData ? `
-    <div style="margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
-      ℹ️ <strong style="color:var(--accent-purple);">Catalog reference only</strong> — the ActiveIQ API does not expose live SP/BMC firmware versions via GraphQL.
-      Values shown are the versions bundled with each system's ONTAP release. For live installed versions, check the SP/BMC directly or via ONTAP CLI: <code style="font-family:monospace;color:var(--accent-cyan);">system service-processor show</code>
+    <div style="margin-bottom:10px;padding:8px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.35);border-radius:6px;font-size:0.75rem;color:var(--text-muted);">
+      ⚠️ <strong style="color:#f59e0b;">Firmware currency unverified</strong> — the ActiveIQ API does not expose live SP/BMC firmware versions, and no fleet-wide recommendation data was returned for this account.
+      The version shown is the firmware <em>bundled with</em> the system's ONTAP release — this is <strong>not</strong> necessarily the latest available firmware.
+      NetApp best practice: always run the <strong>latest available SP/BMC firmware</strong> regardless of ONTAP version.
+      <br>▸ Verify actual installed version via ONTAP CLI: <code style="font-family:monospace;color:var(--accent-cyan);">system service-processor show</code>
+      <br>▸ Download latest SP/BMC firmware from <a href="https://mysupport.netapp.com/site/downloads" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com/site/downloads</a>
     </div>` : '';
 
   const spSection = anySpData ? `
@@ -7664,7 +7681,7 @@ function renderFirmwarePanel(selectedSystems) {
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Component</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">ONTAP Version</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Bundled Firmware</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Firmware Version / Status</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
               <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Source</th>
             </tr>
@@ -12073,18 +12090,35 @@ function enrichSystemTelemetry(s) {
     //    or synthesised from fleet/catalog fallback). Must be forwarded here so the firmware panel
     //    and export functions can read sys.driveFirmware correctly. ──
     driveFirmware:         s.driveFirmware || [],
-    // ── Fleet-level firmware recommendation maps (forwarded for export/reporting) ──
+    // ── Ground-truth OS version baselines + fleet firmware maps (forwarded for export/reporting) ──
+    firmwareBaselines:     s.firmwareBaselines || {},
+    fleetSpFirmwareMap:    s.fleetSpFirmwareMap || {},
     fleetDriveFirmwareMap: s.fleetDriveFirmwareMap || {},
     fleetShelfFirmwareMap: s.fleetShelfFirmwareMap || {},
     fleetDqpLatest:        s.fleetDqpLatest || {},
-    // ── Computed SP/BMC firmware drift ──
+    // ── Computed SP/BMC firmware drift (proxy: currentVersion || spFirmwareBaseline.version as installed est.) ──
+    // An entry counts as drift if: (a) installed != recommended, OR (b) no recommendedVersion exists (unverified)
+    // Policy: NetApp requires always running the latest available firmware — unverified = not confirmed current.
     systemFirmwareDrift: (() => {
       const fwList = s.systemFirmware || [];
-      return fwList.filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion);
+      const spBase = s.spFirmwareBaseline || {};
+      return fwList.filter(f => {
+        const installed = f.currentVersion || spBase.version || '';
+        if (!installed) return false;
+        // Unverified (no recommended) = treat as needing attention
+        if (!f.recommendedVersion) return true;
+        return installed !== f.recommendedVersion;
+      });
     })(),
     systemFirmwareDriftCount: (() => {
       const fwList = s.systemFirmware || [];
-      return fwList.filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+      const spBase = s.spFirmwareBaseline || {};
+      return fwList.filter(f => {
+        const installed = f.currentVersion || spBase.version || '';
+        if (!installed) return false;
+        if (!f.recommendedVersion) return true; // unverified = flag
+        return installed !== f.recommendedVersion;
+      }).length;
     })(),
     // ── Computed shelf firmware drift ──
     shelfFirmwareDrift: (() => {
@@ -12120,12 +12154,23 @@ function enrichSystemTelemetry(s) {
       return (biosVer && biosBase && biosVer !== biosBase) ? 1 : 0;
     })(),
     // ── Total firmware drift count (all categories) ──
+    // Policy: firmware is only confirmed current when installed === recommended AND recommended is known.
+    // Unverified (no recommended) = counts as 1 needing attention per component type.
     totalFirmwareDriftCount: (() => {
+      const spBase3 = s.spFirmwareBaseline || {};
       const fwList = s.systemFirmware || [];
-      let n = fwList.filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+      // SP/BMC: unverified (no recommendedVersion) also counts as drift
+      let n = fwList.filter(f => {
+        const installed = f.currentVersion || spBase3.version || '';
+        if (!installed) return false;
+        if (!f.recommendedVersion) return true; // unverified = flag
+        return installed !== f.recommendedVersion;
+      }).length;
       for (const sh of (s.shelves || [])) {
         const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
-        if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) n++;
+        // Shelf with a known firmware version but no recommendation = unverified
+        if (sh.firmwareVersion && !rec) n++;
+        else if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) n++;
       }
       for (const sw of (s.switches || [])) {
         if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) n++;
@@ -12134,13 +12179,17 @@ function enrichSystemTelemetry(s) {
       const dqpCur = dqp.currentVersion || dqp.version || '';
       const dqpRec = dqp.recommendedVersion || '';
       if (dqpCur && dqpRec && dqpCur !== dqpRec) n++;
-      // Drive firmware (per-model, independent of OS version)
-      n += (s.driveFirmware || []).filter(f => f.recommendedVersion && f.currentVersion && f.currentVersion !== f.recommendedVersion).length;
+      // Drive firmware: downrev counts; unverified (no recommended) also counts
+      n += (s.driveFirmware || []).filter(f => {
+        if (!f.currentVersion) return false;
+        if (!f.recommendedVersion) return true; // unverified
+        return f.currentVersion !== f.recommendedVersion;
+      }).length;
       // Motherboard/BIOS drift
-      const spBase2 = s.spFirmwareBaseline || {};
-      const biosVer2 = s.biosVersion || '';
-      const biosBase2 = spBase2.biosVersion || '';
-      if (biosVer2 && biosBase2 && biosVer2 !== biosBase2) n++;
+      const spBase4 = s.spFirmwareBaseline || {};
+      const biosVer4 = s.biosVersion || '';
+      const biosBase4 = spBase4.biosVersion || '';
+      if (biosVer4 && biosBase4 && biosVer4 !== biosBase4) n++;
       return n;
     })(),
     lifecycleEvents:   s.lifecycleEvents || [],
@@ -14561,24 +14610,31 @@ OPERATIONAL HEALTH
   const _fwSpDrift = [], _fwSwDrift = [], _fwShDrift = [], _fwDqpDrift = [], _fwDrvDrift = [], _fwMbDrift = [];
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
-    // SP/BMC drift
+    const _auditFleetSpMap = sys.fleetSpFirmwareMap || {};
+    // SP/BMC drift — currentVersion not exposed by API; spBase.version (ONTAP-bundled) is our proxy for installed
     (sys.systemFirmware || []).forEach(fw => {
-      const rec = fw.recommendedVersion || spBase.version || '';
-      if (fw.currentVersion && rec && fw.currentVersion !== rec)
-        _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: (fw.type || 'SP').toUpperCase(), current: fw.currentVersion, recommended: rec });
+      const installedVer = fw.currentVersion || spBase.version || '';
+      // recommendedVersion = fleet-latest (from server.py fleet fallback) — NOT ONTAP-bundled
+      const rec = fw.recommendedVersion || '';
+      if (installedVer && rec && installedVer !== rec)
+        _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: (fw.type || 'SP').toUpperCase(), current: installedVer, recommended: rec });
     });
-    // Motherboard / BIOS drift (independent of OS version)
-    const biosVer = sys.biosVersion || '', biosBase = spBase.biosVersion || '';
-    if (biosVer && biosBase && biosVer !== biosBase)
-      _fwMbDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: 'BIOS/Motherboard', current: biosVer, recommended: biosBase });
+    // Motherboard / BIOS drift
+    const biosVer = sys.biosVersion || '';
+    const biosFleetEnt = _auditFleetSpMap['BIOS'] || null;
+    const biosRec2 = (biosFleetEnt || {}).firmwareVersion || spBase.biosVersion || '';
+    if (biosVer && biosRec2 && biosVer !== biosRec2)
+      _fwMbDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: 'BIOS/Motherboard', current: biosVer, recommended: biosRec2 });
     // Switch drift
     (sys.switches || []).forEach(sw => {
       if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware)
         _fwSwDrift.push({ system: sys.systemName, serial: sys.serialNumber, model: sw.model || sw.deviceName || 'Switch', current: sw.firmware, recommended: sw.targetFirmware });
     });
-    // Shelf drift
+    // Shelf drift — prefer fleet-latest (overridden in server.py) over ONTAP-bundled catalog
     (sys.shelves || []).forEach(sh => {
-      const rec = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '';
+      const _shMt = (sh.moduleType || '').toUpperCase();
+      const _fleetShRec = ((sys.fleetShelfFirmwareMap || {})[_shMt] || {}).firmwareVersion || '';
+      const rec = _fleetShRec || sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '';
       if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec)
         _fwShDrift.push({ system: sys.systemName, serial: sys.serialNumber, shelf: sh.serialNumber || sh.model || '—', moduleType: sh.moduleType || '—', current: sh.firmwareVersion, recommended: rec });
     });
@@ -16704,10 +16760,13 @@ function generateActionPlan() {
   const _fwSpBmcItems = [], _fwShelfItems = [], _fwDiskDqpItems = [], _fwDriveItems = [];
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
+    const _fwFleetSpMap = sys.fleetSpFirmwareMap || {};
     // SP / BMC / Mainboard controller firmware
+    // currentVersion is not exposed by the API; use the ONTAP-bundled version as an installed proxy.
     (sys.systemFirmware || []).forEach(fw => {
-      const current = fw.currentVersion || '';
-      const recommended = fw.recommendedVersion || spBase.version || '';
+      const current = fw.currentVersion || spBase.version || '';
+      // recommendedVersion = fleet-latest (set by server.py fleet fallback — not ONTAP-bundled)
+      const recommended = fw.recommendedVersion || '';
       const isDrift = current && recommended && current !== recommended;
       _fwSpBmcItems.push({
         systemName: sys.systemName, serialNumber: sys.serialNumber,
@@ -16716,24 +16775,29 @@ function generateActionPlan() {
         isDrift
       });
     });
-    // BIOS / Mainboard
+    // BIOS / Mainboard — prefer fleet-latest BIOS version if available in fleet map
     const biosVer = sys.biosVersion || sys.motherboardFirmware || '';
-    const biosBase = spBase.biosVersion || '';
+    const biosFleetEntry = _fwFleetSpMap['BIOS'] || null;
+    const biosRec = (biosFleetEntry || {}).firmwareVersion || spBase.biosVersion || '';
     if (biosVer) {
       _fwSpBmcItems.push({
         systemName: sys.systemName, serialNumber: sys.serialNumber,
         type: 'BIOS/Mainboard',
-        current: biosVer, recommended: biosBase || '—',
-        isDrift: biosBase && biosVer !== biosBase
+        current: biosVer, recommended: biosRec || '—',
+        isDrift: biosRec && biosVer !== biosRec
       });
     }
     // Shelf module firmware
     // Version normalisation: catalog uses full filenames (IOM12E.0251.SFW), live API
     // uses the 4-digit numeric part (0251). Normalise both before comparing.
     (sys.shelves || []).forEach(sh => {
+      // Recommended = fleet-latest (overridden by server.py for all shelves with a fleet entry)
+      const _shMtype = (sh.moduleType || '').toUpperCase();
+      const fleetShRec = ((sys.fleetShelfFirmwareMap || {})[_shMtype] || {}).firmwareVersion || '';
       const apiRec = sh.recommendedFirmwareVersion || '';
       const catRec = (sys.shelfFirmwareBaselines || []).find(b => b.shelfModuleName === (sh.moduleType || sh.model));
-      const recommended = apiRec || (catRec ? (catRec.sysShelfModuleFirmwareVersion || catRec.shelfModuleFirmwareVersion) : '') || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '—';
+      // Priority: fleet-latest > API recommended > catalog bundled > static reference library
+      const recommended = fleetShRec || apiRec || (catRec ? (catRec.sysShelfModuleFirmwareVersion || catRec.shelfModuleFirmwareVersion) : '') || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '—';
       const current = sh.firmwareVersion || '—';
       // Compare normalised versions to avoid false drift when catalog uses filename format
       const isDrift = current !== '—' && recommended !== '—' && _normShelfVer(current) !== _normShelfVer(recommended);
