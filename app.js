@@ -5600,19 +5600,91 @@ const REFERENCE_LIBRARY_ADVISORIES = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// BMC / SP Firmware Baselines — by platform family
+// Source: Platforms-Hardware/Firmware-Versions.md (direct-fetch-confirmed 2026-07-23)
+// IMPORTANT: Each platform family has its own independent version track — do NOT
+// compare version numbers across families. "most recent found" entries are flagged
+// below with a gap warning — they may be incomplete. Confirm against Hardware
+// Universe / Support Site before any customer-facing firmware-currency claim.
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_BMC_BASELINES = [
+  // Each entry: { patterns: [regex-strings-matching-model-field], version, label, gapWarning? }
+  // Patterns match case-insensitively against sys.model (e.g. "AFF A400", "FAS8700")
+  {
+    patterns: ["AFF A1K", "AFF A90", "AFF A70", "AFF C80", "ASA A1K", "ASA A90", "ASA A70", "FAS90", "FAS70"],
+    version: "18.4P1",
+    label: "AFF A1K/A90/A70/C80; ASA A1K/A90/A70; FAS90/FAS70 BMC — latest: 18.4P1 (CONTAP-504896)"
+  },
+  {
+    patterns: ["AFF A50", "AFF A30", "AFF A20", "AFF C60", "AFF C30", "ASA A50", "ASA A30", "ASA A20", "ASA C30", "FAS50"],
+    version: "19.2P1",
+    label: "AFF A50/A30/A20/C60/C30; ASA A50/A30/A20/C30; FAS50 BMC — latest: 19.2P1 (CONTAP-502118)"
+  },
+  {
+    patterns: ["AFF A400", "AFF C400", "ASA A400", "ASA C400", "FAS8700", "FAS8300"],
+    version: "13.11",
+    label: "AFF A400/C400; ASA A400/C400; FAS8700/FAS8300 BMC — most recent found: 13.11 (CONTAP-300963)",
+    gapWarning: true
+  },
+  {
+    patterns: ["AFF A250", "AFF C250", "ASA A250", "ASA C250", "FAS500f", "FAS500F"],
+    version: "15.12",
+    label: "AFF A250/C250; ASA A250/C250; FAS500f BMC — most recent found: 15.12 (CONTAP-323139)",
+    gapWarning: true
+  },
+  {
+    patterns: ["AFF A220", "AFF A150", "AFF C190", "ASA A150", "FAS2750", "FAS2720"],
+    version: "11.12",
+    label: "AFF A220/A150/C190; ASA A150; FAS2750/FAS2720 BMC — latest: 11.12 (CONTAP-422222)"
+  },
+  {
+    patterns: ["AFF A800", "AFF C800", "ASA A800", "ASA C800"],
+    version: "10.9P2",
+    label: "AFF A800/C800; ASA A800/C800 BMC — most recent found: 10.9P2 (CONTAP-323134)",
+    gapWarning: true
+  },
+];
+
+/**
+ * Look up the latest known BMC/SP firmware version for a given controller model string.
+ * Returns { version, label, gapWarning } or null if no match is found.
+ * Match is case-insensitive substring of modelStr against each entry's patterns array.
+ */
+function getBmcBaseline(modelStr) {
+  if (!modelStr) return null;
+  // Normalize: replace hyphens with spaces so "AFF-A400" matches "AFF A400" patterns.
+  // Also try the raw form in case a pattern explicitly uses hyphens.
+  const mNorm = modelStr.toUpperCase().replace(/-/g, ' ');
+  const mRaw  = modelStr.toUpperCase();
+  for (const entry of REFERENCE_LIBRARY_BMC_BASELINES) {
+    for (const pat of entry.patterns) {
+      const p = pat.toUpperCase();
+      if (mNorm.includes(p) || mRaw.includes(p)) {
+        return entry;
+      }
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Firmware Baselines — recommended minimum versions
 // Sources: NetApp Hardware Universe, shelf/switch firmware matrices
 // Updated: 2026-07-20
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   // NVMe shelf modules (current-gen for AFF A/C-Series, ASA r2, FAS)
+  // Source: Platforms-Hardware/Firmware-Versions.md (direct-fetch-confirmed 2026-07-23)
+  // NSM100/NSM100B: 03.03 is current — a single firmware image runs on both modules
   // Do NOT mix NSM100/NSM100B/NSM100e with AFX shelves (AFX uses NSM140 only)
-  "NSM100":   { recommended: "0220", label: "NSM100 NVMe Shelf Module (AFF A/C-Series, ASA r2, FAS)" },
-  "NSM100B":  { recommended: "0140", label: "NSM100B NVMe Shelf Module (AFF/ASA r2 next-gen)" },
+  "NSM100":   { recommended: "03.03", recommendedFull: "NSM100.0303.SFW", label: "NSM100 NVMe Shelf Module (AFF A/C-Series, ASA r2, FAS) — latest: 03.03 (CONTAP-335905)" },
+  "NSM100B":  { recommended: "03.03", recommendedFull: "NSM100.0303.SFW", label: "NSM100B NVMe Shelf Module — single firmware image with NSM100, latest: 03.03 (CONTAP-335905)" },
   // SAS shelf IOM modules — note: mixing IOM models within same shelf is NOT supported
-  "IOM12":    { recommended: "0260", label: "IOM12 SAS Module (DS224C)" },
-  "IOM12G":   { recommended: "0280", label: "IOM12G SAS Module (DS460C, DS224C-G)" },
-  "IOM12B":   { recommended: "0270", label: "IOM12B SAS Module (FAS/AFF hybrid)" },
+  // Source: Platforms-Hardware/Firmware-Versions.md (direct-fetch-confirmed 2026-07-23)
+  // IOM12 / IOM12G / IOM12B: 04.11 is current (04.11 bundles DCM/DCM2/DCM3 firmware for DS460C)
+  "IOM12":    { recommended: "04.11", recommendedFull: "IOM12A.0411.SFW",  label: "IOM12 SAS Module (DS212C, DS224C, DS460C) — latest: 04.11 (CONTAP-617167)" },
+  "IOM12G":   { recommended: "04.11", recommendedFull: "IOM12A.0411.SFW",  label: "IOM12G SAS Module (DS460C, DS224C-G) — latest: 04.11 (CONTAP-617167)" },
+  "IOM12B":   { recommended: "04.11", recommendedFull: "IOM12A.0411.SFW",  label: "IOM12B SAS Module (FAS/AFF hybrid) — latest: 04.11 (CONTAP-617167)" },
   "IOM3":     { recommended: "0200", label: "IOM3 SAS Module (legacy DS2246/DS4243)" },
   // Cluster/MetroCluster switches — EOA models: BES-53248, Cisco 9336C-FX2, NVIDIA SN2100
   // NX-OS 10.4.2 is current for AFX switches (9332D-GX2B/9364D-GX2A)
@@ -7563,20 +7635,41 @@ function renderFirmwarePanel(selectedSystems) {
   card.style.display = 'block';
 
   // ── Helper: drift badge ─────────────────────────────────────────────
-  const driftBadge = (current, recommended, label) => {
+  // isEstimate: when true, the "current" value is an ONTAP-bundled baseline estimate,
+  //             NOT a live-confirmed installed version. If versions match, show amber
+  //             "~ Est. Current" instead of green "✓ Current" to avoid false confidence.
+  const driftBadge = (current, recommended, label, isEstimate) => {
     if (!current && !recommended) return `<span style="color:var(--text-muted);font-size:0.75rem;">N/A</span>`;
+    // No current version = we cannot confirm what's installed — always Unverified
+    // (The API never exposes a live SP/BMC currentVersion; empty string is the norm)
+    if (!current) return `<span style="display:inline-flex;align-items:center;gap:5px;">
+      <span style="font-family:monospace;font-size:0.82rem;">—</span>
+      <span style="font-size:0.72rem;color:#f59e0b;font-weight:700;" title="Installed version unknown — the ActiveIQ API does not expose live SP/BMC firmware. Verify via ONTAP CLI: system service-processor show. Latest known: ${recommended || 'unknown'}.">⚠ Verify</span>
+    </span>`;
     // No recommended version = we cannot confirm currency — show amber ⚠ Unverified
     // (Bundled ONTAP baseline ≠ globally latest available firmware)
     if (!recommended) return `<span style="display:inline-flex;align-items:center;gap:5px;">
-      <span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>
+      <span style="font-family:monospace;font-size:0.82rem;">${current}</span>
       <span style="font-size:0.72rem;color:#f59e0b;font-weight:700;" title="No global recommended version available — currency cannot be confirmed. Validate via mysupport.netapp.com.">⚠ Unverified</span>
     </span>`;
-    const isDrift = current && current !== recommended;
-    const color = isDrift ? '#fb923c' : '#4ade80';
-    const icon  = isDrift ? '⚠' : '✓';
+    // Both known — compare directly
+    const isDrift = current !== recommended;
+    if (isDrift) {
+      return `<span style="display:inline-flex;align-items:center;gap:5px;">
+        <span style="font-family:monospace;font-size:0.82rem;">${current}</span>
+        <span style="font-size:0.72rem;color:#fb923c;font-weight:700;">⚠ → ${recommended}</span>
+      </span>`;
+    }
+    // Versions match — but if this is an estimate (not live confirmed), flag as Est. Current
+    if (isEstimate) {
+      return `<span style="display:inline-flex;align-items:center;gap:5px;">
+        <span style="font-family:monospace;font-size:0.82rem;">${current}</span>
+        <span style="font-size:0.72rem;color:#f59e0b;font-weight:700;" title="Installed version is estimated from the ONTAP-bundled baseline — not live-confirmed. Version matches Reference Library latest (${recommended}), but live currency cannot be guaranteed. Verify via ONTAP CLI: system service-processor show.">~ Est. Current</span>
+      </span>`;
+    }
     return `<span style="display:inline-flex;align-items:center;gap:5px;">
-      <span style="font-family:monospace;font-size:0.82rem;">${current || '—'}</span>
-      <span style="font-size:0.72rem;color:${color};font-weight:700;">${icon} ${isDrift ? `→ ${recommended}` : 'Current'}</span>
+      <span style="font-family:monospace;font-size:0.82rem;">${current}</span>
+      <span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Current</span>
     </span>`;
   };
 
@@ -7600,13 +7693,32 @@ function renderFirmwarePanel(selectedSystems) {
     if (hasLiveData) {
       // Live data from API (rare — requires specific access level)
       anyLiveSpData = true;
+      // Resolve Reference Library ground-truth BMC baseline for this model (used below in the loop)
+      const _sysModelLive  = sys.model || '';
+      const _refBmcLive    = getBmcBaseline(_sysModelLive);
+      const _fleetSpMLive  = sys.fleetSpFirmwareMap || {};
       fwList.forEach(fw => {
         const typeLabel = (fw.type || 'SP').toUpperCase();
         // The ActiveIQ API never exposes a live SP/BMC currentVersion; use the ONTAP-bundled
         // baseline version as the best estimate of what's actually installed on this system.
         const current = fw.currentVersion || spBaseline.version || '';
-        // recommendedVersion is fleet-latest (set by server.py fleet fallback — not ONTAP-bundled)
-        const recommended = fw.recommendedVersion || '';
+        // Priority for recommended:
+        //   1. Reference Library BMC baseline (most accurate — per-platform-family, public KB-sourced)
+        //   2. Fleet GQL recommendedVersion (can equal the ONTAP-bundled version — not globally latest)
+        //   3. Empty → driftBadge will show ⚠ Unverified
+        // NOTE: GQL recommendedVersion often equals the ONTAP-bundled SP version (same catalog source
+        // as spBaseline.version used for current). Using it as-is causes current === recommended and
+        // a false ✓ Current badge even when newer firmware exists in the Reference Library.
+        const _fleetSpEntLive = _fleetSpMLive[typeLabel] || _fleetSpMLive['SP'] || Object.values(_fleetSpMLive)[0];
+        const _fleetSpVerLive = (_fleetSpEntLive || {}).firmwareVersion || '';
+        // Discard fw.recommendedVersion when it equals current — it comes from the same ONTAP-bundled
+        // catalog as spBaseline.version (circular), so comparing them gives a false ✓ Current.
+        const _gqlRecLive = (fw.recommendedVersion && fw.recommendedVersion !== current) ? fw.recommendedVersion : '';
+        const recommended = (_refBmcLive && _refBmcLive.version) || _fleetSpVerLive || _gqlRecLive || '';
+        // Gap warning tooltip for incomplete history entries
+        const _bmcGapNoteLive = _refBmcLive && _refBmcLive.gapWarning
+          ? ' title="Gap flag: this version is the most recent found from public sources — may not be the true current. Confirm against Hardware Universe / mysupport.netapp.com."'
+          : '';
         const autoUpd = fw.autoUpdateEligible;
         const autoUpdBadge = autoUpd === true
           ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
@@ -7618,29 +7730,49 @@ function renderFirmwarePanel(selectedSystems) {
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${typeLabel}</td>
           <td style="padding:8px 12px;">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;">${driftBadge(current, recommended, typeLabel)}</td>
+          <td style="padding:8px 12px;"${_bmcGapNoteLive}>${driftBadge(current, recommended, typeLabel, true)}</td>
           <td style="padding:8px 12px;">${autoUpdBadge}</td>
           <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">${postDate}</td>
         </tr>`;
       });
     } else if (hasBaselineData) {
       // Catalog-only path: no live systemFirmware[] entries and fleet map is empty.
-      // Show the ONTAP-bundled version as the installed estimate, compared against fleet-latest if available.
+      // Ground-truth recommended: prefer Reference Library BMC baseline (keyed by platform model)
+      // over fleet-latest (which can return the ONTAP-bundled version, not the globally latest).
       const baselineSP     = spBaseline.version || '';
       const baselineSPType = (spBaseline.type || 'SP').toUpperCase();
-      // Fleet-latest SP/BMC from fleetSpFirmwareMap (populated by server.py from GQL fleet queries)
+      const _sysModel      = sys.model || '';
+      // 1. Try Reference Library BMC baseline by platform model (most accurate)
+      const _refBmcEntry = getBmcBaseline(_sysModel);
+      // 2. Fall back to fleet SP map from GQL — but ONLY if fleet version differs from the
+      //    ONTAP-bundled baseline. If they match, the fleet query returned the same bundled value
+      //    (circular reference), which cannot confirm firmware currency — treat as Unverified.
       const _fleetSpM   = sys.fleetSpFirmwareMap || {};
       const _fleetSpEnt = _fleetSpM[baselineSPType] || _fleetSpM['SP'] || Object.values(_fleetSpM)[0];
       const fleetSpLatest = (_fleetSpEnt || {}).firmwareVersion || '';
+      // fleetSpIsDistinct: only trust fleet version if it's different from the bundled baseline.
+      // When fleet == bundled, the GQL fleet query returned the same catalog value, not the
+      // global latest — comparing current vs. same value gives a false ✓ Current.
+      const fleetSpIsDistinct = fleetSpLatest && fleetSpLatest !== baselineSP;
+      // Best recommended: Reference Library baseline (most accurate) → distinct fleet GQL → empty (→ Unverified)
+      const bmcRecommended = (_refBmcEntry && _refBmcEntry.version) || (fleetSpIsDistinct ? fleetSpLatest : '') || '';
+      // Gap warning tooltip if this entry may be incomplete history
+      const bmcGapNote = _refBmcEntry && _refBmcEntry.gapWarning
+        ? ' title="Gap flag: this version is the most recent found from public sources — may not be the true current. Confirm against Hardware Universe / mysupport.netapp.com."'
+        : '';
 
       if (baselineSP) {
+        // currentVersion is the ONTAP-bundled SP version (installed estimate — NOT live confirmed).
+        // recommendedVersion is the Reference Library ground-truth latest for this platform family.
+        // IMPORTANT: Pass isEstimate=true so the badge shows "~ Est. Current" (amber) instead of
+        // "✓ Current" (green) when versions match — we never have live confirmation from the API.
         spRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${baselineSPType}</td>
           <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;">${driftBadge(baselineSP, fleetSpLatest, baselineSPType)}</td>
+          <td style="padding:8px 12px;"${bmcGapNote}>${driftBadge(baselineSP, bmcRecommended, baselineSPType, true)}</td>
           <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
-          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Est. installed</td>
+          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);" title="Installed version estimated from ONTAP-bundled baseline — not live-confirmed. Verify via: system service-processor show">Est. installed</td>
         </tr>`;
       }
       if (biosVer || spBaseline.biosVersion) {
@@ -12099,25 +12231,42 @@ function enrichSystemTelemetry(s) {
     // ── Computed SP/BMC firmware drift (proxy: currentVersion || spFirmwareBaseline.version as installed est.) ──
     // An entry counts as drift if: (a) installed != recommended, OR (b) no recommendedVersion exists (unverified)
     // Policy: NetApp requires always running the latest available firmware — unverified = not confirmed current.
+    // Ground-truth recommended = Reference Library BMC baseline (by platform model) → fleet GQL → GQL recommendedVersion
+    // NOTE: GQL recommendedVersion is the ONTAP-bundled version, NOT the global latest — do not trust it as "recommended".
     systemFirmwareDrift: (() => {
       const fwList = s.systemFirmware || [];
       const spBase = s.spFirmwareBaseline || {};
+      // Get Reference Library ground-truth baseline for this platform (most accurate source)
+      const _refBmc = (typeof getBmcBaseline === 'function') ? getBmcBaseline(model) : null;
+      const _refBmcVer = (_refBmc && _refBmc.version) || '';
       return fwList.filter(f => {
         const installed = f.currentVersion || spBase.version || '';
         if (!installed) return false;
-        // Unverified (no recommended) = treat as needing attention
-        if (!f.recommendedVersion) return true;
-        return installed !== f.recommendedVersion;
+        // Ground-truth recommended priority:
+        //   1. Reference Library BMC baseline (public KB-sourced, per platform family) — most accurate
+        //   2. f.recommendedVersion from GQL — ONLY if it differs from installed (bundled baseline).
+        //      When f.recommendedVersion === installed, both came from the same ONTAP catalog source;
+        //      using it as ground truth would produce a false ✓ Current.
+        //   3. No valid recommended → Unverified (flag as needing attention)
+        const _gqlRec = (f.recommendedVersion && f.recommendedVersion !== installed) ? f.recommendedVersion : '';
+        const recommended = _refBmcVer || _gqlRec || '';
+        // Unverified (no independent recommended from any source) = treat as needing attention
+        if (!recommended) return true;
+        return installed !== recommended;
       });
     })(),
     systemFirmwareDriftCount: (() => {
       const fwList = s.systemFirmware || [];
       const spBase = s.spFirmwareBaseline || {};
+      const _refBmc2 = (typeof getBmcBaseline === 'function') ? getBmcBaseline(model) : null;
+      const _refBmcVer2 = (_refBmc2 && _refBmc2.version) || '';
       return fwList.filter(f => {
         const installed = f.currentVersion || spBase.version || '';
         if (!installed) return false;
-        if (!f.recommendedVersion) return true; // unverified = flag
-        return installed !== f.recommendedVersion;
+        const _gqlRec2 = (f.recommendedVersion && f.recommendedVersion !== installed) ? f.recommendedVersion : '';
+        const recommended = _refBmcVer2 || _gqlRec2 || '';
+        if (!recommended) return true; // unverified = flag
+        return installed !== recommended;
       }).length;
     })(),
     // ── Computed shelf firmware drift ──
@@ -12159,12 +12308,18 @@ function enrichSystemTelemetry(s) {
     totalFirmwareDriftCount: (() => {
       const spBase3 = s.spFirmwareBaseline || {};
       const fwList = s.systemFirmware || [];
-      // SP/BMC: unverified (no recommendedVersion) also counts as drift
+      // Ground-truth recommended for SP/BMC: Reference Library baseline (not the ONTAP-bundled GQL value)
+      const _refBmc3 = (typeof getBmcBaseline === 'function') ? getBmcBaseline(model) : null;
+      const _refBmcVer3 = (_refBmc3 && _refBmc3.version) || '';
+      // SP/BMC: unverified (no independent recommendedVersion) also counts as drift.
+      // Do NOT use f.recommendedVersion when it equals installed — same bundled catalog → false ✓ Current.
       let n = fwList.filter(f => {
         const installed = f.currentVersion || spBase3.version || '';
         if (!installed) return false;
-        if (!f.recommendedVersion) return true; // unverified = flag
-        return installed !== f.recommendedVersion;
+        const _gqlRec3 = (f.recommendedVersion && f.recommendedVersion !== installed) ? f.recommendedVersion : '';
+        const recommended = _refBmcVer3 || _gqlRec3 || '';
+        if (!recommended) return true; // unverified = flag
+        return installed !== recommended;
       }).length;
       for (const sh of (s.shelves || [])) {
         const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
@@ -13470,9 +13625,13 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   targetSystems.forEach(sys => {
     const fwList = sys.systemFirmware || [];
     const spBaseline = sys.spFirmwareBaseline || {};
+    // Ground-truth recommended: Reference Library BMC baseline (not ONTAP-bundled GQL recommendedVersion)
+    const _refBmcEntry = (typeof getBmcBaseline === 'function') ? getBmcBaseline(sys.model || sys.platform || '') : null;
+    const _refBmcVer = (_refBmcEntry && _refBmcEntry.version) || '';
     fwList.forEach(fw => {
       const current = fw.currentVersion || '';
-      const recommended = fw.recommendedVersion || spBaseline.version || '';
+      // Use Reference Library version as ground-truth; fall back to GQL recommendedVersion, then catalog baseline
+      const recommended = _refBmcVer || fw.recommendedVersion || spBaseline.version || '';
       if (current && recommended && current !== recommended) {
         spBmcDrift.push({ systemName: sys.systemName, type: (fw.type || 'SP').toUpperCase(), current, recommended });
       }
@@ -13967,8 +14126,11 @@ ${(() => {
           _shD.push(`    ⚠ ${sys.systemName} — Shelf ${sh.moduleType||sh.model}: ${sh.firmwareVersion} → ${rec}`);
       });
       const spBase = sys.spFirmwareBaseline || {};
+      // Ground-truth recommended: Reference Library BMC baseline (not ONTAP-bundled GQL value)
+      const _refBmcQbr = (typeof getBmcBaseline === 'function') ? getBmcBaseline(sys.model || sys.platform || '') : null;
+      const _refBmcVerQbr = (_refBmcQbr && _refBmcQbr.version) || '';
       (sys.systemFirmware || []).forEach(fw => {
-        const rec = fw.recommendedVersion || spBase.version || '';
+        const rec = _refBmcVerQbr || fw.recommendedVersion || spBase.version || '';
         if (fw.currentVersion && rec && fw.currentVersion !== rec)
           _spD.push(`    ⚠ ${sys.systemName} — ${(fw.type||'SP').toUpperCase()}: ${fw.currentVersion} → ${rec}`);
       });
@@ -14027,7 +14189,10 @@ ${(() => {
     const _spCount = [], _swCount = [], _shCount = [];
     targetSystems.forEach(sys => {
       const spBase = sys.spFirmwareBaseline || {};
-      (sys.systemFirmware || []).forEach(fw => { const r = fw.recommendedVersion || spBase.version || ''; if (fw.currentVersion && r && fw.currentVersion !== r) _spCount.push(fw); });
+      // Ground-truth recommended: Reference Library BMC baseline (not ONTAP-bundled GQL value)
+      const _refBmcAct = (typeof getBmcBaseline === 'function') ? getBmcBaseline(sys.model || sys.platform || '') : null;
+      const _refBmcVerAct = (_refBmcAct && _refBmcAct.version) || '';
+      (sys.systemFirmware || []).forEach(fw => { const r = _refBmcVerAct || fw.recommendedVersion || spBase.version || ''; if (fw.currentVersion && r && fw.currentVersion !== r) _spCount.push(fw); });
       const biosVer = sys.biosVersion || ''; const biosBase = spBase.biosVersion || '';
       if (biosVer && biosBase && biosVer !== biosBase) _spCount.push({type:'BIOS'});
       (sys.switches || []).forEach(sw => { if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) _swCount.push(sw); });
@@ -14611,13 +14776,25 @@ OPERATIONAL HEALTH
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
     const _auditFleetSpMap = sys.fleetSpFirmwareMap || {};
-    // SP/BMC drift — currentVersion not exposed by API; spBase.version (ONTAP-bundled) is our proxy for installed
+    // SP/BMC drift — currentVersion not exposed by API; spBase.version (ONTAP-bundled) is our proxy for installed.
+    // Ground-truth recommended priority:
+    //   1. Reference Library BMC baseline by platform model (public KB-sourced, per platform family)
+    //   2. fw.recommendedVersion from GQL — only if it differs from installed (to avoid false ✓ Current when both came from same bundled source)
+    //   3. No independent recommended → flag as Unverified (needs attention per NetApp best practice)
+    const _auditRefBmc = (typeof getBmcBaseline === 'function') ? getBmcBaseline(sys.model || sys.platform || '') : null;
+    const _auditRefBmcVer = (_auditRefBmc && _auditRefBmc.version) || '';
     (sys.systemFirmware || []).forEach(fw => {
       const installedVer = fw.currentVersion || spBase.version || '';
-      // recommendedVersion = fleet-latest (from server.py fleet fallback) — NOT ONTAP-bundled
-      const rec = fw.recommendedVersion || '';
-      if (installedVer && rec && installedVer !== rec)
+      if (!installedVer) return; // no proxy for installed — skip silently
+      // Only use GQL recommendedVersion if it differs from installed (otherwise it came from the same bundled catalog)
+      const _gqlRec = (fw.recommendedVersion && fw.recommendedVersion !== installedVer) ? fw.recommendedVersion : '';
+      const rec = _auditRefBmcVer || _gqlRec || '';
+      if (!rec) {
+        // No independent recommended version known — flag as Unverified
+        _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: (fw.type || 'SP').toUpperCase(), current: installedVer, recommended: '⚠ Unverified — confirm via mysupport.netapp.com' });
+      } else if (installedVer !== rec) {
         _fwSpDrift.push({ system: sys.systemName, serial: sys.serialNumber, component: (fw.type || 'SP').toUpperCase(), current: installedVer, recommended: rec });
+      }
     });
     // Motherboard / BIOS drift
     const biosVer = sys.biosVersion || '';
@@ -16761,12 +16938,16 @@ function generateActionPlan() {
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
     const _fwFleetSpMap = sys.fleetSpFirmwareMap || {};
+    // Ground-truth recommended for SP/BMC: Reference Library BMC baseline by platform model.
+    // GQL recommendedVersion reflects the ONTAP-bundled version — NOT the global latest. Do not use it alone.
+    const _refBmcAudit = (typeof getBmcBaseline === 'function') ? getBmcBaseline(sys.model || sys.platform || '') : null;
+    const _refBmcVerAudit = (_refBmcAudit && _refBmcAudit.version) || '';
     // SP / BMC / Mainboard controller firmware
     // currentVersion is not exposed by the API; use the ONTAP-bundled version as an installed proxy.
     (sys.systemFirmware || []).forEach(fw => {
       const current = fw.currentVersion || spBase.version || '';
-      // recommendedVersion = fleet-latest (set by server.py fleet fallback — not ONTAP-bundled)
-      const recommended = fw.recommendedVersion || '';
+      // Priority: Reference Library ground-truth → fleet GQL → GQL recommendedVersion (ONTAP-bundled, least trusted)
+      const recommended = _refBmcVerAudit || fw.recommendedVersion || '';
       const isDrift = current && recommended && current !== recommended;
       _fwSpBmcItems.push({
         systemName: sys.systemName, serialNumber: sys.serialNumber,
