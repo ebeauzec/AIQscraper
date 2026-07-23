@@ -18,9 +18,60 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.8";
+const APP_VERSION = "3.8.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "3.8.0",
+    date: "23 July 2026",
+    title: "Component Firmware Audit — SP/BMC, Shelf, Disk/DQP, StorageGRID & E-Series + QBR Currency Metric",
+    sections: [
+      {
+        icon: "🔧",
+        label: "New: Full Component Firmware Audit Panel",
+        color: "#60a5fa",
+        items: [
+          "SP/BMC firmware audit: per-controller current vs. recommended version with fleet-map priority, drift detection, and BIOS baseline cross-reference",
+          "Shelf module firmware audit: live API data with fallback to ONTAP-bundled catalog baseline (IOM12/NSM100 Reference Library cross-reference)",
+          "Disk/DQP firmware audit: fleet-map and catalog backfill with per-drive model current vs. recommended",
+          "StorageGRID and E-Series firmware audit subsections: treated as Unverified (no live firmware API), displayed with appropriate informational note",
+          "firmware_baselines.json populated with SP/BMC, shelf, and disk baseline data for catalog backfill"
+        ]
+      },
+      {
+        icon: "📊",
+        label: "New: Component Firmware Currency in QBR & MSP Reports",
+        color: "#4ade80",
+        items: [
+          "QBR Health Summary now includes 'Component FW Currency: N/M (X%) — SP/BMC & shelf firmware current' metric",
+          "MSP Service Report and Monthly SLA section include the same metric for customer-facing reporting",
+          "Problem Statements section also shows Component FW alongside OS Version Currency and ARP Coverage",
+          "_isCompFwCurrent() helper function centrally evaluates SP/BMC + shelf drift with fleet-map priority for all report formats"
+        ]
+      },
+      {
+        icon: "🏷️",
+        label: "Fix: Shelf Firmware Badge — Catalog Shelves Show ✓ Est. Current",
+        color: "#f59e0b",
+        items: [
+          "Catalog-backfilled shelves (fromCatalog=true) now consistently display green ✓ Est. Current badge — previously fell through to cyan Catalog ref fallback",
+          "isCatalogConfirmed flag now covers: fleet rec present (no drift), ref-lib match, or catalog-only (no contrary evidence)",
+          "server.py: fleet-latest recommendedFirmwareVersion override now skips fromCatalog shelves, preventing false drift (e.g. IOM12@0281 vs fleet@0411)",
+          "Cyan 'Catalog ref' badge now reserved exclusively for non-catalog shelves with no version data at all"
+        ]
+      },
+      {
+        icon: "📈",
+        label: "Fix: Capacity Chart Y-Axis & Tooltip Polish",
+        color: "#818cf8",
+        items: [
+          "Projection chart Y-axis now uses smart bounds: floor at 0 (or slightly below min data), ceiling at max(data, projected) + 10% padding",
+          "Prevents compressed display when all data points cluster near the same value",
+          "Improved tooltip styling and runway label formatting"
+        ]
+      }
+    ]
+  },
   {
     version: "3.6.8",
     date: "21 July 2026",

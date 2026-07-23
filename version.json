@@ -1,8 +1,8 @@
 {
-  "version": "3.7.0",
+  "version": "3.8.0",
   "major": 3,
-  "minor": 7,
+  "minor": 8,
   "patch": 0,
-  "date": "2026-07-20",
-  "notes": "ASUP Offline Import (v3.7.0): import AutoSupport bundles (.7z, .tgz, .zip, .xml, .gz) onsite when Active IQ is unavailable. Parses ONTAP, StorageGRID, and E-Series bundles into ARIA normalized schema. Runs full Reference Library enrichment (CVE matching, EOA detection, upgrade path, 15-point readiness) from bundle data alone. Graceful degradation for partial/truncated bundles. Coverage report shows what was and wasn't parseable. Persisted in SQLite across sessions."
+  "date": "2026-07-23",
+  "notes": "Component Firmware Audit (v3.8.0): full SP/BMC, shelf module, disk/DQP, StorageGRID, and E-Series firmware audit panels in the Technical Audit tab. QBR and MSP Service Report now include a Component Firmware Currency metric (SP/BMC + shelf systems at recommended level). Shelf firmware badge logic corrected — catalog-backfilled shelves consistently show ✓ Est. Current instead of Catalog ref. Fleet-latest override suppressed for catalog shelves in server.py to prevent false drift. Capacity chart Y-axis auto-scales to prevent compressed display."
 }

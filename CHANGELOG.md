@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [3.8.0] - 2026-07-23
+
+### Added — Component Firmware Audit Panel (Technical Audit Tab)
+- **SP/BMC firmware audit** — per-controller current vs. recommended version with fleet-map priority, drift detection, and BIOS baseline cross-reference; sourced from `firmware_baselines.json`
+- **Shelf module firmware audit** — live API data with fallback to ONTAP-bundled catalog baseline (IOM12 / NSM100 via Reference Library); `fromCatalog: true` shelves correctly grouped and badged
+- **Disk/DQP firmware audit** — fleet-map and catalog backfill with per-drive model current vs. recommended
+- **StorageGRID / E-Series firmware subsections** — displayed as `isUnverified: true` with informational note (no live firmware API)
+- **`firmware_baselines.json`** — populated with SP/BMC, shelf, and disk baseline data for catalog backfill
+
+### Added — Component Firmware Currency Metric (QBR & MSP Reports)
+- **QBR Health Summary** — new *Component FW Currency: N/M (X%) — SP/BMC & shelf firmware current* KPI row
+- **MSP Service Report** — same metric added to Monthly SLA section
+- **Problem Statements section** — Component FW shown alongside OS Version Currency and ARP Coverage
+- **`_isCompFwCurrent()`** — central helper evaluating SP/BMC + shelf drift with fleet-map priority; used by all report formats
+
+### Fixed — Shelf Firmware Badge Logic
+- Catalog-backfilled shelves (`fromCatalog: true`) now consistently show **✓ Est. Current** (green) — previously fell through to cyan *Catalog ref* fallback
+- `isCatalogConfirmed` flag now covers: fleet rec present (no drift), ref-lib match, or catalog-only (no contrary evidence)
+- `server.py` — fleet-latest `recommendedFirmwareVersion` override now skips `fromCatalog` shelves, preventing false drift (e.g. IOM12 @ 0281 vs. fleet @ 0411)
+- Cyan *Catalog ref* badge now reserved exclusively for non-catalog shelves with no version data at all
+
+### Fixed — Capacity Chart Y-Axis
+- Projection chart Y-axis now auto-scales: floor at 0 (or slightly below min data), ceiling at `max(data, projected) + 10%` padding
+- Prevents compressed display when all data points cluster near the same value
+
+---
+
 ## [3.6.3] - 2026-07-19
 
 ### Fixed / Performance
