@@ -9,6 +9,7 @@ Endpoints:
   GET /api/harvest           — returns cached data if available, triggers background sync
   GET /api/harvest?force=1   — bypasses cache, full re-harvest from API
   GET /api/sync-status       — returns sync metadata (last sync time, counts, is_syncing)
+  GET /api/baselines         — returns firmware_baselines.json (latest GA versions for ONTAP, StorageGRID, SANtricity, etc.)
   GET /api/bulletins         — returns dynamic security bulletin DB (security_bulletins.json)
   POST /api/bulletins        — add/update bulletin entries (called by daily scan agent)
   POST /api/asup/import      — import an ASUP bundle (multipart or raw bytes + X-Filename header)
@@ -3480,6 +3481,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_scan()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_get()
+        elif self.path.startswith('/api/baselines'):
+            self.handle_baselines_get()
         elif self.path.startswith('/api/asup/imports'):
             self.handle_asup_list()
         elif self.path == '/api/asup/import':
@@ -4160,6 +4163,34 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "hasToken": has_token}).encode("utf-8"))
         except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_baselines_get(self):
+        """GET /api/baselines — Serve firmware_baselines.json to the client.
+
+        Returns the ground-truth latest GA version catalog used by app.js to
+        populate Section 5a (Software Version Currency) for both live API
+        systems and mock-mode systems. The file is updated daily by the
+        Reference Library scan cron agent.
+        """
+        try:
+            # Reload from disk on every request so updates from the daily scan
+            # are reflected without restarting the server.
+            if FW_BASELINES_PATH.exists():
+                data = json.loads(FW_BASELINES_PATH.read_text(encoding="utf-8"))
+            else:
+                data = {}
+            res = json.dumps(data, default=str).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(res)
+        except Exception as e:
+            print(f"  [BASELINES] GET error: {e}", flush=True)
             self.send_response(500)
             self.send_header("Content-Type", "application/json")
             self.end_headers()

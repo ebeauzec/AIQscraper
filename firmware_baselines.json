@@ -8,7 +8,8 @@
     "santricity":       "mysupport.netapp.com/site/downloads/eseries (authenticated; manually verified)",
     "snapCenter":       "Data-Protection/README.md — snapcenter/release-notes/ verified 2026-07-22",
     "trident":          "Kubernetes-Containers/README.md — trident/trident-rn.html verified 2026-07-22",
-    "hostUtilities":    "Host-Integration-Cabling/README.md — verified 2026-07-22"
+    "hostUtilities":    "Host-Integration-Cabling/README.md — verified 2026-07-22",
+    "spBmcByModel":     "Platforms-Hardware/Firmware-Versions.md — direct-fetch-confirmed via public KB CONTAP-* issue summaries 2026-07-23. Per-family independent version tracks; not exhaustive — gap flag: AFX and unlisted families require Hardware Universe/Support Site."
   },
   "ontap": {
     "latestGA": "9.19.1",
@@ -62,6 +63,80 @@
         "note": "System BIOS — bundled with ONTAP releases; verify via mysupport.netapp.com for standalone updates",
         "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
       }
+    },
+    "_phase2_byPlatformFamily": {
+      "_gapFlag": "Table covers families with discoverable public KB entries only (CONTAP-* issue summaries, direct-fetch-confirmed 2026-07-23). NOT exhaustive. AFX BMC-equivalent and unlisted families require Hardware Universe / mysupport.netapp.com. Each family has an INDEPENDENT version track — do NOT compare version numbers across families. 'mostRecentFound' entries may have newer unreleased updates.",
+      "families": [
+        {
+          "label": "AFF A1K, A90, A70, C80 / ASA A1K, A90, A70 / FAS90, FAS70",
+          "modelKeywords": ["A1K","A90","A70","C80","FAS90","FAS70"],
+          "latestKnown": "18.4P1",
+          "confidence": "confirmed",
+          "kbSources": "CONTAP-363315, CONTAP-409406, CONTAP-504896"
+        },
+        {
+          "label": "AFF A50, A30, A20, C60, C30 / ASA A50, A30, A20, C30 / FAS50",
+          "modelKeywords": ["A50","A30","A20","C60","C30","FAS50"],
+          "latestKnown": "19.2P1",
+          "confidence": "confirmed",
+          "kbSources": "CONTAP-474838, CONTAP-502118"
+        },
+        {
+          "label": "AFF A400, C400 / ASA A400, C400 / FAS8700, FAS8300",
+          "modelKeywords": ["A400","C400","FAS8700","FAS8300"],
+          "latestKnown": "13.11",
+          "confidence": "mostRecentFound",
+          "kbSources": "CONTAP-300963"
+        },
+        {
+          "label": "AFF A250, C250 / ASA A250, C250 / FAS500f",
+          "modelKeywords": ["A250","C250","FAS500f","FAS500F"],
+          "latestKnown": "15.12",
+          "confidence": "mostRecentFound",
+          "kbSources": "CONTAP-323139"
+        },
+        {
+          "label": "AFF A220, A150, C190 / ASA A150 / FAS2750, FAS2720",
+          "modelKeywords": ["A220","A150","C190","FAS2750","FAS2720"],
+          "latestKnown": "11.12",
+          "confidence": "confirmed",
+          "kbSources": "CONTAP-271514, CONTAP-422222"
+        },
+        {
+          "label": "AFF A800, C800 / ASA A800, C800",
+          "modelKeywords": ["A800","C800"],
+          "latestKnown": "10.9P2",
+          "confidence": "mostRecentFound",
+          "kbSources": "CONTAP-323134"
+        }
+      ]
+    }
+  },
+  "storageGridAppliance": {
+    "_comment": "StorageGRID appliance node firmware (BMC, drive controllers, expansion card firmware) is managed through the StorageGRID Appliance Installer and Grid Manager. No unified firmware version matrix is available via public API or ActiveIQ — versions are hardware-model-specific and require authenticated access to mysupport.netapp.com to verify.",
+    "validationNote": "Validate appliance firmware via Grid Manager → Nodes → [Appliance Node] → Hardware tab. For detailed firmware info use SANtricity System Manager (E-Series-based SG nodes) or the Appliance Installer page (SG6160, SGF6112, SG6000, SG5800, etc.). Download latest from mysupport.netapp.com.",
+    "gridManagerPath": "Grid Manager → Nodes → [Node] → Hardware",
+    "applianceInstallerPort": "8443",
+    "downloadUrl": "https://mysupport.netapp.com/site/downloads",
+    "knownAppliances": ["SG6160","SG6060","SG6060X","SGF6112","SG5800","SG100","SG1000","SG5712","SG5760"],
+    "firmwareComponents": {
+      "computeController": "Runs StorageGRID Appliance Installer + node OS. Validate via Appliance Installer or Grid Manager Hardware tab.",
+      "storageController": "E-Series-derived storage controllers (SANtricity) in SG6x60/SG5x60 appliances — validate via SANtricity System Manager embedded in the appliance.",
+      "bmc": "Appliance-specific BMC — validate via Grid Manager Hardware tab or appliance out-of-band management interface.",
+      "drives": "Drive firmware validated via SANtricity Upgrade Center (storage-controller appliances) or Grid Manager for compute-only nodes."
+    }
+  },
+  "eSeriesFirmware": {
+    "_comment": "E-Series / EF-Series component firmware independent of SANtricity OS (controller firmware). Drive firmware, cache backup device (CBD/BBU), and expansion module firmware all have separate version tracks.",
+    "validationNote": "Validate all E-Series component firmware via SANtricity System Manager → Upgrade Center → View/Update Firmware. Download latest from mysupport.netapp.com/site/downloads/eseries — requires NetApp Support login.",
+    "santricitySystemManager": "Upgrade Center → View/Update Firmware (controller, drive, and CBD/BBU firmware all tracked here)",
+    "downloadUrl": "https://mysupport.netapp.com/site/downloads/eseries",
+    "firmwareComponents": {
+      "controllerFirmware": "SANtricity OS/Controller Firmware (8.xx/7.xx — see 'santricity' key above for latest GA). This IS the primary OS-level version.",
+      "driveFirmware": "Per-drive-model firmware. Model-specific — no public current-version matrix. See NetApp E/EF-Series Disk Drive and Firmware Matrix (authenticated). Validate via SANtricity System Manager → Upgrade Center → Drive Firmware.",
+      "cbdFirmware": "Cache Backup Device (CBD/BBU) firmware — model-specific. Validate via SANtricity System Manager → Upgrade Center.",
+      "nvsramVersion": "Controller NVSRAM defines controller configuration settings and must match the SANtricity OS version. Always upgrade NVSRAM when upgrading controller firmware.",
+      "expansionModule": "Expansion Enclosure Module (ESM/IOM) firmware — separate version track from controller firmware. Validate via SANtricity System Manager."
     }
   },
   "diskFirmware": {

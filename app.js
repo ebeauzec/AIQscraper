@@ -3655,7 +3655,10 @@ let state = {
   samCasesSortKey: "severity",
   samCasesSortOrder: "asc",
   samFieldActionsSortKey: "id",
-  samFieldActionsSortOrder: "asc"
+  samFieldActionsSortOrder: "asc",
+  // Ground-truth GA version catalog fetched from /api/baselines at startup
+  // Used as a fallback for mock systems and as the authoritative comparison baseline.
+  firmwareBaselines: {}
 };
 window.state = state;
 
@@ -5424,10 +5427,11 @@ const REFERENCE_LIBRARY_NAMING_CONVENTIONS = {
 // ─────────────────────────────────────────────────────────────────────────────
 // CVE/Advisory Database
 // Sources: security.netapp.com, kb.netapp.com, NetApp Security Advisory portal
-// Updated: 2026-07-20 — no new advisories since 2026-07-13, pre-existing set confirmed unchanged
+// Updated: 2026-07-23 — three new third-party component advisories found 2026-07-22 added
 // Active advisory set: CVE-2026-22050, CVE-2026-22052, CVE-2026-20833,
 //   CVE-2026-22054, CVE-2026-22055, CVE-2026-22051, CVE-2026-4747, CVE-2026-42511,
-//   NTAP-20250328-0008, CVE-2025-26512, CVE-2024-50379, CVE-2025-27082, CVE-2025-22399
+//   NTAP-20250328-0008, CVE-2025-26512, CVE-2024-50379, CVE-2025-27082, CVE-2025-22399,
+//   CVE-2026-59995 (OpenSSH HIGH), CVE-2026-42253 (Apache ActiveMQ HIGH), CVE-2026-40971 (Spring Boot MEDIUM)
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ADVISORIES = [
   {
@@ -5596,24 +5600,66 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     description: "Multiple Ingress NGINX controller vulnerabilities (including unauthenticated RCE via admission controller webhook) affect NetApp products that bundle Ingress NGINX as a component — primarily BlueXP and Kubernetes-adjacent integrations. Not core ONTAP.",
     remediation: "Check applicability against your specific BlueXP/Kubernetes components. Update Ingress NGINX to a patched version per the advisory. Restrict cluster admission-webhook network access as interim mitigation.",
     url: "https://security.netapp.com/advisory/ntap-20250328-0008/"
+  },
+  // ── Third-party component advisories found 2026-07-22 ────────────────────────
+  {
+    id: "CVE-2026-59995",
+    title: "OpenSSH sftp Client Path Traversal (NetApp Products)",
+    product: "NetApp Products using OpenSSH",
+    severity: "high",
+    cvss: 7.7,
+    affectedVersions: { max: "OpenSSH 10.3" },
+    fixedIn: ["OpenSSH 10.4p1"],
+    description: "An attacker-controlled sftp server can write files to arbitrary locations on the client filesystem via path traversal in filenames, potentially enabling remote code execution on the sftp client host. Affects NetApp products using OpenSSH < 10.4. NetApp advisory published 2026-07-17, updated 2026-07-21. No known in-the-wild exploitation.",
+    remediation: "Apply NetApp product-specific patch bundles that incorporate OpenSSH 10.4p1+. Check the NetApp Security Advisory portal for affected product list and patch availability per product version. Restrict sftp client usage to trusted servers as interim mitigation.",
+    url: "https://security.netapp.com/"
+  },
+  {
+    id: "CVE-2026-42253",
+    title: "Apache ActiveMQ HTTP Header Injection (NetApp Products)",
+    product: "NetApp Products using Apache ActiveMQ",
+    severity: "high",
+    cvss: 8.8,
+    affectedVersions: { max: "ActiveMQ 5.19.6 / 6.2.5" },
+    fixedIn: ["ActiveMQ 5.19.7", "ActiveMQ 6.2.6"],
+    description: "HTTP header injection via JMS message properties in Apache ActiveMQ MessageServlet allows attackers to inject or overwrite HTTP security headers, enabling XSS, session hijacking, and clickjacking. Affects NetApp products using ActiveMQ < 5.19.7 or 6.0.0–6.2.5. NetApp advisory updated 2026-07-21. No known in-the-wild exploitation. Note: NetApp CVSS 8.8 is higher than NVD base score 6.1.",
+    remediation: "Apply NetApp product-specific patch bundles that upgrade ActiveMQ to 5.19.7+ or 6.2.6+. MessageServlet is deprecated and disabled by default in patched versions. Check NetApp advisory portal for affected product list.",
+    url: "https://security.netapp.com/"
+  },
+  {
+    id: "CVE-2026-40971",
+    title: "Spring Boot RabbitMQ SSL Hostname Verification Bypass (NetApp Products)",
+    product: "NetApp Products using Spring Boot",
+    severity: "medium",
+    cvss: 5.0,
+    affectedVersions: { max: "Spring Boot 4.0.5 / 3.5.13" },
+    fixedIn: ["Spring Boot 4.0.6", "Spring Boot 3.5.14"],
+    description: "Spring Boot RabbitMQ auto-configuration omits hostname verification when an SSL bundle is used, allowing a network-adjacent attacker to intercept or alter broker communications via MitM. Affects NetApp products using Spring Boot 4.0.0–4.0.5 or 3.5.0–3.5.13. NetApp advisory updated 2026-07-21. No known in-the-wild exploitation.",
+    remediation: "Apply NetApp product-specific patch bundles that upgrade Spring Boot to 4.0.6+ or 3.5.14+. Check NetApp advisory portal for affected product list and patch availability.",
+    url: "https://security.netapp.com/"
   }
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Firmware Baselines — recommended minimum versions
 // Sources: NetApp Hardware Universe, shelf/switch firmware matrices
-// Updated: 2026-07-20
+// Updated: 2026-07-23 — IOM12→04.11, NSM100/NSM100B→03.03 per Firmware-Versions.md
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   // NVMe shelf modules (current-gen for AFF A/C-Series, ASA r2, FAS)
   // Do NOT mix NSM100/NSM100B/NSM100e with AFX shelves (AFX uses NSM140 only)
-  "NSM100":   { recommended: "0220", label: "NSM100 NVMe Shelf Module (AFF A/C-Series, ASA r2, FAS)" },
-  "NSM100B":  { recommended: "0140", label: "NSM100B NVMe Shelf Module (AFF/ASA r2 next-gen)" },
+  // Current versions per Firmware-Versions.md, direct-fetch-confirmed 2026-07-23:
+  //   NSM100/NSM100B share a single firmware image; 03.03 adds NSM100B support.
+  "NSM100":   { recommended: "03.03", label: "NSM100 NVMe Shelf Module (AFF A/C-Series, ASA r2, FAS) — 03.03 current (Firmware-Versions.md, 2026-07-23)" },
+  "NSM100B":  { recommended: "03.03", label: "NSM100B NVMe Shelf Module (AFF/ASA r2 next-gen) — shares firmware image with NSM100; 03.03 current" },
   // SAS shelf IOM modules — note: mixing IOM models within same shelf is NOT supported
-  "IOM12":    { recommended: "0260", label: "IOM12 SAS Module (DS224C)" },
-  "IOM12G":   { recommended: "0280", label: "IOM12G SAS Module (DS460C, DS224C-G)" },
-  "IOM12B":   { recommended: "0270", label: "IOM12B SAS Module (FAS/AFF hybrid)" },
-  "IOM3":     { recommended: "0200", label: "IOM3 SAS Module (legacy DS2246/DS4243)" },
+  // IOM12/IOM12B/IOM12C share the same firmware version track: 04.11 current (Firmware-Versions.md, 2026-07-23)
+  // IOM12B and original IOM12 part numbers are EOA (CPC-10651, CPC-00423); current orderable = IOM12C
+  "IOM12":    { recommended: "04.11", label: "IOM12 SAS Module (DS212C/DS224C/DS460C) — 04.11 current (Firmware-Versions.md, 2026-07-23)" },
+  "IOM12B":   { recommended: "04.11", label: "IOM12B SAS Module — same firmware track as IOM12; part EOA — IOM12C is current orderable" },
+  "IOM12C":   { recommended: "04.11", label: "IOM12C SAS Module — current orderable IOM12-family module; same firmware track" },
+  "IOM12G":   { recommended: "0280",  label: "IOM12G SAS Module (DS460C, DS224C-G)" },
+  "IOM3":     { recommended: "0200",  label: "IOM3 SAS Module (legacy DS2246/DS4243)" },
   // Cluster/MetroCluster switches — EOA models: BES-53248, Cisco 9336C-FX2, NVIDIA SN2100
   // NX-OS 10.4.2 is current for AFX switches (9332D-GX2B/9364D-GX2A)
   "Cisco NX-OS":    { recommended: "10.4.2",  label: "Cisco Nexus 9000 Series (cluster/MC-IP, AFX switches)" },
@@ -5638,6 +5684,76 @@ const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   "Cisco 9364D-GX2A": { recommended: "10.4.2",  label: "Cisco Nexus 9364D-GX2A (AFX 1K cluster switch, 400GbE, 2U)" },
   "Cisco 9808":       { recommended: "10.6",     label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only; NX-OS 10.6+ required for ONTAP 9.19.1GA+). PRIMARY-SOURCE CONFIRMED 2026-07-21 (docs.netapp.com configure-upgrade-nxos-9808.html, 07/09/2026)." }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BMC Firmware Baselines — by platform family
+// Source: Platforms-Hardware/Firmware-Versions.md in the NetApp Reference Library
+// Direct-fetch-confirmed via public KB CONTAP-* issue summaries, 2026-07-23
+// Each family tracks an INDEPENDENT version sequence — do NOT compare across families.
+// NOTE: this table covers families with discoverable public KB entries only.
+//   It is NOT exhaustive. AFX BMC-equivalent and unlisted families → Support Site.
+//   "mostRecentFound" entries may have further unreleased updates — always validate
+//   against mysupport.netapp.com/Hardware Universe before a customer-facing claim.
+// ─────────────────────────────────────────────────────────────────────────────
+const REFERENCE_LIBRARY_BMC_BASELINES = [
+  {
+    // AFF A1K, A90, A70, C80; ASA A1K, A90, A70; FAS90, FAS70
+    models: ['A1K','A90','A70','C80','FAS90','FAS70'],
+    version: '18.4P1',
+    confidence: 'confirmed', // CONTAP-504896 direct-fetch-confirmed
+    kbSources: 'CONTAP-363315, CONTAP-409406, CONTAP-504896'
+  },
+  {
+    // AFF A50, A30, A20, C60, C30; ASA A50, A30, A20, C30; FAS50
+    models: ['A50','A30','A20','C60','C30','FAS50'],
+    version: '19.2P1',
+    confidence: 'confirmed', // CONTAP-502118 direct-fetch-confirmed
+    kbSources: 'CONTAP-474838, CONTAP-502118'
+  },
+  {
+    // AFF A400, C400; ASA A400, C400; FAS8700, FAS8300
+    models: ['A400','C400','FAS8700','FAS8300'],
+    version: '13.11',
+    confidence: 'mostRecentFound', // may have updates not yet in public KB
+    kbSources: 'CONTAP-300963'
+  },
+  {
+    // AFF A250, C250; ASA A250, C250; FAS500f
+    models: ['A250','C250','FAS500f','FAS500F'],
+    version: '15.12',
+    confidence: 'mostRecentFound',
+    kbSources: 'CONTAP-323139'
+  },
+  {
+    // AFF A220, A150, C190; ASA A150; FAS2750, FAS2720
+    models: ['A220','A150','C190','FAS2750','FAS2720'],
+    version: '11.12',
+    confidence: 'confirmed',
+    kbSources: 'CONTAP-271514, CONTAP-422222'
+  },
+  {
+    // AFF A800, C800; ASA A800, C800
+    models: ['A800','C800'],
+    version: '10.9P2',
+    confidence: 'mostRecentFound',
+    kbSources: 'CONTAP-323134'
+  }
+];
+
+// Helper: look up the public-source BMC baseline version for a given platform model string.
+// Returns { version, confidence, kbSources } or null if no match found.
+function getBmcBaseline(platformStr) {
+  if (!platformStr) return null;
+  const pl = platformStr.toUpperCase();
+  for (const fam of REFERENCE_LIBRARY_BMC_BASELINES) {
+    for (const mdl of fam.models) {
+      if (pl.includes(mdl.toUpperCase())) {
+        return { version: fam.version, confidence: fam.confidence, kbSources: fam.kbSources };
+      }
+    }
+  }
+  return null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MetroCluster ISL Requirements
@@ -5948,6 +6064,30 @@ async function loadDynamicBulletins() {
     console.warn(`[AIQ Security] /api/bulletins unavailable — security advisory DB is empty. Start the server to load advisories. Error: ${err.message}`);
   }
   _updateBulletinDbIndicator();
+}
+
+// ── Dynamic firmware baselines loader ─────────────────────────────────────────
+// Fetches /api/baselines (firmware_baselines.json) at startup so all systems
+// (including mock mode) have access to the current GA versions without a server
+// restart. Mirrors the pattern used by loadDynamicBulletins().
+async function loadDynamicBaselines() {
+  try {
+    const res = await fetch('/api/baselines', { cache: 'no-store' });
+    if (!res.ok) { throw new Error(`HTTP ${res.status}`); }
+    const data = await res.json();
+    if (data && typeof data === 'object' && (data.ontap || data.storageGrid || data.santricity)) {
+      state.firmwareBaselines = data;
+      console.log('[AIQ Baselines] Loaded dynamic baselines from server:', {
+        ontap:       (data.ontap || {}).latestGA,
+        storageGrid: (data.storageGrid || {}).latestGA,
+        santricity:  (data.santricity || {}).latestGA,
+      });
+    } else {
+      console.warn('[AIQ Baselines] /api/baselines returned unexpected format — using hardcoded fallbacks.');
+    }
+  } catch (err) {
+    console.warn(`[AIQ Baselines] /api/baselines unavailable — software currency section will use hardcoded defaults. Error: ${err.message}`);
+  }
 }
 
 function _updateBulletinDbIndicator() {
@@ -7657,20 +7797,33 @@ function renderFirmwarePanel(selectedSystems) {
       });
     } else if (hasBaselineData) {
       // Catalog-only path: no live systemFirmware[] entries and fleet map is empty.
-      // Show the ONTAP-bundled version as the installed estimate, compared against fleet-latest if available.
+      // Show the ONTAP-bundled version as the installed estimate.
+      // Priority for recommended: fleet map → REFERENCE_LIBRARY_BMC_BASELINES (public KB source) → empty (⚠ Unverified)
       const baselineSP     = spBaseline.version || '';
       const baselineSPType = (spBaseline.type || 'SP').toUpperCase();
       // Fleet-latest SP/BMC from fleetSpFirmwareMap (populated by server.py from GQL fleet queries)
       const _fleetSpM   = sys.fleetSpFirmwareMap || {};
       const _fleetSpEnt = _fleetSpM[baselineSPType] || _fleetSpM['SP'] || Object.values(_fleetSpM)[0];
       const fleetSpLatest = (_fleetSpEnt || {}).firmwareVersion || '';
+      // Fall back to the public-source per-platform-family BMC baseline from the Reference Library
+      const _bmcRefEntry = getBmcBaseline(sys.platform || sys.model || '');
+      // If fleet map is empty but Reference Library has a version for this platform family, use it
+      // with a "Ref." label so driftBadge can provide a meaningful comparison.
+      const _bmcRefVer  = _bmcRefEntry ? _bmcRefEntry.version : '';
+      const _bmcConfidence = _bmcRefEntry ? _bmcRefEntry.confidence : '';
+      // Prefer fleet (live authoritative) → Reference Library (public KB) → empty (unverified)
+      const effectiveSpRec = fleetSpLatest || _bmcRefVer || '';
 
       if (baselineSP) {
+        // Append a confidence note if the recommendation came from the Reference Library (not fleet)
+        const _bmcRefNote = (!fleetSpLatest && _bmcRefVer)
+          ? ` <span style="font-size:0.65rem;color:var(--text-muted);" title="Public KB source: ${_bmcRefEntry.kbSources}. Confidence: ${_bmcConfidence}. Validate against mysupport.netapp.com before acting.">(Ref. ${_bmcConfidence === 'confirmed' ? '✓' : '~'})</span>`
+          : '';
         spRows += `<tr>
           <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sys.systemName}</td>
           <td style="padding:8px 12px;color:var(--text-secondary);">${baselineSPType}</td>
           <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-muted);">ONTAP ${osVer}</td>
-          <td style="padding:8px 12px;">${driftBadge(baselineSP, fleetSpLatest, baselineSPType)}</td>
+          <td style="padding:8px 12px;">${driftBadge(baselineSP, effectiveSpRec, baselineSPType)}${_bmcRefNote}</td>
           <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
           <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">Est. installed</td>
         </tr>`;
@@ -12134,7 +12287,13 @@ function enrichSystemTelemetry(s) {
     //    and export functions can read sys.driveFirmware correctly. ──
     driveFirmware:         s.driveFirmware || [],
     // ── Ground-truth OS version baselines + fleet firmware maps (forwarded for export/reporting) ──
-    firmwareBaselines:     s.firmwareBaselines || {},
+    // Use server-injected baselines if present; fall back to the globally-fetched
+    // catalog (state.firmwareBaselines) so mock systems get live GA versions too.
+    firmwareBaselines:     (s.firmwareBaselines && Object.keys(s.firmwareBaselines).length > 0)
+                             ? s.firmwareBaselines
+                             : (state && state.firmwareBaselines && Object.keys(state.firmwareBaselines).length > 0
+                                ? state.firmwareBaselines
+                                : {}),
     fleetSpFirmwareMap:    s.fleetSpFirmwareMap || {},
     fleetDriveFirmwareMap: s.fleetDriveFirmwareMap || {},
     fleetShelfFirmwareMap: s.fleetShelfFirmwareMap || {},
@@ -16821,6 +16980,243 @@ function generateActionPlan() {
     });
   }
 
+  // ── Build Software Version Currency section data (5a) ─────────────────────────
+  // Compare every system's running OS/software version against the latest globally-
+  // available GA release from firmware_baselines.json.
+  // Sources of truth:
+  //   ONTAP     → firmwareBaselines.ontap.latestGA       (e.g. "9.19.1")
+  //   StorageGRID → firmwareBaselines.storageGrid.latestGA (e.g. "12.0")
+  //   SANtricity  → firmwareBaselines.santricity.latestGA  (e.g. "11.80")
+  // Per-system recommendedOSVersion from ActiveIQ is shown as a secondary reference
+  // (AIQ may recommend an intermediate target, not necessarily the absolute latest).
+  const _swItems = [];
+  targetSystems.forEach(sys => {
+    const fb = sys.firmwareBaselines || {};
+    const rawVer = (sys.osVersion || sys.ontapVersion || sys.softwareVersion || '').trim();
+    if (!rawVer) return; // skip if no version data at all
+
+    // Detect platform family for this system
+    const modelL = (sys.platform || sys.model || sys.systemType || '').toLowerCase();
+    const nameL  = (sys.systemName || '').toLowerCase();
+    const isStorageGrid = modelL.includes('storagegrid') || modelL.includes('webscale') ||
+      modelL.includes('sg60') || modelL.includes('sg61') || modelL.includes('sg6') ||
+      modelL.includes('sg5') || modelL.includes('sgf') ||
+      modelL.includes('sg100') || modelL.includes('sg1000') ||
+      (sys.systemType || '').toLowerCase() === 'storagegrid' ||
+      (sys.productType || '').toLowerCase().includes('storagegrid') ||
+      (sys.productType || '').toLowerCase().includes('object');
+    const isEseries = modelL.includes('e-series') || modelL.includes('ef600') ||
+      modelL.includes('e5700') || modelL.includes('ef300') || modelL.includes('e2800') ||
+      modelL.includes('ef50') || modelL.includes('ef80') || modelL.includes('e4000') ||
+      (sys.santricityVersion ? true : false);
+
+    let platformLabel, latestGA, releaseNotesUrl, upgradeCmd;
+    if (isStorageGrid) {
+      platformLabel   = 'StorageGRID';
+      latestGA        = (fb.storageGrid || {}).latestGA || '12.0';
+      releaseNotesUrl = (fb.storageGrid || {}).releaseNotesUrl || 'https://docs.netapp.com/us-en/storagegrid/release-notes/';
+      upgradeCmd      = 'Grid Manager → Maintenance → Software Update';
+    } else if (isEseries) {
+      platformLabel   = 'SANtricity';
+      latestGA        = (fb.santricity || {}).latestGA || '11.80';
+      releaseNotesUrl = (fb.santricity || {}).releaseNotesUrl || 'https://mysupport.netapp.com/site/downloads/eseries';
+      upgradeCmd      = 'SANtricity System Manager → Upgrade Center';
+    } else {
+      // ONTAP (AFF/FAS/ASA/CVO/ASAr2/AFX/unknown)
+      platformLabel   = 'ONTAP';
+      latestGA        = (fb.ontap || {}).latestGA || '9.19.1';
+      releaseNotesUrl = (fb.ontap || {}).releaseNotesUrl || 'https://docs.netapp.com/us-en/ontap/release-notes/';
+      upgradeCmd      = 'System Manager → Dashboard → Software Update  (or: cluster image update)';
+    }
+
+    // Is the system behind the globally latest GA?
+    const isBehindLatest = latestGA ? versionLt(rawVer, latestGA) : false;
+    // Is there an AIQ-recommended intermediate target that differs from current?
+    const aiqRec = (sys.recommendedOSVersion || '').trim();
+    const hasAiqRec = !!(aiqRec && aiqRec !== rawVer);
+    // Is the system exactly on the latest GA?
+    const isOnLatest = !isBehindLatest && !!(latestGA);
+
+    _swItems.push({
+      systemName:   sys.systemName || sys.serialNumber,
+      serialNumber: sys.serialNumber || '—',
+      platform:     platformLabel,
+      model:        sys.platform || sys.model || '—',
+      current:      rawVer,
+      latestGA:     latestGA || '—',
+      aiqRec:       aiqRec || '—',
+      isBehindLatest,
+      hasAiqRec,
+      isOnLatest
+    });
+  });
+
+  const _swBehindCount    = _swItems.filter(x => x.isBehindLatest).length;
+  const _swAiqRecCount    = _swItems.filter(x => !x.isBehindLatest && x.hasAiqRec).length;
+  const _swCurrentCount   = _swItems.filter(x => x.isOnLatest && !x.hasAiqRec).length;
+  const _swTotalAttention = _swBehindCount + _swAiqRecCount;
+
+  // Helper: render software currency table
+  function _renderSwTable(rows) {
+    if (rows.length === 0) return `<div style="font-size:0.83rem;color:var(--text-muted);">No software version data available for systems in this scope.</div>`;
+    let h = `<table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:8px;">`;
+    h += `<thead><tr style="border-bottom:1px solid var(--border-color);text-align:left;">`;
+    ['System','S/N','Platform','Model','Running Version','Latest GA','AIQ Recommended','Status'].forEach(lbl => {
+      h += `<th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">${lbl}</th>`;
+    });
+    h += `</tr></thead><tbody>`;
+    rows.forEach(row => {
+      // Status badge
+      let statusCell;
+      if (row.isBehindLatest) {
+        statusCell = `<span class="badge warning" style="font-size:0.62rem;padding:1px 6px;white-space:nowrap;" title="Running ${row.current} — latest GA is ${row.latestGA}. Upgrade recommended.">⚠ Behind Latest</span>`;
+      } else if (row.hasAiqRec) {
+        statusCell = `<span class="badge" style="font-size:0.62rem;padding:1px 6px;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.35);white-space:nowrap;" title="On latest GA but ActiveIQ recommends ${row.aiqRec} as upgrade target.">ℹ AIQ Recommends</span>`;
+      } else {
+        statusCell = `<span class="badge" style="font-size:0.62rem;padding:1px 6px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);white-space:nowrap;">✓ Current</span>`;
+      }
+
+      const verColor  = row.isBehindLatest  ? 'color:var(--status-warning);font-weight:700;'
+                      : row.isOnLatest       ? 'color:var(--status-normal);font-weight:600;'
+                      : 'color:var(--text-secondary);';
+      const recColor  = row.isBehindLatest  ? 'color:var(--accent-cyan);font-weight:600;' : 'color:var(--text-muted);font-style:italic;';
+      const aiqColor  = (row.hasAiqRec && !row.isBehindLatest) ? 'color:var(--accent-cyan);font-weight:600;' : 'color:var(--text-muted);font-style:italic;';
+
+      h += `<tr style="border-bottom:1px dashed rgba(255,255,255,0.05);">
+        <td style="padding:7px 8px;font-weight:600;color:#e2e8f0;">${row.systemName}</td>
+        <td style="padding:7px 8px;color:var(--text-muted);font-size:0.75rem;">${row.serialNumber}</td>
+        <td style="padding:7px 8px;color:var(--text-secondary);">${row.platform}</td>
+        <td style="padding:7px 8px;color:var(--text-muted);font-size:0.75rem;">${row.model}</td>
+        <td style="padding:7px 8px;font-family:monospace;${verColor}">${row.current}</td>
+        <td style="padding:7px 8px;font-family:monospace;${recColor}">${row.latestGA}</td>
+        <td style="padding:7px 8px;font-family:monospace;${aiqColor}">${row.aiqRec !== '—' ? row.aiqRec : '<span style="color:var(--text-muted);">—</span>'}</td>
+        <td style="padding:7px 8px;">${statusCell}</td>
+      </tr>`;
+    });
+    h += `</tbody></table>`;
+    return h;
+  }
+
+  // Separate by platform for sub-sections
+  const _swOntap = _swItems.filter(x => x.platform === 'ONTAP');
+  const _swSg    = _swItems.filter(x => x.platform === 'StorageGRID');
+  const _swSan   = _swItems.filter(x => x.platform === 'SANtricity');
+
+  html += `
+    </div>
+
+    <!-- Software Version Currency Section (5a) — ONTAP, StorageGRID, SANtricity -->
+    <div class="plan-section" data-section-index="17" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 8px;">
+        <div>
+          <h2 style="font-size: 1.15rem; margin: 0 0 4px 0; border: none; padding: 0;">5a. Software Version Currency</h2>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">ONTAP &nbsp;·&nbsp; StorageGRID &nbsp;·&nbsp; SANtricity (E-Series) &nbsp;—&nbsp; <em>OS and controller software, separate from component firmware.</em></div>
+        </div>
+        ${_swTotalAttention > 0
+          ? `<span class="badge warning" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;">${_swTotalAttention} system${_swTotalAttention !== 1 ? 's' : ''} need attention</span>`
+          : (_swItems.length > 0
+            ? `<span class="badge" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`
+            : '')}
+      </div>
+
+      <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">
+        Each system's running software version is compared against the <strong>globally latest GA release</strong> from the NetApp Reference Library.
+        Running behind the latest GA is flagged as <span style="color:var(--status-warning);font-weight:600;">⚠ Behind Latest</span>.
+        The <em>AIQ Recommended</em> column shows the version ActiveIQ suggests as an upgrade target — this may be an intermediate release,
+        not the absolute latest. Both are tracked independently.
+      </p>
+
+      <!-- Summary KPI strip -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
+        <div style="background:rgba(${_swBehindCount > 0 ? '251,146,60' : '0,230,118'},0.08);border:1px solid rgba(${_swBehindCount > 0 ? '251,146,60' : '0,230,118'},0.3);padding:10px 18px;border-radius:var(--radius-sm);text-align:center;min-width:90px;">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">Behind Latest</div>
+          <div style="font-size:1.4rem;font-weight:700;color:${_swBehindCount > 0 ? 'var(--status-warning)' : 'var(--status-normal)'};">${_swBehindCount}</div>
+        </div>
+        <div style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.2);padding:10px 18px;border-radius:var(--radius-sm);text-align:center;min-width:90px;">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">AIQ Rec. Pending</div>
+          <div style="font-size:1.4rem;font-weight:700;color:${_swAiqRecCount > 0 ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${_swAiqRecCount}</div>
+        </div>
+        <div style="background:rgba(0,230,118,0.06);border:1px solid rgba(0,230,118,0.2);padding:10px 18px;border-radius:var(--radius-sm);text-align:center;min-width:90px;">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">Current</div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--status-normal);">${_swCurrentCount}</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border-color);padding:10px 18px;border-radius:var(--radius-sm);text-align:center;min-width:90px;">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">Total Systems</div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">${_swItems.length}</div>
+        </div>
+      </div>
+
+      <!-- ONTAP sub-section -->
+      ${_swOntap.length > 0 ? `
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:var(--accent-cyan);border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">ONTAP (AFF / FAS / ASA / CVO)</h3>
+          ${(() => {
+            const behind = _swOntap.filter(x => x.isBehindLatest).length;
+            const aiq    = _swOntap.filter(x => !x.isBehindLatest && x.hasAiqRec).length;
+            if (behind > 0)  return `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${behind} behind latest</span>`;
+            if (aiq > 0)     return `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.35);">${aiq} AIQ rec. pending</span>`;
+            return `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`;
+          })()}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">
+          Latest GA: <strong style="color:var(--accent-cyan);">${((_swOntap[0] || {}).latestGA) || '—'}</strong>.
+          Upgrade via System Manager (Dashboard → Software Update) or CLI: <code>cluster image update -version &lt;target&gt; -estimate-only</code> then <code>cluster image update</code>.
+        </p>
+        <div style="margin-left:14px;">${_renderSwTable(_swOntap)}</div>
+      </div>` : ''}
+
+      <!-- StorageGRID sub-section -->
+      ${_swSg.length > 0 ? `
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#a78bfa;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">StorageGRID</h3>
+          ${(() => {
+            const behind = _swSg.filter(x => x.isBehindLatest).length;
+            const aiq    = _swSg.filter(x => !x.isBehindLatest && x.hasAiqRec).length;
+            if (behind > 0)  return `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${behind} behind latest</span>`;
+            if (aiq > 0)     return `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.35);">${aiq} AIQ rec. pending</span>`;
+            return `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`;
+          })()}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">
+          Latest GA: <strong style="color:var(--accent-cyan);">${((_swSg[0] || {}).latestGA) || '—'}</strong>.
+          Upgrade via Grid Manager → Maintenance → Software Update. See <a href="https://docs.netapp.com/us-en/storagegrid/upgrade/" target="_blank" style="color:var(--accent-cyan);">docs.netapp.com/storagegrid/upgrade</a>.
+        </p>
+        <div style="margin-left:14px;">${_renderSwTable(_swSg)}</div>
+      </div>` : ''}
+
+      <!-- SANtricity sub-section -->
+      ${_swSan.length > 0 ? `
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#f59e0b;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">SANtricity OS (E-Series / EF-Series)</h3>
+          ${(() => {
+            const behind = _swSan.filter(x => x.isBehindLatest).length;
+            const aiq    = _swSan.filter(x => !x.isBehindLatest && x.hasAiqRec).length;
+            if (behind > 0)  return `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${behind} behind latest</span>`;
+            if (aiq > 0)     return `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.35);">${aiq} AIQ rec. pending</span>`;
+            return `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`;
+          })()}
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">
+          Latest GA: <strong style="color:var(--accent-cyan);">${((_swSan[0] || {}).latestGA) || '—'}</strong>.
+          Upgrade via SANtricity System Manager → Upgrade Center, or via SANtricity Unified Manager for multi-array management.
+          Download from <a href="https://mysupport.netapp.com/site/downloads/eseries" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com → E-Series Downloads</a> (Support login required).
+        </p>
+        <div style="margin-left:14px;">${_renderSwTable(_swSan)}</div>
+      </div>` : ''}
+
+      ${(_swOntap.length === 0 && _swSg.length === 0 && _swSan.length === 0) ? `
+      <div style="font-size:0.83rem;color:var(--text-muted);padding:16px;background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:var(--radius-sm);">
+        No software version data found for systems in the current scope. Load system data from ActiveIQ first.
+      </div>` : ''}
+
+    </div>
+
   // ── Build Firmware Currency section data ─────────────────────────────────────
   // Helper: normalise shelf firmware version strings for comparison.
   // Catalog baselines return filenames like "IOM12E.0251.SFW"; live API returns short
@@ -16833,6 +17229,8 @@ function generateActionPlan() {
   };
 
   const _fwSpBmcItems = [], _fwShelfItems = [], _fwDiskDqpItems = [], _fwDriveItems = [];
+  // StorageGRID and E-Series/SANtricity firmware items — collected separately from ONTAP paths
+  const _fwSgItems = [], _fwEseriesItems = [];
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
     const _fwFleetSpMap = sys.fleetSpFirmwareMap || {};
@@ -16916,13 +17314,81 @@ function generateActionPlan() {
       });
     });
   });
+
+  // ── StorageGRID appliance firmware audit ─────────────────────────────────────
+  // ActiveIQ does not expose per-node appliance firmware via GraphQL.
+  // Collect SG nodes and flag each firmware component category as Unverified —
+  // the TAM/SA must validate via Grid Manager → Nodes → [Node] → Hardware tab.
+  targetSystems.forEach(sys => {
+    const isStorageGridSys = sys.sgVersion != null ||
+      (sys.platform || sys.model || '').toLowerCase().match(/storagegrid|sg6|sg5|sg1|sgf/) ||
+      (sys.systemType || '').toLowerCase() === 'storagegrid' ||
+      (sys.productType || '').toLowerCase().includes('storagegrid') ||
+      (sys.productType || '').toLowerCase().includes('object');
+    if (!isStorageGridSys) return;
+    // Show each relevant appliance firmware category as an unverified entry
+    const sgFwComponents = [
+      { component: 'Compute Node Firmware',   note: 'Validate via Grid Manager → Nodes → Hardware tab or Appliance Installer (port 8443).' },
+      { component: 'Appliance BMC',            note: 'Grid Manager → Nodes → [Node] → Hardware → BMC details.' },
+      { component: 'Drive Firmware',           note: 'For storage-controller appliances: SANtricity System Manager → Upgrade Center → Drive Firmware.' },
+    ];
+    // Only add storage controller entry for appliances that embed E-Series storage controller (SG6x60, SG5x60)
+    const modelL = (sys.platform || sys.model || '').toLowerCase();
+    if (modelL.includes('sg6') || modelL.includes('sg5712') || modelL.includes('sg5760') || modelL.includes('sg5800')) {
+      sgFwComponents.push({ component: 'Storage Controller (SANtricity)', note: 'SANtricity System Manager embedded in appliance — Upgrade Center → Controller Firmware.' });
+    }
+    sgFwComponents.forEach(comp => {
+      _fwSgItems.push({
+        systemName:  sys.systemName || sys.serialNumber,
+        serialNumber: sys.serialNumber || '—',
+        model:       sys.platform || sys.model || 'StorageGRID Appliance',
+        component:   comp.component,
+        note:        comp.note,
+        isUnverified: true
+      });
+    });
+  });
+
+  // ── E-Series / SANtricity component firmware audit ────────────────────────────
+  // SANtricity controller firmware (OS version) is tracked as a software version in Section 5a.
+  // Section 5b adds: controller NVSRAM, drive firmware, and CBD/BBU firmware — all component-level.
+  // ActiveIQ does not return per-system E-Series component firmware via the standard GraphQL schema;
+  // all entries are flagged as Unverified — validate via SANtricity System Manager → Upgrade Center.
+  targetSystems.forEach(sys => {
+    const isEseriesSys = sys.santricityVersion != null ||
+      (sys.platform || sys.model || '').toLowerCase().match(/e-series|ef600|e5700|ef300|e2800|ef50|ef80|e4000/);
+    if (!isEseriesSys) return;
+    const esFwComponents = [
+      { component: 'Controller NVSRAM',           note: 'Must match SANtricity OS version. SANtricity System Manager → Upgrade Center → Controller Firmware (NVSRAM bundled).' },
+      { component: 'Drive Firmware',               note: 'Per-drive-model. SANtricity System Manager → Upgrade Center → Drive Firmware. See E/EF-Series Disk Drive and Firmware Matrix (Support Site).' },
+      { component: 'Cache Backup Device (CBD/BBU)', note: 'SANtricity System Manager → Upgrade Center → View/Update Firmware.' },
+    ];
+    // Add Expansion Enclosure Module firmware entry for systems with expansion shelves
+    const modelL = (sys.platform || sys.model || '').toLowerCase();
+    if (modelL.includes('e5760') || modelL.includes('e2860') || (sys.shelves || []).length > 0) {
+      esFwComponents.push({ component: 'Expansion Enclosure Module (ESM/IOM)', note: 'SANtricity System Manager → Hardware → Shelf → Firmware.' });
+    }
+    esFwComponents.forEach(comp => {
+      _fwEseriesItems.push({
+        systemName:   sys.systemName || sys.serialNumber,
+        serialNumber: sys.serialNumber || '—',
+        model:        sys.platform || sys.model || 'E-Series / EF-Series',
+        component:    comp.component,
+        note:         comp.note,
+        isUnverified: true
+      });
+    });
+  });
+
   const _fwSpBmcDriftCount      = _fwSpBmcItems.filter(x => x.isDrift).length;
   const _fwSpBmcUnverifiedCount = _fwSpBmcItems.filter(x => x.isUnverified).length;
   const _fwShelfDriftCount      = _fwShelfItems.filter(x => x.isDrift).length;
   const _fwDiskDqpDriftCount    = _fwDiskDqpItems.filter(x => x.isDrift).length;
   const _fwDriveDriftCount      = _fwDriveItems.filter(x => x.isDrift).length;
-  // Total drift count: confirmed drift + unverified SP/BMC (cannot confirm currency = needs attention)
-  const _fwTotalDriftCount      = _fwSpBmcDriftCount + _fwSpBmcUnverifiedCount + _fwShelfDriftCount + _fwDiskDqpDriftCount + _fwDriveDriftCount;
+  const _fwSgUnverifiedCount    = _fwSgItems.length;    // all SG items are Unverified
+  const _fwEseriesUnverifiedCount = _fwEseriesItems.length; // all E-Series items are Unverified
+  // Total drift count: confirmed drift + all unverified items (cannot confirm currency = needs attention)
+  const _fwTotalDriftCount      = _fwSpBmcDriftCount + _fwSpBmcUnverifiedCount + _fwShelfDriftCount + _fwDiskDqpDriftCount + _fwDriveDriftCount + _fwSgUnverifiedCount + _fwEseriesUnverifiedCount;
 
   // Helper: render a firmware table
   function _renderFwTable(rows, cols) {
@@ -17048,6 +17514,86 @@ function generateActionPlan() {
         ])}
         </div>
       </div>
+
+      <!-- StorageGRID Appliance Firmware sub-section -->
+      ${_fwSgItems.length > 0 ? `
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#a78bfa;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">StorageGRID Appliance Firmware</h3>
+          <span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);">⚠ ${_fwSgUnverifiedCount} unverified</span>
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">
+          StorageGRID appliance firmware (compute node, BMC, drives, storage controller) is not returned by the ActiveIQ API.
+          Validate each component via <strong>Grid Manager → Nodes → [Node] → Hardware tab</strong> or the
+          <strong>Appliance Installer</strong> (port 8443). For storage-controller appliances (SG6x60, SG5x60),
+          validate drive and controller firmware in the embedded <strong>SANtricity System Manager → Upgrade Center</strong>.
+          Download latest from <a href="https://mysupport.netapp.com/site/downloads" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com → Downloads</a>.
+        </p>
+        <div style="margin-left:14px;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:8px;">
+            <thead><tr style="border-bottom:1px solid var(--border-color);text-align:left;">
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">System</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">S/N</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Model</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Firmware Component</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Status</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Validation Action</th>
+            </tr></thead>
+            <tbody>
+              ${_fwSgItems.map(row => `
+              <tr style="border-bottom:1px dashed rgba(255,255,255,0.05);">
+                <td style="padding:7px 8px;font-weight:600;color:#e2e8f0;">${row.systemName}</td>
+                <td style="padding:7px 8px;color:var(--text-muted);font-size:0.75rem;">${row.serialNumber}</td>
+                <td style="padding:7px 8px;color:var(--text-secondary);">${row.model}</td>
+                <td style="padding:7px 8px;color:var(--text-secondary);">${row.component}</td>
+                <td style="padding:7px 8px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;color:#f59e0b;font-weight:700;">⚠ Unverified</span></td>
+                <td style="padding:7px 8px;font-size:0.75rem;color:var(--text-muted);">${row.note}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : ''}
+
+      <!-- E-Series / SANtricity Component Firmware sub-section -->
+      ${_fwEseriesItems.length > 0 ? `
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:4px;height:20px;background:#f59e0b;border-radius:2px;"></div>
+          <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">E-Series / SANtricity Component Firmware</h3>
+          <span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);">⚠ ${_fwEseriesUnverifiedCount} unverified</span>
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">
+          E-Series component firmware (NVSRAM, drive firmware, CBD/BBU, expansion module) is not returned by the ActiveIQ API.
+          Validate each item via <strong>SANtricity System Manager → Upgrade Center → View/Update Firmware</strong>.
+          Always upgrade <strong>NVSRAM together with Controller Firmware</strong> — NVSRAM defines controller
+          configuration settings and must match the SANtricity OS version.
+          Download latest from <a href="https://mysupport.netapp.com/site/downloads/eseries" target="_blank" style="color:var(--accent-cyan);">mysupport.netapp.com → E-Series Downloads</a> (Support login required).
+        </p>
+        <div style="margin-left:14px;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-top:8px;">
+            <thead><tr style="border-bottom:1px solid var(--border-color);text-align:left;">
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">System</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">S/N</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Model</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Firmware Component</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Status</th>
+              <th style="padding:6px 8px;color:var(--accent-cyan);font-weight:600;font-size:0.72rem;text-transform:uppercase;">Validation Action</th>
+            </tr></thead>
+            <tbody>
+              ${_fwEseriesItems.map(row => `
+              <tr style="border-bottom:1px dashed rgba(255,255,255,0.05);">
+                <td style="padding:7px 8px;font-weight:600;color:#e2e8f0;">${row.systemName}</td>
+                <td style="padding:7px 8px;color:var(--text-muted);font-size:0.75rem;">${row.serialNumber}</td>
+                <td style="padding:7px 8px;color:var(--text-secondary);">${row.model}</td>
+                <td style="padding:7px 8px;color:var(--text-secondary);">${row.component}</td>
+                <td style="padding:7px 8px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;color:#f59e0b;font-weight:700;">⚠ Unverified</span></td>
+                <td style="padding:7px 8px;font-size:0.75rem;color:var(--text-muted);">${row.note}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : ''}
 
     </div>
 
@@ -17480,6 +18026,7 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)">4. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)">5. OS Versions ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP, StorageGRID, SANtricity — compare running version to latest globally-available GA release">5a. SW Currency ${_swTotalAttention > 0 ? `<span style="background:rgba(255,170,0,0.25);color:#fbbf24;border-radius:3px;padding:0 4px;font-size:0.7rem;margin-left:2px;">${_swTotalAttention}</span>` : (_swItems.length > 0 ? `<span style="background:rgba(0,230,118,0.15);color:#4ade80;border-radius:3px;padding:0 4px;font-size:0.7rem;margin-left:2px;">✓</span>` : '')}</button>
       <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="SP/BMC, Shelf, Disk/DQP firmware — distinct from OS version upgrades">5b. Firmware ${_fwTotalDriftCount > 0 ? `<span style="background:rgba(255,170,0,0.25);color:#fbbf24;border-radius:3px;padding:0 4px;font-size:0.7rem;margin-left:2px;">${_fwTotalDriftCount}</span>` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)">7. Logistics &amp; Health</button>
@@ -20019,6 +20566,16 @@ window.onload = async function() {
   // Load dynamic security bulletins from server — merges into NETAPP_SECURITY_BULLETIN_DB
   // so any CVEs added by the daily scan are available before systems are enriched.
   await loadDynamicBulletins();
+
+  // Load ground-truth GA version catalog from server so software currency comparisons
+  // always reflect the latest released versions without requiring a server restart.
+  await loadDynamicBaselines();
+
+  // Re-enrich mock systems now that we have the global baselines so the Section 5a
+  // software currency table shows live GA versions instead of hardcoded fallbacks.
+  if (state.mockMode && state.firmwareBaselines && Object.keys(state.firmwareBaselines).length > 0) {
+    state.systems = state.systems.map(s => enrichSystemTelemetry(s));
+  }
   
   // Force GraphQL sync on every page load when not in mock mode.
   // Clear stale clusterview data from previous versions.
