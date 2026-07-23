@@ -10272,7 +10272,9 @@ function renderCSMTab() {
     limitLabel.innerText = minDaysToLimit >= 9999 ? '> 10 Years' : `${(minDaysToLimit != null ? minDaysToLimit.toLocaleString() : "N/A")} Days`;
     limitLabel.style.color = minDaysToLimit <= 60 ? "var(--status-critical)" : (minDaysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
     
-    document.getElementById("csmLimitDateText").innerText = `Est. limit reached on ${worstSystemName}: ${worstLimitDate}`;
+    document.getElementById("csmLimitDateText").innerText = (worstLimitDate && worstLimitDate !== 'N/A')
+      ? `Earliest limit: ${worstLimitDate} (${worstSystemName})`
+      : (worstSystemName ? `Tightest runway: ${worstSystemName}` : 'No capacity limit projected');
     document.getElementById("csmPeakIopsText").innerHTML = totalPeakIops > 0
       ? `${totalPeakIops.toLocaleString()} IOPS`
       : '<span style="font-size:0.85rem;color:var(--text-muted);font-weight:400;">Not available via API</span>';
@@ -10671,16 +10673,31 @@ function renderProjectionsChart(proj, systemName) {
   const ceilVal    = usableTB > 0 ? parseFloat((usableTB * 0.9).toFixed(2)) : null;
   const ceilData   = ceilVal ? Array(9).fill(ceilVal) : null;
 
+  // Compute smart Y-axis bounds so the scale doesn't compress to a tiny band.
+  // Use all non-null data points across hist + proj + ceiling to find the range,
+  // then add 10% padding below and 8% above. Floor the min to the nearest 50 TB.
+  const _allPts = [...hist6, ...proj3, ...(ceilVal ? [ceilVal] : [])].filter(v => v != null && v > 0);
+  let yMin, yMax;
+  if (_allPts.length > 0) {
+    const _dMin = Math.min(..._allPts);
+    const _dMax = Math.max(..._allPts);
+    const _range = Math.max(_dMax - _dMin, 1);
+    // Give meaningful context: pad 15% below and 10% above the data range
+    yMin = Math.max(0, Math.floor((_dMin - _range * 0.15) / 10) * 10);
+    yMax = Math.ceil((_dMax + _range * 0.10) / 10) * 10;
+  }
+
   const datasets = [
     {
       label: 'Historical Utilised (TB)',
       data: histData,
       borderColor: '#0ea5e9',
-      backgroundColor: 'rgba(14, 165, 233, 0.06)',
+      backgroundColor: 'rgba(14, 165, 233, 0.07)',
       borderWidth: 2.5,
-      tension: 0.2,
+      tension: 0.3,
       fill: true,
-      pointRadius: 4
+      pointRadius: 4,
+      pointHoverRadius: 6
     },
     {
       label: 'Projected Growth (TB)',
@@ -10689,9 +10706,10 @@ function renderProjectionsChart(proj, systemName) {
       borderDash: [6, 4],
       backgroundColor: 'transparent',
       borderWidth: 2.5,
-      tension: 0.2,
+      tension: 0.3,
       pointStyle: 'rectRot',
-      pointRadius: 5
+      pointRadius: 5,
+      pointHoverRadius: 7
     }
   ];
 
@@ -10699,7 +10717,7 @@ function renderProjectionsChart(proj, systemName) {
     datasets.push({
       label: '90% Capacity Ceiling (TB)',
       data: ceilData,
-      borderColor: 'rgba(239, 68, 68, 0.55)',
+      borderColor: 'rgba(239, 68, 68, 0.6)',
       borderDash: [3, 3],
       backgroundColor: 'transparent',
       borderWidth: 1.5,
@@ -10714,23 +10732,40 @@ function renderProjectionsChart(proj, systemName) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       scales: {
         x: {
-          ticks: { color: '#9ca3af', font: { size: 10 } },
-          grid: { color: 'rgba(255, 255, 255, 0.04)' }
+          ticks: { color: '#9ca3af', font: { size: 10 }, maxRotation: 30 },
+          grid: { color: 'rgba(255,255,255,0.05)' }
         },
         y: {
-          ticks: { color: '#9ca3af', font: { size: 10 }, callback: v => v + ' TB' },
-          grid: { color: 'rgba(255, 255, 255, 0.04)' },
-          title: { display: true, text: 'Storage Used (TB)', color: '#6b7280', font: { size: 10 } }
+          min: yMin,
+          max: yMax,
+          ticks: {
+            color: '#9ca3af',
+            font: { size: 10 },
+            maxTicksLimit: 5,
+            callback: v => {
+              if (v >= 1000) return (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + ' PB';
+              return v + ' TB';
+            }
+          },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+          // No sideways title — the 'XX TB' tick format makes it self-evident
         }
       },
       plugins: {
         legend: {
           position: 'top',
-          labels: { color: '#e5e7eb', boxWidth: 12, font: { size: 11 } }
+          labels: { color: '#e5e7eb', boxWidth: 12, font: { size: 11 }, padding: 16 }
         },
         tooltip: {
+          backgroundColor: 'rgba(15,23,42,0.92)',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#e2e8f0',
+          bodyColor: '#94a3b8',
+          padding: 10,
           callbacks: {
             label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + ' TB' : 'N/A'}`
           }
