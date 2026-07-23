@@ -7593,20 +7593,52 @@ function renderFirmwarePanel(selectedSystems) {
     const spBaseline = sys.spFirmwareBaseline || {};
     const osVer = sys.osVersion || sys.ontapVersion || '';
     const hasLiveData     = fwList.length > 0;
+    // A fleet-backfilled entry (_fromFleet:true) is NOT real per-system live data —
+    // it carries a fleet-level recommended version but no confirmed installed version.
+    const hasRealLiveData = fwList.some(fw => fw.currentVersion && !fw._fromFleet);
     const hasBaselineData = !!(spBaseline.version || spBaseline.biosVersion || biosVer);
     if (!hasLiveData && !hasBaselineData) return; // skip if truly nothing
     anySpData = true;
 
     if (hasLiveData) {
-      // Live data from API (rare — requires specific access level)
-      anyLiveSpData = true;
+      // Live data from API (true live: currentVersion present and not fleet-backfilled)
+      // OR fleet-backfilled entries (firmwareType + recommendedVersion but no currentVersion)
+      if (hasRealLiveData) anyLiveSpData = true;
       fwList.forEach(fw => {
         const typeLabel = (fw.type || 'SP').toUpperCase();
-        // The ActiveIQ API never exposes a live SP/BMC currentVersion; use the ONTAP-bundled
-        // baseline version as the best estimate of what's actually installed on this system.
-        const current = fw.currentVersion || spBaseline.version || '';
-        // recommendedVersion is fleet-latest (set by server.py fleet fallback — not ONTAP-bundled)
-        const recommended = fw.recommendedVersion || '';
+        // fw._fromFleet = true means server.py backfilled from fleet GQL (no per-system currentVersion).
+        // In that case we show the ONTAP catalog baseline as an estimate, but CANNOT confirm currency.
+        // Pass empty recommended so driftBadge renders "⚠ Unverified" instead of falsely "✓ Current".
+        const isFleetBackfill = !!fw._fromFleet;
+        const liveCurrentVer  = fw.currentVersion || '';
+        // Display version: show live if available, else fall back to catalog for informational display
+        const current = liveCurrentVer || spBaseline.version || '';
+        // ── Determine authoritative recommended version ──────────────────────
+        // Priority 1: fleet-level systemFirmwares query (external, authoritative).
+        // Priority 2: per-system API recommendedVersion — BUT only if it differs from
+        //   the ONTAP-bundled catalog baseline. When recommendedVersion === spBaseline.version
+        //   the API is just echoing the ONTAP-bundled value back (circular self-reference);
+        //   this tells us nothing about global currency and must be treated as Unverified.
+        // Fleet-backfill entries (no per-system currentVersion) are always Unverified.
+        let recommended = '';
+        if (!isFleetBackfill && liveCurrentVer) {
+          // Check fleet-level systemFirmwares map for this firmware type (authoritative).
+          const _fleetSpM       = sys.fleetSpFirmwareMap || {};
+          const _fleetSpEntry   = _fleetSpM[typeLabel] || _fleetSpM['SP'] || null;
+          const fleetRecommended = _fleetSpEntry ? (_fleetSpEntry.firmwareVersion || '') : '';
+          if (fleetRecommended) {
+            // Fleet data provides an externally-validated recommendation → use it.
+            recommended = fleetRecommended;
+          } else {
+            // No fleet data. Check whether the API's recommendedVersion is independent
+            // or just a circular echo of the ONTAP-bundled baseline.
+            const apiRec = fw.recommendedVersion || '';
+            const bundledVer = spBaseline.version || '';
+            // If apiRec === bundledVer the comparison is tautological (installed-vs-itself).
+            // Treat as Unverified so driftBadge shows ⚠ instead of falsely ✓ Current.
+            recommended = (apiRec && apiRec !== bundledVer) ? apiRec : '';
+          }
+        }
         const autoUpd = fw.autoUpdateEligible;
         const autoUpdBadge = autoUpd === true
           ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Eligible</span>`
@@ -7739,11 +7771,17 @@ function renderFirmwarePanel(selectedSystems) {
         : autoUpd === false
           ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
           : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+      // isLiveSh: true only when firmwareVersion came from a live API call, not a catalog backfill.
+      // Without live confirmation we can only say versions match the catalog estimate — not that the
+      // shelf is globally current. Show amber "~ Est. Current" to avoid false green confidence.
+      const isLiveSh = liveVer && !sh.fromCatalog;
       const statusBadge = !displayCurrent
         ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
         : isDrift
           ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
-          : `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+          : isLiveSh
+            ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
+            : `<span style="font-weight:700;color:#f59e0b;" title="Version matches catalog reference — not live-confirmed. Verify via ONTAP CLI: storage shelf firmware show.">~ Est. Current</span>`;
       const currentCell = displayCurrent
         ? `<span style="font-family:monospace;font-weight:700;">${displayCurrent}</span>`
         : `<span style="font-size:0.75rem;color:var(--text-muted);">—</span>`;
@@ -7926,13 +7964,18 @@ function renderFirmwarePanel(selectedSystems) {
         : autoUpd === false
           ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
           : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
+      // isLiveDrv: true only when currentVersion came from live per-system GQL drivesSummary,
+      // not a fleet-map or catalog backfill. Catalog/fleet values are estimates — show amber.
+      const isLiveDrv = curVer && !d._fromFleet && !d._fromCatalog;
       const statusBadge = !curVer
         ? (d._fromCatalog
           ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
           : `<span style="font-size:0.72rem;color:var(--accent-purple);">Fleet ref</span>`)
         : isDrift
           ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE</span>`
-          : `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`;
+          : isLiveDrv
+            ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
+            : `<span style="font-weight:700;color:#f59e0b;" title="Version matches fleet/catalog reference — not live-confirmed per-system. Verify via ONTAP CLI: storage disk show -fields firmware-revision.">~ Est. Current</span>`;
       const curCell = curVer
         ? `<span style="font-family:monospace;font-weight:700;">${curVer}</span>`
         : `<span style="color:var(--text-muted);font-size:0.75rem;">—</span>`;
@@ -12102,22 +12145,31 @@ function enrichSystemTelemetry(s) {
     systemFirmwareDrift: (() => {
       const fwList = s.systemFirmware || [];
       const spBase = s.spFirmwareBaseline || {};
+      const bundledVer = spBase.version || '';
       return fwList.filter(f => {
-        const installed = f.currentVersion || spBase.version || '';
+        const installed = f.currentVersion || bundledVer || '';
         if (!installed) return false;
-        // Unverified (no recommended) = treat as needing attention
-        if (!f.recommendedVersion) return true;
-        return installed !== f.recommendedVersion;
+        // Circular-echo guard: if recommendedVersion === ONTAP-bundled baseline the API is
+        // self-referencing (installed-vs-itself). Treat as unverified → flag as needing attention.
+        const apiRec = f.recommendedVersion || '';
+        const effectiveRec = (apiRec && apiRec !== bundledVer) ? apiRec : '';
+        // Unverified (no effective recommendation) = treat as needing attention
+        if (!effectiveRec) return true;
+        return installed !== effectiveRec;
       });
     })(),
     systemFirmwareDriftCount: (() => {
       const fwList = s.systemFirmware || [];
       const spBase = s.spFirmwareBaseline || {};
+      const bundledVer = spBase.version || '';
       return fwList.filter(f => {
-        const installed = f.currentVersion || spBase.version || '';
+        const installed = f.currentVersion || bundledVer || '';
         if (!installed) return false;
-        if (!f.recommendedVersion) return true; // unverified = flag
-        return installed !== f.recommendedVersion;
+        // Same circular-echo guard as systemFirmwareDrift above.
+        const apiRec = f.recommendedVersion || '';
+        const effectiveRec = (apiRec && apiRec !== bundledVer) ? apiRec : '';
+        if (!effectiveRec) return true; // unverified = flag
+        return installed !== effectiveRec;
       }).length;
     })(),
     // ── Computed shelf firmware drift ──
@@ -12159,12 +12211,17 @@ function enrichSystemTelemetry(s) {
     totalFirmwareDriftCount: (() => {
       const spBase3 = s.spFirmwareBaseline || {};
       const fwList = s.systemFirmware || [];
-      // SP/BMC: unverified (no recommendedVersion) also counts as drift
+      // SP/BMC: unverified (no recommendedVersion) also counts as drift.
+      // Circular-echo guard: if recommendedVersion === ONTAP-bundled baseline, the API is
+      // self-referencing (installed-vs-itself). Treat as unverified → flag as needing attention.
+      const bundledSP3 = spBase3.version || '';
       let n = fwList.filter(f => {
-        const installed = f.currentVersion || spBase3.version || '';
+        const installed = f.currentVersion || bundledSP3 || '';
         if (!installed) return false;
-        if (!f.recommendedVersion) return true; // unverified = flag
-        return installed !== f.recommendedVersion;
+        const apiRec3 = f.recommendedVersion || '';
+        const effectiveRec3 = (apiRec3 && apiRec3 !== bundledSP3) ? apiRec3 : '';
+        if (!effectiveRec3) return true; // unverified or circular echo = flag
+        return installed !== effectiveRec3;
       }).length;
       for (const sh of (s.shelves || [])) {
         const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
@@ -13472,9 +13529,14 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     const spBaseline = sys.spFirmwareBaseline || {};
     fwList.forEach(fw => {
       const current = fw.currentVersion || '';
-      const recommended = fw.recommendedVersion || spBaseline.version || '';
+      // Do NOT fall back to spBaseline.version here — that is the ONTAP-bundled version, NOT the
+      // globally-latest recommended firmware. Using it as a fallback causes a false 'Current' result.
+      const recommended = fw.recommendedVersion || '';
       if (current && recommended && current !== recommended) {
         spBmcDrift.push({ systemName: sys.systemName, type: (fw.type || 'SP').toUpperCase(), current, recommended });
+      } else if (current && !recommended) {
+        // Unverified: we have an installed version but no global recommendation to compare against.
+        spBmcDrift.push({ systemName: sys.systemName, type: (fw.type || 'SP').toUpperCase(), current, recommended: '⚠ Unverified' });
       }
     });
     // BIOS check via catalog cross-reference
@@ -13968,9 +14030,12 @@ ${(() => {
       });
       const spBase = sys.spFirmwareBaseline || {};
       (sys.systemFirmware || []).forEach(fw => {
-        const rec = fw.recommendedVersion || spBase.version || '';
+        // Do NOT fall back to spBase.version — that is ONTAP-bundled, not globally-latest.
+        const rec = fw.recommendedVersion || '';
         if (fw.currentVersion && rec && fw.currentVersion !== rec)
           _spD.push(`    ⚠ ${sys.systemName} — ${(fw.type||'SP').toUpperCase()}: ${fw.currentVersion} → ${rec}`);
+        else if (fw.currentVersion && !rec)
+          _spD.push(`    ~ ${sys.systemName} — ${(fw.type||'SP').toUpperCase()}: ${fw.currentVersion} (⚠ Unverified — no global baseline available)`);
       });
       const biosVer = sys.biosVersion || ''; const biosBase = spBase.biosVersion || '';
       if (biosVer && biosBase && biosVer !== biosBase)
@@ -13978,7 +14043,7 @@ ${(() => {
     });
     const lines = [];
     if (_spD.length)  lines.push('  Controller (SP/BMC/BIOS) drift:\n' + _spD.join('\n'));
-    else              lines.push('  Controller (SP/BMC/BIOS):  ✓ All at recommended baseline (or no live data yet)');
+    else              lines.push('  Controller (SP/BMC/BIOS):  ~ No drift detected (note: SP/BMC current version is not exposed by the ActiveIQ API — verify via ONTAP CLI: system service-processor show)');
     if (_swD.length)  lines.push('  Switch firmware drift:\n' + _swD.join('\n'));
     else              lines.push('  Switch Firmware:           ✓ All at validated baseline');
     if (_shD.length)  lines.push('  Shelf module firmware drift:\n' + _shD.join('\n'));
@@ -14027,7 +14092,7 @@ ${(() => {
     const _spCount = [], _swCount = [], _shCount = [];
     targetSystems.forEach(sys => {
       const spBase = sys.spFirmwareBaseline || {};
-      (sys.systemFirmware || []).forEach(fw => { const r = fw.recommendedVersion || spBase.version || ''; if (fw.currentVersion && r && fw.currentVersion !== r) _spCount.push(fw); });
+      (sys.systemFirmware || []).forEach(fw => { const r = fw.recommendedVersion || ''; if (fw.currentVersion && r && fw.currentVersion !== r) _spCount.push(fw); else if (fw.currentVersion && !r) _spCount.push(fw); /* unverified = flag */ });
       const biosVer = sys.biosVersion || ''; const biosBase = spBase.biosVersion || '';
       if (biosVer && biosBase && biosVer !== biosBase) _spCount.push({type:'BIOS'});
       (sys.switches || []).forEach(sw => { if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) _swCount.push(sw); });
@@ -16536,18 +16601,28 @@ function generateActionPlan() {
         }
       }
       const linkHtml = advLink
-        ? `<a href="${advLink}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">View Full Advisory →</a>`
-        : `<a href="https://security.netapp.com/" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">Search NetApp Security Advisories →</a>`;
-
-      html += `
-        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>${s.id} — ${s.systemName}</strong>
-            <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity}</span>
-          </div>
-          <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 6px;">${s.title}</div>
-          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">
-            <strong>Mitigation:</strong> ${s.mitigation}
+        ? `<a href="${advLink}" target="_blank" style="color: var(--accent-cyan); text-decoration: unde    rows.forEach(row => {
+      const drift       = row.isDrift;
+      const unverified  = row.isUnverified;
+      h += `<tr style="border-bottom:1px dashed rgba(255,255,255,0.05);">`;
+      cols.forEach(c => {
+        let cell = row[c.key] ?? '—';
+        let style = 'padding:7px 8px;color:var(--text-secondary);';
+        if (c.key === 'systemName') style += 'font-weight:600;color:#e2e8f0;';
+        if (c.key === 'current' && drift)       style += 'color:var(--status-warning);font-weight:600;';
+        if (c.key === 'current' && unverified)  style += 'color:#f59e0b;font-weight:600;';
+        if (c.key === 'current' && !drift && !unverified && cell !== '—') style += 'color:var(--status-normal);';
+        if (c.key === 'recommended') style += unverified ? 'color:#f59e0b;font-style:italic;' : 'color:var(--accent-cyan);font-weight:600;';
+        if (c.key === 'isDrift') {
+          cell = drift      ? `<span class="badge warning" style="font-size:0.62rem;padding:1px 5px;">DRIFT</span>`
+               : unverified ? `<span class="badge" style="font-size:0.62rem;padding:1px 5px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);" title="No global recommended version available — currency cannot be confirmed. Validate via mysupport.netapp.com.">⚠ Unverified</span>`
+               :              `<span class="badge" style="font-size:0.62rem;padding:1px 5px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>`;
+          style = 'padding:7px 8px;';
+        }
+        h += `<td style="${style}">${cell}</td>`;
+      });
+      h += `</tr>`;
+    }); <strong>Mitigation:</strong> ${s.mitigation}
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 0.78rem; color: var(--status-warning);">Status: <strong>${s.status}</strong></span>
@@ -16767,12 +16842,17 @@ function generateActionPlan() {
       const current = fw.currentVersion || spBase.version || '';
       // recommendedVersion = fleet-latest (set by server.py fleet fallback — not ONTAP-bundled)
       const recommended = fw.recommendedVersion || '';
-      const isDrift = current && recommended && current !== recommended;
+      // isDrift: installed differs from a known recommended version
+      const isDrift = !!(current && recommended && current !== recommended);
+      // isUnverified: we have an installed/baseline version but NO recommended reference.
+      // This means currency CANNOT be confirmed — must NOT show green "OK".
+      // Policy: SP/BMC firmware always requires a confirmed external recommendation.
+      const isUnverified = !!(current && !recommended);
       _fwSpBmcItems.push({
         systemName: sys.systemName, serialNumber: sys.serialNumber,
         type: (fw.type || fw.componentType || 'SP/BMC').toUpperCase(),
         current: current || '—', recommended: recommended || '—',
-        isDrift
+        isDrift, isUnverified
       });
     });
     // BIOS / Mainboard — prefer fleet-latest BIOS version if available in fleet map
@@ -16836,11 +16916,13 @@ function generateActionPlan() {
       });
     });
   });
-  const _fwSpBmcDriftCount   = _fwSpBmcItems.filter(x => x.isDrift).length;
-  const _fwShelfDriftCount   = _fwShelfItems.filter(x => x.isDrift).length;
-  const _fwDiskDqpDriftCount = _fwDiskDqpItems.filter(x => x.isDrift).length;
-  const _fwDriveDriftCount   = _fwDriveItems.filter(x => x.isDrift).length;
-  const _fwTotalDriftCount   = _fwSpBmcDriftCount + _fwShelfDriftCount + _fwDiskDqpDriftCount + _fwDriveDriftCount;
+  const _fwSpBmcDriftCount      = _fwSpBmcItems.filter(x => x.isDrift).length;
+  const _fwSpBmcUnverifiedCount = _fwSpBmcItems.filter(x => x.isUnverified).length;
+  const _fwShelfDriftCount      = _fwShelfItems.filter(x => x.isDrift).length;
+  const _fwDiskDqpDriftCount    = _fwDiskDqpItems.filter(x => x.isDrift).length;
+  const _fwDriveDriftCount      = _fwDriveItems.filter(x => x.isDrift).length;
+  // Total drift count: confirmed drift + unverified SP/BMC (cannot confirm currency = needs attention)
+  const _fwTotalDriftCount      = _fwSpBmcDriftCount + _fwSpBmcUnverifiedCount + _fwShelfDriftCount + _fwDiskDqpDriftCount + _fwDriveDriftCount;
 
   // Helper: render a firmware table
   function _renderFwTable(rows, cols) {
@@ -16878,7 +16960,7 @@ function generateActionPlan() {
           <h2 style="font-size: 1.15rem; margin: 0 0 4px 0; border: none; padding: 0;">5b. Firmware Currency</h2>
           <div style="font-size: 0.75rem; color: var(--text-muted);">SP/BMC &nbsp;·&nbsp; Mainboard/BIOS &nbsp;·&nbsp; Disk Shelf modules &nbsp;·&nbsp; Disk Qualification Package (DQP) &nbsp;·&nbsp; Drive Firmware &nbsp;—&nbsp; <em>Component firmware, separate from OS versions.</em></div>
         </div>
-        ${_fwTotalDriftCount > 0 ? `<span class="badge warning" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;">${_fwTotalDriftCount} drift item${_fwTotalDriftCount !== 1 ? 's' : ''}</span>` : `<span class="badge" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`}
+        ${_fwTotalDriftCount > 0 ? `<span class="badge warning" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;">${_fwTotalDriftCount} item${_fwTotalDriftCount !== 1 ? 's' : ''} need attention</span>` : `<span class="badge" style="font-size:0.75rem;padding:4px 10px;flex-shrink:0;margin-left:12px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ All current</span>`}
       </div>
 
       <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">
@@ -16892,7 +16974,7 @@ function generateActionPlan() {
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div style="width:4px;height:20px;background:var(--accent-cyan);border-radius:2px;"></div>
           <h3 style="font-size:0.95rem;margin:0;color:#e2e8f0;">Controller Firmware — SP / BMC / Mainboard / BIOS</h3>
-          ${_fwSpBmcDriftCount > 0 ? `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${_fwSpBmcDriftCount} drift</span>` : (_fwSpBmcItems.length > 0 ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>` : '')}
+          ${_fwSpBmcDriftCount > 0 ? `<span class="badge warning" style="font-size:0.62rem;padding:2px 7px;">${_fwSpBmcDriftCount} drift</span>` : (_fwSpBmcUnverifiedCount > 0 ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);">⚠ ${_fwSpBmcUnverifiedCount} unverified</span>` : (_fwSpBmcItems.length > 0 ? `<span class="badge" style="font-size:0.62rem;padding:2px 7px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>` : ''))}
         </div>
         <p style="font-size:0.79rem;color:var(--text-muted);margin:0 0 8px 14px;line-height:1.4;">Includes Service Processor (SP), Baseboard Management Controller (BMC), and motherboard/BIOS firmware. Updated via <code>system service-processor image update -node * -update-type latest</code> (non-disruptive, background).</p>
         <div style="margin-left:14px;">
