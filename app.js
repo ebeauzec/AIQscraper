@@ -18,9 +18,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.8.0";
+const APP_VERSION = "3.8.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "3.8.1",
+    date: "23 July 2026",
+    title: "Security Bulletin DB Patch — 5 CVEs from ADVISORY-LOG.md injected (Bulletin DB: 70 → 75)",
+    sections: [
+      {
+        icon: "🛡️",
+        label: "Security: 5 Missing CVEs Injected into security_bulletins.json",
+        color: "#f87171",
+        items: [
+          "CVE-2026-59995 (OpenSSH sftp path traversal, HIGH/CVSS 7.7) — affects ONTAP, StorageGRID, SnapCenter bundling OpenSSH < 10.4; advisory 2026-07-17",
+          "CVE-2026-42253 (Apache ActiveMQ HTTP header injection, HIGH/CVSS 8.8) — affects SnapCenter/StorageGRID bundling ActiveMQ < 5.19.7 or 6.0.0–6.2.5; NetApp CVSS 8.8 > NVD 6.1",
+          "CVE-2026-40971 (Spring Boot RabbitMQ SSL hostname bypass, MEDIUM/CVSS 5.0) — affects SnapCenter/StorageGRID bundling Spring Boot 4.0.0–4.0.5 or 3.5.0–3.5.13",
+          "CVE-2026-53359 \"Januscape\" (Linux KVM shadow MMU UAF, HIGH/CVSS 7.8) — guest-to-host escape; affects StorageGRID Linux-based appliances; advisory 2026-07-10",
+          "CVE-2026-43499 \"GhostLock\" (Linux rtmutex priority-inheritance UAF, HIGH/CVSS 7.8) — local priv-esc / container escape; affects StorageGRID; advisory 2026-07-17",
+          "Bulletin DB count: 70 → 75 | lastUpdated: 2026-07-23"
+        ]
+      }
+    ]
+  },
   {
     version: "3.8.0",
     date: "23 July 2026",
@@ -6411,8 +6431,11 @@ function getApplicableSecurityBulletins(ontapVersion, platformType) {
       if (prods.length > 0 && !prods.some(p => p.toLowerCase().includes('ontap') || p.toLowerCase().includes('netapp products'))) continue;
     }
 
-    // Check version ranges
-    const ranges = (advisory.affectedVersions && advisory.affectedVersions.ontap) || [];
+    // Check version ranges — resolve from ontap, storagegrid, or generic key
+    // (storagegrid entries use affectedVersions.storagegrid; cross-product entries
+    //  use affectedVersions.generic where "from:all" means all versions affected)
+    const av = advisory.affectedVersions || {};
+    const ranges = av.ontap || av.storagegrid || av.snapcenter || av.trident || av.generic || [];
     let applicable = false;
     for (const range of ranges) {
       if (!range.from || !range.to) { applicable = true; break; } // open-ended
@@ -6429,7 +6452,8 @@ function getApplicableSecurityBulletins(ontapVersion, platformType) {
     if (ranges.length === 0) applicable = true; // no version range = all versions
 
     if (applicable) {
-      const fixedArr = (advisory.fixedVersions && (advisory.fixedVersions.ontap || advisory.fixedVersions.storagegrid || advisory.fixedVersions.snapcenter || advisory.fixedVersions.trident)) || [];
+      const fv = advisory.fixedVersions || {};
+      const fixedArr = fv.ontap || fv.storagegrid || fv.snapcenter || fv.trident || fv.generic || [];
       results.push({
         id:         advisory.cve ? advisory.cve[0] : advisory.id,
         ntapId:     advisory.id,
