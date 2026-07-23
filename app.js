@@ -17227,7 +17227,7 @@ function generateActionPlan() {
         No software version data found for systems in the current scope. Load system data from ActiveIQ first.
       </div>` : ''}
 
-    </div>
+    </div>`;
 
   // ── Build Firmware Currency section data ─────────────────────────────────────
   // Helper: normalise shelf firmware version strings for comparison.
