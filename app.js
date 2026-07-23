@@ -16691,6 +16691,16 @@ function generateActionPlan() {
   }
 
   // ── Build Firmware Currency section data ─────────────────────────────────────
+  // Helper: normalise shelf firmware version strings for comparison.
+  // Catalog baselines return filenames like "IOM12E.0251.SFW"; live API returns short
+  // 4-digit tokens like "0251". Extract the numeric segment so comparison is meaningful.
+  const _normShelfVer = v => {
+    if (!v || v === '—') return v;
+    // Match a 4-digit segment surrounded by dots or at string boundaries
+    const m = v.match(/(?:^|\.)([0-9]{4})(?:\.|$)/);
+    return m ? m[1] : v.toUpperCase();
+  };
+
   const _fwSpBmcItems = [], _fwShelfItems = [], _fwDiskDqpItems = [], _fwDriveItems = [];
   targetSystems.forEach(sys => {
     const spBase = sys.spFirmwareBaseline || {};
@@ -16718,17 +16728,21 @@ function generateActionPlan() {
       });
     }
     // Shelf module firmware
+    // Version normalisation: catalog uses full filenames (IOM12E.0251.SFW), live API
+    // uses the 4-digit numeric part (0251). Normalise both before comparing.
     (sys.shelves || []).forEach(sh => {
       const apiRec = sh.recommendedFirmwareVersion || '';
       const catRec = (sys.shelfFirmwareBaselines || []).find(b => b.shelfModuleName === (sh.moduleType || sh.model));
-      const recommended = apiRec || (catRec ? catRec.sysShelfModuleFirmwareVersion : '') || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '—';
+      const recommended = apiRec || (catRec ? (catRec.sysShelfModuleFirmwareVersion || catRec.shelfModuleFirmwareVersion) : '') || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '—';
       const current = sh.firmwareVersion || '—';
-      const isDrift = current !== '—' && recommended !== '—' && current !== recommended;
+      // Compare normalised versions to avoid false drift when catalog uses filename format
+      const isDrift = current !== '—' && recommended !== '—' && _normShelfVer(current) !== _normShelfVer(recommended);
       _fwShelfItems.push({
         systemName: sys.systemName, serialNumber: sys.serialNumber,
         shelfSerial: sh.serialNumber || sh.id || '—',
         model: sh.model || '—', moduleType: sh.moduleType || '—',
-        current, recommended, isDrift
+        current, recommended, isDrift,
+        fromCatalog: !!sh.fromCatalog
       });
     });
     // Disk Qualification Package (DQP)
@@ -16741,16 +16755,20 @@ function generateActionPlan() {
       isDrift: dqpCur !== '—' && dqpRec !== '—' && dqpCur !== dqpRec
     });
     // Drive firmware (per-model, from drivesSummary via server.py — independent of OS version)
+    // Note: ActiveIQ API exposes recommendedVersion but not currentVersion per drive model.
+    // When currentVersion is absent, we show the recommended baseline as a reference
+    // and flag with noLiveData so the UI can render an appropriate indicator.
     (sys.driveFirmware || []).forEach(drv => {
-      const curVer = drv.currentVersion || '—';
+      const curVer = drv.currentVersion || '';
       const recVer = drv.recommendedVersion || '—';
-      const isDrift = curVer !== '—' && recVer !== '—' && curVer !== recVer;
+      const noLiveData = !curVer;
+      const isDrift = !noLiveData && recVer !== '—' && curVer !== recVer;
       _fwDriveItems.push({
         systemName: sys.systemName, serialNumber: sys.serialNumber,
         model: drv.driveModel || drv.model || '—',
         count: drv.count || 1,
-        current: curVer, recommended: recVer,
-        isDrift
+        current: curVer || '—', recommended: recVer,
+        isDrift, noLiveData
       });
     });
   });
