@@ -6026,6 +6026,112 @@ function versionLt(ver, limit) {
   return false;
 }
 
+// ── Global shelf firmware version normaliser ──────────────────────────────
+// Extracts the short numeric segment from filenames like "IOM12A.0411.SFW" → "0411".
+// Mirrors _normSh() used in renderShelfFirmware — kept in sync manually.
+function _normFwVer(v) {
+  if (!v) return '';
+  const mNum = v.match(/(?:^|\.)(\d{2,6})(?:\.|$)/);
+  if (mNum) return mNum[1];
+  const mAny = v.match(/(?:^|\.)([0-9A-Z]{4,6})(?:\.|$)/i);
+  return mAny ? mAny[1].toUpperCase() : v.toUpperCase();
+}
+
+/**
+ * Summarise a shelf-drift array into one line per (systemName, moduleType, recommended)
+ * group, showing the shelf count instead of listing every individual shelf.
+ * Input: Array of { systemName, module/moduleType, current, recommended, ... }
+ * Output: formatted text lines ready for deliverable text sections.
+ * @param {Array} driftArr - array of drift entries with systemName, module|moduleType, current, recommended
+ * @param {string} indent  - leading whitespace for each line
+ * @returns {string}
+ */
+function _summariseShelfDrift(driftArr, indent) {
+  if (!driftArr || driftArr.length === 0) return '';
+  const _ind = indent || '    ';
+  // Group by system + moduleType + recommended
+  const groups = {};
+  driftArr.forEach(sh => {
+    const sysName = sh.systemName || sh.system || '—';
+    const mod     = sh.module || sh.moduleType || '—';
+    const rec     = sh.recommended || sh.target || '—';
+    const cur     = sh.current || '—';
+    const key     = `${sysName}||${mod}||${rec}`;
+    if (!groups[key]) groups[key] = { sysName, mod, rec, cur, count: 0 };
+    groups[key].count++;
+  });
+  return Object.values(groups)
+    .map(g => `${_ind}⚠ ${g.sysName} — ${g.mod} (${g.count} shelf${g.count !== 1 ? ' modules' : ' module'}): ${g.cur} → ${g.rec}`)
+    .join('\n');
+}
+
+// Reference library baselines for IOM/shelf firmware (normalised numeric form).
+// Keep in sync with SHELF_MODULE_LATEST inside renderShelfFirmware and
+// Firmware-Versions.md in the NetApp Reference Library.
+const _SHELF_REF = {
+  'IOM12': '0411', 'IOM12B': '0411', 'IOM12C': '0411',
+  'NSM100': '0303', 'NSM100B': '0303',
+};
+
+/**
+ * Returns true when a system has no active component-firmware drift.
+ * "Drift" means both current and recommended are known and they differ
+ * (after normalisation), OR shelf firmware is behind the reference library baseline.
+ * A missing recommended version is treated as "unverified" but NOT as drift
+ * (avoids false negatives when the fleet GQL returns no recommendation).
+ *
+ * SP/BMC recommended version priority (mirrors badge logic in renderSystemFirmware):
+ *   1. Fleet-level systemFirmwares map (sys.fleetSpFirmwareMap) — global authoritative.
+ *   2. Per-entry fw.recommendedVersion from the API response.
+ * Fleet-backfilled entries (_fromFleet) carry no per-system currentVersion and are
+ * treated as unverifiable (not drifted).
+ *
+ * Shelf handling:
+ *   • fromCatalog=true  → version is the ONTAP-bundled baseline, not live-confirmed.
+ *     Skip drift/ref-library checks — we cannot confirm the system is actually running
+ *     that version.  Treated as "estimated current" (not drifted).
+ *   • fromCatalog=false → live API data: apply full drift + ref-library check.
+ */
+function _isCompFwCurrent(sys) {
+  const _fleetSpMap = sys.fleetSpFirmwareMap || {};
+  // SP/BMC: flag only when both current and recommended are known and mismatch.
+  // Use fleet-level map as priority 1 for the recommended version (matches badge logic).
+  const spOk = (sys.systemFirmware || []).every(fw => {
+    // Fleet-backfill or catalog-estimated: no live-confirmed currentVersion — treat as OK.
+    // _fromFleet: no per-system currentVersion exists at all.
+    // _fromCatalog: currentVersion is the ONTAP-bundled catalog estimate, not a live reading.
+    // Both must be treated as unverifiable to prevent false drift flags.
+    if (fw._fromFleet || fw._fromCatalog) return true;
+    const cur = fw.currentVersion || '';
+    if (!cur) return true; // no installed version to compare — treat as OK
+    // Authoritative recommended: fleet map → API per-system recommendedVersion
+    const typeLabel = (fw.type || 'SP').toUpperCase();
+    const fleetEntry = _fleetSpMap[typeLabel] || _fleetSpMap['SP'] || null;
+    const fleetRec   = fleetEntry ? (fleetEntry.firmwareVersion || '') : '';
+    const rec        = fleetRec || fw.recommendedVersion || '';
+    if (rec && cur !== rec) return false; // confirmed drift
+    return true;
+  });
+  if (!spOk) return false;
+  // Shelves: normalised comparison + reference-library fallback
+  return (sys.shelves || []).every(sh => {
+    const cur = sh.firmwareVersion || '';
+    if (!cur) return true; // no data — cannot assess, treat as OK
+    // Catalog-backfilled shelves: version is an ONTAP-bundle estimate, not a live reading.
+    // Skip drift/ref-library checks — we have no confirmed running firmware to compare.
+    if (sh.fromCatalog) return true;
+    const normCur = _normFwVer(cur);
+    const rec = sh.recommendedFirmwareVersion || '';
+    const normRec = rec ? _normFwVer(rec) : '';
+    if (normRec && normCur !== normRec) return false; // active drift
+    // No fleet recommendation: check reference library baseline
+    const mk = (sh.moduleType || '').replace(/[_\s]/g, '').toUpperCase();
+    const refNorm = _SHELF_REF[mk] || _SHELF_REF[mk.replace(/[BC]$/, '')] || null;
+    if (refNorm && normCur < refNorm) return false; // behind ref library
+    return true;
+  });
+}
+
 // Dynamic bulletin loader — fetches security_bulletins.json from the local
 // server via GET /api/bulletins and populates NETAPP_SECURITY_BULLETIN_DB.
 // This is the ONLY source of advisory data — there is no hardcoded fallback.
@@ -7465,6 +7571,43 @@ function toggleRiskGroup(groupId, headerRow) {
   }
 }
 
+// ── Shelf firmware group toggle ────────────────────────────────────────────────
+function toggleShelfGroup(groupId, headerRow) {
+  const drilldown = document.getElementById(groupId);
+  if (!drilldown) return;
+  const expanded = headerRow.dataset.expanded === 'true';
+  const chevron  = headerRow.querySelector('.shelf-chevron');
+  if (expanded) {
+    drilldown.style.display = 'none';
+    headerRow.dataset.expanded = 'false';
+    if (chevron) chevron.textContent = '▶';
+  } else {
+    drilldown.style.display = '';
+    headerRow.dataset.expanded = 'true';
+    if (chevron) chevron.style.transform = 'rotate(90deg)', chevron.textContent = '▶';
+  }
+}
+function toggleAllShelfGroups(btn) {
+  const expanding = btn.dataset.expanded !== 'true';
+  btn.dataset.expanded = expanding ? 'true' : 'false';
+  btn.textContent = expanding ? '⊟ Collapse All' : '⊞ Expand All';
+  document.querySelectorAll('.shelf-sys-header').forEach(hdr => {
+    const gid = hdr.dataset.group;
+    const dd  = gid ? document.getElementById(gid) : null;
+    const ch  = hdr.querySelector('.shelf-chevron');
+    if (!dd) return;
+    if (expanding) {
+      dd.style.display = '';
+      hdr.dataset.expanded = 'true';
+      if (ch) ch.style.transform = 'rotate(90deg)';
+    } else {
+      dd.style.display = 'none';
+      hdr.dataset.expanded = 'false';
+      if (ch) ch.style.transform = '';
+    }
+  });
+}
+
 // ── Expand / Collapse All risk groups at once ──────────────────────────────────
 function toggleAllRiskGroups(btn) {
   const expanding = btn.dataset.expanded !== 'true';
@@ -7920,6 +8063,16 @@ function renderFirmwarePanel(selectedSystems) {
   let shelfInvRows = '';
   let anyShelfData = false;
   let anyLiveShelfData = false;
+  let _shGrpIdx = 0; // unique ID counter for collapsible system groups
+
+  // Reference-library latest versions (moved outside loop — static constant)
+  const SHELF_MODULE_LATEST = {
+    'IOM12':   { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12 latest: 04.11 (CONTAP-617167)' },
+    'IOM12B':  { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12B latest: 04.11 (CONTAP-617167)' },
+    'IOM12C':  { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12C latest: 04.11 (CONTAP-617167)' },
+    'NSM100':  { latest: '03.03',            norm: '0303', label: 'NSM100 latest: 03.03 (CONTAP-335905)' },
+    'NSM100B': { latest: '03.03',            norm: '0303', label: 'NSM100B latest: 03.03 (CONTAP-335905)' },
+  };
 
   ontapSystems.forEach(sys => {
     const sysLabel = sys.systemName || sys.clusterName || sys.serialNumber || '—';
@@ -7933,146 +8086,282 @@ function renderFirmwarePanel(selectedSystems) {
       if (mt) blByModule[mt] = bl;
     });
 
-    // Reference-library latest versions for shelf modules (from firmware_baselines.json /
-    // Platforms-Hardware/Firmware-Versions.md — direct-fetch-confirmed 2026-07-23).
-    // Used to flag shelves the API reports as 'current' but are actually below the global latest.
-    const SHELF_MODULE_LATEST = {
-      'IOM12':  { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12 latest: 04.11 (CONTAP-617167)' },
-      'IOM12B': { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12B latest: 04.11 (CONTAP-617167)' },
-      'IOM12C': { latest: 'IOM12A.0411.SFW', norm: '0411', label: 'IOM12C latest: 04.11 (CONTAP-617167)' },
-      'NSM100': { latest: '03.03',            norm: '0303', label: 'NSM100 latest: 03.03 (CONTAP-335905)' },
-      'NSM100B':{ latest: '03.03',            norm: '0303', label: 'NSM100B latest: 03.03 (CONTAP-335905)' },
+    // ── Shared version normaliser ──────────────────────────────────────────
+    // Catalog uses filenames like IOM12A.0411.SFW; live API may return "0411".
+    // Extract the purely-numeric segment (the actual version number).
+    const _normSh = v => {
+      if (!v) return v;
+      const mNum = v.match(/(?:^|\.)(\d{2,6})(?:\.|$)/);
+      if (mNum) return mNum[1];
+      const mAny = v.match(/(?:^|\.)([0-9A-Z]{4,6})(?:\.|$)/i);
+      return mAny ? mAny[1].toUpperCase() : v.toUpperCase();
     };
 
-    // Render one row per physical shelf (live data preferred)
+    // ── First pass: group shelves by (moduleType, displayCurrent, displayRec, autoUpd) ──
+    // This collapses e.g. 8 DS4246/IOM12/0281 rows into a single summary row
+    // showing "IOM12 · 0281 · DS4246, DS2246, DS460C … (8 shelves)"
+    const moduleGroups = new Map();
     shelves.forEach(sh => {
-      const liveVer  = sh.firmwareVersion || '';
-      const recVer   = sh.recommendedFirmwareVersion || '';
-      const autoUpd  = sh.shelfFirmwareAutoUpdate;
-      const postDate = sh.shelfFirmwarePostingDate ? sh.shelfFirmwarePostingDate.split('T')[0] : '';
+      const liveVer    = sh.firmwareVersion || '';
+      const recVer     = sh.recommendedFirmwareVersion || '';
       const moduleType = sh.moduleType || '—';
       const shelfModel = sh.model || '—';
-
-      // Fallback: catalog version can inform what's installed (displayed only)
-      // but is NEVER used as the recommended version — that would be a circular
-      // comparison (installed ≡ recommended from same source = false ✓ match).
-      const bl = blByModule[moduleType] || {};
-      const blVersionShort = bl.sysShelfModuleFirmwareVersion || '';
-      const blVersionFull  = bl.shelfModuleFirmwareVersion || '';
-      const catalogVer = blVersionShort || blVersionFull || '';
-
+      const autoUpd    = sh.shelfFirmwareAutoUpdate;
+      const postDate   = sh.shelfFirmwarePostingDate ? sh.shelfFirmwarePostingDate.split('T')[0] : '';
       const displayCurrent = liveVer || '';
-      // Recommended version: live recVer from API only.
-      // catalogVer is intentionally excluded — same source as installed = circular comparison.
-      const displayRec     = recVer || '';
+      const displayRec     = recVer  || '';
       if (!displayCurrent && !displayRec && !sh.serialNumber) return;
       anyShelfData = true;
       if (liveVer && !sh.fromCatalog) anyLiveShelfData = true;
 
-      // Normalise shelf firmware version strings for drift comparison.
-      // Catalog uses filenames like IOM12A.0411.SFW; live API may return "0411".
-      // Fleet GQL returns short versions like "0411" or "0303".
-      // Prefer a purely-numeric segment (the actual version number) over alphanumeric module prefixes.
-      const _normSh = v => {
-        if (!v) return v;
-        // First: try to match a purely numeric segment (e.g. "0411" in "IOM12A.0411.SFW")
-        const mNum = v.match(/(?:^|\.)(\d{2,6})(?:\.|$)/);
-        if (mNum) return mNum[1];
-        // Fallback: any alphanumeric segment (handles short versions without dots)
-        const mAny = v.match(/(?:^|\.)([0-9A-Z]{4,6})(?:\.|$)/i);
-        return mAny ? mAny[1].toUpperCase() : v.toUpperCase();
-      };
-      const isDrift = displayCurrent && displayRec && _normSh(displayCurrent) !== _normSh(displayRec);
+      // Group key: same module type + same current version + same recommended = merge rows
+      const key = `${moduleType}||${displayCurrent}||${displayRec}`;
+      if (!moduleGroups.has(key)) {
+        moduleGroups.set(key, {
+          moduleType, displayCurrent, displayRec, liveVer, recVer,
+          autoUpd, postDate, fromCatalog: sh.fromCatalog,
+          shelfModels: [], shelfCount: 0,
+        });
+      }
+      const grp = moduleGroups.get(key);
+      grp.shelfCount++;
+      if (shelfModel !== '—' && !grp.shelfModels.includes(shelfModel)) grp.shelfModels.push(shelfModel);
+      // Prefer the earliest posting date within the group
+      if (postDate && (!grp.postDate || postDate < grp.postDate)) grp.postDate = postDate;
+      // Propagate fromCatalog=true: if ANY shelf in the group is catalog-confirmed, mark the group as such.
+      // This prevents the first (live) shelf from masking subsequent catalog-backfilled shelves.
+      if (sh.fromCatalog) grp.fromCatalog = true;
+    });
 
-      // Reference-library check: even if API says current == recommended, check against
-      // our known global latest for this module type. The API's shelfFirmware.recommendedVersion
-      // reflects the ONTAP-bundled recommendation, NOT the globally latest available firmware.
+    if (moduleGroups.size === 0 && baselines.length === 0) return;
+
+    // ── Second pass: compute badges and build per-module rows ──────────────
+    let sysNeedsAttention = 0;
+    let sysOk = 0;
+    let sysUnverified = 0;
+    const detailRows = [];
+
+    // Helper: compute status badge for a module group
+    const _shelfBadge = (grp) => {
+      const { moduleType, displayCurrent, displayRec, liveVer, fromCatalog } = grp;
       const _moduleKey = (moduleType || '').replace(/[_\s]/g, '').toUpperCase();
       const _shelfRef  = SHELF_MODULE_LATEST[_moduleKey] || SHELF_MODULE_LATEST[_moduleKey.replace(/[BC]$/, '')] || null;
-      // isRefOutdated: current version is below the global latest known from reference library
-      const isRefOutdated = !isDrift && displayCurrent && _shelfRef &&
+      // fromCatalog shelves: version is the ONTAP-bundled baseline, not a live reading.
+      // Never flag these as drifted against the fleet-latest recommendation — we have
+      // no live confirmation of what the system is actually running.  A catalog shelf
+      // reporting 0281 (bundled with ONTAP 9.8) vs. fleet-latest 0411 is NOT drifted;
+      // the API simply has not reported the real running version for this system.
+      const isDrift    = !fromCatalog && displayCurrent && displayRec && _normSh(displayCurrent) !== _normSh(displayRec);
+      const isRefOutdated = !fromCatalog && !isDrift && displayCurrent && _shelfRef &&
         _normSh(displayCurrent) !== _shelfRef.norm && _normSh(displayCurrent) < _shelfRef.norm;
-      // referenceLatest: the version string to show as target when ref-outdated
+      const isLiveSh   = !!(liveVer && !fromCatalog);
+      const _refNormMatch = _shelfRef && displayCurrent && _normSh(displayCurrent) === _shelfRef.norm;
+      // isRefLibConfirmed: current version matches the reference-library baseline exactly
+      // (must be declared before isRefConfirmed / isCatalogConfirmed which reference it)
+      const isRefLibConfirmed = !!(displayCurrent && _refNormMatch && !isDrift && !isRefOutdated);
+      // isCatalogConfirmed: version matches fleet recommendation (or reference library) AND
+      // source is catalog-backfilled (fromCatalog). Also allow:
+      //   • ref-lib only match (no fleet recommendation, but library confirms it's latest)
+      //   • catalog-only: fromCatalog=true with no drift evidence and no displayRec
+      //     (catalog confirms the installed version is the bundle-shipped version — no update pending)
+      const isCatalogConfirmed = !isLiveSh && displayCurrent && (
+        (fromCatalog && displayRec && _normSh(displayCurrent) === _normSh(displayRec)) ||
+        (fromCatalog && displayRec && !isDrift) ||  // catalog + fleet rec but no confirmed drift → Est. Current
+        (fromCatalog && _refNormMatch) ||
+        (_refNormMatch && !displayRec) ||  // ref-lib only — no fleet recommendation but matches ref
+        (fromCatalog && !displayRec && !isDrift && !isRefOutdated)  // catalog-only, no contrary evidence
+      );
+      const isRefConfirmed = _refNormMatch && (isCatalogConfirmed || isRefLibConfirmed);
       const referenceLatest = _shelfRef ? _shelfRef.latest : '';
+
+      if (isDrift || isRefOutdated)  sysNeedsAttention++;
+      else if (!displayCurrent && !fromCatalog) sysUnverified++;
+      else if (!displayCurrent && fromCatalog) sysOk++;  // catalog entry with no version = treat as estimated-OK
+      else if (!displayRec && !isCatalogConfirmed && !isRefLibConfirmed) sysUnverified++;
+      else sysOk++;
+
+      if (!displayCurrent && !fromCatalog)
+        return { badge: `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`, priority: 3 };
+      if (!displayCurrent && fromCatalog)
+        // Catalog-backfilled entry with no extracted version (unusual) — still ONTAP-bundled baseline, no drift evidence
+        return { badge: `<span style="font-weight:700;color:#4ade80;" title="ONTAP-bundled catalog baseline — no live firmware version available, but no drift evidence. Verify via: storage shelf firmware show">✓ Est. Current</span>`, priority: 2 };
+      if (isDrift)
+        return { badge: `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${displayRec}</span>`, priority: 0 };
+      if (isRefOutdated)
+        return { badge: `<span style="font-weight:700;color:#fb923c;" title="${_shelfRef ? _shelfRef.label : ''} — Reference Library">⚠ UPDATE → ${referenceLatest}</span>`, priority: 0 };
+      if (isCatalogConfirmed)
+        return { badge: isRefConfirmed
+          ? `<span style="font-weight:700;color:#4ade80;" title="Matches Reference Library baseline (${_shelfRef ? _shelfRef.label : ''})">✓ Est. Current</span>`
+          : `<span style="font-weight:700;color:#4ade80;" title="Catalog version matches fleet-recommended — estimated current">✓ Est. Current</span>`, priority: 2 };
+      // Live API data (or catalog) confirmed against reference library even without fleet recommendation
+      if (isRefLibConfirmed)
+        return { badge: `<span style="font-weight:700;color:#4ade80;" title="Matches Reference Library baseline (${_shelfRef ? _shelfRef.label : ''})">✓ Est. Current</span>`, priority: 2 };
+      if (!displayRec)
+        return { badge: `<span style="font-weight:700;color:#f59e0b;" title="No recommended version — cannot confirm currency. Run: storage shelf firmware show">⚠ Unverified</span>`, priority: 1 };
+      if (isLiveSh)
+        return { badge: `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`, priority: 2 };
+      return { badge: `<span style="font-weight:700;color:#f59e0b;" title="Version matches catalog but no fleet recommendation">~ Est. Current</span>`, priority: 1 };
+    };
+
+    // Build detail rows sorted by priority (needs-attention first, then unverified, then ok)
+    const sortedGroups = [...moduleGroups.values()].sort((a, b) => {
+      const pa = _shelfBadge._cache ? _shelfBadge._cache.get(a) : null;
+      return (a.moduleType || '').localeCompare(b.moduleType || '');
+    });
+
+    moduleGroups.forEach(grp => {
+      const { moduleType, displayCurrent, displayRec, autoUpd, postDate, shelfModels, shelfCount, liveVer } = grp;
+      const { badge } = _shelfBadge(grp);
       const autoUpdBadge = autoUpd === true
         ? `<span style="font-size:0.72rem;color:#4ade80;font-weight:700;">✓ Auto</span>`
         : autoUpd === false
           ? `<span style="font-size:0.72rem;color:var(--text-muted);">✗ Manual</span>`
           : `<span style="font-size:0.72rem;color:var(--text-muted);">—</span>`;
-      // isLiveSh: true when firmwareVersion was populated from live API (not a catalog backfill).
-      // Live = sh has a firmwareVersion AND was not flagged as fromCatalog by server.py.
-      const isLiveSh = !!(liveVer && !sh.fromCatalog);
-      // isCatalogConfirmed: two independent sources agree firmware is current — show green ✓ Est. Current.
-      // Source A: ONTAP catalog bundled version (sh.fromCatalog=true, displayCurrent from catalog).
-      // Source B (priority order):
-      //   1. Fleet GQL recommended version (displayRec from fleet-level shelfFirmwares query).
-      //   2. Reference library (SHELF_MODULE_LATEST) — our independently-maintained baseline from
-      //      Firmware-Versions.md. When fleet is empty, this provides the second confirmation.
-      const _refNormMatch = _shelfRef && displayCurrent && _normSh(displayCurrent) === _shelfRef.norm;
-      const isCatalogConfirmed = !isLiveSh && sh.fromCatalog && displayCurrent && (
-        // Fleet confirmation: catalog matches fleet recommended
-        (displayRec && _normSh(displayCurrent) === _normSh(displayRec)) ||
-        // Reference library confirmation: catalog version matches our known global latest
-        _refNormMatch
-      );
-      // isRefConfirmed: no fleet data but reference library confirms current → green Est. Current
-      // (distinguishable from fleet-confirmed by tooltip)
-      const isRefConfirmed = isCatalogConfirmed && !displayRec && _refNormMatch;
-      const statusBadge = !displayCurrent
-        ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
-        : isDrift
-          ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${displayRec}</span>`
-          : isRefOutdated
-            ? `<span style="font-weight:700;color:#fb923c;" title="${_shelfRef ? _shelfRef.label : ''} — Reference Library (Firmware-Versions.md). API recommendation may reflect ONTAP-bundled version, not global latest. Validate on mysupport.netapp.com before updating.">⚠ UPDATE → ${referenceLatest}</span>`
-            : isCatalogConfirmed
-              ? isRefConfirmed
-                ? `<span style="font-weight:700;color:#4ade80;" title="ONTAP catalog bundled version matches Reference Library baseline (${_shelfRef ? _shelfRef.label : ''}) — estimated current. No fleet data available for this module. Verify via ONTAP CLI: storage shelf firmware show.">✓ Est. Current</span>`
-                : `<span style="font-weight:700;color:#4ade80;" title="ONTAP catalog bundled version matches fleet-level recommended version — estimated current by two independent data sources. Verify live via ONTAP CLI: storage shelf firmware show.">✓ Est. Current</span>`
-              : (!displayRec)
-                ? `<span style="font-weight:700;color:#f59e0b;" title="No global recommended version available — currency cannot be confirmed. Verify via ONTAP CLI: storage shelf firmware show.">⚠ Unverified</span>`
-                : isLiveSh
-                  ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
-                  : `<span style="font-weight:700;color:#f59e0b;" title="Version matches catalog reference but no fleet recommendation available — currency cannot be fully confirmed. Verify via ONTAP CLI: storage shelf firmware show.">~ Est. Current</span>`;
       const currentCell = displayCurrent
         ? `<span style="font-family:monospace;font-weight:700;">${displayCurrent}</span>`
         : `<span style="font-size:0.75rem;color:var(--text-muted);">—</span>`;
       const recCell = displayRec
         ? `<span style="font-family:monospace;${!liveVer ? 'color:var(--accent-cyan);' : 'color:var(--text-muted);'}">${displayRec}</span>`
         : `<span style="color:var(--text-muted);">—</span>`;
+      // Shelf model chips: show up to 4, then "+N more"
+      const maxModels = 4;
+      const modelChips = shelfModels.slice(0, maxModels).map(m =>
+        `<span style="display:inline-block;font-size:0.68rem;font-family:monospace;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text-secondary);margin:1px 2px;">${m}</span>`
+      ).join('');
+      const moreChip = shelfModels.length > maxModels
+        ? `<span style="font-size:0.68rem;color:var(--text-muted);margin-left:2px;">+${shelfModels.length - maxModels} more</span>`
+        : '';
+      const countChip = shelfCount > 1
+        ? `<span style="font-size:0.68rem;color:var(--text-muted);margin-left:4px;">(${shelfCount})</span>`
+        : '';
 
-      shelfFwRows += `<tr>
-        <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary);font-size:0.82rem;">${shelfModel}</td>
-        <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${moduleType}</td>
-        <td style="padding:8px 12px;">${currentCell}</td>
-        <td style="padding:8px 12px;">${recCell}</td>
-        <td style="padding:8px 12px;">${statusBadge}</td>
-        <td style="padding:8px 12px;">${autoUpdBadge}</td>
-        <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">${postDate || '—'}</td>
-      </tr>`;
+      detailRows.push(`
+        <tr style="border-top:1px solid rgba(255,255,255,0.04);"
+          onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+          onmouseout="this.style.background=''">
+          <td style="padding:8px 14px 8px 28px;font-family:monospace;font-size:0.82rem;font-weight:600;color:var(--text-primary);">${moduleType}</td>
+          <td style="padding:8px 14px;">${currentCell}</td>
+          <td style="padding:8px 14px;">${recCell}</td>
+          <td style="padding:8px 14px;">${badge}</td>
+          <td style="padding:8px 14px;">${autoUpdBadge}</td>
+          <td style="padding:8px 14px;font-size:0.78rem;">${modelChips}${moreChip}${countChip}</td>
+          <td style="padding:8px 14px;font-size:0.72rem;color:var(--text-muted);">${postDate || '—'}</td>
+        </tr>`);
     });
 
-    // If no shelves with live data, fall back to pure catalog baselines
+    // Baseline-only fallback (no live shelves data for this system)
+    // These are ONTAP-bundled firmware baselines — the version shown was shipped with this
+    // ONTAP release but does NOT confirm what firmware is actually running on the system.
+    // Firmware updates happen independently of ONTAP upgrades; the system may already be
+    // on a newer firmware even if the catalog shows an older bundled version.
+    //
+    // Badge logic:
+    //   ✓ Est. Current (green) — catalog version matches or exceeds reference library baseline
+    //   ✓ Est. Current (green) — module in reference library, catalog below ref but unconfirmed
+    //     (cannot flag as ⚠ UPDATE — we have no live-confirmed running version to compare)
+    //   Catalog ref (cyan)    — module type not in reference library (cannot assess currency)
     if (shelves.length === 0 && baselines.length > 0) {
       baselines.forEach(bl => {
         anyShelfData = true;
         const moduleType     = bl.shelfModuleName || '—';
-        const shelfModel     = bl.shelfName || '—';
         const blVersionShort = bl.sysShelfModuleFirmwareVersion || '';
         const blVersionFull  = bl.shelfModuleFirmwareVersion || '';
         const displayVersion = blVersionShort || blVersionFull || '';
-        shelfFwRows += `<tr>
-          <td style="padding:8px 12px;font-weight:600;color:var(--text-primary);">${sysLabel}</td>
-          <td style="padding:8px 12px;color:var(--text-secondary);font-size:0.82rem;">${shelfModel}</td>
-          <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;">${moduleType}</td>
-          <td style="padding:8px 12px;"><span style="font-family:monospace;color:var(--accent-cyan);font-weight:700;">${displayVersion || '—'}</span></td>
-          <td style="padding:8px 12px;"><span style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${blVersionFull || '—'}</span></td>
-          <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span></td>
-          <td style="padding:8px 12px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
-          <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-muted);">—</td>
-        </tr>`;
+        // Look up reference library entry for this module type
+        const _blModKey  = (moduleType || '').replace(/[_\s]/g, '').toUpperCase();
+        const _blRef     = SHELF_MODULE_LATEST[_blModKey] || SHELF_MODULE_LATEST[_blModKey.replace(/[BC]$/, '')] || null;
+        const _blNormVer = displayVersion ? _normSh(displayVersion) : '';
+        const _blRefNorm = _blRef ? _blRef.norm : '';
+        // Determine badge and counter
+        let blBadgeHtml;
+        let _blCurrentStyle = 'color:var(--accent-cyan);'; // cyan = catalog-sourced
+        if (_blRef && _blNormVer) {
+          if (_blNormVer === _blRefNorm || _blNormVer > _blRefNorm) {
+            // Catalog version matches or exceeds reference library → estimated current
+            blBadgeHtml = `<span style="font-weight:700;color:#4ade80;" title="Catalog version matches Reference Library baseline (${_blRef.label}) — estimated current">✓ Est. Current</span>`;
+            _blCurrentStyle = 'color:var(--accent-cyan);';
+            sysOk++;
+          } else {
+            // Catalog version is BELOW the reference library baseline, but this is an ONTAP-bundled
+            // estimate — we have no live-confirmed running version. The system may already be on
+            // a newer firmware. Show ✓ Est. Current with a tooltip noting the reference library
+            // has a newer version available — do NOT flag as ⚠ UPDATE (no live data to confirm drift).
+            blBadgeHtml = `<span style="font-weight:700;color:#4ade80;" title="Catalog baseline estimate — bundled with this ONTAP release. Reference Library (${_blRef.label}) shows ${_blRef.latest} as latest. Firmware updates apply independently of ONTAP upgrades; actual running version may differ. Use: storage shelf firmware show">✓ Est. Current</span>`;
+            _blCurrentStyle = 'color:var(--accent-cyan);';
+            sysOk++;
+          }
+        } else {
+          // Module type not in reference library — cannot confirm by ref-lib, but this is an ONTAP-bundled
+          // catalog baseline. No live-confirmed running version exists, so no drift can be detected.
+          // Show ✓ Est. Current: the catalog confirms this version shipped with this ONTAP release.
+          blBadgeHtml = `<span style="font-weight:700;color:#4ade80;" title="ONTAP-bundled catalog baseline — module type not in Reference Library, but catalog confirms version shipped with this release. No drift evidence. Verify actual running version via: storage shelf firmware show">✓ Est. Current</span>`;
+          sysOk++;
+        }
+        detailRows.push(`
+          <tr style="border-top:1px solid rgba(255,255,255,0.04);"
+            onmouseover="this.style.background='rgba(255,255,255,0.02)'"
+            onmouseout="this.style.background=''">
+            <td style="padding:8px 14px 8px 28px;font-family:monospace;font-size:0.82rem;font-weight:600;color:var(--text-primary);">${moduleType}</td>
+            <td style="padding:8px 14px;"><span style="font-family:monospace;font-weight:700;${_blCurrentStyle}">${displayVersion || '—'}</span></td>
+            <td style="padding:8px 14px;"><span style="font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${blVersionFull || '—'}</span></td>
+            <td style="padding:8px 14px;">${blBadgeHtml}</td>
+            <td style="padding:8px 14px;"><span style="font-size:0.72rem;color:var(--text-muted);">—</span></td>
+            <td style="padding:8px 14px;font-size:0.78rem;"><span style="color:var(--text-muted);">—</span></td>
+            <td style="padding:8px 14px;font-size:0.72rem;color:var(--text-muted);">—</td>
+          </tr>`);
       });
     }
+
+    if (detailRows.length === 0) return;
+
+    // ── System group header row ────────────────────────────────────────────
+    const grpId = `sh-sys-${_shGrpIdx++}`;
+    const totalModuleTypes = moduleGroups.size + (shelves.length === 0 ? baselines.length : 0);
+    // Status pills for the header
+    const pillsHtml = [
+      sysNeedsAttention ? `<span style="background:rgba(251,146,60,0.18);color:#fb923c;border:1px solid rgba(251,146,60,0.35);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">⚠ ${sysNeedsAttention} needs update</span>` : '',
+      sysUnverified     ? `<span style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">? ${sysUnverified} unverified</span>` : '',
+      (sysOk && !sysNeedsAttention && !sysUnverified) ? `<span style="background:rgba(74,222,128,0.1);color:#4ade80;border:1px solid rgba(74,222,128,0.25);border-radius:8px;padding:1px 7px;font-size:0.68rem;font-weight:700;">✓ All current</span>` : '',
+    ].filter(Boolean).join(' ');
+    const accentColor = sysNeedsAttention ? '#fb923c' : sysUnverified ? '#f59e0b' : '#4ade80';
+    // Start all groups expanded
+    const startExpanded = true;
+
+    shelfFwRows += `
+      <tr class="shelf-sys-header" onclick="toggleShelfGroup('${grpId}', this)"
+        style="cursor:pointer;border-left:3px solid ${accentColor};background:rgba(255,255,255,0.025);transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(255,255,255,0.045)'"
+        onmouseout="this.style.background='rgba(255,255,255,0.025)'"
+        data-group="${grpId}" data-expanded="${startExpanded}">
+        <td colspan="5" style="padding:10px 14px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${sysLabel}</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);">${totalModuleTypes} module type${totalModuleTypes !== 1 ? 's' : ''}</span>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;">${pillsHtml}</div>
+          </div>
+        </td>
+        <td colspan="2" style="padding:10px 14px;text-align:right;white-space:nowrap;">
+          <span class="shelf-chevron" style="font-size:0.85rem;color:var(--text-muted);transition:transform 0.2s;display:inline-block;${startExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+        </td>
+      </tr>
+      <tr id="${grpId}" style="display:${startExpanded ? '' : 'none'}">
+        <td colspan="7" style="padding:0;">
+          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.12);">
+            <thead>
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                <th style="padding:5px 14px 5px 28px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Module</th>
+                <th style="padding:5px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Current</th>
+                <th style="padding:5px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Recommended</th>
+                <th style="padding:5px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Status</th>
+                <th style="padding:5px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Auto-Update</th>
+                <th style="padding:5px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Shelf Models</th>
+                <th style="padding:5px 14px;text-align:left;color:var(--text-muted);font-weight:600;font-size:0.75rem;">Posted</th>
+              </tr>
+            </thead>
+            <tbody>${detailRows.join('')}</tbody>
+          </table>
+        </td>
+      </tr>`;
 
     // Physical shelf inventory rows (with per-shelf drive count)
     shelves.forEach(sh => {
@@ -8106,17 +8395,18 @@ function renderFirmwarePanel(selectedSystems) {
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-color);">
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Shelf Model</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Module (IOM/NSM)</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Current</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Recommended</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Status</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Auto-Update</th>
-              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Posted</th>
+              <th colspan="5" style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;">System / Module</th>
+              <th style="padding:6px 12px;text-align:left;color:var(--text-muted);font-weight:600;"></th>
+              <th style="padding:6px 12px;text-align:right;color:var(--text-muted);font-weight:600;">
+                <button onclick="toggleAllShelfGroups(this)"
+                  style="font-size:0.7rem;padding:2px 8px;border:1px solid var(--border-color);
+                         background:rgba(255,255,255,0.04);color:var(--text-secondary);
+                         border-radius:var(--radius-sm);cursor:pointer;"
+                  data-expanded="true">⊟ Collapse All</button>
+              </th>
             </tr>
           </thead>
-          <tbody>${shelfFwRows || '<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--text-muted);">No shelf module firmware data — run Sync Now</td></tr>'}</tbody>
+          <tbody>${shelfFwRows || '<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--text-muted);">No shelf module firmware data — run Sync Now</td></tr>'}</tbody>
         </table>
       </div>
       ${shelfInvRows ? `
@@ -12475,11 +12765,14 @@ function enrichSystemTelemetry(s) {
       }).length;
     })(),
     // ── Computed shelf firmware drift ──
+    // Use _normFwVer for comparison to handle "IOM12A.0411.SFW" vs "0411" format differences.
     shelfFirmwareDrift: (() => {
       const out = [];
       for (const sh of (s.shelves || [])) {
         const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
-        if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) {
+        const normCur = sh.firmwareVersion ? _normFwVer(sh.firmwareVersion) : '';
+        const normRec = rec ? _normFwVer(rec) : '';
+        if (normCur && normRec && normCur !== normRec) {
           out.push({ serialNumber: sh.serialNumber, model: sh.model, moduleType: sh.moduleType, current: sh.firmwareVersion, recommended: rec });
         }
       }
@@ -12489,7 +12782,9 @@ function enrichSystemTelemetry(s) {
       let n = 0;
       for (const sh of (s.shelves || [])) {
         const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
-        if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) n++;
+        const normCur = sh.firmwareVersion ? _normFwVer(sh.firmwareVersion) : '';
+        const normRec = rec ? _normFwVer(rec) : '';
+        if (normCur && normRec && normCur !== normRec) n++;
       }
       return n;
     })(),
@@ -12529,7 +12824,7 @@ function enrichSystemTelemetry(s) {
         const rec = sh.recommendedFirmwareVersion || ((typeof REFERENCE_LIBRARY_FIRMWARE_BASELINES !== 'undefined' && REFERENCE_LIBRARY_FIRMWARE_BASELINES[sh.moduleType]) || {}).recommended || '';
         // Shelf with a known firmware version but no recommendation = unverified
         if (sh.firmwareVersion && !rec) n++;
-        else if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec) n++;
+        else if (sh.firmwareVersion && rec && _normFwVer(sh.firmwareVersion) !== _normFwVer(rec)) n++;
       }
       for (const sw of (s.switches || [])) {
         if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) n++;
@@ -13784,19 +14079,10 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
   }).length;
   const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const _swRef = s => s.swRecMin || s.swRecLatest || '';
+  const fwCurrent = targetSystems.filter(s => s.osVersion && _swRef(s) && !versionLt(s.osVersion, _swRef(s))).length;
   // Component FW currency: systems with no SP/BMC or shelf firmware drift
-  const compFwCurrent = targetSystems.filter(sys => {
-    const spOk = (sys.systemFirmware || []).every(fw => {
-      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
-      return !cur || (rec && cur === rec);
-    });
-    const shOk = (sys.shelves || []).every(sh => {
-      const rec = sh.recommendedFirmwareVersion || '';
-      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
-    });
-    return spOk && shOk;
-  }).length;
+  const compFwCurrent = targetSystems.filter(sys => _isCompFwCurrent(sys)).length;
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
 
   // ── Risk groups ──
@@ -13824,7 +14110,11 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       const apiRec = sh.recommendedFirmwareVersion || '';
       const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
       const recommended = apiRec || (baseline ? baseline.recommended : null);
-      if (recommended && sh.firmwareVersion && sh.firmwareVersion !== recommended) {
+      // Normalise both sides before comparing to handle filename vs. short-version mismatches
+      // e.g. "IOM12A.0411.SFW" vs "0411" — both should be treated as equal (no drift).
+      const normCur = sh.firmwareVersion ? _normFwVer(sh.firmwareVersion) : '';
+      const normRec = recommended ? _normFwVer(recommended) : '';
+      if (normRec && normCur && normCur !== normRec) {
         shelfDrift.push({ systemName: sys.systemName, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended });
       } else if (!sh.firmwareVersion && sh.moduleType) {
         // Check against catalog shelfFirmwareBaselines if no API version known
@@ -14083,7 +14373,7 @@ ${switchDrift.length > 0 ? '  SWITCH FIRMWARE DRIFT DETECTED:\n' + switchDrift.m
   - Non-disruptive background update: 'storage firmware download' (runs automatically per-node)
   - Download from: mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware
   - Verify post-update: 'storage shelf firmware show'
-${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(sh => `    ⚠ ${sh.systemName} — ${sh.module}: current=${sh.current}, target=${sh.recommended}`).join('\n') : '  ✓ All shelf module firmware at recommended baseline.'}
+${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED (grouped by system & module type):\n' + _summariseShelfDrift(shelfDrift, '    ') : '  ✓ All shelf module firmware at recommended baseline.'}
 
 * ACTION 2.4: Disk Qualification Package (DQP) Update
   - Download latest DQP: mysupport.netapp.com/site/downloads/firmware/disk
@@ -14201,21 +14491,12 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   // ── OS Version Currency ──
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const _swRef2 = s => s.swRecMin || s.swRecLatest || '';
+  const fwCurrent = targetSystems.filter(s => s.osVersion && _swRef2(s) && !versionLt(s.osVersion, _swRef2(s))).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Component FW Currency (SP/BMC + shelf — no drift) ──
-  const compFwCurrent = targetSystems.filter(sys => {
-    const spOk = (sys.systemFirmware || []).every(fw => {
-      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
-      return !cur || (rec && cur === rec);
-    });
-    const shOk = (sys.shelves || []).every(sh => {
-      const rec = sh.recommendedFirmwareVersion || '';
-      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
-    });
-    return spOk && shOk;
-  }).length;
+  const compFwCurrent = targetSystems.filter(sys => _isCompFwCurrent(sys)).length;
   const compFwPct = total > 0 ? ((compFwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Contract Coverage ──
@@ -14355,8 +14636,8 @@ ${(() => {
       });
       (sys.shelves || []).forEach(sh => {
         const rec = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES||{})[sh.moduleType]||{}).recommended || '';
-        if (rec && sh.firmwareVersion && sh.firmwareVersion !== rec)
-          _shD.push(`    ⚠ ${sys.systemName} — Shelf ${sh.moduleType||sh.model}: ${sh.firmwareVersion} → ${rec}`);
+        if (rec && sh.firmwareVersion && _normFwVer(sh.firmwareVersion) !== _normFwVer(rec))
+          _shD.push({ systemName: sys.systemName, module: sh.moduleType||sh.model, current: sh.firmwareVersion, recommended: rec });
       });
       const spBase = sys.spFirmwareBaseline || {};
       (sys.systemFirmware || []).forEach(fw => {
@@ -14376,7 +14657,7 @@ ${(() => {
     else              lines.push('  Controller (SP/BMC/BIOS):  ~ No drift detected (note: SP/BMC current version is not exposed by the ActiveIQ API — verify via ONTAP CLI: system service-processor show)');
     if (_swD.length)  lines.push('  Switch firmware drift:\n' + _swD.join('\n'));
     else              lines.push('  Switch Firmware:           ✓ All at validated baseline');
-    if (_shD.length)  lines.push('  Shelf module firmware drift:\n' + _shD.join('\n'));
+    if (_shD.length)  lines.push('  Shelf module firmware drift (grouped by system & module type):\n' + _summariseShelfDrift(_shD, '    '));
     else              lines.push('  Shelf Firmware:            ✓ All at recommended baseline');
     return lines.join('\n');
   })()
@@ -14426,7 +14707,7 @@ ${(() => {
       const biosVer = sys.biosVersion || ''; const biosBase = spBase.biosVersion || '';
       if (biosVer && biosBase && biosVer !== biosBase) _spCount.push({type:'BIOS'});
       (sys.switches || []).forEach(sw => { if (sw.targetFirmware && sw.firmware && sw.firmware !== sw.targetFirmware) _swCount.push(sw); });
-      (sys.shelves || []).forEach(sh => { const r = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES||{})[sh.moduleType]||{}).recommended || ''; if (r && sh.firmwareVersion && sh.firmwareVersion !== r) _shCount.push(sh); });
+      (sys.shelves || []).forEach(sh => { const r = sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES||{})[sh.moduleType]||{}).recommended || ''; if (r && sh.firmwareVersion && _normFwVer(sh.firmwareVersion) !== _normFwVer(r)) _shCount.push(sh); });
     });
     const items = [];
     if (_spCount.length)  items.push(`  □ Schedule SP/BMC/BIOS firmware update for ${_spCount.length} drifted component${_spCount.length !== 1 ? 's' : ''} (run: system service-processor image update -node * -update-type latest)`);
@@ -14468,21 +14749,12 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   // ── OS Version Currency ──
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const _swRef3 = s => s.swRecMin || s.swRecLatest || '';
+  const fwCurrent = targetSystems.filter(s => s.osVersion && _swRef3(s) && !versionLt(s.osVersion, _swRef3(s))).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Component FW Currency (SP/BMC + shelf — no drift) ──
-  const compFwCurrent = targetSystems.filter(sys => {
-    const spOk = (sys.systemFirmware || []).every(fw => {
-      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
-      return !cur || (rec && cur === rec);
-    });
-    const shOk = (sys.shelves || []).every(sh => {
-      const rec = sh.recommendedFirmwareVersion || '';
-      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
-    });
-    return spOk && shOk;
-  }).length;
+  const compFwCurrent = targetSystems.filter(sys => _isCompFwCurrent(sys)).length;
   const compFwPct = total > 0 ? ((compFwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Critical risk count ──
@@ -14925,18 +15197,9 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   });
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
   const arpEnabledCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const fwCurrentCount = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
-  const compFwCurrentCount = targetSystems.filter(sys => {
-    const spOk = (sys.systemFirmware || []).every(fw => {
-      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
-      return !cur || (rec && cur === rec);
-    });
-    const shOk = (sys.shelves || []).every(sh => {
-      const rec = sh.recommendedFirmwareVersion || '';
-      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
-    });
-    return spOk && shOk;
-  }).length;
+  const _swRef4 = s => s.swRecMin || s.swRecLatest || '';
+  const fwCurrentCount = targetSystems.filter(s => s.osVersion && _swRef4(s) && !versionLt(s.osVersion, _swRef4(s))).length;
+  const compFwCurrentCount = targetSystems.filter(sys => _isCompFwCurrent(sys)).length;
   const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
   const sysCount = targetSystems.length;
   const pctAsup = sysCount > 0 ? Math.round(asupCompliant / sysCount * 100) : 0;
@@ -15056,11 +15319,12 @@ OPERATIONAL HEALTH
         _fwSwDrift.push({ system: sys.systemName, serial: sys.serialNumber, model: sw.model || sw.deviceName || 'Switch', current: sw.firmware, recommended: sw.targetFirmware });
     });
     // Shelf drift — prefer fleet-latest (overridden in server.py) over ONTAP-bundled catalog
+    // Use _normFwVer for comparison to handle filename vs. short-version mismatches.
     (sys.shelves || []).forEach(sh => {
       const _shMt = (sh.moduleType || '').toUpperCase();
       const _fleetShRec = ((sys.fleetShelfFirmwareMap || {})[_shMt] || {}).firmwareVersion || '';
       const rec = _fleetShRec || sh.recommendedFirmwareVersion || ((REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType] || {}).recommended || '';
-      if (sh.firmwareVersion && rec && sh.firmwareVersion !== rec)
+      if (sh.firmwareVersion && rec && _normFwVer(sh.firmwareVersion) !== _normFwVer(rec))
         _fwShDrift.push({ system: sys.systemName, serial: sys.serialNumber, shelf: sh.serialNumber || sh.model || '—', moduleType: sh.moduleType || '—', current: sh.firmwareVersion, recommended: rec });
     });
     // DQP drift
@@ -15103,9 +15367,17 @@ OPERATIONAL HEALTH
       problemStatements += '\n';
     }
     if (_fwShDrift.length > 0) {
-      problemStatements += `Shelf Module Firmware — ${_fwShDrift.length} shelf${_fwShDrift.length !== 1 ? 's' : ''}:\n`;
+      // Group by system + moduleType for compact presentation (many shelves per system)
+      const _shGrp = {};
       _fwShDrift.forEach(f => {
-        problemStatements += `  ⚠ ${f.system} — Shelf ${f.shelf} [${f.moduleType}]: ${f.current} → ${f.recommended}\n`;
+        const k = `${f.system}||${f.moduleType}||${f.recommended}`;
+        if (!_shGrp[k]) _shGrp[k] = { system: f.system, moduleType: f.moduleType, current: f.current, recommended: f.recommended, count: 0 };
+        _shGrp[k].count++;
+      });
+      const _shGrouped = Object.values(_shGrp);
+      problemStatements += `Shelf Module Firmware — ${_shGrouped.length} module type${_shGrouped.length !== 1 ? 's' : ''} across ${new Set(_fwShDrift.map(f => f.system)).size} system${new Set(_fwShDrift.map(f => f.system)).size !== 1 ? 's' : ''}:\n`;
+      _shGrouped.forEach(g => {
+        problemStatements += `  ⚠ ${g.system} — ${g.moduleType} (${g.count} module${g.count !== 1 ? 's' : ''}): ${g.current} → ${g.recommended}\n`;
       });
       problemStatements += '\n';
     }
@@ -16453,21 +16725,12 @@ function _renderMonthlySLASection(systems) {
   const arpUnknown = systems.length - arpEnabled - arpDisabled;
 
   // OS version currency
-  const fwCurrent = systems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
-  const fwBehind = systems.filter(s => s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)).length;
+  const _swRef5 = s => s.swRecMin || s.swRecLatest || '';
+  const fwCurrent = systems.filter(s => s.osVersion && _swRef5(s) && !versionLt(s.osVersion, _swRef5(s))).length;
+  const fwBehind = systems.filter(s => s.osVersion && _swRef5(s) && versionLt(s.osVersion, _swRef5(s))).length;
 
   // Component FW currency (SP/BMC + shelf)
-  const compFwCurrentW = systems.filter(sys => {
-    const spOk = (sys.systemFirmware || []).every(fw => {
-      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
-      return !cur || (rec && cur === rec);
-    });
-    const shOk = (sys.shelves || []).every(sh => {
-      const rec = sh.recommendedFirmwareVersion || '';
-      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
-    });
-    return spOk && shOk;
-  }).length;
+  const compFwCurrentW = systems.filter(sys => _isCompFwCurrent(sys)).length;
   const compFwBehindW = systems.length - compFwCurrentW;
 
   // Last reboot analysis

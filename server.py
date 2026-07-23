@@ -1969,10 +1969,16 @@ def _do_full_harvest(watchlist_ids=None):
                                 _sh["recommendedFirmwareVersion"] = ""
                             # else: preserve the API's existing per-system recommendedFirmwareVersion
                             _sh["fromCatalog"] = True
-            # Override recommendedFirmwareVersion with fleet-latest for ALL shelves that have a matching fleet entry
+            # Override recommendedFirmwareVersion with fleet-latest for LIVE shelves that have a matching fleet entry.
             # This ensures live-data shelves whose recommendedFirmwareVersion came from the ONTAP catalog
-            # are also corrected to reflect the globally latest recommended version.
+            # are corrected to reflect the globally latest recommended version.
+            # Catalog-backfilled shelves (fromCatalog=True) are excluded: their firmwareVersion is the
+            # ONTAP-bundled baseline for that release, not live-running firmware.  Overwriting with
+            # fleet-latest would create false drift (e.g. IOM12@0281 vs fleet@0411) even though the
+            # system has never reported its actual running version.
             for _sh in shelves_out:
+                if _sh.get("fromCatalog"):
+                    continue  # do not override catalog-estimated shelves
                 _mtype = (_sh.get("moduleType") or "").upper()
                 _fleet_sh_ver = (_fleet_shelf_map.get(_mtype) or {}).get("firmwareVersion", "")
                 if _fleet_sh_ver:
