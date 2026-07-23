@@ -5427,11 +5427,12 @@ const REFERENCE_LIBRARY_NAMING_CONVENTIONS = {
 // ─────────────────────────────────────────────────────────────────────────────
 // CVE/Advisory Database
 // Sources: security.netapp.com, kb.netapp.com, NetApp Security Advisory portal
-// Updated: 2026-07-23 — three new third-party component advisories found 2026-07-22 added
+// Updated: 2026-07-23 — two Linux kernel CVEs (missed by prior passes) added
 // Active advisory set: CVE-2026-22050, CVE-2026-22052, CVE-2026-20833,
 //   CVE-2026-22054, CVE-2026-22055, CVE-2026-22051, CVE-2026-4747, CVE-2026-42511,
 //   NTAP-20250328-0008, CVE-2025-26512, CVE-2024-50379, CVE-2025-27082, CVE-2025-22399,
-//   CVE-2026-59995 (OpenSSH HIGH), CVE-2026-42253 (Apache ActiveMQ HIGH), CVE-2026-40971 (Spring Boot MEDIUM)
+//   CVE-2026-59995 (OpenSSH HIGH), CVE-2026-42253 (Apache ActiveMQ HIGH), CVE-2026-40971 (Spring Boot MEDIUM),
+//   CVE-2026-53359 (Linux KVM UAF "Januscape" HIGH), CVE-2026-43499 (Linux rtmutex UAF "GhostLock" HIGH)
 // ─────────────────────────────────────────────────────────────────────────────
 const REFERENCE_LIBRARY_ADVISORIES = [
   {
@@ -5636,6 +5637,27 @@ const REFERENCE_LIBRARY_ADVISORIES = [
     fixedIn: ["Spring Boot 4.0.6", "Spring Boot 3.5.14"],
     description: "Spring Boot RabbitMQ auto-configuration omits hostname verification when an SSL bundle is used, allowing a network-adjacent attacker to intercept or alter broker communications via MitM. Affects NetApp products using Spring Boot 4.0.0–4.0.5 or 3.5.0–3.5.13. NetApp advisory updated 2026-07-21. No known in-the-wild exploitation.",
     remediation: "Apply NetApp product-specific patch bundles that upgrade Spring Boot to 4.0.6+ or 3.5.14+. Check NetApp advisory portal for affected product list and patch availability.",
+    url: "https://security.netapp.com/"
+  },
+  // ── Linux kernel advisory bundle — two entries missed by prior daily scans (caught 2026-07-23) ──
+  {
+    id: "CVE-2026-53359",
+    title: "Linux Kernel KVM Shadow Paging Use-After-Free \"Januscape\" (NetApp Products)",
+    product: "StorageGRID / NetApp Linux-based Products",
+    severity: "high",
+    cvss: 7.8,
+    description: "A use-after-free in the Linux kernel's KVM x86 shadow MMU: when a host PDE mapping is modified from within a guest, an unexpected role mismatch can allow a guest-to-host escape, arbitrary code execution with root on the host, or host panic (DoS). In environments where /dev/kvm is world-accessible an unprivileged local user may also trigger it. Affects NetApp products using the Linux kernel (primarily StorageGRID appliances). NetApp advisory published 2026-07-10. No known in-the-wild exploitation.",
+    remediation: "Apply patched Linux kernel from your distribution (fixed kernels released early July 2026). Workaround: disable nested virtualization (/sys/module/kvm_intel(amd)/parameters/nested). Check NetApp Security Portal for product-specific patch bundles.",
+    url: "https://security.netapp.com/"
+  },
+  {
+    id: "CVE-2026-43499",
+    title: "Linux Kernel rtmutex Priority-Inheritance Use-After-Free \"GhostLock\" (NetApp Products)",
+    product: "StorageGRID / NetApp Linux-based Products",
+    severity: "high",
+    cvss: 7.8,
+    description: "A use-after-free in the Linux kernel's real-time mutex (rtmutex) priority-inheritance / futex path allows a local unprivileged attacker to escalate to root or escape container isolation. Affects NetApp products using the Linux kernel. NetApp advisory published 2026-07-17. No known in-the-wild exploitation.",
+    remediation: "Apply patched Linux kernel from vendor distribution. Check NetApp Security Portal for product-specific patch bundles and affected version ranges for your specific appliance/product.",
     url: "https://security.netapp.com/"
   }
 ];
@@ -16760,28 +16782,18 @@ function generateActionPlan() {
         }
       }
       const linkHtml = advLink
-        ? `<a href="${advLink}" target="_blank" style="color: var(--accent-cyan); text-decoration: unde    rows.forEach(row => {
-      const drift       = row.isDrift;
-      const unverified  = row.isUnverified;
-      h += `<tr style="border-bottom:1px dashed rgba(255,255,255,0.05);">`;
-      cols.forEach(c => {
-        let cell = row[c.key] ?? '—';
-        let style = 'padding:7px 8px;color:var(--text-secondary);';
-        if (c.key === 'systemName') style += 'font-weight:600;color:#e2e8f0;';
-        if (c.key === 'current' && drift)       style += 'color:var(--status-warning);font-weight:600;';
-        if (c.key === 'current' && unverified)  style += 'color:#f59e0b;font-weight:600;';
-        if (c.key === 'current' && !drift && !unverified && cell !== '—') style += 'color:var(--status-normal);';
-        if (c.key === 'recommended') style += unverified ? 'color:#f59e0b;font-style:italic;' : 'color:var(--accent-cyan);font-weight:600;';
-        if (c.key === 'isDrift') {
-          cell = drift      ? `<span class="badge warning" style="font-size:0.62rem;padding:1px 5px;">DRIFT</span>`
-               : unverified ? `<span class="badge" style="font-size:0.62rem;padding:1px 5px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35);" title="No global recommended version available — currency cannot be confirmed. Validate via mysupport.netapp.com.">⚠ Unverified</span>`
-               :              `<span class="badge" style="font-size:0.62rem;padding:1px 5px;background:rgba(0,230,118,0.12);color:var(--status-normal);border:1px solid rgba(0,230,118,0.2);">✓ OK</span>`;
-          style = 'padding:7px 8px;';
-        }
-        h += `<td style="${style}">${cell}</td>`;
-      });
-      h += `</tr>`;
-    }); <strong>Mitigation:</strong> ${s.mitigation}
+        ? `<a href="${advLink}" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">View Full Advisory →</a>`
+        : `<a href="https://security.netapp.com/" target="_blank" style="color: var(--accent-cyan); text-decoration: underline; cursor: pointer; font-size: 0.8rem;" onclick="window.open(this.href, '_blank'); return false;">Search NetApp Security Advisories →</a>`;
+
+      html += `
+        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <strong>${s.id} — ${s.systemName}</strong>
+            <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity}</span>
+          </div>
+          <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 6px;">${s.title}</div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">
+            <strong>Mitigation:</strong> ${s.mitigation}
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 0.78rem; color: var(--status-warning);">Status: <strong>${s.status}</strong></span>
