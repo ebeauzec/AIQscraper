@@ -14467,9 +14467,23 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
   const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
-  // ── Firmware Currency ──
+  // ── OS Version Currency ──
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
+
+  // ── Component FW Currency (SP/BMC + shelf — no drift) ──
+  const compFwCurrent = targetSystems.filter(sys => {
+    const spOk = (sys.systemFirmware || []).every(fw => {
+      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
+      return !cur || (rec && cur === rec);
+    });
+    const shOk = (sys.shelves || []).every(sh => {
+      const rec = sh.recommendedFirmwareVersion || '';
+      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
+    });
+    return spOk && shOk;
+  }).length;
+  const compFwPct = total > 0 ? ((compFwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Critical risk count ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -14530,6 +14544,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const staleAsup = total - asupCompliant;
   const unprotectedArp = total - arpCount;
   const fwBehind = total - fwCurrent;
+  const compFwBehind = total - compFwCurrent;
 
   return `================================================================================
 MANAGED SERVICE PROVIDER — SERVICE DELIVERY REPORT
@@ -14596,6 +14611,7 @@ ${backlogLines}
   □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}
   □ Restore ASUP on ${staleAsup} stale system${staleAsup !== 1 ? 's' : ''}
   □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
+  □ Review SP/BMC & shelf firmware on ${compFwBehind} system${compFwBehind !== 1 ? 's' : ''}
 ================================================================================`;
 }
 
@@ -16436,9 +16452,23 @@ function _renderMonthlySLASection(systems) {
   const arpDisabled = systems.filter(s => s.isARPEnabled === false).length;
   const arpUnknown = systems.length - arpEnabled - arpDisabled;
 
-  // Firmware currency
+  // OS version currency
   const fwCurrent = systems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwBehind = systems.filter(s => s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)).length;
+
+  // Component FW currency (SP/BMC + shelf)
+  const compFwCurrentW = systems.filter(sys => {
+    const spOk = (sys.systemFirmware || []).every(fw => {
+      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
+      return !cur || (rec && cur === rec);
+    });
+    const shOk = (sys.shelves || []).every(sh => {
+      const rec = sh.recommendedFirmwareVersion || '';
+      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
+    });
+    return spOk && shOk;
+  }).length;
+  const compFwBehindW = systems.length - compFwCurrentW;
 
   // Last reboot analysis
   const rebootSystems = systems.filter(s => s.lastRebootTime).map(s => {
