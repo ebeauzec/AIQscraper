@@ -8002,20 +8002,34 @@ function renderFirmwarePanel(selectedSystems) {
       // isLiveSh: true when firmwareVersion was populated from live API (not a catalog backfill).
       // Live = sh has a firmwareVersion AND was not flagged as fromCatalog by server.py.
       const isLiveSh = !!(liveVer && !sh.fromCatalog);
-      // isCatalogConfirmed: catalog version AND fleet recommended agree — two independent sources
-      // confirm this firmware is current. Show green (not amber) even without live per-system data.
-      const isCatalogConfirmed = !isLiveSh && sh.fromCatalog && displayCurrent && displayRec &&
-        _normSh(displayCurrent) === _normSh(displayRec);
+      // isCatalogConfirmed: two independent sources agree firmware is current — show green ✓ Est. Current.
+      // Source A: ONTAP catalog bundled version (sh.fromCatalog=true, displayCurrent from catalog).
+      // Source B (priority order):
+      //   1. Fleet GQL recommended version (displayRec from fleet-level shelfFirmwares query).
+      //   2. Reference library (SHELF_MODULE_LATEST) — our independently-maintained baseline from
+      //      Firmware-Versions.md. When fleet is empty, this provides the second confirmation.
+      const _refNormMatch = _shelfRef && displayCurrent && _normSh(displayCurrent) === _shelfRef.norm;
+      const isCatalogConfirmed = !isLiveSh && sh.fromCatalog && displayCurrent && (
+        // Fleet confirmation: catalog matches fleet recommended
+        (displayRec && _normSh(displayCurrent) === _normSh(displayRec)) ||
+        // Reference library confirmation: catalog version matches our known global latest
+        _refNormMatch
+      );
+      // isRefConfirmed: no fleet data but reference library confirms current → green Est. Current
+      // (distinguishable from fleet-confirmed by tooltip)
+      const isRefConfirmed = isCatalogConfirmed && !displayRec && _refNormMatch;
       const statusBadge = !displayCurrent
         ? `<span style="font-size:0.72rem;color:var(--accent-cyan);">Catalog ref</span>`
         : isDrift
           ? `<span style="font-weight:700;color:#fb923c;">⚠ UPDATE → ${displayRec}</span>`
           : isRefOutdated
             ? `<span style="font-weight:700;color:#fb923c;" title="${_shelfRef ? _shelfRef.label : ''} — Reference Library (Firmware-Versions.md). API recommendation may reflect ONTAP-bundled version, not global latest. Validate on mysupport.netapp.com before updating.">⚠ UPDATE → ${referenceLatest}</span>`
-            : (!displayRec)
-              ? `<span style="font-weight:700;color:#f59e0b;" title="No global recommended version available — currency cannot be confirmed. Verify via ONTAP CLI: storage shelf firmware show.">⚠ Unverified</span>`
-              : isCatalogConfirmed
-                ? `<span style="font-weight:700;color:#4ade80;" title="ONTAP catalog bundled version matches fleet-level recommended version — estimated current by two independent data sources. Verify live via ONTAP CLI: storage shelf firmware show.">✓ Est. Current</span>`
+            : isCatalogConfirmed
+              ? isRefConfirmed
+                ? `<span style="font-weight:700;color:#4ade80;" title="ONTAP catalog bundled version matches Reference Library baseline (${_shelfRef ? _shelfRef.label : ''}) — estimated current. No fleet data available for this module. Verify via ONTAP CLI: storage shelf firmware show.">✓ Est. Current</span>`
+                : `<span style="font-weight:700;color:#4ade80;" title="ONTAP catalog bundled version matches fleet-level recommended version — estimated current by two independent data sources. Verify live via ONTAP CLI: storage shelf firmware show.">✓ Est. Current</span>`
+              : (!displayRec)
+                ? `<span style="font-weight:700;color:#f59e0b;" title="No global recommended version available — currency cannot be confirmed. Verify via ONTAP CLI: storage shelf firmware show.">⚠ Unverified</span>`
                 : isLiveSh
                   ? `<span style="font-weight:700;color:#4ade80;">✓ Current</span>`
                   : `<span style="font-weight:700;color:#f59e0b;" title="Version matches catalog reference but no fleet recommendation available — currency cannot be fully confirmed. Verify via ONTAP CLI: storage shelf firmware show.">~ Est. Current</span>`;
@@ -13771,6 +13785,18 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   }).length;
   const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  // Component FW currency: systems with no SP/BMC or shelf firmware drift
+  const compFwCurrent = targetSystems.filter(sys => {
+    const spOk = (sys.systemFirmware || []).every(fw => {
+      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
+      return !cur || (rec && cur === rec);
+    });
+    const shOk = (sys.shelves || []).every(sh => {
+      const rec = sh.recommendedFirmwareVersion || '';
+      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
+    });
+    return spOk && shOk;
+  }).length;
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
 
   // ── Risk groups ──
@@ -13941,7 +13967,8 @@ ${platformLines}
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
   - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled
-  - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
+  - OS Version Currency:     ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended ONTAP baseline
+  - Component FW Currency:   ${compFwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(compFwCurrent/systemCount*100) : 0}%) — SP/BMC & shelf firmware at recommended level
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
 
 * RISK POSTURE SUMMARY:
@@ -14173,16 +14200,30 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
   const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
-  // ── Firmware Currency ──
+  // ── OS Version Currency ──
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
+
+  // ── Component FW Currency (SP/BMC + shelf — no drift) ──
+  const compFwCurrent = targetSystems.filter(sys => {
+    const spOk = (sys.systemFirmware || []).every(fw => {
+      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
+      return !cur || (rec && cur === rec);
+    });
+    const shOk = (sys.shelves || []).every(sh => {
+      const rec = sh.recommendedFirmwareVersion || '';
+      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
+    });
+    return spOk && shOk;
+  }).length;
+  const compFwPct = total > 0 ? ((compFwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Contract Coverage ──
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
   const contractPct = total > 0 ? ((contractActive / total) * 100).toFixed(0) : 0;
 
   // ── Health Grade ──
-  const avgPct = (parseFloat(asupPct) + parseFloat(arpPct) + parseFloat(fwPct) + parseFloat(contractPct)) / 4;
+  const avgPct = (parseFloat(asupPct) + parseFloat(arpPct) + parseFloat(fwPct) + parseFloat(compFwPct) + parseFloat(contractPct)) / 5;
   const grade = avgPct > 90 ? 'A' : avgPct > 75 ? 'B' : avgPct > 60 ? 'C' : avgPct > 40 ? 'D' : 'F';
 
   // ── Risks ──
@@ -14290,7 +14331,8 @@ Prepared: ${salesRep}
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled
-  Firmware Currency:        ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
+  OS Version Currency:      ${fwCurrent}/${total} systems (${fwPct}%) — running recommended ONTAP version
+  Component FW Currency:    ${compFwCurrent}/${total} systems (${compFwPct}%) — SP/BMC & shelf firmware current
   Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
@@ -14511,7 +14553,8 @@ Report Period: ${thirtyAgo} to ${todayStr}
   ─────────────────────────────────────────────────────
   ASUP Compliance           100%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, 100)}
   ARP Enablement            100%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, 100)}
-  Firmware Currency         100%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, 100)}
+  OS Version Currency       100%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, 100)}
+  Component FW Currency     100%      ${String(compFwPct).padStart(3)}%      ${slaStatus(compFwPct, 100)}
   Contract Coverage         100%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, 100)}
   Risk Posture (Crit=0)     0         ${String(critCount).padStart(3)}       ${critCount === 0 ? 'MET' : 'MISSED'}
 
@@ -14867,11 +14910,23 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
   const arpEnabledCount = targetSystems.filter(s => s.isARPEnabled === true).length;
   const fwCurrentCount = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const compFwCurrentCount = targetSystems.filter(sys => {
+    const spOk = (sys.systemFirmware || []).every(fw => {
+      const cur = fw.currentVersion || ''; const rec = fw.recommendedVersion || '';
+      return !cur || (rec && cur === rec);
+    });
+    const shOk = (sys.shelves || []).every(sh => {
+      const rec = sh.recommendedFirmwareVersion || '';
+      return !sh.firmwareVersion || !rec || sh.firmwareVersion === rec;
+    });
+    return spOk && shOk;
+  }).length;
   const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
   const sysCount = targetSystems.length;
   const pctAsup = sysCount > 0 ? Math.round(asupCompliant / sysCount * 100) : 0;
   const pctArp = sysCount > 0 ? Math.round(arpEnabledCount / sysCount * 100) : 0;
   const pctFw = sysCount > 0 ? Math.round(fwCurrentCount / sysCount * 100) : 0;
+  const pctCompFw = sysCount > 0 ? Math.round(compFwCurrentCount / sysCount * 100) : 0;
   const pctContract = sysCount > 0 ? Math.round(contractActiveCount / sysCount * 100) : 0;
   const sustScores = state.tamSustainability || [];
   const sustLatest = sustScores[0] || {};
@@ -14911,10 +14966,11 @@ RISK SUMMARY
   Upgrades: ${allUpgrades.length}   Contracts: ${expiringContracts.length}
 
 OPERATIONAL HEALTH
-  ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
-  ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
-  Firmware Currency:  ${fwCurrentCount}/${sysCount} (${pctFw}%)
-  Contract Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%)
+  ASUP Compliance:      ${asupCompliant}/${sysCount} (${pctAsup}%)
+  ARP Coverage:         ${arpEnabledCount}/${sysCount} (${pctArp}%)
+  OS Version Currency:  ${fwCurrentCount}/${sysCount} (${pctFw}%)
+  Component FW:         ${compFwCurrentCount}/${sysCount} (${pctCompFw}%) — SP/BMC & shelf current
+  Contract Coverage:    ${contractActiveCount}/${sysCount} (${pctContract}%)
 
 `;
 
@@ -15097,10 +15153,11 @@ Dear Storage Operations Team,
 Our Active IQ posture audit identified ${totalDeduped} finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}, consolidated into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}.
 
 OPERATIONAL HEALTH SNAPSHOT:
-  ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
-  ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
-  Firmware Currency:  ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
-  Contract Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
+  ASUP Compliance:      ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
+  ARP Protection:       ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
+  OS Version Currency:  ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended ONTAP version)
+  Component FW:         ${pctCompFw}% (${compFwCurrentCount}/${sysCount} with SP/BMC & shelf firmware current)
+  Contract Coverage:    ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
 
 ${emailRiskLines}
 
@@ -15126,10 +15183,11 @@ Period:   ${today}
 Systems:  ${targetSystems.length}  |  Sites: ${siteDetails.length}
 
 HEALTH METRICS:
-  ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
-  ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
-  Firmware Currency:  ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
-  Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
+  ASUP Compliance:      ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
+  ARP Coverage:         ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
+  OS Version Currency:  ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
+  Component FW:         ${pctCompFw}% ${pctCompFw < 100 ? '⚠' : '✓'}
+  Contract Coverage:    ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
 
 RISK POSTURE:
   Findings: ${totalDeduped} (${critCount}C / ${highCount}H / ${medCount}M)
@@ -15264,7 +15322,8 @@ Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCoun
 OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
   ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
-  Firmware Currency:      ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
+  OS Version Currency:    ${pctFw}% (${fwCurrentCount}/${sysCount} systems on recommended ONTAP)
+  Component FW Currency:  ${pctCompFw}% (${compFwCurrentCount}/${sysCount} systems — SP/BMC & shelf current)
   Contract Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems)
 
 PRIORITISED CORRECTIVE ACTIONS
