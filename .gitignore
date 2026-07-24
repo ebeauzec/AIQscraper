@@ -31,7 +31,3 @@ brace_find.txt
 cl_end.txt
 brace2.txt
 brace3.txt
-
-*.db-shm
-*.db-wal
-*.db-journal

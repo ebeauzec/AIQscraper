@@ -1,8 +1,8 @@
 {
-  "version": "3.8.1",
+  "version": "3.7.0",
   "major": 3,
-  "minor": 8,
-  "patch": 1,
-  "date": "2026-07-23",
-  "notes": "Security Bulletin DB patch (v3.8.1): five CVEs logged in ADVISORY-LOG.md between 2026-07-10 and 2026-07-23 but absent from security_bulletins.json are now injected. CVE-2026-59995 (OpenSSH sftp path traversal, HIGH/7.7), CVE-2026-42253 (Apache ActiveMQ header injection, HIGH/8.8), CVE-2026-40971 (Spring Boot RabbitMQ SSL bypass, MEDIUM/5.0), CVE-2026-53359 \"Januscape\" (Linux KVM UAF, HIGH/7.8), CVE-2026-43499 \"GhostLock\" (Linux rtmutex UAF, HIGH/7.8). Bulletin count: 70 → 75. lastUpdated: 2026-07-23."
+  "minor": 7,
+  "patch": 0,
+  "date": "2026-07-20",
+  "notes": "ASUP Offline Import (v3.7.0): import AutoSupport bundles (.7z, .tgz, .zip, .xml, .gz) onsite when Active IQ is unavailable. Parses ONTAP, StorageGRID, and E-Series bundles into ARIA normalized schema. Runs full Reference Library enrichment (CVE matching, EOA detection, upgrade path, 15-point readiness) from bundle data alone. Graceful degradation for partial/truncated bundles. Coverage report shows what was and wasn't parseable. Persisted in SQLite across sessions."
 }

@@ -111,28 +111,40 @@
         
         <div class="header-status">
 
-          <!-- Import ASUP button -->
+          <!-- Manual Refresh Button -->
+          <button
+            id="manualRefreshBtn"
+            onclick="manualRefresh()"
+            class="action-btn"
+            style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(0,115,230,0.45); color: #60a5fa; background: rgba(0,115,230,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
+            onmouseover="this.style.background='rgba(0,115,230,0.18)'; this.style.borderColor='rgba(0,115,230,0.7)';"
+            onmouseout="this.style.background='rgba(0,115,230,0.08)'; this.style.borderColor='rgba(0,115,230,0.45)';"
+            onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
+            data-tooltip="Force a full refresh: pulls live data from Active IQ API, re-syncs enrichment (CVEs, version info), and redraws the current view in-place without changing your context.">
+            <svg id="refreshBtnIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span id="refreshBtnText">Refresh</span>
+          </button>
+
+          <!-- Import ASUP Bundle Button -->
           <button
             id="asupImportToolbarBtn"
             onclick="openAsupImportModal()"
-            class="action-btn secondary"
-            style="font-size: 0.78rem; padding: 7px 14px; display: flex; align-items: center; gap: 6px; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08); flex-shrink:0;"
+            class="action-btn"
+            style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
             onmouseover="this.style.background='rgba(168,85,247,0.18)'; this.style.borderColor='rgba(168,85,247,0.7)';"
             onmouseout="this.style.background='rgba(168,85,247,0.08)'; this.style.borderColor='rgba(168,85,247,0.45)';"
-            data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable.">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import ASUP
-          </button>
-
-          <!-- Sync Now button -->
-          <button
-            id="headerSyncBtn"
-            onclick="triggerManualSync()"
-            class="action-btn"
-            style="font-size: 0.78rem; padding: 7px 16px; display: flex; align-items: center; gap: 6px; flex-shrink:0; font-weight:700;"
-            data-tooltip="Force a full re-sync from Active IQ API. Pulls latest system state, risks, firmware baselines, and version catalog. Takes ~60–120 seconds.">
-            <svg id="headerSyncIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            Sync Now
+            onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
+            data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable. Parsed data is persisted to the local database and added to the dashboard.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Import ASUP</span>
           </button>
 
           <div class="status-badge-header">
@@ -249,7 +261,7 @@
         <!-- Node Physical Layout & Port Mapping Graphic -->
         <div id="tamNodeVisualCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
           <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-            <span id="tamNodeVisualCardTitle">Controller Node Port Assignments & Link Topology</span>
+            <span>Controller Node Port Assignments & Link Topology</span>
             <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">Real-time Cabling & Physical Layer (L1) Audit</span>
           </div>
           <div id="tamNodeVisualContainer">
@@ -276,17 +288,6 @@
           </div>
           <div id="tamSvmContainer">
             <!-- Injected dynamically by JS -->
-          </div>
-        </div>
-
-        <!-- Controller & Shelf Firmware Health Card — populated by renderFirmwarePanel() -->
-        <div id="tamFirmwareCard" class="card" style="margin-bottom: 24px; padding: 24px; display: none;">
-          <div class="section-title" style="margin-bottom: 16px; color: var(--accent-cyan); display: flex; align-items: center; justify-content: space-between;">
-            <span>🖥 Controller &amp; Shelf Firmware Health</span>
-            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">SP/BMC · BIOS · IOM/NSM Modules · DQP · Drive Baselines</span>
-          </div>
-          <div id="tamFirmwareContainer">
-            <!-- Injected dynamically by renderFirmwarePanel() -->
           </div>
         </div>
 
@@ -706,28 +707,6 @@
           </div>
           <div class="settings-sync-actions">
             <button class="action-btn secondary" style="font-size: 0.78rem; padding: 7px 14px;" onclick="runAPIDiagnostics()">🔬 Diagnostics</button>
-            <button
-              id="manualRefreshBtn"
-              onclick="manualRefresh()"
-              class="action-btn secondary"
-              style="font-size: 0.78rem; padding: 7px 14px; display: flex; align-items: center; gap: 6px; border-color: rgba(0,115,230,0.45); color: #60a5fa; background: rgba(0,115,230,0.08);"
-              onmouseover="this.style.background='rgba(0,115,230,0.18)'; this.style.borderColor='rgba(0,115,230,0.7)';"
-              onmouseout="this.style.background='rgba(0,115,230,0.08)'; this.style.borderColor='rgba(0,115,230,0.45)';"
-              data-tooltip="Force a full refresh: pulls live data from Active IQ API, re-syncs enrichment (CVEs, version info), and redraws the current view in-place without changing your context.">
-              <svg id="refreshBtnIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-              <span id="refreshBtnText">Refresh</span>
-            </button>
-            <button
-              id="asupImportToolbarBtn"
-              onclick="openAsupImportModal()"
-              class="action-btn secondary"
-              style="font-size: 0.78rem; padding: 7px 14px; display: flex; align-items: center; gap: 6px; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08);"
-              onmouseover="this.style.background='rgba(168,85,247,0.18)'; this.style.borderColor='rgba(168,85,247,0.7)';"
-              onmouseout="this.style.background='rgba(168,85,247,0.08)'; this.style.borderColor='rgba(168,85,247,0.45)';"
-              data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable.">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Import ASUP
-            </button>
             <button class="action-btn" style="font-size: 0.85rem; padding: 9px 20px; font-weight: 700; display: flex; align-items: center; gap: 7px;" onclick="triggerManualSync()">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="syncSpinnerIcon"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               Sync Now

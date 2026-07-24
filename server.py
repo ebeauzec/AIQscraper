@@ -9,7 +9,6 @@ Endpoints:
   GET /api/harvest           — returns cached data if available, triggers background sync
   GET /api/harvest?force=1   — bypasses cache, full re-harvest from API
   GET /api/sync-status       — returns sync metadata (last sync time, counts, is_syncing)
-  GET /api/baselines         — returns firmware_baselines.json (latest GA versions for ONTAP, StorageGRID, SANtricity, etc.)
   GET /api/bulletins         — returns dynamic security bulletin DB (security_bulletins.json)
   POST /api/bulletins        — add/update bulletin entries (called by daily scan agent)
   POST /api/asup/import      — import an ASUP bundle (multipart or raw bytes + X-Filename header)
@@ -57,22 +56,8 @@ SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "aiq_cache.db"
 CONFIG_PATH = SCRIPT_DIR / "aiq_config.json"
 BULLETINS_PATH = SCRIPT_DIR / "security_bulletins.json"
-FW_BASELINES_PATH = SCRIPT_DIR / "firmware_baselines.json"
 GQL_URL = "https://gql.aiq.netapp.com/graphql"
 REST_BASE = "https://api.activeiq.netapp.com"
-
-# ── Ground-truth firmware / OS version baselines (from firmware_baselines.json) ──
-# Loaded once at startup; refreshed by the daily Reference Library scan agent.
-def _load_fw_baselines():
-    try:
-        with open(FW_BASELINES_PATH, "r", encoding="utf-8") as _f:
-            return json.load(_f)
-    except Exception as _e:
-        print(f"[FW_BASELINES] Could not load firmware_baselines.json: {_e}", flush=True)
-        return {}
-
-FIRMWARE_BASELINES = _load_fw_baselines()
-print(f"[FW_BASELINES] Loaded. ONTAP latest GA: {FIRMWARE_BASELINES.get('ontap', {}).get('latestGA', 'unknown')}, StorageGRID: {FIRMWARE_BASELINES.get('storageGrid', {}).get('latestGA', 'unknown')}", flush=True)
 
 # Global sync state
 _sync_lock = threading.Lock()
@@ -668,38 +653,6 @@ def _do_full_harvest(watchlist_ids=None):
                   }
                   latestAsup { asupId generatedDate receivedDate subject type isManual }
                   latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
-                  autoSupports { asupId generatedDate receivedDate subject type isManual }
-                  ... on ONTAPSystem {
-                    capacity {
-                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
-                      logical { usedKiB }
-                      reportedOn
-                    }
-                    monthlyCapacity {
-                      month
-                      physical { rawMarketingKiB usedKiB }
-                      logical { usedKiB }
-                    }
-                  }"""
-
-        # ── ULTRA_SAFE: absolute minimum — no Float ratio/pct fields at all.
-        #    Only used when MINIMAL also returns a NaN error (very rare edge case
-        #    where even usedKiB triggers a bug on a specific API build).
-        SYSTEMS_FIELDS_ULTRA_SAFE = """
-                  hostName systemId serialNumber osVersion recommendedOSVersion
-                  type platformType ageInYears serviceTier incumbentResellerCompany
-                  customer { id name }
-                  site { id name city countryCode postalCode state }
-                  hardwareModel { name endOfAvailability endOfSupport }
-                  contactPerson { firstName lastName phone email }
-                  contract {
-                    softwareContractStartDate hardwareContractStartDate
-                    expiryDate softwareContractEndDate hardwareContractEndDate
-                    overallContractEndDate isContractActive
-                    hardwareServiceLevel hardwareWarrantyEndDate
-                  }
-                  latestAsup { asupId generatedDate receivedDate subject type isManual }
-                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
                   autoSupports { asupId generatedDate receivedDate subject type isManual }"""
 
         # ── Extended: original + safe additional fields ──
@@ -736,20 +689,7 @@ def _do_full_harvest(watchlist_ids=None):
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
-                    systemFirmware { type currentVersion recommendedVersion autoUpdateEligible postingDate }
-                    motherboardFirmware { currentVersion recommendedVersion postingDate }
-                    diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
-                    drivesSummary { driveModel model count firmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }
-                    shelves {
-                      shelfId serialNumber
-                      hardwareModel { name endOfAvailability endOfHwSupport }
-                      moduleHardwareModel { name }
-                      shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
-                      drives {
-                        totalCount
-                        drives { firmwareRevision vendor hardwareModel { name } }
-                      }
-                    }
+                    systemFirmware { type currentVersion recommendedVersion }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -764,83 +704,6 @@ def _do_full_harvest(watchlist_ids=None):
                       physical { rawMarketingKiB usedKiB utilizationPercentage qoqUtilizationPercentage }
                       logical { usedKiB }
                       efficiency { ratio { efficiencyRatio dataReductionRatio } }
-                    }
-                  }"""
-
-        # ── TAM_SAFE: same as TAM but omits ALL fields that the AIQ API can
-        #    return as NaN when a system has no capacity/telemetry history.
-        #    GQL spec forbids NaN in JSON floats — one NaN field poisons the
-        #    entire page response: "Float cannot represent non numeric value: NaN".
-        #
-        #    Known NaN sources (all are derived ratio/delta fields, undefined
-        #    when the divisor — a prior period or total — is zero/absent):
-        #      • efficiency.ratio.*          — data-reduction ratios (no capacity history)
-        #      • capacity.physical.qoqUtilizationPercentage — QoQ delta (no prior quarter)
-        #      • capacity.physical.yoyUtilizationPercentage — YoY delta (no prior year)
-        #      • monthlyCapacity[].physical.qoqUtilizationPercentage — same, monthly
-        #      • monthlyCapacity[].efficiency.ratio.* — same as efficiency.ratio above
-        #
-        #    All absolute capacity values, firmware, lifecycle, contract, ASUP,
-        #    and every other TAM-enriched field are preserved.
-        SYSTEMS_FIELDS_TAM_SAFE = """
-                  hostName systemId serialNumber osVersion recommendedOSVersion
-                  type platformType productType ageInYears serviceTier
-                  techRefreshStatus incumbentResellerCompany
-                  isFabricPool hasPvr
-                  customer { id name }
-                  site { id name city countryCode postalCode state }
-                  nagp { id name }
-                  hardwareModel { name modelRevision endOfAvailability endOfSupport }
-                  contactPerson { firstName lastName phone email }
-                  salesRepresentative { name emailAddress managerEmailAddress }
-                  csm { name emailAddress }
-                  sam { name emailAddress }
-                  gard { worldwide geo area region district territory }
-                  authorizedSupportPartner { name endDate }
-                  domesticParent { id name }
-                  contract {
-                    softwareContractId hardwareContractId
-                    softwareContractStartDate hardwareContractStartDate
-                    expiryDate softwareContractEndDate hardwareContractEndDate
-                    nrdContractEndDate overallContractEndDate isContractActive
-                    hardwareServiceLevel hardwareWarrantyEndDate hardwareWarrantyStartDate
-                  }
-                  autoSupportConfig { autoSupportStatus isAutoSupportOnDemandEnabled isAutoSupportOnDemandCapable autoSupportTransport systemDomain }
-                  latestAsup { asupId generatedDate receivedDate subject type isManual }
-                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
-                  autoSupports { asupId generatedDate receivedDate subject type isManual }
-                  ... on ONTAPSystem {
-                    isMetroCluster isAllFlashOptimized operatingMode
-                    propensityCategory serviceProcessorIPAddress
-                    isARPEnabled autoUpdateEnabled nextBestAction
-                    lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
-                    swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
-                    systemFirmware { type currentVersion recommendedVersion autoUpdateEligible postingDate }
-                    motherboardFirmware { currentVersion recommendedVersion postingDate }
-                    diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
-                    drivesSummary { driveModel model count firmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }
-                    shelves {
-                      shelfId serialNumber
-                      hardwareModel { name endOfAvailability endOfHwSupport }
-                      moduleHardwareModel { name }
-                      shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
-                      drives {
-                        totalCount
-                        drives { firmwareRevision vendor hardwareModel { name } }
-                      }
-                    }
-                    capacity {
-                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB }
-                      logical { usedKiB usedWithoutSnapshotsClonesKiB }
-                      efficiency {
-                        saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
-                      }
-                      reportedOn
-                    }
-                    monthlyCapacity {
-                      month
-                      physical { rawMarketingKiB usedKiB }
-                      logical { usedKiB }
                     }
                   }"""
 
@@ -893,20 +756,12 @@ def _do_full_harvest(watchlist_ids=None):
 
         _PRIVILEGE_PHRASES = ("unfiltered_system_access", "mandatory argument", "privilege")
 
-        _NAN_PHRASE = "float cannot represent non numeric value: nan"
-
         def _fetch_systems_for_scope(fields, scope_wl_id=None):
-            """Fetch all systems pages for a given fields set and optional watchlist scope.
-
-            Returns (systems, privilege_blocked, nan_error).
-            nan_error is True when the API refused the request specifically because a
-            Float field returned NaN — the caller should retry with TAM_SAFE fields.
-            """
+            """Fetch all systems pages for a given fields set and optional watchlist scope."""
             systems = []
             cursor = None
             page = 0
             privilege_blocked = False
-            nan_error = False
             while True:
                 page += 1
                 after_arg = f', after: "{cursor}"' if cursor else ""
@@ -926,16 +781,12 @@ def _do_full_harvest(watchlist_ids=None):
                 if not isinstance(sys_resp, dict):
                     print(f"  [HARVEST] Systems GQL: non-dict response (network error?), stopping pagination", flush=True)
                     break
-                # Detect privilege block or NaN error or watchlist-not-found errors
+                # Detect privilege block or watchlist-not-found errors
                 if sys_resp.get("errors"):
                     err_msg = sys_resp["errors"][0].get("message", "")
                     if any(p in err_msg.lower() for p in _PRIVILEGE_PHRASES):
                         print(f"  [HARVEST] Privilege block detected: {err_msg[:120]}", flush=True)
                         privilege_blocked = True
-                        break
-                    elif _NAN_PHRASE in err_msg.lower():
-                        print(f"  [HARVEST] NaN float error in GQL response — will retry with next field tier", flush=True)
-                        nan_error = True
                         break
                     elif "does not exist" in err_msg.lower() or "not found" in err_msg.lower():
                         print(f"  [HARVEST] Watchlist not found (stale ID?): {err_msg[:200]}", flush=True)
@@ -953,34 +804,21 @@ def _do_full_harvest(watchlist_ids=None):
                 if not page_systems or not new_cursor or new_cursor == cursor:
                     break
                 cursor = new_cursor
-            return systems, privilege_blocked, nan_error
+            return systems, privilege_blocked
 
-        # Four-tier fallback: TAM (full) → TAM_SAFE (NaN-proof) → MINIMAL → ULTRA_SAFE
-        # TAM_SAFE removes all ratio/delta Float fields that can be NaN.
-        # MINIMAL removes utilizationPercentage too (can be NaN for brand-new systems).
-        # ULTRA_SAFE is the last resort: no Float fields at all — guaranteed to work.
-        _FIELD_TIERS = [
-            (SYSTEMS_FIELDS_TAM,        "Expanded TAM"),
-            (SYSTEMS_FIELDS_TAM_SAFE,   "TAM-safe (NaN-proof)"),
-            (SYSTEMS_FIELDS_MINIMAL,    "Minimal"),
-            (SYSTEMS_FIELDS_ULTRA_SAFE, "Ultra-safe (no floats)"),
-        ]
+        # Try expanded first, fall back to minimal
         all_systems = []
         used_tam_query = False
-
-        for attempt, (fields, tier_label) in enumerate(_FIELD_TIERS):
+        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
             all_systems = []
-            _any_nan = False  # set if any scope call raises a NaN error on this tier
+
 
             # First: try with configured watchlist_ids (fetching + deduplicating across all)
             if watchlist_ids:
-                print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s) [{tier_label}]...", flush=True)
+                print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s)...", flush=True)
                 seen_serials = set()
                 for wl_id_cfg in watchlist_ids:
-                    wl_systems, wl_blocked, wl_nan = _fetch_systems_for_scope(fields, wl_id_cfg)
-                    if wl_nan:
-                        _any_nan = True
-                        break
+                    wl_systems, wl_blocked = _fetch_systems_for_scope(fields, wl_id_cfg)
                     for s in wl_systems:
                         sn = s.get("serialNumber", "")
                         if sn not in seen_serials:
@@ -988,56 +826,44 @@ def _do_full_harvest(watchlist_ids=None):
                             all_systems.append(s)
                     if wl_blocked:
                         print(f"  [HARVEST] Privilege block on watchlist {wl_id_cfg} (skipping)", flush=True)
-                blocked = len(all_systems) == 0 and not _any_nan
+                blocked = len(all_systems) == 0
                 fetched = all_systems[:]
             else:
-                fetched, blocked, _any_nan = _fetch_systems_for_scope(fields, None)
+                fetched, blocked = _fetch_systems_for_scope(fields, None)
                 # ── BUG FIX: assign the unfiltered result to all_systems ──────
                 # Previously `fetched` was populated but `all_systems` stayed []
                 # causing the server to always store 0 systems even when the API
                 # returned hundreds of systems.
                 all_systems = list(fetched)
 
-            # NaN error: skip straight to next tier (TAM_SAFE or MINIMAL)
-            if _any_nan:
-                print(f"  [HARVEST] WARNING: {tier_label} query hit NaN serialisation error — falling back to next tier...", flush=True)
-                continue
-
-            # If blocked by privilege OR returned 0 systems, retry with auto-discovered watchlists.
+            # If blocked by privilege OR returned 0 systems (outside corp network the API
+            # returns success+empty instead of a privilege error), retry with auto-discovered watchlists.
+            # Also retry if configured watchlist_ids produced 0 (they may be stale/invalid).
             if (blocked or len(all_systems) == 0) and _early_watchlists:
                 already_tried = set(watchlist_ids or [])
                 new_wls = [w for w in _early_watchlists if w not in already_tried]
                 if new_wls:
-                    reason = 'privilege block' if blocked else '0 systems from unfiltered/configured query'
-                    print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) [{tier_label}] (reason: {reason})...", flush=True)
+                    print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) (reason: {'privilege block' if blocked else '0 systems from unfiltered/configured query'})...", flush=True)
                     seen_serials = {s.get('serialNumber', '') for s in all_systems}
                     for wl_id_auto in new_wls:
-                        wl_systems, _, wl_nan2 = _fetch_systems_for_scope(fields, wl_id_auto)
-                        if wl_nan2:
-                            _any_nan = True
-                            break
+                        wl_systems, _ = _fetch_systems_for_scope(fields, wl_id_auto)
                         for s in wl_systems:
                             sn = s.get("serialNumber", "")
                             if sn not in seen_serials:
                                 seen_serials.add(sn)
                                 all_systems.append(s)
-                    if _any_nan:
-                        print(f"  [HARVEST] WARNING: {tier_label} watchlist retry also hit NaN — falling back to next tier...", flush=True)
-                        continue
-                    print(f"  [HARVEST] Combined from watchlists [{tier_label}]: {len(all_systems)} unique systems", flush=True)
+                    print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
+
 
             if len(all_systems) > 0:
                 if attempt == 0:
                     used_tam_query = True
-                    print(f"  [HARVEST] {tier_label} query succeeded: {len(all_systems)} systems", flush=True)
-                elif attempt == 1:
-                    used_tam_query = True  # TAM_SAFE still gives rich data
-                    print(f"  [HARVEST] {tier_label} query succeeded: {len(all_systems)} systems (efficiency ratios excluded)", flush=True)
+                    print(f"  [HARVEST] Expanded TAM query succeeded: {len(all_systems)} systems", flush=True)
                 else:
-                    print(f"  [HARVEST] {tier_label} query succeeded: {len(all_systems)} systems", flush=True)
+                    print(f"  [HARVEST] Minimal query succeeded: {len(all_systems)} systems", flush=True)
                 break
-            elif attempt < len(_FIELD_TIERS) - 1:
-                print(f"  [HARVEST] WARNING: {tier_label} query returned 0 systems — trying next tier...", flush=True)
+            elif attempt == 0:
+                print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
 
 
 
@@ -1074,10 +900,7 @@ def _do_full_harvest(watchlist_ids=None):
                   }
                   shelves {
                     serialNumber
-                    shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
-                    moduleHardwareModel { name }
-                    shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate }
                   }
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
@@ -1132,7 +955,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } shelfFirmware { currentVersion recommendedVersion autoUpdateEligible postingDate } }'
+                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
@@ -1298,130 +1121,23 @@ def _do_full_harvest(watchlist_ids=None):
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
 
-        # ── TAM: OS Version Catalog (paginated — fetches ALL pages) ──
+        # ── TAM: OS Version Catalog ──
         tam_os_versions = []
         try:
-            print("  [HARVEST] Fetching OS version catalog (paginated)...", flush=True)
-            _osv_cursor = None
-            _osv_page = 0
-            _osv_max_pages = 25  # safety cap (~5000 entries max)
-            _osv_fields = """
+            print("  [HARVEST] Fetching OS version catalog...", flush=True)
+            _, osv_resp = _gql(token, """{ osVersions(pageSize: 500) { osVersions {
                 osVersion majorOsVersion osType operatingMode
                 releaseDate endOfVersionFullSupport endOfVersionLimitedSupport endOfSelfServiceSupport
                 supportState progressionPath
                 bundledSystemFirmwares { type version biosVersion systemModel }
                 bundledDriveFirmwares { driveModel version }
                 bundledShelfFirmwares { shelfName shelfModuleName firmwareType shelfModuleFirmwareVersion sysShelfModuleFirmwareVersion }
-                bundledSecurityFiles { fileType version }"""
-            while _osv_page < _osv_max_pages:
-                _after_arg = f', after: "{_osv_cursor}"' if _osv_cursor else ""
-                _osv_query = (
-                    "{ osVersions(pageSize: 200" + _after_arg + """) {
-                    cursor
-                    osVersions {""" + _osv_fields + """
-                    }
-                } }"""
-                )
-                _, _osv_resp = _gql(token, _osv_query)
-                _osv_page += 1
-                if not isinstance(_osv_resp, dict):
-                    break
-                _osv_data = ((_osv_resp.get("data") or {}).get("osVersions") or {})
-                _osv_page_items = _osv_data.get("osVersions") or []
-                if not _osv_page_items:
-                    break
-                tam_os_versions.extend(_osv_page_items)
-                _new_cursor = _osv_data.get("cursor")
-                if not _new_cursor or _new_cursor == _osv_cursor:
-                    break  # no more pages
-                _osv_cursor = _new_cursor
-            print(f"  [HARVEST] OS versions: {len(tam_os_versions)} (across {_osv_page} page(s))", flush=True)
+                bundledSecurityFiles { fileType version }
+            } } }""")
+            tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or [] if isinstance(osv_resp, dict) else []
+            print(f"  [HARVEST] OS versions: {len(tam_os_versions)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: OS versions failed: {e}", flush=True)
-
-        # ── Fleet-level Firmware Queries ──
-        # These root-level queries return recommended firmware versions across the
-        # entire account/estate. Per-system firmware fields (systemFirmware,
-        # motherboardFirmware) are often null, but these always return data.
-        fleet_sp_firmware   = []  # [{firmwareType, firmwareVersion, status, priority, systemsSummary}]
-        fleet_drive_fw      = []  # [{driveModel, firmwareVersion, status, priority, systemsSummary}]
-        fleet_shelf_fw      = []  # [{shelfModuleName, firmwareVersion, status, priority, systemsSummary}]
-        fleet_dqp           = []  # [{version, status, priority, systemsSummary}]
-        try:
-            print("  [HARVEST] Fetching fleet SP/BMC firmware recommendations...", flush=True)
-            _, _sfw_resp = _gql(token, """{ systemFirmwares(pageSize: 50) {
-                firmwareType firmwareVersion status priority creationDate
-                systemsSummary { totalSystems upToDate notUpToDate }
-            } }""")
-            if isinstance(_sfw_resp, dict) and not _sfw_resp.get("errors"):
-                fleet_sp_firmware = ((_sfw_resp.get("data") or {}).get("systemFirmwares") or [])
-            print(f"  [HARVEST] Fleet SP firmware entries: {len(fleet_sp_firmware)}", flush=True)
-        except Exception as e:
-            print(f"  [HARVEST] WARNING: Fleet SP firmware failed: {e}", flush=True)
-
-        try:
-            print("  [HARVEST] Fetching fleet drive firmware recommendations...", flush=True)
-            _, _dfw_resp = _gql(token, """{ driveFirmwares(pageSize: 200) {
-                driveModel firmwareVersion status priority creationDate
-                systemsSummary { totalSystems upToDate notUpToDate }
-            } }""")
-            if isinstance(_dfw_resp, dict) and not _dfw_resp.get("errors"):
-                fleet_drive_fw = ((_dfw_resp.get("data") or {}).get("driveFirmwares") or [])
-            print(f"  [HARVEST] Fleet drive firmware entries: {len(fleet_drive_fw)}", flush=True)
-        except Exception as e:
-            print(f"  [HARVEST] WARNING: Fleet drive firmware failed: {e}", flush=True)
-
-        try:
-            print("  [HARVEST] Fetching fleet shelf firmware recommendations...", flush=True)
-            _, _shfw_resp = _gql(token, """{ shelfFirmwares(pageSize: 100) {
-                shelfModuleName firmwareVersion status priority creationDate
-                systemsSummary { totalSystems upToDate notUpToDate }
-            } }""")
-            if isinstance(_shfw_resp, dict) and not _shfw_resp.get("errors"):
-                fleet_shelf_fw = ((_shfw_resp.get("data") or {}).get("shelfFirmwares") or [])
-            print(f"  [HARVEST] Fleet shelf firmware entries: {len(fleet_shelf_fw)}", flush=True)
-        except Exception as e:
-            print(f"  [HARVEST] WARNING: Fleet shelf firmware failed: {e}", flush=True)
-
-        try:
-            print("  [HARVEST] Fetching fleet DQP recommendations...", flush=True)
-            _, _dqp_resp = _gql(token, """{ diskQualificationPackages(pageSize: 20) {
-                version status priority creationDate
-                systemsSummary { totalSystems upToDate notUpToDate }
-            } }""")
-            if isinstance(_dqp_resp, dict) and not _dqp_resp.get("errors"):
-                fleet_dqp = ((_dqp_resp.get("data") or {}).get("diskQualificationPackages") or [])
-            print(f"  [HARVEST] Fleet DQP entries: {len(fleet_dqp)}", flush=True)
-        except Exception as e:
-            print(f"  [HARVEST] WARNING: Fleet DQP failed: {e}", flush=True)
-
-        # Build fast lookup maps for fleet firmware
-        # SP/BMC: firmwareType → {firmwareVersion, status, priority, systemsSummary}
-        _fleet_sp_map = {}
-        for _f in fleet_sp_firmware:
-            _ft = (_f.get("firmwareType") or "").upper()
-            # Keep highest-priority (CRITICAL > RECOMMENDED > OPTIONAL) entry per type
-            _pri_order = {"CRITICAL": 0, "RECOMMENDED": 1, "OPTIONAL": 2}
-            if _ft not in _fleet_sp_map or _pri_order.get(_f.get("priority", "").upper(), 9) < _pri_order.get(_fleet_sp_map[_ft].get("priority", "").upper(), 9):
-                _fleet_sp_map[_ft] = _f
-        # Drive: driveModel → {firmwareVersion, status, priority}
-        _fleet_drive_map = {}
-        for _f in fleet_drive_fw:
-            _dm = (_f.get("driveModel") or "").upper()
-            if _dm:
-                _fleet_drive_map[_dm] = _f
-        # Shelf: shelfModuleName → {firmwareVersion, status, priority}
-        _fleet_shelf_map = {}
-        for _f in fleet_shelf_fw:
-            _sm = (_f.get("shelfModuleName") or "").upper()
-            if _sm:
-                _fleet_shelf_map[_sm] = _f
-        # DQP: latest recommended version
-        _fleet_dqp_latest = None
-        for _f in fleet_dqp:
-            _pri_order = {"CRITICAL": 0, "RECOMMENDED": 1, "OPTIONAL": 2}
-            if _fleet_dqp_latest is None or _pri_order.get((_f.get("priority") or "").upper(), 9) < _pri_order.get((_fleet_dqp_latest.get("priority") or "").upper(), 9):
-                _fleet_dqp_latest = _f
 
         # ── TAM: Contract Renewals with Lifecycle Events ──
         tam_renewals = []
@@ -1519,130 +1235,6 @@ def _do_full_harvest(watchlist_ids=None):
         
         total_sw = sum(len(v) for v in serial_to_cluster_switches.values())
         print(f"  [HARVEST] Switch instances mapped: {total_sw // max(len(serial_to_cluster_switches), 1)} unique across clusters", flush=True)
-
-        # 12b. REST capacity backfill ─────────────────────────────────────────
-        # The per-system GQL capacity fragment (... on ONTAPSystem { capacity {} })
-        # returns null/zero for accounts where ASUP telemetry isn't flowing into the
-        # AIQ backend.  The REST v2 capacity endpoint is a separate data path that
-        # often succeeds when GQL does not.
-        #
-        # Endpoint tried (in order):
-        #   GET /v2/capacity/summary/level/system/id/{serial}
-        #   GET /v1/capacity/details/level/system/id/{serial}   (legacy, same data)
-        #   GET /v2/efficiency/summary/level/system/id/{serial} (efficiency fields)
-        #
-        # Response shape (v2/capacity/summary):
-        #   { "capacity": { "raw": <TB>, "used": <TB>, "available": <TB>,
-        #                   "rawKib": <KiB>, "usedKib": <KiB>,
-        #                   "utilizationPercent": <float>,
-        #                   "qoqUtilizationPercent": <float>,
-        #                   "yoyUtilizationPercent": <float>,
-        #                   "reportedDate": "YYYY-MM-DD",
-        #                   "monthlyCapacityList": [{month, usedTB, rawTB, qoqPct}] } }
-        # Field names vary slightly by API version — we check multiple keys.
-        serial_to_rest_cap = {}
-        _cap_auth_hdr = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-        _zero_cap_serials = [
-            s.get("serialNumber", "") for s in all_systems
-            if not (s.get("capacity") or {}).get("physical", {}).get("rawMarketingKiB")
-            and s.get("serialNumber")
-        ]
-        if _zero_cap_serials:
-            print(f"  [HARVEST] REST capacity backfill: {len(_zero_cap_serials)} systems have zero GQL capacity — querying REST...", flush=True)
-            _rest_cap_hits = 0
-            for _sn in _zero_cap_serials:
-                _rest_data = {}
-                # Try multiple endpoint variants
-                for _cap_path in [
-                    f"/v2/capacity/summary/level/system/id/{_sn}",
-                    f"/v1/capacity/details/level/system/id/{_sn}",
-                ]:
-                    try:
-                        _st, _raw = _http("GET", f"{REST_BASE}{_cap_path}", _cap_auth_hdr)
-                        if _st == 200:
-                            _parsed = json.loads(_raw.decode("utf-8", errors="replace"))
-                            # Flatten: response may be wrapped in {"capacity": {...}} or direct
-                            _cap_block = _parsed.get("capacity") or _parsed.get("data") or _parsed
-                            if isinstance(_cap_block, dict) and (
-                                _cap_block.get("raw") or _cap_block.get("rawKib") or
-                                _cap_block.get("rawMarketingKiB") or _cap_block.get("rawTb")
-                            ):
-                                _rest_data = _cap_block
-                                break
-                    except Exception:
-                        pass
-
-                if _rest_data:
-                    # Normalise all known field-name variants → common keys (KiB)
-                    def _to_kib(val_tb=None, val_kib=None, val_kb=None):
-                        if val_kib:  return float(val_kib)
-                        if val_tb:   return float(val_tb)  * (1024**3)
-                        if val_kb:   return float(val_kb)  * 1024
-                        return 0.0
-
-                    _r_raw_kib  = _to_kib(
-                        val_tb  = _rest_data.get("raw")  or _rest_data.get("rawTb"),
-                        val_kib = _rest_data.get("rawKib") or _rest_data.get("rawMarketingKiB"),
-                    )
-                    _r_used_kib = _to_kib(
-                        val_tb  = _rest_data.get("used") or _rest_data.get("usedTb"),
-                        val_kib = _rest_data.get("usedKib") or _rest_data.get("usedKiB"),
-                    )
-                    _r_avail_kib = _to_kib(
-                        val_tb  = _rest_data.get("available") or _rest_data.get("availableTb"),
-                        val_kib = _rest_data.get("availableKib") or _rest_data.get("availableKiB"),
-                    )
-                    _r_usbl_kib = _to_kib(
-                        val_tb  = _rest_data.get("usable") or _rest_data.get("usableTb"),
-                        val_kib = _rest_data.get("usableKib"),
-                    ) or (_r_raw_kib - _r_avail_kib if _r_raw_kib and _r_avail_kib else 0)
-                    _r_util = (
-                        _rest_data.get("utilizationPercent") or
-                        _rest_data.get("utilization") or
-                        _rest_data.get("utilizationPercentage") or 0
-                    )
-                    _r_qoq = (
-                        _rest_data.get("qoqUtilizationPercent") or
-                        _rest_data.get("qoqUtilization") or
-                        _rest_data.get("qoqUtilizationPercentage") or 0
-                    )
-                    _r_yoy = (
-                        _rest_data.get("yoyUtilizationPercent") or
-                        _rest_data.get("yoyUtilization") or
-                        _rest_data.get("yoyUtilizationPercentage") or 0
-                    )
-                    _r_reported = (
-                        _rest_data.get("reportedDate") or
-                        _rest_data.get("reportedOn") or
-                        _rest_data.get("reportDate") or ""
-                    )[:10]
-                    # Monthly capacity list
-                    _r_monthly = []
-                    for _rm in (_rest_data.get("monthlyCapacityList") or
-                                _rest_data.get("monthlyCapacity") or []):
-                        _r_monthly.append({
-                            "month":   _rm.get("month", ""),
-                            "usedTB":  _rm.get("usedTB") or _rm.get("used") or 0,
-                            "rawTB":   _rm.get("rawTB")  or _rm.get("raw")  or 0,
-                            "qoqPct":  _rm.get("qoqPct") or _rm.get("qoqUtilizationPercent") or None,
-                        })
-
-                    if _r_raw_kib > 0:
-                        serial_to_rest_cap[_sn] = {
-                            "rawKiB":       _r_raw_kib,
-                            "usedKiB":      _r_used_kib,
-                            "usableKiB":    _r_usbl_kib,
-                            "utilPct":      _r_util,
-                            "qoqPct":       _r_qoq,
-                            "yoyPct":       _r_yoy,
-                            "reportedOn":   _r_reported,
-                            "monthly":      _r_monthly,
-                        }
-                        _rest_cap_hits += 1
-
-            print(f"  [HARVEST] REST capacity backfill: {_rest_cap_hits}/{len(_zero_cap_serials)} systems populated", flush=True)
-        else:
-            print(f"  [HARVEST] REST capacity backfill: skipped (all systems have GQL capacity data)", flush=True)
 
         # 13. Build final systems output (with full TAM enrichment)
         systems_out = []
@@ -1769,236 +1361,17 @@ def _do_full_harvest(watchlist_ids=None):
                     "isDiscovered":      is_discovered,
                 })
 
-            # ── Build shelves_out from per-system GQL data (includes live drive firmware) ──
-            # Per-system shelves contain: shelfId, serialNumber, hardwareModel, moduleHardwareModel,
-            # and drives { totalCount, drives [ { firmwareRevision, vendor, hardwareModel { name } } ] }
-            # Cluster-level shelves add: endOfAvailability, endOfHwSupport, shelfFirmware (live)
-            _per_sys_shelves_raw = s.get("shelves") or []
-            shelves_out = []
-            for psh in _per_sys_shelves_raw:
-                phm  = psh.get("hardwareModel") or {}
-                pmhm = psh.get("moduleHardwareModel") or {}
-                # Extract live shelfFirmware from per-system GQL (newly added field)
-                _psh_live_shfw = psh.get("shelfFirmware") or {}
-                # Extract per-drive firmware inventory from per-system data
-                _psh_drives_block = psh.get("drives") or {}
-                _psh_drives_list  = _psh_drives_block.get("drives") or [] if isinstance(_psh_drives_block, dict) else []
-                _psh_drive_count  = _psh_drives_block.get("totalCount") or len(_psh_drives_list) if isinstance(_psh_drives_block, dict) else 0
-                _psh_drive_fw = []
-                for _drv in _psh_drives_list:
-                    _drv_model = (_drv.get("hardwareModel") or {}).get("name", "") or ""
-                    _drv_fw_rev = _drv.get("firmwareRevision", "") or ""
-                    _drv_vendor = _drv.get("vendor", "") or ""
-                    if _drv_model or _drv_fw_rev:
-                        _psh_drive_fw.append({
-                            "driveModel": _drv_model,
-                            "firmwareRevision": _drv_fw_rev,
-                            "vendor": _drv_vendor,
-                        })
-                shelves_out.append({
-                    "serialNumber": psh.get("serialNumber", ""),
-                    "shelfId": psh.get("shelfId", ""),
-                    "model": phm.get("name", ""),
-                    "endOfAvailability": phm.get("endOfAvailability", ""),
-                    "endOfHwSupport": phm.get("endOfHwSupport", ""),
-                    "moduleType": pmhm.get("name", "") or psh.get("moduleType", ""),
-                    # Drive firmware collected live from per-system GQL
-                    "drives": _psh_drive_fw,
-                    "driveCount": _psh_drive_count,
-                    # shelfFirmware: live from per-system GQL (preferred); cluster merge may add more
-                    "firmwareVersion": _psh_live_shfw.get("currentVersion", "") or psh.get("firmwareVersion", ""),
-                    "recommendedFirmwareVersion": _psh_live_shfw.get("recommendedVersion", "") or psh.get("recommendedFirmwareVersion", ""),
-                    "shelfFirmwareAutoUpdate": _psh_live_shfw.get("autoUpdateEligible"),
-                    "shelfFirmwarePostingDate": _psh_live_shfw.get("postingDate", ""),
-                })
-
-            # ── Merge cluster-level shelves (adds EOS dates + live shelfFirmware) ──
-            # Build lookup by serialNumber for merge
-            _sh_by_serial = {sh["serialNumber"]: sh for sh in shelves_out if sh.get("serialNumber")}
+            # Merge cluster-level shelves
             cl_shelves = serial_to_cluster_shelves.get(serial, [])
+            shelves_out = s.get("shelves") or []
             for csh in cl_shelves:
-                hm  = csh.get("hardwareModel") or {}
-                mhm = csh.get("moduleHardwareModel") or {}
-                _live_shfw = csh.get("shelfFirmware") or {}
-                csh_serial = csh.get("serialNumber", "")
-                if csh_serial and csh_serial in _sh_by_serial:
-                    # Merge EOS dates and live shelf firmware into existing entry
-                    _existing = _sh_by_serial[csh_serial]
-                    if not _existing.get("endOfAvailability"):
-                        _existing["endOfAvailability"] = hm.get("endOfAvailability", "")
-                    if not _existing.get("endOfHwSupport"):
-                        _existing["endOfHwSupport"] = hm.get("endOfHwSupport", "")
-                    if not _existing.get("moduleType"):
-                        _existing["moduleType"] = mhm.get("name", "")
-                    if _live_shfw.get("currentVersion") and not _existing.get("firmwareVersion"):
-                        _existing["firmwareVersion"] = _live_shfw.get("currentVersion", "")
-                    if _live_shfw.get("recommendedVersion") and not _existing.get("recommendedFirmwareVersion"):
-                        _existing["recommendedFirmwareVersion"] = _live_shfw.get("recommendedVersion", "")
-                    if _live_shfw.get("autoUpdateEligible") is not None:
-                        _existing["shelfFirmwareAutoUpdate"] = _live_shfw.get("autoUpdateEligible")
-                    if _live_shfw.get("postingDate"):
-                        _existing["shelfFirmwarePostingDate"] = _live_shfw.get("postingDate", "")
-                else:
-                    # Cluster-level-only shelf (not in per-system data): add with live firmware
-                    shelves_out.append({
-                        "serialNumber": csh_serial,
-                        "shelfId": csh.get("shelfId", ""),
-                        "model": hm.get("name", ""),
-                        "endOfAvailability": hm.get("endOfAvailability", ""),
-                        "endOfHwSupport": hm.get("endOfHwSupport", ""),
-                        "moduleType": mhm.get("name", "") or csh.get("moduleType", ""),
-                        "drives": [],
-                        "driveCount": 0,
-                        "firmwareVersion": _live_shfw.get("currentVersion", "") or csh.get("firmwareVersion", ""),
-                        "recommendedFirmwareVersion": _live_shfw.get("recommendedVersion", "") or csh.get("recommendedFirmwareVersion", ""),
-                        "shelfFirmwareAutoUpdate": _live_shfw.get("autoUpdateEligible"),
-                        "shelfFirmwarePostingDate": _live_shfw.get("postingDate", ""),
-                    })
-
-            # ── Cross-reference firmware baselines from OS version catalog ──
-            _os_ver_raw = s.get("osVersion") or ""
-            _model_name = hw.get("name", "").upper()
-            # Find matching catalog entry with progressive fuzzy fallback:
-            #   1. Exact match  (e.g. 9.16.1P11)
-            #   2. Base without patch suffix  (e.g. 9.16.1)
-            #   3. Closest lower version in same major.minor  (e.g. latest 9.16.x)
-            #   4. Closest lower version in same major  (e.g. latest 9.x)
-            _os_fw_entry = None
-            _os_ver_base = _os_ver_raw.split("P")[0] if "P" in _os_ver_raw else _os_ver_raw
-            # Derive major.minor prefix for fuzzy matching (e.g. "9.16" from "9.16.1P11")
-            _ver_parts = _os_ver_raw.split(".")
-            _os_ver_minor_prefix = ".".join(_ver_parts[:2]) if len(_ver_parts) >= 2 else ""
-            _os_ver_major_prefix = _ver_parts[0] if _ver_parts else ""
-            # Semantic version sort key: converts '9.13.1P4' → (9,13,1,4) for correct ordering
-            def _semver_key(entry):
-                import re as _re
-                raw = (entry.get("osVersion") or "")
-                nums = [int(n) for n in _re.split(r'[.P]', raw) if n.isdigit()]
-                return tuple(nums)
-            # Pass 1: exact
-            for _ov in (tam_os_versions or []):
-                if _ov.get("osVersion") == _os_ver_raw:
-                    _os_fw_entry = _ov
-                    break
-            # Pass 2: base (strip patch)
-            if not _os_fw_entry and _os_ver_base:
-                for _ov in (tam_os_versions or []):
-                    if _ov.get("osVersion") == _os_ver_base:
-                        _os_fw_entry = _ov
-                        break
-            # Pass 3: closest available entry in same major.minor branch
-            if not _os_fw_entry and _os_ver_minor_prefix:
-                _branch_candidates = [
-                    _ov for _ov in (tam_os_versions or [])
-                    if (_ov.get("osVersion") or "").startswith(_os_ver_minor_prefix)
-                    and (_ov.get("bundledSystemFirmwares") or [])
-                ]
-                if _branch_candidates:
-                    # Pick the entry with the highest semantic version
-                    _os_fw_entry = max(_branch_candidates, key=_semver_key)
-            # Pass 4: closest available entry in same major ONTAP version
-            if not _os_fw_entry and _os_ver_major_prefix:
-                _major_candidates = [
-                    _ov for _ov in (tam_os_versions or [])
-                    if (_ov.get("osVersion") or "").startswith(_os_ver_major_prefix + ".")
-                    and (_ov.get("bundledSystemFirmwares") or [])
-                ]
-                if _major_candidates:
-                    _os_fw_entry = max(_major_candidates, key=_semver_key)
-            # SP / BMC firmware baseline (matched by hardware model name)
-            _sp_fw_baseline = {}
-            _bios_fw_ver = ""
-            if _os_fw_entry:
-                for _bfw in (_os_fw_entry.get("bundledSystemFirmwares") or []):
-                    _bfw_model = (_bfw.get("systemModel") or "").upper()
-                    if not _bfw_model or _bfw_model in _model_name or any(
-                        part in _model_name for part in _bfw_model.split("-") if len(part) > 2
-                    ):
-                        _sp_fw_baseline = {
-                            "type": _bfw.get("type", "SP"),
-                            "version": _bfw.get("version", ""),
-                            "biosVersion": _bfw.get("biosVersion", ""),
-                        }
-                        _bios_fw_ver = _bfw.get("biosVersion", "")
-                        break
-                if not _sp_fw_baseline and (_os_fw_entry.get("bundledSystemFirmwares") or []):
-                    # Fall back to first entry if no model match
-                    _bfw0 = _os_fw_entry["bundledSystemFirmwares"][0]
-                    _sp_fw_baseline = {
-                        "type": _bfw0.get("type", "SP"),
-                        "version": _bfw0.get("version", ""),
-                        "biosVersion": _bfw0.get("biosVersion", ""),
-                    }
-                    _bios_fw_ver = _bfw0.get("biosVersion", "")
-            _disk_fw_baselines  = (_os_fw_entry.get("bundledDriveFirmwares") or []) if _os_fw_entry else []
-            _shelf_fw_baselines = (_os_fw_entry.get("bundledShelfFirmwares") or []) if _os_fw_entry else []
-
-            # ── Backfill shelf firmware from catalog when live API is empty ─────
-            # Build lookup: moduleType (e.g. "IOM12C") → catalog firmware baseline
-            if _shelf_fw_baselines:
-                _shelf_fw_catalog = {
-                    (bl.get("shelfModuleName") or "").upper(): bl
-                    for bl in _shelf_fw_baselines
-                    if bl.get("shelfModuleName")
-                }
-                for _sh in shelves_out:
-                    if not _sh.get("firmwareVersion"):
-                        _mtype = (_sh.get("moduleType") or "").upper()
-                        _cat_bl = _shelf_fw_catalog.get(_mtype)
-                        if _cat_bl:
-                            _raw_cat_ver = _cat_bl.get("shelfModuleFirmwareVersion", "")
-                            # Normalize firmware filename to short numeric version so it can be
-                            # compared directly against the fleet recommendedFirmwareVersion.
-                            # Catalog field contains filenames like "IOM12A.0411.SFW"; the fleet
-                            # GQL shelfFirmwares returns a short version like "0411".
-                            # Extract the first segment of 2-4 pure digits (e.g. "0411", "0303").
-                            import re as _re
-                            _cat_ver_m = _re.search(r'(?:^|\.)(\d{2,4})(?:\.|$)', _raw_cat_ver)
-                            _sh["firmwareVersion"] = _cat_ver_m.group(1) if _cat_ver_m else _raw_cat_ver
-                            # recommended priority: fleet-latest → API per-system recommendation → empty (⚠ Unverified).
-                            # Never fall back to the catalog version here — catalog = installed (same source = circular comparison).
-                            _fleet_sh_ver = (_fleet_shelf_map.get(_mtype) or {}).get("firmwareVersion", "")
-                            # Priority: fleet-latest (global authoritative) > API per-system recommendation.
-                            # Do NOT overwrite a valid API-provided recommendedFirmwareVersion with an empty
-                            # fleet string — that would erroneously cause ⚠ Unverified when AIQ itself
-                            # knows the recommended version for this system's shelf module.
-                            if _fleet_sh_ver:
-                                _sh["recommendedFirmwareVersion"] = _fleet_sh_ver
-                            elif not _sh.get("recommendedFirmwareVersion"):
-                                # Neither fleet nor API has a recommendation — leave empty → ⚠ Unverified
-                                _sh["recommendedFirmwareVersion"] = ""
-                            # else: preserve the API's existing per-system recommendedFirmwareVersion
-                            _sh["fromCatalog"] = True
-            # Override recommendedFirmwareVersion with fleet-latest for LIVE shelves that have a matching fleet entry.
-            # This ensures live-data shelves whose recommendedFirmwareVersion came from the ONTAP catalog
-            # are corrected to reflect the globally latest recommended version.
-            # Catalog-backfilled shelves (fromCatalog=True) are excluded: their firmwareVersion is the
-            # ONTAP-bundled baseline for that release, not live-running firmware.  Overwriting with
-            # fleet-latest would create false drift (e.g. IOM12@0281 vs fleet@0411) even though the
-            # system has never reported its actual running version.
-            for _sh in shelves_out:
-                if _sh.get("fromCatalog"):
-                    continue  # do not override catalog-estimated shelves
-                _mtype = (_sh.get("moduleType") or "").upper()
-                _fleet_sh_ver = (_fleet_shelf_map.get(_mtype) or {}).get("firmwareVersion", "")
-                if _fleet_sh_ver:
-                    _sh["recommendedFirmwareVersion"] = _fleet_sh_ver
-
-            # ── Populate DQP from catalog when live API returns empty ──────────
-            # The diskQualificationPackage field returns {} for most accounts.
-            # The drive firmware catalog (bundledDriveFirmwares) IS populated
-            # and represents the DQP version bundled with this ONTAP release.
-            # We synthesize a DQP baseline entry from the catalog count/version.
-            _live_dqp = s.get("diskQualificationPackage") or {}
-            if not _live_dqp.get("currentVersion") and _disk_fw_baselines:
-                # Use OS version as the DQP version identifier (ONTAP-bundled DQP)
-                _live_dqp = {
-                    "currentVersion": _os_ver_raw,
-                    "recommendedVersion": _os_ver_raw,
-                    "autoUpdateEligible": True,
-                    "driveCount": len(_disk_fw_baselines),
-                    "fromCatalog": True,
-                }
+                hm = csh.get("hardwareModel") or {}
+                shelves_out.append({
+                    "serialNumber": csh.get("serialNumber", ""),
+                    "model": hm.get("name", ""),
+                    "endOfAvailability": hm.get("endOfAvailability", ""),
+                    "endOfHwSupport": hm.get("endOfHwSupport", ""),
+                })
 
             # ── Pre-compute capacity from system-level ONTAPSystemPhysicalCapacity ──
             # System-level is preferred; cluster-level used as fallback for systems without cluster data.
@@ -2045,7 +1418,7 @@ def _do_full_harvest(watchlist_ids=None):
             # Fix API gap: if usedKiB is 0 but utilizationPercentage is set, derive it
             if _used_kib == 0 and _raw_kib > 0 and _util_pct > 0:
                 _used_kib = _raw_kib * _util_pct / 100.0
-            # Tier 2: Fall back to cluster-level if system-level raw is also zero
+            # Fall back to cluster-level if system-level raw is also zero
             if _raw_kib == 0:
                 _raw_kib  = cl_cap.get("rawCapacityTB", 0) * (1024**3)
                 _used_kib = cl_cap.get("physicalUsedTB", 0) * (1024**3)
@@ -2053,18 +1426,6 @@ def _do_full_harvest(watchlist_ids=None):
                 _usbl_kib = cl_cap.get("usableCapacityTB", 0) * (1024**3)
                 _qoq      = cl_cap.get("qoqUtilizationPct", 0)
                 _yoy      = cl_cap.get("yoyUtilizationPct", 0)
-            # Tier 3: REST API backfill — used when both GQL paths return zero capacity
-            if _raw_kib == 0 and serial in serial_to_rest_cap:
-                _rc = serial_to_rest_cap[serial]
-                _raw_kib  = _rc.get("rawKiB", 0)
-                _used_kib = _rc.get("usedKiB", 0)
-                _usbl_kib = _rc.get("usableKiB", 0)
-                _util_pct = _rc.get("utilPct", 0)
-                _qoq      = _rc.get("qoqPct", 0)
-                _yoy      = _rc.get("yoyPct", 0)
-                # If REST monthly data available and GQL monthly is empty, use REST's
-                if not _sys_monthly and _rc.get("monthly"):
-                    _sys_monthly = _rc["monthly"]
 
             systems_out.append({
                 # ── Core identity ──
@@ -2186,89 +1547,10 @@ def _do_full_harvest(watchlist_ids=None):
                 "asupHistory": s.get("autoSupports") or [],
                 "asupByType": s.get("latestAsupOfEachType") or [],
                 # ── Firmware ──
-                # systemFirmware from API is a single dict {type, currentVersion, recommendedVersion,
-                # autoUpdateEligible, postingDate} or null/empty. Normalise to a list so app.js can
-                # uniformly call .forEach(). Resolution hierarchy:
-                #   1. Live: API returned currentVersion → use directly (green ✓ Current / ⚠ UPDATE)
-                #   2. Semi-live: API returned recommendedVersion but no currentVersion → the API
-                #      knows this system's recommended firmware; use catalog baseline as the estimated
-                #      installed version for comparison. If they match → green ✓ Est. Current.
-                #      If they differ → orange ⚠ UPDATE. Mark _fromCatalog=True so UI can differentiate.
-                #   3. Fleet-only: API returned nothing useful → backfill from fleet-level GQL map
-                #      (recommendedVersion only, no per-system currentVersion). Show ⚠ Unverified.
-                "systemFirmware": (lambda _sf: (
-                    # Path 1: Live per-system currentVersion from API
-                    [_sf] if isinstance(_sf, dict) and _sf.get("currentVersion") else
-                    # Path 2: API has recommendedVersion but no currentVersion.
-                    # Use catalog SP baseline as estimated installed version for comparison.
-                    (
-                        [{
-                            "type": (_sf.get("type") or _sp_fw_baseline.get("type") or "SP"),
-                            "currentVersion": _sp_fw_baseline.get("version", ""),  # catalog-estimated installed version
-                            "recommendedVersion": _sf.get("recommendedVersion", ""),  # API's per-system recommendation
-                            "autoUpdateEligible": _sf.get("autoUpdateEligible"),
-                            "postingDate": _sf.get("postingDate", ""),
-                            "_fromCatalog": True,  # estimated — not live-confirmed installed version
-                        }]
-                        if (isinstance(_sf, dict) and _sf.get("recommendedVersion") and _sp_fw_baseline.get("version"))
-                        else
-                        # Path 3: Fleet-only backfill (no per-system data at all)
-                        [{
-                            "type": _fv.get("firmwareType", "SP"),
-                            "currentVersion": "",  # live current not available per-system from fleet queries
-                            "recommendedVersion": _fv.get("firmwareVersion", ""),
-                            "autoUpdateEligible": None,
-                            "postingDate": _fv.get("creationDate", ""),
-                            "_fromFleet": True,
-                        } for _fv in _fleet_sp_map.values()]
-                        if _fleet_sp_map else []
-                    )
-                ))(s.get("systemFirmware") or {}),
+                "systemFirmware": s.get("systemFirmware") or [],
                 "motherboardFirmware": s.get("motherboardFirmware") or {},
-                # DQP: prefer live per-system, then catalog, then fleet latest
-                "diskQualificationPackage": (
-                    _live_dqp or s.get("diskQualificationPackage")
-                    or ({
-                        "currentVersion": "",
-                        "recommendedVersion": _fleet_dqp_latest.get("version", ""),
-                        "autoUpdateEligible": True,
-                        "_fromFleet": True,
-                    } if _fleet_dqp_latest else {})
-                ) or {},
-                # ── Drive firmware: live per-system list via drivesSummary (GQL field that replaced
-                # the defunct driveFirmware[] field). Each entry has driveModel/model, count, and
-                # firmware { currentVersion, recommendedVersion, autoUpdateEligible, postingDate }.
-                # Firmware versions are independent of OS version — flag any downrev component.
-                # Normalised to a flat list matching the old driveFirmware[] shape for compatibility.
-                "driveFirmware": (
-                    (lambda _ds: [
-                        {
-                            "driveModel": d.get("driveModel") or d.get("model", ""),
-                            "count": d.get("count", 0),
-                            "currentVersion": (d.get("firmware") or {}).get("currentVersion", ""),
-                            "recommendedVersion": (d.get("firmware") or {}).get("recommendedVersion", ""),
-                            "autoUpdateEligible": (d.get("firmware") or {}).get("autoUpdateEligible"),
-                            "postingDate": (d.get("firmware") or {}).get("postingDate", ""),
-                        } for d in _ds if d.get("driveModel") or d.get("model")
-                    ] if _ds else []
-                    )(s.get("drivesSummary") or [])
-                ),
-                # ── Raw drivesSummary passthrough (for debugging/export) ──
-                "drivesSummary": s.get("drivesSummary") or [],
+                "diskQualificationPackage": s.get("diskQualificationPackage") or {},
                 "autoUpdateSettings": s.get("autoUpdateSettings") or {},
-                # ── Firmware baselines cross-referenced from OS version catalog ──
-                "spFirmwareBaseline":    _sp_fw_baseline,    # {type, version, biosVersion} expected for this ONTAP version
-                "biosVersion":           _bios_fw_ver,       # BIOS version from catalog
-                "diskFirmwareBaselines": _disk_fw_baselines, # [{driveModel, version}] bundled with this ONTAP release
-                "shelfFirmwareBaselines": _shelf_fw_baselines, # [{shelfModuleName, shelfModuleFirmwareVersion, ...}]
-                # ── Fleet-level firmware recommendation maps (from root-level GQL queries) ──
-                # ── Ground-truth OS version baselines (from firmware_baselines.json) ──
-                "firmwareBaselines":      FIRMWARE_BASELINES,         # {ontap, storageGrid, santricity, ...} latest GA versions
-                # ── Fleet-level firmware recommendation maps (from root-level GQL queries) ──
-                "fleetSpFirmwareMap":     _fleet_sp_map,     # {firmwareType.upper() → {firmwareVersion, status, priority}} global fleet latest SP/BMC
-                "fleetDriveFirmwareMap":  _fleet_drive_map,  # {driveModel → {firmwareVersion, status, priority}}
-                "fleetShelfFirmwareMap":  _fleet_shelf_map,  # {shelfModuleName → {firmwareVersion, status, priority}}
-                "fleetDqpLatest":         _fleet_dqp_latest or {},  # latest DQP from fleet query
                 # ── Lifecycle & TAM intelligence ──
                 "lifecycleEvents": s.get("lifecycleEvents") or [],
                 "licenses": s.get("licenses") or [],
@@ -3527,8 +2809,6 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_scan()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_get()
-        elif self.path.startswith('/api/baselines'):
-            self.handle_baselines_get()
         elif self.path.startswith('/api/asup/imports'):
             self.handle_asup_list()
         elif self.path == '/api/asup/import':
@@ -4209,34 +3489,6 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "hasToken": has_token}).encode("utf-8"))
         except Exception as e:
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-
-    def handle_baselines_get(self):
-        """GET /api/baselines — Serve firmware_baselines.json to the client.
-
-        Returns the ground-truth latest GA version catalog used by app.js to
-        populate Section 5a (Software Version Currency) for both live API
-        systems and mock-mode systems. The file is updated daily by the
-        Reference Library scan cron agent.
-        """
-        try:
-            # Reload from disk on every request so updates from the daily scan
-            # are reflected without restarting the server.
-            if FW_BASELINES_PATH.exists():
-                data = json.loads(FW_BASELINES_PATH.read_text(encoding="utf-8"))
-            else:
-                data = {}
-            res = json.dumps(data, default=str).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Cache-Control", "no-cache")
-            self.end_headers()
-            self.wfile.write(res)
-        except Exception as e:
-            print(f"  [BASELINES] GET error: {e}", flush=True)
             self.send_response(500)
             self.send_header("Content-Type", "application/json")
             self.end_headers()

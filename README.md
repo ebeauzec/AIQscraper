@@ -1,6 +1,6 @@
 # NetApp Active IQ Advisor Dashboard
 
-[![Version](https://img.shields.io/badge/version-3.8.0-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.3.1-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -376,7 +376,7 @@ The tool maintains a **live security advisory database** in [`security_bulletins
 
 | Metric | Value |
 |--------|-------|
-| **Current advisory entries** | **80+** (grows with each daily scan) |
+| **Current advisory entries** | **69** (grows with each daily scan) |
 | **CISA KEV confirmed** | **2** (actively exploited in the wild) |
 | **Coverage period** | 2024 – 2026 |
 | **Products covered** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, SAN Host Utilities, Active IQ Unified Manager |
@@ -461,16 +461,14 @@ server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
 
 | File | Size | Role |
 |---|---|---|
-| `server.py` | ~239 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints. Includes firmware catalog backfill, shelf/disk/SP-BMC baseline normalization, and fleet-latest override protection |
-| `app.js` | ~1.3 MB | ~23,000 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, Reference Library, Component Firmware Audit panel, QBR/MSP firmware currency metric |
-| `index_src.html` | ~87 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
-| `index.html` | ~83 KB | Single-file HTML shell (JS loaded from `app.js`). Hard-refresh after code changes |
-| `styles.css` | ~29 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
+| `server.py` | ~75 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints |
+| `app.js` | ~700 KB | ~13,200 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, Reference Library |
+| `index_src.html` | ~74 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
+| `index.html` | ~680 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
+| `styles.css` | ~22 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
 | `chart.js` | ~209 KB | Local copy of Chart.js library |
 | `aiq_cache.db` | Variable | SQLite persistent cache (WAL mode) |
 | `aiq_config.json` | ~2 KB | Server config — token, sync settings |
-| `firmware_baselines.json` | ~10 KB | SP/BMC, shelf module, and disk firmware catalog baseline data for backfill when live API has no version data |
-| `security_bulletins.json` | ~84 KB | Live security advisory database — updated by daily Reference Library scan |
 | `start_dashboard.bat` | ~1 KB | Windows batch launcher |
 | `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher with Python version check |
 | `launcher.py` | ~8 KB | Desktop app wrapper (pywebview) |
@@ -531,7 +529,7 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 | **Sources** | NetApp PSIRT (NTAP advisories), MITRE CVE, NVD/NIST, CISA KEV, GitHub Security Advisories, NetApp KB, threat intelligence feeds |
 | **Severity range** | Critical through Low; CISA KEV-confirmed entries flagged 🚨 |
 | **Matching** | Per-system version-range matching — each advisory specifies affected and fixed version ranges; only systems in-range are flagged |
-| **Volume** | 85+ advisory entries across 95+ unique CVEs at last sync, growing with each Reference Library update |
+| **Volume** | 80+ advisory entries across 90+ unique CVEs at last sync, growing with each Reference Library update |
 
 ### Reference Library — Firmware Baselines
 
