@@ -5248,15 +5248,9 @@ function populateSystemSelectors() {
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
   if (!state.selectedTAMSerials) state.selectedTAMSerials = [];
   
-  // Prune out-of-scope serials
-  const pruned = state.selectedTAMSerials.filter(ser => allSerialsInScope.includes(ser));
-  if (pruned.length !== state.selectedTAMSerials.length) state.selectedTAMSerials = pruned;
-  
-  // If nothing selected and systems exist, default to FIRST system only
-  // (not all — selecting all in large fleets hangs the browser)
-  if (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0) {
-    state.selectedTAMSerials = [allSerialsInScope[0]];
-  }
+  const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
+                                (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
+  if (hasTAMFilterMismatch) state.selectedTAMSerials = [...allSerialsInScope];
 
   // ── Dirty guard: skip expensive DOM dropdown rebuilds if scope/selection unchanged
   const _selStamp = allSerialsInScope.join(',') + '|' + state.selectedSAMSystemSerial + '|' + state.selectedCSMSystemSerial + '|' + state.selectedTAMSerials.join(',');
@@ -7795,10 +7789,7 @@ function renderTAMTab() {
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
   
   // Prune/initialize active serials
-  const MAX_TAM_SYSTEMS = 20; // soft cap — prevents browser hang on large fleets
-  let activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
-  const tamCapped = activeSerials.length > MAX_TAM_SYSTEMS;
-  if (tamCapped) activeSerials = activeSerials.slice(0, MAX_TAM_SYSTEMS);
+  const activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
 
   // ── Dirty-stamp guard ─────────────────────────────────────────────────────
   // renderTAMTab() is invoked on every search keystroke (switchTab→handleSearch),
@@ -7868,19 +7859,6 @@ function renderTAMTab() {
     if (svmCard) svmCard.style.display = "none";
   }
 
-  // Show cap notice if we truncated
-  if (tamCapped) {
-    const capNotice = document.getElementById('tamCapNotice') || document.createElement('div');
-    capNotice.id = 'tamCapNotice';
-    capNotice.style.cssText = 'padding:8px 14px;margin-bottom:12px;border-radius:8px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);font-size:0.78rem;color:var(--status-warning);display:flex;align-items:center;gap:8px;';
-    capNotice.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Showing first ${MAX_TAM_SYSTEMS} of ${(state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser)).length} selected systems for performance. Use the system selector to narrow your scope or select specific nodes.`;
-    const tamHeader = document.getElementById('tamActiveSystem');
-    if (tamHeader && !document.getElementById('tamCapNotice')) tamHeader.parentElement.insertBefore(capNotice, tamHeader.nextSibling);
-  } else {
-    const existing = document.getElementById('tamCapNotice');
-    if (existing) existing.remove();
-  }
-
   // Update header text
   if (selectedSystems.length === 1) {
     const sys = selectedSystems[0];
@@ -7927,15 +7905,16 @@ function renderTAMTab() {
   // makes the intent clear and prevents accidental re-binding issues).
   const _tamSelectedSystems = selectedSystems;
 
-  // ── 4-stage pipelined render — one setTimeout(0) per section ────────────────
+  // ── 4-stage pipelined render — staggered setTimeout delays ────────────────
   // Each stage yields the browser thread before starting, so the UI stays
-  // responsive and can paint between sections. This is the only correct fix
-  // for the TAM hang: a single setTimeout(0) still blocks for the entire
-  // duration of all 4 builds; separate tasks let the browser breathe.
+  // responsive and can paint between sections. Stages are staggered at
+  // 0 / 50 / 120 / 200ms so the browser has genuine idle time between them.
   const _pipe = _tamSelectedSystems; // closure capture
+  const _tamRenderGeneration = (renderTAMTab._gen = (renderTAMTab._gen || 0) + 1);
 
   // ── STAGE 1: Risks ────────────────────────────────────────────────────────
   requestAnimationFrame(() => setTimeout(() => {
+  if (renderTAMTab._gen !== _tamRenderGeneration) return; // stale — newer render superseded
   const selectedSystems = _pipe;
 
   // ── Compile Combined Risks — grouped by system with collapsible drilldown ──
@@ -8114,6 +8093,7 @@ function renderTAMTab() {
 
   // ── STAGE 2: OS Upgrades ──────────────────────────────────────────────────
   setTimeout(() => {
+  if (renderTAMTab._gen !== _tamRenderGeneration) return;
   const selectedSystems = _pipe;
   const upgradeBox = document.getElementById("tamUpgradeContainer");
   upgradeBox.innerHTML = "";
@@ -8254,10 +8234,11 @@ function renderTAMTab() {
 
     upgradeBox.innerHTML = upgradeHtml;
   }
-  }, 0); // ── END STAGE 2
+  }, 50); // ── END STAGE 2  (50ms delay from rAF)
 
   // ── STAGE 3: Switch Validation ────────────────────────────────────────────
   setTimeout(() => {
+  if (renderTAMTab._gen !== _tamRenderGeneration) return;
   const selectedSystems = _pipe;
   let switchRows = "";
   const allSwitches = [];
@@ -8322,10 +8303,11 @@ function renderTAMTab() {
     });
   }
   document.getElementById("tamSwitchesTableBody").innerHTML = switchRows;
-  }, 0); // ── END STAGE 3
+  }, 120); // ── END STAGE 3  (120ms delay from rAF)
 
   // ── STAGE 4: Security Bulletins ───────────────────────────────────────────
   setTimeout(() => {
+  if (renderTAMTab._gen !== _tamRenderGeneration) return;
   const selectedSystems = _pipe;
   // CVE enrichment is batched (5 per 100ms) to avoid a burst of simultaneous fetches.
   const allBulletins = [];
@@ -8503,7 +8485,7 @@ function renderTAMTab() {
   window._deferredBulletinEnrich = deferredEnrich;
 
   updateSortIndicators();
-  }, 0); // ── END STAGE 4
+  }, 200); // ── END STAGE 4  (200ms delay from rAF)
 }
 
 
