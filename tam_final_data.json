@@ -1,0 +1,639 @@
+{
+  "type_ReporterContact": {
+    "name": "ReporterContact",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "userId",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "type_CaseCountByPriority": {
+    "name": "CaseCountByPriority",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "duration",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "caseCount",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "type_CaseTrendByPriority": {
+    "name": "CaseTrendByPriority",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "highestPriority",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Int",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "caseTrend",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "type_HealthScore": {
+    "name": "HealthScore",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "overall",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "industry",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "customer",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "type_SustainabilityScorePercentage": {
+    "name": "SustainabilityScorePercentage",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "overall",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "industry",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "customer",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "type_SuccessPlans": {
+    "name": "SuccessPlans",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "cmatSiteId",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "cmatSiteName",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "successPlans",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "type_HardwareCapabilities": {
+    "name": "HardwareCapabilities",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "maxSupportedCapacityKiB",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Float",
+            "kind": "SCALAR"
+          }
+        }
+      },
+      {
+        "name": "driveClassLimits",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST"
+          }
+        }
+      },
+      {
+        "name": "shelfModelLimits",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST"
+          }
+        }
+      }
+    ],
+    "inputFields": null
+  },
+  "cases": {
+    "cases": {
+      "cases": [
+        {
+          "caseId": "50113618",
+          "created": "2026-06-19T14:30:02.000Z",
+          "lastUpdated": "2026-06-19T14:33:26.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "CORE_ANCILLARY",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113576",
+          "created": "2026-06-17T11:13:53.000Z",
+          "lastUpdated": "2026-06-17T11:17:55.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "INITIALIZING",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113585",
+          "created": "2026-06-17T10:40:06.000Z",
+          "lastUpdated": "2026-06-17T10:43:17.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "INITIALIZING",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113563",
+          "created": "2026-06-16T18:13:05.000Z",
+          "lastUpdated": "2026-06-16T18:16:20.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "INITIALIZING",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113581",
+          "created": "2026-06-16T17:35:54.000Z",
+          "lastUpdated": "2026-06-16T18:45:39.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "WAIT_TSE",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113560",
+          "created": "2026-06-16T17:21:31.000Z",
+          "lastUpdated": "2026-06-16T17:21:33.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "INITIALIZING",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113559",
+          "created": "2026-06-16T16:21:32.000Z",
+          "lastUpdated": "2026-06-16T16:24:41.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "CORE_ANCILLARY",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113539",
+          "created": "2026-06-16T14:24:55.000Z",
+          "lastUpdated": "2026-06-16T14:28:12.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "CORE_ANCILLARY",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113538",
+          "created": "2026-06-16T12:54:03.000Z",
+          "lastUpdated": "2026-06-16T12:57:33.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "CORE_ANCILLARY",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        },
+        {
+          "caseId": "50113553",
+          "created": "2026-06-16T12:31:32.000Z",
+          "lastUpdated": "2026-06-16T15:36:27.000Z",
+          "closed": null,
+          "priority": 1,
+          "highestPriority": 1,
+          "symptom": " ",
+          "status": "WAIT_TSE",
+          "description": "Core for the Case-2010717077",
+          "type": "CORE",
+          "category": null,
+          "subCategory": null,
+          "caseReceivedVia": "ZR1",
+          "resolution": " ",
+          "bugIds": [],
+          "system": {
+            "serialNumber": "722517000055",
+            "hostName": "OOBA-C30-02"
+          }
+        }
+      ]
+    }
+  },
+  "recommendations": {
+    "recommendations": [
+      {
+        "recommendation": "A significant number of your AutoSupport capable systems do not have AutoSupport enabled and are not declined.  These systems are at risk of delayed issue resolution and will not receive risk analysis by Active IQ.  If AutoSupport cannot be enabled please consider calling NetApp Support to decline AutoSupport.  For assistance configuring AutoSupport see  <a href=\"https://kb.netapp.com/on-prem/ontap/Ontap_OS/OS-KBs/How_to_set_up_or_modify_AutoSupport_in_ONTAP_9\" target=\"_blank\">How to Set Up AutoSupport</a>",
+        "rank": 10,
+        "category": "AUTO_SUPPORT",
+        "subCategory": "ADOPTION",
+        "score": 77
+      },
+      {
+        "recommendation": "A significant number of your systems have downrev HDD/SSD firmware.  HDD/SSD firmware is typically released for resiliency / availability / supportability reasons and not to provide new features.  This means keeping firmware up to date is critical to areas of performance, availability, or even data protection if the firmware applies to a backup or DR location.   Also please note that the latest release of ONTAP may not have the most recent drive firmware.  You can always get the latest \"all current Disk Firmware\" and \"Disk Qualification Package\"  <a href=\"https://mysupport.netapp.com/site/downloads/firmware/disk-drive-firmware\" target=\"_blank\"><b>here</b></a>). See <a href=\"https://kb.netapp.com/Support/csm-sam/What_are_the_ownership_best_practices_for_ONTAP_9\" target=\"_blank\"><b>Ownership Best Practices</b></a> for more guidance.",
+        "rank": 10,
+        "category": "VERSION",
+        "subCategory": "DISK_FIRMWARE",
+        "score": 26
+      },
+      {
+        "recommendation": "A significant number of your systems are running versions below the minimum recommended release of ONTAP and are at risk of experiencing issues fixed by the minimum recommended release.  Adoption of <a href=\"https://kb.netapp.com/Support_Bulletins/Customer_Bulletins/SU2\" target=\"_blank\"><b>Minimum Recommended Release</b></a> is recommended to ensure optimal experience with this product. See <a href=\"https://kb.netapp.com/Support_Bulletins/Customer_Bulletins/SU600\" target=\"_blank\"><b>ONTAP Release Planning Guidance</b></a>",
+        "rank": 20,
+        "category": "VERSION",
+        "subCategory": "MIN_VERSION",
+        "score": 39
+      },
+      {
+        "recommendation": "A significant number of your systems have downrev Service Processor (SP) or Baseboard Management Controller (BMC) firmware.  SP/BMC firmware is typically released for resiliency / availability / supportability / vulnerability resolution reasons and not to provide new features.  Keeping SP/BMC firmware up to date is critially important due to crucial roles played by the component in environmental monitoring and remote management.  You can download the latest SP/BMC firmware <a href=\"https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics\" target=\"_blank\"><b>here</b></a>).   Please read all installation instructions carefully as they may require additoinal steps specific to the version being applied.",
+        "rank": 50,
+        "category": "VERSION",
+        "subCategory": "SP_BMC",
+        "score": 54
+      },
+      {
+        "recommendation": "98 of your systems are failing for Protection best practice titled \"The node is not configured to save configuration backups to a remote location.\"   Resolution is recommended to address the following potential impact: \"In the event of a cluster failure, the cluster configuration will not be able to be recovered.\"   We recommend that you reference https://docs.netapp.com/us-en/ontap/system-admin/config-backup-file-concept.html to address this issue.",
+        "rank": 50,
+        "category": "BEST_PRACTICES",
+        "subCategory": "AVAILABILITY_PROTECTION",
+        "score": 40
+      },
+      {
+        "recommendation": "13% of AutoSupport enabled systems are not using HTTPS transport.  This reduces the allowed payload size for AutoSupport.  For assistance changing the support transport to HTTPS see  <a href=\"https://kb.netapp.com/on-prem/ontap/Ontap_OS/OS-KBs/How_to_set_up_or_modify_AutoSupport_in_ONTAP_9\" target=\"_blank\">How to Set Up AutoSupport</a>",
+        "rank": 80,
+        "category": "AUTO_SUPPORT",
+        "subCategory": "HTTPS_TRANSPORT",
+        "score": 87
+      },
+      {
+        "recommendation": "13% of AutoSupport enabled systems do not have AutoSupport on Demand (AOD) enabled.  AOD allows for automatic core upload and lets NetApp technical support request AutoSupports to expedite resolution of technical cases.  For assistance in enabling AOD, see  <a href=\"https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/What_is_AutoSupport_On-Demand_and_why_should_it_be_enabled%3F\" target=\"_blank\">What is AutoSupport On-Demand and why should it be enabled</a> and <a href=\"https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_adopt_AOD_(AutoSupport_On-Demand)\" target=\"_blank\">How to Adopt AutoSupport On Demand</a>",
+        "rank": 90,
+        "category": "AUTO_SUPPORT",
+        "subCategory": "ON_DEMAND",
+        "score": 87
+      },
+      {
+        "recommendation": "A significant number of your systems have downrev shelf firmware.  Field downloadable shelf firmware is typically released for resiliency / availability / supportability reasons and not to provide new features.   Shelf firmware updates are non-disruptive.  You can download the latest shelf firmware <a href=\"https://mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware\" target=\"_blank\"><b>here</b></a>). ",
+        "rank": 90,
+        "category": "VERSION",
+        "subCategory": "SHELF_FIRMWARE",
+        "score": 26
+      },
+      {
+        "recommendation": "59 of your systems are failing for Configuration best practice titled \"Netapp requires a minimum of 1 intercluster LIF per node when dedicating ports for intercluster replication, but a best practice is to configure 2 Intercluster LIFs on 2 ports or an ifgrp per node for redundancy.\"   Resolution is recommended to address the following potential impact: \"Intercluster SnapMirror communication can be disrupted if intercluster connection from a node is lost. \"   We recommend that you reference https://www.netapp.com/media/17229-tr-4015-snapmirror-configuration-ontap.pdf to address this issue.",
+        "rank": 90,
+        "category": "BEST_PRACTICES",
+        "subCategory": "CONFIGURATION",
+        "score": 64
+      },
+      {
+        "recommendation": "All applicable systems have sufficient spares and have no failed drives!",
+        "rank": 100,
+        "category": "CONFIG",
+        "subCategory": "SPARES_AND_FAILED_DRIVES",
+        "score": 100
+      },
+      {
+        "recommendation": "5% of of your systems have no current entitlement.  These systems will not receive proactive alerts or warnings from Active IQ, targeted support bulletins, or any technical case support.  Please click on the Active Support Contracts score to initiate renewal discussion with NetApp. ",
+        "rank": 110,
+        "category": "SUPPORT_AND_ENTITLEMENTS",
+        "subCategory": "ACTIVE_SUPPORT_CONTRACTS",
+        "score": 95
+      },
+      {
+        "recommendation": "No systems have any issues with their High Availability pair configuration!",
+        "rank": 110,
+        "category": "CONFIG",
+        "subCategory": "HA_CONFIG",
+        "score": 100
+      },
+      {
+        "recommendation": "All system Service Processors (SP) /Baseboard Management Controllers (BMC) are configured, online, and not reporting exposure to any version specific issues.",
+        "rank": 120,
+        "category": "CONFIG",
+        "subCategory": "REMOTE_MANAGEMENT_CONFIG",
+        "score": 100
+      },
+      {
+        "recommendation": "76%  of the installed base running versions below the latest major and latest P release of ONTAP.   The P release on the latest major release will have the most overall fixes and most value add features if compared to other releases.  You can find the value added by incremental major releases in our  <a href=\"https://docs.netapp.com/us-en/ontap/release-notes/index.html\" target=\"_blank\"><b>ONTAP release highlights</b></a>.",
+        "rank": 130,
+        "category": "VERSION",
+        "subCategory": "LATEST_VERSION",
+        "score": 24
+      },
+      {
+        "recommendation": "26% of entitled systems are expiring within 6 months, to prevent impact to your support experience, please click on the Active Support Contracts score to initiate renewal discussion with NetApp. ",
+        "rank": 140,
+        "category": "SUPPORT_AND_ENTITLEMENTS",
+        "subCategory": "ACTIVE_SUPPORT_CONTRACTS_6M",
+        "score": 26
+      },
+      {
+        "recommendation": "9% of systems will have End of Support (EOS) platform or storage within the next six months.  Support entitlements can no longer be renewed for EOS platforms.  If EOS parts are storage such as HDD/SSD, NetApp Support will be unable to replace failed EOS hardware.  Consider refreshing storage.",
+        "rank": 150,
+        "category": "SUPPORT_AND_ENTITLEMENTS",
+        "subCategory": "EOS_6M",
+        "score": 9
+      },
+      {
+        "recommendation": "A significant number of your systems have downrev BIOS firmware.  Field downloadable BIOS/LOADER firmware is typically released for resiliency / availability / supportability reasons and not to provide new features.   You can download the latest SP/BMC firmware <a href=\"https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics\" target=\"_blank\" ><b>here</b></a>). ",
+        "rank": 150,
+        "category": "VERSION",
+        "subCategory": "BIOS",
+        "score": 44
+      },
+      {
+        "recommendation": "26 of your systems are failing for Efficiency best practice titled \"Inline efficiency features are not enabled on non-root volumes.\"   Resolution is recommended to address the following potential impact: \"Until these features are enabled, efficiency cannot be guaranteed.\"   We recommend that you reference https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/FAS_Systems/How_to_maximize_storage_efficiency_on_All_Flash_FAS_systems_running_ONTAP_9.x to address this issue.",
+        "rank": 160,
+        "category": "BEST_PRACTICES",
+        "subCategory": "PERFORMANCE_EFFICIENCY",
+        "score": 84
+      },
+      {
+        "recommendation": "No systems have stopped sending AutoSupport messages to NetApp",
+        "rank": 170,
+        "category": "AUTO_SUPPORT",
+        "subCategory": "LOSS_OF_SIGNAL",
+        "score": 0
+      },
+      {
+        "recommendation": "No systems have been set to <b>Decline</b> AutoSupport",
+        "rank": 180,
+        "category": "AUTO_SUPPORT",
+        "subCategory": "DECLINED",
+        "score": 0
+      },
+      {
+        "recommendation": "No platforms or storage components are End of Support.",
+        "rank": 180,
+        "category": "SUPPORT_AND_ENTITLEMENTS",
+        "subCategory": "EOS_AND_PLAT_AND_HW",
+        "score": 0
+      },
+      {
+        "recommendation": "2 of your systems are failing for Capacity best practice titled \"Disk inventory may not be able to be tracked accurately.\"   Resolution is recommended to address the following potential impact: \"Unowned disks will not have new firmware downloaded.\"   We recommend that you reference https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Systems/FAS_Systems/What_are_the_conditions_for_disk_auto-assign_failure_to_automatically_assign_disk_ownership_to_storage_systems%3F to address this issue.",
+        "rank": 270,
+        "category": "BEST_PRACTICES",
+        "subCategory": "CAPACITY",
+        "score": 99
+      },
+      {
+        "recommendation": "All systems are fully aligned to NetApp Security Best Practices!",
+        "rank": 380,
+        "category": "BEST_PRACTICES",
+        "subCategory": "SECURITY",
+        "score": 100
+      }
+    ]
+  },
+  "contractRenewals": {
+    "_error": "At least one of beginDate or endDate must be specified."
+  },
+  "per_system_tam": {
+    "_error": "Field \"hardwareCapabilities\" of type \"HardwareModel\" must have a selection of subfields. Did you mean \"hardwareCapabilities { ... }\"?"
+  },
+  "sustainability": {
+    "_error": "Field \"changeFactors\" must not have a selection since type \"String\" has no subfields"
+  },
+  "customers": {
+    "_error": "Field \"healthScore\" of type \"Customer\" must have a selection of subfields. Did you mean \"healthScore { ... }\"?"
+  }
+}

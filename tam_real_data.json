@@ -1,0 +1,387 @@
+{
+  "recommendations": {
+    "_error": "At least one recommendation input must be provided when isTopKeyRecommendation is false."
+  },
+  "sites": {
+    "sites": {
+      "sites": [
+        {
+          "id": "1064583",
+          "cmatId": "6026402",
+          "name": "ooba",
+          "countryCode": "ZA",
+          "postalCode": "8001",
+          "city": "Cape Town",
+          "state": "",
+          "streetAddress": [
+            "33 Bree Street",
+            "Mortgage SA House",
+            "Floor 8"
+          ],
+          "vmwareFlag": false,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": "2020-05-05T19:30:00.000Z",
+          "ageInYears": 6
+        },
+        {
+          "id": "1452723",
+          "cmatId": "6103070",
+          "name": "Vodacom PTY Ltd- Bellville",
+          "countryCode": "ZA",
+          "postalCode": "7530",
+          "city": "Bellville",
+          "state": "",
+          "streetAddress": [
+            "082 Alexander Street",
+            "Oakdale"
+          ],
+          "vmwareFlag": false,
+          "systemsWithCriticalPropensity": 0,
+          "systemsWithHighPropensity": 2,
+          "operationalDate": "2022-10-28T07:00:00.000Z",
+          "ageInYears": 3
+        },
+        {
+          "id": "1777972",
+          "cmatId": "8405478",
+          "name": "Oasis Group Holdings",
+          "countryCode": "ZA",
+          "postalCode": "7925",
+          "city": "Cape Town",
+          "state": "Western Cape",
+          "streetAddress": [
+            "96 Upper Roodebloem Road",
+            "Oasis House",
+            "University Estate"
+          ],
+          "vmwareFlag": false,
+          "systemsWithCriticalPropensity": 1,
+          "systemsWithHighPropensity": 0,
+          "operationalDate": "2019-02-13T19:00:00.000Z",
+          "ageInYears": 7
+        },
+        {
+          "id": "1802331",
+          "cmatId": "6249438",
+          "name": "Home Choice (pty) Ltd. - Cape Town",
+          "countryCode": "ZA",
+          "postalCode": null,
+          "city": "Cape Town",
+          "state": null,
+          "streetAddress": [
+            "78 Main Road",
+            "Wynberg"
+          ],
+          "vmwareFlag": null,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": null,
+          "ageInYears": null
+        },
+        {
+          "id": "1911658",
+          "cmatId": "9405683",
+          "name": "Stellenbosch University Business SchoolC ZA",
+          "countryCode": "ZA",
+          "postalCode": "7530",
+          "city": "Cape Town",
+          "state": "",
+          "streetAddress": [
+            "Carl Cronje Drive"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 0,
+          "systemsWithHighPropensity": 1,
+          "operationalDate": "2022-06-05T13:49:29.150Z",
+          "ageInYears": 4
+        },
+        {
+          "id": "1990007",
+          "cmatId": "9599896",
+          "name": "Breede Valley Municipality Cape Town",
+          "countryCode": "ZA",
+          "postalCode": null,
+          "city": "Cape Town",
+          "state": "Western Cape",
+          "streetAddress": [
+            "30 Baring Street",
+            "Worcester"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": "2018-03-16T07:00:00.000Z",
+          "ageInYears": 8
+        },
+        {
+          "id": "2089819",
+          "cmatId": "13096613",
+          "name": "Allan Gray",
+          "countryCode": "ZA",
+          "postalCode": null,
+          "city": "Cape Town",
+          "state": null,
+          "streetAddress": [
+            "1 Silo Square",
+            "V & A Waterfront"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 2,
+          "systemsWithHighPropensity": 2,
+          "operationalDate": "2024-02-08T03:17:21.533Z",
+          "ageInYears": 2
+        },
+        {
+          "id": "2105787",
+          "cmatId": "6497286",
+          "name": "Coronation Fund Managers Ltd.Cape TownCn ZA",
+          "countryCode": "ZA",
+          "postalCode": "7708",
+          "city": "Cape Town",
+          "state": "Western Cape",
+          "streetAddress": [
+            "Cnr Campground & Main Rd Montclare Place",
+            "Floor 7"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 0,
+          "systemsWithHighPropensity": 0,
+          "operationalDate": "2022-04-01T07:48:24.713Z",
+          "ageInYears": 4
+        },
+        {
+          "id": "2112479",
+          "cmatId": "13266453",
+          "name": "Telkom",
+          "countryCode": "ZA",
+          "postalCode": "0157",
+          "city": "Centurion",
+          "state": "",
+          "streetAddress": [
+            "61 Oak Avenue",
+            "Highveld Park",
+            "Pretoria"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": "2019-06-01T07:00:00.000Z",
+          "ageInYears": 7
+        },
+        {
+          "id": "2117961",
+          "cmatId": "13285062",
+          "name": "Telkom SA Ltd.",
+          "countryCode": "ZA",
+          "postalCode": null,
+          "city": "Bellville",
+          "state": null,
+          "streetAddress": [
+            "21 Teddington Street"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 2,
+          "systemsWithHighPropensity": 2,
+          "operationalDate": "2024-02-08T03:17:21.533Z",
+          "ageInYears": 2
+        },
+        {
+          "id": "2155178",
+          "cmatId": "13508195",
+          "name": "Water Utilities Corp. - Gaboron",
+          "countryCode": "BW",
+          "postalCode": "00276",
+          "city": "Gaborone",
+          "state": "",
+          "streetAddress": [
+            "Luthuli Road Plot 17530",
+            "Sedibeng House"
+          ],
+          "vmwareFlag": null,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": null,
+          "ageInYears": null
+        },
+        {
+          "id": "2157907",
+          "cmatId": "12723777",
+          "name": "National Prosecuting AuthorityPretoria12 Weavind Park VGM BuildingZA",
+          "countryCode": "ZA",
+          "postalCode": "0184",
+          "city": "Pretoria",
+          "state": "Gauteng",
+          "streetAddress": [
+            "123 Westlake Avenue",
+            "Weavind Park VGM Building"
+          ],
+          "vmwareFlag": false,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": "2020-03-19T07:00:00.000Z",
+          "ageInYears": 6
+        },
+        {
+          "id": "2196232",
+          "cmatId": "6242438",
+          "name": "Mhlathuze WaterRichards BayS Central Art ZA",
+          "countryCode": "ZA",
+          "postalCode": "3900",
+          "city": "Richards Bay",
+          "state": "Kwazulu/Natal",
+          "streetAddress": [
+            "S Central Arterial"
+          ],
+          "vmwareFlag": null,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": null,
+          "ageInYears": null
+        },
+        {
+          "id": "2208272",
+          "cmatId": "6255798",
+          "name": "Fairheads Benefit Services",
+          "countryCode": "ZA",
+          "postalCode": "8001",
+          "city": "Cape Town",
+          "state": "Western Cape",
+          "streetAddress": [
+            "2 Long Street",
+            "15th Floor"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 0,
+          "systemsWithHighPropensity": 1,
+          "operationalDate": "2022-06-05T13:49:29.150Z",
+          "ageInYears": 4
+        },
+        {
+          "id": "2269201",
+          "cmatId": "17937384",
+          "name": "University of the Western Cape",
+          "countryCode": "ZA",
+          "postalCode": null,
+          "city": "Cape Town",
+          "state": "Western Cape",
+          "streetAddress": [
+            "Robert Sobukwe Road"
+          ],
+          "vmwareFlag": null,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": null,
+          "ageInYears": null
+        },
+        {
+          "id": "2367601",
+          "cmatId": "10442898",
+          "name": "OptiNet",
+          "countryCode": "ZA",
+          "postalCode": null,
+          "city": "Parow",
+          "state": "Western Cape",
+          "streetAddress": [
+            "100 Fairway Close",
+            "Mweb Bldg"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 0,
+          "systemsWithHighPropensity": 1,
+          "operationalDate": "2022-06-05T13:49:29.150Z",
+          "ageInYears": 4
+        },
+        {
+          "id": "2372649",
+          "cmatId": "19081486",
+          "name": "Sithabile Technology ServicesJohannesbur ZA",
+          "countryCode": null,
+          "postalCode": null,
+          "city": null,
+          "state": null,
+          "streetAddress": [
+            "Unit 8 Cambridge Commercial Park"
+          ],
+          "vmwareFlag": null,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": null,
+          "ageInYears": null
+        },
+        {
+          "id": "2395506",
+          "cmatId": "17783791",
+          "name": "Shoprite CheckersBrackenfell Cape TowCnr",
+          "countryCode": null,
+          "postalCode": null,
+          "city": null,
+          "state": null,
+          "streetAddress": [
+            "Cnr William Dabs Street And Old Paarl Roads",
+            "Brackenfell"
+          ],
+          "vmwareFlag": null,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": null,
+          "ageInYears": null
+        },
+        {
+          "id": "2534479",
+          "cmatId": "20554006",
+          "name": "Dept of Labour South AfricaPretoria94 WF ZA",
+          "countryCode": "ZA",
+          "postalCode": "0001",
+          "city": "Pretoria",
+          "state": "",
+          "streetAddress": [
+            "94 WF Nkomo Street"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": 2,
+          "systemsWithHighPropensity": 2,
+          "operationalDate": "2017-11-23T07:00:00.000Z",
+          "ageInYears": 8
+        },
+        {
+          "id": "2549014",
+          "cmatId": "20573956",
+          "name": "Stellenbosch University",
+          "countryCode": "ZA",
+          "postalCode": "7600",
+          "city": "Cape Town",
+          "state": "",
+          "streetAddress": [
+            "11 Hammanshand Road",
+            "Information Technology Building",
+            "Stellenbosch"
+          ],
+          "vmwareFlag": true,
+          "systemsWithCriticalPropensity": null,
+          "systemsWithHighPropensity": null,
+          "operationalDate": "2018-12-03T08:00:00.000Z",
+          "ageInYears": 7
+        }
+      ]
+    }
+  },
+  "cases": {
+    "_error": "Field \"reporterContact\" of type \"Case\" must have a selection of subfields. Did you mean \"reporterContact { ... }\"?"
+  },
+  "caseSummary": {
+    "_error": "Field \"countByHighestPriority\" of type \"CaseSummary\" must have a selection of subfields. Did you mean \"countByHighestPriority { ... }\"?"
+  },
+  "contractRenewals": {
+    "_error": "Cannot query field \"lifecycleEvents\" on type \"System\"."
+  },
+  "per_system_tam": {
+    "_error": "Field \"propensityTalkingPoints\" must not have a selection since type \"String\" has no subfields"
+  },
+  "sustainabilityScore": {
+    "_error": "Field \"sustainabilityScore\" of type \"Query\" must have a selection of subfields. Did you mean \"sustainabilityScore { ... }\"?"
+  },
+  "customers": {
+    "_error": "Field \"healthScore\" of type \"Customer\" must have a selection of subfields. Did you mean \"healthScore { ... }\"?"
+  }
+}
