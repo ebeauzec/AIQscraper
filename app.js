@@ -7084,7 +7084,8 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
   if (p.includes("storagegrid")) type = "storagegrid";
   else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e4000") || p.includes("santricity")) type = "santricity";
   
-  // Clean versions (remove prefixes)
+  // Clean versions (remove prefixes) — guard against null/undefined
+  if (!currentVersion || !targetVersion) { _upgradePathCache.set(_cacheKey, []); return []; }
   let cleanCurrent = currentVersion.replace(/^(ontap|santricity os|storagegrid|nx-os|fabric os|fos)\s+/i, "").trim();
   let cleanTarget = targetVersion.replace(/^(ontap|santricity os|storagegrid|nx-os|fabric os|fos)\s+/i, "").trim();
   
