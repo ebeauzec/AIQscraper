@@ -1,4 +1,4 @@
-# NetApp Active IQ Advisor Dashboard
+# ARIA — Active IQ Risk Intelligence Advisor
 
 [![Version](https://img.shields.io/badge/version-3.8.0-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
 [![AI Free](https://img.shields.io/badge/AI--Free-100%25-critical)]()
 
-> **One tool. Your entire fleet. Customer-ready deliverables. In under two minutes.**
+> **ARIA** (**A**ctive IQ **R**isk **I**ntelligence **A**dvisor) — One tool. Your entire fleet. Customer-ready deliverables. In under two minutes.
 >
 > Built for NetApp Technical Account Managers, Sales Engineers, and Managed Service Providers who need to walk into every customer meeting fully prepared — with real data, real risks, and ready-to-share reports.
 
