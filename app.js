@@ -5248,9 +5248,15 @@ function populateSystemSelectors() {
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
   if (!state.selectedTAMSerials) state.selectedTAMSerials = [];
   
-  const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
-                                (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
-  if (hasTAMFilterMismatch) state.selectedTAMSerials = [...allSerialsInScope];
+  // Prune out-of-scope serials
+  const pruned = state.selectedTAMSerials.filter(ser => allSerialsInScope.includes(ser));
+  if (pruned.length !== state.selectedTAMSerials.length) state.selectedTAMSerials = pruned;
+  
+  // If nothing selected and systems exist, default to FIRST system only
+  // (not all — selecting all in large fleets hangs the browser)
+  if (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0) {
+    state.selectedTAMSerials = [allSerialsInScope[0]];
+  }
 
   // ── Dirty guard: skip expensive DOM dropdown rebuilds if scope/selection unchanged
   const _selStamp = allSerialsInScope.join(',') + '|' + state.selectedSAMSystemSerial + '|' + state.selectedCSMSystemSerial + '|' + state.selectedTAMSerials.join(',');
@@ -7789,7 +7795,10 @@ function renderTAMTab() {
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
   
   // Prune/initialize active serials
-  const activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
+  const MAX_TAM_SYSTEMS = 20; // soft cap — prevents browser hang on large fleets
+  let activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
+  const tamCapped = activeSerials.length > MAX_TAM_SYSTEMS;
+  if (tamCapped) activeSerials = activeSerials.slice(0, MAX_TAM_SYSTEMS);
 
   // ── Dirty-stamp guard ─────────────────────────────────────────────────────
   // renderTAMTab() is invoked on every search keystroke (switchTab→handleSearch),
@@ -7857,6 +7866,19 @@ function renderTAMTab() {
     if (visualCard) visualCard.style.display = "none";
     if (eseriesCard) eseriesCard.style.display = "none";
     if (svmCard) svmCard.style.display = "none";
+  }
+
+  // Show cap notice if we truncated
+  if (tamCapped) {
+    const capNotice = document.getElementById('tamCapNotice') || document.createElement('div');
+    capNotice.id = 'tamCapNotice';
+    capNotice.style.cssText = 'padding:8px 14px;margin-bottom:12px;border-radius:8px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);font-size:0.78rem;color:var(--status-warning);display:flex;align-items:center;gap:8px;';
+    capNotice.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Showing first ${MAX_TAM_SYSTEMS} of ${(state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser)).length} selected systems for performance. Use the system selector to narrow your scope or select specific nodes.`;
+    const tamHeader = document.getElementById('tamActiveSystem');
+    if (tamHeader && !document.getElementById('tamCapNotice')) tamHeader.parentElement.insertBefore(capNotice, tamHeader.nextSibling);
+  } else {
+    const existing = document.getElementById('tamCapNotice');
+    if (existing) existing.remove();
   }
 
   // Update header text
