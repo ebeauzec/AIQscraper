@@ -1,0 +1,1006 @@
+{
+  "type_SystemFirmware": {
+    "name": "SystemFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "postingDate",
+        "description": "Posting date of the recommended firmware version.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "autoUpdateEligible",
+        "description": "Flag to indicate if this current version is eligible for automatic firmware update.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "firmwareFiles",
+        "description": "A list of firmware files available for updating the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "type",
+        "description": "Firmware type.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "FirmwareType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_FirmwareVersion": {
+    "name": "FirmwareVersion",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "postingDate",
+        "description": "Posting date of the recommended firmware version.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_SystemSoftwareVersion": {
+    "name": "SystemSoftwareVersion",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "fullVersionString",
+        "description": "OS version of the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfVersionDetails",
+        "description": "OS end of version details of the system.",
+        "type": {
+          "name": "SoftwareVersionMilestones",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_EndOfSupport": {
+    "name": "EndOfSupport",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "earliestShelfEndOfSupportDate",
+        "description": "Earliest end-of-support date for any shelf in the system.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "earliestDiskEndOfSupportDate",
+        "description": "Earliest end-of-support date for any drive in the system.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "earliestEndOfSupportDate",
+        "description": "Earliest end of support date among hardwareModel.EndOfSupportDate, earliestShelfEndOfSupportDate and earliestDiskEndOfSupportDate.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "latestPVRDate",
+        "description": "Latest policy variance request date.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "latestEndOfSupportDate",
+        "description": "Latest date among earliestEndOfSupportDate and latestPVRDate.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_AutoUpdateSettings": {
+    "name": "AutoUpdateSettings",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "storageFirmware",
+        "description": "Determines the update behavior for storage firmwares, which may include critical patches, virus definitions, or other security-related enhancements.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "spbmc",
+        "description": "Determines the update behavior for Service Processor(SP) and Baseboard Management Controller(BMC), which may include critical patches, virus definitions, or other security-related enhancements.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "systemFile",
+        "description": "Determines the update behavior for system files, which may include critical patches, virus definitions, or other security-related enhancements.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "securityFile",
+        "description": "Determines the update behavior for security files, which may include critical patches, virus definitions, or other security-related enhancements.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_SecurityFile": {
+    "name": "SecurityFile",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "fileType",
+        "description": "The type of installable automatic update security file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "SecurityFileType",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "fileVersion",
+        "description": "The version of the security file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "status",
+        "description": "The current status of the automatic update security file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AutoUpdateStatus",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "priority",
+        "description": "The priority of the automatic update security file.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AutoUpdatePriority",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "creationDate",
+        "description": "Date when the automatic update security file package for a given version was created and this is used for automatic file update control",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DateTime",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "nssCreationDate",
+        "description": "Date when the file package was released in NSS for customers to manually download the package and install via CLI",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "DateTime",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "systemsSummary",
+        "description": "Summary of system metrics that are processed for automatic security file update",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AutoUpdateSystemsSummary",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "notifications",
+        "description": "Count of notifications that are processed for automatic security file update",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AutoUpdateNotifications",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "installations",
+        "description": "Count of installations that are processed for automatic security file update",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "AutoUpdateInstallations",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_Shelf": {
+    "name": "Shelf",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "serialNumber",
+        "description": "Serial Number of the shelf.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "shelfId",
+        "description": "Front panel identifier of the shelf.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "devicePath",
+        "description": "Local device path of the shelf",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "isInternal",
+        "description": "Identifies if the shelf is internal or external",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "logicalIdentifier",
+        "description": "Logical identifier of the shelf",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "hardwareModel",
+        "description": "The shelf hardware model details.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ShelfHardwareModel",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "moduleHardwareModel",
+        "description": "The shelf module hardware details.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ShelfModuleHardwareModel",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "ports",
+        "description": "Shelf module ports with total count.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ShelfPortsConnection",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "bays",
+        "description": "Drive bays in the shelf enclosure, correspond to drive.slot in the Disk schema.",
+        "type": {
+          "name": "Bays",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "drives",
+        "description": "Drives associated with a shelf",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "Drives",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "groupBy",
+        "description": "Group devices by specified criteria",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "GroupByDevice",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_ShelfFirmware": {
+    "name": "ShelfFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "postingDate",
+        "description": "Posting date of the recommended firmware version.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "autoUpdateEligible",
+        "description": "Flag to indicate if this current version is eligible for automatic firmware update.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "firmwareFiles",
+        "description": "A list of firmware files available for updating the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "hardwareModel",
+        "description": "The shelf hardware model details.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ShelfHardwareModel",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "moduleHardwareModel",
+        "description": "The shelf module hardware details.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "ShelfModuleHardwareModel",
+            "kind": "OBJECT",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_OSVersion": {
+    "name": "OSVersion",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "releaseDate",
+        "description": "Release date for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfVersionFullSupport",
+        "description": "End of version full support for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfVersionLimitedSupport",
+        "description": "End of version limited support for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "endOfSelfServiceSupport",
+        "description": "End of version self service support for the system",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "osVersion",
+        "description": "OS version of the system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "majorOsVersion",
+        "description": "Specifies the major version level of the storage OS, which is typically an iterated numerical designation.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "supportState",
+        "description": "The state of the NetApp Storage OS support. This classifies if a particular OS version is `Recommended`, `Standard`, or `Withdrawn`.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "SupportState",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "osType",
+        "description": "The OS type of the system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "operatingMode",
+        "description": "Operating mode of the system.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "OperatingMode",
+            "kind": "ENUM",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "progressionPath",
+        "description": "OS Version progression path.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "bundledSystemFirmwares",
+        "description": "Details of the system firmware bundled with the OS version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "bundledDriveFirmwares",
+        "description": "Details of the drive firmware bundled with the OS version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "bundledShelfFirmwares",
+        "description": "Details of the shelf firmware bundled with the OS version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "bundledSecurityFiles",
+        "description": "Details of the security files bundled with the OS version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "bundledSystemFile",
+        "description": "Details of the system file bundled with the OS version.",
+        "type": {
+          "name": "BundledSystemFile",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_DriveFirmware": {
+    "name": "DriveFirmware",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended firmware version.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "postingDate",
+        "description": "Posting date of the recommended firmware version.",
+        "type": {
+          "name": "DateTime",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "autoUpdateEligible",
+        "description": "Flag to indicate if this current version is eligible for automatic firmware update.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "firmwareFiles",
+        "description": "A list of firmware files available for updating the firmware.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": null,
+            "kind": "LIST",
+            "ofType": {
+              "name": null,
+              "kind": "NON_NULL"
+            }
+          }
+        }
+      },
+      {
+        "name": "driveModel",
+        "description": "The model of the drive.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_DiskQualificationPackage": {
+    "name": "DiskQualificationPackage",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "currentVersion",
+        "description": "Current version of the disk qualification package.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "recommendedVersion",
+        "description": "Recommended version of the disk qualification package.",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "autoUpdateEligible",
+        "description": "True if system is eligible for automatic file updates, false otherwise.",
+        "type": {
+          "name": "Boolean",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "type_ProductMilestone": {
+    "name": "ProductMilestone",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "productMilestone",
+        "description": "A name of the milestone in the product lifecycle. ex: End of Availability; End of Support; End of Limited Support",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      },
+      {
+        "name": "productMilestoneDate",
+        "description": "A date when the milestone '01/01/2024'",
+        "type": {
+          "name": null,
+          "kind": "NON_NULL",
+          "ofType": {
+            "name": "String",
+            "kind": "SCALAR",
+            "ofType": null
+          }
+        }
+      }
+    ]
+  },
+  "type_SoftwareRecommendationDetails": {
+    "name": "SoftwareRecommendationDetails",
+    "kind": "OBJECT",
+    "fields": [
+      {
+        "name": "cqvDetails",
+        "description": "Customer qualified version(CQV) details for the system.",
+        "type": {
+          "name": "CustomerQualifiedVersionDetails",
+          "kind": "OBJECT",
+          "ofType": null
+        }
+      },
+      {
+        "name": "minRecommendedVersion",
+        "description": "Minimum recommended version for the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      },
+      {
+        "name": "latestRecommendedVersion",
+        "description": "Latest recommended version for the system.",
+        "type": {
+          "name": "String",
+          "kind": "SCALAR",
+          "ofType": null
+        }
+      }
+    ]
+  },
+  "osVersions_ONTAP": {
+    "error": "Cannot query field \"totalCount\" on type \"OSVersions\"."
+  },
+  "osVersions_StorageGRID": {
+    "error": "Cannot query field \"totalCount\" on type \"OSVersions\"."
+  },
+  "osVersions_SANtricity": {
+    "error": "Cannot query field \"totalCount\" on type \"OSVersions\"."
+  },
+  "systemFirmwares": {
+    "error": "Field \"systemFirmwares\" of type \"Query\" must have a selection of subfields. Did you mean \"systemFirmwares { ... }\"?"
+  },
+  "driveFirmwares": {
+    "error": "Field \"driveFirmwares\" of type \"Query\" must have a selection of subfields. Did you mean \"driveFirmwares { ... }\"?"
+  },
+  "shelfFirmwares": {
+    "error": "Field \"shelfFirmwares\" of type \"Query\" must have a selection of subfields. Did you mean \"shelfFirmwares { ... }\"?"
+  },
+  "dqp": {
+    "error": "Field \"diskQualificationPackages\" of type \"Query\" must have a selection of subfields. Did you mean \"diskQualificationPackages { ... }\"?"
+  },
+  "per_system_firmware": {
+    "error": "SystemPlatformType cannot represent value: \"AFF\""
+  },
+  "milestones": {
+    "error": "Field \"GetProductMilestones\" of type \"Query\" must have a selection of subfields. Did you mean \"GetProductMilestones { ... }\"?"
+  },
+  "securityFiles": {
+    "error": "Field \"securityFiles\" argument \"fileType\" of type \"SecurityFileType!\" is required, but it was not provided."
+  }
+}

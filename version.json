@@ -1,0 +1,8 @@
+{
+  "version": "3.8.0",
+  "major": 3,
+  "minor": 8,
+  "patch": 0,
+  "date": "2026-07-28",
+  "notes": "Enhanced Enrichment Engine (v3.8.0): 7-source external intelligence pipeline with KB articles, upgrade path recommendations, and best practice guides. Version catalog auto-detection scrapes docs.netapp.com for latest ONTAP, StorageGRID, and SANtricity releases — upgrade path calculator and latest-version recommendations update automatically. All enrichment data persistently cached in SQLite with automatic refresh during each harvest cycle."
+}

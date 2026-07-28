@@ -1,0 +1,33 @@
+# Logs
+*.log
+.gemini/
+.agents/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# PyInstaller intermediate build artefacts (dist/ IS tracked — pre-built for no-install deployment)
+build/
+__pycache__/
+*.pyc
+
+# Runtime data (user-specific, not tracked)
+aiq_cache.db
+aiq_config.json
+aiq_harvested_systems.json
+aiq_scraped_data.json
+aiq_scraped_endpoints.json
+aiq_format_report.json
+
+# Generated report documents
+*.docx
+
+# Scratch/dev scripts
+brace_find.py
+brace_report.txt
+brace_find.txt
+cl_end.txt
+brace2.txt
+brace3.txt
