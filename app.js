@@ -4159,6 +4159,9 @@ function renderCharts() {
     const phys = eff.physicalUsedTB || 0;
     const drr  = eff.dataReductionRatio || 0;
     if (drr > 1 && phys > 0) return a + (phys * (drr - 1));
+    // Final fallback: logical − physical delta (includes snapshot savings, but
+    // better than showing zero when API returns null for dedup/compaction fields)
+    if (eff.spaceSavedTB > 0) return a + eff.spaceSavedTB;
     return a;
   }, 0);
 
