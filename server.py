@@ -713,6 +713,52 @@ def _do_full_harvest(watchlist_ids=None):
                     }
                   }"""
 
+        # ── Medium: efficiency data without problematic Float fields ──────────
+        # The TAM query above fails outside corp with "Float cannot represent
+        # non numeric value: null" for utilization percentages.  This query
+        # strips the percentage fields and monthlyCapacity but keeps the
+        # efficiency ratio/saved block — giving us dataReductionRatio and
+        # deDuplicationSavedKiB for accurate donut chart savings.
+        SYSTEMS_FIELDS_EFFICIENCY = """
+                  hostName systemId serialNumber osVersion recommendedOSVersion
+                  type platformType productType ageInYears serviceTier
+                  techRefreshStatus incumbentResellerCompany
+                  isFabricPool hasPvr
+                  customer { id name }
+                  site { id name city countryCode postalCode state }
+                  nagp { id name }
+                  hardwareModel { name modelRevision endOfAvailability endOfSupport }
+                  contactPerson { firstName lastName phone email }
+                  salesRepresentative { name emailAddress managerEmailAddress }
+                  csm { name emailAddress }
+                  sam { name emailAddress }
+                  gard { worldwide geo area region district territory }
+                  authorizedSupportPartner { name endDate }
+                  domesticParent { id name }
+                  contract {
+                    softwareContractId hardwareContractId
+                    softwareContractStartDate hardwareContractStartDate
+                    expiryDate softwareContractEndDate hardwareContractEndDate
+                    nrdContractEndDate overallContractEndDate isContractActive
+                    hardwareServiceLevel hardwareWarrantyEndDate hardwareWarrantyStartDate
+                  }
+                  autoSupportConfig { autoSupportStatus isAutoSupportOnDemandEnabled isAutoSupportOnDemandCapable autoSupportTransport systemDomain }
+                  latestAsup { asupId generatedDate receivedDate subject type isManual }
+                  latestAsupOfEachType { asupId generatedDate receivedDate subject type isManual }
+                  autoSupports { asupId generatedDate receivedDate subject type isManual }
+                  ... on ONTAPSystem {
+                    isMetroCluster isAllFlashOptimized operatingMode
+                    capacity {
+                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
+                      logical { usedKiB }
+                      efficiency {
+                        ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }
+                        saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
+                      }
+                      reportedOn
+                    }
+                  }"""
+
         # ── Early watchlist auto-discovery ──────────────────────────────────────
         # Fetch watchlists from REST *before* the systems query so we can use them
         # as a fallback scope when configured watchlists are stale or the account
@@ -812,12 +858,14 @@ def _do_full_harvest(watchlist_ids=None):
                 cursor = new_cursor
             return systems, privilege_blocked
 
-        # Try expanded first, fall back to minimal
+        # Try expanded first, fall back to efficiency-only, then minimal
         all_systems = []
         used_tam_query = False
-        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_MINIMAL]):
+        _QUERY_NAMES = ["TAM (full)", "Efficiency (medium)", "Minimal (bare)"]
+        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_EFFICIENCY, SYSTEMS_FIELDS_MINIMAL]):
             all_systems = []
 
+            print(f"  [HARVEST] Attempting {_QUERY_NAMES[attempt]} query...", flush=True)
 
             # First: try with configured watchlist_ids (fetching + deduplicating across all)
             if watchlist_ids:
@@ -871,14 +919,11 @@ def _do_full_harvest(watchlist_ids=None):
 
 
             if len(all_systems) > 0:
-                if attempt == 0:
-                    used_tam_query = True
-                    print(f"  [HARVEST] Expanded TAM query succeeded: {len(all_systems)} systems", flush=True)
-                else:
-                    print(f"  [HARVEST] Minimal query succeeded: {len(all_systems)} systems", flush=True)
+                used_tam_query = attempt <= 1  # TAM or EFFICIENCY both include capacity/efficiency
+                print(f"  [HARVEST] {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
                 break
-            elif attempt == 0:
-                print("  [HARVEST] WARNING: Expanded TAM query returned 0 systems -- falling back to minimal query...", flush=True)
+            else:
+                print(f"  [HARVEST] WARNING: {_QUERY_NAMES[attempt]} query returned 0 systems — trying next tier...", flush=True)
 
 
 
