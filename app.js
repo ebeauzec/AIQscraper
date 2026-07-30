@@ -4148,18 +4148,21 @@ function renderCharts() {
   const availableSum  = Math.max(0, usableSum - physicalSum);
 
   // Pure dedupe + compression savings (excluding snapshots).
-  // Live data: spaceSavedKiB is the KiB-derived dedupe+compaction total (stored in TB despite the name).
-  // Mock data: derive from dataReductionRatio — savings = physical × (ratio − 1).
-  // Note: we do NOT fall back to spaceSavedTB (logical − physical) because it
-  // includes snapshot space sharing, which massively inflates the donut chart.
+  // Priority 1: dataReductionRatio — point-in-time ratio from ONTAP; savings = physical × (ratio − 1).
+  // Priority 2: spaceSavedKiB — KiB-derived dedupe+compaction total (stored in TB despite the name).
+  //             Note: spaceSavedKiB is a CUMULATIVE lifetime metric, not current-state.
+  //             It can exceed physical capacity because it includes data that was since deleted.
+  //             Use only when DR ratio is unavailable (e.g. mock data, non-ONTAP systems).
+  // We do NOT fall back to spaceSavedTB (logical − physical) because it includes snapshot
+  // space sharing, which massively inflates the donut chart.
   const dedupCompressSum = filteredSystems.reduce((a, s) => {
     const eff = s.efficiency;
-    // spaceSavedKiB is the pure dedupe+compaction savings (TB units) from live enrichment
-    if (eff.spaceSavedKiB > 0) return a + eff.spaceSavedKiB;
-    // Derive from data reduction ratio (dedupe+compression only, excl snapshots)
     const phys = eff.physicalUsedTB || 0;
+    // Preferred: derive from data reduction ratio (dedupe+compression only, excl snapshots)
     const drr  = eff.dataReductionRatio || 0;
     if (drr > 1 && phys > 0) return a + (phys * (drr - 1));
+    // Fallback: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
+    if (eff.spaceSavedKiB > 0) return a + eff.spaceSavedKiB;
     return a;
   }, 0);
 
