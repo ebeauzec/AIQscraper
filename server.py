@@ -538,6 +538,12 @@ def _gql(token, query, variables=None):
         "Accept": "application/json",
     }, body)
     raw_text = raw.decode("utf-8", errors="replace")
+    # ActiveIQ's GraphQL API occasionally returns literal NaN or Infinity in
+    # Float fields (e.g. qoqUtilizationPercentage, yoyUtilizationPercentage).
+    # These are valid JavaScript but invalid JSON — json.loads will raise
+    # JSONDecodeError. Sanitize before parsing.
+    raw_text = re.sub(r'\bNaN\b', 'null', raw_text)
+    raw_text = re.sub(r'\b-?Infinity\b', 'null', raw_text)
     try:
         parsed = json.loads(raw_text)
         # json.loads("null") returns None — treat as empty response
