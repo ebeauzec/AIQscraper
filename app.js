@@ -4158,9 +4158,10 @@ function renderCharts() {
   const dedupCompressSum = filteredSystems.reduce((a, s) => {
     const eff = s.efficiency;
     const phys = eff.physicalUsedTB || 0;
+    if (phys <= 0) return a;  // No capacity context — savings meaningless
     // Preferred: derive from data reduction ratio (dedupe+compression only, excl snapshots)
     const drr  = eff.dataReductionRatio || 0;
-    if (drr > 1 && phys > 0) return a + (phys * (drr - 1));
+    if (drr > 1) return a + (phys * (drr - 1));
     // Fallback: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
     if (eff.spaceSavedKiB > 0) return a + eff.spaceSavedKiB;
     return a;
