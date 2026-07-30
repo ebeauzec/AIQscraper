@@ -4150,7 +4150,8 @@ function renderCharts() {
   // Pure dedupe + compression savings (excluding snapshots).
   // Live data: spaceSavedKiB is the KiB-derived dedupe+compaction total (stored in TB despite the name).
   // Mock data: derive from dataReductionRatio — savings = physical × (ratio − 1).
-  // Fallback: if neither is available, use spaceSavedTB (which may include snapshots).
+  // Note: we do NOT fall back to spaceSavedTB (logical − physical) because it
+  // includes snapshot space sharing, which massively inflates the donut chart.
   const dedupCompressSum = filteredSystems.reduce((a, s) => {
     const eff = s.efficiency;
     // spaceSavedKiB is the pure dedupe+compaction savings (TB units) from live enrichment
@@ -4159,9 +4160,6 @@ function renderCharts() {
     const phys = eff.physicalUsedTB || 0;
     const drr  = eff.dataReductionRatio || 0;
     if (drr > 1 && phys > 0) return a + (phys * (drr - 1));
-    // Final fallback: logical − physical delta (includes snapshot savings, but
-    // better than showing zero when API returns null for dedup/compaction fields)
-    if (eff.spaceSavedTB > 0) return a + eff.spaceSavedTB;
     return a;
   }, 0);
 
