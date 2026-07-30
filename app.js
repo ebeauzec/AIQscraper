@@ -5283,7 +5283,17 @@ function populateSystemSelectors() {
   
   const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
                                 (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
-  if (hasTAMFilterMismatch) state.selectedTAMSerials = [...allSerialsInScope];
+  if (hasTAMFilterMismatch) {
+    // ── Performance cap: selecting ALL systems at once (e.g. 169 nodes, 5000+ risks)
+    // generates megabytes of HTML and freezes the browser.  Cap initial auto-select
+    // to 20 systems. Users can manually select more via the multi-select dropdown.
+    const TAM_AUTO_SELECT_CAP = 20;
+    if (allSerialsInScope.length <= TAM_AUTO_SELECT_CAP) {
+      state.selectedTAMSerials = [...allSerialsInScope];
+    } else {
+      state.selectedTAMSerials = allSerialsInScope.slice(0, TAM_AUTO_SELECT_CAP);
+    }
+  }
 
   // ── Dirty guard: skip expensive DOM dropdown rebuilds if scope/selection unchanged
   const _selStamp = allSerialsInScope.join(',') + '|' + state.selectedSAMSystemSerial + '|' + state.selectedCSMSystemSerial + '|' + state.selectedTAMSerials.join(',');
@@ -5423,6 +5433,20 @@ function populateSystemSelectors() {
       const selectAllChk = selectAllDiv.querySelector("input");
       selectAllChk.onchange = (e) => {
         if (e.target.checked) {
+          // Warn when selecting a very large number of systems — the TAM tab
+          // renders risks/upgrades/switches/bulletins for every selected node
+          // and selecting 100+ can freeze the browser for several seconds.
+          const SELECT_ALL_WARN = 30;
+          if (allSerialsInScope.length > SELECT_ALL_WARN) {
+            const ok = confirm(
+              `This will select all ${allSerialsInScope.length} systems.\n\n` +
+              `The Technical Audit tab renders detailed risk and upgrade data for every selected node. ` +
+              `Selecting more than ${SELECT_ALL_WARN} systems may cause the browser to become slow.\n\n` +
+              `Consider using customer/site/cluster filters first to narrow the scope.\n\n` +
+              `Continue?`
+            );
+            if (!ok) { e.target.checked = false; return; }
+          }
           state.selectedTAMSerials = [...allSerialsInScope];
         } else {
           state.selectedTAMSerials = [];
@@ -7562,10 +7586,82 @@ function toggleRiskGroup(groupId, headerRow) {
     headerRow.dataset.expanded = 'false';
     if (chevron) { chevron.style.transform = ''; chevron.textContent = '▶'; }
   } else {
+    // Lazy build: if detail rows haven't been rendered yet, build them now
+    if (drilldown.dataset.lazy === 'true') {
+      _lazyBuildRiskGroup(groupId, drilldown);
+    }
     drilldown.style.display = '';
     headerRow.dataset.expanded = 'true';
     if (chevron) { chevron.style.transform = 'rotate(90deg)'; chevron.textContent = '▶'; }
   }
+}
+
+// ── Lazy risk detail builder — called on first expand of a system risk group ──
+// Reads the stored risk data from window._tamRisksBySystem and builds the
+// individual risk <tr> elements on demand, avoiding 5000+ hidden DOM elements.
+function _lazyBuildRiskGroup(groupId, drilldownEl) {
+  // Extract system index from groupId (e.g. 'risk-group-3' → 3)
+  const sysIdx = parseInt(groupId.replace('risk-group-', ''), 10);
+  const sysName = (window._tamSortedSystemNames || [])[sysIdx];
+  const grp = sysName ? (window._tamRisksBySystem || {})[sysName] : null;
+  if (!grp || !grp.risks || grp.risks.length === 0) {
+    drilldownEl.dataset.lazy = 'false';
+    return;
+  }
+
+  const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const sevBadgeHtml = (sev) => {
+    const s = (sev || '').toLowerCase();
+    if (s === 'critical') return `<span class="badge critical">Critical</span>`;
+    if (s === 'high')     return `<span class="badge critical">High</span>`;
+    if (s === 'medium')   return `<span class="badge warning">Medium</span>`;
+    if (s === 'low')      return `<span class="badge info">Low</span>`;
+    return `<span class="badge info">${sev}</span>`;
+  };
+
+  const sortedRisks = [...grp.risks].sort((a, b) => {
+    const sa = SEV_ORDER[(a.severity || '').toLowerCase()] ?? 5;
+    const sb = SEV_ORDER[(b.severity || '').toLowerCase()] ?? 5;
+    return sa !== sb ? sa - sb : (a.description || '').localeCompare(b.description || '');
+  });
+
+  let html = `<td colspan="4" style="padding:0;">
+    <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.15);">`;
+
+  sortedRisks.forEach(r => {
+    html += `
+      <tr class="tam-risk-detail-row" style="border-top:1px solid rgba(255,255,255,0.04);">
+        <td style="padding:10px 14px 10px 24px;width:110px;vertical-align:top;">${sevBadgeHtml(r.severity)}</td>
+        <td style="padding:10px 8px;width:160px;vertical-align:top;">
+          <div style="font-weight:600;font-size:0.82rem;">${r.category}</div>
+          ${r.subCategory ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${r.subCategory}</div>` : ''}
+        </td>
+        <td style="padding:10px 8px;vertical-align:top;">
+          <div style="font-weight:500;margin-bottom:4px;font-size:0.85rem;">
+            ${r.advisoryUrl
+              ? `<a href="${r.advisoryUrl}" target="_blank" onclick="window.open(this.href,'_blank');return false;">
+                   ${r.description} <span style="font-size:0.65rem;color:var(--accent-cyan);vertical-align:middle;margin-left:3px;">↗</span>
+                 </a>`
+              : (r.description || '')}
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.45;">${r.recommendation || ''}</div>
+        </td>
+        <td style="padding:10px 14px;vertical-align:top;white-space:nowrap;">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button class="action-btn" style="font-size:0.72rem;padding:5px 10px;"
+              onclick="openRemediationModal(${r.id})"
+              data-tooltip="View detailed step-by-step remediation plan for this risk.">Plan</button>
+            <a class="external-link" style="font-size:0.72rem;"
+              href="${buildKBSearchURL(r.description, r.category)}" target="_blank"
+              onclick="window.open(this.href,'_blank');return false;">KB Search</a>
+          </div>
+        </td>
+      </tr>`;
+  });
+
+  html += `</table></td>`;
+  drilldownEl.innerHTML = html;
+  drilldownEl.dataset.lazy = 'false';
 }
 
 // ── Expand / Collapse All risk groups at once ──────────────────────────────────
@@ -7574,21 +7670,41 @@ function toggleAllRiskGroups(btn) {
   btn.dataset.expanded = expanding ? 'true' : 'false';
   btn.textContent = expanding ? '⊟ Collapse All' : '⊞ Expand All';
 
-  document.querySelectorAll('.risk-system-header').forEach(headerRow => {
-    const groupId  = headerRow.dataset.group;
-    const drilldown = groupId ? document.getElementById(groupId) : null;
-    const chevron   = headerRow.querySelector('.risk-chevron');
-    if (!drilldown) return;
-    if (expanding) {
-      drilldown.style.display = '';
-      headerRow.dataset.expanded = 'true';
-      if (chevron) { chevron.style.transform = 'rotate(90deg)'; }
-    } else {
+  const headers = [...document.querySelectorAll('.risk-system-header')];
+
+  if (!expanding) {
+    // Collapsing is cheap — no lazy build needed
+    headers.forEach(headerRow => {
+      const groupId  = headerRow.dataset.group;
+      const drilldown = groupId ? document.getElementById(groupId) : null;
+      const chevron   = headerRow.querySelector('.risk-chevron');
+      if (!drilldown) return;
       drilldown.style.display = 'none';
       headerRow.dataset.expanded = 'false';
       if (chevron) { chevron.style.transform = ''; }
+    });
+    return;
+  }
+
+  // Expanding: stagger lazy builds in batches of 5 to avoid freezing
+  const BATCH_SIZE = 5;
+  let i = 0;
+  function expandBatch() {
+    const end = Math.min(i + BATCH_SIZE, headers.length);
+    for (; i < end; i++) {
+      const headerRow = headers[i];
+      const groupId  = headerRow.dataset.group;
+      const drilldown = groupId ? document.getElementById(groupId) : null;
+      const chevron   = headerRow.querySelector('.risk-chevron');
+      if (!drilldown) continue;
+      if (drilldown.dataset.lazy === 'true') _lazyBuildRiskGroup(groupId, drilldown);
+      drilldown.style.display = '';
+      headerRow.dataset.expanded = 'true';
+      if (chevron) { chevron.style.transform = 'rotate(90deg)'; }
     }
-  });
+    if (i < headers.length) setTimeout(expandBatch, 16); // yield to browser
+  }
+  expandBatch();
 }
 
 // ── Security bulletin secondary-tier toggle ────────────────────────────────────
@@ -7840,7 +7956,13 @@ function renderTAMTab() {
     return;
   }
   
-  const selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
+  let selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
+  // ── Hard render cap: even with staggered rendering, 50+ systems generates megabytes
+  // of risk/upgrade/switch HTML that freezes the browser.  Cap the render list;
+  // the selector dropdown still shows the true count.
+  const TAM_RENDER_CAP = 50;
+  const _tamWasCapped = selectedSystems.length > TAM_RENDER_CAP;
+  if (_tamWasCapped) selectedSystems = selectedSystems.slice(0, TAM_RENDER_CAP);
   
   // Render active systems list description and physical cabling node layout
   const visualCard = document.getElementById("tamNodeVisualCard");
@@ -7900,8 +8022,11 @@ function renderTAMTab() {
     `;
   } else if (selectedSystems.length > 1) {
     const names = selectedSystems.map(s => s.systemName).join(", ");
+    const capNote = _tamWasCapped
+      ? ` <span style="font-size:0.72rem;color:var(--status-warning);margin-left:8px;">⚠ Rendering first ${TAM_RENDER_CAP} of ${activeSerials.length} — use filters to narrow scope</span>`
+      : '';
     document.getElementById("tamActiveSystem").innerHTML = `
-      <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
+      <strong>Selected Systems (${selectedSystems.length}${_tamWasCapped ? ' of ' + activeSerials.length : ''})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>${capNote}
     `;
   }
 
@@ -8026,6 +8151,10 @@ function renderTAMTab() {
 
     let riskRows = controlsHtml;
 
+    // Store risk data globally so lazy detail rendering can access it on first expand
+    window._tamRisksBySystem = risksBySystem;
+    window._tamSortedSystemNames = sortedSystemNames;
+
     sortedSystemNames.forEach((sysName, sysIdx) => {
       const grp    = risksBySystem[sysName];
       const risks  = grp.risks;
@@ -8049,10 +8178,8 @@ function renderTAMTab() {
 
       // System summary row (always visible)
       riskRows += `
-        <tr class="risk-system-header" onclick="toggleRiskGroup('${groupId}', this)"
+        <tr class="risk-system-header tam-risk-sys-hdr" onclick="toggleRiskGroup('${groupId}', this)"
           style="cursor:pointer;border-left:3px solid ${accentColor};transition:background 0.2s;"
-          onmouseover="this.style.background='rgba(255,255,255,0.03)'"
-          onmouseout="this.style.background=''"
           data-group="${groupId}" data-expanded="false">
           <td colspan="3" style="padding:12px 14px;">
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -8068,52 +8195,16 @@ function renderTAMTab() {
           </td>
         </tr>`;
 
-      // Drilldown tbody (hidden by default)
-      riskRows += `<tr id="${groupId}" style="display:none;">
+      // ── Drilldown placeholder: EMPTY — detail rows built lazily by _lazyBuildRiskGroup()
+      // on first expand click.  This avoids building ~5000 hidden <tr> elements upfront
+      // which was the primary cause of the TAM tab freezing the browser.
+      riskRows += `<tr id="${groupId}" style="display:none;" data-lazy="true">
         <td colspan="4" style="padding:0;">
-          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.15);">`;
-
-      // Sort individual risks by severity, then description
-      const sortedRisks = [...risks].sort((a, b) => {
-        const sa = SEV_ORDER[(a.severity || '').toLowerCase()] ?? 5;
-        const sb = SEV_ORDER[(b.severity || '').toLowerCase()] ?? 5;
-        return sa !== sb ? sa - sb : (a.description || '').localeCompare(b.description || '');
-      });
-
-      sortedRisks.forEach(r => {
-        riskRows += `
-          <tr style="border-top:1px solid rgba(255,255,255,0.04);"
-            onmouseover="this.style.background='rgba(255,255,255,0.02)'"
-            onmouseout="this.style.background=''">
-            <td style="padding:10px 14px 10px 24px;width:110px;vertical-align:top;">${sevBadgeHtml(r.severity)}</td>
-            <td style="padding:10px 8px;width:160px;vertical-align:top;">
-              <div style="font-weight:600;font-size:0.82rem;">${r.category}</div>
-              ${r.subCategory ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${r.subCategory}</div>` : ''}
-            </td>
-            <td style="padding:10px 8px;vertical-align:top;">
-              <div style="font-weight:500;margin-bottom:4px;font-size:0.85rem;">
-                ${r.advisoryUrl
-                  ? `<a href="${r.advisoryUrl}" target="_blank" onclick="window.open(this.href,'_blank');return false;">
-                       ${r.description} <span style="font-size:0.65rem;color:var(--accent-cyan);vertical-align:middle;margin-left:3px;">↗</span>
-                     </a>`
-                  : (r.description || '')}
-              </div>
-              <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.45;">${r.recommendation || ''}</div>
-            </td>
-            <td style="padding:10px 14px;vertical-align:top;white-space:nowrap;">
-              <div style="display:flex;flex-direction:column;gap:6px;">
-                <button class="action-btn" style="font-size:0.72rem;padding:5px 10px;"
-                  onclick="openRemediationModal(${r.id})"
-                  data-tooltip="View detailed step-by-step remediation plan for this risk.">Plan</button>
-                <a class="external-link" style="font-size:0.72rem;"
-                  href="${buildKBSearchURL(r.description, r.category)}" target="_blank"
-                  onclick="window.open(this.href,'_blank');return false;">KB Search</a>
-              </div>
-            </td>
-          </tr>`;
-      });
-
-      riskRows += `</table></td></tr>`;
+          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.15);">
+            <tr><td colspan="4" style="padding:12px;text-align:center;color:var(--text-muted);font-size:0.78rem;">Loading…</td></tr>
+          </table>
+        </td>
+      </tr>`;
     });
 
     document.getElementById('tamRisksTableBody').innerHTML = riskRows;
