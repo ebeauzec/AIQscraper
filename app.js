@@ -18,9 +18,37 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.8.0";
+const APP_VERSION = "3.8.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "3.8.1",
+    date: "30 July 2026",
+    title: "Version Database Refresh + TAM Performance Optimization",
+    sections: [
+      {
+        icon: "🔄",
+        label: "Version Database Updates",
+        color: "#14b8a6",
+        items: [
+          "StorageGRID 12.1.0 GA — docs now live on docs.netapp.com (federated namespace up to 10EB, batch ops on billions of objects)",
+          "SnapCenter 6.2.2 GA — confirmed on docs.netapp.com",
+          "Trident 26.06 GA — docs.netapp.com version selector updated",
+          "Reference library sync date updated to 2026-07-30"
+        ]
+      },
+      {
+        icon: "⚡",
+        label: "TAM Tab Performance",
+        color: "#f59e0b",
+        items: [
+          "Staggered 4-stage rendering pipeline (0/50/120/200ms) prevents browser hangs on large fleets",
+          "Generation guards cancel stale renders when selection changes mid-pipeline",
+          "Null guards in calculateUpgradePath prevent TypeError on E-Series/mixed-platform systems"
+        ]
+      }
+    ]
+  },
   {
     version: "3.8.0",
     date: "28 July 2026",
@@ -5520,27 +5548,23 @@ let SOFTWARE_VERSION_DATABASES = {
     // E2800/E5700/E4000/EF600/EF300: still supported on 11.90.1
   ],
   storagegrid: [
-    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0"
-    // StorageGRID 12.1 ANNOUNCED 2026-06-23 (12 TB/s, Global Federated Namespace up to 10EB,
-    // batch ops on billions of objects, multi-admin verification, AI-agent change tracking)
-    // but docs.netapp.com version selector still tops out at 12.0 as of 2026-07-20
-    // — do NOT include 12.1.0 until docs are live
+    "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9.0", "12.0.0", "12.1.0"
+    // StorageGRID 12.1.0 GA — docs live on docs.netapp.com/us-en/storagegrid/ as of 2026-07-30
+    // 12 TB/s, Global Federated Namespace up to 10EB, batch ops on billions of objects,
+    // multi-admin verification, AI-agent change tracking
   ],
   snapcenter: [
-    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1"
-    // SnapCenter 6.2.1 is confirmed GA (docs.netapp.com tops out at 6.2, text references 6.2.1)
+    "4.5", "4.6", "4.7", "4.8", "4.9", "5.0", "6.0", "6.1", "6.2", "6.2.1", "6.2.2"
+    // SnapCenter 6.2.2 confirmed GA (docs.netapp.com verified 2026-07-30)
     // SnapCenter 6.0 landmark: added Linux Server support (RHEL/Oracle Linux/SLES)
-    // No 6.2.2 doc tree confirmed as of 2026-07-20
   ],
   trident: [
-    "23.01", "23.04", "23.07", "23.10", "24.02", "24.06", "24.10", "25.02", "25.06", "25.10", "26.02", "26.02.1"
-    // Current GA: Trident 26.02.1 (re-confirmed 2026-07-20 — docs.netapp.com tops out at 26.02)
-    // GitHub-signed v26.06.0 release exists (2026-06-30) but not yet on docs.netapp.com
-    // Do NOT move to 26.06 until confirmed on docs.netapp.com
+    "23.01", "23.04", "23.07", "23.10", "24.02", "24.06", "24.10", "25.02", "25.06", "25.10", "26.02", "26.02.1", "26.06"
+    // Trident 26.06 confirmed GA (docs.netapp.com version selector shows 26.06 as of 2026-07-30)
   ]
 };
 
-// ── NetApp Reference Library Data (synced 2026-07-21) ─────────────────────
+// ── NetApp Reference Library Data (synced 2026-07-30) ─────────────────────
 // Source: G:\My Drive\Cowork\NetApp\NetApp Reference Library
 // All data verified against docs.netapp.com primary sources.
 // Online cross-check: security.netapp.com, kb.netapp.com, NVD, CISA KEV
