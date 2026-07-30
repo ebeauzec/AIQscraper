@@ -911,10 +911,6 @@ def _do_full_harvest(watchlist_ids=None):
                   capacity {
                     physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
                     logical { usedKiB }
-                    efficiency {
-                      ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }
-                      saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
-                    }
                     reportedOn
                   }
                   monthlyCapacity {
@@ -969,11 +965,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
-                            '   logical { usedKiB }'
-                            '   efficiency {'
-                            '     ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }'
-                            '     saved { savedKiB deDuplicationSavedKiB compactionSavedKiB } }'
-                            '   reportedOn }'
+                            '   logical { usedKiB } reportedOn }'
                             ' monthlyCapacity { month'
                             '   physical { usedKiB rawMarketingKiB qoqUtilizationPercentage } }'
                             ' } } }'
@@ -1212,30 +1204,24 @@ def _do_full_harvest(watchlist_ids=None):
             cap = cl.get("capacity") or {}
             phys = cap.get("physical") or {}
             logical = cap.get("logical") or {}
-            eff_obj = cap.get("efficiency") or {}
-            eff_ratio_obj = eff_obj.get("ratio") or {}
-            eff_saved_obj = eff_obj.get("saved") or {}
+            # Note: ClusterCapacity GQL type does NOT support efficiency sub-fields.
+            # Efficiency data is only available from the system-level ONTAP inline fragment.
+            # Divide capacity by node count to produce per-node fallback values.
+            _n_nodes = max(len(cl_systems), 1)
             cap_data = {
-                "physicalUsedTB": round((phys.get("usedKiB") or 0) / (1024**3), 2),
-                "rawCapacityTB": round((phys.get("rawMarketingKiB") or 0) / (1024**3), 2),
-                "logicalUsedTB": round((logical.get("usedKiB") or 0) / (1024**3), 2),
-                "usableCapacityTB": round((phys.get("usablePerformanceTierKiB") or phys.get("rawMarketingKiB") or 0) / (1024**3), 2),
+                "physicalUsedTB": round((phys.get("usedKiB") or 0) / (1024**3) / _n_nodes, 2),
+                "rawCapacityTB": round((phys.get("rawMarketingKiB") or 0) / (1024**3) / _n_nodes, 2),
+                "logicalUsedTB": round((logical.get("usedKiB") or 0) / (1024**3) / _n_nodes, 2),
+                "usableCapacityTB": round((phys.get("usablePerformanceTierKiB") or phys.get("rawMarketingKiB") or 0) / (1024**3) / _n_nodes, 2),
                 "qoqUtilizationPct": phys.get("qoqUtilizationPercentage") or 0,
                 "yoyUtilizationPct": phys.get("yoyUtilizationPercentage") or 0,
                 "capacityReportedOn": (cap.get("reportedOn") or "")[:10],
-                # Efficiency: cluster-level fallback for when system-level is null
-                "dataReductionRatio": eff_ratio_obj.get("dataReductionRatio"),
-                "efficiencyRatio": eff_ratio_obj.get("efficiencyRatio"),
-                "withSnapshotRatio": eff_ratio_obj.get("withSnapshotRatio"),
-                "dedupSavedKiB": eff_saved_obj.get("deDuplicationSavedKiB"),
-                "compactionSavedKiB": eff_saved_obj.get("compactionSavedKiB"),
-                "savedKiB": eff_saved_obj.get("savedKiB"),
                 # Monthly history for chart: list of {month, usedKiB, rawKiB}
                 "monthlyCapacity": [
                     {
                         "month": m.get("month", ""),
-                        "usedTB": round(((m.get("physical") or {}).get("usedKiB") or 0) / (1024**3), 3),
-                        "rawTB": round(((m.get("physical") or {}).get("rawMarketingKiB") or 0) / (1024**3), 2),
+                        "usedTB": round(((m.get("physical") or {}).get("usedKiB") or 0) / (1024**3) / _n_nodes, 3),
+                        "rawTB": round(((m.get("physical") or {}).get("rawMarketingKiB") or 0) / (1024**3) / _n_nodes, 2),
                         "qoqPct": (m.get("physical") or {}).get("qoqUtilizationPercentage") or None,
                     }
                     for m in (cl.get("monthlyCapacity") or [])
@@ -1450,16 +1436,6 @@ def _do_full_harvest(watchlist_ids=None):
                 _usbl_kib = cl_cap.get("usableCapacityTB", 0) * (1024**3)
                 _qoq      = cl_cap.get("qoqUtilizationPct", 0)
                 _yoy      = cl_cap.get("yoyUtilizationPct", 0)
-
-            # Fall back to cluster-level efficiency if system-level is null
-            if not _data_red and cl_cap.get("dataReductionRatio"):
-                _data_red   = cl_cap["dataReductionRatio"]
-                _eff_ratio  = _eff_ratio or cl_cap.get("efficiencyRatio")
-                _snap_ratio = _snap_ratio or cl_cap.get("withSnapshotRatio")
-            if not _dedup_kib and cl_cap.get("dedupSavedKiB"):
-                _dedup_kib   = cl_cap["dedupSavedKiB"]
-                _compact_kib = _compact_kib or cl_cap.get("compactionSavedKiB")
-                _saved_kib   = _saved_kib or cl_cap.get("savedKiB")
 
             systems_out.append({
                 # ── Core identity ──
