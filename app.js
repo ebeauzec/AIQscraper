@@ -14803,8 +14803,9 @@ PRIORITISED CORRECTIVE ACTIONS
     allUpgrades.forEach(u => {
       const sys = targetSystems.find(s => s.systemName === u.systemName);
       const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
-      solutionProposals += `  ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;      solutionProposals += `  ${u.systemName}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;
+      solutionProposals += `  ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;
       solutionProposals += `    Benefit: ${u.benefits || 'Security patches, performance improvements, and new features.'}\n`;
+      const hops = u.hops || [];
       if (hops.length > 1) {
         solutionProposals += `    Multi-hop sequence: ${hops.map(h => h.from + ' -> ' + h.to).join(' | ')}\n`;
       }
