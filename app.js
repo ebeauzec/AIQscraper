@@ -14232,7 +14232,6 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
     if (s.fieldActions) s.fieldActions.forEach(fa => fieldActions.push({ systemName: s.systemName, ...fa }));
   });
   const faLines = fieldActions.length > 0
-  const faLines = fieldActions.length > 0
     ? fieldActions.map(fa => {
       const sys = targetSystems.find(s => s.systemName === fa.systemName);
       const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
