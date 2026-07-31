@@ -15879,6 +15879,49 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
     if (fwGap > 0) salesProposals += `  • Firmware Currency: ${fwGap} system(s) behind recommended OS version\n    → Professional Services upgrade engagement\n`;
   }
 
+  // Financial Business Case
+  let physTotalTB = 0, logTotalTB = 0, savedTotalTB = 0;
+  let eosaCount = 0;
+  const avgSupportCostPerSystem = 8500; // Estimated annual avg
+  targetSystems.forEach(s => {
+    if (s.efficiency) {
+      physTotalTB += (s.efficiency.physicalUsedBytes || 0) / (1024**4);
+      logTotalTB += (s.efficiency.logicalUsedBytes || 0) / (1024**4);
+      savedTotalTB += (s.efficiency.savedBytes || 0) / (1024**4);
+    }
+    if (s.lifecycle && s.lifecycle.isNearEos) eosaCount++;
+  });
+  const avgDRRatio = physTotalTB > 0 ? (logTotalTB / physTotalTB).toFixed(1) : 'N/A';
+  const costAvoidanceMonthly = Math.round(savedTotalTB * 50);
+  const annualMaintenance = sysCount * avgSupportCostPerSystem;
+  const eosaPremium = Math.round(eosaCount * avgSupportCostPerSystem * 0.45);
+  const unsupportedRiskCost = critCount * 25000; // Estimated per-incident exposure
+
+  salesProposals += `\nFINANCIAL BUSINESS CASE [MEDDPICC: M + E]
+--------------------------------------------------------------------------------
+  3-YEAR TCO COMPARISON (ESTIMATED)
+
+  Current Fleet (${sysCount} systems):
+    Annual Maintenance:          $${annualMaintenance.toLocaleString()}/year (${sysCount} systems x ~$${avgSupportCostPerSystem}/yr)
+    EOSA Premium Exposure:       ~$${eosaPremium.toLocaleString()}/year (+45% on ${eosaCount} out-of-support systems)
+    Operational Risk Exposure:   ~$${unsupportedRiskCost.toLocaleString()} (${critCount} critical risks x est. $25K/incident)
+    3-Year Current TCO:          ~$${((annualMaintenance + eosaPremium) * 3 + unsupportedRiskCost).toLocaleString()}
+
+  Modernized Fleet (AFF A-Series / Keystone):
+    Data Reduction Improvement:  ${avgDRRatio}:1 current -> est. 4:1+ (industry benchmark)
+    Space Saved:                 ${savedTotalTB.toFixed(1)} TB ($${costAvoidanceMonthly.toLocaleString()}/month cost avoidance)
+    Power Reduction:             est. ${Math.round(savedTotalTB * 0.5)} kW avoided
+    Rack Consolidation:          est. ${Math.max(1, Math.round(sysCount * 0.15))} fewer rack units
+
+  Investment Options:
+    CAPEX:     Purchase AFF A-Series with 3-year premium support
+    Keystone:  Monthly consumption model ($X/TB/month, capacity on-demand)
+    Hybrid:    CAPEX core + Keystone burst capacity
+
+  Estimated 3-Year Savings:      ~$${Math.round(((annualMaintenance + eosaPremium) * 3 * 0.2) + costAvoidanceMonthly * 36).toLocaleString()}
+  (20% maintenance reduction + storage cost avoidance from efficiency gains)
+`;
+
   if (expiringContracts.length === 0 && eos.length === 0 && scopedRenewals.length === 0 && arpGap === 0) {
     salesProposals += `No urgent hardware refreshes, contract renewals, or security gaps identified.\n`;
   }
@@ -17899,7 +17942,7 @@ function generateActionPlan() {
               Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT file for distribution to stakeholders.
             </p>
           </div>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 11 deliverables as individual TXT files">⬇ Download All</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 13 deliverables as individual TXT files">⬇ Download All</button>
         </div>
         <div style="display: flex; gap: 16px; margin-top: 8px;">
           <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C)</span>
