@@ -4201,7 +4201,7 @@ function renderCharts() {
   const donutBorder = ['#38bdf8',                   '#34d399'];
 
   if (dedupCompressSum > 0.05) {
-    donutLabels.push(`Space Saved — ${fmtTB(dedupCompressSum)} TB`);
+    donutLabels.push(`Dedupe + Compression — ${fmtTB(dedupCompressSum)} TB`);
     donutData.push(parseFloat(dedupCompressSum.toFixed(1)));
     donutBg.push('rgba(168, 85, 247, 0.7)');
     donutBorder.push('#a855f7');
@@ -9752,7 +9752,7 @@ function renderCSMTab() {
         <div>
           <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Data Reduction</span>
           <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${avgRatio}:1</div>
-          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Storage efficiency ratio (incl. snapshots)</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compression only, excl. snapshots</div>
         </div>
         <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div>
@@ -9767,7 +9767,7 @@ function renderCSMTab() {
         <div style="background-color: rgba(0, 230, 118, 0.08); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0, 230, 118, 0.2);">
           <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Data Reduction Saved</div>
           <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${totalSaved.toFixed(1)} TB</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction + snapshot savings</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction savings only</div>
         </div>
       </div>
     `;
@@ -11176,16 +11176,20 @@ function enrichSystemTelemetry(s) {
 
     // ── Determine displayed ratio
     // The API frequently returns null for dataReductionRatioSys and dedupSavedKiB.
-    // When that happens, derive the ratio from logical/physical capacity.
-    const logicalTBraw = s.clusterLogicalUsedTB || 0;
+    // When that happens, derive the ratio from snapshot-excluded capacity fields:
+    //   logicalUsedNoSnapsTB  = logical used WITHOUT snapshots/clones
+    //   physicalUsedNoSnapsTB = physical used WITHOUT snapshots
+    // This gives a pure data reduction ratio (dedupe+compression) without snapshot inflation.
+    const logNoSnaps  = s.logicalUsedNoSnapsTB  || 0;
+    const physNoSnaps = s.physicalUsedNoSnapsTB || 0;
     let ratioVal;
     if (dataRedRatio > 1) {
       ratioVal = dataRedRatio.toFixed(1);
     } else if (physTB > 0 && dataSavedTB > 0) {
       ratioVal = ((physTB + dataSavedTB) / physTB).toFixed(1);
-    } else if (physTB > 0 && logicalTBraw > physTB) {
-      // Fallback: logical/physical — includes snapshot savings but gives real per-system variance
-      ratioVal = (logicalTBraw / physTB).toFixed(1);
+    } else if (physNoSnaps > 0 && logNoSnaps > physNoSnaps) {
+      // Fallback: logical(no snaps) / physical(no snaps) — pure DR, excludes snapshots
+      ratioVal = (logNoSnaps / physNoSnaps).toFixed(1);
     } else {
       ratioVal = null;
     }
@@ -11201,16 +11205,16 @@ function enrichSystemTelemetry(s) {
       usableTBfinal = Math.round(((s.sazEffectiveCapacityKiB || s.sazTotalRawKiB || 0) / (1024 ** 3)) * 1000) / 1000;
     }
     // AFX: disaggregated pools — same physical path but flag for display note
-    const logTBfinal = dataRedRatio > 1 ? physTBfinal * dataRedRatio : (physTBfinal + dataSavedTB);
+    // logTBfinal: use the ratio we computed (snapshot-free) to derive logical capacity
+    const ratioNum = ratioVal ? parseFloat(ratioVal) : 0;
+    const logTBfinal = ratioNum > 1 ? physTBfinal * ratioNum : (physTBfinal + dataSavedTB);
 
 
 
-    // ── Space saved for the donut chart: logicalUsedTB - physicalUsedTB
-    // Using raw KiB (dedup+compaction) over-inflates the donut slice because
-    // snapshot savings are already reflected in the logical used total.
-    // logical - physical gives the proportional "virtual savings" that makes sense
-    // on-disk (e.g. 844 TB physical, 10,000 TB logical → 9,156 TB saved by ratio).
-    const logicalTBforSavings  = s.clusterLogicalUsedTB || 0;
+    // ── Space saved for the donut chart ──────────────────────────────────
+    // Use snapshot-excluded logical capacity when available; otherwise fall
+    // back to full logical (which includes snapshot space sharing).
+    const logicalTBforSavings  = logNoSnaps > 0 ? logNoSnaps : (s.clusterLogicalUsedTB || 0);
     const spaceSavedForChart   = Math.max(0, logicalTBforSavings - physTBfinal);
     // FabricPool: only tag systems where isFabricPool is true; estimate tiered as
     // the delta between logical and physical (cold data sitting in object store).

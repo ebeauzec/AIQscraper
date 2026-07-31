@@ -756,8 +756,8 @@ def _do_full_harvest(watchlist_ids=None):
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
                     capacity {
-                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
-                      logical { usedKiB }
+                      physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB }
+                      logical { usedKiB usedWithoutSnapshotsClonesKiB }
                       efficiency {
                         ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
@@ -1488,7 +1488,9 @@ def _do_full_harvest(watchlist_ids=None):
                 })
             _raw_kib  = _sys_phys.get("rawMarketingKiB") or 0
             _used_kib = _sys_phys.get("usedKiB") or 0
+            _used_no_snap_kib = _sys_phys.get("usedWithoutSnapshotsKiB") or 0
             _log_kib  = _sys_log.get("usedKiB") or 0
+            _log_no_snap_kib = _sys_log.get("usedWithoutSnapshotsClonesKiB") or 0
             _usbl_kib = _sys_phys.get("usablePerformanceTierKiB") or 0
             _qoq      = _sys_phys.get("qoqUtilizationPercentage") or 0
             _yoy      = _sys_phys.get("yoyUtilizationPercentage") or 0
@@ -1650,6 +1652,8 @@ def _do_full_harvest(watchlist_ids=None):
                 "clusterRawCapacityTB":  round(_raw_kib  / (1024**3), 3) if _raw_kib  else 0,
                 "clusterUsableCapacityTB": round(_usbl_kib / (1024**3), 3) if _usbl_kib else 0,
                 "clusterLogicalUsedTB": round(_log_kib / (1024**3), 3) if _log_kib else 0,
+                "physicalUsedNoSnapsTB": round(_used_no_snap_kib / (1024**3), 3) if _used_no_snap_kib else 0,
+                "logicalUsedNoSnapsTB": round(_log_no_snap_kib / (1024**3), 3) if _log_no_snap_kib else 0,
                 "dataReductionRatio": _data_red or cap_eff.get("dataReductionRatio"),
                 "clusterQoQUtilPct": _qoq,
                 "clusterYoYUtilPct": _yoy,
