@@ -4165,11 +4165,8 @@ function renderCharts() {
     // Preferred: derive from data reduction ratio (dedupe+compression only, excl snapshots)
     const drr  = eff.dataReductionRatio || 0;
     if (drr > 1) return a + (phys * (drr - 1));
-    // Fallback 1: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
+    // Fallback: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
     if (eff.spaceSavedKiB > 0) return a + eff.spaceSavedKiB;
-    // Fallback 2: spaceSavedTB (logical − physical). Includes snapshot space sharing
-    // but is the only available signal when the above paths return nothing.
-    if (eff.spaceSavedTB > 0) return a + eff.spaceSavedTB;
     return a;
   }, 0);
 
@@ -9752,18 +9749,13 @@ function renderCSMTab() {
     const totalLogical = parseFloat((totalPhysical * avgRatioNum).toFixed(1));
     // Saved = logical − physical (consistent with ratio shown)
     const totalSaved   = parseFloat(Math.max(0, totalLogical - totalPhysical).toFixed(1));
-    // Check if any system used the snapshot-inclusive fallback ratio
-    const anySnapRatio = targetCSMSystems.some(s => s.efficiency._ratioIncludesSnaps);
-    const ratioSubtitle = anySnapRatio
-      ? 'Storage efficiency ratio (incl. snapshots)'
-      : 'Dedupe + compression only, excl. snapshots';
 
     document.getElementById("csmSavingsCard").innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 12px;">
         <div>
           <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Data Reduction</span>
           <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${avgRatio}:1</div>
-          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${ratioSubtitle}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compression only, excl. snapshots</div>
         </div>
         <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div>
@@ -11185,26 +11177,16 @@ function enrichSystemTelemetry(s) {
     const compactSavedKiB  = s.compactionSavedKiB || 0;
     const dataSavedTB      = (dedupSavedKiB + compactSavedKiB) / (1024 ** 3);  // KiB → TiB
 
-    // ── Determine best available ratio ─────────────────────────────────────
-    // Priority 1: dataReductionRatioSys — pure dedupe+compression from API
-    // Priority 2: efficiencyRatio (includes snapshots) — real per-system value from API
-    // Priority 3: logical/physical — derived from capacity data
-    const logicalTBraw = s.clusterLogicalUsedTB || 0;
-    let bestRatio;
-    if (dataRedRatio > 1) {
-      bestRatio = dataRedRatio;
-    } else if (effRatioFull > 1) {
-      bestRatio = effRatioFull;  // real API value — includes snapshots but varies per system
-    } else if (physTB > 0 && dataSavedTB > 0) {
-      bestRatio = (physTB + dataSavedTB) / physTB;
-    } else if (physTB > 0 && logicalTBraw > physTB) {
-      bestRatio = logicalTBraw / physTB;
-    } else {
-      bestRatio = 0;
-    }
-
     // ── Determine displayed ratio
-    const ratioVal = bestRatio > 1 ? bestRatio.toFixed(1) : null;
+    let ratioVal;
+    if (dataRedRatio > 1) {
+      ratioVal = dataRedRatio.toFixed(1);
+    } else if (physTB > 0 && dataSavedTB > 0) {
+      // Fallback: compute from saved KiB
+      ratioVal = ((physTB + dataSavedTB) / physTB).toFixed(1);
+    } else {
+      ratioVal = null;
+    }
 
     // ASA r2: capacity reported via SAZ (Storage Availability Zone), not aggregate/physical
     // If standard physical capacity is missing, fall back to SAZ fields from server.py harvest
@@ -11217,7 +11199,7 @@ function enrichSystemTelemetry(s) {
       usableTBfinal = Math.round(((s.sazEffectiveCapacityKiB || s.sazTotalRawKiB || 0) / (1024 ** 3)) * 1000) / 1000;
     }
     // AFX: disaggregated pools — same physical path but flag for display note
-    const logTBfinal = bestRatio > 1 ? physTBfinal * bestRatio : (physTBfinal + dataSavedTB);
+    const logTBfinal = dataRedRatio > 1 ? physTBfinal * dataRedRatio : (physTBfinal + dataSavedTB);
 
 
 
@@ -11241,13 +11223,10 @@ function enrichSystemTelemetry(s) {
     // and rawTB are always 0. Flag _capacityUnavailable so the UI can render
     // a clear informational note instead of "0.0 TB / N/A" placeholders.
     const _sgEseriesCapGap = (isStorageGrid || isEseries) && physTBfinal === 0 && rawTBfinal === 0;
-    // Track whether we fell back to a ratio that includes snapshots
-    const _ratioIncludesSnaps = bestRatio > 1 && !(dataRedRatio > 1);
 
     efficiency = {
       ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : (_sgEseriesCapGap ? 'N/A' : 'N/A')),
-      dataReductionRatio: parseFloat((bestRatio > 1 ? bestRatio : 1).toFixed(2)),  // best available ratio (pure DR preferred, effRatio fallback)
-      _ratioIncludesSnaps,  // true when using efficiencyRatio/logical÷physical (includes snapshot savings)
+      dataReductionRatio: parseFloat((dataRedRatio > 1 ? dataRedRatio : 1).toFixed(2)),  // numeric DR ratio (dedup+compression only, excl. snapshots)
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
       spaceSavedTB: parseFloat(spaceSavedForChart.toFixed(1)),
