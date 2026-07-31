@@ -49,7 +49,7 @@ param(
 
 Set-StrictMode -Off
 $ErrorActionPreference = "Stop"
-$Root = $PSScriptRoot
+$Root = Split-Path -Parent $PSScriptRoot
 
 # ── 1. Read current version ───────────────────────────────────────────────────
 $vFile = Join-Path $Root "version.json"

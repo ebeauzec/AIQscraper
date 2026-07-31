@@ -59,7 +59,7 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 1. **AIQ GraphQL API** (`gql.aiq.netapp.com`) — Watchlists, system inventory, TAM info, cluster configs, switches, shelves, support cases
 2. **AIQ REST API** (`api.activeiq.netapp.com`) — Token exchange, capacity, risks
 3. **ASUP Files** — Offline AutoSupport bundle parsing (`.7z`, `.tgz`, `.zip`, `.xml`, `.gz`) for air-gapped environments
-4. **Local Reference Library** — `firmware_baselines.json`, `security_bulletins.json`, plus embedded EOA platform lists, CVE database, upgrade caveats, MetroCluster ISL specs
+4. **Local Reference Library** — `data/firmware_baselines.json`, `data/security_bulletins.json`, plus embedded EOA platform lists, CVE database, upgrade caveats, MetroCluster ISL specs
 5. **External Enrichment Sources** (scraped automatically per version, cached in SQLite):
    - `docs.netapp.com` — ONTAP/StorageGRID/SANtricity release notes (known issues, fixed issues, what's new)
    - `security.netapp.com` — PSIRT advisory index and individual advisory detail pages
@@ -93,8 +93,8 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 |------|---------|
 | `aiq_config.json` | Stores refresh token, watchlist IDs, TAM info |
 | `version.json` | Source of truth for version number (currently 3.7.0) |
-| `firmware_baselines.json` | Ground-truth firmware recommendations (ONTAP, SP/BMC, shelf, disk, StorageGRID, SANtricity) |
-| `security_bulletins.json` | Local CVE/NTAP advisory database for offline security matching |
+| `data/firmware_baselines.json` | Ground-truth firmware recommendations (ONTAP, SP/BMC, shelf, disk, StorageGRID, SANtricity) |
+| `data/security_bulletins.json` | Local CVE/NTAP advisory database for offline security matching |
 | `aiq_cache.db` | SQLite cache database (~22MB, stores all harvested data) |
 
 ### Build & Distribution
@@ -184,7 +184,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - System discovery and inventory harvesting via GraphQL
 - Risk/action harvesting
 - Capacity data with per-aggregate trend charts and runway forecasting
-- Firmware currency comparison against `firmware_baselines.json` (ONTAP, SP/BMC, disk, shelf)
+- Firmware currency comparison against `data/firmware_baselines.json` (ONTAP, SP/BMC, disk, shelf)
 - Security bulletin matching (77+ entries, 82+ CVEs, CISA KEV integration)
 - MetroCluster health monitoring (config, partner status, mirror state)
 - Support case tracking
@@ -251,7 +251,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | **README version badge** | Shows 3.3.1 | Should show 3.7.0 |
 | **Data protection coverage %** | SnapMirror count exists | Volume-level protection ratio calculation missing |
 | **`index.html` vs `index_src.html` sync** | `index_src.html` has ASUP modal; `index.html` does not | Need to decide which is canonical and sync |
-| **Firmware Phase 2** | Phase 1 (Unverified badge) complete | Model-specific SP/BMC baseline research and `firmware_baselines.json` expansion |
+| **Firmware Phase 2** | Phase 1 (Unverified badge) complete | Model-specific SP/BMC baseline research and `data/firmware_baselines.json` expansion |
 
 ---
 
@@ -366,7 +366,7 @@ The previous agent conversation (ID: `73665ae2-...`) produced these planning/rev
 
 ### Feature Work
 6. **Complete SnapMirror integration** — pull full relationship details (source, dest, state, lag), add data protection coverage % to Executive Summary
-7. **Firmware Phase 2** — research model-specific SP/BMC baselines, expand `firmware_baselines.json`
+7. **Firmware Phase 2** — research model-specific SP/BMC baselines, expand `data/firmware_baselines.json`
 8. **StorageGRID + SANtricity version audit** in Firmware Currency panel
 9. **Upgrade Planner enhancement** — full upgrade path validation with multi-hop sequencing
 

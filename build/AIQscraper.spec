@@ -13,13 +13,14 @@ Output:
 """
 
 import sys
+import os
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 IS_MAC = sys.platform == 'darwin'
 IS_WIN = sys.platform == 'win32'
 
 import json as _json
-with open('version.json', 'r') as _vf:
+with open(os.path.join(SPECPATH, '..', 'version.json'), 'r') as _vf:
     _APP_VERSION = _json.load(_vf).get('version', '3.7.0')
 
 block_cipher = None
@@ -28,10 +29,10 @@ block_cipher = None
 # Static web assets to bundle alongside the Python code
 # ---------------------------------------------------------------------------
 web_datas = [
-    ('index.html', '.'),
-    ('app.js',     '.'),
-    ('styles.css', '.'),
-    ('chart.js',   '.'),
+    (os.path.join(SPECPATH, '..', 'index.html'), '.'),
+    (os.path.join(SPECPATH, '..', 'app.js'),     '.'),
+    (os.path.join(SPECPATH, '..', 'styles.css'), '.'),
+    (os.path.join(SPECPATH, '..', 'chart.js'),   '.'),
 ]
 
 # ---------------------------------------------------------------------------
@@ -61,8 +62,8 @@ elif IS_MAC:
 # Analysis
 # ---------------------------------------------------------------------------
 a = Analysis(
-    ['launcher.py'],
-    pathex=[],
+    [os.path.join(SPECPATH, '..', 'launcher.py')],
+    pathex=[os.path.join(SPECPATH, '..')],
     binaries=all_binaries,
     datas=all_datas,
     hiddenimports=all_hidden,

@@ -9,7 +9,7 @@ Thumbs.db
 desktop.ini
 
 # PyInstaller intermediate build artefacts (dist/ IS tracked — pre-built for no-install deployment)
-build/
+build/__pycache__/
 __pycache__/
 *.pyc
 
@@ -24,9 +24,9 @@ aiq_format_report.json
 # Generated report documents
 *.docx
 
-# Scratch/dev scripts
-brace_find.py
+# Scratch/dev artefacts
 brace_report.txt
+brace_find.py
 brace_find.txt
 cl_end.txt
 brace2.txt
