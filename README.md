@@ -233,6 +233,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 > **No pip packages required** for the web dashboard. The server uses only Python standard library modules. `requirements_desktop.txt` is only needed for the optional standalone desktop app.
 
+> **No pip packages required** for the standalone desktop app installer. Run `python build/Install_NetApp_AIQ_Advisor.py` to create a desktop shortcut and auto-launch.
+
 ### Step 1 — Clone the Repository
 
 ```bash
@@ -256,7 +258,7 @@ cd AIQscraper
 | **Windows Batch** ⭐ | Double-click `start_dashboard.bat` | **Recommended.** Auto-kills old processes, starts server, opens browser |
 | **PowerShell** | `.\Start-Dashboard.ps1` | Coloured output with Python version check |
 | **Direct Python** | `python server.py` → `http://localhost:8080` | Dev mode — verbose console output |
-| **Desktop App** | `python launcher.py` | Standalone window (requires `pip install pywebview`) |
+| **Desktop App** | `python launcher.py` | Standalone window (requires `pip install -r build/requirements_desktop.txt`) |
 
 ### Step 4 — First Sync
 
@@ -370,7 +372,7 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 ### Security Intelligence Database
 
-The tool maintains a **live security advisory database** in [`security_bulletins.json`](file:///g:/My%20Drive/AntiGravity/AIQscraper/security_bulletins.json), cross-referenced against every system's ONTAP/StorageGRID/SnapCenter version at enrichment time. This is **in addition to** advisories returned by the Active IQ API.
+The tool maintains a **live security advisory database** in [`security_bulletins.json`](data/security_bulletins.json), cross-referenced against every system's ONTAP/StorageGRID/SnapCenter version at enrichment time. This is **in addition to** advisories returned by the Active IQ API.
 
 > [!IMPORTANT]
 > The server (`python server.py`) must be running for advisory data to load. If the server is offline, the database will be empty and the **Security Advisory Database** indicator in the Sync panel will show ⚠️ **server offline**.
@@ -381,17 +383,17 @@ The tool maintains a **live security advisory database** in [`security_bulletins
 | **CISA KEV confirmed** | **2** (actively exploited in the wild) |
 | **Coverage period** | 2024 – 2026 |
 | **Products covered** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, SAN Host Utilities, Active IQ Unified Manager |
-| **Database file** | `security_bulletins.json` — single source of truth |
+| **Database file** | `data/security_bulletins.json` — single source of truth |
 
 #### How the Database Grows
 
 ```
-Daily scan (08:00)  →  POST /api/bulletins  →  security_bulletins.json
+Daily scan (08:00)  →  POST /api/bulletins  →  data/security_bulletins.json
                                                          ↓
 App startup / Refresh button  →  GET /api/bulletins  →  in-memory DB  →  enriches all systems
 ```
 
-The daily 08:00 background scan reads the NetApp Reference Library, checks `security.netapp.com` and NVD for new advisories, and POSTs any new entries to the running server. The server merges them (deduplicating by `id`) and writes to `security_bulletins.json`. **No code edits to `app.js` are ever needed.**
+The daily 08:00 background scan reads the NetApp Reference Library, checks `security.netapp.com` and NVD for new advisories, and POSTs any new entries to the running server. The server merges them (deduplicating by `id`) and writes to `data/security_bulletins.json`. **No code edits to `app.js` are ever needed.**
 
 #### Adding a New Advisory Manually
 
@@ -402,7 +404,7 @@ curl -X POST http://localhost:8080/api/bulletins \
   -d '{"bulletins":[{"id":"NTAP-YYYYMMDD-XXXX","cve":["CVE-XXXX-XXXXX"],"cvss":8.5,"severity":"high","title":"...","description":"...","affectedProducts":["ONTAP"],"affectedVersions":{"ontap":[{"from":"9.x.y","to":"9.x.yPn"}]},"fixedVersions":{"ontap":["9.x.yPn+1"]},"mitigation":"Upgrade to ...","published":"YYYY-MM-DD","link":"https://security.netapp.com/advisory/..."}]}'
 ```
 
-**Option B — Edit `security_bulletins.json` directly:** Add an entry to the `bulletins` array, restart the server, then click **🛡️ Refresh Security Advisory DB** in the Sync panel.
+**Option B — Edit `data/security_bulletins.json` directly:** Add an entry to the `bulletins` array, restart the server, then click **🛡️ Refresh Security Advisory DB** in the Sync panel.
 
 #### Sources
 
@@ -458,18 +460,37 @@ server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
   └── Active IQ GraphQL (gql.aiq.netapp.com) — 8+ queries
 ```
 
+### Repository Layout
+
+```
+AIQscraper/
+├── build/           ← Packaging, installers, build scripts
+├── data/            ← Reference data (security bulletins, firmware baselines)
+├── dist/            ← Pre-built desktop app (PyInstaller output)
+├── tools/           ← Developer utilities, diagnostic & probe scripts
+├── server.py        ← Python HTTP server + API harvester
+├── app.js           ← Frontend application (~21K lines)
+├── index.html       ← Compiled single-file build
+├── index_src.html   ← Dev HTML shell (loads external app.js + styles.css)
+├── styles.css       ← Dark-theme CSS
+├── chart.js         ← Chart.js library (vendored)
+├── launcher.py      ← Desktop app wrapper (pywebview)
+├── start_dashboard.bat / .ps1  ← Launch scripts
+└── version.json     ← Version metadata
+```
+
 ### Component Reference
 
 | File | Size | Role |
 |---|---|---|
-| `server.py` | ~75 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints |
-| `app.js` | ~700 KB | ~13,200 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, Reference Library |
-| `index_src.html` | ~74 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
-| `index.html` | ~680 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
-| `styles.css` | ~22 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
-| `chart.js` | ~209 KB | Local copy of Chart.js library |
-| `aiq_cache.db` | Variable | SQLite persistent cache (WAL mode) |
-| `aiq_config.json` | ~2 KB | Server config — token, sync settings |
+| `server.py` | ~210 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints |
+| `app.js` | ~1.1 MB | ~21,000 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, Reference Library |
+| `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
+| `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
+| `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
+| `chart.js` | ~209 KB | Local copy of Chart.js library (vendored) |
+| `data/security_bulletins.json` | ~83 KB | Live CVE/NTAP advisory database for offline security matching |
+| `data/firmware_baselines.json` | ~10 KB | Ground-truth firmware recommendations |
 | `start_dashboard.bat` | ~1 KB | Windows batch launcher |
 | `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher with Python version check |
 | `launcher.py` | ~8 KB | Desktop app wrapper (pywebview) |
@@ -560,10 +581,13 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 python server.py
 
 # Rebuild compiled index.html after code changes (Windows)
-build_windows.bat
+build\build_windows.bat
 
 # Rebuild on macOS/Linux
-bash build_mac.sh
+bash build/build_mac.sh
+
+# Bump version (from any directory)
+powershell build\bump_version.ps1 patch "Fix description"
 ```
 
 ---

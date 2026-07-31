@@ -57,7 +57,8 @@ echo.
 :: -------------------------------------------------------------------
 echo [3/4] Building Windows executable with PyInstaller...
 echo.
-pyinstaller AIQscraper.spec --noconfirm
+cd /d "%~dp0.."
+pyinstaller build\AIQscraper.spec --noconfirm
 if errorlevel 1 (
     echo.
     echo [ERROR] PyInstaller build failed. See output above for details.

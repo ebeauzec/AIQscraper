@@ -3820,6 +3820,9 @@ function loadConfig() {
     saveSystems();
   }
 
+  // Post-enrichment: resolve SnapMirror destination partner names from fleet topology
+  _resolveSnapMirrorPartners(state.systems);
+
   // Pick first system as selected
   if (state.systems.length > 0) {
     state.selectedSystem = state.systems[0];
@@ -7728,7 +7731,45 @@ function toggleBulletinSecondary(btn) {
     if (label) label.textContent = label.textContent.replace('Show', 'Hide').replace('▼', '▲');
     if (btn) btn.dataset.expanded = 'true';
 
-    // Fire deferred CVE enrichment on first open only
+    // ── Lazy-build secondary rows on FIRST expand only ─────────────────────
+    // The hidden container starts with data-lazy="true" and an empty <table>.
+    // On first click, we build all secondary row HTML from stored data and
+    // inject it, then run batched CVE enrichment.
+    if (group.dataset.lazy === 'true' && window._secondaryBulletinData) {
+      group.dataset.lazy = 'false'; // mark as built
+      const { bulletins, idxMap, buildRow } = window._secondaryBulletinData;
+      const innerTable = group.querySelector('table');
+      if (innerTable && bulletins.length > 0) {
+        let html = '';
+        const enrichQueue = [];
+        bulletins.forEach((b) => {
+          const globalIdx = idxMap.get(b);
+          const { rowId, cveId, html: rowHtml } = buildRow(b, globalIdx);
+          html += rowHtml;
+          if (cveId) enrichQueue.push({ rowId, cveId });
+        });
+        innerTable.innerHTML = html;
+
+        // Batched CVE enrichment for newly-rendered rows
+        if (enrichQueue.length > 0) {
+          const batchSize = 5, delayMs = 100;
+          for (let i = 0; i < enrichQueue.length; i += batchSize) {
+            const chunk = enrichQueue.slice(i, i + batchSize);
+            setTimeout(() => {
+              chunk.forEach(({ rowId, cveId }) => {
+                const rowEl = document.getElementById(rowId);
+                if (rowEl && typeof enrichmentEngine !== 'undefined') {
+                  enrichmentEngine.injectCVEEnrichment(cveId, rowEl);
+                }
+              });
+            }, Math.floor(i / batchSize) * delayMs);
+          }
+        }
+      }
+      window._secondaryBulletinData = null; // free memory
+    }
+
+    // Legacy path: fire deferred CVE enrichment if rows were pre-built
     if (window._deferredBulletinEnrich && window._deferredBulletinEnrich.length > 0) {
       const queue = window._deferredBulletinEnrich;
       window._deferredBulletinEnrich = []; // clear so it only runs once
@@ -7928,24 +7969,43 @@ function closeRemediationModal() {
 }
 
 function renderTAMTab() {
-  populateSystemSelectors();
-  
-  const currentFiltered = getFilteredSystems();
+  const _t0 = performance.now();
+
+  // ── Lightweight dirty-stamp guard — MUST be checked BEFORE any expensive work ──
+  // populateSystemSelectors(), renderNodeVisualLayout(), etc. used to run before
+  // this guard, meaning every search keystroke executed hundreds of DOM operations
+  // even when nothing changed.  Now we compute the fingerprint first using only
+  // state reads (no DOM access), and bail out immediately if unchanged.
+  const currentFiltered = getFilteredSystems(); // cached, ~0ms
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
   
-  // Prune/initialize active serials
+  // Prune/initialize selectedTAMSerials if scope changed
+  if (!state.selectedTAMSerials) state.selectedTAMSerials = [];
+  const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
+                                (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
+  if (hasTAMFilterMismatch) {
+    const TAM_AUTO_SELECT_CAP = 20;
+    if (allSerialsInScope.length <= TAM_AUTO_SELECT_CAP) {
+      state.selectedTAMSerials = [...allSerialsInScope];
+    } else {
+      state.selectedTAMSerials = allSerialsInScope.slice(0, TAM_AUTO_SELECT_CAP);
+    }
+  }
+
   const activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
 
-  // ── Dirty-stamp guard ─────────────────────────────────────────────────────
-  // renderTAMTab() is invoked on every search keystroke (switchTab→handleSearch),
-  // every auto-sync tick, and every filter change while the TAM tab is active.
-  // With 20+ systems this is the primary browser-hang trigger on this page.
-  // Skip the full re-render when selection, active node, and system count are unchanged.
   const _tamFP = activeSerials.slice().sort().join(',') + '|' +
                  (state.activeVisualizerNodeSerial || '') + '|' +
                  (state.systems ? state.systems.length : 0);
-  if (renderTAMTab._lastFP === _tamFP) return;
+  if (renderTAMTab._lastFP === _tamFP) {
+    return; // Nothing changed — skip ALL expensive work
+  }
   renderTAMTab._lastFP = _tamFP;
+
+  // ── From here on, we know something changed — do the expensive work ─────
+  const _t1 = performance.now();
+  populateSystemSelectors();
+  console.debug(`[TAM-PERF] full render: ${activeSerials.length} serials, populateSelectors=${(performance.now()-_t1).toFixed(1)}ms, guard=${(_t1-_t0).toFixed(1)}ms`);
   
   if (activeSerials.length === 0) {
     document.getElementById("tamRisksTableBody").innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No systems selected in current scope.</td></tr>`;
@@ -8513,6 +8573,10 @@ function renderTAMTab() {
     const primaryBulletins   = allBulletins.filter(b => BUL_SEV_TIER(b.severity) === 'primary');
     const secondaryBulletins = allBulletins.filter(b => BUL_SEV_TIER(b.severity) === 'secondary');
 
+    // Pre-compute global index map to avoid O(n²) indexOf lookups
+    const _bulIdxMap = new Map();
+    allBulletins.forEach((b, i) => _bulIdxMap.set(b, i));
+
     // Controls bar
     bulletinRows += `
       <tr>
@@ -8540,14 +8604,14 @@ function renderTAMTab() {
         ✓ No Critical or High severity advisories for selected systems.</td></tr>`;
     } else {
       primaryBulletins.forEach((b, i) => {
-        const globalIdx = allBulletins.indexOf(b);
+        const globalIdx = _bulIdxMap.get(b);
         const { rowId, cveId, html } = buildBulletinRow(b, globalIdx);
         bulletinRows += html;
         if (cveId) enrichQueue.push({ rowId, cveId });
       });
     }
 
-    // ── TIER 2: Medium / Low / Info — collapsed behind a toggle row ──
+    // ── TIER 2: Medium / Low / Info — FULLY LAZY: HTML built on first expand ──
     if (secondaryBulletins.length > 0) {
       // Separator toggle row
       bulletinRows += `
@@ -8563,19 +8627,14 @@ function renderTAMTab() {
           </td>
         </tr>`;
 
-      // Hidden secondary rows container
-      bulletinRows += `<tr id="bulletin-secondary-group" style="display:none;">
+      // Empty lazy container — rows injected by toggleBulletinSecondary on first click
+      bulletinRows += `<tr id="bulletin-secondary-group" style="display:none;" data-lazy="true">
         <td colspan="4" style="padding:0;">
-          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.1);">`;
+          <table style="width:100%;border-collapse:collapse;background:rgba(0,0,0,0.1);"></table>
+        </td></tr>`;
 
-      secondaryBulletins.forEach((b, i) => {
-        const globalIdx = allBulletins.indexOf(b);
-        const { rowId, cveId, html } = buildBulletinRow(b, globalIdx);
-        bulletinRows += html;
-        if (cveId) enrichQueue.push({ rowId, cveId, deferred: true });
-      });
-
-      bulletinRows += `</table></td></tr>`;
+      // Store secondary bulletin data for lazy rendering
+      window._secondaryBulletinData = { bulletins: secondaryBulletins, idxMap: _bulIdxMap, buildRow: buildBulletinRow };
     }
   }
 
@@ -8583,9 +8642,6 @@ function renderTAMTab() {
 
   // ── CVE enrichment: batched queue — 5 per 100ms to avoid fetch burst ─────
   // Only enrich primary (visible) rows immediately; deferred rows enriched on expand.
-  const primaryEnrich   = enrichQueue.filter(e => !e.deferred);
-  const deferredEnrich  = enrichQueue.filter(e =>  e.deferred);
-
   const runEnrichBatch = (items, batchSize = 5, delayMs = 100) => {
     for (let i = 0; i < items.length; i += batchSize) {
       const chunk = items.slice(i, i + batchSize);
@@ -8599,10 +8655,7 @@ function renderTAMTab() {
   };
 
   // Primary rows: enrich after first paint (slight delay to unblock render)
-  setTimeout(() => runEnrichBatch(primaryEnrich), 80);
-
-  // Secondary rows: enrich lazily on first expansion via stored queue
-  window._deferredBulletinEnrich = deferredEnrich;
+  if (enrichQueue.length > 0) setTimeout(() => runEnrichBatch(enrichQueue), 80);
 
   updateSortIndicators();
   }, 200); // ── END STAGE 4  (200ms delay from rAF)
@@ -9749,7 +9802,7 @@ function renderCSMTab() {
         s.snapmirror.relationships.forEach(rel => {
           relationshipsHTML += `
             <div style="margin-top: 8px; font-size: 0.78rem; border-top: 1px solid var(--border-color); padding-top: 6px; display: flex; justify-content: space-between;">
-              <span>Sys: <strong>${s.systemName}</strong> -> <strong>${rel.destination}</strong></span>
+              <span><strong>${s.clusterName || s.systemName}</strong> → <strong>${rel.destination || rel.destinationCluster || 'Remote Target'}</strong></span>
               <span style="color: var(--accent-cyan);">${rel.lagTime}</span>
             </div>
           `;
@@ -9764,7 +9817,7 @@ function renderCSMTab() {
         <h4 style="font-size: 0.9rem; color: var(--text-secondary);">SnapMirror replication</h4>
         <span class="badge ${smEnabledCount > 0 ? 'normal' : 'warning'}">${smEnabledCount} Enabled</span>
       </div>
-      <div style="max-height: 120px; overflow-y: auto; padding-right: 4px;">
+      <div style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
         ${relationshipsHTML}
       </div>
     `;
@@ -10135,7 +10188,7 @@ function renderCSMTab() {
       sys.snapmirror.relationships.forEach(rel => {
         relationshipsHTML += `
           <div style="margin-top: 8px; font-size: 0.8rem; border-top: 1px solid var(--border-color); padding-top: 8px;">
-            <div>Dest: <strong>${rel.destination}</strong></div>
+            <div>Dest: <strong>${rel.destination || rel.destinationCluster || 'Remote Target'}</strong></div>
             <div>Type: <strong>${rel.type}</strong> | State: <strong>${rel.state}</strong></div>
             <div>Lag Time: <strong style="color: var(--accent-cyan);">${rel.lagTime}</strong></div>
           </div>
@@ -10781,6 +10834,69 @@ function buildKBSearchURL(description, category) {
 }
 
 /**
+ * Post-enrichment pass: resolve SnapMirror destination names.
+ * The API only provides a relationship *count* per cluster — no destination info.
+ * After all systems are enriched, this function scans the fleet to find the most
+ * likely DR partner: another cluster belonging to the same customer that also has
+ * SnapMirror relationships.  When a partner is found, the generic "DR Partner"
+ * placeholder is replaced with the actual cluster name.
+ *
+ * Must be called AFTER state.systems is fully populated.
+ */
+function _resolveSnapMirrorPartners(systems) {
+  if (!systems || systems.length === 0) return;
+
+  // 1. Build customer → cluster-level SM summary
+  //    { customerName → [ { clusterName, smCount, serials[] } ] }
+  const custClusters = {};
+  systems.forEach(s => {
+    const cust = s.customerName || 'Unknown';
+    const cl   = s.clusterName || s.systemName || '';
+    const smCount = (s.snapmirror && s.snapmirror.totalCount) || s.snapMirrorCount || 0;
+    if (!custClusters[cust]) custClusters[cust] = {};
+    if (!custClusters[cust][cl]) custClusters[cust][cl] = { smCount: 0, serials: [] };
+    custClusters[cust][cl].smCount = Math.max(custClusters[cust][cl].smCount, smCount);
+    custClusters[cust][cl].serials.push(s.serialNumber);
+  });
+
+  // 2. For each system with SM enabled, resolve destination cluster names
+  systems.forEach(s => {
+    if (!s.snapmirror || !s.snapmirror.enabled || !s.snapmirror.relationships) return;
+
+    const cust = s.customerName || 'Unknown';
+    const myCluster = s.clusterName || s.systemName || '';
+    const peers = custClusters[cust] || {};
+
+    // Find peer clusters (same customer, different cluster, also has SM)
+    const peerNames = Object.keys(peers)
+      .filter(cn => cn !== myCluster && peers[cn].smCount > 0)
+      .sort((a, b) => peers[b].smCount - peers[a].smCount);  // highest SM count first
+
+    // Fallback: peer clusters without SM (still useful as labels)
+    const allPeerNames = Object.keys(peers)
+      .filter(cn => cn !== myCluster)
+      .sort();
+
+    const partnerLabel = peerNames.length > 0
+      ? peerNames[0]                                  // Best match: peer with SM
+      : (allPeerNames.length > 0 ? allPeerNames[0]    // Fallback: any peer cluster
+        : null);                                       // No peers found
+
+    if (!partnerLabel) return;
+
+    // Replace generic "DR Partner" placeholders in relationship entries
+    s.snapmirror.relationships.forEach(rel => {
+      if (rel.destination && rel.destination.startsWith('DR Partner')) {
+        rel.destination = rel.destination.replace('DR Partner', partnerLabel);
+      }
+      if (rel.destinationCluster === 'DR Partner') {
+        rel.destinationCluster = partnerLabel;
+      }
+    });
+  });
+}
+
+/**
  * Build SnapMirror data from API cluster-level relationship count.
  * For live API systems, the server sends snapMirrorCount (from the cluster's
  * snapMirrorRelationships.totalCount) and isHAConfigured. We use these to
@@ -10811,6 +10927,7 @@ function _buildSnapMirrorData(s, clusterName, isLiveData) {
 
     if (asyncCount > 0) {
       relationships.push({
+        destination: `DR Partner (${asyncCount} async vol${asyncCount > 1 ? 's' : ''})`,
         sourceVolume: `${clusterName} (${asyncCount} volume${asyncCount > 1 ? 's' : ''})`,
         destinationCluster: "DR Partner",
         destinationVolume: `${asyncCount} async relationship${asyncCount > 1 ? 's' : ''}`,
@@ -10824,6 +10941,7 @@ function _buildSnapMirrorData(s, clusterName, isLiveData) {
 
     if (syncCount > 0) {
       relationships.push({
+        destination: `DR Partner (${syncCount} sync vol${syncCount > 1 ? 's' : ''})`,
         sourceVolume: `${clusterName} (${syncCount} volume${syncCount > 1 ? 's' : ''})`,
         destinationCluster: "DR Partner",
         destinationVolume: `${syncCount} sync relationship${syncCount > 1 ? 's' : ''}`,
@@ -18363,6 +18481,7 @@ async function saveSettings() {
   } else if (mockToggle) {
     // Reset to mock systems database
     state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
+    _resolveSnapMirrorPartners(state.systems);
     state.groups = [...DEFAULT_GROUPS];
     state.watchlists = [...MOCK_WATCHLISTS];
     state.globalRisks = [];
@@ -18982,6 +19101,7 @@ async function loadProductionData(forceRefresh = false) {
     }));
 
     state.systems = systemsList.map(s => enrichSystemTelemetry(s));
+    _resolveSnapMirrorPartners(state.systems); // Resolve SnapMirror destination names from fleet
     // Debug: log cases stats after normalization
     const totalCasesLoaded = state.systems.reduce((sum, s) => sum + (s.supportCases ? s.supportCases.length : 0), 0);
     const sysWithCases = state.systems.filter(s => s.supportCases && s.supportCases.length > 0).length;
@@ -19056,8 +19176,17 @@ function handleSearch(e) {
   if (newQuery === _lastSearchQuery) return;  // no-op — query unchanged
   _lastSearchQuery = newQuery;
   state.activeSearchQuery = newQuery;
-  switchTab(state.currentTab);
-  renderSidebarGroups();
+  
+  // ── Debounce: coalesce rapid keystrokes into a single switchTab call ──────
+  // Without this, every typed character triggers switchTab→renderTAMTab which
+  // (even with the dirty guard) runs getFilteredSystems, populateSystemSelectors,
+  // sidebar rebuilds, and suggestion lookups — ~20-50ms per keystroke that adds
+  // up to multi-second freezes during fast typing.
+  clearTimeout(handleSearch._debounce);
+  handleSearch._debounce = setTimeout(() => {
+    switchTab(state.currentTab);
+    renderSidebarGroups();
+  }, 150);
   updateCustomSearchSuggestions(newQuery);
 }
 

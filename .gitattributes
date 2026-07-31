@@ -1,0 +1,21 @@
+# ── Linguist overrides ──────────────────────────────────────────────────
+# Tell GitHub which files are vendored, generated, or documentation
+# so language stats and diffs reflect YOUR code, not bundled libraries.
+
+# Vendored libraries — excluded from language stats
+chart.js                     linguist-vendored
+dist/**                      linguist-vendored
+
+# Generated / compiled files — collapsed in diffs, excluded from stats
+index.html                   linguist-generated
+data/*.json                  linguist-generated
+
+# Documentation
+CHANGELOG.md                 linguist-documentation
+CONTEXT.md                   linguist-documentation
+LEGAL.md                     linguist-documentation
+
+# Large binary files in dist — treat as binary for better diff performance
+dist/**/*.exe                binary
+dist/**/*.dll                binary
+dist/**/*.pyd                binary
