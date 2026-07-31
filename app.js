@@ -9706,6 +9706,7 @@ function renderCSMTab() {
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
+    const _hsc = document.getElementById("csmHealthScoreCard"); if (_hsc) _hsc.innerHTML = "";
     document.getElementById("csmGrowthRateText").innerText = "";
     document.getElementById("csmDaysToLimitText").innerText = "-";
     document.getElementById("csmLimitDateText").innerText = "-";
@@ -9721,7 +9722,8 @@ function renderCSMTab() {
     const healthGrade = getHealthGrade(healthScore);
     const healthColor = healthScore >= 80 ? '#22c55e' : healthScore >= 65 ? '#f59e0b' : '#ef4444';
 
-    document.getElementById("csmHealthScoreCard").innerHTML = `
+    const _healthEl = document.getElementById("csmHealthScoreCard");
+    if (_healthEl) _healthEl.innerHTML = `
       <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
         <div style="display: flex; flex-direction: column; align-items: center; min-width: 150px; border-right: 1px solid var(--border-color); padding-right: 24px;">
           <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">Account Health Score</span>
