@@ -4165,8 +4165,13 @@ function renderCharts() {
     // Preferred: derive from data reduction ratio (dedupe+compression only, excl snapshots)
     const drr  = eff.dataReductionRatio || 0;
     if (drr > 1) return a + (phys * (drr - 1));
-    // Fallback: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
+    // Fallback 1: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
     if (eff.spaceSavedKiB > 0) return a + eff.spaceSavedKiB;
+    // Fallback 2: spaceSavedTB (logical − physical). Includes snapshot space sharing
+    // which inflates the number, but showing approximate savings is better than zero.
+    // The API frequently returns null for dataReductionRatio and dedupSavedKiB,
+    // making this the only available savings signal for many systems.
+    if (eff.spaceSavedTB > 0) return a + eff.spaceSavedTB;
     return a;
   }, 0);
 
