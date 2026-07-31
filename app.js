@@ -4168,10 +4168,9 @@ function renderCharts() {
     // Fallback 1: spaceSavedKiB is the cumulative dedupe+compaction (TB units) from enrichment
     if (eff.spaceSavedKiB > 0) return a + eff.spaceSavedKiB;
     // Fallback 2: spaceSavedTB (logical − physical). Includes snapshot space sharing
-    // which inflates the number, but showing approximate savings is better than zero.
-    // The API frequently returns null for dataReductionRatio and dedupSavedKiB,
-    // making this the only available savings signal for many systems.
-    if (eff.spaceSavedTB > 0) return a + eff.spaceSavedTB;
+    // which inflates the number beyond pure dedupe+compression. Cap at phys × 3
+    // (≈ 4:1 total ratio) which is realistic for AFF all-flash systems.
+    if (eff.spaceSavedTB > 0) return a + Math.min(eff.spaceSavedTB, phys * 3);
     return a;
   }, 0);
 
