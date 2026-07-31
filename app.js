@@ -5239,7 +5239,10 @@ function renderOverviewTable() {
       </td>
       <td>${sys.clusterName}</td>
       <td>${sys.customerName}</td>
-      <td>${sys.platform}</td>
+      <td>
+        <div style="font-weight:500;">${sys.platform}</div>
+        ${sys.platformType && sys.platformType !== sys.platform ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:1px;">${sys.platformType}</div>` : ''}
+      </td>
       <td>${statusBadge}</td>
       <td>${contractText}</td>
     `;
@@ -8041,7 +8044,8 @@ function renderTAMTab() {
     const activeSys = selectedSystems.find(s => s.serialNumber === state.activeVisualizerNodeSerial) || selectedSystems[0];
     renderNodeVisualLayout(selectedSystems, activeSys);
     
-    const isEseries = activeSys && (activeSys.santricityVersion !== undefined || activeSys.platform.includes("E-Series"));
+    const _aPlatLower = activeSys ? (activeSys.platform || '').toLowerCase() : '';
+    const isEseries = activeSys && (activeSys.santricityVersion !== undefined || _aPlatLower.includes("e-series") || _aPlatLower.includes("ef600") || _aPlatLower.includes("ef300") || _aPlatLower.includes("e5700") || _aPlatLower.includes("e2800") || _aPlatLower.includes("ef50") || _aPlatLower.includes("ef80") || _aPlatLower.includes("e4000"));
     if (eseriesCard) {
       if (isEseries) {
         eseriesCard.style.display = "block";
@@ -8668,10 +8672,10 @@ function getSystemSwitches(sys) {
   const seed = parseInt(sys.serialNumber) || 0;
   const switches = [];
   
-  if (sys.platform.includes("MetroCluster")) {
+  if (sys.isMetroCluster || (sys.platformType || '').includes("MetroCluster")) {
     switches.push({
       type: "MetroCluster Back-end",
-      model: sys.platform.includes("IP") ? "Cisco Nexus 9336C-FX2" : "Brocade G620 FC",
+      model: (sys.platformType || '').includes("IP") ? "Cisco Nexus 9336C-FX2" : "Brocade G620 FC",
       serialNumber: `SW-MC-${sys.serialNumber.substring(6)}A`,
       firmware: seed % 3 === 0 ? "9.3(8)" : "9.3(12)",
       targetFirmware: "9.3(12)",
@@ -8699,7 +8703,7 @@ function getSystemSwitches(sys) {
       ipAddress: `10.10.20.150`,
       validationDetails: seed % 4 === 0 ? "Firmware warning: MDS-OS v8.4(2) contains security vulnerability CVE-2023-20092. Upgrade advised." : "Optimal connection."
     });
-  } else if (sys.platform.includes("On-Prem") || sys.platform.includes("FAS") || sys.platform.includes("AFF")) {
+  } else if ((sys.platformType || '').includes("On-Prem") || sys.platform.includes("FAS") || sys.platform.includes("AFF") || sys.platform.includes("ASA")) {
     switches.push({
       type: "Cluster Interconnect",
       model: seed % 5 === 0 ? "Broadcom BES-53248" : "Cisco Nexus 3132Q-V",
@@ -8722,7 +8726,7 @@ function getSystemSwitches(sys) {
       ipAddress: `10.10.10.100`,
       validationDetails: "Optimal connection."
     });
-  } else if (sys.platform.includes("StorageGRID")) {
+  } else if ((sys.platformType || '').includes("StorageGRID") || (sys.platformType || '').includes("SG")) {
     switches.push({
       type: "Grid Network",
       model: "Cisco Nexus 93180YC-FX",
@@ -8749,7 +8753,7 @@ function getSystemIntegrations(sys) {
   
   const modVal = seed % 5;
   
-  if (sys.platform.includes("StorageGRID")) {
+  if ((sys.platformType || '').includes("StorageGRID") || (sys.platformType || '').includes("SG")) {
     virtualization = {
       type: "OpenStack Swift Object",
       version: "Bobcat (v28.0)",
@@ -8878,7 +8882,7 @@ function getSystemWorkloadRecommendations(sys) {
   const ints = getSystemIntegrations(sys);
   const recs = [];
   
-  if (sys.platform.includes("MetroCluster")) {
+  if (sys.isMetroCluster || (sys.platformType || '').includes("MetroCluster")) {
     recs.push(`<strong>[MetroCluster]</strong> Active-Active stretch cluster detected. Best Practice: Configure VMware vSphere HA Admission Control with 50% CPU and memory reservations to ensure failover capacity.`);
     recs.push(`<strong>[MetroCluster]</strong> Best Practice: Verify that automatic unplanned switchover (AUSO) is enabled via ONTAP command: <code>metrocluster operation show</code> to protect against sudden power loss.`);
   }
@@ -10978,7 +10982,12 @@ function enrichSystemTelemetry(s) {
   // NOTE: Do NOT apply a platform-specific default here — we must first detect the
   // platform family (below) before choosing the right fallback and field name.
   const osVer = s.ontapVersion || s.ontap_version || s.osVersion || s.os_version || s.softwareVersion || s.sgVersion || s.santricityVersion || "";
-  const model = s.platform || s.platformModel || s.platform_model || s.model || s.systemType || "AFF A400";
+  // Prefer the specific hardware model name (e.g. 'AFF A150') from the API's
+  // hardwareModel.name field over the generic platformType (e.g. 'ONTAP').
+  // s.model = hardwareModel.name from server.py; s.platform = platformType from API.
+  const model = s.model || s.platformModel || s.platform_model || s.platform || s.systemType || "unknown";
+  // Preserve the generic platform family (ONTAP, STORAGEGRID, etc.) for display
+  const platformType = s.platform || s.productType || s.systemType || "";
   // Normalize status: API may send 'NORMAL', 'WARNING', 'CRITICAL' in uppercase
   const status = (s.status || "normal").toLowerCase();
 
@@ -12047,6 +12056,8 @@ function enrichSystemTelemetry(s) {
     sgVersion:         isStorageGrid ? (osVer || null) : null,
     santricityVersion: isEseries ? (s.santricityVersion || osVer || null) : (s.santricityVersion || null),
     platform:          model,
+    model:             s.model || model,  // raw hardware model name from API
+    platformType:      platformType,      // generic family: ONTAP, STORAGEGRID, etc.
     status:            computedStatus,
     risks:             risks,
     upgrades:          upgrades,
@@ -13388,7 +13399,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   targetSystems.forEach(sys => {
     (sys.switches || []).forEach(sw => {
       if (sw.recommendedFirmware && sw.firmware && sw.firmware !== sw.recommendedFirmware) {
-        switchDrift.push({ systemName: sys.systemName, model: sw.model, current: sw.firmware, recommended: sw.recommendedFirmware });
+        switchDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: sw.model, current: sw.firmware, recommended: sw.recommendedFirmware });
       }
     });
   });
@@ -13399,7 +13410,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     (sys.shelves || []).forEach(sh => {
       const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
       if (baseline && sh.firmwareVersion && sh.firmwareVersion !== baseline.recommended) {
-        shelfDrift.push({ systemName: sys.systemName, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
+        shelfDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
       }
     });
   });
@@ -13409,7 +13420,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   targetSystems.forEach(sys => {
     (sys.securityBulletins || []).forEach(b => {
       if ((b.severity || '').toLowerCase() === 'critical' || (b.severity || '').toLowerCase() === 'high') {
-        secBulletins.push({ systemName: sys.systemName, ...b });
+        secBulletins.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, ...b });
       }
     });
   });
@@ -13418,10 +13429,11 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const asupIssues = [];
   targetSystems.forEach(s => {
     const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+    const sysNameModel = `${s.systemName} (${s.platform || s.model || ''})`;
     if (!asup.enabled) {
-      asupIssues.push({ name: s.systemName, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled." });
+      asupIssues.push({ name: sysNameModel, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
-      asupIssues.push({ name: s.systemName, issue: "AutoSupport Stale", detail: `No telemetry for ${asup.lastReceivedDays} days. Verify HTTPS (443) to support.netapp.com.` });
+      asupIssues.push({ name: sysNameModel, issue: "AutoSupport Stale", detail: `No telemetry for ${asup.lastReceivedDays} days. Verify HTTPS (443) to support.netapp.com.` });
     }
   });
 
@@ -13447,19 +13459,26 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       if (h.considerations && h.considerations.length > 0) hopDetails += `\n       Caveats: ${h.considerations.map(c => c.replace(/<[^>]*>/g, "")).join(" | ")}`;
       if (h.docLink) hopDetails += `\n       Ref: ${h.docLink}`;
     });
-    return `- Upgrade ${u.systemName} from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n     -> Benefit: ${u.benefits}${hopDetails}`;
+    return `- Upgrade ${u.systemName} (${u.platform || u.model || ''}) from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n     -> Benefit: ${u.benefits}${hopDetails}`;
   }).join("\n");
 
-  const casesText = allSupportCases.map(c =>
-    `- Case ID: ${c.id} (${c.systemName}) | Sev: ${c.severity} | Status: ${c.status || 'Open'} | Owner: ${c.nextActionBy || "Under Review"}\n  -> Title: ${c.title}`
-  ).join("\n");
+  const casesText = allSupportCases.map(c => {
+    const sys = targetSystems.find(s => s.systemName === c.systemName) || {};
+    const model = sys.platform || sys.model || '';
+    return `- Case ID: ${c.id} (${c.systemName}${model ? ` - ${model}` : ''}) | Sev: ${c.severity} | Status: ${c.status || 'Open'} | Owner: ${c.nextActionBy || "Under Review"}\n  -> Title: ${c.title}`;
+  }).join("\n");
 
-  const contractsText = expiringContracts.map(e =>
-    `- System: ${e.systemName} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate} (${e.daysRemaining} days)`
-  ).join("\n");
+  const contractsText = expiringContracts.map(e => {
+    const sys = targetSystems.find(s => s.systemName === e.systemName) || {};
+    const model = sys.platform || sys.model || '';
+    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate} (${e.daysRemaining} days)`;
+  }).join("\n");
 
   const risksText = fixGroups.map((g, i) => {
-    const sysNames = [...new Set(g.systems.filter(Boolean))];
+    const sysNames = [...new Set(g.systems.filter(Boolean))].map(name => {
+      const sys = targetSystems.find(s => s.systemName === name) || {};
+      return sys.platform ? `${name} (${sys.platform})` : name;
+    });
     const sysLabel = sysNames.length <= 3 ? sysNames.join(', ') : `${sysNames.slice(0, 3).join(', ')} +${sysNames.length - 3} more`;
     const refUrl = g.fixUrl || '';
     const refLine = refUrl ? `\n   -> Reference: ${refUrl}` : '';
@@ -13473,7 +13492,10 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       return '';
     })();
     if (g.count === 1) {
-      return `${i+1}. [${g.severity.toUpperCase()}] ${g.findings[0].systemName}: ${g.findings[0].description}\n   -> Fix: ${g.fix}${stepsBlock}${refLine}`;
+      const firstFinding = g.findings[0];
+      const sys = targetSystems.find(s => s.systemName === firstFinding.systemName) || {};
+      const nameWithModel = sys.platform ? `${firstFinding.systemName} (${sys.platform})` : firstFinding.systemName;
+      return `${i+1}. [${g.severity.toUpperCase()}] ${nameWithModel}: ${firstFinding.description}\n   -> Fix: ${g.fix}${stepsBlock}${refLine}`;
     }
     let text = `${i+1}. [${g.severity.toUpperCase()}] FIX: ${g.fix}  (resolves ${g.count} finding${g.count > 1 ? 's' : ''} across ${sysLabel})`;
     g.findings.forEach(f => { text += `\n     • [${(f.severity || '').toUpperCase()}] ${f.description}`; });
@@ -13489,6 +13511,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     platformCounts[p] = (platformCounts[p] || 0) + 1;
   });
   const platformLines = Object.entries(platformCounts).map(([p, n]) => `  - ${p}: ${n} system${n > 1 ? 's' : ''}`).join('\n');
+
 
   return `================================================================================
 CUSTOMER SUCCESS PLAN (CSP) & ENVIRONMENTAL POSTURE OPTIMIZATION
@@ -13761,7 +13784,10 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
 
   const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
   const topActions = sortedRisks.slice(0, 5).map((g, i) => {
-    const sysLabel = [...new Set(g.systems.filter(Boolean))].slice(0, 3).join(', ');
+    const sysLabel = [...new Set(g.systems.filter(Boolean))].slice(0, 3).map(name => {
+      const sys = targetSystems.find(s => s.systemName === name);
+      return sys && sys.platform ? `${name} (${sys.platform})` : name;
+    }).join(', ');
     const plan = g.remediationPlan || {};
     let entry = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}`;
     if (g.count > 1) entry += ` (${g.count} findings across ${sysLabel})`;
@@ -13800,9 +13826,11 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const exp90  = expiringContracts.filter(e => e.daysRemaining <= 90).length;
   const exp180 = expiringContracts.filter(e => e.daysRemaining <= 180).length;
   const nearEos = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
-  const contractLines = expiringContracts.map(e =>
-    `  • ${e.systemName} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  (${e.daysRemaining} days)`
-  ).join('\n') || '  No expiring contracts within scope.';
+  const contractLines = expiringContracts.map(e => {
+    const sys = targetSystems.find(s => s.systemName === e.systemName);
+    const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+    return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  (${e.daysRemaining} days)`;
+  }).join('\n') ||  '  No expiring contracts within scope.';
 
   // ── Recommendations (fleet-wide; scoped count provided as context) ──
   const recs = state.tamRecommendations || [];
@@ -13959,7 +13987,11 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Cases ──
   const casesLines = allSupportCases.length > 0
     ? allSupportCases.map(c =>
-        `    • Case ${c.id} [${c.severity}] ${c.systemName}\n      Title: ${c.title}\n      Next Action: ${c.nextActionBy || 'Under Review'}`
+        (() => {
+          const sys = targetSystems.find(s => s.systemName === c.systemName);
+          const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+          return `    • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}\n      Title: ${c.title}\n      Next Action: ${c.nextActionBy || 'Under Review'}`;
+        })()
       ).join('\n')
     : '    No open support cases.';
 
@@ -13988,7 +14020,10 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Improvement Backlog ──
   const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
   const backlogLines = sortedRisks.map((g, i) => {
-    const sysLabel = [...new Set(g.systems.filter(Boolean))].slice(0, 3).join(', ');
+    const sysLabel = [...new Set(g.systems.filter(Boolean))].slice(0, 3).map(name => {
+      const sys = targetSystems.find(s => s.systemName === name);
+      return sys && sys.platform ? `${name} (${sys.platform})` : name;
+    }).join(', ');
     const plan = g.remediationPlan || {};
     let line = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
     if (plan.cause) line += `\n       Root Cause: ${plan.cause}`;
@@ -14107,7 +14142,10 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   // ── Propensity ──
   const propSystems = targetSystems.filter(s => s.propensityCategory);
   const propLines = propSystems.length > 0
-    ? propSystems.map(s => `    • ${s.systemName}: ${s.propensityCategory}${s.nextBestAction ? ' — ' + s.nextBestAction : ''}`).join('\n')
+    ? propSystems.map(s => {
+      const modelStr = s.platform ? ` (${s.platform})` : '';
+      return `      ${s.systemName}${modelStr}: ${s.propensityCategory}${s.nextBestAction ? ' - ' + s.nextBestAction : ''}`;
+    }).join('\n')
     : '    No propensity data available.';
 
   // ── Inventory Table ──
@@ -14146,7 +14184,10 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
 
   const sortedRisks = _filterAndDeduplicateRisks(allRisks, targetSystems);
   const topIssues = sortedRisks.slice(0, 10).map((g, i) => {
-    const sysLabel = g.systems.filter(Boolean).slice(0, 3).join(', ');
+    const sysLabel = g.systems.filter(Boolean).slice(0, 3).map(name => {
+      const sys = targetSystems.find(s => s.systemName === name);
+      return sys && sys.platform ? `${name} (${sys.platform})` : name;
+    }).join(', ');
     return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
   }).join('\n') || '  No critical or high-severity issues.';
 
@@ -14162,20 +14203,27 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
     const cEnd = (s.contractEndDate || s.contractExpiry || '—').split('T')[0];
     const svc  = s.serviceLevel || s.serviceTier || '—';
     const wEnd = (s.warrantyEndDate || '—').split('T')[0];
-    return `  • ${s.systemName} (${s.serialNumber || 'N/A'}) — Contract End: ${cEnd} | Service: ${svc} | Warranty End: ${wEnd}`;
-  }).join('\n');
+      const sys = targetSystems.find(xs => xs.systemName === s.systemName);
+      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      return `   ${s.systemName}${modelStr} (${s.serialNumber || 'N/A'}) - Contract End: ${cEnd} | Service: ${svc} | Warranty End: ${wEnd}`;  }).join('\n');
 
   // ── Recent Activity ──
   const caseLines = allSupportCases.length > 0
     ? allSupportCases.map(c =>
-        `  • Case ${c.id} [${c.severity}] ${c.systemName}: ${c.title}\n    Next Action: ${c.nextActionBy || 'Under Review'}`
+        (() => {
+          const sys = targetSystems.find(s => s.systemName === c.systemName);
+          const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+          return `  • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}: ${c.title}\n    Next Action: ${c.nextActionBy || 'Under Review'}`;
+        })()
       ).join('\n')
     : '  No open support cases.';
 
   const upgradeLines = allUpgrades.length > 0
-    ? allUpgrades.map(u =>
-        `  • ${u.systemName}: ${u.currentVersion || 'current'} → ${u.targetVersion} (${u.urgency})`
-      ).join('\n')
+    ? allUpgrades.map(u => {
+      const sys = targetSystems.find(s => s.systemName === u.systemName);
+      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      return `    ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} →${u.targetVersion} (${u.urgency})`;
+    }).join('\n')
     : '  No pending upgrades.';
 
   // Field actions from systems
@@ -14184,11 +14232,13 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
     if (s.fieldActions) s.fieldActions.forEach(fa => fieldActions.push({ systemName: s.systemName, ...fa }));
   });
   const faLines = fieldActions.length > 0
-    ? fieldActions.map(fa =>
-        `  • ${fa.systemName}: ${fa.title || fa.description || 'Field Action'} [${fa.status || 'Active'}]`
-      ).join('\n')
+  const faLines = fieldActions.length > 0
+    ? fieldActions.map(fa => {
+      const sys = targetSystems.find(s => s.systemName === fa.systemName);
+      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      return `   ${fa.systemName}${modelStr}: ${fa.title || fa.description || 'Field Action'} [${fa.status || 'Active'}]`;
+    }).join('\n')
     : '  No active field actions.';
-
   // ── Key Talking Points ──
   const talkingPoints = [];
 
@@ -14332,10 +14382,10 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const asupIssues = [];
   targetSystems.forEach(s => {
     const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
-    if (!asup.enabled) {
-      asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled intentionally." });
+     if (!asup.enabled) {
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled intentionally." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
-      asupIssues.push({ name: s.systemName, serial: s.serialNumber, issue: "AutoSupport Connection Failed", detail: `No telemetry for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify HTTPS (443) to support.netapp.com."}` });
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Connection Failed", detail: `No telemetry for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify HTTPS (443) to support.netapp.com."}` });
     }
   });
 
@@ -14438,7 +14488,10 @@ OPERATIONAL HEALTH
 --------------------------------------------------------------------------------
 `;
     sortedRisks.forEach((g, idx) => {
-      const sysNames = [...new Set(g.systems.filter(Boolean))];
+      const sysNames = [...new Set(g.systems.filter(Boolean))].map(name => {
+        const sys = targetSystems.find(s => s.systemName === name);
+        return sys && sys.platform ? `${name} (${sys.platform})` : name;
+      });
       const sysLabel = sysNames.join(', ');
       problemStatements += `${idx + 1}. [${g.severity.toUpperCase()}] ${g.fix}
    Systems: ${sysLabel}
@@ -14474,8 +14527,9 @@ OPERATIONAL HEALTH
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
-      problemStatements += `${i + 1}. ${e.systemName} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;
-    });
+      const sys = targetSystems.find(s => s.systemName === e.systemName);
+      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      problemStatements += `${i + 1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;    });
     problemStatements += '\n';
   }
 
@@ -14520,7 +14574,11 @@ ${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • $
 
 ${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}] ${c.title}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
 
-${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => `  • ${e.systemName} — ${e.supportLevel} — Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)`).join('\n') : ''}
+${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
+    const sys = targetSystems.find(s => s.systemName === e.systemName);
+    const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+    return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)`;
+  }).join('\n') : ''}
 ${sustLatest.overallScore ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score: ${sustLatest.overallScore}%` : ''}
 
 Please advise on your preferred CAB window for remediation. Detailed runbooks are attached.
@@ -14712,8 +14770,9 @@ PRIORITISED CORRECTIVE ACTIONS
 --------------------------------------------------------------------------------
 `;
     allUpgrades.forEach(u => {
-      const hops = calculateUpgradePath(u.platform, u.currentVersion || '', u.targetVersion);
-      solutionProposals += `  ${u.systemName}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;
+      const sys = targetSystems.find(s => s.systemName === u.systemName);
+      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      solutionProposals += `  ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;      solutionProposals += `  ${u.systemName}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;
       solutionProposals += `    Benefit: ${u.benefits || 'Security patches, performance improvements, and new features.'}\n`;
       if (hops.length > 1) {
         solutionProposals += `    Multi-hop sequence: ${hops.map(h => h.from + ' -> ' + h.to).join(' | ')}\n`;
@@ -14895,8 +14954,9 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CS
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
-      salesProposals += `  ${i+1}. ${e.systemName} (${e.serialNumber || 'N/A'})
-     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)
+      const sys = targetSystems.find(s => s.systemName === e.systemName);
+      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n"     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)
 `;
     });
     salesProposals += `  Portal: https://mysupport.netapp.com/\n\n`;
@@ -15807,6 +15867,7 @@ function _renderMonthlySLASection(systems) {
           ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Last ASUP')}
           ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Days Ago')}
           ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','OS Version')}
+          ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Model')}
           ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','ARP')}
         </tr></thead><tbody>`;
       staleSystems.slice(0, 50).forEach(s => {
@@ -15816,6 +15877,7 @@ function _renderMonthlySLASection(systems) {
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s.latestAsupDate || '').substring(0,10)}</td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${daysColor};font-weight:600;">${s._asupDaysAgo}</span></td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.model || s.platform || ''}</td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled ? '<span style="color:#10b981;">Yes</span>' : '<span style="color:#6b7280;">No</span>'}</td>
         </tr>`;
       });
@@ -15973,6 +16035,7 @@ function generateActionPlan() {
         issues.push({
           name: s.systemName,
           serial: s.serialNumber,
+          model: s.platform || '',
           type: "Disabled",
           detail: asup.failureReason || "AutoSupport turned off intentionally or disabled in node configurations."
         });
@@ -15980,6 +16043,7 @@ function generateActionPlan() {
         issues.push({
           name: s.systemName,
           serial: s.serialNumber,
+          model: s.platform || '',
           type: "Stopped Sending",
           detail: `No payload received in ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify network routing path or proxy settings."}`
         });
@@ -16006,7 +16070,7 @@ function generateActionPlan() {
     issues.forEach(iss => {
       html += `
         <tr style="border-bottom: 1px dashed rgba(255,255,255,0.05); font-size: 0.8rem;">
-          <td style="padding: 8px 0; font-weight: 600; color: #fff;">${iss.name}</td>
+          <td style="padding: 8px 0; font-weight: 600; color: #fff;">${iss.name} <span style="font-weight:400;color:var(--text-muted);font-size:0.75rem;">${iss.model || ''}</span></td>
           <td style="padding: 8px 0; font-family: monospace;">${iss.serial}</td>
           <td style="padding: 8px 0;"><span class="badge ${iss.type === 'Disabled' ? 'critical' : 'warning'}" style="font-size: 0.65rem; padding: 2px 6px;">${iss.type}</span></td>
           <td style="padding: 8px 0; color: var(--text-secondary); font-size: 0.78rem;">${iss.detail}</td>
@@ -16580,7 +16644,7 @@ function generateActionPlan() {
     
     html += `
       <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 0.85rem; line-height: 1.4;">
-        <div style="font-weight: 700; font-size: 0.95rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px; margin-bottom: 10px; color: var(--accent-cyan);">${sys.systemName} (S/N: ${sys.serialNumber})</div>
+        <div style="font-weight: 700; font-size: 0.95rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px; margin-bottom: 10px; color: var(--accent-cyan);">${sys.systemName} <span style="font-weight:400;color:var(--text-muted);font-size:0.82rem;">${sys.platform || ''}</span> (S/N: ${sys.serialNumber})</div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
           <div>
             <div><strong>Delivery Address:</strong><br><span style="color: var(--text-secondary); font-style: italic;">${l.deliveryAddress}</span></div>
@@ -17310,13 +17374,14 @@ function downloadDeliverable(type) {
   } else if (type === 'HANDOVER_BRIEF') {
     triggerFileDownload(`account_handover_brief_${cleanScope}.txt`, docs.handoverBrief);
   } else if (type === 'CSV') {
-    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Platform Model", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
+    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
       sys.customerName,
       sys.systemName,
       sys.clusterName,
       sys.serialNumber,
       sys.platform,
+      sys.platformType || '',
       sys.ontapVersion,
       sys.status,
       sys.risks.length,
@@ -19285,7 +19350,7 @@ function switchTab(tabId) {
 
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Platform,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,CSAT Sentiment,Daily Growth (GB),Days to Limit\n";
+  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,CSAT Sentiment,Daily Growth (GB),Days to Limit\n";
 
   state.systems.forEach(s => {
     const risksCount = s.risks.length;
@@ -19300,6 +19365,7 @@ function exportCSV() {
       s.clusterName,
       s.customerName,
       s.platform,
+      s.platformType || '',
       s.status,
       s.ontapVersion,
       s.efficiency.ratio,
@@ -19368,6 +19434,15 @@ function handleJSONImport(event) {
 
 // 11. Initialization on Load
 window.onload = async function() {
+  // ── Windows Performance Mode ──────────────────────────────────────
+  // backdrop-filter:blur() is hardware-accelerated on macOS (Metal) but
+  // falls back to expensive software compositing on many Windows GPU
+  // drivers, especially integrated Intel UHD.  Detect Windows and add
+  // a CSS class that disables blur + shortens transition durations.
+  if (navigator.userAgent.indexOf('Windows') !== -1) {
+    document.body.classList.add('perf-mode-win');
+  }
+
   // Stamp the nav footer version from the live APP_VERSION constant
   const _nfv = document.getElementById('navFooterVersion');
   if (_nfv) _nfv.textContent = 'v' + APP_VERSION;
@@ -19746,7 +19821,8 @@ function getSystemPortMappings(sys) {
   }
   
   if (isCloud) {
-    const provider = sys.platform.includes("AWS") ? "AWS VPC" : (sys.platform.includes("Azure") ? "Azure VNet" : "GCP VPC");
+    const _pt = (sys.platformType || sys.platform || '');
+    const provider = _pt.includes("AWS") ? "AWS VPC" : (_pt.includes("Azure") ? "Azure VNet" : "GCP VPC");
     return [
       {
         name: "e0a",
@@ -20048,7 +20124,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
         : "background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border-color);";
       
       tabsHtml += `
-        <button class="action-btn" style="${btnStyle} padding: 5px 12px; font-size: 0.72rem; border-radius: var(--radius-sm); transition: all 0.2s;"
+        <button class="action-btn" style="${btnStyle} padding: 5px 12px; font-size: 0.72rem; border-radius: var(--radius-sm); transition: background-color 0.2s ease, color 0.2s ease;"
                 onclick="selectVisualNode('${s.serialNumber}')">
           Node: ${s.systemName}
         </button>
@@ -20071,7 +20147,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     // Physical Port Slot
     portsHtml += `
       <div id="port-slot-${port.name}" class="physical-port-slot" 
-           style="background: rgba(0,0,0,0.4); border: 2px solid ${portColor}; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.25s ease;"
+           style="background: rgba(0,0,0,0.4); border: 2px solid ${portColor}; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer; transition: background-color 0.25s ease, border-color 0.25s ease;"
            onmouseenter="hoverCablingPort('${port.name}')" 
            onmouseleave="unhoverCablingPort('${port.name}')">
         <div style="font-size: 0.65rem; color: #fff; margin-bottom: 2px; text-align: center; font-weight: 600;">${port.name}</div>
@@ -20097,7 +20173,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
       : `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`;
 
     tableRowsHtml += `
-      <tr id="port-row-${port.name}" style="border-bottom: 1px solid var(--border-color); transition: all 0.2s ease; cursor: pointer;"
+      <tr id="port-row-${port.name}" style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s ease; cursor: pointer;"
           onmouseenter="hoverCablingPort('${port.name}')" 
           onmouseleave="unhoverCablingPort('${port.name}')">
         <td style="padding: 10px; font-weight: 700; color: #fff;"><code>${port.name}</code></td>
@@ -20116,8 +20192,9 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   });
 
   let backplateHtml = "";
-  const isEseries = sys.santricityVersion !== undefined || sys.platform.includes("E-Series");
-  const isCloud = sys.platform.toLowerCase().includes("cloud");
+  const _plat = (sys.platform || '').toLowerCase();
+  const isEseries = sys.santricityVersion !== undefined || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
+  const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud");
   // isStorageGrid: match both mock ('StorageGRID SG6160') and live API ('SG6160', 'SG6060X', 'SG100')
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
@@ -20239,7 +20316,8 @@ function selectVisualNode(serial) {
     
     // Dynamically update E-Series visual health panel and SVM security panel to remain context-aware
     const eseriesCard = document.getElementById("tamEseriesVisualCard");
-    const isEseries = activeSys && (activeSys.santricityVersion !== undefined || activeSys.platform.includes("E-Series"));
+    const _aPlatLower2 = activeSys ? (activeSys.platform || '').toLowerCase() : '';
+    const isEseries = activeSys && (activeSys.santricityVersion !== undefined || _aPlatLower2.includes("e-series") || _aPlatLower2.includes("ef600") || _aPlatLower2.includes("ef300") || _aPlatLower2.includes("e5700") || _aPlatLower2.includes("e2800") || _aPlatLower2.includes("ef50") || _aPlatLower2.includes("ef80") || _aPlatLower2.includes("e4000"));
     if (eseriesCard) {
       if (isEseries) {
         eseriesCard.style.display = "block";
@@ -20370,7 +20448,7 @@ function renderEseriesHardwareAudit(sys) {
       
       disksHtml += `
         <div class="eseries-disk-slot" data-tooltip="${tooltip}"
-             style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 3px; padding: 8px 4px; text-align: center; cursor: pointer; transition: all 0.2s;"
+             style="background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); border-radius: 3px; padding: 8px 4px; text-align: center; cursor: pointer; transition: background-color 0.2s ease, border-color 0.2s ease;"
              onmouseenter="this.style.borderColor='var(--accent-cyan)'; this.style.background='rgba(0, 229, 255, 0.05)';"
              onmouseleave="this.style.borderColor=''; this.style.background='';">
           <div style="font-size: 0.65rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px;">Bay ${disk.bay}</div>
@@ -20604,7 +20682,8 @@ function showWhatsNewModal() {
 
   var overlay = document.createElement('div');
   overlay.id = 'whatsNewModal';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:_wnFadeIn 0.25s ease';
+  var _isWin = document.body.classList.contains('perf-mode-win');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,' + (_isWin ? '0.88' : '0.72') + ');' + (_isWin ? '' : 'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);') + 'animation:_wnFadeIn 0.25s ease';
 
   var prevBlock = APP_CHANGELOG.length > 1
     ? '<div style="margin-top:8px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.07);">' +
@@ -21325,4 +21404,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }, 2000);
 });
+
+
 
