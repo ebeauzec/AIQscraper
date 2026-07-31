@@ -14371,7 +14371,6 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${'TBD'.padEnd(12)} ${drr.padEnd(10)} ${rw}d`;
   }).join('\n');
   const avgRunway = rCount > 0 ? Math.round(totalRunway / rCount) : 120;
-  const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
 
   // ── ASUP Compliance ──
   const now = Date.now();
