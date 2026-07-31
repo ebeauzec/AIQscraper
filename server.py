@@ -640,6 +640,12 @@ def _do_full_harvest(watchlist_ids=None):
         #    Strategy: try the expanded TAM query first; if GraphQL rejects any
         #    field the whole response comes back with 0 systems.  In that case
         #    fall back to the proven minimal query.
+        #
+        #    IMPORTANT: Do NOT add "... on ESeriesSystem" inline fragments.
+        #    The GQL schema does not support the ESeriesSystem type — including
+        #    it causes a GRAPHQL_VALIDATION_FAILED error that silently fails the
+        #    entire query, causing the harvest to fall through to MINIMAL tier
+        #    (which has no capacity/efficiency data). See commit e106562.
         print("  [HARVEST] Fetching systems (full details)...", flush=True)
 
 
