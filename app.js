@@ -10985,7 +10985,28 @@ function enrichSystemTelemetry(s) {
   // Prefer the specific hardware model name (e.g. 'AFF A150') from the API's
   // hardwareModel.name field over the generic platformType (e.g. 'ONTAP').
   // s.model = hardwareModel.name from server.py; s.platform = platformType from API.
-  const model = s.model || s.platformModel || s.platform_model || s.platform || s.systemType || "unknown";
+  // NOTE: API often returns "" (empty string) for hardwareModel.name — must treat as missing.
+  const _rawModel = (s.model || '').trim() || (s.platformModel || '').trim() || (s.platform_model || '').trim() || '';
+  // Infer model from hostname when the API doesn't provide it.
+  // NetApp hostnames commonly embed the model: "A150-CLUSTER-01", "FAS2750-node1", "AFF-A400-cl1", etc.
+  let _inferredModel = '';
+  if (!_rawModel || _rawModel === (s.platform || '') || _rawModel === (s.systemType || '')) {
+    const _hn = (name || '').toUpperCase();
+    // AFF models: A150, A250, A400, A800, A900, A70, A90, A1K, A50, A30, C250, C400, C800
+    const _affMatch = _hn.match(/\b(A(?:1K|900|800|400|250|150|90|70|50|30)|C(?:800|400|250|80|60))\b/);
+    if (_affMatch) _inferredModel = 'AFF ' + _affMatch[1];
+    // FAS models: FAS2750, FAS8300, FAS9500, etc.
+    if (!_inferredModel) { const _fasMatch = _hn.match(/\b(FAS\d{3,5})\b/); if (_fasMatch) _inferredModel = _fasMatch[1]; }
+    // ASA models: ASA A150, ASA A400, ASA A900, ASA r2
+    if (!_inferredModel) { const _asaMatch = _hn.match(/\b(ASA[\s-]?(?:A\d{2,4}|R2))\b/i); if (_asaMatch) _inferredModel = _asaMatch[1].replace(/[\s-]+/g, ' ').toUpperCase(); }
+    // E-Series: EF600, EF300, E2800, E5700, EF50, EF80, E4000
+    if (!_inferredModel) { const _eMatch = _hn.match(/\b(E[F]?\d{2,4})\b/); if (_eMatch) _inferredModel = _eMatch[1]; }
+    // StorageGRID appliances: SG6060, SG5712, SGF6112, SG100, SG1000
+    if (!_inferredModel) { const _sgMatch = _hn.match(/\b(SGF?\d{3,4})\b/); if (_sgMatch) _inferredModel = _sgMatch[1]; }
+  }
+  const model = _rawModel && _rawModel !== (s.platform || '') && _rawModel !== (s.systemType || '')
+    ? _rawModel
+    : (_inferredModel || s.platform || s.systemType || "unknown");
   // Preserve the generic platform family (ONTAP, STORAGEGRID, etc.) for display
   const platformType = s.platform || s.productType || s.systemType || "";
   // Normalize status: API may send 'NORMAL', 'WARNING', 'CRITICAL' in uppercase
