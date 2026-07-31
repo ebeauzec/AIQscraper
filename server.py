@@ -711,13 +711,6 @@ def _do_full_harvest(watchlist_ids=None):
                       logical { usedKiB }
                       efficiency { ratio { efficiencyRatio dataReductionRatio } }
                     }
-                  }
-                  ... on ESeriesSystem {
-                    capacity {
-                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
-                      logical { usedKiB }
-                      reportedOn
-                    }
                   }"""
 
         # ── Medium: efficiency data without problematic Float fields ──────────
@@ -762,13 +755,6 @@ def _do_full_harvest(watchlist_ids=None):
                         ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
                       }
-                      reportedOn
-                    }
-                  }
-                  ... on ESeriesSystem {
-                    capacity {
-                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
-                      logical { usedKiB }
                       reportedOn
                     }
                   }"""
