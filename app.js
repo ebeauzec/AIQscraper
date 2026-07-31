@@ -4153,11 +4153,8 @@ function renderCharts() {
   // Pure dedupe + compression savings (excluding snapshots).
   // Priority 1: dataReductionRatio — point-in-time ratio from ONTAP; savings = physical × (ratio − 1).
   // Priority 2: spaceSavedKiB — KiB-derived dedupe+compaction total (stored in TB despite the name).
-  //             Note: spaceSavedKiB is a CUMULATIVE lifetime metric, not current-state.
-  //             It can exceed physical capacity because it includes data that was since deleted.
-  //             Use only when DR ratio is unavailable (e.g. mock data, non-ONTAP systems).
-  // We do NOT fall back to spaceSavedTB (logical − physical) because it includes snapshot
-  // space sharing, which massively inflates the donut chart.
+  // Priority 3: spaceSavedTB (logical − physical). Includes snapshot savings but
+  // the API frequently returns null for DR-only breakdowns.
   const dedupCompressSum = filteredSystems.reduce((a, s) => {
     const eff = s.efficiency;
     const phys = eff.physicalUsedTB || 0;
@@ -4204,7 +4201,7 @@ function renderCharts() {
   const donutBorder = ['#38bdf8',                   '#34d399'];
 
   if (dedupCompressSum > 0.05) {
-    donutLabels.push(`Dedupe + Compression — ${fmtTB(dedupCompressSum)} TB`);
+    donutLabels.push(`Space Saved — ${fmtTB(dedupCompressSum)} TB`);
     donutData.push(parseFloat(dedupCompressSum.toFixed(1)));
     donutBg.push('rgba(168, 85, 247, 0.7)');
     donutBorder.push('#a855f7');
@@ -9755,7 +9752,7 @@ function renderCSMTab() {
         <div>
           <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Data Reduction</span>
           <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${avgRatio}:1</div>
-          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compression only, excl. snapshots</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Storage efficiency ratio (incl. snapshots)</div>
         </div>
         <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
           <div>
@@ -9770,7 +9767,7 @@ function renderCSMTab() {
         <div style="background-color: rgba(0, 230, 118, 0.08); padding: 12px; border-radius: var(--radius-sm); border: 1px solid rgba(0, 230, 118, 0.2);">
           <div style="font-size: 0.75rem; color: var(--status-normal); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Data Reduction Saved</div>
           <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${totalSaved.toFixed(1)} TB</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction savings only</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction + snapshot savings</div>
         </div>
       </div>
     `;
@@ -11178,12 +11175,17 @@ function enrichSystemTelemetry(s) {
     const dataSavedTB      = (dedupSavedKiB + compactSavedKiB) / (1024 ** 3);  // KiB → TiB
 
     // ── Determine displayed ratio
+    // The API frequently returns null for dataReductionRatioSys and dedupSavedKiB.
+    // When that happens, derive the ratio from logical/physical capacity.
+    const logicalTBraw = s.clusterLogicalUsedTB || 0;
     let ratioVal;
     if (dataRedRatio > 1) {
       ratioVal = dataRedRatio.toFixed(1);
     } else if (physTB > 0 && dataSavedTB > 0) {
-      // Fallback: compute from saved KiB
       ratioVal = ((physTB + dataSavedTB) / physTB).toFixed(1);
+    } else if (physTB > 0 && logicalTBraw > physTB) {
+      // Fallback: logical/physical — includes snapshot savings but gives real per-system variance
+      ratioVal = (logicalTBraw / physTB).toFixed(1);
     } else {
       ratioVal = null;
     }
@@ -11226,7 +11228,7 @@ function enrichSystemTelemetry(s) {
 
     efficiency = {
       ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : (_sgEseriesCapGap ? 'N/A' : 'N/A')),
-      dataReductionRatio: parseFloat((dataRedRatio > 1 ? dataRedRatio : 1).toFixed(2)),  // numeric DR ratio (dedup+compression only, excl. snapshots)
+      dataReductionRatio: parseFloat((ratioVal ? parseFloat(ratioVal) : 1).toFixed(2)),  // best available ratio (DR preferred, logical/physical fallback)
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
       spaceSavedTB: parseFloat(spaceSavedForChart.toFixed(1)),
