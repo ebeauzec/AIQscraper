@@ -977,8 +977,8 @@ def _do_full_harvest(watchlist_ids=None):
                     hardwareModel { name endOfAvailability endOfHwSupport }
                   }
                   capacity {
-                    physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
-                    logical { usedKiB }
+                    physical { usedKiB usedWithoutSnapshotsKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
+                    logical { usedKiB usedWithoutSnapshotsClonesKiB }
                     reportedOn
                   }
                   monthlyCapacity {
@@ -1280,6 +1280,8 @@ def _do_full_harvest(watchlist_ids=None):
                 "physicalUsedTB": round((phys.get("usedKiB") or 0) / (1024**3) / _n_nodes, 2),
                 "rawCapacityTB": round((phys.get("rawMarketingKiB") or 0) / (1024**3) / _n_nodes, 2),
                 "logicalUsedTB": round((logical.get("usedKiB") or 0) / (1024**3) / _n_nodes, 2),
+                "physicalUsedNoSnapsTB": round((phys.get("usedWithoutSnapshotsKiB") or 0) / (1024**3) / _n_nodes, 2),
+                "logicalUsedNoSnapsTB": round((logical.get("usedWithoutSnapshotsClonesKiB") or 0) / (1024**3) / _n_nodes, 2),
                 "usableCapacityTB": round((phys.get("usablePerformanceTierKiB") or phys.get("rawMarketingKiB") or 0) / (1024**3) / _n_nodes, 2),
                 "qoqUtilizationPct": phys.get("qoqUtilizationPercentage") or 0,
                 "yoyUtilizationPct": phys.get("yoyUtilizationPercentage") or 0,
@@ -1503,6 +1505,8 @@ def _do_full_harvest(watchlist_ids=None):
                 _raw_kib  = cl_cap.get("rawCapacityTB", 0) * (1024**3)
                 _used_kib = cl_cap.get("physicalUsedTB", 0) * (1024**3)
                 _log_kib  = cl_cap.get("logicalUsedTB", 0) * (1024**3)
+                _used_no_snap_kib = cl_cap.get("physicalUsedNoSnapsTB", 0) * (1024**3)
+                _log_no_snap_kib  = cl_cap.get("logicalUsedNoSnapsTB", 0) * (1024**3)
                 _usbl_kib = cl_cap.get("usableCapacityTB", 0) * (1024**3)
                 _qoq      = cl_cap.get("qoqUtilizationPct", 0)
                 _yoy      = cl_cap.get("yoyUtilizationPct", 0)
