@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.8.0] - 2026-07-28
+## [3.8.2] - 2026-07-31
+
+### Fixed
+- **Efficiency metrics restored** — removed `... on ESeriesSystem` inline fragment from FULL and EFFICIENCY tier GQL queries. The ActiveIQ GraphQL schema does not support the `ESeriesSystem` type, causing a `GRAPHQL_VALIDATION_FAILED` error that silently degraded both query tiers. The harvest fell through to the MINIMAL tier, which contains no capacity or efficiency data — resulting in all data reduction ratios, savings, and donut chart segments showing as null/0.
+- **Snapshot-excluded data reduction** — the dashboard now correctly surfaces `dataReductionRatio` (dedupe + compression only, excluding snapshots) from `ONTAPSystemEfficiency.ratio.dataReductionRatio`. Previously this field was always null due to the GQL schema failure above.
+- **Snapshot-excluded capacity fields** — added `usedWithoutSnapshotsKiB` and `usedWithoutSnapshotsClonesKiB` to the GQL queries and harvest extraction. These populate `physicalUsedNoSnapsTB` and `logicalUsedNoSnapsTB` as fallback ratio sources when the primary API fields are null.
+
+### Changed
+- **Ratio fallback cascade** in `enrichSystemTelemetry()` now uses 3 snapshot-free sources before showing N/A: (1) `dataReductionRatioSys`, (2) `dedupSavedKiB + compactionSavedKiB`, (3) `logNoSnaps / physNoSnaps`. The old `logical/physical` fallback (which included snapshot inflation at 38:1+) has been removed.
+- **README.md** — expanded Efficiency Calculation section with fallback cascade documentation and GQL schema notes.
+- **version.json** — bumped to 3.8.2.
+
+---
 
 ### Added
 - **Enhanced Enrichment Engine** — 7-source external intelligence pipeline that scrapes NetApp KB articles, upgrade path documentation, and best practice TR guides alongside the existing release notes, PSIRT advisories, NVD CVEs, and Bugs Online sources. All data persistently cached in SQLite (`enrich_cache`) with 7-day TTL and automatic refresh during each harvest cycle.

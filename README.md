@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-3.8.0-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.8.2-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -526,7 +526,15 @@ AIQscraper/
 
 ### Efficiency Calculation
 
-The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataReductionRatio` — **dedupe + compression only, no snapshot savings.** The snapshot-inclusive `efficiencyRatio` is preserved and displayed as a secondary annotation. Space saved is `deDuplicationSavedKiB + compactionSavedKiB` only.
+The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataReductionRatio` — **dedupe + compression only, no snapshot savings.** The snapshot-inclusive `efficiencyRatio` is preserved for reference but not displayed as the primary metric. Space saved is `deDuplicationSavedKiB + compactionSavedKiB` only.
+
+**Ratio fallback cascade** (in priority order):
+1. `dataReductionRatioSys` — pure DR ratio from the API's `capacity.efficiency.ratio.dataReductionRatio`
+2. `dedupSavedKiB + compactionSavedKiB` — derive ratio from `(physical + saved) / physical`
+3. `logicalUsedNoSnapsTB / physicalUsedNoSnapsTB` — snapshot-excluded capacity fields (`usedWithoutSnapshotsKiB` / `usedWithoutSnapshotsClonesKiB`)
+4. `null` — displayed as "N/A" rather than showing a misleading value
+
+> **Note:** The GQL `... on ONTAPSystem` inline fragment is required for efficiency data. The `ESeriesSystem` type is not supported by the current GQL schema and must not be included in queries — it causes schema validation failures that silently degrade the harvest to the minimal query tier.
 
 ### Reference Library — EOA Platforms
 

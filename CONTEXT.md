@@ -332,6 +332,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | 3.6.0–3.6.3 | 2026-07-19 | Collapsible upgrade cards, expand-all fix, hop display fixes |
 | 3.7.0 | 2026-07-20 | ASUP Offline Import |
 | 3.8.0 | 2026-07-28 | Enhanced Enrichment Engine — 7 external sources, version catalog auto-update, KB articles + upgrade paths + best practices in Version Intel card |
+| 3.8.2 | 2026-07-31 | Fix: ESeriesSystem GQL schema error broke efficiency harvest — removed invalid fragment, restored snapshot-excluded data reduction ratios, donut chart savings, and capacity fields |
 
 ---
 
