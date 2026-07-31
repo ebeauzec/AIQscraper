@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 3.8.0 (per `version.json`, dated 2026-07-28)
+> **Current Version**: 3.8.2 (per `version.json`, dated 2026-07-31)
 
 ---
 

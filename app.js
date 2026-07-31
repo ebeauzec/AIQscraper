@@ -3822,6 +3822,7 @@ function loadConfig() {
 
   // Post-enrichment: resolve SnapMirror destination partner names from fleet topology
   _resolveSnapMirrorPartners(state.systems);
+  _inferClusterHA(state.systems);
 
   // Pick first system as selected
   if (state.systems.length > 0) {
@@ -5213,7 +5214,7 @@ function renderOverviewTable() {
     if (sys.status === "critical") statusBadge = `<span class="badge critical">Critical</span>`;
     else if (sys.status === "warning") statusBadge = `<span class="badge warning">Warning</span>`;
 
-    const endDateShort = (sys.contracts.endDate || '').split('T')[0] || sys.contracts.endDate;
+    const endDateShort = sys.contracts.endDate ? new Date(sys.contracts.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A';
     let contractText = `${endDateShort} (${sys.contracts.daysRemaining}d)`;
     if (sys.contracts.daysRemaining < 0) {
       contractText = `<span style="color: var(--status-critical); font-weight: 600;">Expired (${Math.abs(sys.contracts.daysRemaining)}d ago)</span>`;
@@ -5683,7 +5684,14 @@ const REFERENCE_LIBRARY_KEYSTONE = {
   status: "Generally Available",
   description: "Pay-as-you-go subscription-based consumption of NetApp storage (opex vs capex). NetApp owns procurement/refresh lifecycle.",
   supportedStorage: ["AFF", "FAS", "ASA", "AFX", "Cloud Volumes ONTAP"],
-  performanceTiers: "Predefined per storage type (file/block/object) — confirm target service level maps to workload profile",
+  performanceTiers: {
+    "Extreme": "12,288 IOPS/TiB",
+    "Premium": "4,096 IOPS/TiB",
+    "Performance": "2,048 IOPS/TiB",
+    "Standard": "512 IOPS/TiB",
+    "Value": "128 IOPS/TiB"
+  },
+  sla: "99.999% availability",
   notes: "Can be delivered through partner shared-services platforms (e.g. CGI alliance 2026). Does not replace traditional purchase — surface both paths.",
   url: "https://docs.netapp.com/us-en/keystone-staas/"
 };
@@ -6490,7 +6498,7 @@ const REFERENCE_LIBRARY_BEST_PRACTICES = {
     healthCheckCmd: "snapmirror show -health false",
     lagWarnHours: 4,               // lag >4h on hourly policy = alert
     checkCmd: "snapmirror show",
-    guidance: "Healthy SnapMirror relationship: lag time within 2x the schedule interval, status=Idle, health=true. Common issues: network latency causing lag buildup, source volume running out of snapshot space, SVM DR misaligned DNS/AD config. SnapMirror Synchronous RPO=0. SnapMirror Active Sync RTO<15s (transparent failover) — requires ONTAP Mediator and All-Flash (AFF/ASA)."
+    guidance: "Healthy SnapMirror relationship: lag time within 2x the schedule interval, status=Idle, health=true. Common issues: network latency causing lag buildup, source volume running out of snapshot space, SVM DR misaligned DNS/AD config. SnapMirror Synchronous RPO=0. SnapMirror Active Sync (current NetApp terminology since ONTAP 9.15.1, formerly SM-BC) RTO<15s (transparent failover) — requires ONTAP Mediator and All-Flash (AFF/ASA)."
   },
   volumeCapacity: {
     warnPct: 80,         // warn when volume >80% full
@@ -6513,7 +6521,7 @@ const REFERENCE_LIBRARY_BEST_PRACTICES = {
       "system services firewall show",
       "security login show"
     ],
-    guidance: "ONTAP security hardening: Disable TLS 1.0/1.1 (done automatically in 9.8+), disable HTTP management access, enforce minimum RSA-2048 for certificates, enable Multi-Admin Verification (MAV) for destructive operations (9.11.1+), enable audit logging. For FIPS compliance, run 'security config modify -interface SSL -is-fips-enabled true' (requires 9.9.1+)."
+    guidance: "ONTAP security hardening: TLS 1.3 supported in ONTAP 9.15.1+ (S3, SnapMirror, FabricPool). SSLv3/TLS 1.0/1.1 disabled in 9.16.1. Disable HTTP management access, enforce minimum RSA-2048 for certificates. SSH MFA via FIDO2/YubiKey in 9.12.1+. Enable Multi-Admin Verification (MAV) for destructive operations (9.11.1+; ONTAP 9.15.1+: MAV protection expanded to cover Consistency Groups, VScan rules, ARP management, LUN deletions, and NVMe configurations), enable audit logging, and enable ARP/AI (9.16.1+) for instant ML-based ransomware protection. For FIPS compliance, run 'security config modify -interface SSL -is-fips-enabled true' (requires 9.9.1+)."
   }
 };
 
@@ -9353,7 +9361,7 @@ function renderSAMTab() {
       ${sys.contracts.supportLevel}
     </div>
     <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 4px;">
-      Expires: <strong>${sys.contracts.endDate}</strong>
+      Expires: <strong>${sys.contracts.endDate ? new Date(sys.contracts.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}</strong>
     </div>
     <div style="font-size: 0.8rem; color: var(--text-muted);">
       ${sys.contracts.daysRemaining < 0 ? `Support ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`}
@@ -9374,10 +9382,10 @@ function renderSAMTab() {
       ${lcStatus}
     </div>
     <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; color: ${eoaGlow};">
-      EOS: ${sys.lifecycle.eosDate}
+      EOS: ${sys.lifecycle.eosDate ? new Date(sys.lifecycle.eosDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}
     </div>
     <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 4px;">
-      End of Availability: <strong>${sys.lifecycle.eoaDate}</strong>
+      End of Availability: <strong>${sys.lifecycle.eoaDate ? new Date(sys.lifecycle.eoaDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}</strong>
     </div>
   `;
 
@@ -10933,6 +10941,31 @@ function _resolveSnapMirrorPartners(systems) {
 }
 
 /**
+ * Post-enrichment pass: infer HA for multi-node clusters.
+ * The Active IQ API's isHAConfigured field is unreliable — it often returns
+ * null/false even for multi-node clusters. Any ONTAP cluster with 2+ nodes is
+ * inherently an HA pair, so we infer HA from node count as a fallback.
+ * Must be called AFTER enrichSystemTelemetry() on the full systems array.
+ */
+function _inferClusterHA(systems) {
+  const clusterNodes = {};
+  systems.forEach(s => {
+    const cl = s.clusterName;
+    if (cl) {
+      if (!clusterNodes[cl]) clusterNodes[cl] = [];
+      clusterNodes[cl].push(s);
+    }
+  });
+  Object.values(clusterNodes).forEach(nodes => {
+    if (nodes.length >= 2) {
+      nodes.forEach(s => {
+        if (!s.haConfigured) s.haConfigured = true;
+      });
+    }
+  });
+}
+
+/**
  * Build SnapMirror data from API cluster-level relationship count.
  * For live API systems, the server sends snapMirrorCount (from the cluster's
  * snapMirrorRelationships.totalCount) and isHAConfigured. We use these to
@@ -11081,7 +11114,7 @@ function computeEncryptionCoverage(targetSystems) {
   // Percentage of systems with volume encryption enabled (NVE/NAE)
   const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
   if (ontapSystems.length === 0) return 0;
-  const encrypted = ontapSystems.filter(s => s.isNVEEnabled === true || s.isNAEEnabled === true || s.isEncryptionEnabled === true).length;
+  const encrypted = ontapSystems.filter(s => s.nvEncryptionEnabled || s.isNVEEnabled === true || s.isNAEEnabled === true || s.isEncryptionEnabled === true).length;
   return Math.round((encrypted / ontapSystems.length) * 100);
 }
 
@@ -11093,7 +11126,7 @@ function computeFeatureAdoptionScore(sys) {
   const dr = sys.efficiency ? parseFloat(String(sys.efficiency.dataReductionRatio || '1').split(':')[0]) : 1;
   if (dr >= 1.5) passed++;
   if (sys.isFabricPool === true) passed++;
-  if ((sys.snapMirrorCount || 0) > 0) passed++;
+  if ((sys.snapmirrorCount || sys.snapMirrorCount || (sys.snapmirror && sys.snapmirror.totalCount) || 0) > 0) passed++;
   const critHigh = (sys.risks || []).filter(r => ['critical','high'].includes(r.severity)).length;
   if (critHigh === 0) passed++;
   if (sys.contractActive === true) passed++;
@@ -11105,10 +11138,10 @@ function computeFeatureAdoptionScore(sys) {
   if (secBulletins === 0) passed++;
   const utilPct = sys.efficiency ? (sys.efficiency.physicalUsedTB / Math.max(sys.efficiency.rawCapacityTB || 1, 1)) * 100 : 50;
   if (utilPct <= 80) passed++;
-  if (sys.isHAConfigured === true) passed++;
+  if (sys.haConfigured || sys.isHAConfigured || (sys.snapmirror && sys.snapmirror.isHAConfigured)) passed++;
   const critCases = (sys.supportCases || []).filter(c => c.severity && ['1','2','S1','S2','P1','P2'].includes(String(c.severity).replace(/[^0-9]/g, '') ? 'P' + String(c.severity).replace(/[^0-9]/g, '') : c.severity)).length;
   if (critCases === 0) passed++;
-  if (sys.isNVEEnabled || sys.isNAEEnabled || sys.isEncryptionEnabled) passed++;
+  if (sys.nvEncryptionEnabled || sys.isNVEEnabled || sys.isNAEEnabled || sys.isEncryptionEnabled) passed++;
   if (sys.isARPEnabled === true) passed++;
   const fsas = (sys.risks || []).filter(r => (r.category || '').toLowerCase().includes('field') || (r.description || '').toLowerCase().includes('field action')).length;
   if (fsas === 0) passed++;
@@ -12287,6 +12320,7 @@ function enrichSystemTelemetry(s) {
     ontapVersion:      isONTAPBased ? (osVer || "9.12.1") : null,
     sgVersion:         isStorageGrid ? (osVer || null) : null,
     santricityVersion: isEseries ? (s.santricityVersion || osVer || null) : (s.santricityVersion || null),
+    osVersion:         osVer || null,  // generic OS version field used by Feature Adoption, firmware checks, deliverables
     platform:          model,
     model:             s.model || model,  // raw hardware model name from API
     platformType:      platformType,      // generic family: ONTAP, STORAGEGRID, etc.
@@ -13640,9 +13674,9 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
 
   // ── Features ──
   const fabricPoolCount = targetSystems.filter(s => s.isFabricPool === true).length;
-  const nveCount = targetSystems.filter(s => s.isNVEEnabled === true || s.isNAEEnabled === true).length;
-  const snapMirrorCount = targetSystems.filter(s => s.snapMirrorCount > 0).length;
-  const haCount = targetSystems.filter(s => s.isHAConfigured === true).length;
+  const nveCount = targetSystems.filter(s => s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled).length;
+  const snapMirrorCount = targetSystems.filter(s => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0).length;
+  const haCount = targetSystems.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
   const auditCount = targetSystems.filter(s => s.isAuditEnabled === true).length;
 
   const platformAges = {};
@@ -13756,7 +13790,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const contractsText = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName) || {};
     const model = sys.platform || sys.model || '';
-    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate} (${e.daysRemaining} days)`;
+    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate ? new Date(e.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'} (${e.daysRemaining} days)`;
   }).join("\n");
 
   const risksText = fixGroups.map((g, i) => {
@@ -14616,9 +14650,9 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const ontapCount = ontapSystems.length;
   
   const fpAdopted = targetSystems.filter(s => s.isFabricPool === true).length;
-  const nveAdopted = targetSystems.filter(s => s.isNVEEnabled === true || s.isNAEEnabled === true || s.isEncryptionEnabled === true).length;
-  const smAdopted = targetSystems.filter(s => (s.snapMirrorCount || 0) > 0).length;
-  const haAdopted = targetSystems.filter(s => s.isHAConfigured === true).length;
+  const nveAdopted = targetSystems.filter(s => s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled).length;
+  const smAdopted = targetSystems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0) > 0).length;
+  const haAdopted = targetSystems.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
 
   const swIndex = computeSoftwareCurrencyIndex(targetSystems);
   const uniqueOntapVersions = new Set(targetSystems.filter(s => s.osVersion).map(s => s.osVersion)).size;
@@ -15130,6 +15164,17 @@ ${featureLines}
     Phase 2 (Week 2-4): Enable NVE/NAE, configure audit logging
     Phase 3 (Month 2):  Deploy MAV, implement SnapLock for compliance data
     Phase 4 (Month 3):  Security review, penetration test, compliance audit
+
+  6. NIST CSF 2.0 ALIGNMENT
+  ────────────────────────────────────────────────────────────────────────────
+    Function        ONTAP Technical Control
+    ─────────────── ──────────────────────────────────────────────────────
+    GOVERN          RBAC least privilege, MAV, audit logging, TR-4569
+    IDENTIFY        Active IQ risk assessment, ARP workload profiling
+    PROTECT         NVE/NAE at-rest encryption, TLS 1.3 in-flight, SnapLock WORM
+    DETECT          ARP/AI real-time anomaly detection, FPolicy event engine
+    RESPOND         Immutable recovery Snapshots, MAV blocking
+    RECOVER         SnapMirror Active Sync (RPO=0), MetroCluster failover
 ================================================================================`;
 }
 
@@ -15861,7 +15906,7 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
       const sysCritCount = (sys.risks || []).filter(r => (r.severity||'').toLowerCase() === 'critical').length;
       const sysSecCount = (sys.securityBulletins || []).length;
       salesProposals += `  ${i+1}. ${sys.systemName} | ${sys.platform} | OS: ${sys.ontapVersion}
-     EOA: ${sys.lifecycle.eoaDate || 'N/A'}  |  EOS: ${sys.lifecycle.eosDate || 'N/A'}
+     EOA: ${sys.lifecycle.eoaDate ? new Date(sys.lifecycle.eoaDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}  |  EOS: ${sys.lifecycle.eosDate ? new Date(sys.lifecycle.eosDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}
      Cost of Inaction: ${sysCritCount} critical risks, ${sysSecCount} security advisories unpatched.
      Recommendation: Refresh to AFF A-Series or C-Series
      Reference: https://www.netapp.com/data-storage/aff-a-series/
@@ -16843,11 +16888,13 @@ function _renderDRReplicationSection(systems) {
   const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
   const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;';
 
-  const snapMirrorSys = systems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || 0) > 0);
+  const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+  const _hasHA = (s) => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured);
+  const snapMirrorSys = systems.filter(s => _smCount(s) > 0);
   const metroClusterSys = systems.filter(s => s.isMetroCluster);
   const syncMirrorSys = systems.filter(s => s.isSyncMirror);
-  const haSys = systems.filter(s => s.isHAConfigured);
-  const unprotectedSys = systems.filter(s => !(s.snapmirrorCount || s.snapMirrorCount) && !s.isMetroCluster);
+  const haSys = systems.filter(s => _hasHA(s));
+  const unprotectedSys = systems.filter(s => _smCount(s) === 0 && !s.isMetroCluster);
 
   let html = `
     <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
@@ -16874,7 +16921,7 @@ function _renderDRReplicationSection(systems) {
     let smRows = '';
     snapMirrorSys.forEach(s => {
       const rels = (s.snapmirror && s.snapmirror.relationships) || (s.snapMirror && s.snapMirror.relationships) || [];
-      const relCount = s.snapmirrorCount || s.snapMirrorCount || rels.length;
+      const relCount = _smCount(s) || rels.length;
       
       if (rels.length > 0) {
         rels.forEach((r, idx) => {
@@ -16953,12 +17000,17 @@ function _renderFeatureAdoptionSection(systems) {
   const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem; text-align:center;';
   const tdLeft = tdStyle.replace('text-align:center;', 'text-align:left;');
 
+  // ── Helper: resolve feature flags across enrichment + raw field names ──
+  const _hasHA = (s) => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured);
+  const _hasEncryption = (s) => s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled;
+  const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+
   const features = {
     'ARP': systems.filter(s => s.isARPEnabled).length,
     'FabricPool': systems.filter(s => s.isFabricPool).length,
-    'NVE/NAE': systems.filter(s => s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled).length,
-    'SnapMirror': systems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || 0) > 0).length,
-    'HA': systems.filter(s => s.isHAConfigured).length,
+    'NVE/NAE': systems.filter(s => _hasEncryption(s)).length,
+    'SnapMirror': systems.filter(s => _smCount(s) > 0).length,
+    'HA': systems.filter(s => _hasHA(s)).length,
     'Audit': systems.filter(s => s.isAuditEnabled).length,
     'SnapLock': systems.filter(s => s.isSnapLockEnabled).length,
     'MAV': systems.filter(s => s.isMAVEnabled).length
@@ -16997,9 +17049,9 @@ function _renderFeatureAdoptionSection(systems) {
         <td style="${tdLeft}font-family:monospace;">${s.systemName || s.serialNumber}</td>
         <td style="${tdStyle}">${s.isARPEnabled ? '✅' : '❌'}</td>
         <td style="${tdStyle}">${s.isFabricPool ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${(s.snapmirrorCount || s.snapMirrorCount || 0) > 0 ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${s.isHAConfigured ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${_hasEncryption(s) ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${_smCount(s) > 0 ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${_hasHA(s) ? '✅' : '❌'}</td>
         <td style="${tdStyle}">${s.isAuditEnabled ? '✅' : '❌'}</td>
         <td style="${tdStyle}">${s.isSnapLockEnabled ? '✅' : '❌'}</td>
         <td style="${tdStyle}">${s.isMAVEnabled ? '✅' : '❌'}</td>
@@ -17010,9 +17062,11 @@ function _renderFeatureAdoptionSection(systems) {
 
   const recs = systems.map(s => {
     const missing = [];
-    if (!s.isARPEnabled) missing.push('ARP (`security anti-ransomware volume enable`)');
-    if (!s.isNVEEnabled && !s.isNAEEnabled && !s.isEncryptionEnabled) missing.push('Encryption (`volume create -encrypt true`)');
-    if (!s.isMAVEnabled) missing.push('MAV (`security multi-admin-verify setup`)');
+    if (!s.isARPEnabled) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
+    if (!_hasEncryption(s)) missing.push('Encryption (NVE for per-volume granularity, NAE for per-aggregate enables cross-volume deduplication. OKM for simple deployments, KMIP for enterprise compliance. `volume create -encrypt true`)');
+    if (!s.isMAVEnabled) missing.push('MAV (ONTAP 9.15.1+: MAV protection expanded to cover Consistency Groups, VScan rules, ARP management, LUN deletions, and NVMe configurations. `security multi-admin-verify setup`)');
+    if (!s.isFabricPool) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
+    if (!s.isSnapLockEnabled) missing.push('SnapLock (Compliance mode: SEC 17a-4, no privileged delete. Enterprise mode: allows audited privileged delete)');
     
     if (missing.length === 0) return '';
     return `<li><strong>${s.systemName || s.serialNumber}:</strong> Enable ${missing.join(', ')}</li>`;
@@ -19767,6 +19821,7 @@ async function saveSettings() {
     // Reset to mock systems database
     state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
     _resolveSnapMirrorPartners(state.systems);
+    _inferClusterHA(state.systems);
     state.groups = [...DEFAULT_GROUPS];
     state.watchlists = [...MOCK_WATCHLISTS];
     state.globalRisks = [];
@@ -20387,6 +20442,7 @@ async function loadProductionData(forceRefresh = false) {
 
     state.systems = systemsList.map(s => enrichSystemTelemetry(s));
     _resolveSnapMirrorPartners(state.systems); // Resolve SnapMirror destination names from fleet
+    _inferClusterHA(state.systems);
     // Debug: log cases stats after normalization
     const totalCasesLoaded = state.systems.reduce((sum, s) => sum + (s.supportCases ? s.supportCases.length : 0), 0);
     const sysWithCases = state.systems.filter(s => s.supportCases && s.supportCases.length > 0).length;
