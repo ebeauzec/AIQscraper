@@ -11181,16 +11181,26 @@ function enrichSystemTelemetry(s) {
     const compactSavedKiB  = s.compactionSavedKiB || 0;
     const dataSavedTB      = (dedupSavedKiB + compactSavedKiB) / (1024 ** 3);  // KiB → TiB
 
-    // ── Determine displayed ratio
-    let ratioVal;
+    // ── Determine best available ratio ─────────────────────────────────────
+    // Priority 1: dataReductionRatioSys — pure dedupe+compression from API
+    // Priority 2: efficiencyRatio (includes snapshots) — cap at 4:1 to strip snap inflation
+    // Priority 3: logical/physical — cap at 4:1
+    const logicalTBraw = s.clusterLogicalUsedTB || 0;
+    let bestRatio;
     if (dataRedRatio > 1) {
-      ratioVal = dataRedRatio.toFixed(1);
+      bestRatio = dataRedRatio;
+    } else if (effRatioFull > 1) {
+      bestRatio = Math.min(effRatioFull, 4.0);  // cap to remove snapshot inflation
     } else if (physTB > 0 && dataSavedTB > 0) {
-      // Fallback: compute from saved KiB
-      ratioVal = ((physTB + dataSavedTB) / physTB).toFixed(1);
+      bestRatio = (physTB + dataSavedTB) / physTB;
+    } else if (physTB > 0 && logicalTBraw > physTB) {
+      bestRatio = Math.min(logicalTBraw / physTB, 4.0);  // cap to remove snapshot inflation
     } else {
-      ratioVal = null;
+      bestRatio = 0;
     }
+
+    // ── Determine displayed ratio
+    const ratioVal = bestRatio > 1 ? bestRatio.toFixed(1) : null;
 
     // ASA r2: capacity reported via SAZ (Storage Availability Zone), not aggregate/physical
     // If standard physical capacity is missing, fall back to SAZ fields from server.py harvest
@@ -11203,7 +11213,7 @@ function enrichSystemTelemetry(s) {
       usableTBfinal = Math.round(((s.sazEffectiveCapacityKiB || s.sazTotalRawKiB || 0) / (1024 ** 3)) * 1000) / 1000;
     }
     // AFX: disaggregated pools — same physical path but flag for display note
-    const logTBfinal = dataRedRatio > 1 ? physTBfinal * dataRedRatio : (physTBfinal + dataSavedTB);
+    const logTBfinal = bestRatio > 1 ? physTBfinal * bestRatio : (physTBfinal + dataSavedTB);
 
 
 
@@ -11230,7 +11240,7 @@ function enrichSystemTelemetry(s) {
 
     efficiency = {
       ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : (_sgEseriesCapGap ? 'N/A' : 'N/A')),
-      dataReductionRatio: parseFloat((dataRedRatio > 1 ? dataRedRatio : 1).toFixed(2)),  // numeric DR ratio (dedup+compression only, excl. snapshots)
+      dataReductionRatio: parseFloat((bestRatio > 1 ? bestRatio : 1).toFixed(2)),  // numeric ratio (pure DR when available, capped effRatio as fallback)
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
       spaceSavedTB: parseFloat(spaceSavedForChart.toFixed(1)),
