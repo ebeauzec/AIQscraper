@@ -1,8 +1,8 @@
 {
-  "version": "3.8.1",
+  "version": "3.8.2",
   "major": 3,
   "minor": 8,
-  "patch": 1,
-  "date": "2026-07-30",
-  "notes": "Version database refresh (v3.8.1): StorageGRID 12.1.0 GA (docs live), SnapCenter 6.2.2 GA, Trident 26.06 GA. Reference library sync date updated to 2026-07-30. TAM tab pipeline optimized with staggered rendering stages and generation guards to prevent browser hangs on large fleets. Null guards added to calculateUpgradePath for E-Series/mixed-platform systems."
+  "patch": 2,
+  "date": "2026-07-31",
+  "notes": "Fix efficiency metrics: remove ESeriesSystem GQL fragment (breaks schema validation, silently degraded harvest to minimal tier losing all capacity/efficiency data). Snapshot-excluded efficiency now works correctly — dataReductionRatio (dedupe+compression only), usedWithoutSnapshotsKiB, deDuplicationSavedKiB, compactionSavedKiB all populate from the API. Donut chart shows correct data reduction savings. Ratio fallback cascade: dataReductionRatioSys → dedupSaved+compactSaved → logNoSnaps/physNoSnaps → N/A."
 }
