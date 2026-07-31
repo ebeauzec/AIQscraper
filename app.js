@@ -3788,10 +3788,10 @@ function loadConfig() {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
-  const schemaVer = safeGetItem("aiq_systems_schema_v13");
+  const schemaVer = safeGetItem("aiq_systems_schema_v14");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v13") {
+  if (savedSystems && schemaVer === "v14") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -3816,7 +3816,7 @@ function loadConfig() {
     } else {
       state.systems = []; // Will be populated by loadProductionData
     }
-    safeSetItem("aiq_systems_schema_v13", "v13");
+    safeSetItem("aiq_systems_schema_v14", "v14");
     saveSystems();
   }
 
@@ -10986,11 +10986,22 @@ function enrichSystemTelemetry(s) {
   // hardwareModel.name field over the generic platformType (e.g. 'ONTAP').
   // s.model = hardwareModel.name from server.py; s.platform = platformType from API.
   // NOTE: API often returns "" (empty string) for hardwareModel.name — must treat as missing.
+  // IMPORTANT: Compute platformType FIRST so we can use it in the model guard.
+  // s.platform may already contain the model name from a previous enrichment cycle
+  // (e.g. "AFF-A300") when re-loading from localStorage, so we must compare against
+  // the generic family (s.platformType || s.platform) rather than just s.platform.
+  const platformType = s.platformType || s.platform || s.productType || s.systemType || "";
+  const _genericFamily = platformType.toUpperCase();
   const _rawModel = (s.model || '').trim() || (s.platformModel || '').trim() || (s.platform_model || '').trim() || '';
   // Infer model from hostname when the API doesn't provide it.
   // NetApp hostnames commonly embed the model: "A150-CLUSTER-01", "FAS2750-node1", "AFF-A400-cl1", etc.
   let _inferredModel = '';
-  if (!_rawModel || _rawModel === (s.platform || '') || _rawModel === (s.systemType || '')) {
+  // Only infer if _rawModel is empty OR equals the generic family (e.g. "ONTAP", "E-SERIES")
+  const _rawModelUpper = _rawModel.toUpperCase();
+  const _isGeneric = !_rawModel || _rawModelUpper === _genericFamily
+    || _rawModelUpper === (s.systemType || '').toUpperCase()
+    || _rawModelUpper === 'CLOUD' || _rawModelUpper === 'STORAGEGRID';
+  if (_isGeneric) {
     const _hn = (name || '').toUpperCase();
     // AFF models: A150, A250, A400, A800, A900, A70, A90, A1K, A50, A30, C250, C400, C800
     const _affMatch = _hn.match(/\b(A(?:1K|900|800|400|250|150|90|70|50|30)|C(?:800|400|250|80|60))\b/);
@@ -11004,11 +11015,10 @@ function enrichSystemTelemetry(s) {
     // StorageGRID appliances: SG6060, SG5712, SGF6112, SG100, SG1000
     if (!_inferredModel) { const _sgMatch = _hn.match(/\b(SGF?\d{3,4})\b/); if (_sgMatch) _inferredModel = _sgMatch[1]; }
   }
-  const model = _rawModel && _rawModel !== (s.platform || '') && _rawModel !== (s.systemType || '')
+  const model = !_isGeneric
     ? _rawModel
     : (_inferredModel || s.platform || s.systemType || "unknown");
   // Preserve the generic platform family (ONTAP, STORAGEGRID, etc.) for display
-  const platformType = s.platform || s.productType || s.systemType || "";
   // Normalize status: API may send 'NORMAL', 'WARNING', 'CRITICAL' in uppercase
   const status = (s.status || "normal").toLowerCase();
 
@@ -12063,6 +12073,7 @@ function enrichSystemTelemetry(s) {
   const _isARPEnabled = s.isARPEnabled != null
     ? s.isARPEnabled
     : !isStorageGrid && !isEseries && (isAFF || isASA || isASAr2 || isAFX || isCVO);
+
 
   return {
     _source:           s._source || (isLiveData ? 'graphql' : undefined),
