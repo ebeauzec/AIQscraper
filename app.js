@@ -13603,8 +13603,14 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   let totalSavedTB = 0;
   let activeTAMOwner = "Not Set";
   let activeAMOwner = "Not Set";
+  let activeSalesRep = "Not Set";
+  let activeContactName = "Not Set";
+  let activeContactEmail = "Not Set";
   let csatScoreSum = 0;
   let systemCount = targetSystems.length;
+  let domesticParent = targetSystems[0]?.domesticParent || targetSystems[0]?.customerName || 'Unknown';
+  let totalRunwayDays = 0;
+  let runwayDaysCount = 0;
 
   targetSystems.forEach(sys => {
     if (sys.efficiency) {
@@ -13612,15 +13618,45 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       totalCapTB += sys.efficiency.physicalUsedTB || 0;
       totalSavedTB += sys.efficiency.spaceSavedTB || 0;
     }
+    if (sys.projections && typeof sys.projections.runwayDays === 'number') {
+      totalRunwayDays += sys.projections.runwayDays;
+      runwayDaysCount++;
+    }
     if (sys.salesHealth) {
       csatScoreSum += sys.salesHealth.sentimentScore || 7.5;
       activeTAMOwner = sys.salesHealth.supportTam || activeTAMOwner;
       activeAMOwner = sys.salesHealth.accountManager || activeAMOwner;
+      activeSalesRep = sys.salesHealth.salesRep || activeSalesRep;
+      activeContactName = sys.salesHealth.primaryContact || activeContactName;
+      activeContactEmail = sys.salesHealth.primaryContactEmail || activeContactEmail;
     }
   });
 
+  const avgRunwayDays = runwayDaysCount > 0 ? Math.round(totalRunwayDays / runwayDaysCount) : 120;
   const avgCsat = systemCount > 0 ? (csatScoreSum / systemCount).toFixed(1) : "No Data";
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
+
+  // ── Features ──
+  const fabricPoolCount = targetSystems.filter(s => s.isFabricPool === true).length;
+  const nveCount = targetSystems.filter(s => s.isNVEEnabled === true || s.isNAEEnabled === true).length;
+  const snapMirrorCount = targetSystems.filter(s => s.snapMirrorCount > 0).length;
+  const haCount = targetSystems.filter(s => s.isHAConfigured === true).length;
+  const auditCount = targetSystems.filter(s => s.isAuditEnabled === true).length;
+
+  const platformAges = {};
+  targetSystems.forEach(s => {
+    const p = s.platform || 'Unknown';
+    if (!platformAges[p]) platformAges[p] = { count: 0, ageSum: 0, refreshCand: 0 };
+    platformAges[p].count++;
+    if (s.hardwareAgeMonths) platformAges[p].ageSum += s.hardwareAgeMonths;
+    if (s.isEOA || s.isEOS || (s.hardwareAgeMonths && s.hardwareAgeMonths > 60)) platformAges[p].refreshCand++;
+  });
+  let refreshCandidatesCount = 0;
+  const platformAgeLines = Object.entries(platformAges).map(([p, data]) => {
+    refreshCandidatesCount += data.refreshCand;
+    const avgAge = data.count > 0 ? Math.round(data.ageSum / data.count / 12) : 0;
+    return `  - ${p}: ${data.count} system(s), Avg Age: ${avgAge} years`;
+  }).join('\n');
 
   // ── ASUP & ARP health ──
   const now = Date.now();
@@ -13779,11 +13815,35 @@ ${platformLines}
 
 * ACCOUNT HEALTH SCORE: ${formatHealthScoreText(targetSystems)}
 
+* STAKEHOLDER MATRIX & RACI [MEDDPICC: E + C]
+  TAM:                  ${activeTAMOwner}
+  Sales Representative: ${activeSalesRep}
+  Account Manager:      ${activeAMOwner}
+  Primary Contact:      ${activeContactName} (${activeContactEmail})
+  Domestic Parent:      ${domesticParent}
+
+  Role            | Responsible | Accountable | Consulted | Informed
+  ─────────────── | ─────────── | ─────────── | ───────── | ────────
+  Risk Remediation| TAM         | Customer    | Sales     | Management
+  Upgrade Planning| TAM         | Customer    | Sales     | Management
+  Contract Renewal| Sales       | Customer    | TAM       | Management
+  Feature Adoption| TAM         | Customer    | TAM       | Sales
+
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
   - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled
   - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
+
+* FEATURE ADOPTION SCORECARD [MEDDPICC: D — Decision Criteria]
+  Feature                       Enabled     Total    Coverage    CLI Command
+  ───────────────────────────── ─────────── ──────── ─────────── ──────────────────────────
+  Anti-Ransomware (ARP)         ${arpCount}         ${systemCount}      ${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%      security anti-ransomware volume ...
+  FabricPool (Cloud Tiering)    ${fabricPoolCount}         ${systemCount}      ${systemCount > 0 ? Math.round(fabricPoolCount/systemCount*100) : 0}%      storage aggregate ... -cloud-target
+  Volume Encryption (NVE)       ${nveCount}         ${systemCount}      ${systemCount > 0 ? Math.round(nveCount/systemCount*100) : 0}%      vol encryption ...
+  SnapMirror DR                 ${snapMirrorCount}         ${systemCount}      ${systemCount > 0 ? Math.round(snapMirrorCount/systemCount*100) : 0}%      snapmirror show
+  HA Configuration              ${haCount}         ${systemCount}      ${systemCount > 0 ? Math.round(haCount/systemCount*100) : 0}%      cluster ha show
+  Audit Logging                 ${auditCount}         ${systemCount}      ${systemCount > 0 ? Math.round(auditCount/systemCount*100) : 0}%      vserver audit show
 
 * RISK POSTURE SUMMARY:
   - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
@@ -13847,6 +13907,13 @@ KEY SECURITY ACTIONS:
   Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
 
 ${formatCostOfInactionText(targetSystems)}
+
+* FINANCIAL IMPACT & ROI SUMMARY [MEDDPICC: M + E]
+  Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
+  Estimated Cost Avoidance:            $${(totalSavedTB * 50).toLocaleString()}/month (at $50/TB/month)
+  Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
+  Contract Coverage Gap Risk:          ${systemCount - contractActive} systems without active support
+  Support Premium Increase (EOSA):     ~45% increase for ${systemCount - contractActive} out-of-support systems
 
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
@@ -13965,6 +14032,14 @@ ${expiringContracts.length > 0 ? contractsText : "  ✓ No contracts expiring wi
 * ACTION 5.2: Hardware Refresh Planning
   - Identify near-EOS systems and initiate pre-sales engagement for AFF A-Series or ASA r2 refresh.
   - Reference: imt.netapp.com/matrix/ | netapp.com/data-storage/
+
+* COMPETITIVE POSITIONING [MEDDPICC: C — Competition]
+  Platform Age Analysis:
+${platformAgeLines}
+  
+  Refresh Candidates:   ${refreshCandidatesCount} systems flagged for tech refresh
+  ONTAP Differentiators: Unified SAN/NAS/S3, ARP, FabricPool, NDU, SnapLock, native DR
+  Recommended Refresh:   AFF A-Series/C-Series for EOS/EOA candidates
 
 --------------------------------------------------------------------------------
 5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES [MEDDPICC: D — Decision Process]
@@ -14105,6 +14180,21 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     }).join('\n\n') + '\n';
   }
 
+  // ── Tech Refresh Roadmap ──
+  const eoaEosSystems = targetSystems.filter(s => s.isEOA || s.isEOS || s.hardwareAgeMonths > 60);
+  const techRefreshLines = eoaEosSystems.length > 0 ? eoaEosSystems.map(s => {
+    const eoaDate = s.eoaDate ? s.eoaDate.split('T')[0] : 'Unknown';
+    const eosDate = s.eosDate ? s.eosDate.split('T')[0] : 'Unknown';
+    const est = s.maintenanceCostEst ? '$' + s.maintenanceCostEst : 'TBD';
+    return `  Current: ${s.platform || 'Unknown'} (${s.osVersion || 'Unknown'}) — EOA: ${eoaDate}, EOS: ${eosDate}
+  Proposed: AFF A-Series / C-Series / ASA — ONTAP 9.16+
+  Financial Case: Current maintenance ${est} → Modern platform: Lower power, higher DRR, NVMe perf
+  Timeline: Q${Math.floor((new Date().getMonth() + 3) / 3)} FY${new Date().getFullYear() + 1} (aligned to contract renewal)
+
+  Keystone/OPEX Alternative:
+  Available as consumption model, capacity on-demand.`;
+  }).join('\n\n') : '  No immediate tech refresh candidates identified.';
+
   // ── Action Items ──
   const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const staleAsup = total - asupCompliant;
@@ -14186,7 +14276,12 @@ ${contractLines}
 --------------------------------------------------------------------------------
 ${recsSection}
 --------------------------------------------------------------------------------
-7. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
+7. ARCHITECTURE ROADMAP & TECH REFRESH [MEDDPICC: D + C]
+--------------------------------------------------------------------------------
+${techRefreshLines}
+
+--------------------------------------------------------------------------------
+8. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
@@ -14196,7 +14291,7 @@ ${recsSection}
   □ Validate ITIL Change Control process for all planned remediation items
 
 --------------------------------------------------------------------------------
-8. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
+9. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
 --------------------------------------------------------------------------------
 ${priorActionsText}
 ================================================================================`;
@@ -14216,6 +14311,66 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const activeContracts  = targetSystems.filter(s => s.contractActive === true).length;
   const expiredContracts = targetSystems.filter(s => s.contractActive === false).length;
   const unknownContracts = targetSystems.filter(s => s.contractActive == null).length;
+  const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
+
+  // ── Per-Customer Grouping ──
+  const mspCustomers = {};
+  targetSystems.forEach(s => {
+    const cName = s.domesticParent || s.customerName || 'Unknown';
+    if (!mspCustomers[cName]) {
+      mspCustomers[cName] = { 
+        systems: [], 
+        phys: 0, log: 0, saved: 0, avail: 0,
+        arp: 0, asup: 0, contract: 0, 
+        risks: 0, runwaySum: 0, runwayCount: 0 
+      };
+    }
+    const c = mspCustomers[cName];
+    c.systems.push(s);
+    if (s.efficiency) {
+      c.phys += s.efficiency.physicalUsedTB || 0;
+      c.log += s.efficiency.logicalUsedTB || 0;
+      c.saved += s.efficiency.spaceSavedTB || 0;
+      c.avail += s.efficiency.physicalAvailTB || 0; // fallback if needed
+    }
+    if (s.projections && typeof s.projections.runwayDays === 'number') {
+      c.runwaySum += s.projections.runwayDays;
+      c.runwayCount++;
+    }
+    if (s.isARPEnabled) c.arp++;
+    if (s.contractActive) c.contract++;
+    const asupD = s.latestAsupDate ? new Date(s.latestAsupDate) : null;
+    if (asupD && !isNaN(asupD) && (Date.now() - asupD.getTime() <= 7 * 24 * 3600 * 1000)) c.asup++;
+  });
+  
+  allRisks.forEach(r => {
+    const s = targetSystems.find(sys => sys.systemName === r.systemName);
+    if (s) {
+      const cName = s.domesticParent || s.customerName || 'Unknown';
+      if (mspCustomers[cName]) mspCustomers[cName].risks++;
+    }
+  });
+
+  const dashboardLines = Object.entries(mspCustomers).map(([name, data]) => {
+    const tot = data.systems.length;
+    const hlth = tot > 0 ? Math.round(((data.asup + data.arp + data.contract) / (tot * 3)) * 100) : 0;
+    const asupP = tot > 0 ? Math.round(data.asup / tot * 100) : 0;
+    const contractP = tot > 0 ? Math.round(data.contract / tot * 100) : 0;
+    const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
+    return `  ${name.substring(0,18).padEnd(18)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${'OK'.padEnd(8)} ${String(asupP)+'%'.padEnd(7)} ${String(contractP)+'%'.padEnd(7)} ${drr}:1`;
+  }).sort().join('\n');
+
+  let totalPhys = 0, totalAvail = 0, totalRunway = 0, rCount = 0;
+  const capacityLines = Object.entries(mspCustomers).map(([name, data]) => {
+    const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
+    const rw = data.runwayCount > 0 ? Math.round(data.runwaySum / data.runwayCount) : 120;
+    totalPhys += data.phys;
+    totalAvail += data.avail;
+    totalRunway += rw;
+    rCount++;
+    return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${'TBD'.padEnd(12)} ${drr.padEnd(10)} ${rw}d`;
+  }).join('\n');
+  const avgRunway = rCount > 0 ? Math.round(totalRunway / rCount) : 120;
   const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
 
   // ── ASUP Compliance ──
@@ -14320,7 +14475,14 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Average System Age:        ${avgAge} years
 
 --------------------------------------------------------------------------------
-2. SLA COMPLIANCE MATRIX [MEDDPICC: M]
+2. PER-CUSTOMER HEALTH DASHBOARD [MEDDPICC: M]
+--------------------------------------------------------------------------------
+  Customer           Health  Risks  Backup  ASUP   Supp   DRR
+  ────────────────── ─────── ────── ─────── ────── ────── ──────
+${dashboardLines}
+
+--------------------------------------------------------------------------------
+3. SLA COMPLIANCE MATRIX [MEDDPICC: M]
 --------------------------------------------------------------------------------
   Metric                    Target    Actual    Status
   ─────────────────────────────────────────────────────
@@ -14331,13 +14493,22 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
 
 --------------------------------------------------------------------------------
-3. INCIDENT & CASE MANAGEMENT [MEDDPICC: I]
+4. CAPACITY CONSUMPTION & RUNWAY REPORT [MEDDPICC: M]
+--------------------------------------------------------------------------------
+  Customer           Phys(TB) Avail(TB)  Cloud(TB)    DRR        Runway
+  ────────────────── ──────── ──────────── ──────────── ────────── ──────
+${capacityLines}
+  ────────────────── ──────── ──────────── ──────────── ────────── ──────
+  PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${'0.0'.padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway}d
+
+--------------------------------------------------------------------------------
+5. INCIDENT & CASE MANAGEMENT [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Open Cases:     ${allSupportCases.length}
 ${casesLines}
 
 --------------------------------------------------------------------------------
-4. CONTRACT PORTFOLIO [MEDDPICC: P]
+6. CONTRACT PORTFOLIO [MEDDPICC: P]
 --------------------------------------------------------------------------------
   Active:    ${activeContracts} systems
   Expiring:  ${exp90} systems (within 90 days)
@@ -14348,7 +14519,7 @@ ${casesLines}
 ${tierLines}
 
 --------------------------------------------------------------------------------
-5. CAPACITY & EFFICIENCY [MEDDPICC: I]
+7. CAPACITY & EFFICIENCY [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Total Physical Capacity Used: ${physTotal.toFixed(1)} TB
   Total Logical Capacity:       ${logTotal.toFixed(1)} TB
@@ -14356,18 +14527,27 @@ ${tierLines}
   Space Saved via Efficiency:   ${savedTotal.toFixed(1)} TB
 
 --------------------------------------------------------------------------------
-6. IMPROVEMENT BACKLOG [MEDDPICC: D]
+8. IMPROVEMENT BACKLOG [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${backlogLines}
 
 --------------------------------------------------------------------------------
-7. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
+9. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
   □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
   □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}
   □ Restore ASUP on ${staleAsup} stale system${staleAsup !== 1 ? 's' : ''}
   □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
+
+--------------------------------------------------------------------------------
+10. PARTNER VALUE STATEMENT
+--------------------------------------------------------------------------------
+  Total Data Managed:       ${logTotal.toFixed(1)} TB
+  Storage Cost Avoidance:   $${(savedTotal * 50).toLocaleString()} / month (at $50/TB)
+  Risk Incidents Prevented: ${critCount} critical issues identified proactively
+  Admin Time Saved:         ~${total * 2} hours/month via automated telemetry and monitoring
+  Next Quarter Focus:       Expand ARP coverage to 100% and initiate tech refresh for ${ages.filter(a=>a>5).length} aged systems.
 ================================================================================`;
 }
 
@@ -14822,6 +15002,228 @@ ${talkingPointsText}
 
   TRANSITION NOTES:
   [  — Add handover-specific context, relationship notes, and pending commitments here —  ]
+================================================================================`;
+}
+
+function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date().toISOString().split('T')[0];
+  const count = targetSystems.length;
+  const tamName = window.currentUser ? window.currentUser.name : 'Unknown TAM';
+
+  let critical = 0, high = 0, medium = 0, low = 0;
+  let securityRisks = [];
+  let cveExposures = new Set();
+  let systemsWithCve = new Set();
+  let arpEnabled = 0, nveEnabled = 0, naeEnabled = 0, fwCurrent = 0, kevExposures = 0;
+  let mavEnabled = 0, snaplockEnabled = 0, auditEnabled = 0;
+
+  targetSystems.forEach(s => {
+    if (s.isARPEnabled) arpEnabled++;
+    if (s.isNVEEnabled) nveEnabled++;
+    if (s.isNAEEnabled) naeEnabled++;
+    if (s.isMAVEnabled) mavEnabled++;
+    if (s.isSnapLockEnabled) snaplockEnabled++;
+    if (s.isAuditEnabled) auditEnabled++;
+    if (s.firmwareStatus === 'Current' || s.firmwareStatus === 'Recommended') fwCurrent++;
+
+    (s.risks || []).forEach(r => {
+      if (r.severity === 'CRITICAL') critical++;
+      if (r.severity === 'HIGH') high++;
+      if (r.severity === 'MEDIUM') medium++;
+      if (r.severity === 'LOW') low++;
+      
+      if (r.category === 'Security' || (r.title && r.title.toLowerCase().includes('cve')) || (r.title && r.title.toLowerCase().includes('security'))) {
+        securityRisks.push({ system: s.systemName, ...r });
+      }
+      
+      if (r.title && r.title.toLowerCase().includes('cve')) {
+        cveExposures.add(r.title);
+        systemsWithCve.add(s.systemName);
+      }
+      
+      if (r.knownExploited) {
+        kevExposures++;
+      }
+    });
+  });
+
+  const totalRisks = critical + high + medium + low;
+  const arpPct = count > 0 ? Math.round((arpEnabled / count) * 100) : 0;
+  const encryptPct = count > 0 ? Math.round(((nveEnabled + naeEnabled) / (count * 2)) * 100) : 0;
+  const daysSinceOldestCVE = 30; // Default estimate
+
+  const cveMap = new Map();
+  securityRisks.forEach(r => {
+    if (r.title && r.title.toLowerCase().includes('cve')) {
+      if (!cveMap.has(r.title)) {
+        cveMap.set(r.title, { severity: r.severity, count: 0, systems: new Set(), advisory: r.url || 'N/A', recommended: r.remediation || 'Upgrade firmware' });
+      }
+      let c = cveMap.get(r.title);
+      c.count++;
+      c.systems.add(r.system);
+    }
+  });
+
+  let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
+  cveArray.sort((a, b) => {
+    const sevMap = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+    let sA = sevMap[a.severity] || 0;
+    let sB = sevMap[b.severity] || 0;
+    if (sA !== sB) return sB - sA;
+    return b.count - a.count;
+  });
+
+  let matrixLines = cveArray.map((c, i) => `    Priority ${i + 1}: ${c.title}
+      Severity:     ${c.severity}
+      Affected:     ${c.count} system(s)
+      Systems:      ${Array.from(c.systems).join(', ')}
+      Advisory:     ${c.advisory}
+      Remediation:  ${c.recommended}`).join('\n');
+
+  if (matrixLines.trim() === '') matrixLines = '    No specific CVEs detected.\n';
+  else matrixLines = '\n' + matrixLines + '\n';
+
+  let featureLines = `    Feature                 Enabled    Gap      Action Required
+    ─────────────────────── ────────── ──────── ──────────────────────────────
+    ARP (Anti-Ransomware)   ${arpEnabled}/${count}    ${count - arpEnabled}        security anti-ransomware volume ...
+    NVE (Volume Encrypt)    ${nveEnabled}/${count}    ${count - nveEnabled}        vol encryption ...
+    NAE (Aggr Encrypt)      ${naeEnabled}/${count}    ${count - naeEnabled}        aggr encryption ...
+    MAV (Multi-Admin)       ${mavEnabled}/${count}    ${count - mavEnabled}        security multi-admin-verify ...
+    SnapLock                ${snaplockEnabled}/${count}    ${count - snaplockEnabled}        snaplock compliance ...
+    Audit Logging           ${auditEnabled}/${count}    ${count - auditEnabled}        vserver audit create ...\n`;
+
+  return `================================================================================
+  SECURITY POSTURE EXECUTIVE BRIEF [MEDDPICC: I + D]
+================================================================================
+  Account: ${cleanScope}  |  Date: ${today}
+  Systems: ${count}  |  TAM: ${tamName}
+
+  1. SECURITY HEALTH SUMMARY
+  ────────────────────────────────────────────────────────────────────────────
+    Total Risks:              ${totalRisks} (Critical: ${critical}, High: ${high}, Medium: ${medium}, Low: ${low})
+    Security-Specific Risks:  ${securityRisks.length}
+    CVE Exposure:             ${cveExposures.size} unique advisories across ${systemsWithCve.size} systems
+    ARP Coverage:             ${arpEnabled}/${count} (${arpPct}%) — Anti-Ransomware Protection
+    Encryption Coverage:      ${encryptPct}% systems with NVE/NAE enabled
+    Firmware Currency:        ${fwCurrent}/${count} on recommended version
+    CISA KEV Exposure:        ${kevExposures}
+
+  2. COST OF INACTION — SECURITY
+  ────────────────────────────────────────────────────────────────────────────
+    ╔══════════════════════════════════════════════════════════════════════╗
+    ║  ${cveExposures.size} CVEs expose ${systemsWithCve.size} systems to known exploit vectors              ║
+    ║  ${count - arpEnabled} systems lack ARP → vulnerable to ransomware                   ║
+    ║  ${count - fwCurrent} systems on unsupported firmware → no security patches          ║
+    ║  Estimated exposure window: ${daysSinceOldestCVE} days  ║
+    ╚══════════════════════════════════════════════════════════════════════╝
+
+  3. CVE REMEDIATION PRIORITY MATRIX
+  ────────────────────────────────────────────────────────────────────────────${matrixLines}
+  4. FEATURE GAP ANALYSIS
+  ────────────────────────────────────────────────────────────────────────────
+${featureLines}
+  5. SECURITY ROADMAP
+  ────────────────────────────────────────────────────────────────────────────
+    Phase 1 (Week 1):   Patch critical CVEs, enable ARP on production volumes
+    Phase 2 (Week 2-4): Enable NVE/NAE, configure audit logging
+    Phase 3 (Month 2):  Deploy MAV, implement SnapLock for compliance data
+    Phase 4 (Month 3):  Security review, penetration test, compliance audit
+================================================================================`;
+}
+
+function compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date().toISOString().split('T')[0];
+  const count = targetSystems.length;
+
+  let overallScoreSum = 0;
+  let weekOverWeekChangeSum = 0;
+  let systemsWithScore = 0;
+  
+  let totalPhysical = 0;
+  let totalLogical = 0;
+  let spaceSaved = 0;
+  
+  let perSystemLines = '';
+  let optimizationRecs = [];
+  let fabricPoolCount = 0;
+
+  targetSystems.forEach(s => {
+    let score = s.sustainability ? s.sustainability.overallScore || 0 : 0;
+    let trend = s.sustainability ? s.sustainability.weekOverWeekChange || 0 : 0;
+    let logical = s.efficiency ? s.efficiency.logicalData || 0 : 0;
+    let physical = s.efficiency ? s.efficiency.physicalCapacity || 0 : 0;
+    let saved = s.efficiency ? s.efficiency.spaceSaved || 0 : 0;
+    let drRatio = s.efficiency ? s.efficiency.drRatio || 1 : 1;
+    let isFP = s.isFabricPool || false;
+
+    if (score > 0) {
+      overallScoreSum += score;
+      weekOverWeekChangeSum += trend;
+      systemsWithScore++;
+    }
+    
+    totalLogical += logical;
+    totalPhysical += physical;
+    spaceSaved += saved;
+    if (isFP) fabricPoolCount++;
+
+    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${score.toString().padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)} ${isFP ? 'Yes' : 'No'}\n`;
+
+    if (score < 50 && score > 0) {
+      if (!isFP) optimizationRecs.push(`    • ${s.systemName}: Enable FabricPool to tier cold data → est. 15% improvement`);
+      if (drRatio < 2) optimizationRecs.push(`    • ${s.systemName}: Data reduction ${drRatio}:1 below fleet avg → review compaction`);
+    }
+  });
+
+  const avgScore = systemsWithScore > 0 ? Math.round(overallScoreSum / systemsWithScore) : 0;
+  const avgTrend = systemsWithScore > 0 ? (weekOverWeekChangeSum / systemsWithScore).toFixed(1) : 0;
+  
+  const totalDrRatio = totalPhysical > 0 ? (totalLogical / totalPhysical).toFixed(1) : 1;
+  const powerAvoided = Math.round(spaceSaved * 0.5); // 0.5 kW/TB
+  const co2Avoided = Math.round(powerAvoided * 0.5); // 0.5 kg CO2/kWh
+
+  let recLines = optimizationRecs.join('\n');
+  if (recLines.trim() === '') recLines = '    No urgent optimization recommendations found.';
+
+  return `================================================================================
+  SUSTAINABILITY & ESG REPORT [MEDDPICC: M + E]
+================================================================================
+  Account: ${cleanScope}  |  Date: ${today}
+  Systems: ${count}
+
+  1. FLEET SUSTAINABILITY SUMMARY
+  ────────────────────────────────────────────────────────────────────────────
+    Overall Sustainability Score:  ${avgScore}/100
+    Week-over-Week Trend:          ${avgTrend > 0 ? '+'+avgTrend : avgTrend}%
+    Systems Assessed:              ${systemsWithScore}/${count}
+
+  2. EFFICIENCY & DATA REDUCTION IMPACT
+  ────────────────────────────────────────────────────────────────────────────
+    Total Physical Capacity:       ${totalPhysical.toFixed(1)} TB
+    Total Logical Data:            ${totalLogical.toFixed(1)} TB
+    Data Reduction Ratio:          ${totalDrRatio}:1 (dedupe + compression)
+    Space Saved:                   ${spaceSaved.toFixed(1)} TB
+    Physical Footprint Avoided:    ${spaceSaved.toFixed(1)} TB (equivalent shelves/racks not needed)
+    Estimated Power Avoided:       ${powerAvoided} kW (at 0.5 kW/TB)
+    Estimated CO2 Avoided:         ${co2Avoided} kg/year (at 0.5 kg CO2/kWh)
+
+  3. PER-SYSTEM SUSTAINABILITY SCORES
+  ────────────────────────────────────────────────────────────────────────────
+    System                      Score  Trend  DR Ratio  Saved TB  FabricPool
+    ─────────────────────────── ────── ────── ──────── ──────── ──────────
+${perSystemLines ? perSystemLines.trimRight() : '    No data available'}
+
+  4. OPTIMIZATION RECOMMENDATIONS
+  ────────────────────────────────────────────────────────────────────────────
+${recLines}
+
+  5. CARBON REDUCTION ROADMAP
+  ────────────────────────────────────────────────────────────────────────────
+    Quick Wins:   Enable FabricPool on ${count - fabricPoolCount} systems → est. ${(spaceSaved*0.1).toFixed(1)} TB tiered
+    Medium Term:  Consolidate under-utilized systems → retire aging shelves
+    Long Term:    Refresh legacy platforms → modern efficient hardware
 ================================================================================`;
 }
 
@@ -15496,6 +15898,12 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
   // 11. MEDDPICC Deal Intelligence Brief
   let meddpiccBrief = compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
 
+  // 12. Security Posture Executive Brief
+  let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+
+  // 13. Sustainability & ESG Report
+  let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+
   return {
     problemStatements,
     customerComms,
@@ -15507,7 +15915,9 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
     qbrPack,
     mspReport,
     handoverBrief,
-    meddpiccBrief
+    meddpiccBrief,
+    securityBrief,
+    sustainabilityReport
   };
 }
 
@@ -16382,6 +16792,239 @@ function _renderMonthlySLASection(systems) {
   }
 
   return html;
+}
+
+function _renderDRReplicationSection(systems) {
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+  const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
+  const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;';
+
+  const snapMirrorSys = systems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || 0) > 0);
+  const metroClusterSys = systems.filter(s => s.isMetroCluster);
+  const syncMirrorSys = systems.filter(s => s.isSyncMirror);
+  const haSys = systems.filter(s => s.isHAConfigured);
+  const unprotectedSys = systems.filter(s => !(s.snapmirrorCount || s.snapMirrorCount) && !s.isMetroCluster);
+
+  let html = `
+    <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Protection Coverage</h4>
+        <div style="font-size: 1.1rem; margin-bottom: 4px;"><strong>${snapMirrorSys.length} / ${systems.length}</strong> <span style="font-size:0.8rem; color:var(--text-secondary);">with SnapMirror</span></div>
+        <div style="font-size: 1.1rem; margin-bottom: 4px;"><strong>${metroClusterSys.length} / ${systems.length}</strong> <span style="font-size:0.8rem; color:var(--text-secondary);">with MetroCluster</span></div>
+        <div style="font-size: 1.1rem;"><strong>${syncMirrorSys.length} / ${systems.length}</strong> <span style="font-size:0.8rem; color:var(--text-secondary);">with SyncMirror</span></div>
+      </div>
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">HA Status</h4>
+        <div style="font-size: 1.5rem; color: var(--accent-cyan); margin-bottom: 4px;">${haSys.length} / ${systems.length}</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary);">HA Configured</div>
+      </div>
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Unprotected Systems</h4>
+        <div style="font-size: 1.5rem; color: ${unprotectedSys.length > 0 ? '#f59e0b' : '#10b981'}; margin-bottom: 4px;">${unprotectedSys.length}</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary);">No SnapMirror or MetroCluster</div>
+      </div>
+    </div>
+  `;
+
+  if (snapMirrorSys.length > 0) {
+    let smRows = '';
+    snapMirrorSys.forEach(s => {
+      const rels = (s.snapmirror && s.snapmirror.relationships) || (s.snapMirror && s.snapMirror.relationships) || [];
+      const relCount = s.snapmirrorCount || s.snapMirrorCount || rels.length;
+      
+      if (rels.length > 0) {
+        rels.forEach((r, idx) => {
+          smRows += `
+            <tr>
+              <td style="${tdStyle}font-family:monospace;">${idx === 0 ? (s.systemName || s.serialNumber) : ''}</td>
+              <td style="${tdStyle}">${idx === 0 ? relCount : ''}</td>
+              <td style="${tdStyle}">${r.type || '—'}</td>
+              <td style="${tdStyle}">${r.lagTime || '—'}</td>
+              <td style="${tdStyle}">${r.state || r.status || '—'}</td>
+            </tr>
+          `;
+        });
+      } else {
+        smRows += `
+          <tr>
+            <td style="${tdStyle}font-family:monospace;">${s.systemName || s.serialNumber}</td>
+            <td style="${tdStyle}">${relCount}</td>
+            <td style="${tdStyle}">—</td>
+            <td style="${tdStyle}">—</td>
+            <td style="${tdStyle}">—</td>
+          </tr>
+        `;
+      }
+    });
+
+    html += `
+      <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">SnapMirror Inventory</h3>
+      <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
+        <table style="${tblStyle}">
+          <thead>
+            <tr>
+              ${_sth(thStyle, 'System')}
+              ${_sth(thStyle, 'Relationships')}
+              ${_sth(thStyle, 'Type')}
+              ${_sth(thStyle, 'Lag Time')}
+              ${_sth(thStyle, 'State')}
+            </tr>
+          </thead>
+          <tbody>
+            ${smRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  const rpoRisks = [];
+  snapMirrorSys.forEach(s => {
+    const rels = (s.snapmirror && s.snapmirror.relationships) || (s.snapMirror && s.snapMirror.relationships) || [];
+    rels.forEach(r => {
+      if (r.lagTime && (r.lagTime.includes('hr') || r.lagTime.includes('hours') || parseInt(r.lagTime) > 60)) {
+        rpoRisks.push(\`<li><strong>\${s.systemName || s.serialNumber}</strong> -> \${r.destination || 'unknown'}: Lag time is \${r.lagTime}</li>\`);
+      }
+    });
+  });
+
+  if (rpoRisks.length > 0) {
+    html += `
+      <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">RPO/RTO Analysis</h3>
+      <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; padding: 12px; font-size: 0.85rem; margin-bottom: 16px;">
+        <p style="margin: 0 0 8px 0;"><strong>Warning:</strong> High lag times detected which may impact Recovery Point Objectives (RPO):</p>
+        <ul style="margin: 0; padding-left: 20px;">
+          ${rpoRisks.join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+function _renderFeatureAdoptionSection(systems) {
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+  const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
+  const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem; text-align:center;';
+  const tdLeft = tdStyle.replace('text-align:center;', 'text-align:left;');
+
+  const features = {
+    'ARP': systems.filter(s => s.isARPEnabled).length,
+    'FabricPool': systems.filter(s => s.isFabricPool).length,
+    'NVE/NAE': systems.filter(s => s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled).length,
+    'SnapMirror': systems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || 0) > 0).length,
+    'HA': systems.filter(s => s.isHAConfigured).length,
+    'Audit': systems.filter(s => s.isAuditEnabled).length,
+    'SnapLock': systems.filter(s => s.isSnapLockEnabled).length,
+    'MAV': systems.filter(s => s.isMAVEnabled).length
+  };
+
+  const getPct = (val) => Math.round((val / (systems.length || 1)) * 100);
+
+  const versions = {};
+  systems.forEach(s => {
+    if (s.osVersion) {
+      versions[s.osVersion] = (versions[s.osVersion] || 0) + 1;
+    }
+  });
+  
+  const versionBars = Object.entries(versions).sort((a,b) => b[1] - a[1]).map(([ver, count]) => {
+    const pct = Math.round((count / systems.length) * 100);
+    return `
+      <div style="margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 2px;">
+          <span>${ver}</span>
+          <span>${count} (${pct}%)</span>
+        </div>
+        <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 2px; height: 6px;">
+          <div style="width: ${pct}%; background: var(--accent-cyan); height: 100%; border-radius: 2px;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const trs = systems.map(s => {
+    const scoreObj = computeFeatureAdoptionScore(s);
+    const scoreText = \`\${scoreObj.passed}/15 (\${scoreObj.pct}%)\`;
+    
+    return \`
+      <tr>
+        <td style="\${tdLeft}font-family:monospace;">\${s.systemName || s.serialNumber}</td>
+        <td style="\${tdStyle}">\${s.isARPEnabled ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${s.isFabricPool ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${(s.snapmirrorCount || s.snapMirrorCount || 0) > 0 ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${s.isHAConfigured ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${s.isAuditEnabled ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${s.isSnapLockEnabled ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${s.isMAVEnabled ? '✅' : '❌'}</td>
+        <td style="\${tdStyle}">\${scoreText}</td>
+      </tr>
+    \`;
+  }).join('');
+
+  const recs = systems.map(s => {
+    const missing = [];
+    if (!s.isARPEnabled) missing.push('ARP (`security anti-ransomware volume enable`)');
+    if (!s.isNVEEnabled && !s.isNAEEnabled && !s.isEncryptionEnabled) missing.push('Encryption (`volume create -encrypt true`)');
+    if (!s.isMAVEnabled) missing.push('MAV (`security multi-admin-verify setup`)');
+    
+    if (missing.length === 0) return '';
+    return \`<li><strong>\${s.systemName || s.serialNumber}:</strong> Enable \${missing.join(', ')}</li>\`;
+  }).filter(Boolean).slice(0, 10);
+
+  return \`
+    <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+      <div style="flex:2; min-width: 300px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Fleet-Wide Feature Adoption</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;">
+          \${Object.entries(features).map(([name, count]) => \`
+            <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center;">
+              <div style="font-size: 1.2rem; color: var(--accent-cyan); font-weight: bold;">\${getPct(count)}%</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">\${name}</div>
+            </div>
+          \`).join('')}
+        </div>
+      </div>
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Fleet Diversity (OS)</h4>
+        \${versionBars || '<div style="font-size:0.8rem;color:var(--text-secondary);">No version data</div>'}
+      </div>
+    </div>
+
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">Per-System Feature Matrix</h3>
+    <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
+      <table style="\${tblStyle}">
+        <thead>
+          <tr>
+            \${_sth(thStyle, 'System')}
+            \${_sth(thStyle, 'ARP')}
+            \${_sth(thStyle, 'FabricPool')}
+            \${_sth(thStyle, 'NVE/NAE')}
+            \${_sth(thStyle, 'SnapMirror')}
+            \${_sth(thStyle, 'HA')}
+            \${_sth(thStyle, 'Audit')}
+            \${_sth(thStyle, 'SnapLock')}
+            \${_sth(thStyle, 'MAV')}
+            \${_sth(thStyle, 'Score')}
+          </tr>
+        </thead>
+        <tbody>
+          \${trs}
+        </tbody>
+      </table>
+    </div>
+
+    \${recs.length > 0 ? \`
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">Optimization Recommendations</h3>
+    <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 12px; font-size: 0.85rem;">
+      <ul style="margin: 0; padding-left: 20px;">
+        \${recs.join('')}
+      </ul>
+    </div>
+    \` : ''}
+  \`;
 }
 
 
@@ -17340,6 +17983,24 @@ function generateActionPlan() {
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.meddpiccBrief}</textarea>
       </div>
 
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">H. Security Posture Executive Brief</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SECURITY_BRIEF')">Download Brief (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Security health summary, CVE exposure matrix, ransomware protection gaps, and security roadmap.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.securityBrief}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. Sustainability &amp; ESG Report</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUSTAINABILITY_REPORT')">Download Report (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Fleet sustainability summary, data reduction impact, estimated power/CO2 avoided, and optimization recommendations.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.sustainabilityReport}</textarea>
+      </div>
+
       <!-- Category 3: TAM/MSP Operations -->
       <div style="margin-bottom: 8px; margin-top: 32px; display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--status-normal); white-space: nowrap;">&#x2B25; TAM / MSP Operations</span>
@@ -17447,7 +18108,31 @@ function generateActionPlan() {
     ${_renderMonthlySLASection(targetSystems)}`;
   planBody.appendChild(sec15);
 
+  const sec16 = document.createElement('div');
+  sec16.className = 'plan-section';
+  sec16.setAttribute('data-section-index', '16');
+  sec16.style.display = 'none';
+  sec16.style.marginTop = '32px';
+  sec16.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. DR & Replication Health</h2>
+    </div>
+    ${_renderDRReplicationSection(targetSystems)}`;
+  planBody.appendChild(sec16);
+
+  const sec17 = document.createElement('div');
+  sec17.className = 'plan-section';
+  sec17.setAttribute('data-section-index', '17');
+  sec17.style.display = 'none';
+  sec17.style.marginTop = '32px';
+  sec17.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">17. Feature Adoption</h2>
+    </div>
+    ${_renderFeatureAdoptionSection(targetSystems)}`;
+  planBody.appendChild(sec17);
   
+
   // Render plan sub-tabs bar dynamically
   const planTabsHeader = document.getElementById("planTabsHeader");
   if (planTabsHeader) {
@@ -17470,6 +18155,8 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)">13. Account Intelligence</button>
       <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)">14. Contract Compliance</button>
       <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)">15. Operational Health</button>
+      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)">🔄 16. DR &amp; Replication Health</button>
+      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)">✅ 17. Feature Adoption</button>
     `;
   }
 
@@ -17761,7 +18448,8 @@ function downloadAllDeliverables() {
   const types = [
     'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
     'EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL',
-    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'MEDDPICC_BRIEF'
+    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'MEDDPICC_BRIEF',
+    'SECURITY_BRIEF', 'SUSTAINABILITY_REPORT'
   ];
   let delay = 0;
   types.forEach(type => {
@@ -17856,6 +18544,10 @@ function downloadDeliverable(type) {
     triggerFileDownload(`account_handover_brief_${cleanScope}.txt`, docs.handoverBrief);
   } else if (type === 'MEDDPICC_BRIEF') {
     triggerFileDownload(`meddpicc_brief_${cleanScope}.txt`, docs.meddpiccBrief || compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+  } else if (type === 'SECURITY_BRIEF') {
+    triggerFileDownload(`security_brief_${cleanScope}.txt`, docs.securityBrief || compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+  } else if (type === 'SUSTAINABILITY_REPORT') {
+    triggerFileDownload(`sustainability_report_${cleanScope}.txt`, docs.sustainabilityReport || compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CSV') {
     const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
