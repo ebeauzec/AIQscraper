@@ -9,7 +9,7 @@ Endpoints:
   GET /api/harvest           — returns cached data if available, triggers background sync
   GET /api/harvest?force=1   — bypasses cache, full re-harvest from API
   GET /api/sync-status       — returns sync metadata (last sync time, counts, is_syncing)
-  GET /api/bulletins         — returns dynamic security bulletin DB (security_bulletins.json)
+  GET /api/bulletins         — returns dynamic security bulletin DB (data/security_bulletins.json)
   POST /api/bulletins        — add/update bulletin entries (called by daily scan agent)
   POST /api/asup/import      — import an ASUP bundle (multipart or raw bytes + X-Filename header)
   GET /api/asup/imports      — list all ASUP-imported systems
@@ -55,7 +55,7 @@ PORT = 8080
 SCRIPT_DIR = Path(__file__).parent
 DB_PATH = SCRIPT_DIR / "aiq_cache.db"
 CONFIG_PATH = SCRIPT_DIR / "aiq_config.json"
-BULLETINS_PATH = SCRIPT_DIR / "security_bulletins.json"
+BULLETINS_PATH = SCRIPT_DIR / "data" / "security_bulletins.json"
 GQL_URL = "https://gql.aiq.netapp.com/graphql"
 REST_BASE = "https://api.activeiq.netapp.com"
 
@@ -711,6 +711,13 @@ def _do_full_harvest(watchlist_ids=None):
                       logical { usedKiB }
                       efficiency { ratio { efficiencyRatio dataReductionRatio } }
                     }
+                  }
+                  ... on ESeriesSystem {
+                    capacity {
+                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
+                      logical { usedKiB }
+                      reportedOn
+                    }
                   }"""
 
         # ── Medium: efficiency data without problematic Float fields ──────────
@@ -755,6 +762,13 @@ def _do_full_harvest(watchlist_ids=None):
                         ratio { efficiencyRatio dataReductionRatio withSnapshotRatio }
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
                       }
+                      reportedOn
+                    }
+                  }
+                  ... on ESeriesSystem {
+                    capacity {
+                      physical { rawMarketingKiB usedKiB usablePerformanceTierKiB }
+                      logical { usedKiB }
                       reportedOn
                     }
                   }"""
@@ -2140,9 +2154,9 @@ def scan_and_persist_advisories():
     Full advisory scan pipeline:
     1. Fetch the NTAP advisory index from security.netapp.com
     2. Collect all advisory IDs (NTAP-YYYYMMDD-XXXX format)
-    3. Load existing IDs from security_bulletins.json
+    3. Load existing IDs from data/security_bulletins.json
     4. For each NEW advisory: fetch detail page + NVD CVSS data
-    5. Upsert into security_bulletins.json (atomic write)
+    5. Upsert into data/security_bulletins.json (atomic write)
     Returns dict: {added, updated, total, scanned, errors, newIds}
     """
     import time
@@ -3888,7 +3902,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def handle_bulletins_get(self):
         """GET /api/bulletins — Return the full security advisory database.
 
-        Reads security_bulletins.json — the single authoritative store for all
+        Reads data/security_bulletins.json — the single authoritative store for all
         advisory data. On first run (file absent), returns an empty bulletin list.
         The app populates NETAPP_SECURITY_BULLETIN_DB entirely from this response;
         there is no hardcoded fallback in app.js.
@@ -3921,7 +3935,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         """GET /api/bulletins/scan — Trigger a live pull from NetApp PSIRT + NVD.
 
         Scrapes security.netapp.com for all NTAP advisory IDs, compares against
-        the current security_bulletins.json, fetches detail+CVSS for any new ones,
+        the current data/security_bulletins.json, fetches detail+CVSS for any new ones,
         and persists them atomically. Returns a JSON summary of the results.
         This is a synchronous call — the client should expect a response in ~30-60s
         depending on how many new advisories are found.
@@ -3950,7 +3964,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                                mitigation, published, link}, ...] }
 
         Persistence guarantees:
-        - All EXISTING entries in security_bulletins.json are preserved.
+        - All EXISTING entries in data/security_bulletins.json are preserved.
         - Incoming entries are merged by 'id' (update if exists, append if new).
         - Write is ATOMIC: written to a .tmp file then renamed, so a crash or
           disk error cannot leave the database in a corrupted state.

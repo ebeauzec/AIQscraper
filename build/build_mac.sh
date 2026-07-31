@@ -36,7 +36,8 @@ echo ""
 
 # 4. Build
 echo "[3/4] Building .app bundle with PyInstaller..."
-pyinstaller AIQscraper.spec --noconfirm
+cd "$(dirname "$0")/.."
+pyinstaller build/AIQscraper.spec --noconfirm
 echo "[OK] Build complete."
 echo ""
 
