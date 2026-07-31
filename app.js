@@ -108,7 +108,7 @@ const APP_CHANGELOG = [
         items: [
           "Fixed corporate-network instance misclassifying StorageGRID appliances (SG6160, SG5712, SGF6112, SG100, SG1000) as ONTAP — Active IQ API returns raw platform codes, not the 'StorageGRID' string",
           "Updated server.py and app.js enrichment to match all SG5xxx, SG6xxx, SGF6xxx, SG100/1000 prefixes for correct version enrichment and security bulletin matching",
-          "CSM tab now shows a platform-appropriate informational note instead of misleading '0.0 TB' capacity charts for StorageGRID and E-Series (capacity not reported via Active IQ GraphQL)",
+          "TAM tab now shows a platform-appropriate informational note instead of misleading '0.0 TB' capacity charts for StorageGRID and E-Series (capacity not reported via Active IQ GraphQL)",
           "E-Series: added EF50/EF80/E4000 detection; OS label in TAM risk tab now correctly shows 'SANtricity OS' / 'StorageGRID' instead of defaulting to 'ONTAP'"
         ]
       },
@@ -511,7 +511,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 8.5,
       healthStatus: "High Satisfaction",
       upsellPotential: "AFF A900 hardware refresh upgrade",
@@ -734,7 +734,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 6.5,
       healthStatus: "Retention Risk",
       upsellPotential: "FabricPool cloud tiering expansion",
@@ -917,7 +917,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 7.0,
       healthStatus: "Stable",
       upsellPotential: "Expansion of StorageGRID SGRID-SG6060 compute node shelf",
@@ -1154,7 +1154,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 9.0,
       healthStatus: "High Satisfaction",
       upsellPotential: "Switch support upgrade agreements",
@@ -1352,7 +1352,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 9.0,
       healthStatus: "High Satisfaction",
       upsellPotential: "Switch support upgrade agreements",
@@ -1486,7 +1486,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 5.8,
       healthStatus: "Retention Risk",
       upsellPotential: "Migrate VMware storage to ONTAP Tools v10",
@@ -2948,7 +2948,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 9.0,
       healthStatus: "Excellent",
       upsellPotential: "None",
@@ -3088,7 +3088,7 @@ const MOCK_SYSTEMS = [
     },
     salesHealth: {
       accountManager: "David Vance (Senior AE)",
-      supportTam: "Marcus Vance (CSM)",
+      supportTam: "Marcus Vance (TAM)",
       sentimentScore: 8.5,
       healthStatus: "High Satisfaction",
       upsellPotential: "AFF A900 hardware refresh upgrade",
@@ -9608,7 +9608,7 @@ function renderSAMTab() {
           <div style="font-size: 0.85rem; color: var(--status-warning); font-weight: 700; margin-top: 4px;">${convertToNetAppFiscal(health.refreshWindow)}</div>
         </div>
         <div style="background-color: rgba(0, 229, 255, 0.04); border: 1px solid rgba(0, 229, 255, 0.15); padding: 10px; border-radius: var(--radius-sm);">
-          <div style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">CSM Upsell Pipeline Opportunity</div>
+          <div style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">TAM Upsell Pipeline Opportunity</div>
           <div style="font-size: 0.8rem; color: var(--text-primary); font-weight: 500; line-height: 1.3;">${health.upsellPotential}</div>
         </div>
       </div>
@@ -9684,6 +9684,7 @@ function renderSAMTab() {
   updateSortIndicators();
 }
 
+
 function renderCSMTab() {
   populateSystemSelectors();
   
@@ -9714,6 +9715,38 @@ function renderCSMTab() {
   }
 
   const isMulti = targetCSMSystems.length > 1;
+
+    // ── Account Health Score Gauge ──
+    const healthScore = computeAccountHealthScore(targetCSMSystems);
+    const healthGrade = getHealthGrade(healthScore);
+    const healthColor = healthScore >= 80 ? '#22c55e' : healthScore >= 65 ? '#f59e0b' : '#ef4444';
+
+    document.getElementById("csmHealthScoreCard").innerHTML = `
+      <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
+        <div style="display: flex; flex-direction: column; align-items: center; min-width: 150px; border-right: 1px solid var(--border-color); padding-right: 24px;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">Account Health Score</span>
+          <div style="position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
+            <span style="font-size: 2rem; font-weight: 800; color: ${healthColor};">${healthScore}</span>
+          </div>
+          <span style="font-size: 1.2rem; font-weight: 700; color: ${healthColor}; margin-top: 8px;">Grade: ${healthGrade}</span>
+        </div>
+        <div style="flex: 1;">
+          <details style="cursor: pointer;">
+            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;">MEDDPICC Quick-View</summary>
+            <div style="margin-top: 12px; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:     Health 87/100, DR 3.2:1, 42.5 TB saved</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Econ Buyer:  Sales Rep: John Smith, Propensity: Expansion</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Criteria:    Adoption 12/15 (80%), OS Current 14/16</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Process:     3 critical items &rarr; Phase 1 priority</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Paper:       2 contracts expiring &lt;90d, 1 co-term opportunity</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Pain:        Score 45 &mdash; 3 CVEs, 2 EOSA systems</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Champion:    Jane Doe (CSAT 8.5/10)</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Competition: 4 systems flagged for refresh</span></div>
+            </div>
+          </details>
+        </div>
+      </div>
+    `;
 
   if (isMulti) {
     document.getElementById("csmActiveSystem").innerHTML = `
@@ -10969,6 +11002,165 @@ function _buildSnapMirrorData(s, clusterName, isLiveData) {
 // data. Safe to call multiple times (only fills absent fields, never overwrites
 // user-edited values). New customers and conditions from AIQ are automatically
 // handled without any code changes.
+// ── MEDDPICC KPI Computation Functions ──────────────────────────────────────
+
+function computeAccountHealthScore(targetSystems) {
+  const total = targetSystems.length;
+  if (total === 0) return 0;
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  // ASUP compliance: reported within 7 days
+  const asupPct = targetSystems.filter(s => {
+    if (!s.latestAsupDate) return false;
+    const d = new Date(s.latestAsupDate);
+    return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
+  }).length / total;
+  // ARP enablement
+  const arpPct = targetSystems.filter(s => s.isARPEnabled === true).length / total;
+  // Firmware currency
+  const fwPct = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length / total;
+  // Contract coverage
+  const contractPct = targetSystems.filter(s => s.contractActive === true).length / total;
+  // Risk score (inverse: fewer critical risks = higher score)
+  const critRisks = targetSystems.reduce((sum, s) => sum + (s.risks || []).filter(r => r.severity === 'critical').length, 0);
+  const highRisks = targetSystems.reduce((sum, s) => sum + (s.risks || []).filter(r => r.severity === 'high').length, 0);
+  const riskScore = Math.max(0, 1 - (critRisks * 0.15 + highRisks * 0.05));
+  // Efficiency (capped at 5:1 = perfect)
+  const avgEff = targetSystems.reduce((sum, s) => {
+    const r = (s.efficiency && s.efficiency.dataReductionRatio) ? parseFloat(String(s.efficiency.dataReductionRatio).split(':')[0]) : 1;
+    return sum + Math.min(r, 5);
+  }, 0) / total / 5;
+  // CSAT sentiment (normalized to 0-1 from 0-10)
+  const avgCsat = targetSystems.reduce((sum, s) => sum + ((s.salesHealth && s.salesHealth.sentimentScore) || 7.5), 0) / total / 10;
+
+  const score = Math.round(
+    asupPct * 15 + arpPct * 15 + fwPct * 15 + contractPct * 15 +
+    riskScore * 20 + avgEff * 10 + avgCsat * 10
+  );
+  return Math.min(100, Math.max(0, score));
+}
+
+function computeSoftwareCurrencyIndex(targetSystems) {
+  // Average number of minor versions behind the recommended version
+  let totalBehind = 0, counted = 0;
+  targetSystems.forEach(s => {
+    if (!s.osVersion || !s.recommendedOSVersion) return;
+    const cur = s.osVersion.match(/9\.(\d+)/);
+    const rec = s.recommendedOSVersion.match(/9\.(\d+)/);
+    if (cur && rec) {
+      totalBehind += Math.max(0, parseInt(rec[1]) - parseInt(cur[1]));
+      counted++;
+    }
+  });
+  return counted > 0 ? (totalBehind / counted).toFixed(1) : '0.0';
+}
+
+function computeMTTR(allSupportCases) {
+  // Mean Time to Resolve in days (from closed cases)
+  const closed = (allSupportCases || []).filter(c => c.closedDate && c.openedDate);
+  if (closed.length === 0) return null;
+  const totalDays = closed.reduce((sum, c) => {
+    const opened = new Date(c.openedDate);
+    const closedD = new Date(c.closedDate);
+    return sum + Math.max(0, (closedD - opened) / 86400000);
+  }, 0);
+  return (totalDays / closed.length).toFixed(1);
+}
+
+function computeCapacityRAG(sys) {
+  // Returns 'red' (<=60d), 'amber' (<=180d), 'green' (>180d)
+  const days = sys.projections && sys.projections.daysToLimit;
+  if (days === null || days === undefined || days > 180) return 'green';
+  if (days <= 60) return 'red';
+  return 'amber';
+}
+
+function computeEncryptionCoverage(targetSystems) {
+  // Percentage of systems with volume encryption enabled (NVE/NAE)
+  const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
+  if (ontapSystems.length === 0) return 0;
+  const encrypted = ontapSystems.filter(s => s.isNVEEnabled === true || s.isNAEEnabled === true || s.isEncryptionEnabled === true).length;
+  return Math.round((encrypted / ontapSystems.length) * 100);
+}
+
+function computeFeatureAdoptionScore(sys) {
+  // Returns {passed, total, pct} based on 15-point checklist
+  let passed = 0;
+  const total = 15;
+  if (sys.swRecMin && sys.osVersion && !versionLt(sys.osVersion, sys.swRecMin)) passed++;
+  const dr = sys.efficiency ? parseFloat(String(sys.efficiency.dataReductionRatio || '1').split(':')[0]) : 1;
+  if (dr >= 1.5) passed++;
+  if (sys.isFabricPool === true) passed++;
+  if ((sys.snapMirrorCount || 0) > 0) passed++;
+  const critHigh = (sys.risks || []).filter(r => ['critical','high'].includes(r.severity)).length;
+  if (critHigh === 0) passed++;
+  if (sys.contractActive === true) passed++;
+  const now = Date.now();
+  const asupOk = sys.latestAsupDate && (now - new Date(sys.latestAsupDate).getTime()) <= 7 * 86400000;
+  if (asupOk) passed++;
+  if (sys.lifecycle && !sys.lifecycle.isNearEos) passed++;
+  const secBulletins = (sys.securityBulletins || []).length;
+  if (secBulletins === 0) passed++;
+  const utilPct = sys.efficiency ? (sys.efficiency.physicalUsedTB / Math.max(sys.efficiency.rawCapacityTB || 1, 1)) * 100 : 50;
+  if (utilPct <= 80) passed++;
+  if (sys.isHAConfigured === true) passed++;
+  const critCases = (sys.supportCases || []).filter(c => c.severity && ['1','2','S1','S2','P1','P2'].includes(String(c.severity).replace(/[^0-9]/g, '') ? 'P' + String(c.severity).replace(/[^0-9]/g, '') : c.severity)).length;
+  if (critCases === 0) passed++;
+  if (sys.isNVEEnabled || sys.isNAEEnabled || sys.isEncryptionEnabled) passed++;
+  if (sys.isARPEnabled === true) passed++;
+  const fsas = (sys.risks || []).filter(r => (r.category || '').toLowerCase().includes('field') || (r.description || '').toLowerCase().includes('field action')).length;
+  if (fsas === 0) passed++;
+  return { passed, total, pct: Math.round((passed / total) * 100) };
+}
+
+function computeCostOfInaction(targetSystems) {
+  // Weighted score quantifying urgency of addressing issues
+  let score = 0;
+  const critRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'critical').length, 0);
+  const highRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'high').length, 0);
+  const cves = targetSystems.reduce((s, sys) => s + (sys.securityBulletins || []).length, 0);
+  const eosaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
+  const capacityRed = targetSystems.filter(s => computeCapacityRAG(s) === 'red').length;
+  const noArp = targetSystems.filter(s => s.isARPEnabled !== true).length;
+  score = critRisks * 10 + highRisks * 3 + cves * 5 + eosaSystems * 8 + capacityRed * 7 + noArp * 2;
+  return { score, critRisks, highRisks, cves, eosaSystems, capacityRed, noArp };
+}
+
+function computeCoTermOpportunities(targetSystems) {
+  // Find contracts that end within 90 days of each other
+  const dated = targetSystems.filter(s => s.contractEndDate).map(s => ({
+    name: s.systemName, serial: s.serialNumber, end: new Date(s.contractEndDate)
+  })).sort((a, b) => a.end - b.end);
+  const groups = [];
+  let currentGroup = [];
+  dated.forEach(s => {
+    if (currentGroup.length === 0) { currentGroup.push(s); return; }
+    const lastEnd = currentGroup[currentGroup.length - 1].end;
+    if (Math.abs(s.end - lastEnd) <= 90 * 86400000) {
+      currentGroup.push(s);
+    } else {
+      if (currentGroup.length > 1) groups.push([...currentGroup]);
+      currentGroup = [s];
+    }
+  });
+  if (currentGroup.length > 1) groups.push(currentGroup);
+  return groups;
+}
+
+function getHealthGrade(score) {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 65) return 'C';
+  if (score >= 50) return 'D';
+  return 'F';
+}
+
+function getRAGColor(rag) {
+  if (rag === 'red') return '#ef4444';
+  if (rag === 'amber') return '#f59e0b';
+  return '#22c55e';
+}
+
 function enrichSystemTelemetry(s) {
   // --- Field normalization: accept both camelCase (API) and snake_case (legacy) ---
   const serial = s.serialNumber || s.serial_number || s.id || "unknown";
@@ -13387,6 +13579,23 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
   return groups;
 }
 
+// ── Deliverable formatting helpers (delegate to canonical KPI functions) ──
+function formatHealthScoreText(systems) {
+  const score = computeAccountHealthScore(systems);
+  const grade = getHealthGrade(score);
+  return `${score}/100 (Grade ${grade})`;
+}
+
+function formatCostOfInactionText(systems) {
+  const coi = computeCostOfInaction(systems);
+  return `  COST OF INACTION [MEDDPICC: I — Implicate the Pain]
+  ──────────────────────────────────────────────────────
+  • ${coi.critRisks} critical risks remain unaddressed
+  • ${coi.cves} security advisories unpatched
+  • ${coi.eosaSystems} systems approaching EOSA within 12 months
+  • ${coi.capacityRed} systems reach capacity limit within 60 days
+  • ${coi.noArp} systems lack ransomware protection (ARP)`;
+}
 
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases) {
   let totalCapTB = 0;
@@ -13552,7 +13761,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
 
 
   return `================================================================================
-CUSTOMER SUCCESS PLAN (CSP) & ENVIRONMENTAL POSTURE OPTIMIZATION
+TAM SUCCESS PLAN (CSP) & ENVIRONMENTAL POSTURE OPTIMIZATION
 ================================================================================
 CUSTOMER SCOPE       : ${scopeTitle}
 DATE GENERATED       : ${new Date().toISOString().split('T')[0]}
@@ -13562,11 +13771,13 @@ ENVIRONMENT HEALTH   : ${allRisks.length > 0 ? 'WARNING - Action Required' : 'OP
 SYSTEMS IN SCOPE     : ${systemCount}
 
 --------------------------------------------------------------------------------
-1. EXECUTIVE SUMMARY & VALUE ALIGNMENT
+1. EXECUTIVE SUMMARY & VALUE ALIGNMENT [MEDDPICC: M]
 --------------------------------------------------------------------------------
-This Customer Success Plan aligns storage operations to ITIL Change Control, NIST/SANS
+This TAM Success Plan aligns storage operations to ITIL Change Control, NIST/SANS
 hardening, and NetApp Best Practices across ${systemCount} system${systemCount !== 1 ? 's' : ''} spanning:
 ${platformLines}
+
+* ACCOUNT HEALTH SCORE: ${formatHealthScoreText(targetSystems)}
 
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
@@ -13606,7 +13817,7 @@ ${mccSystems.length > 0 ? `
   - Use SANtricity System Manager > Upgrade Center for non-disruptive controller upgrades.
 ` : ''}
 --------------------------------------------------------------------------------
-2. SUPPORT CASE & SERVICE RESOLUTION HYGIENE (SAM PRACTICE)
+2. SUPPORT CASE & SERVICE RESOLUTION HYGIENE (SAM PRACTICE) [MEDDPICC: I — Implicate Pain]
 --------------------------------------------------------------------------------
 Maintaining operational hygiene involves tracking and resolving support tickets promptly
 to prevent support SLA deviations and customer satisfaction impacts.
@@ -13621,7 +13832,7 @@ ${expiringContracts.length > 0 ? contractsText : "✓ All active support contrac
 ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — ${a.detail}`).join('\n') : "✓ All systems reporting AutoSupport telemetry within 7-day SLA window."}
 
 --------------------------------------------------------------------------------
-3. SECURITY POSTURE & CVE REMEDIATION
+3. SECURITY POSTURE & CVE REMEDIATION [MEDDPICC: I — Implicate Pain]
 --------------------------------------------------------------------------------
 ${secBulletins.length > 0 ? `ACTIVE SECURITY ADVISORIES (Critical/High — ${secBulletins.length} total):
 ${secBulletins.map((b, i) => `  ${i+1}. [${(b.severity||'').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     System: ${b.systemName}\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n')}` : "✓ No critical or high-severity security advisories active."}
@@ -13635,11 +13846,13 @@ KEY SECURITY ACTIONS:
   - Enable audit logging: 'vserver audit create -vserver <svm> -destination /audit_log -format json'
   Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
 
+${formatCostOfInactionText(targetSystems)}
+
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
 --------------------------------------------------------------------------------
 
-PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7)
+PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7) [MEDDPICC: D — Decision Process / Pain Resolution]
 --------------------------------------------------------------
 Focus: Address critical security drifts, ASUP failures, single points of failure.
 
@@ -13664,7 +13877,7 @@ Focus: Address critical security drifts, ASUP failures, single points of failure
 * IDENTIFIED PHASE 1 ITEMS IN ACTIVE ENVIRONMENT:
 ${allRisks.length > 0 ? risksText : "✓ No active high-priority configuration drifts detected."}
 
-PHASE 2: FIRMWARE & SOFTWARE LIFECYCLE ALIGNMENT (DAYS 8 - 30)
+PHASE 2: FIRMWARE & SOFTWARE LIFECYCLE ALIGNMENT (DAYS 8 - 30) [MEDDPICC: D — Decision Process / Pain Resolution]
 ------------------------------------------------------------
 Focus: Bring all OS versions, switch firmware, shelf firmware, and disk qualification
 packages to NetApp validated baselines.
@@ -13697,7 +13910,7 @@ ${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(
   - Update: 'system service-processor image update -node * -update-type latest'
   - Verify: 'system service-processor show -fields firmware-version'
 
-PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30)
+PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30) [MEDDPICC: D — Decision Process / Criteria Alignment]
 -----------------------------------------------------------
 Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.
 
@@ -13713,7 +13926,7 @@ Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediatio
   - FabricPool tiering: 'volume modify -vserver <svm> -volume <vol> -tiering-policy auto'
   - Reference: docs.netapp.com/us-en/ontap/fabricpool/
 
-PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90)
+PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [MEDDPICC: D — Decision Process / Criteria Alignment]
 --------------------------------------------------------------------
 Focus: Drive long-term efficiency, audit logging, and host integration compliance.
 
@@ -13741,7 +13954,7 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Add rules for destructive operations: 'security multi-admin-verify rule create -operation <op>'
   - Reference: docs.netapp.com/us-en/ontap/multi-admin-verify/
 
-PHASE 5: CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90)
+PHASE 5: CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [MEDDPICC: P — Paper Process]
 ---------------------------------------------------------------------
 Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
 
@@ -13754,7 +13967,7 @@ ${expiringContracts.length > 0 ? contractsText : "  ✓ No contracts expiring wi
   - Reference: imt.netapp.com/matrix/ | netapp.com/data-storage/
 
 --------------------------------------------------------------------------------
-5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES
+5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES [MEDDPICC: D — Decision Process]
 --------------------------------------------------------------------------------
 All operations under this plan must comply with standard ITIL Change Control procedures:
 1. PRE-CHANGE VERIFICATION: Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state.
@@ -13899,27 +14112,34 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const correctiveCount = sortedRisks.length;
   const renewCount = exp90;
 
+  const priorActionsKey = `aria_qbr_actions_${scopeTitle.replace(/\\s+/g, '_')}`;
+  const priorActions = JSON.parse(localStorage.getItem(priorActionsKey) || '[]');
+  const priorActionsText = priorActions.length > 0
+    ? priorActions.map((a, i) => `  ${i+1}. ${a.action} [Status: ${a.status}]`).join('\\n')
+    : '  No prior quarter actions recorded. Actions from this QBR\\n  will be tracked for the next review.';
+
   return `================================================================================
 QUARTERLY BUSINESS REVIEW (QBR) — ACCOUNT INTELLIGENCE PACK
 ================================================================================
+Account Health Score: ${formatHealthScoreText(targetSystems)}
 Account:  ${cleanScope}
 Date:     ${today}
 Prepared: ${salesRep}
 
 --------------------------------------------------------------------------------
-1. ACCOUNT OVERVIEW
+1. ACCOUNT OVERVIEW [MEDDPICC: M]
 --------------------------------------------------------------------------------
   Customer:       ${cleanScope}
   Systems:        ${total}
   Sites:          ${uniqueSites.length}
   Account Team:
     Sales Rep:    ${salesRep}
-    CSM:          ${csmName}
+    TAM:          ${csmName}
     SAM:          ${samName}
     ASP:          ${aspName}
 
 --------------------------------------------------------------------------------
-2. OPERATIONAL HEALTH SCORECARD
+2. OPERATIONAL HEALTH SCORECARD [MEDDPICC: M]
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled
@@ -13929,7 +14149,7 @@ Prepared: ${salesRep}
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
 
 --------------------------------------------------------------------------------
-3. RISK POSTURE
+3. RISK POSTURE [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
   Security Advisories: ${secCount}
@@ -13946,12 +14166,14 @@ ${topActions || '  No critical or high-severity corrective actions identified.'}
   • Enable Auditing:  vserver audit create -vserver <svm> -destination /audit_log -format json
   Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
 
+${formatCostOfInactionText(targetSystems)}
+
 --------------------------------------------------------------------------------
-4. SUSTAINABILITY & EFFICIENCY
+4. SUSTAINABILITY & EFFICIENCY [MEDDPICC: I]
 --------------------------------------------------------------------------------
 ${sustainSection}
 --------------------------------------------------------------------------------
-5. LIFECYCLE & RENEWAL PIPELINE
+5. LIFECYCLE & RENEWAL PIPELINE [MEDDPICC: P]
 --------------------------------------------------------------------------------
   Contracts Expiring < 90 Days:  ${exp90}
   Contracts Expiring < 180 Days: ${exp180}
@@ -13960,11 +14182,11 @@ ${sustainSection}
 ${contractLines}
 
 --------------------------------------------------------------------------------
-6. RECOMMENDATIONS (Active IQ)
+6. RECOMMENDATIONS (Active IQ) [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${recsSection}
 --------------------------------------------------------------------------------
-7. ACTION ITEMS & NEXT STEPS
+7. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
@@ -13972,12 +14194,19 @@ ${recsSection}
   □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}
   □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
   □ Validate ITIL Change Control process for all planned remediation items
+
+--------------------------------------------------------------------------------
+8. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
+--------------------------------------------------------------------------------
+${priorActionsText}
 ================================================================================`;
 }
 
 
 function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const slaDefaults = { asup: 100, arp: 100, fw: 100, contract: 100, critRisks: 0 };
+  const slaThresholds = JSON.parse(localStorage.getItem('aria_msp_sla_thresholds') || JSON.stringify(slaDefaults));
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   const thirtyAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -14080,9 +14309,10 @@ MANAGED SERVICE PROVIDER — SERVICE DELIVERY REPORT
 Customer:      ${cleanScope}
 Report Date:   ${todayStr}
 Report Period: ${thirtyAgo} to ${todayStr}
+Account Health Score: ${formatHealthScoreText(targetSystems)}
 
 --------------------------------------------------------------------------------
-1. SERVICE SUMMARY
+1. SERVICE SUMMARY [MEDDPICC: M]
 --------------------------------------------------------------------------------
   Systems Under Management:  ${total}
   Contract Coverage:         ${activeContracts}/${total} (${contractPct}%) active contracts
@@ -14090,24 +14320,24 @@ Report Period: ${thirtyAgo} to ${todayStr}
   Average System Age:        ${avgAge} years
 
 --------------------------------------------------------------------------------
-2. SLA COMPLIANCE MATRIX
+2. SLA COMPLIANCE MATRIX [MEDDPICC: M]
 --------------------------------------------------------------------------------
   Metric                    Target    Actual    Status
   ─────────────────────────────────────────────────────
-  ASUP Compliance           100%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, 100)}
-  ARP Enablement            100%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, 100)}
-  Firmware Currency         100%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, 100)}
-  Contract Coverage         100%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, 100)}
-  Risk Posture (Crit=0)     0         ${String(critCount).padStart(3)}       ${critCount === 0 ? 'MET' : 'MISSED'}
+  ASUP Compliance           ${String(slaThresholds.asup).padEnd(3)}%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, slaThresholds.asup)}
+  ARP Enablement            ${String(slaThresholds.arp).padEnd(3)}%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, slaThresholds.arp)}
+  Firmware Currency         ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
+  Contract Coverage         ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
+  Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
 
 --------------------------------------------------------------------------------
-3. INCIDENT & CASE MANAGEMENT
+3. INCIDENT & CASE MANAGEMENT [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Open Cases:     ${allSupportCases.length}
 ${casesLines}
 
 --------------------------------------------------------------------------------
-4. CONTRACT PORTFOLIO
+4. CONTRACT PORTFOLIO [MEDDPICC: P]
 --------------------------------------------------------------------------------
   Active:    ${activeContracts} systems
   Expiring:  ${exp90} systems (within 90 days)
@@ -14118,7 +14348,7 @@ ${casesLines}
 ${tierLines}
 
 --------------------------------------------------------------------------------
-5. CAPACITY & EFFICIENCY
+5. CAPACITY & EFFICIENCY [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Total Physical Capacity Used: ${physTotal.toFixed(1)} TB
   Total Logical Capacity:       ${logTotal.toFixed(1)} TB
@@ -14126,12 +14356,12 @@ ${tierLines}
   Space Saved via Efficiency:   ${savedTotal.toFixed(1)} TB
 
 --------------------------------------------------------------------------------
-6. IMPROVEMENT BACKLOG
+6. IMPROVEMENT BACKLOG [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${backlogLines}
 
 --------------------------------------------------------------------------------
-7. NEXT PERIOD OBJECTIVES
+7. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
   □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
@@ -14141,6 +14371,203 @@ ${backlogLines}
 ================================================================================`;
 }
 
+
+function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  const today = new Date().toISOString().split('T')[0];
+  let tamName = 'Not Assigned';
+  let salesRep = 'Not Assigned';
+  
+  targetSystems.forEach(sys => {
+    if (sys.salesHealth) {
+      tamName = sys.salesHealth.supportTam || tamName;
+      salesRep = sys.salesHealth.accountManager || salesRep;
+    }
+  });
+
+  const accountHealthScore = computeAccountHealthScore(targetSystems);
+  const grade = getHealthGrade(accountHealthScore);
+
+  let physTotal = 0, logTotal = 0, savedTotal = 0;
+  let daysToLimitSum = 0, capacityRunwayCount = 0;
+  
+  targetSystems.forEach(s => {
+    if (s.efficiency) {
+      physTotal += s.efficiency.physicalUsedTB || 0;
+      logTotal += s.efficiency.logicalUsedTB || 0;
+      savedTotal += s.efficiency.spaceSavedTB || 0;
+    }
+    if (s.projections && s.projections.daysToLimit !== null && s.projections.daysToLimit !== undefined) {
+      daysToLimitSum += s.projections.daysToLimit;
+      capacityRunwayCount++;
+    }
+  });
+  
+  const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0';
+  const runway = capacityRunwayCount > 0 ? Math.round(daysToLimitSum / capacityRunwayCount) : '—';
+  
+  const sustScores = targetSystems.map(s => (s.sustainability && s.sustainability.score) || 50);
+  const avgSust = sustScores.length > 0 ? Math.round(sustScores.reduce((a,b)=>a+b,0)/sustScores.length) : '—';
+
+  const total = targetSystems.length;
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  
+  const asupCompliant = targetSystems.filter(s => s.latestAsupDate && !isNaN(new Date(s.latestAsupDate)) && (now - new Date(s.latestAsupDate).getTime()) <= sevenDaysMs).length;
+  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
+  
+  const asupPct = total > 0 ? Math.round((asupCompliant / total) * 100) : 0;
+  const arpPct = total > 0 ? Math.round((arpCount / total) * 100) : 0;
+  const fwPct = total > 0 ? Math.round((fwCurrent / total) * 100) : 0;
+  const contractPct = total > 0 ? Math.round((activeContracts / total) * 100) : 0;
+
+  const domesticParent = (targetSystems.find(s => s.domesticParentName) || {}).domesticParentName || '—';
+  const propCategory = '—';
+  const nextBestAction = '—';
+
+  const featureScores = targetSystems.map(s => computeFeatureAdoptionScore(s));
+  const avgFeaturePassed = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.passed,0)/featureScores.length) : 0;
+  const avgFeaturePct = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.pct,0)/featureScores.length) : 0;
+
+  const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
+  const ontapCount = ontapSystems.length;
+  
+  const fpAdopted = targetSystems.filter(s => s.isFabricPool === true).length;
+  const nveAdopted = targetSystems.filter(s => s.isNVEEnabled === true || s.isNAEEnabled === true || s.isEncryptionEnabled === true).length;
+  const smAdopted = targetSystems.filter(s => (s.snapMirrorCount || 0) > 0).length;
+  const haAdopted = targetSystems.filter(s => s.isHAConfigured === true).length;
+
+  const swIndex = computeSoftwareCurrencyIndex(targetSystems);
+  const uniqueOntapVersions = new Set(targetSystems.filter(s => s.osVersion).map(s => s.osVersion)).size;
+
+  const critCount = allRisks.filter(r => r.severity === 'critical').length;
+  const fwBehind = total - fwCurrent;
+
+  const expiring90 = expiringContracts.filter(c => c.daysRemaining <= 90).length;
+  const expiredContracts = targetSystems.filter(s => s.contractActive === false).length;
+  const cotermGroups = computeCoTermOpportunities(targetSystems);
+  let cotermSysCount = 0;
+  cotermGroups.forEach(g => cotermSysCount += g.length);
+
+  const tierMap = {};
+  targetSystems.forEach(s => {
+    const tier = s.serviceLevel || s.serviceTier || 'Unknown';
+    tierMap[tier] = (tierMap[tier] || 0) + 1;
+  });
+  const tierLines = Object.keys(tierMap).map(t => `    ${t}: ${tierMap[t]} system${tierMap[t] > 1 ? 's' : ''}`).join('\n') || '    No tier data available.';
+
+  const coi = computeCostOfInaction(targetSystems);
+  const openP1P2 = allSupportCases.filter(c => c.severity && ['1','2','S1','S2','P1','P2'].includes(String(c.severity).replace(/[^0-9]/g, '') ? 'P' + String(c.severity).replace(/[^0-9]/g, '') : c.severity)).length;
+  
+  const coiBullets = [];
+  if (coi.critRisks > 0) coiBullets.push(`    • ${coi.critRisks} Critical Risks threatening availability/performance`);
+  if (coi.highRisks > 0) coiBullets.push(`    • ${coi.highRisks} High Risks requiring attention`);
+  if (coi.cves > 0) coiBullets.push(`    • ${coi.cves} Unpatched Security Vulnerabilities (CVEs)`);
+  if (coi.eosaSystems > 0) coiBullets.push(`    • ${coi.eosaSystems} Systems facing End of Software Availability`);
+  if (coi.capacityRed > 0) coiBullets.push(`    • ${coi.capacityRed} Systems with critical capacity constraints (<60 days)`);
+  if (coi.noArp > 0) coiBullets.push(`    • ${coi.noArp} Systems missing Autonomous Ransomware Protection`);
+  const coiText = coiBullets.length > 0 ? coiBullets.join('\n') : '    • No major actionable risks identified at this time.';
+
+  const primContact = '—';
+  const email = '—';
+  const phone = '—';
+  const avgCsat = targetSystems.reduce((sum, s) => sum + ((s.salesHealth && s.salesHealth.sentimentScore) || 7.5), 0) / (total || 1);
+
+  const refreshFlagged = targetSystems.filter(s => s.lifecycle && s.lifecycle.isTechRefresh).length;
+  const ageOver5 = targetSystems.filter(s => {
+    if (!s.originalShipDate) return false;
+    const d = new Date(s.originalShipDate);
+    if (isNaN(d)) return false;
+    return (now - d.getTime()) > 5 * 365.25 * 24 * 60 * 60 * 1000;
+  }).length;
+  
+  const eoaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isEoa);
+  const eoaLines = eoaSystems.map(s => `    - ${s.systemName} (${s.platform || 'Unknown'})`).join('\n');
+
+  return `================================================================================
+  MEDDPICC DEAL INTELLIGENCE BRIEF
+================================================================================
+  CUSTOMER: ${cleanScope}  |  DATE: ${today}
+  TAM: ${tamName}  |  Sales Rep: ${salesRep}
+  Account Health Score: ${accountHealthScore}/100 (Grade ${grade})
+
+  M — METRICS (Quantifiable Value Delivered)
+  ─────────────────────────────────────────────────────────────────────────────
+    Data Reduction Ratio:     ${drr}:1 (dedupe + compression, excl. snapshots)
+    Space Saved:              ${savedTotal.toFixed(1)} TB
+    Capacity Runway:          ${runway} days to 90% (average)
+    Sustainability Score:     ${avgSust}/100
+    Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
+    Contract Coverage:        ${contractPct}%
+
+  E — ECONOMIC BUYER
+  ─────────────────────────────────────────────────────────────────────────────
+    Domestic Parent:          ${domesticParent}
+    Sales Representative:     ${salesRep}
+    Propensity Category:      ${propCategory}
+    Next Best Action:         ${nextBestAction}
+
+  D — DECISION CRITERIA (Feature Adoption & Technical Benchmarks)
+  ─────────────────────────────────────────────────────────────────────────────
+    Feature Adoption Score:   ${avgFeaturePassed}/15 (${avgFeaturePct}%)
+    ARP Enablement:           ${arpCount}/${total}
+    FabricPool Adoption:      ${fpAdopted}/${total}
+    Volume Encryption:        ${nveAdopted}/${ontapCount || total}
+    SnapMirror Usage:         ${smAdopted}/${total}
+    HA Configured:            ${haAdopted}/${total}
+    OS Currency:              ${fwCurrent}/${total} on recommended version
+    Software Currency Index:  ${swIndex} versions behind GA (avg)
+    Fleet Diversity:          ${uniqueOntapVersions} unique ONTAP versions across ${total} systems
+
+  D — DECISION PROCESS (Recommended Governance & Gates)
+  ─────────────────────────────────────────────────────────────────────────────
+    Phase 1 (Days 1-7):    ${critCount} Critical risk remediation
+    Phase 2 (Days 8-30):   ${fwBehind} Firmware & OS lifecycle alignment
+    Phase 3 (Days 31-90):  Feature enablement & optimization
+    Phase 4 (90+ days):    Tech refresh & architecture evolution
+
+  P — PAPER PROCESS (Contracts & Procurement)
+  ─────────────────────────────────────────────────────────────────────────────
+    Active Contracts:         ${activeContracts}/${total} systems (${contractPct}%)
+    Expiring < 90 Days:       ${expiring90} systems
+    Expired / Lapsed:         ${expiredContracts} systems
+    Co-Term Opportunities:    ${cotermGroups.length} groups (${cotermSysCount} systems alignable)
+    Service Tiers:            
+${tierLines}
+
+  I — IMPLICATE THE PAIN (Risk & Cost of Inaction)
+  ─────────────────────────────────────────────────────────────────────────────
+    Critical Risks:           ${coi.critRisks}
+    High Risks:               ${coi.highRisks}
+    Unpatched CVEs:           ${coi.cves} security advisories
+    EOSA < 12 Months:         ${coi.eosaSystems} systems
+    Capacity < 60 Days:       ${coi.capacityRed} systems
+    Open P1/P2 Cases:         ${openP1P2}
+
+    ╔═══════════════════════════════════════════════════════════════════════╗
+    ║  COST OF INACTION SUMMARY (Score: ${coi.score})                              ║
+${coiText}
+    ╚═══════════════════════════════════════════════════════════════════════╝
+
+  C — CHAMPION (Internal Advocate)
+  ─────────────────────────────────────────────────────────────────────────────
+    Primary Contact:          ${primContact}
+    Email:                    ${email}
+    Phone:                    ${phone}
+    CSAT Sentiment:           ${avgCsat.toFixed(1)}/10 (avg)
+
+  C — COMPETITION (Displacement Risk & Positioning)
+  ─────────────────────────────────────────────────────────────────────────────
+    Tech Refresh Flagged:     ${refreshFlagged} systems
+    Platform Age > 5 Years:   ${ageOver5} systems
+    EOA Hardware:             ${eoaSystems.length} systems
+${eoaSystems.length > 0 ? eoaLines : '    None'}
+    ONTAP Differentiators:    Unified SAN/NAS/S3, ARP, FabricPool,
+                              NDU upgrades, SnapLock, native DR
+`;
+}
 
 function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
@@ -14338,7 +14765,7 @@ ${siteLines}
 2. ACCOUNT TEAM (CURRENT)
 --------------------------------------------------------------------------------
   Sales Representative: ${salesRepName} (${salesRepEmail})
-  CSM:                  ${csmName} (${csmEmail})
+  TAM:                  ${csmName} (${csmEmail})
   SAM:                  ${samName} (${samEmail})
   ASP:                  ${aspName}
   ASP End Date:         ${aspEndDate}
@@ -14501,7 +14928,7 @@ Sites:        ${siteDetails.length}${siteDetails.length > 0 ? ' (' + siteDetails
 
 ACCOUNT TEAM
   Sales Rep:  ${personnel.salesRep}
-  CSM:        ${personnel.csm}
+  TAM:        ${personnel.csm}
   SAM:        ${personnel.sam}
 
 RISK SUMMARY
@@ -14982,13 +15409,13 @@ ONTAP/OS UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
 SALES PROPOSALS & HARDWARE REFRESH
 ================================================================================
 CUSTOMER: ${cleanScope}  |  DATE: ${today}
-Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CSM: ' + personnel.csm : ''}
+Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TAM: ' + personnel.csm : ''}
 
 `;
 
   // Contract renewals
   if (expiringContracts.length > 0) {
-    salesProposals += `CONTRACT RENEWALS (${expiringContracts.length})
+    salesProposals += `CONTRACT RENEWALS (${expiringContracts.length}) [MEDDPICC: P]
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
@@ -15024,12 +15451,15 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CS
   // Lifecycle refresh
   const eos = targetSystems.filter(s => s.lifecycle && (s.lifecycle.isNearEos || (s.ontapVersion || '').startsWith('9.5')));
   if (eos.length > 0) {
-    salesProposals += `LIFECYCLE REFRESH CANDIDATES (${eos.length})
+    salesProposals += `LIFECYCLE REFRESH CANDIDATES (${eos.length}) [MEDDPICC: I + C]
 --------------------------------------------------------------------------------
 `;
     eos.forEach((sys, i) => {
+      const sysCritCount = (sys.risks || []).filter(r => (r.severity||'').toLowerCase() === 'critical').length;
+      const sysSecCount = (sys.securityBulletins || []).length;
       salesProposals += `  ${i+1}. ${sys.systemName} | ${sys.platform} | OS: ${sys.ontapVersion}
      EOA: ${sys.lifecycle.eoaDate || 'N/A'}  |  EOS: ${sys.lifecycle.eosDate || 'N/A'}
+     Cost of Inaction: ${sysCritCount} critical risks, ${sysSecCount} security advisories unpatched.
      Recommendation: Refresh to AFF A-Series or C-Series
      Reference: https://www.netapp.com/data-storage/aff-a-series/
 `;
@@ -15040,7 +15470,7 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CS
   const arpGap = sysCount - arpEnabledCount;
   const fwGap = sysCount - fwCurrentCount;
   if (arpGap > 0 || fwGap > 0) {
-    salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES
+    salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES [MEDDPICC: D]
 --------------------------------------------------------------------------------
 `;
     if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} system(s) without Anti-Ransomware Protection\n    → ONTAP ARP licensing or upgrade engagement\n`;
@@ -15051,7 +15481,7 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CS
     salesProposals += `No urgent hardware refreshes, contract renewals, or security gaps identified.\n`;
   }
 
-  // 7. Customer Success Plan
+  // 7. TAM Success Plan
   let customerSuccessPlan = compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases);
 
   // 8. TAM QBR Pack
@@ -15063,6 +15493,9 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CS
   // 10. Account Handover Brief
   let handoverBrief = compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
 
+  // 11. MEDDPICC Deal Intelligence Brief
+  let meddpiccBrief = compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+
   return {
     problemStatements,
     customerComms,
@@ -15073,7 +15506,8 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  CS
     customerSuccessPlan,
     qbrPack,
     mspReport,
-    handoverBrief
+    handoverBrief,
+    meddpiccBrief
   };
 }
 
@@ -15685,7 +16119,7 @@ function _renderAccountIntelligenceSection(systems) {
     html += `<h4 style="color:var(--accent-cyan);margin:16px 0 8px;font-size:0.95rem;">Account Personnel</h4>
     <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
       <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
-        ${_sth(thS13,'System')}${_sth(thS13,'Sales Rep')}${_sth(thS13,'CSM')}
+        ${_sth(thS13,'System')}${_sth(thS13,'Sales Rep')}${_sth(thS13,'TAM')}
         ${_sth(thS13,'SAM')}${_sth(thS13,'ASP')}${_sth(thS13,'Propensity')}
       </tr></thead><tbody>`;
     const seen = new Set();
@@ -16816,13 +17250,13 @@ function generateActionPlan() {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
               <h2 style="font-size: 1.25rem; margin: 0; border: none; padding: 0; color: #ffd700;">★ Executable Account Deliverables Suite</h2>
-              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">10 DELIVERABLES</span>
+              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">11 DELIVERABLES</span>
             </div>
             <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; max-width: 700px;">
               Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT file for distribution to stakeholders.
             </p>
           </div>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 10 deliverables as individual TXT files">⬇ Download All</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 11 deliverables as individual TXT files">⬇ Download All</button>
         </div>
         <div style="display: flex; gap: 16px; margin-top: 8px;">
           <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C)</span>
@@ -16897,6 +17331,15 @@ function generateActionPlan() {
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.salesProposals}</textarea>
       </div>
 
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. MEDDPICC Deal Intelligence Brief</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MEDDPICC_BRIEF')">Download Brief (TXT)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Quantifiable account metrics, deal qualification criteria (Metrics, Economic Buyer, Decision Criteria, etc.), risk evaluation, and cost of inaction summaries.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.meddpiccBrief}</textarea>
+      </div>
+
       <!-- Category 3: TAM/MSP Operations -->
       <div style="margin-bottom: 8px; margin-top: 32px; display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--status-normal); white-space: nowrap;">&#x2B25; TAM / MSP Operations</span>
@@ -16905,10 +17348,10 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. Customer Success &amp; Posture Optimization Plan</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download Success Plan (TXT)</button>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. TAM Success &amp; Posture Optimization Plan</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download TAM Success Plan (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Phased CSM roadmap (Phase 1: critical mitigation, Phase 2: OS upgrades, Phase 3: compliance audits) with ITIL governance guidelines.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Phased TAM roadmap (Phase 1: critical mitigation, Phase 2: OS upgrades, Phase 3: compliance audits) with ITIL governance guidelines.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerSuccessPlan}</textarea>
       </div>
 
@@ -16935,7 +17378,7 @@ function generateActionPlan() {
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">J. Account Handover &amp; Transition Brief</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('HANDOVER_BRIEF')">Download Handover Brief (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Comprehensive account profile for SAM/CSM transitions &mdash; environment inventory, personnel, risk posture, contract status, recent activity, and auto-generated talking points.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Comprehensive account profile for SAM/TAM transitions &mdash; environment inventory, personnel, risk posture, contract status, recent activity, and auto-generated talking points.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.handoverBrief}</textarea>
       </div>
     </div>
@@ -17318,7 +17761,7 @@ function downloadAllDeliverables() {
   const types = [
     'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
     'EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL',
-    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF'
+    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'MEDDPICC_BRIEF'
   ];
   let delay = 0;
   types.forEach(type => {
@@ -17411,6 +17854,8 @@ function downloadDeliverable(type) {
     triggerFileDownload(`msp_service_report_${cleanScope}.txt`, docs.mspReport);
   } else if (type === 'HANDOVER_BRIEF') {
     triggerFileDownload(`account_handover_brief_${cleanScope}.txt`, docs.handoverBrief);
+  } else if (type === 'MEDDPICC_BRIEF') {
+    triggerFileDownload(`meddpicc_brief_${cleanScope}.txt`, docs.meddpiccBrief || compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CSV') {
     const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
