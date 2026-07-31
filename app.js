@@ -9726,7 +9726,7 @@ function renderCSMTab() {
     if (_healthEl) _healthEl.innerHTML = `
       <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
         <div style="display: flex; flex-direction: column; align-items: center; min-width: 150px; border-right: 1px solid var(--border-color); padding-right: 24px;">
-          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">Account Health Score</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 7 weighted metrics: ASUP compliance (15%), ARP enablement (15%), firmware currency (15%), contract coverage (15%), risk posture (20%), data reduction efficiency (10%), CSAT sentiment (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Account Health Score</span>
           <div style="position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
             <span style="font-size: 2rem; font-weight: 800; color: ${healthColor};">${healthScore}</span>
           </div>
@@ -9734,7 +9734,7 @@ function renderCSMTab() {
         </div>
         <div style="flex: 1;">
           <details style="cursor: pointer;">
-            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;">MEDDPICC Quick-View</summary>
+            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="MEDDPICC sales qualification framework: Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Implicate Pain, Champion, Competition. Each element maps to a dimension of deal intelligence for TAM account planning.">MEDDPICC Quick-View</summary>
             <div style="margin-top: 12px; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:     Health 87/100, DR 3.2:1, 42.5 TB saved</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Econ Buyer:  Sales Rep: John Smith, Propensity: Expansion</span></div>
@@ -9785,7 +9785,7 @@ function renderCSMTab() {
     document.getElementById("csmSavingsCard").innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 12px;">
         <div>
-          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">Overall Account Data Reduction</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;" title="Data reduction ratio using dedupe + compression only (excluding snapshot savings). Fallback cascade: dataReductionRatioSys → dedupSaved+compactSaved → logNoSnaps/physNoSnaps → N/A.">Overall Account Data Reduction</span>
           <div style="font-size: 2.2rem; font-weight: 800; color: var(--status-normal);">${avgRatio}:1</div>
           <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compression only, excl. snapshots</div>
         </div>
@@ -9818,7 +9818,7 @@ function renderCSMTab() {
     let fpBadge = activeFPCount > 0 ? `<span class="badge normal">${activeFPCount} active tiering</span>` : `<span class="badge warning">No Cloud Tiering</span>`;
     document.getElementById("csmCloudCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);" title="FabricPool automatically tiers cold (inactive) data from high-performance SSD to lower-cost object storage (cloud or on-premises S3). Adoption indicates systems actively offloading cold data.">FabricPool Integration</h4>
         ${fpBadge}
       </div>
       <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${totalFP > 0 ? "var(--status-info)" : "var(--status-warning)"};">
@@ -9850,7 +9850,7 @@ function renderCSMTab() {
     }
     document.getElementById("csmSnapmirrorCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">SnapMirror replication</h4>
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);" title="SnapMirror provides asynchronous and synchronous data replication for disaster recovery (DR) and data migration. Relationships show source-to-destination mappings with replication lag time.">SnapMirror replication</h4>
         <span class="badge ${smEnabledCount > 0 ? 'normal' : 'warning'}">${smEnabledCount} Enabled</span>
       </div>
       <div style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
@@ -17021,7 +17021,7 @@ function _renderFeatureAdoptionSection(systems) {
   return `
     <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
       <div style="flex:2; min-width: 300px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
-        <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Fleet-Wide Feature Adoption</h4>
+        <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;" title="15-point best-practice checklist scored per system: OS currency, DR ratio ≥1.5:1, FabricPool, SnapMirror, zero critical/high risks, active contract, ASUP compliance, lifecycle health, zero CVEs, capacity ≤80%, HA configured, zero P1/P2 cases, encryption (NVE/NAE), ARP enabled, zero field actions.">Fleet-Wide Feature Adoption</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;">
           ${Object.entries(features).map(([name, count]) => `
             <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center;">

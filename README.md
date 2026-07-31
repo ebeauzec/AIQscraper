@@ -21,10 +21,11 @@
 5. [Dashboard Guide](#5-dashboard-guide)
 6. [Action Planner — All 15 Sections](#6-action-planner--all-15-sections)
 7. [Downloadable Deliverables](#7-downloadable-deliverables)
-8. [Security & Data Privacy](#8-security--data-privacy)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Internal Architecture](#10-internal-architecture) *(Addendum — for developers)*
-11. [Legal & Intellectual Property](#11-legal--intellectual-property)
+8. [Scores, KPIs & Metrics Reference](#8-scores-kpis--metrics-reference)
+9. [Security & Data Privacy](#9-security--data-privacy)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Internal Architecture](#11-internal-architecture) *(Addendum — for developers)*
+12. [Legal & Intellectual Property](#12-legal--intellectual-property)
 
 ---
 
@@ -355,7 +356,132 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 ---
 
-## 8. Security & Data Privacy
+## 8. Scores, KPIs & Metrics Reference
+
+### Account Health Score (0-100)
+Composite index measuring overall customer account posture. Used in: TAM tab gauge, deliverables, MEDDPICC brief.
+
+**Formula**: Weighted sum of 7 component metrics:
+| Component | Weight | Description | Scoring |
+|---|---|---|---|
+| ASUP Compliance | 15% | Systems reporting AutoSupport within 7 days | % compliant × 15 |
+| ARP Enablement | 15% | Autonomous Ransomware Protection enabled | % enabled × 15 |
+| Firmware Currency | 15% | OS version ≥ recommended minimum | % current × 15 |
+| Contract Coverage | 15% | Active support contract | % covered × 15 |
+| Risk Posture | 20% | Inverse of critical/high risk count | max(0, 1 - (criticals × 0.15 + highs × 0.05)) × 20 |
+| Data Reduction | 10% | Avg DR ratio, capped at 5:1 | (avg ratio / 5) × 10 |
+| CSAT Sentiment | 10% | Customer satisfaction score | (avg score / 10) × 10 |
+
+**Grading**: A (≥90), B (≥80), C (≥65), D (≥50), F (<50)
+
+---
+
+### Cost of Inaction Score
+Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPICC element "I — Implicate the Pain". Higher = more urgent.
+
+**Formula**: `(critical risks × 10) + (high risks × 3) + (CVEs × 5) + (EOSA systems × 8) + (capacity red systems × 7) + (no ARP systems × 2)`
+
+| Factor | Weight | What It Counts |
+|---|---|---|
+| Critical risks | ×10 | Active IQ risks with severity = critical |
+| High risks | ×3 | Active IQ risks with severity = high |
+| Security advisories | ×5 | Unpatched CVE bulletins |
+| EOSA systems | ×8 | Systems near End of Support |
+| Capacity critical | ×7 | Systems with ≤60 days runway |
+| No ARP | ×2 | Systems without ransomware protection |
+
+**Interpretation**: 0 = clean, <20 = minor, 20-60 = material, 60+ = urgent
+
+---
+
+### Feature Adoption Score (0-15, shown as %)
+15-point best-practice checklist scored per system.
+
+**Checklist items** (1 point each):
+1. OS version ≥ recommended minimum
+2. Data reduction ratio ≥ 1.5:1
+3. FabricPool cloud tiering active
+4. SnapMirror DR replication active
+5. Zero critical/high risks
+6. Active support contract
+7. ASUP reported within 7 days
+8. Not approaching End of Support
+9. Zero unpatched security bulletins
+10. Capacity utilization ≤ 80%
+11. HA configured
+12. Zero open P1/P2 cases
+13. Volume/aggregate encryption enabled (NVE/NAE)
+14. Autonomous Ransomware Protection enabled
+15. Zero field security advisories
+
+---
+
+### Capacity RAG (Red/Amber/Green)
+Per-system capacity runway classification.
+
+| Color | Threshold | Meaning |
+|---|---|---|
+| 🔴 Red | ≤ 60 days | Critical — immediate action required |
+| 🟡 Amber | ≤ 180 days | Warning — plan expansion |
+| 🟢 Green | > 180 days | Healthy runway |
+
+---
+
+### Software Currency Index
+Average number of ONTAP minor versions behind the recommended release across the fleet. Lower is better. 0.0 = fully current.
+
+---
+
+### Mean Time to Resolve (MTTR)
+Average resolution time in days for closed support cases. Calculated as: `(sum of closedDate - openedDate) / count of closed cases`.
+
+---
+
+### Encryption Coverage
+Percentage of ONTAP systems with volume/aggregate encryption (NVE/NAE) enabled.
+
+---
+
+### Co-Term Opportunities
+Groups of systems whose support contracts expire within 90 days of each other — candidates for co-termination into a single renewal.
+
+---
+
+### MEDDPICC Framework
+Sales qualification methodology integrated into deliverables:
+| Letter | Element | Storage Example |
+|---|---|---|
+| M | Metrics | Health score, DR ratio, TB saved, capacity runway |
+| E | Economic Buyer | Domestic parent, sales rep, propensity |
+| D | Decision Criteria | Feature adoption %, OS currency, DR benchmarks |
+| D | Decision Process | Phased remediation roadmap (critical→lifecycle→optimization) |
+| P | Paper Process | Contract pipeline, co-term opportunities, service tiers |
+| I | Implicate Pain | Cost of Inaction score, CVE exposure, EOSA countdown |
+| C | Champion | Primary contact, CSAT score, engagement history |
+| C | Competition | Tech refresh candidates, platform age, EOA hardware |
+
+---
+
+### Risk Safety Tiers (ITIL)
+Change management classification for remediation actions:
+| Tier | Description | Examples |
+|---|---|---|
+| Non-Disruptive | No service impact | Config changes, enable features |
+| Disruptive but Data-Safe | Service interruption, no data loss | Firmware upgrades, takeover/giveback |
+| Destructive or Irreversible | Potential data loss | Volume deletion, sanitization |
+
+---
+
+### Data Reduction Ratio
+Dedupe + compression only (excluding snapshots). Fallback cascade:
+1. `dataReductionRatioSys` — API primary field
+2. `dedupSaved + compactionSaved` — derived ratio
+3. `logicalNoSnaps / physicalNoSnaps` — snapshot-excluded capacity
+4. N/A — displayed when no valid source available
+
+---
+
+## 9. Security & Data Privacy
 
 ### Tool Security Guarantees
 
@@ -427,7 +553,7 @@ KEV-flagged advisories in the dashboard include full detail: affected products, 
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
@@ -444,7 +570,7 @@ KEV-flagged advisories in the dashboard include full detail: affected products, 
 
 ---
 
-## 10. Internal Architecture
+## 11. Internal Architecture
 
 > This section is an addendum for developers who want to understand, extend, or contribute to the codebase. It is not required reading for daily use.
 
@@ -606,7 +732,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ---
 
-## 11. Legal & Intellectual Property
+## 12. Legal & Intellectual Property
 
 > **Full terms:** [LICENSE](LICENSE) · [LEGAL.md](LEGAL.md)
 
