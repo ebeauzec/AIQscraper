@@ -16925,7 +16925,7 @@ function _renderDRReplicationSection(systems) {
     const rels = (s.snapmirror && s.snapmirror.relationships) || (s.snapMirror && s.snapMirror.relationships) || [];
     rels.forEach(r => {
       if (r.lagTime && (r.lagTime.includes('hr') || r.lagTime.includes('hours') || parseInt(r.lagTime) > 60)) {
-        rpoRisks.push(\`<li><strong>\${s.systemName || s.serialNumber}</strong> -> \${r.destination || 'unknown'}: Lag time is \${r.lagTime}</li>\`);
+        rpoRisks.push(`<li><strong>${s.systemName || s.serialNumber}</strong> -> ${r.destination || 'unknown'}: Lag time is ${r.lagTime}</li>`);
       }
     });
   });
@@ -16988,22 +16988,22 @@ function _renderFeatureAdoptionSection(systems) {
 
   const trs = systems.map(s => {
     const scoreObj = computeFeatureAdoptionScore(s);
-    const scoreText = \`\${scoreObj.passed}/15 (\${scoreObj.pct}%)\`;
+    const scoreText = `${scoreObj.passed}/15 (${scoreObj.pct}%)`;
     
-    return \`
+    return `
       <tr>
-        <td style="\${tdLeft}font-family:monospace;">\${s.systemName || s.serialNumber}</td>
-        <td style="\${tdStyle}">\${s.isARPEnabled ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${s.isFabricPool ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${(s.snapmirrorCount || s.snapMirrorCount || 0) > 0 ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${s.isHAConfigured ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${s.isAuditEnabled ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${s.isSnapLockEnabled ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${s.isMAVEnabled ? '✅' : '❌'}</td>
-        <td style="\${tdStyle}">\${scoreText}</td>
+        <td style="${tdLeft}font-family:monospace;">${s.systemName || s.serialNumber}</td>
+        <td style="${tdStyle}">${s.isARPEnabled ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${s.isFabricPool ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${(s.snapmirrorCount || s.snapMirrorCount || 0) > 0 ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${s.isHAConfigured ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${s.isAuditEnabled ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${s.isSnapLockEnabled ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${s.isMAVEnabled ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${scoreText}</td>
       </tr>
-    \`;
+    `;
   }).join('');
 
   const recs = systems.map(s => {
@@ -17013,61 +17013,62 @@ function _renderFeatureAdoptionSection(systems) {
     if (!s.isMAVEnabled) missing.push('MAV (`security multi-admin-verify setup`)');
     
     if (missing.length === 0) return '';
-    return \`<li><strong>\${s.systemName || s.serialNumber}:</strong> Enable \${missing.join(', ')}</li>\`;
+    return `<li><strong>${s.systemName || s.serialNumber}:</strong> Enable ${missing.join(', ')}</li>`;
   }).filter(Boolean).slice(0, 10);
 
-  return \`
+  return `
     <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
       <div style="flex:2; min-width: 300px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
         <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Fleet-Wide Feature Adoption</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;">
-          \${Object.entries(features).map(([name, count]) => \`
+          ${Object.entries(features).map(([name, count]) => `
             <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center;">
-              <div style="font-size: 1.2rem; color: var(--accent-cyan); font-weight: bold;">\${getPct(count)}%</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">\${name}</div>
+              <div style="font-size: 1.2rem; color: var(--accent-cyan); font-weight: bold;">${getPct(count)}%</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">${name}</div>
             </div>
-          \`).join('')}
+          `).join('')}
         </div>
       </div>
       <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
         <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Fleet Diversity (OS)</h4>
-        \${versionBars || '<div style="font-size:0.8rem;color:var(--text-secondary);">No version data</div>'}
+        ${versionBars || '<div style="font-size:0.8rem;color:var(--text-secondary);">No version data</div>'}
       </div>
     </div>
 
     <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">Per-System Feature Matrix</h3>
     <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
-      <table style="\${tblStyle}">
+      <table style="${tblStyle}">
         <thead>
           <tr>
-            \${_sth(thStyle, 'System')}
-            \${_sth(thStyle, 'ARP')}
-            \${_sth(thStyle, 'FabricPool')}
-            \${_sth(thStyle, 'NVE/NAE')}
-            \${_sth(thStyle, 'SnapMirror')}
-            \${_sth(thStyle, 'HA')}
-            \${_sth(thStyle, 'Audit')}
-            \${_sth(thStyle, 'SnapLock')}
-            \${_sth(thStyle, 'MAV')}
-            \${_sth(thStyle, 'Score')}
+            ${_sth(thStyle, 'System')}
+            ${_sth(thStyle, 'ARP')}
+            ${_sth(thStyle, 'FabricPool')}
+            ${_sth(thStyle, 'NVE/NAE')}
+            ${_sth(thStyle, 'SnapMirror')}
+            ${_sth(thStyle, 'HA')}
+            ${_sth(thStyle, 'Audit')}
+            ${_sth(thStyle, 'SnapLock')}
+            ${_sth(thStyle, 'MAV')}
+            ${_sth(thStyle, 'Score')}
           </tr>
         </thead>
         <tbody>
-          \${trs}
+          ${trs}
         </tbody>
       </table>
     </div>
 
-    \${recs.length > 0 ? \`
+    ${recs.length > 0 ? `
     <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">Optimization Recommendations</h3>
     <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 12px; font-size: 0.85rem;">
       <ul style="margin: 0; padding-left: 20px;">
-        \${recs.join('')}
+        ${recs.join('')}
       </ul>
     </div>
-    \` : ''}
-  \`;
+    ` : ''}
+  `;
 }
+
 
 
 function generateActionPlan() {
