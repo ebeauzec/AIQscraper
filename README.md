@@ -19,7 +19,7 @@
 3. [Use Cases](#3-use-cases)
 4. [Getting Started](#4-getting-started)
 5. [Dashboard Guide](#5-dashboard-guide)
-6. [Action Planner — All 15 Sections](#6-action-planner--all-15-sections)
+6. [Action Planner — All 17 Sections](#6-action-planner--all-17-sections)
 7. [Downloadable Deliverables](#7-downloadable-deliverables)
 8. [Scores, KPIs & Metrics Reference](#8-scores-kpis--metrics-reference)
 9. [Security & Data Privacy](#9-security--data-privacy)
@@ -45,7 +45,7 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 | Gap in Active IQ | What the Advisor Dashboard does |
 |---|---|
 | **One customer at a time** — you must manually switch contexts and re-filter for every account | **Cross-customer fleet view** — all customers, all systems in a single pane. Filter to any customer in one click |
-| **No deliverable generation** — you take screenshots or copy/paste into documents | **Six ready-to-share deliverables** — QBR Pack, Customer Success Plan, MSP Report, Handover Brief, CLI Runbook — generated in seconds |
+| **No deliverable generation** — you take screenshots or copy/paste into documents | **11 ready-to-share deliverables** — QBR Pack, TAM Success Plan, MSP Report, Handover Brief, CLI Runbook, MEDDPICC Brief, Security Brief, Sustainability Report, and more — generated in seconds |
 | **No upgrade path calculator** — AIQ shows your current version; you have to figure out the hop sequence yourself | **Automatic hop-by-hop upgrade paths** — direct paths where available; multi-hop sequences with intermediate versions and per-version notes for ONTAP, StorageGRID, and SANtricity |
 | **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against **tracked CVEs** (from MITRE, NVD, CISA KEV, NetApp PSIRT, GitHub) with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps. Includes 2 CISA KEV-confirmed actively exploited entries. |
 | **Capacity trend is per-system** — no fleet-wide growth rate or cross-customer runway view | **Fleet-wide capacity projection** — 6-month historical trend, growth rate in GB/day, per-node breakdown, and runway estimate per node |
@@ -69,7 +69,7 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 
 ## 2. What It Delivers
 
-In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library, and renders it as a fully interactive dashboard with six downloadable customer-facing deliverables.
+In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library, and renders it as a fully interactive dashboard with 11 downloadable customer-facing deliverables.
 
 **Harvested from Active IQ:**
 - Every system and cluster across your entire portfolio
@@ -81,7 +81,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - Capacity trends and storage efficiency ratios
 - AutoSupport status, firmware currency, and Anti-Ransomware Protection (ARP) coverage
 - OS version catalog for upgrade path calculation
-- Account personnel (Sales Rep, CSM, SAM, ASP, Propensity)
+- Account personnel (Sales Rep, TAM, SAM, ASP, Propensity)
 
 **Added by the Reference Library (not in Active IQ):**
 - **EOA hardware flags** — automatically detects End-of-Availability controllers, shelves, and switches across all NetApp product families: ONTAP (AFF, ASA, FAS), StorageGRID appliances, and E-Series/EF-Series arrays. The database is updated as NetApp publishes new EOA notices.
@@ -130,7 +130,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Goal:** Know which systems are approaching capacity limits — per node, with actual growth rates, not just a percentage bar.
 
 **Workflow:**
-1. Go to **Value & ROI (CSM)** in the sidebar
+1. Go to **Value & ROI (TAM)** in the sidebar
 2. The capacity chart defaults to **Aggregate** (fleet-wide). Click **Per Node** to see individual node trend lines
 3. The **Capacity Breakdown by Node** table shows: Used TB, Raw TB, Utilisation %, Growth/day, and Runway per node
 4. Nodes approaching limits are colour-coded amber (>70%) and red (>85%)
@@ -292,7 +292,7 @@ The risk and security intelligence hub. Displays all Active IQ risks sorted by s
 
 Contract status pipeline (Active / Expiring / Expired cards), EOS/EOA lifecycle timeline sorted by urgency, and a filterable support case view (Open / Processing / Closed) with case age and system attachment.
 
-### Value & ROI (CSM)
+### Value & ROI (TAM)
 
 Storage efficiency and capacity intelligence:
 
@@ -307,7 +307,7 @@ Storage efficiency and capacity intelligence:
 
 ### Action Planner
 
-The core reporting engine. Click **Generate** to build all 15 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-15-sections) for full detail on each section.
+The core reporting engine. Click **Generate** to build all 17 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-17-sections) for full detail on each section.
 
 ### Settings & Config
 
@@ -315,9 +315,9 @@ API token management, sync interval, custom account groups, watchlist IDs, and s
 
 ---
 
-## 6. Action Planner — All 15 Sections
+## 6. Action Planner — All 17 Sections
 
-Click **Action Planner** in the sidebar, then **Generate**. All 15 sections are built and the numbered tab row appears above the content area.
+Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are built and the numbered tab row appears above the content area.
 
 | # | Section | What's Inside |
 |---|---|---|
@@ -329,13 +329,15 @@ Click **Action Planner** in the sidebar, then **Generate**. All 15 sections are 
 | **6** | **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
 | **7** | **Logistics & Health** | Site locations (city/country/state), account contacts, CSAT scores |
 | **8** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
-| **9** | **Deliverables** | Six one-click downloadable report generators |
+| **9** | **Deliverables** | 11 one-click downloadable report generators |
 | **10** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
 | **11** | **Sustainability & ESG** | Fleet Sustainability Score with weekly trend, carbon/energy per system, data reduction ratios per customer |
 | **12** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores |
-| **13** | **Account Intelligence** | Personnel map (Sales Rep, CSM, SAM, ASP, Propensity per system), site inventory |
+| **13** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
 | **14** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
 | **15** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
+| **16** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
+| **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, NVE/NAE, SnapMirror, HA, Audit, SnapLock, MAV), OS diversity analysis, 15-point best-practice score per system, CLI enablement commands |
 
 ---
 
@@ -347,12 +349,17 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 | Deliverable | Best For | Contents |
 |---|---|---|
-| **Customer Success Plan** | Executive QBR presentation | Fleet health summary, key risks, strategic recommendations, contract renewal pipeline |
+| **TAM Success Plan** | Executive QBR presentation | Fleet health summary, key risks, strategic recommendations, contract renewal pipeline, MEDDPICC alignment |
 | **QBR Pack** | Quarterly Business Reviews | KPI scorecard, risk trend, resolved cases, open action items, upgrade roadmap |
 | **MSP Service Report** | Monthly managed service reporting | SLA metrics, case resolution summary, proactive actions, risk posture change |
+| **MEDDPICC Deal Brief** | Sales qualification & deal strategy | Account health score, feature adoption, cost of inaction, champion mapping, competitive positioning |
 | **Account Handover Brief** | TAM-to-TAM transitions | Fleet context, open risks, contract status, key contacts, pending actions |
-| **Extended Deliverables** | Deep technical briefings | Full risk register, advisory inventory, upgrade roadmap, switch validation |
+| **Security Posture Brief** | CISO / security reviews | CVE remediation matrix, ARP/encryption coverage, NIST CSF 2.0 alignment, feature gap analysis |
+| **Sustainability & ESG Report** | Executive ESG reporting | Fleet sustainability score, carbon/energy metrics, data reduction impact, optimization roadmap |
+| **Extended Deliverables** | Deep technical briefings | Full risk register, advisory inventory, upgrade roadmap, switch validation, sales proposals |
 | **CLI Runbook** | Implementation engineers / CAB submissions | Copy-paste ONTAP CLI commands, grouped by remediation and classified by ITIL tier |
+| **Fleet Inventory CSV** | Data export & analysis | Complete system inventory with all enriched fields, exportable to Excel |
+| **Config State JSON** | Backup & restore | Full application configuration state for import/export across environments |
 
 ---
 
@@ -562,7 +569,7 @@ KEV-flagged advisories in the dashboard include full detail: affected products, 
 | **Server won't start** | Python not in PATH | Check: `python --version` (must be 3.8+) |
 | **No data after sync** | Invalid or expired token | Regenerate at Active IQ → Quick Links → API Services |
 | **CORS errors in console** | HTML opened as file:// not via server | Always use `http://localhost:8080` |
-| **Action Planner tabs 10–15 missing** | Report not generated yet | Click **Action Planner** → click **Generate** |
+| **Action Planner tabs 10–17 missing** | Report not generated yet | Click **Action Planner** → click **Generate** |
 | **Sync takes 60–90 seconds** | Large portfolio, first sync | Normal. Subsequent loads use the SQLite cache. Add `?force=1` to URL to force re-harvest |
 | **Charts not rendering** | `chart.js` missing | Verify file exists in project folder. Hard refresh (Ctrl+Shift+R) |
 | **Node capacity shows 0.0** | API reports cluster-aggregate, not per-node | Dashboard falls back to monthly telemetry. Ensure a full sync completed |
@@ -610,7 +617,7 @@ AIQscraper/
 | File | Size | Role |
 |---|---|---|
 | `server.py` | ~210 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints |
-| `app.js` | ~1.1 MB | ~21,000 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 15-tab Action Planner renderer, 6 deliverable generators, chart rendering, Reference Library |
+| `app.js` | ~1.2 MB | ~22,000 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 17-tab Action Planner renderer, 11 deliverable generators, chart rendering, Reference Library |
 | `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
 | `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
 | `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |

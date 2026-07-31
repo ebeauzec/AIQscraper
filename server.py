@@ -1290,7 +1290,12 @@ def _do_full_harvest(watchlist_ids=None):
                 ],
             }
             sm_count = ((cl.get("snapMirrorRelationships") or {}).get("totalCount")) or 0
-            is_ha = cl.get("isHAConfigured", False)
+            # isHAConfigured from the API is unreliable — it can return null/false
+            # even for multi-node clusters. Any ONTAP cluster with 2+ nodes is
+            # inherently an HA pair, so infer HA from node count as a fallback.
+            is_ha = cl.get("isHAConfigured")
+            if not is_ha and len(cl_systems) >= 2:
+                is_ha = True
             cl_os = cl.get("osVersion", "")
             cl_rec = ((cl.get("osRecommendation") or {}).get("recommendedVersion")) or ""
             cl_switches = cl.get("switches") or []
