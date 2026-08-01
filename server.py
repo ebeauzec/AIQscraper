@@ -2075,7 +2075,24 @@ def fetch_cve_nvd(cve_id, api_key=None):
     Query NIST NVD API v2 for a CVE.
     Returns dict: {id, description, cvss, severity, publishedDate, references, affectedVersions}
     or None on failure.
+
+    Rate-limited to respect NVD's 5 requests / 30 seconds (no API key) or
+    50 requests / 30 seconds (with API key).
     """
+    # ── Rate limiter: token bucket ─────────────────────────────────────────────
+    if not hasattr(fetch_cve_nvd, '_timestamps'):
+        fetch_cve_nvd._timestamps = []
+    window = 30  # seconds
+    max_calls = 50 if api_key else 5
+    now = time.time()
+    fetch_cve_nvd._timestamps = [t for t in fetch_cve_nvd._timestamps if now - t < window]
+    if len(fetch_cve_nvd._timestamps) >= max_calls:
+        sleep_time = window - (now - fetch_cve_nvd._timestamps[0]) + 0.5
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+        fetch_cve_nvd._timestamps = [t for t in fetch_cve_nvd._timestamps if time.time() - t < window]
+    fetch_cve_nvd._timestamps.append(time.time())
+
     url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={urllib.parse.quote(cve_id)}'
     if api_key:
         url += f'&apiKey={api_key}'
