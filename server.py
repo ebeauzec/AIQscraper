@@ -1349,6 +1349,11 @@ def _do_full_harvest(watchlist_ids=None):
             serial = s.get("serialNumber", "")
 
             cl_name = serial_to_cluster.get(serial, "")
+            # Fallback: derive cluster name from hostname by stripping node suffix
+            # e.g. "A150-CLUSTER-01" → "A150-CLUSTER", "FAS8300-node2" → "FAS8300"
+            if not cl_name:
+                _hn = s.get("hostName", "") or ""
+                cl_name = re.sub(r'[-_](?:0[1-9]|node\d+|n\d+)$', '', _hn, flags=re.IGNORECASE)
             cl_cap = serial_to_cluster_cap.get(serial, {})
 
             # Extract switches from port connectivity (device names + port types)
