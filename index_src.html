@@ -552,11 +552,25 @@
           </div>
         </div>
         
-        <!-- Adoption Checklist Card -->
-        <div class="card table-card" style="max-width: 600px;">
-          <div class="section-title" style="margin-bottom: 16px;">TAM/MSP Remediation Readiness &mdash; 9-Point Check</div>
-          <div id="csmAdoptionChecklist">
-            <!-- Adoption metrics rows -->
+        <!-- Adoption Checklist — 2-column categorised layout -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+          <div class="card table-card">
+            <div class="section-title" style="margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Operations &amp; Security</span>
+              <span id="csmCheckLeftScore" style="font-size:0.78rem; font-weight:700; color:var(--accent-cyan);"></span>
+            </div>
+            <div id="csmAdoptionChecklist">
+              <!-- Left column checks -->
+            </div>
+          </div>
+          <div class="card table-card">
+            <div class="section-title" style="margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Data Protection &amp; Lifecycle</span>
+              <span id="csmCheckRightScore" style="font-size:0.78rem; font-weight:700; color:var(--accent-purple);"></span>
+            </div>
+            <div id="csmAdoptionChecklistRight">
+              <!-- Right column checks -->
+            </div>
           </div>
         </div>
       </div>
