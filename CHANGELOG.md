@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.2] - 2026-08-01
+
+### Added
+- **Platform-Specific Controller Rear-Panel Backplate** — new `_buildControllerBackplate()` function renders an accurate physical rear-panel visualization for each NetApp hardware family. Supports 8 distinct platform layouts:
+  - **Next-Gen Modular (A70/A90/A1K/FAS70/FAS90/AFX)** — 11 I/O slot strip with labeled sections: HA/Cluster (Slots 1, 7), Data/FC I/O (Slots 2–6), System Management Module (Slot 8 — e0M, console, USB), and Storage/I/O (Slots 9–11), plus dual PSU.
+  - **Mid-Range 10-Slot (A400/A900/FAS8300/8700/C400)** — onboard I/O section (e0M, e0a/b HA, e0c/d Cluster) plus 10 individually labeled PCIe expansion slots.
+  - **A800/C800 NVMe (5-Slot)** — dedicated MGMT+BMC section with 5 PCIe slot strip.
+  - **Entry 2U (A250/C250/FAS2820/A150)** — management/console section, onboard Ethernet (Cluster + Data), mezzanine FC/UTA2 slot, and SAS/NVMe shelf ports.
+  - **E-Series (EF600/E5700)** — duplex controller canister with MGMT/SVC, baseboard/HIC host ports, and drive expansion SAS ports.
+  - **Cloud Volumes ONTAP** — virtual appliance banner (AWS/Azure/GCP) with provider detection.
+  - **StorageGRID Appliances** — object appliance node banner with SG-model auto-detection.
+  - **Generic ONTAP Fallback** — auto-grouped MGMT, I/O, and PSU sections for unrecognized platforms.
+  Each port block shows port name, type color-coding (blue=Cluster/HA, amber=Data, purple=Storage, yellow=FC, green=Mgmt), live status LED (green/red), and interactive hover integration with the cabling audit table via `hoverCablingPort()`/`unhoverCablingPort()`.
+- **SVM & LIF Inventory Enrichment** — new `compileSvmLifInventoryText()` function generates per-SVM logical interface inventories for inclusion in TAM deliverables. Lists each SVM's LIFs with IP addresses, service policies, data protocols, home/current node and port, failover policy, and operational status.
+- **Vserver Data Harvesting via GraphQL** — `server.py` now requests `vservers { id name type subType logicalInterfaces { ... } }` from the AIQ cluster endpoint and maps vserver data to individual systems via `serial_to_cluster_vservers`. Includes LIF failover configuration (home node/port, current node/port, failover policy).
+- **Network Ports GraphQL Field** — added `networkPorts { totalCount networkPorts { port role link type broadcastDomain ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes interfaceGroupOwner } }` to both full and medium system GQL queries for physical port metadata enrichment.
+- **Harvest Merge-Back Guard** — when the Active IQ API returns 0 systems or 0 clusters due to transient timeouts, the harvester now preserves the previous harvest's data rather than overwriting with empty arrays. Logged as `[HARVEST] Merge-back: keeping N systems/clusters from previous harvest`.
+- **Module-Level Vserver Cache** — `_vserverCache` moved to module scope (outside `state`) to survive `localStorage`-driven state replacements. Keyed by `serialNumber`, populated during `loadProductionData()` and `enrichSystemTelemetry()`.
+
+### Fixed
+- **Card content clipping** — changed `.card` CSS `overflow` from `hidden` to `visible`, preventing data tables and backplate visualizations from being cut off inside dashboard cards.
+- **SVM data retrieval robustness** — `getSystemSvms()` now checks both `sys.vservers` and the module-level `_vserverCache`, with `localStorage` fallback, ensuring SVM/LIF data persists across page reloads.
+
+### Changed
+- **Version bumped to 4.0.2** across `version.json`, `app.js` (`APP_VERSION`), `README.md` badge, and documentation.
+- **TAM Node Visual Layout refactored** — `renderNodeVisualLayout()` now renders the platform-specific backplate above the cabling audit table instead of the previous generic port grid. The layout is stacked full-width rather than side-by-side.
+- **Deliverable text generators updated** — all 13 deliverable compile functions now include SVM/LIF inventory sections when vserver data is available.
+- **Capacity GQL fields trimmed** — removed `usedWithoutSnapshotsKiB` and `usedWithoutSnapshotsClonesKiB` from capacity queries that were causing API errors on some clusters.
+
+---
+
 ## [4.0.1] - 2026-08-01
 
 ### Added

@@ -299,7 +299,7 @@ body {
   backdrop-filter: blur(12px);
   transition: all 0.3s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card:hover {

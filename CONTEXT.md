@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 4.0.1 (per `version.json`, dated 2026-08-01)
+> **Current Version**: 4.0.2 (per `version.json`, dated 2026-08-01)
 
 ---
 
@@ -82,11 +82,11 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 
 | File | Size | Purpose |
 |------|------|---------|
-| `server.py` | 275KB | Central HTTP proxy, SQLite cache, GraphQL harvester, enrichment engine (7 external sources), version catalog, ASUP handler, TLS auto-config, cluster name derivation, E-Series hardware synthesis |
-| `app.js` | 1.36MB | All frontend logic: state management, API calls, tab rendering, enrichment display, remediation plan generator, reference library, dynamic version management, platform-aware upgrade paths (ONTAP + StorageGRID + E-Series), deliverable DR/capacity/adoption intelligence |
+| `server.py` | 284 KB | Central HTTP proxy, SQLite cache, GraphQL harvester, enrichment engine (7 external sources), version catalog, ASUP handler, TLS auto-config, cluster name derivation, E-Series hardware synthesis |
+| `app.js` | 1.40 MB / 24,893 lines | All frontend logic: state management, API calls, tab rendering, enrichment display, remediation plan generator, reference library, dynamic version management, platform-aware upgrade paths (ONTAP + StorageGRID + E-Series), deliverable DR/capacity/adoption intelligence |
 | `index.html` | 81KB | Production dashboard SPA (6 views, sidebar nav, search, modals) |
 | `index_src.html` | 85KB | Development/source version of dashboard — includes ASUP import modal DOM + enhanced error handling |
-| `styles.css` | 28KB | Complete dark-mode design system with CSS custom properties, responsive layouts, animations |
+| `styles.css` | 30 KB | Complete dark-mode design system with CSS custom properties, responsive layouts, animations |
 | `chart.js` | 208KB | Bundled Chart.js library |
 | `launcher.py` | 7.8KB | Desktop launcher (pywebview native window + embedded CORS proxy + fallback browser) |
 | `asup_parser.py` | 25KB | Offline ASUP bundle parser (ONTAP, StorageGRID, E-Series) with ARIA schema normalization |
@@ -119,7 +119,7 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 | File | Purpose |
 |------|---------|
 | `README.md` | Comprehensive user & developer manual (790+ lines) |
-| `CHANGELOG.md` | Full release history (v1.0.0 through v4.0.1) |
+| `CHANGELOG.md` | Full release history (v1.0.0 through v4.0.2) |
 | `LEGAL.md` | IP ownership declaration |
 | `LICENSE` | Proprietary license (Eugene Beauzec, non-commercial free, commercial requires consent) |
 
@@ -219,6 +219,10 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - Platform-aware upgrade path calculator: ONTAP (multi-hop), StorageGRID (11.x → 11.9), E-Series/SANtricity (version-range)
 - Cluster identity derivation from hostname when API lookup returns empty
 - Deliverable intelligence enrichment: DR coverage, capacity forecast, feature adoption sections injected into all 13 deliverables
+- Platform-specific controller rear-panel backplate visualization (8 hardware families)
+- SVM/LIF inventory harvesting via GraphQL vserver endpoint
+- Harvest merge-back guard preventing transient API failures from wiping cached data
+- Module-level vserver cache for localStorage resilience
 
 ### External Enrichment Pipeline (v3.8.0+)
 - **7 external sources** per version: release notes, PSIRT advisories, NVD CVEs, Bugs Online, KB articles, upgrade paths, best practice guides
@@ -254,8 +258,8 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | **Large watchlist pagination** | Pagination implemented | UX rough for >500 systems |
 | **Token refresh** | Retry logic exists | Occasional silent failures; needs retry queue |
 | **PDF export long tables** | Works with manual page breaks | Auto page-break logic cuts off some long tables |
-| ~~**v3.7.0 CHANGELOG entry**~~ | ✅ Done in v4.0.0 | All versions through 4.0.1 now documented |
-| ~~**README version badge**~~ | ✅ Done | Badge shows 4.0.1 |
+| ~~**v3.7.0 CHANGELOG entry**~~ | ✅ Done in v4.0.0 | All versions through 4.0.2 now documented |
+| ~~**README version badge**~~ | ✅ Done | Badge shows 4.0.2 |
 | **Data protection coverage %** | SnapMirror count exists | Volume-level protection ratio calculation missing |
 | **`index.html` vs `index_src.html` sync** | `index_src.html` has ASUP modal; `index.html` does not | Need to decide which is canonical and sync |
 | **Firmware Phase 2** | Phase 1 (Unverified badge) complete | Model-specific SP/BMC baseline research and `data/firmware_baselines.json` expansion |
@@ -342,6 +346,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | 3.8.2 | 2026-07-31 | Fix: ESeriesSystem GQL schema error broke efficiency harvest — removed invalid fragment, restored snapshot-excluded data reduction ratios, donut chart savings, and capacity fields |
 | 4.0.0 | 2026-08-01 | Fleet-Aware Enrichment Engine rewrite — 268+ KB articles, JSON-LD crawlers, deliverable enrichment mapper, KB Intelligence panel, enrichment badges |
 | 4.0.1 | 2026-08-01 | Deliverable DR/capacity/adoption intelligence, dynamic remediation fields, cluster name derivation, multi-platform upgrade paths, E-Series detection fixes |
+| 4.0.2 | 2026-08-01 | Platform-specific rear-panel backplate, SVM/LIF enrichment, vserver GraphQL harvesting, harvest merge-back guard, networkPorts field, card overflow fix |
 
 ---
 
@@ -369,8 +374,8 @@ The previous agent conversation (ID: `73665ae2-...`) produced these planning/rev
 
 ### Immediate Housekeeping
 1. **Sync `index.html` with `index_src.html`** — the ASUP modal DOM from `index_src.html` should be in the production file
-2. ~~**Add v3.7.0 entry to CHANGELOG.md**~~ — ✅ Done (all versions through 4.0.1 documented)
-3. ~~**Update README.md version badge**~~ — ✅ Done (badge shows 4.0.1)
+2. ~~**Add v3.7.0 entry to CHANGELOG.md**~~ — ✅ Done (all versions through 4.0.2 documented)
+3. ~~**Update README.md version badge**~~ — ✅ Done (badge shows 4.0.2)
 4. **Fix `AIQscraper.spec` macOS version** — hardcoded 3.0.0
 5. **Fix `build_mac.sh` corrupted string** on line 22
 
@@ -396,6 +401,9 @@ Key metric calculations are implemented in `app.js` at the following locations:
 - **`computeMTTR(allSupportCases)`** — Line 11060. Calculates the Mean Time to Resolve in days for all closed cases.
 - **`computeFeatureAdoptionScore(sys)`** — Line 11088. Evaluates a 15-point best-practice checklist to return an adoption score (0-15) and percentage.
 - **`computeCostOfInaction(targetSystems)`** — Line 11118. Computes the weighted Cost of Inaction urgency score based on risks, CVEs, capacity runway, and lifecycle status.
+- **`_buildControllerBackplate`** — Platform-specific rear-panel HTML builder
+- **`compileSvmLifInventoryText`** — SVM/LIF inventory text generator for deliverables
+- **`getSystemSvms`** — SVM data retrieval with multi-source fallback
 
 ---
 

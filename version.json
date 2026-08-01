@@ -1,8 +1,8 @@
 {
-  "version": "4.0.1",
+  "version": "4.0.2",
   "major": 4,
   "minor": 0,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-01",
-  "notes": "Deliverable intelligence enrichment (DR/capacity/adoption), dynamic remediation fields, cluster name derivation from hostname, multi-platform upgrade paths (ONTAP + StorageGRID + E-Series), E-Series model detection fixes, linkify anchor-tag safety."
+  "notes": "Platform-specific controller rear-panel backplate visualization, SVM/LIF inventory enrichment in cabling & deliverables, vserver data harvesting via GraphQL, harvest merge-back guard for transient API failures, networkPorts GraphQL field addition, card overflow fix."
 }
