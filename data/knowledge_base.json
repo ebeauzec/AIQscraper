@@ -1,0 +1,2414 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-08-01",
+  "articleCount": 311,
+  "articles": [
+    {
+      "url": "https://kb.netapp.com/Interactive_and_resolution_guides",
+      "title": "Interactive and resolution guides",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Cloud",
+      "title": "Cloud",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt",
+      "title": "Data Management",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/hybrid",
+      "title": "Hybrid Infrastructure",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy",
+      "title": "Legacy",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem",
+      "title": "On Premises",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/cs",
+      "title": "Customer Success",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/All_Products",
+      "title": "All Products",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss",
+      "title": "NetApp Non-Technical Support",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Cloud/Amazon_FSX",
+      "title": "Amazon FSX for NetApp ONTAP",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Cloud/Astra",
+      "title": "Astra",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Cloud/Azure_NetApp_Files",
+      "title": "Azure NetApp Files",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Cloud/ncds",
+      "title": "NetApp Console and Data Services",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Cloud/OpenStack",
+      "title": "OpenStack",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt/AIQUM",
+      "title": "Active IQ Unified Manager",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt/Digital-Advisor-KBs",
+      "title": "Digital Advisor",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt/OCI_Kbs",
+      "title": "OnCommand Insight",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt/OTV",
+      "title": "ONTAP Tools for VMware vSphere",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt/SMI-S",
+      "title": "SMI-S",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/data-mgmt/SnapCenter",
+      "title": "SnapCenter",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/hybrid/FlexPod",
+      "title": "FlexPod with Infrastructure Automation",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/hybrid/Keystone",
+      "title": "Keystone",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/hybrid/StorageGRID",
+      "title": "StorageGRID",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/AltaVault",
+      "title": "AltaVault",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/Brocade_Legacy",
+      "title": "Brocade Legacy",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/CSA",
+      "title": "Converged System Advisor",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/NetApp_HCI",
+      "title": "NetApp HCI",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/OHW",
+      "title": "Legacy ONTAP Hardware",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/OnCommand_Suite",
+      "title": "OnCommand Suite",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/ONTAP",
+      "title": "Legacy ONTAP",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/SaaS_Backup",
+      "title": "SaaS Backup",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/SMBR",
+      "title": "Single Mailbox Recovery",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/SnapManager",
+      "title": "SnapManager Suite",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/Snap_Creator",
+      "title": "Snap Creator",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ASAr2",
+      "title": "ONTAP for ASA r2",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/E-Series",
+      "title": "E-Series",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap",
+      "title": "ONTAP 9",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/solidfire",
+      "title": "SolidFire",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/Switches",
+      "title": "Switches",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/cs/General_Support",
+      "title": "General Support",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/cs/lcm",
+      "title": "Lifecycle Management",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/cs/NetApp_Cloud_Customer_Success",
+      "title": "NetApp Cloud Customer Success",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/cs/videos",
+      "title": "Videos",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/AutoSupport",
+      "title": "AutoSupport",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/Entitlement",
+      "title": "Entitlement",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/FSO",
+      "title": "Field Support Order (FSO)",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/Installed_Products",
+      "title": "Installed Products",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/Licensing",
+      "title": "Licensing",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/RMA",
+      "title": "Part Request (RMA)",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/Support_Site",
+      "title": "Support Site",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/System_Registration",
+      "title": "System Registration",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/nss/User_Profile",
+      "title": "User Profile",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/ONTAP/7mode_Issues",
+      "title": "7mode Issues",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/Legacy/ONTAP/Clustered_Data_ONTAP_8",
+      "title": "Clustered Data ONTAP 8",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da",
+      "title": "Data Access",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM",
+      "title": "ONTAP Management",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP",
+      "title": "Data Protection",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/mc",
+      "title": "MetroCluster",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/Mediator",
+      "title": "Mediator",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/OHW",
+      "title": "ONTAP Hardware",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/ontap-select",
+      "title": "ONTAP Select",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/Ontap_OS",
+      "title": "Operating System",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/Perf",
+      "title": "Performance",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/Upgrade",
+      "title": "Upgrade",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-family/",
+      "title": "ONTAP",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/release-notes/index.html",
+      "title": "What's new in recent ONTAP 9 releases",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-automation/getting_started_with_the_rest_api.html",
+      "title": "Automate with the ONTAP REST API",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/quick-start.html",
+      "title": "ONTAP quick start",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/software_setup/workflow-summary.html",
+      "title": "Set up ONTAP",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-cli/index.html",
+      "title": "ONTAP manual pages",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/setup-upgrade/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/upgrade/index.html",
+      "title": "Upgrade ONTAP",
+      "source": "docs.netapp.com",
+      "category": "upgrade",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/update/firmware-task.html",
+      "title": "Update firmware",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/revert/index.html",
+      "title": "Revert ONTAP",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/cluster-admin/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/disks-aggregates/index.html",
+      "title": "Disk and local tier or aggregate management",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/fabricpool/index.html",
+      "title": "FabricPool tier management",
+      "source": "docs.netapp.com",
+      "category": "configuration",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/volume-admin/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/flexgroup/index.html",
+      "title": "FlexGroup volumes management",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/flexcache/index.html",
+      "title": "FlexCache volumes management",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/network-management/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/networking/networking_reference.html",
+      "title": "Network visualization with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/networking/set_up_nas_path_failover_98_and_later_cli.html",
+      "title": "Learn about NAS failover on the ONTAP network",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nas-management/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/concept_nas_provision_overview.html",
+      "title": "Manage NAS protocols with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-config/index.html",
+      "title": "Configure NFS",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-admin/index.html",
+      "title": "Manage NFS",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-config/index.html",
+      "title": "Configure SMB with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-admin/index.html",
+      "title": "Manage SMB with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-hyper-v-sql/index.html",
+      "title": "SMB configuration for Microsoft Hyper-V and SQL Servers",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-management/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-admin/index.html",
+      "title": "Manage SAN storage",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-config/index.html",
+      "title": "SAN configuration",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-sanhost/",
+      "title": "Configure SAN hosts",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/object-storage-management/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/s3-config/workflow-concept.html",
+      "title": "Configure S3 access",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/s3-snapmirror/index.html",
+      "title": "Protect S3 buckets with SnapMirror",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/authentication-access-control/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/authentication/workflow-concept.html",
+      "title": "Manage authentication and RBAC",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/system-admin/manage-web-services-concept.html",
+      "title": "Manage web services",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/system-admin/configure-saml-authentication-task.html",
+      "title": "Enable SAML authentication",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/authentication/setup-ssh-multifactor-authentication-task.html",
+      "title": "Enable MFA",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/multi-admin-verify/index.html",
+      "title": "Multi-admin verification",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/authentication/overview-oauth2.html",
+      "title": "OAuth2 authorization",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/security-encryption/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nas-audit/index.html",
+      "title": "NAS auditing and security tracing",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/antivirus/index.html",
+      "title": "Antivirus configuration",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/data-protection-disaster-recovery/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/snaplock/index.html",
+      "title": "Archive and compliance using SnapLock technology",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/snapmirror-active-sync/index.html",
+      "title": "SnapMirror active sync",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/tape-backup/index.html",
+      "title": "Data protection using tape backup",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/ndmp/index.html",
+      "title": "NDMP configuration",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/event-performance-monitoring/index.html",
+      "title": "All topics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_cp_monitor_cluster_performance_sm.html",
+      "title": "Monitor cluster performance using System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/performance-config/index.html",
+      "title": "Performance monitoring setup with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/performance-admin/index.html",
+      "title": "Performance management with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/concept_nas_file_system_analytics_overview.html",
+      "title": "File System Analytics",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/error-messages/index.html",
+      "title": "EMS configuration",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-ems-9131/",
+      "title": "ONTAP 9 EMS Reference",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ai-data-engine/index.html",
+      "title": "AI Data Engine",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-technical-reports/ransomware-solutions/ransomware-overview.html",
+      "title": "NetApp ransomware protection portfolio",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/index.html",
+      "title": "AFF, ASA, and FAS storage systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-afx/index.html",
+      "title": "AFX storage systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/asa-r2/index.html",
+      "title": "ASA r2 storage systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_asa_software_configuration.html",
+      "title": "ASA storage systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-metrocluster/",
+      "title": "MetroCluster",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-7mode-transition/index.html",
+      "title": "Transition from 7-Mode",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-fli/",
+      "title": "ONTAP Foreign Lun Import",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-select/",
+      "title": "ONTAP Select",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-system-manager-classic/index.html",
+      "title": "System Manager Classic (ONTAP 9.0 to 9.7)",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems-family/",
+      "title": "ONTAP hardware systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/whats-new.html",
+      "title": "What's new",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/get-up-and-run.html",
+      "title": "Quick start",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-aseries/index.html",
+      "title": "AFF A-Series systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-cseries/index.html",
+      "title": "AFF C-Series systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/allsan-landing/index.html",
+      "title": "ASA systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/afx/index.html",
+      "title": "AFX systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-r2/index.html",
+      "title": "ASA r2 systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas/index.html",
+      "title": "FAS systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/endofavail/index.html",
+      "title": "End-of-availability systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/drive-shelves/index.html",
+      "title": "Drive shelves",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems-switches/index.html",
+      "title": "Switches",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems-upgrade/index.html",
+      "title": "Platform upgrade (Most systems)",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-metrocluster/upgrade/concept_choosing_an_upgrade_method_mcc.html",
+      "title": "Platform upgrade (MetroCluster config)",
+      "source": "docs.netapp.com",
+      "category": "upgrade",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/index.html",
+      "title": "ONTAP software",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/index.html",
+      "title": "Digital Advisor",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_enable_linux_nfs.html",
+      "title": "Configure with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-config/create-server-task.html",
+      "title": "Configure with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_provision_export_policies.html",
+      "title": "Configure NFS exports with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-config/export-policies-concept.html",
+      "title": "Configure NFS exports with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-config/verify-client-access-from-cluster-task.html",
+      "title": "Verify NFS client access",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-trunking/index.html",
+      "title": "Configure NFS session trunking (new in ONTAP 9.14.1)",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_enable_windows_smb.html",
+      "title": "Configure with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-config/create-server-active-directory-domain-task.html",
+      "title": "Configure with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_provision_home_directories.html",
+      "title": "Manage home directories with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-admin/dynamic-home-directories-concept.html",
+      "title": "Manage home directories with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-admin/supported-versions-functionality-concept.html",
+      "title": "Supported SMB versions and functionality",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_enable_nfs_and_smb.html",
+      "title": "Configure with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-admin/enable-access-windows-nfs-clients-task.html",
+      "title": "Enable access for Windows NFS clients",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/smb-admin/nfs-smb-file-directory-naming-concept.html",
+      "title": "NFS and SMB naming dependencies",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_provide_client_access_with_name_services.html",
+      "title": "Configure name services with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-config/configure-name-services-concept.html",
+      "title": "Configure name services with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-admin/ontap-name-service-switch-config-concept.html",
+      "title": "Name service switch overview",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-admin/troubleshoot-name-service-issues-task.html",
+      "title": "Troubleshoot name service issues",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-admin/ontap-support-kerberos-concept.html",
+      "title": "ONTAP support for Kerberos",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_nas_secure_client_access_with_kerberos.html",
+      "title": "Configure Kerberos with System Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-config/kerberos-nfs-strong-security-concept.html",
+      "title": "Configure Kerberos with the CLI",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-rdma/index.html",
+      "title": "NFS over RDMA overview",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-rdma/configure-nics-task.html",
+      "title": "NIC configuration",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/nfs-rdma/configure-lifs-task.html",
+      "title": "LIF configuration",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-admin/provision-storage.html",
+      "title": "Provision SAN storage",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-admin/create-nvme-namespace-subsystem-task.html",
+      "title": "Provision NVMe storage",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-config/configure-iscsi-san-hosts-ha-pairs-reference.html",
+      "title": "iSCSI SAN host with HA pairs",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/san-config/configure-fc-nvme-hosts-ha-pairs-reference.html",
+      "title": "FC and FC-NVMe with HA pairs",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/asa-r2/",
+      "title": "ONTAP for ASA r2 systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/upgrade/create-upgrade-plan.html",
+      "title": "prepare to upgrade with Upgrade Advisor",
+      "source": "docs.netapp.com",
+      "category": "upgrade",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/upgrade_advisor_overview.html",
+      "title": "Upgrade Advisor",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/upgrade-health-checker/learn-about-upgrade-health-checker.html",
+      "title": "Upgrade Health Checker",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/upgrade/prepare.html",
+      "title": "prepare to upgrade manually",
+      "source": "docs.netapp.com",
+      "category": "upgrade",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/upgrade/task_upgrade_andu_sm.html",
+      "title": "automated non-disruptive upgrade (ANDU) from System Manager",
+      "source": "docs.netapp.com",
+      "category": "upgrade",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/upgrade/concept_upgrade_paths.html",
+      "title": "Supported upgrade paths",
+      "source": "docs.netapp.com",
+      "category": "upgrade",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/index.html",
+      "title": "Active IQ Unified Manager",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-backup-recovery/index.html",
+      "title": "Backup and Recovery",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-cloud-tiering/index.html",
+      "title": "Cloud Tiering",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/storage-management-cloud-volumes-ontap/index.html",
+      "title": "Cloud Volumes ONTAP",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-copy-sync/index.html",
+      "title": "Copy and Sync",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-data-classification/index.html",
+      "title": "Data Classification",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-infrastructure-insights/index.html",
+      "title": "Data Infrastructure Insights",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-disaster-recovery/index.html",
+      "title": "Disaster Recovery",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/e-series-family/index.html",
+      "title": "E-Series systems",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/keystone-staas/index.html",
+      "title": "Keystone",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-family/index.html",
+      "title": "NetApp Console",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-migrator/index.html",
+      "title": "NetApp Data Migrator",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/smis-provider/index.html",
+      "title": "NetApp SMI-S Provider",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions-family/index.html",
+      "title": "NetApp solutions",
+      "source": "docs.netapp.com",
+      "category": "best_practices",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/oncommand-insight/index.html",
+      "title": "OnCommand Insight",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workflow-automation/index.html",
+      "title": "OnCommand Workflow Automation",
+      "source": "docs.netapp.com",
+      "category": "automation",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-metrocluster/index.html",
+      "title": "ONTAP MetroCluster",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-sanhost/index.html",
+      "title": "ONTAP SAN Host Utilities",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-select/index.html",
+      "title": "ONTAP Select",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere-10/index.html",
+      "title": "ONTAP tools for VMware vSphere",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-ransomware-resilience/index.html",
+      "title": "Ransomware Resilience",
+      "source": "docs.netapp.com",
+      "category": "security",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-replication/index.html",
+      "title": "Replication",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/e-series-santricity/index.html",
+      "title": "SANtricity",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/sc-plugin-vmware-vsphere/index.html",
+      "title": "SnapCenter Plug-in for VMware vSphere",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/snapcenter/index.html",
+      "title": "SnapCenter software",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/snap-creator-framework/index.html",
+      "title": "Snap Creator Framework",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/element-software/index.html",
+      "title": "SolidFire",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/storagegrid-family/index.html",
+      "title": "StorageGRID",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/upgrade-health-checker/index.html",
+      "title": "Upgrade Health Checker",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-family/index.html",
+      "title": "Workload Factory",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-01",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/system-admin/index.html",
+      "title": "ONTAP System Administration",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/networking/index.html",
+      "title": "ONTAP Network Management",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/security/index.html",
+      "title": "ONTAP Security Hardening",
+      "source": "docs.netapp.com",
+      "category": "security",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/anti-ransomware/index.html",
+      "title": "ONTAP Anti-Ransomware",
+      "source": "docs.netapp.com",
+      "category": "security",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/data-protection/index.html",
+      "title": "ONTAP Data Protection",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/volumes/index.html",
+      "title": "ONTAP Volume Management",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/peering/index.html",
+      "title": "ONTAP Cluster Peering",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/mediator/index.html",
+      "title": "ONTAP Mediator for MetroCluster/SMBC",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/encryption-at-rest/index.html",
+      "title": "ONTAP Encryption at Rest",
+      "source": "docs.netapp.com",
+      "category": "security",
+      "relevance": "ONTAP 11.7 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/2806/install-setup.html",
+      "title": "2806 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "2806 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/2806/maintain-overview.html",
+      "title": "2806 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "2806 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/2824/install-setup.html",
+      "title": "2824 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "2824 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/2824/maintain-overview.html",
+      "title": "2824 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "2824 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/2860/install-setup.html",
+      "title": "2860 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "2860 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/2860/maintain-overview.html",
+      "title": "2860 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "2860 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/4012/install-setup.html",
+      "title": "4012 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "4012 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/4012/maintain-overview.html",
+      "title": "4012 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "4012 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a150/install-setup.html",
+      "title": "AFF-A150 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A150 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a150/maintain-overview.html",
+      "title": "AFF-A150 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A150 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a220/install-setup.html",
+      "title": "AFF-A220 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A220 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a220/maintain-overview.html",
+      "title": "AFF-A220 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A220 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a250/install-setup.html",
+      "title": "AFF-A250 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A250 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a250/maintain-overview.html",
+      "title": "AFF-A250 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A250 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a30/install-setup.html",
+      "title": "AFF-A30 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A30 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a30/maintain-overview.html",
+      "title": "AFF-A30 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A30 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a300/install-setup.html",
+      "title": "AFF-A300 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A300 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a300/maintain-overview.html",
+      "title": "AFF-A300 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A300 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a400/install-setup.html",
+      "title": "AFF-A400 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A400 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a400/maintain-overview.html",
+      "title": "AFF-A400 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A400 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a50/install-setup.html",
+      "title": "AFF-A50 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A50 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a50/maintain-overview.html",
+      "title": "AFF-A50 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A50 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a700/install-setup.html",
+      "title": "AFF-A700 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A700 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-a700/maintain-overview.html",
+      "title": "AFF-A700 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-A700 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c190/install-setup.html",
+      "title": "AFF-C190 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C190 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c190/maintain-overview.html",
+      "title": "AFF-C190 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C190 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c250/install-setup.html",
+      "title": "AFF-C250 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C250 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c250/maintain-overview.html",
+      "title": "AFF-C250 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C250 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c30/install-setup.html",
+      "title": "AFF-C30 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C30 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c30/maintain-overview.html",
+      "title": "AFF-C30 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C30 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c400/install-setup.html",
+      "title": "AFF-C400 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C400 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c400/maintain-overview.html",
+      "title": "AFF-C400 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C400 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c60/install-setup.html",
+      "title": "AFF-C60 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C60 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/aff-c60/maintain-overview.html",
+      "title": "AFF-C60 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "AFF-C60 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-a250/install-setup.html",
+      "title": "ASA-A250 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ASA-A250 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-a250/maintain-overview.html",
+      "title": "ASA-A250 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ASA-A250 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-a70/install-setup.html",
+      "title": "ASA-A70 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ASA-A70 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-a70/maintain-overview.html",
+      "title": "ASA-A70 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ASA-A70 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-a800/install-setup.html",
+      "title": "ASA-A800 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ASA-A800 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/asa-a800/maintain-overview.html",
+      "title": "ASA-A800 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "ASA-A800 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/cloud/install-setup.html",
+      "title": "CLOUD — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "CLOUD deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/cloud/maintain-overview.html",
+      "title": "CLOUD — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "CLOUD deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2650/install-setup.html",
+      "title": "FAS2650 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2650 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2650/maintain-overview.html",
+      "title": "FAS2650 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2650 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2720/install-setup.html",
+      "title": "FAS2720 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2720 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2720/maintain-overview.html",
+      "title": "FAS2720 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2720 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2750/install-setup.html",
+      "title": "FAS2750 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2750 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2750/maintain-overview.html",
+      "title": "FAS2750 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2750 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2820/install-setup.html",
+      "title": "FAS2820 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2820 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas2820/maintain-overview.html",
+      "title": "FAS2820 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS2820 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas50/install-setup.html",
+      "title": "FAS50 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS50 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas50/maintain-overview.html",
+      "title": "FAS50 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS50 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas70/install-setup.html",
+      "title": "FAS70 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS70 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas70/maintain-overview.html",
+      "title": "FAS70 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS70 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas8200/install-setup.html",
+      "title": "FAS8200 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS8200 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas8200/maintain-overview.html",
+      "title": "FAS8200 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS8200 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas8300/install-setup.html",
+      "title": "FAS8300 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS8300 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas8300/maintain-overview.html",
+      "title": "FAS8300 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS8300 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas8700/install-setup.html",
+      "title": "FAS8700 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS8700 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/fas8700/maintain-overview.html",
+      "title": "FAS8700 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "FAS8700 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/sg5760/install-setup.html",
+      "title": "SG5760 — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "SG5760 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/sg5760/maintain-overview.html",
+      "title": "SG5760 — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "SG5760 deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/storagegrid/install-setup.html",
+      "title": "STORAGEGRID — Installation & Setup",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "STORAGEGRID deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-systems/storagegrid/maintain-overview.html",
+      "title": "STORAGEGRID — Hardware Maintenance",
+      "source": "docs.netapp.com",
+      "category": "operations",
+      "relevance": "STORAGEGRID deployed in fleet",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/Host-Utilities",
+      "title": "Host Utilities",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/NAS",
+      "title": "NAS",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/S3",
+      "title": "S3",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/SAN",
+      "title": "SAN",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/XCP",
+      "title": "XCP",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/NDMP",
+      "title": "NDMP",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapDiff",
+      "title": "SnapDiff",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapLock",
+      "title": "SnapLock",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapMirror",
+      "title": "SnapMirror",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapRestore",
+      "title": "SnapRestore",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/Efficiency",
+      "title": "Efficiency",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/Encryption",
+      "title": "Encryption",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/FabricPool",
+      "title": "FabricPool",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/FlexGroup",
+      "title": "FlexGroup",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/REST-API",
+      "title": "REST API",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/System_Manager",
+      "title": "System Manager",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DM/VAAI",
+      "title": "VAAI",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/mc/mc-Issues",
+      "title": "MetroCluster Issues",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/mc/MC-KBs",
+      "title": "MetroCluster KBs",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapMirror/SnapMirror-Issues",
+      "title": "SnapMirror-Issues",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapMirror/SnapMirror-KBs",
+      "title": "SnapMirror KBs",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapLock/SnapLock-Issues",
+      "title": "SnapLock-Issues",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/DP/SnapLock/SnapLock-KBs",
+      "title": "SnapLock KBs",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-Issues",
+      "title": "NAS-Issues",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs",
+      "title": "NAS KBs",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/SAN/SAN-Issues",
+      "title": "SAN Issues",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    },
+    {
+      "url": "https://kb.netapp.com/on-prem/ontap/da/SAN/SAN-KBs",
+      "title": "SAN KBs",
+      "source": "kb.netapp.com",
+      "category": "troubleshooting",
+      "relevance": "fleet-specific",
+      "discoveredAt": "2026-08-01",
+      "_fleetRelevant": true
+    }
+  ]
+}

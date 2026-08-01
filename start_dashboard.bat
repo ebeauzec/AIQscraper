@@ -1,7 +1,7 @@
 @echo off
-title NetApp Active IQ TAM Dashboard
+title ARIA — Active IQ Risk Intelligence Advisor
 echo ===================================================
-echo   NetApp Active IQ TAM Dashboard
+echo   ARIA — Active IQ Risk Intelligence Advisor
 echo ===================================================
 echo.
 
