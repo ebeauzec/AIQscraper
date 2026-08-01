@@ -69,7 +69,7 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 
 ## 2. What It Delivers
 
-In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library, and renders it as a fully interactive dashboard with 11 downloadable customer-facing deliverables.
+In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library and ARIA Knowledge Base Intelligence engine, and renders it as a fully interactive dashboard with 13 downloadable customer-facing deliverables — each enriched with fleet-relevant KB references, actionable CLI commands, and estimated remediation effort.
 
 **Harvested from Active IQ:**
 - Every system and cluster across your entire portfolio
@@ -329,7 +329,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are 
 | **6** | **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
 | **7** | **Logistics & Health** | Site locations (city/country/state), account contacts, CSAT scores |
 | **8** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
-| **9** | **Deliverables** | 11 one-click downloadable report generators |
+| **9** | **Deliverables** | 13 one-click downloadable report generators — each with KB intelligence badge showing enrichment article count |
 | **10** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
 | **11** | **Sustainability & ESG** | Fleet Sustainability Score with weekly trend, carbon/energy per system, data reduction ratios per customer |
 | **12** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores |
@@ -345,21 +345,27 @@ Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are 
 
 All deliverables are generated in the browser from your local data. Nothing is uploaded or transmitted. Find them in **Action Planner → Tab 9**.
 
+> **KB Intelligence Enrichment:** Each deliverable is automatically enriched with fleet-relevant articles from the ARIA Knowledge Base Intelligence engine. A badge on each card shows the number of KB references attached (e.g., "★ 5 KB refs"). The Knowledge Base Intelligence summary panel at the top of the deliverables section shows aggregate enrichment statistics and fleet profile context.
+
 > **Customer-scoped:** Set the Customer Filter in the sidebar before generating to produce a deliverable for a single account only.
 
-| Deliverable | Best For | Contents |
-|---|---|---|
-| **TAM Success Plan** | Executive QBR presentation | Fleet health summary, key risks, strategic recommendations, contract renewal pipeline, MEDDPICC alignment |
-| **QBR Pack** | Quarterly Business Reviews | KPI scorecard, risk trend, resolved cases, open action items, upgrade roadmap |
-| **MSP Service Report** | Monthly managed service reporting | SLA metrics, case resolution summary, proactive actions, risk posture change |
-| **MEDDPICC Deal Brief** | Sales qualification & deal strategy | Account health score, feature adoption, cost of inaction, champion mapping, competitive positioning |
-| **Account Handover Brief** | TAM-to-TAM transitions | Fleet context, open risks, contract status, key contacts, pending actions |
-| **Security Posture Brief** | CISO / security reviews | CVE remediation matrix, ARP/encryption coverage, NIST CSF 2.0 alignment, feature gap analysis |
-| **Sustainability & ESG Report** | Executive ESG reporting | Fleet sustainability score, carbon/energy metrics, data reduction impact, optimization roadmap |
-| **Extended Deliverables** | Deep technical briefings | Full risk register, advisory inventory, upgrade roadmap, switch validation, sales proposals |
-| **CLI Runbook** | Implementation engineers / CAB submissions | Copy-paste ONTAP CLI commands, grouped by remediation and classified by ITIL tier |
-| **Fleet Inventory CSV** | Data export & analysis | Complete system inventory with all enriched fields, exportable to Excel |
-| **Config State JSON** | Backup & restore | Full application configuration state for import/export across environments |
+| ID | Deliverable | Audience | Contents |
+|---|---|---|---|
+| **A** | **Executive Risk Assessment** | TAM | Fleet health summary, key risks, operational health scorecard, prioritized corrective actions, account team context |
+| **B** | **ITIL Change Control & Dispatch Tickets** | TAM / Change Mgmt | Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands |
+| **C** | **CLI Runbooks & Upgrade Execution Plans** | Implementation Eng | Copy-paste ONTAP CLI commands, multi-hop upgrade paths, platform-specific checks |
+| **D** | **Customer Advisory & QBR Communications** | TAM | Advisory email template with health snapshot, sustainability score, lifecycle milestones, QBR executive summary |
+| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions | Solution design with prioritized corrections, OS upgrade targets, phased implementation timeline |
+| **F** | **Sales Refresh & Renewal Proposals** | Sales Rep | Contract renewals, lifecycle refresh candidates, security/compliance upsell opportunities |
+| **G** | **MEDDPICC Deal Intelligence Brief** | Sales | Account health score, feature adoption, cost of inaction, champion mapping, competitive positioning |
+| **H** | **Security Posture Executive Brief** | CISO / Security | CVE remediation matrix, ARP/encryption coverage, NIST CSF 2.0 alignment, feature gap analysis |
+| **I** | **Sustainability & ESG Report** | Exec / ESG | Fleet sustainability score, carbon/energy metrics, data reduction impact, optimization roadmap |
+| **J** | **TAM Success & Posture Optimization Plan** | TAM | Phased TAM roadmap, ITIL governance guidelines, full KB enrichment by category |
+| **K** | **TAM Quarterly Business Review (QBR) Pack** | TAM / Exec | KPI scorecard, risk trend, resolved cases, open action items, upgrade roadmap, sustainability metrics |
+| **L** | **MSP Service Delivery Report** | MSP | SLA compliance matrix, incident management, contract portfolio, capacity efficiency analysis |
+| **M** | **Account Handover & Transition Brief** | TAM Transitions | Environment inventory, personnel, risk posture, contract status, recent activity, talking points |
+| — | **Fleet Inventory CSV** | Data Export | Complete system inventory with all enriched fields, exportable to Excel |
+| — | **Config State JSON** | Backup | Full application configuration state for import/export across environments |
 
 ---
 
@@ -617,7 +623,7 @@ AIQscraper/
 | File | Size | Role |
 |---|---|---|
 | `server.py` | ~210 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints |
-| `app.js` | ~1.2 MB | ~22,000 lines JavaScript. Enrichment engine, risk engine, upgrade path calculator, 17-tab Action Planner renderer, 11 deliverable generators, chart rendering, Reference Library |
+| `app.js` | ~1.3 MB | ~23,700 lines JavaScript. ARIA enrichment intelligence engine, risk engine, upgrade path calculator, 17-tab Action Planner renderer, 13 deliverable generators with KB enrichment badges, chart rendering, Reference Library |
 | `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
 | `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
 | `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
