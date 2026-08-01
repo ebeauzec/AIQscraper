@@ -1,7 +1,7 @@
 {
   "version": 1,
   "lastUpdated": "2026-08-01",
-  "articleCount": 311,
+  "articleCount": 339,
   "articles": [
     {
       "url": "https://kb.netapp.com/Interactive_and_resolution_guides",
@@ -2409,6 +2409,230 @@
       "relevance": "fleet-specific",
       "discoveredAt": "2026-08-01",
       "_fleetRelevant": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vsphere-overview.html",
+      "title": "ONTAP for VMware vSphere Administrators",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-otv-hardening-overview.html",
+      "title": "VMware vSphere with ONTAP Best Practices",
+      "source": "docs.netapp.com",
+      "category": "best_practices",
+      "relevance": "Fleet-relevant best_practices documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-srm-overview.html",
+      "title": "VMware SRM with ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vvols-overview.html",
+      "title": "VMware vVols with ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/trident/index.html",
+      "title": "Astra Trident (Kubernetes CSI)",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/astra-control-center/index.html",
+      "title": "Astra Control Center",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/oracle/oracle-overview.html",
+      "title": "Oracle on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/mssql/mssql-overview.html",
+      "title": "Microsoft SQL Server on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/sap-hana/sap-hana-overview.html",
+      "title": "SAP HANA on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/postgres/postgres-overview.html",
+      "title": "PostgreSQL on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/mysql/mysql-overview.html",
+      "title": "MySQL on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/mongodb/mongodb-overview.html",
+      "title": "MongoDB on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-apps-dbs/epic/epic-overview.html",
+      "title": "Epic EHR on ONTAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-automation/index.html",
+      "title": "ONTAP REST API",
+      "source": "docs.netapp.com",
+      "category": "automation",
+      "relevance": "Fleet-relevant automation documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/task_configure_ontap.html",
+      "title": "Ansible Automation",
+      "source": "docs.netapp.com",
+      "category": "automation",
+      "relevance": "Fleet-relevant automation documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://netapp.github.io/harvest/",
+      "title": "NetApp Harvest (Prometheus/Grafana)",
+      "source": "docs.netapp.com",
+      "category": "automation",
+      "relevance": "Fleet-relevant automation documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-backup-recovery/index.html",
+      "title": "BlueXP Backup and Recovery",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "Fleet-relevant data_protection documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-backup-recovery/concept-backup-to-cloud.html",
+      "title": "Cloud Backup",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "relevance": "Fleet-relevant cloud documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-cloud-volumes-ontap/index.html",
+      "title": "Cloud Volumes ONTAP",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "relevance": "Fleet-relevant cloud documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-fsx-ontap/index.html",
+      "title": "Amazon FSx for ONTAP",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "relevance": "Fleet-relevant cloud documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-azure-netapp-files/index.html",
+      "title": "Azure NetApp Files",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "relevance": "Fleet-relevant cloud documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-google-cloud-netapp-volumes/index.html",
+      "title": "Google Cloud NetApp Volumes",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "relevance": "Fleet-relevant cloud documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-tiering/index.html",
+      "title": "FabricPool Cloud Tiering",
+      "source": "docs.netapp.com",
+      "category": "cloud",
+      "relevance": "Fleet-relevant cloud documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-classification/index.html",
+      "title": "BlueXP Classification (Data Sense)",
+      "source": "docs.netapp.com",
+      "category": "compliance",
+      "relevance": "Fleet-relevant compliance documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/bluexp-digital-wallet/index.html",
+      "title": "BlueXP Digital Wallet",
+      "source": "docs.netapp.com",
+      "category": "monitoring",
+      "relevance": "Fleet-relevant monitoring documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/zero-trust/zero-trust-overview.html",
+      "title": "Zero Trust with ONTAP",
+      "source": "docs.netapp.com",
+      "category": "security",
+      "relevance": "Fleet-relevant security documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/volumes/flexclone-efficient-copies-concept.html",
+      "title": "FlexClone",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "Fleet-relevant data_protection documentation",
+      "discoveredAt": "2026-08-01"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/volumes/deduplication-data-compression-efficiency-concept.html",
+      "title": "Storage Efficiency Overview",
+      "source": "docs.netapp.com",
+      "category": "performance",
+      "relevance": "Fleet-relevant performance documentation",
+      "discoveredAt": "2026-08-01"
     }
   ]
 }
