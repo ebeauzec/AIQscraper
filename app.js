@@ -11222,7 +11222,13 @@ function enrichSystemTelemetry(s) {
   // --- Field normalization: accept both camelCase (API) and snake_case (legacy) ---
   const serial = s.serialNumber || s.serial_number || s.id || "unknown";
   const name = s.systemName || s.system_name || s.name || "unknown";
-  const cluster = s.clusterName || s.cluster_name || s.clusterUuid || "unknown";
+  // Cluster name fallback: API field → hostname with node suffix stripped → "unknown".
+  // NetApp hostnames commonly embed the cluster identity (e.g. "A150-CLUSTER-01"),
+  // so stripping the trailing node index gives a usable cluster label.
+  const _clusterRaw = s.clusterName || s.cluster_name || s.clusterUuid || "";
+  const cluster = _clusterRaw
+    || name.replace(/[-_](?:0[1-9]|node[0-9]+|n[0-9]+)$/i, '')
+    || "unknown";
   const customer = s.customerName || s.customer_name || s.accountName || s.account_name || "customer";
   // osVer: read the raw version string from whatever field the source provides.
   // NOTE: Do NOT apply a platform-specific default here — we must first detect the
