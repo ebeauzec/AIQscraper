@@ -17162,7 +17162,7 @@ ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remai
     salesProposals += `\nFEATURE ADOPTION UPLIFT [MEDDPICC: D + C]
 --------------------------------------------------------------------------------
   Fleet Average: ${fm.fleetAvgScore}%  |  Bottom Performers:
-${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => `    • ${s.name}: ${s.passed}/${s.total} (${s.pct}%) — gaps: ${s.gaps.slice(0, 3).join(', ')}`).join('\n')}
+${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; if (!s.arp) gaps.push('ARP'); if (!s.fabricPool) gaps.push('FabricPool'); if (!s.nve) gaps.push('NVE'); if (!s.snapMirror) gaps.push('SnapMirror'); if (!s.ha) gaps.push('HA'); if (!s.audit) gaps.push('Audit'); if (!s.snapLock) gaps.push('SnapLock'); if (!s.mav) gaps.push('MAV'); return `    • ${s.name}: ${s.score}/${s.total} (${s.pct}%) — gaps: ${gaps.slice(0, 3).join(', ')}`; }).join('\n')}
   → Professional Services enablement engagement
   → NetApp Learning Services training credits
 `;
