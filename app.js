@@ -11320,12 +11320,31 @@ function enrichSystemTelemetry(s) {
     };
   } else if (!upgrades && isLiveData) {
     // Live API path: no recommendedOSVersion from AIQ — apply platform-aware fallback
-    if (isStorageGrid && osVer.startsWith('11.')) {
-      upgrades = { targetVersion: '12.0.0', urgency: 'Recommended', benefits: 'StorageGRID 11.x end-of-support approaching. Upgrade to 12.0 for security patches, S3 improvements, and extended support.' };
-    } else if (isEseries && s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)) {
-      upgrades = { targetVersion: s.swRecMin, urgency: 'Recommended', benefits: `Upgrade to ${s.swRecMin} recommended by Active IQ minimum baseline.` };
+    if (isStorageGrid) {
+      upgrades = osVer.startsWith('11.')
+        ? { targetVersion: '12.0.0', urgency: 'Recommended', benefits: 'StorageGRID 11.x end-of-support approaching. Upgrade to 12.0 for security patches, S3 improvements, and extended support.' }
+        : { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+    } else if (isEseries) {
+      if (s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)) {
+        upgrades = { targetVersion: s.swRecMin, urgency: 'Recommended', benefits: `Upgrade to ${s.swRecMin} recommended by Active IQ minimum baseline.` };
+      } else {
+        upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+      }
     } else {
-      upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+      // ONTAP-based: AFF, FAS, ASA, ASA r2, AFX, CVO, unknown
+      const match = osVer.match(/9\.([0-9]+)/);
+      if (match) {
+        const minor = parseInt(match[1]);
+        if (minor < 16) {
+          upgrades = { targetVersion: '9.16.1P9', urgency: 'Recommended', benefits: 'Resolves critical Locked Snapshot bypass CVE-2026-22050 vulnerabilities.' };
+        } else if (minor < 19) {
+          upgrades = { targetVersion: '9.19.1P1', urgency: 'Recommended', benefits: 'Performance enhancements for next-gen block and NVMe-oF data paths.' };
+        } else {
+          upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+        }
+      } else {
+        upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+      }
     }
   } else if (!upgrades) {
     // Mock fallback for non-live systems
