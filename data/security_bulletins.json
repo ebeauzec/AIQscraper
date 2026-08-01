@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-07-21",
+  "lastUpdated": "2026-08-01",
   "source": "Authoritative bulletin database -- migrated from hardcoded NETAPP_SECURITY_BULLETIN_DB in app.js. Grows via POST /api/bulletins (daily scan agent).",
   "bulletinCount": 70,
   "bulletins": [
@@ -37,7 +37,9 @@
       },
       "mitigation": "Upgrade to ONTAP 9.16.1P9 or 9.17.1P2. Restrict management interface access to trusted networks. Enable audit logging on snapshot operations.",
       "published": "2026-01-12",
-      "link": "https://security.netapp.com/advisory/ntap-20260112-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20260112-0001/",
+      "epssScore": 0.00188,
+      "epssPercentile": 0.08727
     },
     {
       "id": "NTAP-20260304-0001",
@@ -93,7 +95,9 @@
       },
       "mitigation": "Upgrade to the applicable fixed patch release for your ONTAP branch. Restrict S3 bucket access policies.",
       "published": "2026-03-04",
-      "link": "https://security.netapp.com/advisory/ntap-20260304-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20260304-0001/",
+      "epssScore": 0.00192,
+      "epssPercentile": 0.09196
     },
     {
       "id": "NTAP-20250110-0001",
@@ -123,7 +127,9 @@
       },
       "mitigation": "Apply applicable ONTAP patch releases. Monitor NTAP-20250110-0001 for specific fixed versions per branch.",
       "published": "2025-01-10",
-      "link": "https://security.netapp.com/advisory/ntap-20250110-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20250110-0001/",
+      "epssScore": 0.00273,
+      "epssPercentile": 0.19447
     },
     {
       "id": "NTAP-20240701-0001",
@@ -153,7 +159,9 @@
       },
       "mitigation": "Apply relevant ONTAP patch. Restrict SSH management access to trusted management VLANs only. Verify LoginGraceTime and MaxStartups are at ONTAP defaults.",
       "published": "2024-07-01",
-      "link": "https://security.netapp.com/advisory/ntap-20240701-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240701-0001/",
+      "epssScore": 0.99506,
+      "epssPercentile": 0.9994
     },
     {
       "id": "NTAP-20240126-0001",
@@ -203,7 +211,9 @@
       },
       "mitigation": "Upgrade to the fixed patch version. Audit user accounts for multiple role assignments. Enforce least-privilege principle in RBAC.",
       "published": "2024-01-26",
-      "link": "https://security.netapp.com/advisory/ntap-20240126-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240126-0001/",
+      "epssScore": 0.00332,
+      "epssPercentile": 0.25832
     },
     {
       "id": "NTAP-20250228-0002",
@@ -233,7 +243,9 @@
       },
       "mitigation": "Upgrade to fixed ONTAP 9.16.1 patch. Restrict SSH management access to trusted IPs via LIF firewall/service policy. Rate-limit SSH connections at network level.",
       "published": "2025-02-28",
-      "link": "https://security.netapp.com/advisory/ntap-20250228-0002/"
+      "link": "https://security.netapp.com/advisory/ntap-20250228-0002/",
+      "epssScore": 0.39561,
+      "epssPercentile": 0.9847
     },
     {
       "id": "NTAP-20250718-0013",
@@ -272,7 +284,9 @@
       },
       "mitigation": "Apply ONTAP patch releases incorporating Apache HTTP Server 2.4.64 or later. Check NTAP-20250718-0013 for product-specific fix versions.",
       "published": "2025-07-18",
-      "link": "https://security.netapp.com/advisory/ntap-20250718-0013/"
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0013/",
+      "epssScore": 0.00772,
+      "epssPercentile": 0.52089
     },
     {
       "id": "NTAP-20250328-0010",
@@ -302,7 +316,9 @@
       },
       "mitigation": "Apply ONTAP patch incorporating fixed libxml2. Restrict XML processing surfaces. Check NTAP-20250328-0010 for per-version fix details.",
       "published": "2025-03-28",
-      "link": "https://security.netapp.com/advisory/ntap-20250328-0010/"
+      "link": "https://security.netapp.com/advisory/ntap-20250328-0010/",
+      "epssScore": 0.01136,
+      "epssPercentile": 0.63357
     },
     {
       "id": "NTAP-20250613-0006",
@@ -332,7 +348,9 @@
       },
       "mitigation": "Apply ONTAP patch incorporating libxslt 1.1.43+. Check NTAP-20250613-0006 for per-version patch availability.",
       "published": "2025-06-13",
-      "link": "https://security.netapp.com/advisory/ntap-20250613-0006/"
+      "link": "https://security.netapp.com/advisory/ntap-20250613-0006/",
+      "epssScore": 0.00332,
+      "epssPercentile": 0.25788
     },
     {
       "id": "NTAP-20260204-0012",
@@ -362,7 +380,9 @@
       },
       "mitigation": "Monitor NTAP-20260204-0012 for ONTAP 9.18.1 patch release. If on 9.18.1, assess risk and plan patch upgrade.",
       "published": "2026-02-04",
-      "link": "https://security.netapp.com/advisory/ntap-20260204-0012/"
+      "link": "https://security.netapp.com/advisory/ntap-20260204-0012/",
+      "epssScore": 0.04517,
+      "epssPercentile": 0.90569
     },
     {
       "id": "NTAP-20251003-0005",
@@ -394,7 +414,9 @@
       },
       "mitigation": "Apply NetApp product patches incorporating Netty 4.1.124.Final+. Limit exposure of management HTTP/2 endpoints.",
       "published": "2025-10-03",
-      "link": "https://security.netapp.com/advisory/ntap-20251003-0005/"
+      "link": "https://security.netapp.com/advisory/ntap-20251003-0005/",
+      "epssScore": 0.01049,
+      "epssPercentile": 0.60863
     },
     {
       "id": "NTAP-20260424-0001",
@@ -455,7 +477,9 @@
       },
       "mitigation": "Apply ONTAP and SnapCenter patches incorporating Java CPU January 2025 updates. Monitor NTAP-20250124-0009 for final status.",
       "published": "2025-01-24",
-      "link": "https://security.netapp.com/advisory/ntap-20250124-0009/"
+      "link": "https://security.netapp.com/advisory/ntap-20250124-0009/",
+      "epssScore": 0.00988,
+      "epssPercentile": 0.58987
     },
     {
       "id": "NTAP-20250324-0001",
@@ -490,7 +514,9 @@
       },
       "mitigation": "IMMEDIATELY upgrade SnapCenter to 6.0.1P1 or 6.1P1. Audit SnapCenter user accounts for unauthorized privilege changes. Review all plug-in host access logs.",
       "published": "2025-03-24",
-      "link": "https://security.netapp.com/advisory/ntap-20250324-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20250324-0001/",
+      "epssScore": 0.00639,
+      "epssPercentile": 0.47119
     },
     {
       "id": "NTAP-20240705-0007",
@@ -520,7 +546,9 @@
       },
       "mitigation": "Upgrade to SnapCenter 5.0p1 or later. Rotate any credentials that may have been exposed.",
       "published": "2024-07-05",
-      "link": "https://security.netapp.com/advisory/ntap-20240705-0007/"
+      "link": "https://security.netapp.com/advisory/ntap-20240705-0007/",
+      "epssScore": 0.00227,
+      "epssPercentile": 0.13534
     },
     {
       "id": "NTAP-20240216-0001",
@@ -550,7 +578,9 @@
       },
       "mitigation": "Upgrade to SnapCenter 5.0 or later.",
       "published": "2024-02-16",
-      "link": "https://security.netapp.com/advisory/ntap-20240216-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240216-0001/",
+      "epssScore": 0.00273,
+      "epssPercentile": 0.19534
     },
     {
       "id": "NTAP-20260217-0001",
@@ -585,7 +615,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.9.0.12 or 12.0.0.4. If upgrade is delayed, disable SSO with Microsoft Entra ID as interim workaround.",
       "published": "2026-02-17",
-      "link": "https://security.netapp.com/advisory/ntap-20260217-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20260217-0001/",
+      "epssScore": 0.00271,
+      "epssPercentile": 0.19135
     },
     {
       "id": "NTAP-20250910-0003",
@@ -620,7 +652,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.8.0.15 or 11.9.0.8. Restrict Admin node access to trusted management networks.",
       "published": "2025-09-10",
-      "link": "https://security.netapp.com/advisory/ntap-20250910-0003/"
+      "link": "https://security.netapp.com/advisory/ntap-20250910-0003/",
+      "epssScore": 0.00363,
+      "epssPercentile": 0.29076
     },
     {
       "id": "NTAP-20250910-0004",
@@ -655,7 +689,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.8.0.15 or 11.9.0.8.",
       "published": "2025-09-10",
-      "link": "https://security.netapp.com/advisory/ntap-20250910-0004/"
+      "link": "https://security.netapp.com/advisory/ntap-20250910-0004/",
+      "epssScore": 0.00178,
+      "epssPercentile": 0.07592
     },
     {
       "id": "NTAP-20241108-0001",
@@ -685,7 +721,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.9.0 or later.",
       "published": "2024-11-08",
-      "link": "https://security.netapp.com/advisory/ntap-20241108-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20241108-0001/",
+      "epssScore": 0.00347,
+      "epssPercentile": 0.2732
     },
     {
       "id": "NTAP-20240216-0012",
@@ -715,7 +753,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.8 or later.",
       "published": "2024-02-16",
-      "link": "https://security.netapp.com/advisory/ntap-20240216-0012/"
+      "link": "https://security.netapp.com/advisory/ntap-20240216-0012/",
+      "epssScore": 0.00493,
+      "epssPercentile": 0.39673
     },
     {
       "id": "NTAP-20240216-0013",
@@ -745,7 +785,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.8 or later. Enforce browser security headers.",
       "published": "2024-02-16",
-      "link": "https://security.netapp.com/advisory/ntap-20240216-0013/"
+      "link": "https://security.netapp.com/advisory/ntap-20240216-0013/",
+      "epssScore": 0.00314,
+      "epssPercentile": 0.23812
     },
     {
       "id": "NTAP-SG-2026-22051",
@@ -780,7 +822,9 @@
       },
       "mitigation": "Upgrade to StorageGRID 11.9.0.13 or 12.0.0.6 or later.",
       "published": "2026-01-01",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.00184,
+      "epssPercentile": 0.0828
     },
     {
       "id": "NTAP-20250806-0001",
@@ -810,7 +854,9 @@
       },
       "mitigation": "Upgrade SAN Host Utilities for Windows to version 8.0.",
       "published": "2025-08-06",
-      "link": "https://security.netapp.com/advisory/ntap-20250806-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20250806-0001/",
+      "epssScore": 0.0012,
+      "epssPercentile": 0.022
     },
     {
       "id": "CONTAP-539599",
@@ -1076,7 +1122,9 @@
       },
       "mitigation": "Apply latest NetApp management software patches incorporating Oracle CPU updates on a quarterly basis.",
       "published": "2026-04-29",
-      "link": "https://security.netapp.com/advisory/ntap-20260429-0005/"
+      "link": "https://security.netapp.com/advisory/ntap-20260429-0005/",
+      "epssScore": 0.00242,
+      "epssPercentile": 0.15541
     },
     {
       "id": "KB-KerberosCompat-CIFS",
@@ -1106,7 +1154,9 @@
       },
       "mitigation": "Ensure ONTAP CIFS servers use AES-128/AES-256 encryption types. Update AD account msds-SupportedEncryptionTypes attribute. Test in staging before applying Windows updates. Review NetApp KB Kerberos compatibility guidance.",
       "published": "2026-01-01",
-      "link": "https://kb.netapp.com/"
+      "link": "https://kb.netapp.com/",
+      "epssScore": 0.00482,
+      "epssPercentile": 0.3899
     },
     {
       "id": "NTAP-20240712-0001",
@@ -1140,7 +1190,13 @@
       },
       "mitigation": "Upgrade to fixed ONTAP patch release (9.12.1P16, 9.13.1P14, 9.14.1P8, 9.15.1P3, or 9.16.1+). Check NTAP-20240712-0001 for your specific branch fix.",
       "published": "2024-07-12",
-      "link": "https://security.netapp.com/advisory/ntap-20240712-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240712-0001/",
+      "cisaKev": true,
+      "cisaKevDateAdded": "2025-05-01",
+      "cisaKevDueDate": "2025-05-22",
+      "cisaKevAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+      "epssScore": 0.99957,
+      "epssPercentile": 0.99975
     },
     {
       "id": "NTAP-20240808-0007",
@@ -1174,7 +1230,9 @@
       },
       "mitigation": "Upgrade to ONTAP patch incorporating Apache HTTP Server 2.4.62+. Verify fixed patch level against NTAP-20240808-0007.",
       "published": "2024-08-08",
-      "link": "https://security.netapp.com/advisory/ntap-20240808-0007/"
+      "link": "https://security.netapp.com/advisory/ntap-20240808-0007/",
+      "epssScore": 0.04134,
+      "epssPercentile": 0.8981
     },
     {
       "id": "NTAP-20241220-0008",
@@ -1204,7 +1262,9 @@
       },
       "mitigation": "Upgrade to ONTAP patch release incorporating PHP 8.1.30+, 8.2.24+, or 8.3.12+. Check NTAP-20241220-0008 for specific branch patch versions.",
       "published": "2024-12-20",
-      "link": "https://security.netapp.com/advisory/ntap-20241220-0008/"
+      "link": "https://security.netapp.com/advisory/ntap-20241220-0008/",
+      "epssScore": 0.02079,
+      "epssPercentile": 0.79608
     },
     {
       "id": "NTAP-20241101-0003",
@@ -1237,7 +1297,9 @@
       },
       "mitigation": "Apply ONTAP patch incorporating PHP 8.1.30+, 8.2.24+, or 8.3.12+. Check NTAP-20241101-0003 for your specific ONTAP branch fix version.",
       "published": "2024-11-01",
-      "link": "https://security.netapp.com/advisory/ntap-20241101-0003/"
+      "link": "https://security.netapp.com/advisory/ntap-20241101-0003/",
+      "epssScore": 0.00483,
+      "epssPercentile": 0.39072
     },
     {
       "id": "NTAP-Python-CVE-2025-4517",
@@ -1267,7 +1329,9 @@
       },
       "mitigation": "Apply NetApp patches incorporating fixed Python. Avoid processing untrusted tar archives. Isolate any archive extraction processes from privileged file paths.",
       "published": "2025-05-01",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.01227,
+      "epssPercentile": 0.65853
     },
     {
       "id": "NTAP-20250718-0013-CVE-2024-47252",
@@ -1297,7 +1361,9 @@
       },
       "mitigation": "Apply ONTAP patch release incorporating Apache HTTP Server 2.4.64+. Covered by NTAP-20250718-0013.",
       "published": "2025-07-18",
-      "link": "https://security.netapp.com/advisory/ntap-20250718-0013/"
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0013/",
+      "epssScore": 0.00669,
+      "epssPercentile": 0.4836
     },
     {
       "id": "NTAP-20241106-0001",
@@ -1327,7 +1393,13 @@
       },
       "mitigation": "URGENT — CISA KEV confirmed active exploitation. Apply firmware update to AMI MegaRAC SPx 12.7+ or 13.5+ immediately. Apply StorageGRID hotfix 11.9.0.7+. Isolate BMC management interfaces from untrusted networks. Unaffected models: SG6060, SGF6024, SG100, SG1000.",
       "published": "2024-03-18",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "cisaKev": true,
+      "cisaKevDateAdded": "2025-06-25",
+      "cisaKevDueDate": "2025-07-16",
+      "cisaKevAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable.",
+      "epssScore": 0.61063,
+      "epssPercentile": 0.99071
     },
     {
       "id": "NTAP-Golang-CVE-2024-45337",
@@ -1357,7 +1429,9 @@
       },
       "mitigation": "Upgrade Trident to latest release incorporating fixed golang.org/x/crypto. Verify Trident's Go dependency versions. Check NetApp advisory for specific Trident version fix.",
       "published": "2024-12-11",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.03153,
+      "epssPercentile": 0.86657
     },
     {
       "id": "NTAP-20260204-0015",
@@ -1387,7 +1461,9 @@
       },
       "mitigation": "Apply ONTAP 9.18.1 patch incorporating fixed OpenSSL. If urgency high, consider reverting to 9.17.1P4+ (not affected) until 9.18.1 patch available. Monitor NetApp advisory for fix release date.",
       "published": "2025-06-01",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.47621,
+      "epssPercentile": 0.98727
     },
     {
       "id": "NTAP-Golang-CVE-2026-27143",
@@ -1417,7 +1493,9 @@
       },
       "mitigation": "Upgrade Trident and Trident Protect to latest supported release. Check NTAP-20260424-0001 for specific version fix.",
       "published": "2026-04-24",
-      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/",
+      "epssScore": 0.00536,
+      "epssPercentile": 0.42156
     },
     {
       "id": "NTAP-20240126-0002",
@@ -1447,7 +1525,9 @@
       },
       "mitigation": "Apply ONTAP Select Deploy patch. Restrict access to Deploy utility to admin-only accounts. Audit all Deploy users for unauthorized privilege levels.",
       "published": "2024-01-26",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.00431,
+      "epssPercentile": 0.355
     },
     {
       "id": "NTAP-20240126-0003",
@@ -1477,7 +1557,9 @@
       },
       "mitigation": "Restrict 'object-store profiler' command execution to trusted admins. Apply NetApp advisory patch. Do not share CLI output containing profiler data with untrusted parties.",
       "published": "2024-01-26",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.00374,
+      "epssPercentile": 0.30174
     },
     {
       "id": "NTAP-20240503-0013",
@@ -1507,7 +1589,9 @@
       },
       "mitigation": "Apply ONTAP patch release from NTAP-20240503-0013. Review TLS configuration — SSL_OP_NO_TICKET is non-default. Limit management interface TLS connections from untrusted sources.",
       "published": "2024-05-03",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.54026,
+      "epssPercentile": 0.98903
     },
     {
       "id": "NTAP-20250613-0011",
@@ -1537,7 +1621,9 @@
       },
       "mitigation": "Apply StorageGRID hotfix 11.9.0.7 immediately. Schedule node reboots for affected appliances. Check NTAP-20250613-0011 for full product list.",
       "published": "2025-06-13",
-      "link": "https://security.netapp.com/advisory/ntap-20250613-0011/"
+      "link": "https://security.netapp.com/advisory/ntap-20250613-0011/",
+      "epssScore": 0.01358,
+      "epssPercentile": 0.68922
     },
     {
       "id": "NTAP-Libxslt-CVE-2024-55549",
@@ -1567,7 +1653,9 @@
       },
       "mitigation": "Apply ONTAP patch incorporating libxslt 1.1.43+. Related to CVE-2025-24855 in same advisory group. Check NetApp security portal for per-version fix.",
       "published": "2024-12-01",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.00332,
+      "epssPercentile": 0.25788
     },
     {
       "id": "NTAP-Curl-CVE-2024-2398",
@@ -1597,7 +1685,9 @@
       },
       "mitigation": "Apply ONTAP patch incorporating curl 8.7.1+. If HTTP/2 server push is used, monitor for memory growth. Check NetApp security portal for per-version fix.",
       "published": "2024-03-27",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.36081,
+      "epssPercentile": 0.9832
     },
     {
       "id": "NTAP-20240517-0008",
@@ -1627,7 +1717,9 @@
       },
       "mitigation": "Apply NetApp product patches incorporating Node.js 18.20.0+, 20.12.0+, or 21.7.0+. Check NTAP-20240517-0008 for per-product fix versions.",
       "published": "2024-05-17",
-      "link": "https://security.netapp.com/advisory/ntap-20240517-0008/"
+      "link": "https://security.netapp.com/advisory/ntap-20240517-0008/",
+      "epssScore": 0.01309,
+      "epssPercentile": 0.67783
     },
     {
       "id": "NTAP-20250516-0007",
@@ -1657,7 +1749,9 @@
       },
       "mitigation": "Upgrade Trident to latest release incorporating golang.org/x/net/html 0.38.0+. Check NTAP-20250516-0007 for product-specific fix details.",
       "published": "2025-05-16",
-      "link": "https://security.netapp.com/advisory/ntap-20250516-0007/"
+      "link": "https://security.netapp.com/advisory/ntap-20250516-0007/",
+      "epssScore": 0.00513,
+      "epssPercentile": 0.4087
     },
     {
       "id": "NTAP-20240916-0001",
@@ -1687,7 +1781,9 @@
       },
       "mitigation": "Apply NTAP-20240916-0001 patch immediately. This is a critical kernel-level UAF requiring OS-level patch. Restrict direct kernel access. Check advisory for ONTAP branch-specific fix versions.",
       "published": "2024-09-16",
-      "link": "https://security.netapp.com/advisory/ntap-20240916-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240916-0001/",
+      "epssScore": 0.00681,
+      "epssPercentile": 0.48876
     },
     {
       "id": "NTAP-20250718-0001-SQLite",
@@ -1717,7 +1813,9 @@
       },
       "mitigation": "Upgrade SnapCenter to latest release incorporating SQLite 3.50.2+. Restrict SnapCenter server access to authorized administrators only. Check NTAP-20250718-0001 for specific fix versions.",
       "published": "2025-07-18",
-      "link": "https://security.netapp.com/advisory/ntap-20250718-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0001/",
+      "epssScore": 0.7439,
+      "epssPercentile": 0.99442
     },
     {
       "id": "NTAP-20260424-0001-b",
@@ -1747,7 +1845,9 @@
       },
       "mitigation": "Upgrade Trident and ONTAP tools for VMware to latest release incorporating Go 1.25.9+ or 1.26.2+. Check NTAP-20260424-0001 for specific product fix versions.",
       "published": "2026-04-24",
-      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20260424-0001/",
+      "epssScore": 0.00658,
+      "epssPercentile": 0.47965
     },
     {
       "id": "NTAP-20240712-0001-mod_proxy",
@@ -1781,7 +1881,9 @@
       },
       "mitigation": "Apply same NTAP-20240712-0001 patch as CVE-2024-38475 (Apache HTTP Server 2.4.60+). Restrict management interface exposure through reverse proxies. Do not expose ONTAP management to internet.",
       "published": "2024-07-12",
-      "link": "https://security.netapp.com/advisory/ntap-20240712-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240712-0001/",
+      "epssScore": 0.25878,
+      "epssPercentile": 0.97771
     },
     {
       "id": "NTAP-20240731-0004",
@@ -1811,7 +1913,9 @@
       },
       "mitigation": "Apply ONTAP patch from NTAP-20240731-0004. Rate-limit TCP DNS connections at network layer. Review DNS load balancing configuration. Consider restricting DNS listener to management networks only.",
       "published": "2024-07-31",
-      "link": "https://security.netapp.com/advisory/ntap-20240731-0004/"
+      "link": "https://security.netapp.com/advisory/ntap-20240731-0004/",
+      "epssScore": 0.0468,
+      "epssPercentile": 0.90861
     },
     {
       "id": "NTAP-20250124-0001",
@@ -1841,7 +1945,13 @@
       },
       "mitigation": "Update 7-Zip to 24.09+ within Active IQ Unified Manager deployment. Do not extract archives from untrusted sources on AIQUM hosts. Apply OS-level controls restricting archive extraction.",
       "published": "2025-01-24",
-      "link": "https://security.netapp.com/advisory/ntap-20250124-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20250124-0001/",
+      "cisaKev": true,
+      "cisaKevDateAdded": "2025-02-06",
+      "cisaKevDueDate": "2025-02-27",
+      "cisaKevAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.",
+      "epssScore": 0.67071,
+      "epssPercentile": 0.99227
     },
     {
       "id": "NTAP-20240718-0005",
@@ -1871,7 +1981,9 @@
       },
       "mitigation": "Upgrade StorageGRID to 11.7.0.9+ or 11.8.0.5+. Enforce network segmentation on StorageGRID admin networks to reduce MitM attack surface. Use only approved SSH key types.",
       "published": "2024-07-18",
-      "link": "https://security.netapp.com/advisory/ntap-20240718-0005/"
+      "link": "https://security.netapp.com/advisory/ntap-20240718-0005/",
+      "epssScore": 0.00235,
+      "epssPercentile": 0.1457
     },
     {
       "id": "NTAP-20240510-0010",
@@ -1901,7 +2013,9 @@
       },
       "mitigation": "Upgrade ONTAP Select Deploy to 9.15.1+. Change all default credentials immediately. Restrict network access to Deploy utility to trusted admin networks only. Audit all Deploy accounts.",
       "published": "2024-05-10",
-      "link": "https://security.netapp.com/advisory/ntap-20240510-0010/"
+      "link": "https://security.netapp.com/advisory/ntap-20240510-0010/",
+      "epssScore": 0.00317,
+      "epssPercentile": 0.24147
     },
     {
       "id": "NTAP-20250620-0007",
@@ -1931,7 +2045,9 @@
       },
       "mitigation": "Apply ONTAP 9.18.1 patch incorporating fixed TPM 2.0 library. Enforce physical access controls on all ONTAP nodes — this requires physical or elevated local access to exploit. Do not allow untrusted custom package installations.",
       "published": "2025-06-20",
-      "link": "https://security.netapp.com/advisory/ntap-20250620-0007/"
+      "link": "https://security.netapp.com/advisory/ntap-20250620-0007/",
+      "epssScore": 0.00198,
+      "epssPercentile": 0.09844
     },
     {
       "id": "NTAP-20240903-0001",
@@ -1961,7 +2077,9 @@
       },
       "mitigation": "Apply NTAP-20240903-0001 patch for ONTAP Select Deploy. Upgrade OpenSSL to 3.3.2+. Restrict certificate validation sources to trusted CAs only.",
       "published": "2024-09-03",
-      "link": "https://security.netapp.com/advisory/ntap-20240903-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20240903-0001/",
+      "epssScore": 0.66582,
+      "epssPercentile": 0.99213
     },
     {
       "id": "NTAP-20241220-0008-PHP",
@@ -1992,7 +2110,9 @@
       },
       "mitigation": "Apply same ONTAP patch as CVE-2024-11236 (NTAP-20241220-0008), which also covers CVE-2024-11233 and CVE-2024-11234.",
       "published": "2024-11-24",
-      "link": "https://security.netapp.com/advisory/ntap-20241220-0008/"
+      "link": "https://security.netapp.com/advisory/ntap-20241220-0008/",
+      "epssScore": 0.01132,
+      "epssPercentile": 0.63265
     },
     {
       "id": "NTAP-20251017-0010",
@@ -2023,7 +2143,9 @@
       },
       "mitigation": "ONTAP 9 itself is NOT affected. For other NetApp products (AIQUM, ONTAP tools) using OpenSSH client, upgrade to OpenSSH 10.1+. Apply NTAP-20251017-0010 patch for affected product list.",
       "published": "2025-10-17",
-      "link": "https://security.netapp.com/advisory/ntap-20251017-0010/"
+      "link": "https://security.netapp.com/advisory/ntap-20251017-0010/",
+      "epssScore": 0.00118,
+      "epssPercentile": 0.01983
     },
     {
       "id": "NTAP-20250513-0002",
@@ -2053,7 +2175,9 @@
       },
       "mitigation": "Apply NTAP-20250513-0002 firmware patch. Restrict local access to affected ONTAP controller nodes. Upgrade to ONTAP 9.18.1+ or apply Intel NIC firmware update per advisory.",
       "published": "2025-05-13",
-      "link": "https://security.netapp.com/advisory/ntap-20250513-0002/"
+      "link": "https://security.netapp.com/advisory/ntap-20250513-0002/",
+      "epssScore": 0.0015,
+      "epssPercentile": 0.04715
     },
     {
       "id": "NTAP-20260213-0011",
@@ -2083,7 +2207,9 @@
       },
       "mitigation": "Upgrade 7-Zip to 25.x in all affected NetApp product deployments. Do not process untrusted archive files on NetApp product servers. Check NTAP-20260213-0011 for per-product fix versions.",
       "published": "2026-02-13",
-      "link": "https://security.netapp.com/advisory/ntap-20260213-0011/"
+      "link": "https://security.netapp.com/advisory/ntap-20260213-0011/",
+      "epssScore": 0.00517,
+      "epssPercentile": 0.41093
     },
     {
       "id": "NTAP-20261001-Trident-PATH",
@@ -2113,7 +2239,9 @@
       },
       "mitigation": "Upgrade Astra Trident to v26.02 or later immediately. Restrict local access to Kubernetes worker nodes running Trident. Validate PATH environment variable integrity in Trident deployment.",
       "published": "2026-02-01",
-      "link": "https://security.netapp.com/advisory/"
+      "link": "https://security.netapp.com/advisory/",
+      "epssScore": 0.00157,
+      "epssPercentile": 0.05387
     },
     {
       "id": "NTAP-20260603-0001",
@@ -2143,7 +2271,9 @@
       },
       "mitigation": "Upgrade Active IQ Config Advisor to version 6.7.4 or later. Limit tool access to authorized administrators only. No ONTAP cluster-level patch required.",
       "published": "2026-06-03",
-      "link": "https://security.netapp.com/advisory/ntap-20260603-0001/"
+      "link": "https://security.netapp.com/advisory/ntap-20260603-0001/",
+      "epssScore": 0.00237,
+      "epssPercentile": 0.14838
     },
     {
       "id": "NTAP-20260603-0002",
@@ -2173,7 +2303,9 @@
       },
       "mitigation": "Upgrade Active IQ OneCollect to version 2.7.4 or later. Restrict tool access to authorized administrators. No ONTAP cluster-level patch required. Cross-reference NTAP-20260603-0001 (Config Advisor companion advisory).",
       "published": "2026-06-03",
-      "link": "https://security.netapp.com/advisory/ntap-20260603-0002/"
+      "link": "https://security.netapp.com/advisory/ntap-20260603-0002/",
+      "epssScore": 0.00237,
+      "epssPercentile": 0.14839
     },
     {
       "id": "NTAP-20250328-0008",
@@ -2208,7 +2340,9 @@
       },
       "mitigation": "1. Identify if any NetApp product in your environment bundles Ingress NGINX (check advisory for product list). 2. Upgrade affected Ingress NGINX components to patched versions. 3. As interim mitigation: restrict network access to the Kubernetes admission controller webhook endpoint (TCP 8443) to only the Kubernetes API server, preventing external pod-network access.",
       "published": "2025-03-28",
-      "link": "https://security.netapp.com/advisory/ntap-20250328-0008/"
+      "link": "https://security.netapp.com/advisory/ntap-20250328-0008/",
+      "epssScore": 0.32473,
+      "epssPercentile": 0.98164
     }
   ]
 }
