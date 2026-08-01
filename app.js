@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.2";
+const APP_VERSION = "4.0.3";
 
 const APP_CHANGELOG = [
   {
@@ -9768,6 +9768,9 @@ function renderCSMTab() {
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
+    const _rEl1 = document.getElementById("csmAdoptionChecklistRight"); if (_rEl1) _rEl1.innerHTML = "";
+    const _lSc1 = document.getElementById("csmCheckLeftScore"); if (_lSc1) _lSc1.textContent = "";
+    const _rSc1 = document.getElementById("csmCheckRightScore"); if (_rSc1) _rSc1.textContent = "";
     const _hsc = document.getElementById("csmHealthScoreCard"); if (_hsc) _hsc.innerHTML = "";
     document.getElementById("csmGrowthRateText").innerText = "";
     document.getElementById("csmDaysToLimitText").innerText = "-";
@@ -9920,16 +9923,25 @@ function renderCSMTab() {
       </div>
     `;
 
-    // 4. Checklist aggregate — TAM/MSP remediation readiness (15 checks)
+    // 4. Checklist aggregate — TAM/MSP remediation readiness (25 categorised checks)
+    // ── LEFT COLUMN: Operations & Security ──────────────────────────────────────
     const _latestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
-    let _verPass = 0, _effPass = 0, _cloudPass = 0, _drPass = 0;
-    let _riskPass = 0, _contractPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
-    // New checks (10-15)
+    let _verPass = 0, _effPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
     let _capPass = 0, _haPass = 0, _casePass = 0, _encPass = 0, _arpPass = 0, _fsaPass = 0;
+    // New ops checks
+    let _portHealthPass = 0, _fwCurrPass = 0, _cisaKevPass = 0, _qosPass = 0;
+    // ── RIGHT COLUMN: Data Protection & Lifecycle ───────────────────────────────
+    let _cloudPass = 0, _drPass = 0, _riskPass = 0, _contractPass = 0;
+    // New DP/lifecycle checks
+    let _svmPass = 0, _clonePass = 0, _cotermPass = 0, _adoptPass = 0,
+        _configDriftPass = 0, _mttrPass = 0;
+
     let _verDetails = [], _capDetails = [], _caseDetails = [], _haDetails = [];
+    let _portDetails = [], _cotermDetails = [], _adoptDetails = [];
 
     targetCSMSystems.forEach(s => {
-      // 1. OS on recommended version (no outstanding upgrade recommendation)
+      // ── Operations & Security checks ────────────────────────────────────────
+      // 1. OS on recommended version
       const _hasUpgrade = !!(s.upgrades && s.upgrades.targetVersion && s.upgrades.targetVersion !== 'Up to Date');
       if (!_hasUpgrade) _verPass++;
       else _verDetails.push(`${s.systemName}: ${s.ontapVersion || '?'} \u2192 ${s.upgrades.targetVersion}`);
@@ -9937,53 +9949,34 @@ function renderCSMTab() {
       // 2. Storage efficiency >= 1.5:1
       if (parseFloat((s.efficiency.ratio || '1:1').split(':')[0]) > 1.5) _effPass++;
 
-      // 3. FabricPool cloud tiering active
-      if (s.efficiency.fabricPoolTieredTB > 0) _cloudPass++;
-
-      // 4. SnapMirror / replication active
-      if (s.snapmirror && s.snapmirror.enabled) _drPass++;
-
-      // 5. Zero high/critical risks
-      if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) _riskPass++;
-
-      // 6. Support contract active (> 90 days remaining)
-      if (s.contracts && s.contracts.daysRemaining > 90) _contractPass++;
-
-      // 7. AutoSupport HTTPS active and reporting within 7 days
+      // 3. AutoSupport HTTPS reporting (<=7 days)
       const _asup = s.autosupport || {};
       if (_asup.enabled !== false && _asup.status !== 'failed' && _asup.status !== 'disabled' &&
           (_asup.lastReceivedDays == null || _asup.lastReceivedDays <= 7)) _asupPass++;
 
-      // 8. Hardware not on EOA/EOS platform list
+      // 4. Hardware non-EOA
       const _modelStr = (s.platform || s.model || '').toUpperCase();
       if (!REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => _modelStr.includes(p.toUpperCase()))) _hwPass++;
 
-      // 9. No active security CVEs applicable to system
+      // 5. No active CVEs (PSIRT)
       const _sec = getApplicableSecurityBulletins(s.ontapVersion, s.platform).filter(b => b.status !== 'resolved');
       if (_sec.length === 0) _secPass++;
 
-      // 10. Aggregate capacity headroom >= 20%
-      // Uses efficiency.usableCapacityTB and efficiency.physicalUsedTB — populated for both mock
-      // and live API systems by enrichSystemTelemetry (capacity backfill logic at line ~10245).
+      // 6. Capacity headroom >= 20%
       const _usable = s.efficiency && s.efficiency.usableCapacityTB > 0 ? s.efficiency.usableCapacityTB : 0;
       const _phys   = s.efficiency ? (s.efficiency.physicalUsedTB || 0) : 0;
       const _headroomPct = _usable > 0 ? ((_usable - _phys) / _usable) * 100 : 100;
       if (_headroomPct >= 20) _capPass++;
       else if (_usable > 0) _capDetails.push(`${s.systemName}: ${Math.round(_headroomPct)}% free`);
 
-      // 11. HA pair configured
-      // haConfigured is normalized by enrichSystemTelemetry from both s.haConfigured (mock)
-      // and s.isHAConfigured (real API via server.py harvest). null = unknown (single-node
-      // platforms like StorageGRID object nodes are inherently N/A — count as passing).
+      // 7. HA pair configured
       const _isStorageGrid = (s.platform || '').toLowerCase().includes('storagegrid');
       const _isEseries = (s.platform || '').toLowerCase().includes('e-series') || (s.platform || '').toLowerCase().includes('ef6') || (s.platform || '').toLowerCase().includes('ef3');
       if (_isStorageGrid || _isEseries || s.haConfigured === true) _haPass++;
       else if (s.haConfigured === false) _haDetails.push(`${s.systemName}: no HA`);
-      else _haPass++; // haConfigured null / unknown — don't penalise (insufficient data)
+      else _haPass++; // unknown — don't penalise
 
-      // 12. No open S1/S2 severity support cases
-      // supportCases severity is normalized by enrichSystemTelemetry to 'S1 - Critical' / 'S2 - High' format.
-      // Closed cases are filtered by checking status — 'CLOSED', 'Closed', or 'Cancelled'.
+      // 8. No open S1/S2 cases
       const _openCritCases = (s.supportCases || []).filter(c => {
         const sevStr = (c.severity || '').toUpperCase();
         const statStr = (c.status || '').toUpperCase();
@@ -9993,24 +9986,89 @@ function renderCSMTab() {
       if (_openCritCases.length === 0) _casePass++;
       else _caseDetails.push(`${s.systemName}: ${_openCritCases.length} critical case${_openCritCases.length > 1 ? 's' : ''}`);
 
-      // 13. Volume encryption (NVE/NAE) enabled
-      // nvEncryptionEnabled is derived by enrichSystemTelemetry: true for AFF/ASA running ONTAP 9.7+
-      // (NVE on-by-default with integrated OKM since 9.7). null means platform/version unknown
-      // — do not penalise. FAS, CVO, SG, E-Series return false (not encrypted by default).
+      // 9. Volume Encryption (NVE/NAE)
       if (s.nvEncryptionEnabled === true || s.nvEncryptionEnabled === null) _encPass++;
 
-      // 14. Anti-Ransomware Protection (ARP) active
-      // isARPEnabled is computed by enrichSystemTelemetry for both mock and live API systems.
-      // Real API: isARPEnabled is a direct boolean from the Active IQ GraphQL harvest (server.py line 933).
-      // Mock: derived to true for AFF/ASA/CVO/AFX platforms (ARP supported since ONTAP 9.10.1).
-      // StorageGRID and E-Series do not support ARP — count as passing (N/A).
+      // 10. Anti-Ransomware Protection (ARP)
       if (_isStorageGrid || _isEseries || s.isARPEnabled === true || s.isARPEnabled === null) _arpPass++;
 
-      // 15. No outstanding Field Safety Alerts (Field Actions / FSAs)
-      // fieldActions[] is normalized by enrichSystemTelemetry: s.fieldActions || s.field_actions || []
-      // An empty array means no outstanding FAs — this system passes.
+      // 11. No outstanding FSAs
       if (!s.fieldActions || s.fieldActions.length === 0) _fsaPass++;
+
+      // 12. Network port health (no link-down on active ports)
+      const _ports = ((s.networkPorts || {}).networkPorts || []);
+      const _downPorts = _ports.filter(p => p.link === 'down' && p.role && p.role !== 'node_mgmt');
+      if (_downPorts.length === 0) _portHealthPass++;
+      else _portDetails.push(`${s.systemName}: ${_downPorts.length} port(s) down`);
+
+      // 13. Firmware currency (shelf/disk FW not flagged)
+      const _fwRisks = (s.risks || []).filter(r => {
+        const desc = ((r.description || '') + ' ' + (r.name || '') + ' ' + (r.category || '')).toLowerCase();
+        return desc.includes('firmware') || desc.includes('disk qual') || desc.includes('shelf fw');
+      });
+      if (_fwRisks.length === 0) _fwCurrPass++;
+
+      // 14. No CISA KEV active exploitation alerts
+      const _cisaHits = _sec.filter(b => b.cisaKEV === true || b.cisaKev === true || (b.tags || []).includes('CISA-KEV'));
+      if (_cisaHits.length === 0) _cisaKevPass++;
+
+      // 15. QoS policy coverage (if available)
+      // Systems with adaptive QoS or floor/ceiling policies configured pass.
+      // If data is unavailable (null), don't penalise.
+      const _hasQos = s.isQoSConfigured === true || s.qosPolicies > 0;
+      if (_hasQos || s.isQoSConfigured == null) _qosPass++;
+
+      // ── Data Protection & Lifecycle checks ──────────────────────────────────
+      // 16. FabricPool tiering active
+      if (s.efficiency.fabricPoolTieredTB > 0) _cloudPass++;
+
+      // 17. SnapMirror replication configured
+      if (s.snapmirror && s.snapmirror.enabled) _drPass++;
+
+      // 18. Zero high/critical risks
+      if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) _riskPass++;
+
+      // 19. Support contract active (>90 days)
+      if (s.contracts && s.contracts.daysRemaining > 90) _contractPass++;
+
+      // 20. SVM/LIF inventory available
+      const _svms = (typeof getSystemSvms === 'function') ? getSystemSvms(s) : (s.vservers || []);
+      if (_svms.length > 0) _svmPass++;
+
+      // 21. No excessive FlexClone sprawl
+      // FlexClones from snapshots can consume space; if >10 clone volumes exist flag it.
+      // Since this data isn't always available, don't penalise when absent.
+      const _cloneCount = s.flexCloneCount || 0;
+      if (_cloneCount <= 10) _clonePass++;
+
+      // 22. Feature adoption score >= 60%
+      const _adoptScore = (typeof computeFeatureAdoptionScore === 'function') ? computeFeatureAdoptionScore(s) : null;
+      if (_adoptScore && _adoptScore.pct >= 60) _adoptPass++;
+      else if (_adoptScore && _adoptScore.pct < 60) _adoptDetails.push(`${s.systemName}: ${_adoptScore.pct}%`);
+      else _adoptPass++; // unavailable — don't penalise
+
+      // 23. Config drift — no duplicate/stale network configs
+      // Check for broadcast domains with no active ports or orphaned ifgrps
+      const _bdPorts = _ports.filter(p => p.broadcastDomain && p.broadcastDomain !== '');
+      const _unassigned = _ports.filter(p => !p.broadcastDomain || p.broadcastDomain === '');
+      if (_unassigned.length <= 2 || _ports.length === 0) _configDriftPass++;
+
+      // 24. MTTR posture (no stale S3/S4 cases >90 days)
+      const _staleCases = (s.supportCases || []).filter(c => {
+        const statStr = (c.status || '').toUpperCase();
+        if (statStr.includes('CLOSED') || statStr.includes('CANCELLED')) return false;
+        const age = c.ageDays || 0;
+        return age > 90;
+      });
+      if (_staleCases.length === 0) _mttrPass++;
     });
+
+    // 25. Contract co-term alignment (fleet-level check)
+    const _cotermGroups = (typeof computeCoTermOpportunities === 'function') ? computeCoTermOpportunities(targetCSMSystems) : [];
+    const _cotermOk = _cotermGroups.length === 0;
+    if (_cotermGroups.length > 0) {
+      _cotermDetails.push(`${_cotermGroups.length} co-term group(s) detected`);
+    }
 
     const _n = targetCSMSystems.length;
     const _vDetail = _verDetails.length > 0
@@ -10025,46 +10083,94 @@ function renderCSMTab() {
     const _haDetail = _haDetails.length > 0
       ? _haDetails.slice(0, 2).join(' | ') + (_haDetails.length > 2 ? ` +${_haDetails.length - 2} more` : '')
       : '';
+    const _portDetail = _portDetails.length > 0
+      ? _portDetails.slice(0, 2).join(' | ') + (_portDetails.length > 2 ? ` +${_portDetails.length - 2} more` : '')
+      : '';
+    const _adoptDetail = _adoptDetails.length > 0
+      ? _adoptDetails.slice(0, 2).join(' | ') + (_adoptDetails.length > 2 ? ` +${_adoptDetails.length - 2} more` : '')
+      : '';
 
-    const _checklist = [
-      { name: `OS on Recommended Version (target: ONTAP ${_latestOntap})`, completedCount: _verPass,     detail: _vDetail },
-      { name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',         completedCount: _effPass,    detail: '' },
-      { name: 'Cloud FabricPool / Cold-Data Tiering Active',                    completedCount: _cloudPass,  detail: '' },
-      { name: 'SnapMirror Async/Sync Replication Configured',                   completedCount: _drPass,     detail: '' },
-      { name: 'Zero High/Critical Risks Outstanding',                           completedCount: _riskPass,   detail: '' },
-      { name: 'Support Contract Active (> 90 days remaining)',                  completedCount: _contractPass, detail: '' },
-      { name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',         completedCount: _asupPass,   detail: '' },
-      { name: 'Hardware on Current Platform Generation (non-EOA)',              completedCount: _hwPass,     detail: '' },
-      { name: 'No Active Security CVEs Applicable (PSIRT)',                     completedCount: _secPass,    detail: '' },
-      { name: 'Aggregate Capacity Headroom \u2265 20%',                         completedCount: _capPass,    detail: _capDetail },
-      { name: 'HA Pair Configured (No Single Point of Failure)',                completedCount: _haPass,     detail: _haDetail },
-      { name: 'No Open S1/S2 Critical Support Cases',                           completedCount: _casePass,   detail: _caseDetail },
-      { name: 'Volume Encryption (NVE/NAE) Enabled',                           completedCount: _encPass,    detail: '' },
-      { name: 'Anti-Ransomware Protection (ARP) Active',                        completedCount: _arpPass,    detail: '' },
-      { name: 'No Outstanding Field Safety Alerts (FSA)',                       completedCount: _fsaPass,    detail: '' }
+    // ── Left column: Operations & Security ──────────────────────────────────
+    const _leftChecks = [
+      // — Software & Platform —
+      { cat: 'SOFTWARE \u0026 PLATFORM', name: `OS on Recommended Version (target: ONTAP ${_latestOntap})`, completedCount: _verPass, detail: _vDetail },
+      { name: 'Hardware on Current Platform Generation (non-EOA)',     completedCount: _hwPass,          detail: '' },
+      { name: 'Firmware \u0026 Disk Qualification Current',               completedCount: _fwCurrPass,      detail: '' },
+      // — Infrastructure Health —
+      { cat: 'INFRASTRUCTURE HEALTH', name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',  completedCount: _effPass,  detail: '' },
+      { name: 'Aggregate Capacity Headroom \u2265 20%',                    completedCount: _capPass,         detail: _capDetail },
+      { name: 'HA Pair Configured (No Single Point of Failure)',       completedCount: _haPass,          detail: _haDetail },
+      { name: 'Network Port Health (no link-down on active ports)',    completedCount: _portHealthPass,  detail: _portDetail },
+      { name: 'QoS Adaptive Policy Coverage',                         completedCount: _qosPass,         detail: '' },
+      // — Security & Compliance —
+      { cat: 'SECURITY \u0026 COMPLIANCE', name: 'No Active Security CVEs Applicable (PSIRT)',            completedCount: _secPass,         detail: '' },
+      { name: 'No CISA KEV Active Exploitation Alerts',               completedCount: _cisaKevPass,     detail: '' },
+      { name: 'Volume Encryption (NVE/NAE) Enabled',                  completedCount: _encPass,         detail: '' },
+      { name: 'Anti-Ransomware Protection (ARP) Active',              completedCount: _arpPass,         detail: '' },
+      // — Support & Monitoring —
+      { cat: 'SUPPORT \u0026 MONITORING', name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',  completedCount: _asupPass,  detail: '' },
+      { name: 'No Open S1/S2 Critical Support Cases',                 completedCount: _casePass,        detail: _caseDetail },
+      { name: 'No Outstanding Field Safety Alerts (FSA)',              completedCount: _fsaPass,         detail: '' },
     ];
 
-    let checklistHTML = '';
-    _checklist.forEach((item, idx) => {
-      const _allDone = item.completedCount === _n;
-      const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
-      const _pct = Math.round((item.completedCount / Math.max(_n, 1)) * 100);
-      // Visual divider between original 9 checks and new 6 checks
-      const _divider = idx === 9 ? `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-purple);padding:6px 10px 2px;border-top:1px solid rgba(129,140,248,0.2);margin-top:4px;">\u2795 Extended Checks</div>` : '';
-      checklistHTML += _divider + `
-        <div style="padding: 8px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${item.detail ? 3 : 2}px;">
-            <span style="font-size: 0.82rem;">${item.name}</span>
-            <span style="font-size: 0.82rem; font-weight: 600; color: ${_col}; white-space: nowrap; margin-left: 8px;">${item.completedCount}/${_n}</span>
+    // ── Right column: Data Protection & Lifecycle ───────────────────────────
+    const _rightChecks = [
+      // — Data Protection —
+      { cat: 'DATA PROTECTION', name: 'SnapMirror Async/Sync Replication Configured',  completedCount: _drPass,     detail: '' },
+      { name: 'Cloud FabricPool / Cold-Data Tiering Active',           completedCount: _cloudPass,  detail: '' },
+      { name: 'SVM/LIF Inventory Mapped',                             completedCount: _svmPass,    detail: '' },
+      { name: 'No Excessive FlexClone Sprawl (\u226410 clones)',          completedCount: _clonePass,  detail: '' },
+      // — Risk & Remediation —
+      { cat: 'RISK \u0026 REMEDIATION', name: 'Zero High/Critical Risks Outstanding',          completedCount: _riskPass,           detail: '' },
+      { name: 'Feature Adoption Score \u2265 60%',                        completedCount: _adoptPass,          detail: _adoptDetail },
+      { name: 'No Config Drift (unassigned ports \u2264 2)',              completedCount: _configDriftPass,    detail: '' },
+      { name: 'MTTR Posture (no stale cases \u003e 90 days)',             completedCount: _mttrPass,           detail: '' },
+      // — Contracts & Lifecycle —
+      { cat: 'CONTRACTS \u0026 LIFECYCLE', name: 'Support Contract Active (\u003e 90 days remaining)',   completedCount: _contractPass,  detail: '' },
+      { name: 'Contract Co-Term Alignment',                            completedCount: _cotermOk ? _n : Math.max(_n - _cotermGroups.reduce((s, g) => s + g.length, 0), 0), detail: _cotermDetails.join(' | ') },
+    ];
+
+    // ── Render helper ───────────────────────────────────────────────────────
+    function _renderCheckColumn(checks, n) {
+      let html = '';
+      checks.forEach(item => {
+        // Category header
+        if (item.cat) {
+          html += `<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);padding:8px 10px 3px;border-top:1px solid rgba(129,140,248,0.12);margin-top:2px;opacity:0.7;">${item.cat}</div>`;
+        }
+        const _allDone = item.completedCount === n;
+        const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
+        const _pct = Math.round((item.completedCount / Math.max(n, 1)) * 100);
+        html += `
+          <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${item.detail ? 3 : 2}px;">
+              <span style="font-size: 0.78rem;">${item.name}</span>
+              <span style="font-size: 0.78rem; font-weight: 600; color: ${_col}; white-space: nowrap; margin-left: 8px;">${item.completedCount}/${n}</span>
+            </div>
+            ${item.detail ? `<div style="font-size: 0.68rem; color: var(--text-muted); margin-bottom: 3px;">${item.detail}</div>` : ''}
+            <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;">
+              <div style="height: 100%; width: ${_pct}%; background: ${_col}; border-radius: 2px;"></div>
+            </div>
           </div>
-          ${item.detail ? `<div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 3px;">${item.detail}</div>` : ''}
-          <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;">
-            <div style="height: 100%; width: ${_pct}%; background: ${_col}; border-radius: 2px;"></div>
-          </div>
-        </div>
-      `;
-    });
-    document.getElementById('csmAdoptionChecklist').innerHTML = checklistHTML;
+        `;
+      });
+      return html;
+    }
+
+    const _leftPassTotal  = _leftChecks.reduce((s, c) => s + c.completedCount, 0);
+    const _leftMaxTotal   = _leftChecks.length * _n;
+    const _rightPassTotal = _rightChecks.reduce((s, c) => s + c.completedCount, 0);
+    const _rightMaxTotal  = _rightChecks.length * _n;
+
+    document.getElementById('csmAdoptionChecklist').innerHTML = _renderCheckColumn(_leftChecks, _n);
+    const _rightEl = document.getElementById('csmAdoptionChecklistRight');
+    if (_rightEl) _rightEl.innerHTML = _renderCheckColumn(_rightChecks, _n);
+
+    // Update column score headers
+    const _leftScoreEl = document.getElementById('csmCheckLeftScore');
+    if (_leftScoreEl) _leftScoreEl.textContent = `${_leftPassTotal}/${_leftMaxTotal} (${Math.round((_leftPassTotal / Math.max(_leftMaxTotal, 1)) * 100)}%)`;
+    const _rightScoreEl = document.getElementById('csmCheckRightScore');
+    if (_rightScoreEl) _rightScoreEl.textContent = `${_rightPassTotal}/${_rightMaxTotal} (${Math.round((_rightPassTotal / Math.max(_rightMaxTotal, 1)) * 100)}%)`;
 
     // 5. Projections aggregate — compute fleet-level runway from capacity totals
     let totalGrowthGB = 0;
@@ -10166,6 +10272,9 @@ function renderCSMTab() {
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
+    const _rEl2 = document.getElementById("csmAdoptionChecklistRight"); if (_rEl2) _rEl2.innerHTML = "";
+    const _lSc2 = document.getElementById("csmCheckLeftScore"); if (_lSc2) _lSc2.textContent = "";
+    const _rSc2 = document.getElementById("csmCheckRightScore"); if (_rSc2) _rSc2.textContent = "";
     document.getElementById("csmGrowthRateText").innerText = "";
     document.getElementById("csmDaysToLimitText").innerText = "-";
     document.getElementById("csmLimitDateText").innerText = "-";
@@ -10305,7 +10414,7 @@ function renderCSMTab() {
     `;
   }
 
-  // Single-system checklist — 15 TAM/MSP remediation checks
+  // Single-system checklist — 25 TAM/MSP categorised remediation checks
   const _sLatestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
   const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
   const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date');
@@ -10315,60 +10424,48 @@ function renderCSMTab() {
   const _sCritH      = (sys.risks || []).filter(r => r.severity === 'critical' || r.severity === 'high');
   const _sCrit       = _sCritH.filter(r => r.severity === 'critical').length;
   const _sHigh       = _sCritH.filter(r => r.severity === 'high').length;
+  const _sIsSG       = (sys.platform || '').toLowerCase().includes('storagegrid');
+  const _sIsES       = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3');
+  const _sPorts      = ((sys.networkPorts || {}).networkPorts || []);
+  const _sDownPorts  = _sPorts.filter(p => p.link === 'down' && p.role && p.role !== 'node_mgmt');
+  const _sFwRisks    = (sys.risks || []).filter(r => {
+    const desc = ((r.description || '') + ' ' + (r.name || '') + ' ' + (r.category || '')).toLowerCase();
+    return desc.includes('firmware') || desc.includes('disk qual') || desc.includes('shelf fw');
+  });
+  const _sCisaHits   = _sCVEs.filter(b => b.cisaKEV === true || b.cisaKev === true || (b.tags || []).includes('CISA-KEV'));
+  const _sSvms       = (typeof getSystemSvms === 'function') ? getSystemSvms(sys) : (sys.vservers || []);
+  const _sCloneCount = sys.flexCloneCount || 0;
+  const _sAdoptScore = (typeof computeFeatureAdoptionScore === 'function') ? computeFeatureAdoptionScore(sys) : null;
+  const _sUnassigned = _sPorts.filter(p => !p.broadcastDomain || p.broadcastDomain === '');
+  const _sStaleCases = (sys.supportCases || []).filter(c => {
+    const statStr = (c.status || '').toUpperCase();
+    if (statStr.includes('CLOSED') || statStr.includes('CANCELLED')) return false;
+    return (c.ageDays || 0) > 90;
+  });
 
-  const _sSingle = [
-    {
+  // ── LEFT: Operations & Security ───────────────────────────────────────────
+  const _sLeftChecks = [
+    // SOFTWARE & PLATFORM
+    { cat: 'SOFTWARE \u0026 PLATFORM',
       name: `OS on Recommended Version (target: ONTAP ${_sLatestOntap})`,
       ok: !_sHasUpgrade,
       detail: _sHasUpgrade ? `${_sCurVer} \u2192 ${sys.upgrades.targetVersion} upgrade recommended` : `${_sCurVer} \u2014 on target`
     },
-    {
+    { name: 'Hardware on Current Platform Generation (non-EOA)',
+      ok: !_sIsEOA,
+      detail: _sIsEOA ? `${sys.platform} is End-of-Availability \u2014 refresh planning required` : `${sys.platform} is current generation`
+    },
+    { name: 'Firmware \u0026 Disk Qualification Current',
+      ok: _sFwRisks.length === 0,
+      detail: _sFwRisks.length > 0 ? `${_sFwRisks.length} firmware risk(s) flagged` : 'All firmware and disk qualification packages current'
+    },
+    // INFRASTRUCTURE HEALTH
+    { cat: 'INFRASTRUCTURE HEALTH',
       name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',
       ok: parseFloat((sys.efficiency.ratio || '1:1').split(':')[0]) > 1.5,
       detail: `Current ratio: ${sys.efficiency.ratio || 'N/A'}`
     },
-    {
-      name: 'Cloud FabricPool / Cold-Data Tiering Active',
-      ok: fpTiered > 0,
-      detail: fpTiered > 0 ? `${(fpTiered || 0).toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
-    },
-    {
-      name: 'SnapMirror Async/Sync Replication Configured',
-      ok: !!(sys.snapmirror && sys.snapmirror.enabled),
-      detail: (sys.snapmirror && sys.snapmirror.enabled) ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
-    },
-    {
-      name: 'Zero High/Critical Risks Outstanding',
-      ok: _sCritH.length === 0,
-      detail: _sCritH.length > 0 ? `${_sCrit} critical, ${_sHigh} high \u2014 remediation required` : 'No critical or high risks'
-    },
-    {
-      name: 'Support Contract Active (> 90 days remaining)',
-      ok: !!(sys.contracts && sys.contracts.daysRemaining > 90),
-      detail: sys.contracts
-        ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`)
-        : 'No contract data available'
-    },
-    {
-      name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',
-      ok: _sAsup.enabled !== false && _sAsup.status !== 'failed' && _sAsup.status !== 'disabled' && (_sAsup.lastReceivedDays == null || _sAsup.lastReceivedDays <= 7),
-      detail: _sAsup.status ? `Status: ${_sAsup.status}${_sAsup.lastReceivedDays != null ? ', last received ' + _sAsup.lastReceivedDays + 'd ago' : ''}` : 'AutoSupport status unknown'
-    },
-    {
-      name: 'Hardware on Current Platform Generation (non-EOA)',
-      ok: !_sIsEOA,
-      detail: _sIsEOA ? `${sys.platform} is End-of-Availability \u2014 refresh planning required` : `${sys.platform} is current generation`
-    },
-    {
-      name: 'No Active Security CVEs Applicable (PSIRT)',
-      ok: _sCVEs.length === 0,
-      detail: _sCVEs.length > 0
-        ? `${_sCVEs.length} active: ${_sCVEs.slice(0, 3).map(b => b.cve || b.id || '').filter(Boolean).join(', ')}${_sCVEs.length > 3 ? ` +${_sCVEs.length - 3} more` : ''}`
-        : 'No active advisories for this version'
-    },
-    // ── Extended checks (10-15) ──
-    {
-      name: 'Aggregate Capacity Headroom \u2265 20%',
+    { name: 'Aggregate Capacity Headroom \u2265 20%',
       ok: (() => {
         const _u = sys.efficiency && sys.efficiency.usableCapacityTB > 0 ? sys.efficiency.usableCapacityTB : 0;
         const _p = sys.efficiency ? (sys.efficiency.physicalUsedTB || 0) : 0;
@@ -10382,24 +10479,63 @@ function renderCSMTab() {
         return `${_p.toFixed(1)} TB used / ${_u.toFixed(1)} TB usable \u2014 ${pct}% headroom`;
       })()
     },
-    {
-      name: 'HA Pair Configured (No Single Point of Failure)',
-      ok: (() => {
-        const _isSG = (sys.platform || '').toLowerCase().includes('storagegrid');
-        const _isES = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3');
-        return _isSG || _isES || sys.haConfigured === true || sys.haConfigured === null;
-      })(),
+    { name: 'HA Pair Configured (No Single Point of Failure)',
+      ok: _sIsSG || _sIsES || sys.haConfigured === true || sys.haConfigured === null,
       detail: (() => {
-        const _isSG = (sys.platform || '').toLowerCase().includes('storagegrid');
-        const _isES = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3');
-        if (_isSG || _isES) return 'N/A \u2014 platform does not use traditional HA pairs';
+        if (_sIsSG || _sIsES) return 'N/A \u2014 platform does not use traditional HA pairs';
         if (sys.haConfigured === true) return 'HA pair active \u2014 automatic failover enabled';
         if (sys.haConfigured === false) return 'No HA pair \u2014 single node, SPOF risk';
         return 'HA status unknown \u2014 verify with: storage failover show';
       })()
     },
-    {
-      name: 'No Open S1/S2 Critical Support Cases',
+    { name: 'Network Port Health (no link-down on active ports)',
+      ok: _sDownPorts.length === 0,
+      detail: _sDownPorts.length > 0 ? `${_sDownPorts.length} port(s) link-down \u2014 check cabling` : 'All active ports operational'
+    },
+    { name: 'QoS Adaptive Policy Coverage',
+      ok: sys.isQoSConfigured === true || sys.qosPolicies > 0 || sys.isQoSConfigured == null,
+      detail: (() => {
+        if (sys.isQoSConfigured === true || sys.qosPolicies > 0) return 'Adaptive QoS policies configured';
+        if (sys.isQoSConfigured === false) return 'No QoS policies \u2014 noisy-neighbor risk';
+        return 'QoS data unavailable \u2014 verify on-cluster';
+      })()
+    },
+    // SECURITY & COMPLIANCE
+    { cat: 'SECURITY \u0026 COMPLIANCE',
+      name: 'No Active Security CVEs Applicable (PSIRT)',
+      ok: _sCVEs.length === 0,
+      detail: _sCVEs.length > 0
+        ? `${_sCVEs.length} active: ${_sCVEs.slice(0, 3).map(b => b.cve || b.id || '').filter(Boolean).join(', ')}${_sCVEs.length > 3 ? ` +${_sCVEs.length - 3} more` : ''}`
+        : 'No active advisories for this version'
+    },
+    { name: 'No CISA KEV Active Exploitation Alerts',
+      ok: _sCisaHits.length === 0,
+      detail: _sCisaHits.length > 0 ? `${_sCisaHits.length} CVE(s) on CISA Known Exploited Vulnerabilities list` : 'No actively exploited CVEs applicable'
+    },
+    { name: 'Volume Encryption (NVE/NAE) Enabled',
+      ok: sys.nvEncryptionEnabled === true || sys.nvEncryptionEnabled === null,
+      detail: (() => {
+        if (sys.nvEncryptionEnabled === true) return 'NVE/NAE enabled \u2014 data at rest is protected';
+        if (sys.nvEncryptionEnabled === false) return 'Encryption not confirmed \u2014 verify with: security key-manager show';
+        return 'Encryption status unavailable \u2014 validate on-cluster';
+      })()
+    },
+    { name: 'Anti-Ransomware Protection (ARP) Active',
+      ok: sys.isARPEnabled === true || sys.isARPEnabled === null || _sIsSG || _sIsES,
+      detail: (() => {
+        if (_sIsSG || _sIsES) return 'N/A \u2014 ARP is an ONTAP NAS feature';
+        if (sys.isARPEnabled === true) return 'ARP active \u2014 entropy analysis monitoring enabled on volumes';
+        if (sys.isARPEnabled === false) return 'ARP not enabled \u2014 enable via: security anti-ransomware volume enable';
+        return 'ARP status unavailable from API \u2014 verify on-cluster';
+      })()
+    },
+    // SUPPORT & MONITORING
+    { cat: 'SUPPORT \u0026 MONITORING',
+      name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',
+      ok: _sAsup.enabled !== false && _sAsup.status !== 'failed' && _sAsup.status !== 'disabled' && (_sAsup.lastReceivedDays == null || _sAsup.lastReceivedDays <= 7),
+      detail: _sAsup.status ? `Status: ${_sAsup.status}${_sAsup.lastReceivedDays != null ? ', last received ' + _sAsup.lastReceivedDays + 'd ago' : ''}` : 'AutoSupport status unknown'
+    },
+    { name: 'No Open S1/S2 Critical Support Cases',
       ok: (() => {
         const _open = (sys.supportCases || []).filter(c => {
           const sev = (c.severity || '').toUpperCase();
@@ -10418,53 +10554,101 @@ function renderCSMTab() {
         return `${_open.length} critical case(s): ${_open.slice(0, 2).map(c => c.id || 'CASE').join(', ')}${_open.length > 2 ? ' +more' : ''}`;
       })()
     },
-    {
-      name: 'Volume Encryption (NVE/NAE) Enabled',
-      ok: sys.nvEncryptionEnabled === true || sys.nvEncryptionEnabled === null,
-      detail: (() => {
-        if (sys.nvEncryptionEnabled === true) return 'NVE/NAE enabled \u2014 data at rest is protected';
-        if (sys.nvEncryptionEnabled === false) return 'Encryption not confirmed \u2014 verify with: security key-manager show';
-        return 'Encryption status unavailable \u2014 validate on-cluster';
-      })()
-    },
-    {
-      name: 'Anti-Ransomware Protection (ARP) Active',
-      ok: sys.isARPEnabled === true || sys.isARPEnabled === null || (sys.platform || '').toLowerCase().includes('storagegrid') || (sys.platform || '').toLowerCase().includes('e-series'),
-      detail: (() => {
-        const _isSG = (sys.platform || '').toLowerCase().includes('storagegrid');
-        const _isES = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6');
-        if (_isSG || _isES) return 'N/A \u2014 ARP is an ONTAP NAS feature';
-        if (sys.isARPEnabled === true) return 'ARP active \u2014 entropy analysis monitoring enabled on volumes';
-        if (sys.isARPEnabled === false) return 'ARP not enabled \u2014 enable via: security anti-ransomware volume enable';
-        return 'ARP status unavailable from API \u2014 verify on-cluster';
-      })()
-    },
-    {
-      name: 'No Outstanding Field Safety Alerts (FSA)',
+    { name: 'No Outstanding Field Safety Alerts (FSA)',
       ok: !sys.fieldActions || sys.fieldActions.length === 0,
       detail: (() => {
         if (!sys.fieldActions || sys.fieldActions.length === 0) return 'No outstanding field actions';
         return `${sys.fieldActions.length} active FA(s): ${sys.fieldActions.slice(0, 2).map(f => f.id || 'FA').join(', ')}${sys.fieldActions.length > 2 ? ' +more' : ''}`;
       })()
-    }
+    },
   ];
 
-  let checklistHTML = '';
-  _sSingle.forEach((item, idx) => {
-    const _col = item.ok ? 'var(--status-normal)' : 'var(--status-critical)';
-    const _dCol = item.ok ? 'var(--text-muted)' : 'var(--status-warning)';
-    const _divider = idx === 9 ? `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-purple);padding:6px 10px 2px;border-top:1px solid rgba(129,140,248,0.2);margin-top:4px;">\u2795 Extended Checks</div>` : '';
-    checklistHTML += _divider + `
-      <div style="padding: 8px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px;">
-          <span style="font-size: 0.82rem; flex: 1;">${item.name}</span>
-          <span style="font-size: 1rem; font-weight: bold; color: ${_col}; flex-shrink: 0;">${item.ok ? '\u2713' : '\u2717'}</span>
+  // ── RIGHT: Data Protection & Lifecycle ──────────────────────────────────────
+  const _sRightChecks = [
+    // DATA PROTECTION
+    { cat: 'DATA PROTECTION',
+      name: 'SnapMirror Async/Sync Replication Configured',
+      ok: !!(sys.snapmirror && sys.snapmirror.enabled),
+      detail: (sys.snapmirror && sys.snapmirror.enabled) ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
+    },
+    { name: 'Cloud FabricPool / Cold-Data Tiering Active',
+      ok: fpTiered > 0,
+      detail: fpTiered > 0 ? `${(fpTiered || 0).toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
+    },
+    { name: 'SVM/LIF Inventory Mapped',
+      ok: _sSvms.length > 0,
+      detail: _sSvms.length > 0 ? `${_sSvms.length} SVM(s) with LIF mappings available` : 'No SVM/LIF data \u2014 enable vserver GraphQL harvesting'
+    },
+    { name: 'No Excessive FlexClone Sprawl (\u226410 clones)',
+      ok: _sCloneCount <= 10,
+      detail: _sCloneCount > 10 ? `${_sCloneCount} FlexClones \u2014 review for cleanup` : _sCloneCount > 0 ? `${_sCloneCount} FlexClone(s) \u2014 within threshold` : 'No FlexClone data or none present'
+    },
+    // RISK & REMEDIATION
+    { cat: 'RISK \u0026 REMEDIATION',
+      name: 'Zero High/Critical Risks Outstanding',
+      ok: _sCritH.length === 0,
+      detail: _sCritH.length > 0 ? `${_sCrit} critical, ${_sHigh} high \u2014 remediation required` : 'No critical or high risks'
+    },
+    { name: 'Feature Adoption Score \u2265 60%',
+      ok: _sAdoptScore ? _sAdoptScore.pct >= 60 : true,
+      detail: _sAdoptScore ? `Adoption score: ${_sAdoptScore.pct}% (${_sAdoptScore.passed}/${_sAdoptScore.total} features)` : 'Adoption data unavailable'
+    },
+    { name: 'No Config Drift (unassigned ports \u2264 2)',
+      ok: _sUnassigned.length <= 2 || _sPorts.length === 0,
+      detail: _sUnassigned.length > 2 ? `${_sUnassigned.length} ports without broadcast domain assignment` : 'Network configuration consistent'
+    },
+    { name: 'MTTR Posture (no stale cases \u003e 90 days)',
+      ok: _sStaleCases.length === 0,
+      detail: _sStaleCases.length > 0 ? `${_sStaleCases.length} case(s) open >90 days \u2014 escalation recommended` : 'No stale support cases'
+    },
+    // CONTRACTS & LIFECYCLE
+    { cat: 'CONTRACTS \u0026 LIFECYCLE',
+      name: 'Support Contract Active (\u003e 90 days remaining)',
+      ok: !!(sys.contracts && sys.contracts.daysRemaining > 90),
+      detail: sys.contracts
+        ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`)
+        : 'No contract data available'
+    },
+    { name: 'Contract Co-Term Alignment',
+      ok: true, // Single-system context — fleet-level check always passes
+      detail: 'Co-term alignment is evaluated at fleet level \u2014 see aggregate view'
+    },
+  ];
+
+  // ── Render single-system columns ──────────────────────────────────────────
+  function _renderSingleCheckCol(checks) {
+    let html = '';
+    checks.forEach(item => {
+      if (item.cat) {
+        html += `<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);padding:8px 10px 3px;border-top:1px solid rgba(129,140,248,0.12);margin-top:2px;opacity:0.7;">${item.cat}</div>`;
+      }
+      const _col = item.ok ? 'var(--status-normal)' : 'var(--status-critical)';
+      const _dCol = item.ok ? 'var(--text-muted)' : 'var(--status-warning)';
+      html += `
+        <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px;">
+            <span style="font-size: 0.78rem; flex: 1;">${item.name}</span>
+            <span style="font-size: 1rem; font-weight: bold; color: ${_col}; flex-shrink: 0;">${item.ok ? '\u2713' : '\u2717'}</span>
+          </div>
+          <div style="font-size: 0.68rem; color: ${_dCol};">${item.detail}</div>
         </div>
-        <div style="font-size: 0.72rem; color: ${_dCol};">${item.detail}</div>
-      </div>
-    `;
-  });
-  document.getElementById('csmAdoptionChecklist').innerHTML = checklistHTML;
+      `;
+    });
+    return html;
+  }
+
+  const _sLeftPass  = _sLeftChecks.filter(c => c.ok).length;
+  const _sRightPass = _sRightChecks.filter(c => c.ok).length;
+
+  document.getElementById('csmAdoptionChecklist').innerHTML = _renderSingleCheckCol(_sLeftChecks);
+  const _sRightEl = document.getElementById('csmAdoptionChecklistRight');
+  if (_sRightEl) _sRightEl.innerHTML = _renderSingleCheckCol(_sRightChecks);
+
+  // Update column score headers
+  const _sLeftScoreEl = document.getElementById('csmCheckLeftScore');
+  if (_sLeftScoreEl) _sLeftScoreEl.textContent = `${_sLeftPass}/${_sLeftChecks.length} passed`;
+  const _sRightScoreEl = document.getElementById('csmCheckRightScore');
+  if (_sRightScoreEl) _sRightScoreEl.textContent = `${_sRightPass}/${_sRightChecks.length} passed`;
 
   // Render Projections & Forecasting Metrics & Line Chart
   const proj = sys.projections || { growthRateGBPerDay: 0, daysToLimit: null, limitDate: null, peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [], growthSource: 'unavailable' };

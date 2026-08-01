@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.0.2-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.3-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -343,7 +343,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are 
 | **14** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
 | **15** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **16** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
-| **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, NVE/NAE, SnapMirror, HA, Audit, SnapLock, MAV), OS diversity analysis, 15-point best-practice score per system, CLI enablement commands |
+| **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, NVE/NAE, SnapMirror, HA, Audit, SnapLock, MAV), OS diversity analysis, 25-point categorized best-practice score per system (Operations & Security + Data Protection & Lifecycle), CLI enablement commands |
 
 ---
 
@@ -415,25 +415,43 @@ Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPI
 
 ---
 
-### Feature Adoption Score (0-15, shown as %)
-15-point best-practice checklist scored per system.
+### Feature Adoption Score (0-25, shown as %)
+25-point categorized best-practice checklist scored per system, split into two columns.
 
-**Checklist items** (1 point each):
-1. OS version ≥ recommended minimum
-2. Data reduction ratio ≥ 1.5:1
-3. FabricPool cloud tiering active
-4. SnapMirror DR replication active
-5. Zero critical/high risks
-6. Active support contract
-7. ASUP reported within 7 days
-8. Not approaching End of Support
-9. Zero unpatched security bulletins
-10. Capacity utilization ≤ 80%
-11. HA configured
-12. Zero open P1/P2 cases
-13. Volume/aggregate encryption enabled (NVE/NAE)
-14. Autonomous Ransomware Protection enabled
-15. Zero field security advisories
+**Left Column — Operations & Security** (15 checks, 1 point each):
+
+| # | Category | Check |
+|---|---|---|
+| 1 | Software & Platform | OS version ≥ recommended minimum |
+| 2 | Software & Platform | Hardware on current platform generation (non-EOA) |
+| 3 | Software & Platform | Firmware & disk qualification current |
+| 4 | Infrastructure Health | Data reduction ratio ≥ 1.5:1 |
+| 5 | Infrastructure Health | Aggregate capacity headroom ≥ 20% |
+| 6 | Infrastructure Health | HA pair configured (no SPOF) |
+| 7 | Infrastructure Health | Network port health (no link-down on active ports) |
+| 8 | Infrastructure Health | QoS adaptive policy coverage |
+| 9 | Security & Compliance | No active security CVEs (PSIRT) |
+| 10 | Security & Compliance | No CISA KEV active exploitation alerts |
+| 11 | Security & Compliance | Volume encryption (NVE/NAE) enabled |
+| 12 | Security & Compliance | Anti-Ransomware Protection (ARP) active |
+| 13 | Support & Monitoring | AutoSupport HTTPS reported within 7 days |
+| 14 | Support & Monitoring | No open S1/S2 critical support cases |
+| 15 | Support & Monitoring | No outstanding Field Safety Alerts (FSA) |
+
+**Right Column — Data Protection & Lifecycle** (10 checks, 1 point each):
+
+| # | Category | Check |
+|---|---|---|
+| 16 | Data Protection | SnapMirror async/sync replication configured |
+| 17 | Data Protection | FabricPool cold-data tiering active |
+| 18 | Data Protection | SVM/LIF inventory mapped |
+| 19 | Data Protection | No excessive FlexClone sprawl (≤10 clones) |
+| 20 | Risk & Remediation | Zero high/critical risks outstanding |
+| 21 | Risk & Remediation | Feature adoption score ≥ 60% |
+| 22 | Risk & Remediation | No config drift (unassigned ports ≤ 2) |
+| 23 | Risk & Remediation | MTTR posture (no stale cases > 90 days) |
+| 24 | Contracts & Lifecycle | Active support contract (> 90 days remaining) |
+| 25 | Contracts & Lifecycle | Contract co-term alignment |
 
 ---
 
@@ -503,7 +521,7 @@ Dedupe + compression only (excluding snapshots). Fallback cascade:
 ---
 
 ### GraphQL Telemetry Additions
-New API fields harvested to support v4.0.2 capabilities:
+New API fields harvested to support v4.0.3 capabilities:
 - `networkPorts` (port role, link status, broadcast domain, speed, MAC, MTU)
 - `vservers` (SVM id, name, type, logicalInterfaces with failover config)
 

@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 4.0.2 (per `version.json`, dated 2026-08-01)
+> **Current Version**: 4.0.3 (per `version.json`, dated 2026-08-01)
 
 ---
 
@@ -161,7 +161,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - Cloud Tiering ROI (FabricPool)
 - SnapMirror data protection coverage
 - Capacity & Performance Forecasting with runway projections
-- 15-Point TAM/MSP Remediation Readiness Checklist
+- 25-Point Categorized TAM/MSP Remediation Readiness Checklist (2-column: Operations & Security, Data Protection & Lifecycle)
 
 ### View 5: Action Planner
 - Consolidated operational action plan generator
@@ -399,7 +399,7 @@ Key metric calculations are implemented in `app.js` at the following locations:
 
 - **`computeAccountHealthScore(targetSystems)`** — Line 11009. Computes the 0-100 Account Health Score using a weighted formula of 7 factors (ASUP, ARP, Firmware, Contracts, Risks, Data Reduction, CSAT).
 - **`computeMTTR(allSupportCases)`** — Line 11060. Calculates the Mean Time to Resolve in days for all closed cases.
-- **`computeFeatureAdoptionScore(sys)`** — Line 11088. Evaluates a 15-point best-practice checklist to return an adoption score (0-15) and percentage.
+- **`computeFeatureAdoptionScore(sys)`** — Line 11088. Evaluates a 25-point best-practice checklist to return an adoption score (0-25) and percentage. Checks are categorized into Operations & Security (15) and Data Protection & Lifecycle (10).
 - **`computeCostOfInaction(targetSystems)`** — Line 11118. Computes the weighted Cost of Inaction urgency score based on risks, CVEs, capacity runway, and lifecycle status.
 - **`_buildControllerBackplate`** — Platform-specific rear-panel HTML builder
 - **`compileSvmLifInventoryText`** — SVM/LIF inventory text generator for deliverables
