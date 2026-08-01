@@ -7871,13 +7871,17 @@ function openRemediationModal(riskId) {
 
   const optionsList = document.getElementById("modalDetailOptions");
   optionsList.innerHTML = "";
-  risk.remediationPlan.options.forEach(opt => {
-    const li = document.createElement("li");
-    li.innerHTML = linkify(opt);
-    li.style.marginBottom = "6px";
-    li.style.lineHeight = "1.5";
-    optionsList.appendChild(li);
-  });
+  if (risk.remediationPlan.options && risk.remediationPlan.options.length > 0) {
+    risk.remediationPlan.options.forEach(opt => {
+      const li = document.createElement("li");
+      li.innerHTML = linkify(opt);
+      li.style.marginBottom = "6px";
+      li.style.lineHeight = "1.5";
+      optionsList.appendChild(li);
+    });
+  } else {
+    optionsList.innerHTML = '<li style="color: var(--text-muted); font-style: italic;">N/A — No alternative trade-off options identified for this risk.</li>';
+  }
 
   document.getElementById("modalDetailThirdParty").innerHTML = linkify(risk.remediationPlan.thirdParty);
 
@@ -11803,12 +11807,14 @@ function enrichSystemTelemetry(s) {
         }
         return `${i + 1}. ${String(a)}`;
       });
+      // Generate dynamic plan to inherit rich options/thirdParty context
+      const _dynPlan = generateDynamicRemediationPlan(normRisk, { clusterName: cluster, platform: model, ontapVersion: osVer });
       normRisk.remediationPlan = {
         cause: r.riskDetail || r.systemRiskDetail || normRisk.description,
-        impact: r.potentialImpact || normRisk.description,
+        impact: r.potentialImpact || _dynPlan.impact || normRisk.description,
         steps: steps,
-        options: [],
-        thirdParty: 'N/A'
+        options: _dynPlan.options || [],
+        thirdParty: _dynPlan.thirdParty || 'N/A'
       };
     }
     if (!normRisk.remediationPlan) {
