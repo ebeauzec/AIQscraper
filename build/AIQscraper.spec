@@ -21,7 +21,7 @@ IS_WIN = sys.platform == 'win32'
 
 import json as _json
 with open(os.path.join(SPECPATH, '..', 'version.json'), 'r') as _vf:
-    _APP_VERSION = _json.load(_vf).get('version', '3.7.0')
+    _APP_VERSION = _json.load(_vf).get('version', '4.0.0')
 
 block_cipher = None
 

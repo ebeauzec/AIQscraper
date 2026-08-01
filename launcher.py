@@ -32,7 +32,7 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-APP_NAME = "NetApp Active IQ Advisor"
+APP_NAME = "ARIA — Active IQ Risk Intelligence Advisor"
 APP_PORT = 8080
 
 

@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 3.8.2 (per `version.json`, dated 2026-07-31)
+> **Current Version**: 4.0.0 (per `version.json`, dated 2026-08-01)
 
 ---
 
@@ -60,15 +60,18 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 2. **AIQ REST API** (`api.activeiq.netapp.com`) — Token exchange, capacity, risks
 3. **ASUP Files** — Offline AutoSupport bundle parsing (`.7z`, `.tgz`, `.zip`, `.xml`, `.gz`) for air-gapped environments
 4. **Local Reference Library** — `data/firmware_baselines.json`, `data/security_bulletins.json`, plus embedded EOA platform lists, CVE database, upgrade caveats, MetroCluster ISL specs
-5. **External Enrichment Sources** (scraped automatically per version, cached in SQLite):
+5. **External Enrichment Sources** (v4.0.0 scanner architecture):
    - `docs.netapp.com` — ONTAP/StorageGRID/SANtricity release notes (known issues, fixed issues, what's new)
    - `security.netapp.com` — PSIRT advisory index and individual advisory detail pages
    - `services.nvd.nist.gov` — NVD CVE API v2 (CVSS scores, severity, descriptions, affected version ranges)
    - `mysupport.netapp.com` — Bugs Online public search
-   - `kb.netapp.com` — Knowledge Base articles with remediation steps (v3.8.0+)
-   - `docs.netapp.com/upgrade/` — Upgrade path recommendations and prerequisites (v3.8.0+)
-   - `docs.netapp.com` security/performance indexes — Best practice TR guides (v3.8.0+)
+   - `kb.netapp.com` — JSON-LD category tree crawler: 64+ KB articles across 3 hierarchy levels (root → product → topic categories)
+   - `docs.netapp.com/us-en/ontap/` — Index page crawler: 139+ doc links extracted from ONTAP, hardware, NAS, SAN, upgrade indexes
+   - `docs.netapp.com` integration seeds — 38 verified doc URLs covering configuration, operations, security, data protection, performance, compliance, migration, and 3rd-party integrations
+   - `kb.netapp.com/on-prem/ontap/` — Fleet-specific KB sub-category crawling: Data Access, Data Protection, MetroCluster, SnapMirror, SnapLock, NAS, SAN (27+ articles)
+   - `docs.netapp.com` security/remediation docs — direct links for antivirus, anti-ransomware, NAS audit, multi-admin verify, SnapLock, authentication
 6. **Version Catalog Auto-Detection** (v3.8.0+) — Scrapes docs.netapp.com to discover newly released ONTAP, StorageGRID, and SANtricity versions; auto-updates the client-side `SOFTWARE_VERSION_DATABASES` on each page load
+7. **Fleet-Aware Deliverable Mapper** (v4.0.0) — All 13 TAM deliverables receive fleet-relevant enrichment references. Articles scored by ONTAP version match (+30), platform family (+20), model match (+25), operational category (+10). Minimum score 5 required for inclusion.
 
 ---
 
@@ -92,7 +95,7 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 | File | Purpose |
 |------|---------|
 | `aiq_config.json` | Stores refresh token, watchlist IDs, TAM info |
-| `version.json` | Source of truth for version number (currently 3.7.0) |
+| `version.json` | Source of truth for version number (currently 4.0.0) |
 | `data/firmware_baselines.json` | Ground-truth firmware recommendations (ONTAP, SP/BMC, shelf, disk, StorageGRID, SANtricity) |
 | `data/security_bulletins.json` | Local CVE/NTAP advisory database for offline security matching |
 | `aiq_cache.db` | SQLite cache database (~22MB, stores all harvested data) |
