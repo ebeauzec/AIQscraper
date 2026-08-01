@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.1] - 2026-08-01
+
+### Added
+- **Deliverable Intelligence Enrichment** — all 13 TAM deliverables now receive enriched content sections for DR & Replication coverage, capacity forecast & runway, and feature adoption analysis. Each deliverable's generated text includes fleet-specific metrics (SnapMirror relationship counts, RPO/RTO assessment, unprotected system identification, growth rate forecasting, and per-system 15-point best-practice adoption scores) drawn from live API data.
+- **Dynamic Remediation Plan Fields** — risk detail modals for live API-sourced risks now populate the **Options & Trade-Offs** and **Compliance & Regulatory** sections from `generateDynamicRemediationPlan()` output, showing risk-specific alternatives, considerations, and regulatory context instead of empty/generic placeholders.
+
+### Fixed
+- **Cluster name "unknown" in table and chart** — when the Active IQ API's cluster-to-serial lookup returns no match, the server and client now derive the cluster name from the system hostname by stripping node suffixes (e.g. `A150-CLUSTER-01` → `A150-CLUSTER`). Fixes the Cluster column in the system table and the x-axis labels in the "Storage Capacity by System" chart both showing "unknown".
+- **Platform-aware upgrade logic for all live systems** — ONTAP, StorageGRID (11.x → 11.9), and E-Series/SANtricity systems from the live API now receive correct upgrade path calculations. Previously, only ONTAP systems were evaluated; StorageGRID 11.x systems were incorrectly shown as "Up to Date" and E-Series models were unrecognized.
+- **E-Series model detection expanded** — added recognition for E2824, E5700, and EF4000 models. SANtricity upgrade paths now use version-range matching (e.g. 11.70 → 11.80 series).
+- **E-Series hardware synthesis** — live E-Series systems now receive a synthesized `eseriesHardware` object (controller model, drive count/type, management interface version) so the SANtricity Hardware Audit card renders properly instead of showing empty.
+- **Feature adoption TypeError** — fixed `s.gaps.slice is not a function` crash by deriving feature gaps inline from boolean flags rather than expecting a pre-built array.
+- **Capacity forecast wrapper** — added missing `computeFleetCapacityForecast()` function that delegates to `computeFleetCapacitySummary()` with mapped property names, fixing undefined-function errors in deliverable generation.
+- **Linkify anchor tag breakage** — the `linkify()` function no longer matches NTAP/CVE patterns inside existing `<a>` tag `href` attributes, preventing double-wrapping that broke advisory links.
+- **StorageGRID false "Up to Date"** — StorageGRID 11.x systems (e.g. 11.7, 11.8) are no longer incorrectly marked as current when 11.9 is the recommended target.
+
+### Changed
+- **Version bumped to 4.0.1** across documentation.
+- **app.js** — `enrichSystemTelemetry` cluster fallback now uses hostname with node suffix stripped (regex: `[-_](?:0[1-9]|node\d+|n\d+)$`) before defaulting to "unknown".
+- **server.py** — cluster name extraction uses `re.sub()` on hostname as fallback when serial-to-cluster lookup returns empty.
+
+---
+
 ## [4.0.0] - 2026-08-01
 
 ### Added
