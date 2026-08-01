@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.0.1-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.2-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -57,6 +57,7 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 | **ARP and ASUP health require individual system checks** — no fleet-wide audit | **Fleet-wide operational health** — ARP enablement, AutoSupport recency, firmware currency, and reboot timeline across all systems at once |
 | **Sustainability requires per-customer navigation** | **Cross-customer ESG dashboard** — fleet sustainability score, carbon/energy data, and data reduction ratios all in one view |
 | **Cluster identity gaps** — systems not mapped to a cluster in the API appear unnamed | **Automatic cluster name derivation** — when the API cluster lookup returns empty, the hostname is used with node suffixes stripped (e.g. `A150-CLUSTER-01` → `A150-CLUSTER`) to produce meaningful labels in tables and charts |
+| **No visual hardware references** — you must manually check hardware guides for layout | **Platform-specific rear-panel backplate visualization** — renders accurate physical controller rear views for 8+ NetApp hardware families (A70/A90/A1K, A400/A900, A800/C800, A250/C250/FAS2820, E-Series, Cloud, StorageGRID, generic ONTAP) |
 
 ### Where this tool is most effective
 
@@ -83,6 +84,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - AutoSupport status, firmware currency, and Anti-Ransomware Protection (ARP) coverage
 - OS version catalog for upgrade path calculation
 - Account personnel (Sales Rep, TAM, SAM, ASP, Propensity)
+- **SVM & LIF Inventory** — harvests vserver data (SVM name, type, LIFs with IPs, service policies, failover configuration) from the Active IQ GraphQL API and displays per-node LIF tables in the cabling audit view.
 
 **Added by the Reference Library (not in Active IQ):**
 - **EOA hardware flags** — automatically detects End-of-Availability controllers, shelves, and switches across all NetApp product families: ONTAP (AFF, ASA, FAS), StorageGRID appliances, and E-Series/EF-Series arrays. The database is updated as NetApp publishes new EOA notices.
@@ -93,6 +95,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - Kerberos AES enforcement detection
 - SnapMirror synchronous policy alignment audit
 - Legacy firewall policy deprecation detection
+- **Harvest Resilience** — merge-back guard prevents transient API failures from wiping cached system and cluster data.
 
 ---
 
@@ -289,6 +292,8 @@ Fleet-wide KPI cards (systems, clusters, critical risks, open cases), interactiv
 
 The risk and security intelligence hub. Displays all Active IQ risks sorted by severity, security advisories with CVE cross-referencing, and Reference Library enrichment checks (Kerberos, SnapMirror, Varonis, firewall deprecation). Each advisory links to the NetApp Security Advisory portal.
 
+The Controller Node Port Assignments card now includes a **platform-specific rear-panel backplate** showing the physical slot layout, port types (color-coded), and live link status LEDs. Port hover interactions cross-highlight between the backplate and the cabling audit table. A new **LIF Inventory** table displays SVM logical interfaces per node.
+
 ### Support & Ops
 
 Contract status pipeline (Active / Expiring / Expired cards), EOS/EOA lifecycle timeline sorted by urgency, and a filterable support case view (Open / Processing / Closed) with case age and system attachment.
@@ -349,6 +354,8 @@ All deliverables are generated in the browser from your local data. Nothing is u
 > **KB Intelligence Enrichment:** Each deliverable is automatically enriched with fleet-relevant articles from the ARIA Knowledge Base Intelligence engine. A badge on each card shows the number of KB references attached (e.g., "★ 5 KB refs"). The Knowledge Base Intelligence summary panel at the top of the deliverables section shows aggregate enrichment statistics and fleet profile context.
 
 > **Customer-scoped:** Set the Customer Filter in the sidebar before generating to produce a deliverable for a single account only.
+
+> **SVM/LIF Inventory:** All 13 deliverables now include **SVM/LIF inventory sections** when vserver data is available.
 
 | ID | Deliverable | Audience | Contents |
 |---|---|---|---|
@@ -492,6 +499,13 @@ Dedupe + compression only (excluding snapshots). Fallback cascade:
 2. `dedupSaved + compactionSaved` — derived ratio
 3. `logicalNoSnaps / physicalNoSnaps` — snapshot-excluded capacity
 4. N/A — displayed when no valid source available
+
+---
+
+### GraphQL Telemetry Additions
+New API fields harvested to support v4.0.2 capabilities:
+- `networkPorts` (port role, link status, broadcast domain, speed, MAC, MTU)
+- `vservers` (SVM id, name, type, logicalInterfaces with failover config)
 
 ---
 

@@ -726,6 +726,10 @@ def _do_full_harvest(watchlist_ids=None):
                       logical { usedKiB }
                       efficiency { ratio { efficiencyRatio dataReductionRatio } }
                     }
+                    networkPorts {
+                      totalCount
+                      networkPorts { port role link type broadcastDomain ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes interfaceGroupOwner }
+                    }
                   }"""
 
         # ── Medium: efficiency data without problematic Float fields ──────────
@@ -771,6 +775,10 @@ def _do_full_harvest(watchlist_ids=None):
                         saved { savedKiB deDuplicationSavedKiB compactionSavedKiB }
                       }
                       reportedOn
+                    }
+                    networkPorts {
+                      totalCount
+                      networkPorts { port role link type broadcastDomain ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes interfaceGroupOwner }
                     }
                   }"""
 
@@ -977,9 +985,10 @@ def _do_full_harvest(watchlist_ids=None):
                     serialNumber
                     hardwareModel { name endOfAvailability endOfHwSupport }
                   }
+                  vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }
                   capacity {
-                    physical { usedKiB usedWithoutSnapshotsKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
-                    logical { usedKiB usedWithoutSnapshotsClonesKiB }
+                    physical { usedKiB rawMarketingKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage }
+                    logical { usedKiB }
                     reportedOn
                   }
                   monthlyCapacity {
@@ -1031,6 +1040,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
                             ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
+                            ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
                             '             qoqUtilizationPercentage yoyUtilizationPercentage }'
@@ -1264,6 +1274,7 @@ def _do_full_harvest(watchlist_ids=None):
         serial_to_cluster_ha = {}   # serial → HA configured flag
         serial_to_cluster_switches = {}  # serial → switches list from cluster
         serial_to_cluster_shelves = {}   # serial → shelves list from cluster
+        serial_to_cluster_vservers = {}  # serial → vservers list from cluster
         for cl in all_clusters:
             cl_id = cl.get("id") or cl.get("name")
             cl_name = cl.get("name", "")
@@ -1309,6 +1320,7 @@ def _do_full_harvest(watchlist_ids=None):
             cl_rec = ((cl.get("osRecommendation") or {}).get("recommendedVersion")) or ""
             cl_switches = cl.get("switches") or []
             cl_shelves = cl.get("shelves") or []
+            cl_vservers = cl.get("vservers") or []
             for cs in cl_systems:
                 cs_serial = cs.get("serialNumber")
                 if cs_serial:
@@ -1318,6 +1330,7 @@ def _do_full_harvest(watchlist_ids=None):
                     serial_to_cluster_ha[cs_serial] = is_ha
                     serial_to_cluster_switches[cs_serial] = cl_switches
                     serial_to_cluster_shelves[cs_serial] = cl_shelves
+                    serial_to_cluster_vservers[cs_serial] = cl_vservers
         
         total_sw = sum(len(v) for v in serial_to_cluster_switches.values())
         print(f"  [HARVEST] Switch instances mapped: {total_sw // max(len(serial_to_cluster_switches), 1)} unique across clusters", flush=True)
@@ -1689,6 +1702,7 @@ def _do_full_harvest(watchlist_ids=None):
                 "portInterface": s.get("portInterface") or {},
                 "networkPorts": s.get("networkPorts") or {},
                 "switches": switches,
+                "vservers": serial_to_cluster_vservers.get(serial, []),
                 "vcenters": s.get("vcenters") or [],
                 # ── Risks & cases ──
                 "risks": risks_by_serial.get(serial, []),
@@ -1828,9 +1842,25 @@ def _do_full_harvest(watchlist_ids=None):
 
         print(f"  [HARVEST] Done in {duration_ms}ms: {len(systems_out)} systems, {len(all_clusters)} clusters, {len(all_risks)} unique risks, {len(all_risk_instances)} risk instances, {len(all_cases)} cases", flush=True)
 
-        # Save to cache
+        # ── Merge-back guard: preserve previous data on transient API failures ──
+        # When the API times out, systems or clusters may return 0 even though the
+        # data exists.  Rather than overwriting good cached data with empty arrays,
+        # merge the previous harvest's systems/clusters back into the result.
         db = _init_db()
         try:
+            prev_result, _ = _load_cached(db)
+            if prev_result:
+                if len(systems_out) == 0 and len(prev_result.get("systems") or []) > 0:
+                    prev_sys = prev_result["systems"]
+                    print(f"  [HARVEST] Merge-back: keeping {len(prev_sys)} systems from previous harvest (current returned 0)", flush=True)
+                    result["systems"] = prev_sys
+                    result["totalSystems"] = len(prev_sys)
+                if len(all_clusters) == 0 and len(prev_result.get("clusters") or []) > 0:
+                    prev_cl = prev_result["clusters"]
+                    print(f"  [HARVEST] Merge-back: keeping {len(prev_cl)} clusters from previous harvest (current returned 0)", flush=True)
+                    result["clusters"] = prev_cl
+                    result["totalClusters"] = len(prev_cl)
+
             _save_harvest(db, result, duration_ms)
         finally:
             db.close()

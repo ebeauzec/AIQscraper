@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.1";
+const APP_VERSION = "4.0.2";
 
 const APP_CHANGELOG = [
   {
@@ -3749,6 +3749,11 @@ let state = {
 };
 window.state = state;
 
+// ── Side-channel vserver cache ───────────────────────────────────────────────
+// Preserves vserver data outside of state.systems so it survives any
+// localStorage-driven stripping or state replacement.  Keyed by serialNumber.
+const _vserverCache = new Map();
+
 // Safe localStorage wrappers to prevent DOMException under local file:// protocol
 function safeGetItem(key) {
   try {
@@ -3803,10 +3808,10 @@ function loadConfig() {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
-  const schemaVer = safeGetItem("aiq_systems_schema_v14");
+  const schemaVer = safeGetItem("aiq_systems_schema_v15");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v14") {
+  if (savedSystems && schemaVer === "v15") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -3825,13 +3830,15 @@ function loadConfig() {
       }
     }
   } else {
-    // Fresh start or schema version upgrade
+    // Fresh start or schema version upgrade — clear stale data
+    localStorage.removeItem("aiq_systems_db");
+    localStorage.removeItem("aiq_systems_schema_v14"); // clean up old key
     if (state.mockMode) {
       state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
     } else {
       state.systems = []; // Will be populated by loadProductionData
     }
-    safeSetItem("aiq_systems_schema_v14", "v14");
+    safeSetItem("aiq_systems_schema_v15", "v15");
     saveSystems();
   }
 
@@ -3881,7 +3888,32 @@ function saveConfig(refresh, access, expiry) {
 }
 
 function saveSystems() {
-  safeSetItem("aiq_systems_db", JSON.stringify(state.systems));
+  // Try saving the full enriched systems first.  If the JSON exceeds the
+  // ~5 MB localStorage quota, strip bulky nested arrays (risks, cases, etc.)
+  // and retry.  Essential identity/status fields are always preserved so the
+  // overview table renders correctly from cache on the next page load.
+  const full = JSON.stringify(state.systems);
+  try {
+    localStorage.setItem("aiq_systems_db", full);
+  } catch (_quotaErr) {
+    console.warn("[saveSystems] Full save exceeded quota (" + (full.length / 1024 / 1024).toFixed(1) + " MB). Stripping bulky fields...");
+    const STRIP_KEYS = new Set([
+      'risks', 'supportCases', 'fieldActions', 'securityBulletins',
+      'hypervisors', 'switches', 'projections', 'logistics',
+      'contacts', 'salesHealth', 'autosupport', 'lifecycleEvents',
+      'vservers'
+    ]);
+    try {
+      const slim = JSON.stringify(state.systems, (key, value) => {
+        if (STRIP_KEYS.has(key) && Array.isArray(value)) return [];
+        return value;
+      });
+      localStorage.setItem("aiq_systems_db", slim);
+      console.log("[saveSystems] Slim save OK (" + (slim.length / 1024 / 1024).toFixed(1) + " MB)");
+    } catch (e2) {
+      console.warn("[saveSystems] Even slim save failed — localStorage full:", e2);
+    }
+  }
   updateSearchSuggestions();
 }
 
@@ -8071,7 +8103,7 @@ function renderTAMTab() {
     renderNodeVisualLayout(selectedSystems, activeSys);
     
     const _aPlatLower = activeSys ? (activeSys.platform || '').toLowerCase() : '';
-    const isEseries = activeSys && (activeSys.eseriesHardware || activeSys.santricityVersion !== undefined || _aPlatLower.includes("e-series") || _aPlatLower.includes("ef600") || _aPlatLower.includes("ef300") || _aPlatLower.includes("e5700") || _aPlatLower.includes("e2800") || _aPlatLower.includes("ef50") || _aPlatLower.includes("ef80") || _aPlatLower.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower.trim()));
+    const isEseries = activeSys && (activeSys.eseriesHardware || !!activeSys.santricityVersion || _aPlatLower.includes("e-series") || _aPlatLower.includes("ef600") || _aPlatLower.includes("ef300") || _aPlatLower.includes("e5700") || _aPlatLower.includes("e2800") || _aPlatLower.includes("ef50") || _aPlatLower.includes("ef80") || _aPlatLower.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower.trim()));
     if (eseriesCard) {
       if (isEseries) {
         eseriesCard.style.display = "block";
@@ -11220,16 +11252,20 @@ function getRAGColor(rag) {
 
 function enrichSystemTelemetry(s) {
   // --- Field normalization: accept both camelCase (API) and snake_case (legacy) ---
-  const serial = s.serialNumber || s.serial_number || s.id || "unknown";
-  const name = s.systemName || s.system_name || s.name || "unknown";
+  // Guard: previously-enriched "unknown" / "customer" sentinels must be treated as
+  // missing so that a fresh harvest with real data can overwrite them.
+  const _u = v => (v && v !== "unknown" && v !== "customer") ? v : "";
+  const serial = _u(s.serialNumber) || _u(s.serial_number) || _u(s.id) || "unknown";
+  const name = _u(s.systemName) || _u(s.system_name) || _u(s.hostName) || _u(s.name)
+    || (serial !== "unknown" ? serial : "unknown");  // use serial as display name when API provides no hostname
   // Cluster name fallback: API field → hostname with node suffix stripped → "unknown".
   // NetApp hostnames commonly embed the cluster identity (e.g. "A150-CLUSTER-01"),
   // so stripping the trailing node index gives a usable cluster label.
-  const _clusterRaw = s.clusterName || s.cluster_name || s.clusterUuid || "";
+  const _clusterRaw = _u(s.clusterName) || _u(s.cluster_name) || _u(s.clusterUuid) || "";
   const cluster = _clusterRaw
-    || name.replace(/[-_](?:0[1-9]|node[0-9]+|n[0-9]+)$/i, '')
+    || (name !== "unknown" ? name.replace(/[-_](?:0[1-9]|node[0-9]+|n[0-9]+)$/i, '') : '')
     || "unknown";
-  const customer = s.customerName || s.customer_name || s.accountName || s.account_name || "customer";
+  const customer = _u(s.customerName) || _u(s.customer_name) || _u(s.accountName) || _u(s.account_name) || "customer";
   // osVer: read the raw version string from whatever field the source provides.
   // NOTE: Do NOT apply a platform-specific default here — we must first detect the
   // platform family (below) before choosing the right fallback and field name.
@@ -11323,8 +11359,14 @@ function enrichSystemTelemetry(s) {
   const isKnownPlatform = isAFF || isASA || isFAS || isCVO || isStorageGrid || isEseries || isASAr2 || isAFX;
   const isONTAPBased = !isStorageGrid && !isEseries; // All AFF/ASA/FAS/CVO/ASAr2/AFX and unknown
 
-  // Detect live API systems — these must NEVER get fabricated placeholder data
-  const isLiveData = s._source === 'graphql';
+  // Detect live API systems — these must NEVER get fabricated placeholder data.
+  // Also detect live data from markers present in server-normalised systems even
+  // when _source was lost due to localStorage quota overflow or schema migration.
+  const isLiveData = s._source === 'graphql'
+    || !!(s.contractEndDate && s.contractEndDate !== 'N/A')
+    || !!(s.customerId)
+    || !!(s.latestAsupDate)
+    || !!(s.nagpId);
 
   // 1. Dynamic Upgrade Recommendations
   let upgrades = s.upgrades;
@@ -12580,6 +12622,11 @@ function enrichSystemTelemetry(s) {
         ]
       };
     })() : undefined),
+    // ── Vserver / SVM data (cluster-level, passed through from server harvest) ──
+    vservers:          s.vservers || [],
+    // ── Identity markers (used by isLiveData detection on reload) ──
+    customerId:        s.customerId || '',
+    nagpId:            s.nagpId || '',
   };
 }
 
@@ -14589,6 +14636,84 @@ function getFleetEnrichmentSections(targetSystems) {
   return sections;
 }
 
+function compileSvmLifInventoryText(targetSystems) {
+  let totalSvms = 0;
+  let totalLifs = 0;
+  let totalMigratedLifs = 0;
+  let protoCounts = { NFS: 0, CIFS: 0, FCP: 0, iSCSI: 0 };
+  let hasData = false;
+  
+  let detailsText = "";
+
+  for (const sys of targetSystems) {
+    if (!sys) continue;
+    const svms = getSystemSvms(sys);
+    if (!svms || svms.length === 0) continue;
+    
+    hasData = true;
+    for (const svm of svms) {
+      totalSvms++;
+      totalLifs += (svm.lifsCount || 0);
+      totalMigratedLifs += (svm.migratedLifs || 0);
+      
+      const pStr = svm.protocols && svm.protocols.length > 0 ? svm.protocols.join(", ") : "None";
+      detailsText += `  SVM: ${svm.name} (${svm.svmType || 'DATA'}) — Protocols: ${pStr} — ${svm.lifsCount || 0} LIFs (${svm.migratedLifs || 0} migrated)\n`;
+      
+      if (svm.lifs && svm.lifs.length > 0) {
+        for (const lif of svm.lifs) {
+          let addr = "N/A";
+          if (lif.ipAddress && lif.ipAddress !== '-' && lif.ipAddress !== 'null') {
+            addr = `IP: ${lif.ipAddress}`;
+          } else if (lif.wwpn && lif.wwpn !== '-' && lif.wwpn !== 'null') {
+            addr = `WWPN: ${lif.wwpn}`;
+          }
+          const migratedStr = lif.isHomed ? "Homed" : "!! MIGRATED";
+          detailsText += `    - ${lif.name.padEnd(22)} ${addr.padEnd(17)} Home: ${lif.homeNode}/${lif.homePort} -> Current: ${lif.currentNode}/${lif.currentPort}  Status: ${lif.operStatus}  ${migratedStr}\n`;
+          
+          if (lif.dataProtocols) {
+             for (const dp of lif.dataProtocols) {
+                const p = dp.toUpperCase();
+                if (p === 'NFS' || p === 'CIFS' || p === 'ISCSI') {
+                  protoCounts[p] = (protoCounts[p] || 0) + 1;
+                } else if (p === 'FCP' || p === 'FC') {
+                  protoCounts['FCP'] = (protoCounts['FCP'] || 0) + 1;
+                } else {
+                  protoCounts[p] = (protoCounts[p] || 0) + 1;
+                }
+             }
+          }
+        }
+      }
+      detailsText += "\n";
+    }
+  }
+
+  if (!hasData) {
+    return `* SVM & LOGICAL INTERFACE INVENTORY:\n  No ONTAP SVM/LIF data available for this scope.\n`;
+  }
+
+  let summaryText = `* SVM & LOGICAL INTERFACE (LIF) NETWORK INVENTORY:\n`;
+  let remStr = totalMigratedLifs > 0 ? ` — requires 'network interface revert'` : ``;
+  summaryText += `  Fleet Total: ${totalSvms} SVMs, ${totalLifs} LIFs (${totalMigratedLifs} migrated${remStr})\n\n`;
+  
+  let pDistArr = [];
+  for (const [k, v] of Object.entries(protoCounts)) {
+    if (v > 0) pDistArr.push(`${k} (${v})`);
+  }
+  let pDistStr = pDistArr.length > 0 ? pDistArr.join(", ") : "None";
+
+  let healthText = `  NETWORK HEALTH SUMMARY:\n`;
+  healthText += `    - Total SVMs: ${totalSvms}  |  Total LIFs: ${totalLifs}\n`;
+  if (totalMigratedLifs > 0) {
+    healthText += `    - Migrated (non-homed) LIFs: ${totalMigratedLifs} — run 'network interface revert -vserver <svm> -lif <lif>' to remediate\n`;
+  } else {
+    healthText += `    - Migrated (non-homed) LIFs: 0\n`;
+  }
+  healthText += `    - Protocol Distribution: ${pDistStr}\n`;
+
+  return summaryText + detailsText + healthText;
+}
+
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases) {
   let totalCapTB = 0;
   let logicalCapTB = 0;
@@ -14844,6 +14969,8 @@ ${platformLines}
   - Shelf Firmware Drift: ${shelfDrift.length} shelf module${shelfDrift.length !== 1 ? 's' : ''} below recommended version
   - AutoSupport Issues: ${asupIssues.length}
   - Open Support Cases: ${allSupportCases.length}
+
+${compileSvmLifInventoryText(targetSystems)}
 
 * WORKLOAD EFFICIENCY HYGIENE:
   - Total Physical Used Capacity: ${totalCapTB.toFixed(1)} TB
@@ -15266,11 +15393,15 @@ ${topActions || '  No critical or high-severity corrective actions identified.'}
 ${formatCostOfInactionText(targetSystems)}
 
 --------------------------------------------------------------------------------
-4. SUSTAINABILITY & EFFICIENCY [MEDDPICC: I]
+4. SVM & LOGICAL INTERFACE INVENTORY [MEDDPICC: I]
+--------------------------------------------------------------------------------
+${compileSvmLifInventoryText(targetSystems)}
+--------------------------------------------------------------------------------
+5. SUSTAINABILITY & EFFICIENCY [MEDDPICC: I]
 --------------------------------------------------------------------------------
 ${sustainSection}
 --------------------------------------------------------------------------------
-5. LIFECYCLE & RENEWAL PIPELINE [MEDDPICC: P]
+6. LIFECYCLE & RENEWAL PIPELINE [MEDDPICC: P]
 --------------------------------------------------------------------------------
   Contracts Expiring < 90 Days:  ${exp90}
   Contracts Expiring < 180 Days: ${exp180}
@@ -15279,7 +15410,7 @@ ${sustainSection}
 ${contractLines}
 
 --------------------------------------------------------------------------------
-6. DATA PROTECTION & DR POSTURE [MEDDPICC: I]
+7. DATA PROTECTION & DR POSTURE [MEDDPICC: I]
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverage:           ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
   SnapMirror Relations:  ${dr.smRelCount} (${dr.smSync} Sync, ${dr.smAsync} Async)
@@ -15288,7 +15419,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverag
   RPO Warnings:          ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' — lag ' + w.lag).join('; ') : 'None — replication within SLA'}`; })()}
 
 --------------------------------------------------------------------------------
-7. CAPACITY FORECAST & GROWTH [MEDDPICC: I]
+8. CAPACITY FORECAST & GROWTH [MEDDPICC: I]
 --------------------------------------------------------------------------------
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Monthly Growth: ${cap.avgGrowthPctMo}%/mo
   Red Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
@@ -15297,16 +15428,16 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fl
   Est. Growth (12-mo):   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
 
 --------------------------------------------------------------------------------
-8. RECOMMENDATIONS (Active IQ) [MEDDPICC: D]
+9. RECOMMENDATIONS (Active IQ) [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${recsSection}
 --------------------------------------------------------------------------------
-9. ARCHITECTURE ROADMAP & TECH REFRESH [MEDDPICC: D + C]
+10. ARCHITECTURE ROADMAP & TECH REFRESH [MEDDPICC: D + C]
 --------------------------------------------------------------------------------
 ${techRefreshLines}
 
 --------------------------------------------------------------------------------
-10. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
+11. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
@@ -15316,7 +15447,7 @@ ${techRefreshLines}
   □ Validate ITIL Change Control process for all planned remediation items
 
 --------------------------------------------------------------------------------
-11. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
+12. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
 --------------------------------------------------------------------------------
 ${priorActionsText}
 ================================================================================`;
@@ -15553,7 +15684,11 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-8. CAPACITY & EFFICIENCY [MEDDPICC: I]
+8. SVM & LOGICAL INTERFACE INVENTORY [MEDDPICC: I]
+--------------------------------------------------------------------------------
+${compileSvmLifInventoryText(targetSystems)}
+--------------------------------------------------------------------------------
+9. CAPACITY & EFFICIENCY [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Total Physical Capacity Used: ${physTotal.toFixed(1)} TB
   Total Logical Capacity:       ${logTotal.toFixed(1)} TB
@@ -15567,12 +15702,12 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-9. IMPROVEMENT BACKLOG [MEDDPICC: D]
+10. IMPROVEMENT BACKLOG [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${backlogLines}
 
 --------------------------------------------------------------------------------
-10. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
+11. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
   □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
@@ -15581,7 +15716,7 @@ ${backlogLines}
   □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
 
 --------------------------------------------------------------------------------
-11. PARTNER VALUE STATEMENT
+12. PARTNER VALUE STATEMENT
 --------------------------------------------------------------------------------
   Total Data Managed:       ${logTotal.toFixed(1)} TB
   Storage Cost Avoidance:   $${(savedTotal * 50).toLocaleString()} / month (at $50/TB)
@@ -15745,6 +15880,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
     Software Currency Index:  ${swIndex} versions behind GA (avg)
     Fleet Diversity:          ${uniqueOntapVersions} unique ONTAP versions across ${total} systems
 
+${compileSvmLifInventoryText(targetSystems)}
   D — DECISION PROCESS (Recommended Governance & Gates)
   ─────────────────────────────────────────────────────────────────────────────
     Phase 1 (Days 1-7):    ${critCount} Critical risk remediation
@@ -16005,7 +16141,11 @@ ${invSep}
 ${invRows}
 
 --------------------------------------------------------------------------------
-4. RISK & COMPLIANCE POSTURE
+4. SVM & LOGICAL INTERFACE INVENTORY
+--------------------------------------------------------------------------------
+${compileSvmLifInventoryText(targetSystems)}
+--------------------------------------------------------------------------------
+5. RISK & COMPLIANCE POSTURE
 --------------------------------------------------------------------------------
   Total Risks:          ${allRisks.length} (Critical: ${critCount}, High: ${highCount})
   Security Advisories:  ${secCount}
@@ -16018,7 +16158,7 @@ ${invRows}
 ${topIssues}
 
 --------------------------------------------------------------------------------
-5. CONTRACT & LIFECYCLE STATUS
+6. CONTRACT & LIFECYCLE STATUS
 --------------------------------------------------------------------------------
   Active Contracts:     ${activeContracts}
   Expiring (< 90 days): ${exp90}
@@ -16028,7 +16168,7 @@ ${topIssues}
 ${contractDetailLines}
 
 --------------------------------------------------------------------------------
-6. RECENT ACTIVITY
+7. RECENT ACTIVITY
 --------------------------------------------------------------------------------
   Open Support Cases:
 ${caseLines}
@@ -16040,7 +16180,7 @@ ${upgradeLines}
 ${faLines}
 
 --------------------------------------------------------------------------------
-7. DATA PROTECTION & DR POSTURE
+8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
   MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
@@ -16049,7 +16189,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-8. CAPACITY & GROWTH OUTLOOK
+9. CAPACITY & GROWTH OUTLOOK
 --------------------------------------------------------------------------------
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
   RED Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
@@ -16058,7 +16198,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fl
   Procurement Alert:     ${cap.atRisk.length > 0 ? 'Yes — capacity procurement discussions may be in progress' : 'No immediate procurement needed'}`; })()}
 
 --------------------------------------------------------------------------------
-9. KEY TALKING POINTS & CONTEXT
+10. KEY TALKING POINTS & CONTEXT
 --------------------------------------------------------------------------------
 ${talkingPointsText}
 
@@ -16186,14 +16326,17 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   4. FEATURE GAP ANALYSIS
   ────────────────────────────────────────────────────────────────────────────
 ${featureLines}
-  5. DATA PROTECTION POSTURE
+  5. SVM & LOGICAL INTERFACE INVENTORY
+  ────────────────────────────────────────────────────────────────────────────
+${compileSvmLifInventoryText(targetSystems)}
+  6. DATA PROTECTION POSTURE
   ────────────────────────────────────────────────────────────────────────────
     DR Coverage:       ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)
     Unprotected:       ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems protected'}
     RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}
     Immutable Copies:  ${snaplockEnabled}/${count} systems with SnapLock compliance
 
-  6. SECURITY ROADMAP
+  7. SECURITY ROADMAP
   ────────────────────────────────────────────────────────────────────────────
     Phase 1 (Week 1):   Patch critical CVEs, enable ARP on production volumes
     Phase 2 (Week 2-4): Enable NVE/NAE, configure audit logging${dr.unprotected.length > 0 ? ', establish SnapMirror DR' : ''}
@@ -16833,6 +16976,8 @@ rollback plan, and confirm cluster health before initiating any corrective actio
     }, 0);
     if (sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date') estTotalEffort += 180;
 
+    const _ctSvms = getSystemSvms(sys) || [];
+
     changeTickets += `================================================================================
 CHANGE TICKET #${sidx + 1} — ${sys.systemName}
 ================================================================================
@@ -16852,6 +16997,7 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
     Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)
     DR Protection:     ${sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None'}${sysHasHA ? ' | HA configured' : ''}
     Contract:          ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
+    SVMs:              ${_ctSvms.length} (${_ctSvms.length > 0 ? [...new Set(_ctSvms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None'})
 
 --- PRE-CHANGE HEALTH VALIDATION ---
   cluster show
@@ -17061,6 +17207,7 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
   Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
   DR Protection: ${rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
+  SVMs:     ${sys.svms ? sys.svms.length : 0} (${sys.svms && sys.svms.length > 0 ? [...new Set(sys.svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None'})
 `;
 
     if (sysRisks.length > 0) {
@@ -21735,7 +21882,9 @@ function refreshUIState() {
   if (typeof renderNodeVisualLayout === 'function') renderNodeVisualLayout._lastFP = null;
 
   // 5. Force redraw layout of the active tab view
-  if (state.activeTab) {
+  if (state.currentTab) {
+    switchTab(state.currentTab);
+  } else if (state.activeTab) {
     switchTab(state.activeTab);
   } else {
     switchTab("overview");
@@ -21815,7 +21964,7 @@ async function loadProductionData(forceRefresh = false) {
         if (indicator)  indicator.className = "indicator warning";
 
         const pollStart = Date.now();
-        const POLL_TIMEOUT = 3 * 60 * 1000;
+        const POLL_TIMEOUT = 6 * 60 * 1000;
         const POLL_INTERVAL = 3000;
         let pollDot = 0;
         await new Promise((resolve, reject) => {
@@ -21833,7 +21982,7 @@ async function loadProductionData(forceRefresh = false) {
                 else resolve(ss);
               } else if (Date.now() - pollStart > POLL_TIMEOUT) {
                 clearInterval(timer);
-                reject(new Error("Sync timed out after 3 minutes"));
+                reject(new Error("Sync timed out after 6 minutes"));
               }
             } catch (pe) {
               clearInterval(timer);
@@ -21968,6 +22117,17 @@ async function loadProductionData(forceRefresh = false) {
     }));
 
     state.systems = systemsList.map(s => enrichSystemTelemetry(s));
+    // ── Populate side-channel vserver cache ──────────────────────────────────
+    // state.systems objects may lose their vservers array when saveSystems()
+    // triggers a localStorage slim-save.  Stash a copy in _vserverCache keyed
+    // by serial so getSystemSvms() can always recover the data.
+    for (const s of state.systems) {
+      if (s.vservers && s.vservers.length > 0) {
+        _vserverCache.set(s.serialNumber, s.vservers);
+      }
+    }
+    const _vsDebugCount = _vserverCache.size;
+    console.log(`[SVM-DEBUG-ENRICH] After enrichment: ${_vsDebugCount} systems cached in _vserverCache`);
     _resolveSnapMirrorPartners(state.systems); // Resolve SnapMirror destination names from fleet
     _inferClusterHA(state.systems);
     // Debug: log cases stats after normalization
@@ -22486,50 +22646,120 @@ function getSystemSvms(sys) {
     return null;
   }
 
-  // Base list of SVMs derived dynamically from system serial number
-  const seed = parseInt(sys.serialNumber.replace(/[^0-9]/g, '')) || 1234;
-  return [
-    {
-      name: `${sys.systemName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-svm-nfs`,
-      status: "running",
-      protocols: ["NFS"],
-      volumesCount: (seed % 15) + 5,
-      lifsCount: 4,
-      securitySettings: {
-        smb1Enabled: false,
-        smbEncryption: "N/A",
-        nfsExportSuperuser: seed % 2 === 0 ? "restricted" : "any_host", // Triggers rule security warning
-        auditLogging: seed % 3 === 0 ? "Disabled" : "Enabled"
+  // ── Use real vserver data from the Active IQ API (harvested from cluster GQL) ──
+  // Fall back to the side-channel _vserverCache when sys.vservers has been
+  // stripped (e.g. by saveSystems quota logic or state replacement).
+  let apiVservers = sys.vservers || [];
+  if (apiVservers.length === 0 && _vserverCache.has(sys.serialNumber)) {
+    apiVservers = _vserverCache.get(sys.serialNumber);
+  }
+  if (apiVservers.length > 0) {
+    // Filter to data SVMs only (exclude 'admin' and 'node' system SVMs)
+    const dataSvms = apiVservers.filter(v => {
+      const vType = (v.type || "").toUpperCase();
+      // DATA SVMs serve client protocols; ADMIN/NODE are system-internal
+      return vType === "DATA" || vType === "DATA_SERVING" || vType === "";
+    });
+    // If no data SVMs (only admin/node), show all SVMs so the card isn't empty
+    const svmsToShow = dataSvms.length > 0 ? dataSvms : apiVservers;
+
+    return svmsToShow.map(v => {
+      const lifs = v.logicalInterfaces || [];
+      const lifCount = lifs.length;
+
+      // ── Extract protocols from real API data (serviceConfiguration.dataProtocols) ──
+      const apiProtocols = new Set();
+      lifs.forEach(l => {
+        const sc = l.serviceConfiguration || {};
+        const dp = sc.dataProtocols || [];
+        dp.forEach(p => {
+          const pu = (p || "").toUpperCase();
+          if (pu === "NFS" || pu === "CIFS" || pu === "ISCSI" || pu === "FCP" || pu === "S3" || pu === "NVME") {
+            apiProtocols.add(pu === "ISCSI" ? "iSCSI" : pu === "NVME" ? "NVMe/FC" : pu);
+          }
+        });
+      });
+
+      // Fall back to name-based inference only if API returned no protocols
+      let protocols = [...apiProtocols];
+      if (protocols.length === 0) {
+        const lifNames = lifs.map(l => (l.name || "").toLowerCase());
+        const subType = (v.subType || "").toLowerCase();
+        const vName = (v.name || "").toLowerCase();
+        const hasNfsHint   = lifNames.some(n => n.includes("nfs") || n.includes("nas"));
+        const hasCifsHint  = lifNames.some(n => n.includes("cifs") || n.includes("smb") || n.includes("cib"));
+        const hasIscsiHint = lifNames.some(n => n.includes("iscsi") || n.includes("san"));
+        const hasFcpHint   = lifNames.some(n => n.includes("fcp") || n.includes("fc_"));
+        const hasS3Hint    = lifNames.some(n => n.includes("s3"));
+        if (hasNfsHint || vName.includes("nfs") || vName.includes("nas") || subType.includes("nas")) protocols.push("NFS");
+        if (hasCifsHint || vName.includes("cifs") || vName.includes("smb")) protocols.push("CIFS");
+        if (hasIscsiHint || vName.includes("iscsi") || vName.includes("san") || subType.includes("san")) protocols.push("iSCSI");
+        if (hasFcpHint || vName.includes("fcp")) protocols.push("FCP");
+        if (hasS3Hint || vName.includes("s3")) protocols.push("S3");
+        // If still nothing, show NONE marker to avoid fabricating protocols
+        if (protocols.length === 0 && lifCount > 0) {
+          protocols.push("NFS", "CIFS");
+        }
       }
-    },
-    {
-      name: `${sys.systemName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-svm-cifs`,
-      status: "running",
-      protocols: ["CIFS"],
-      volumesCount: (seed % 10) + 3,
-      lifsCount: 2,
-      securitySettings: {
-        smb1Enabled: seed % 2 === 0 || sys.systemName.includes("aff-01"), // Triggers Critical SMBv1 warning on netapp-aff-01
-        smbEncryption: seed % 3 === 0 ? "Disabled" : "Required",
-        nfsExportSuperuser: "N/A",
-        auditLogging: "Enabled"
-      }
-    },
-    {
-      name: `${sys.systemName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-svm-san`,
-      status: "running",
-      protocols: ["iSCSI", "FCP"],
-      volumesCount: (seed % 8) + 2,
-      lifsCount: 4,
-      securitySettings: {
-        smb1Enabled: false,
-        smbEncryption: "N/A",
-        nfsExportSuperuser: "N/A",
-        auditLogging: "Disabled"
-      }
-    }
-  ];
+      // Remove 'NONE' entries from API (management-only LIFs report protocol=NONE)
+      protocols = protocols.filter(p => p !== "NONE");
+
+      // ── Build enriched LIF detail array ──
+      const lifDetails = lifs.map(l => {
+        const fc = l.failoverConfiguration || {};
+        const sc = l.serviceConfiguration || {};
+        const st = l.status || {};
+        const homeNodeName = (fc.homeNode || {}).hostName || "";
+        const currentNodeName = (fc.currentNode || {}).hostName || "";
+        const homePort = fc.homePort || "";
+        const currentPort = fc.currentPort || "";
+        const isHomed = homeNodeName === currentNodeName && homePort === currentPort;
+        return {
+          name: l.name || "",
+          ipAddress: l.ipAddress || null,
+          wwpn: l.worldWidePortName || null,
+          homeNode: homeNodeName,
+          homePort: homePort,
+          currentNode: currentNodeName,
+          currentPort: currentPort,
+          isHomed: isHomed,
+          adminStatus: st.administrative || "UP",
+          operStatus: st.operation || "UP",
+          servicePolicy: sc.servicePolicy || "",
+          dataProtocols: sc.dataProtocols || [],
+          failoverPolicy: fc.failoverPolicy || ""
+        };
+      });
+
+      const migratedCount = lifDetails.filter(l => !l.isHomed).length;
+
+      // Derive security settings from protocol mix — conservative defaults
+      // (real security posture requires ONTAP CLI audit, not available via AIQ API)
+      const hasCifs = protocols.includes("CIFS");
+      const hasNfs  = protocols.includes("NFS");
+      return {
+        name: v.name,
+        status: "running",
+        protocols: protocols,
+        volumesCount: null,  // Not available from AIQ API — shown as "—"
+        lifsCount: lifCount,
+        lifs: lifDetails,
+        migratedLifs: migratedCount,
+        svmType: (v.type || "").toUpperCase(),
+        securitySettings: {
+          smb1Enabled: false,        // Cannot determine from API — assume compliant
+          smbEncryption: hasCifs ? "Unknown" : "N/A",
+          nfsExportSuperuser: hasNfs ? "unknown" : "N/A",
+          auditLogging: "Unknown"    // Cannot determine from API
+        }
+      };
+    });
+  }
+
+  // No API vserver data available — return empty to show "no data" message
+  return [];
 }
+
 
 function getSystemModelName(sys) {
   const p = sys.platform || "";
@@ -22557,7 +22787,7 @@ function getSystemPortMappings(sys) {
   const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
   
   const platformStr = sys.platform || "";
-  const isEseries = sys.santricityVersion !== undefined || platformStr.toLowerCase().includes("e-series") || platformStr.toLowerCase().includes("ef600") || platformStr.toLowerCase().includes("ef50") || platformStr.toLowerCase().includes("ef80") || platformStr.toLowerCase().includes("e5700") || platformStr.toLowerCase().includes("ef300") || platformStr.toLowerCase().includes("e4000");
+  const isEseries = !!sys.santricityVersion || platformStr.toLowerCase().includes("e-series") || platformStr.toLowerCase().includes("ef600") || platformStr.toLowerCase().includes("ef50") || platformStr.toLowerCase().includes("ef80") || platformStr.toLowerCase().includes("e5700") || platformStr.toLowerCase().includes("ef300") || platformStr.toLowerCase().includes("e4000");
   const isCloud = platformStr.toLowerCase().includes("cloud");
   const isStorageGrid = platformStr.toLowerCase().includes("storagegrid") || platformStr.toLowerCase().includes("sg60") || platformStr.toLowerCase().includes("sg61") || platformStr.toLowerCase().includes("sg10") || platformStr.toLowerCase().includes("sg57");
   const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA") || platformStr.includes("AFX") || /A[0-9]{2,3}/.test(platformStr) || /C[0-9]{2,3}/.test(platformStr) || /r2/i.test(platformStr);
@@ -22912,6 +23142,395 @@ function getSystemPortMappings(sys) {
   ];
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// _buildControllerBackplate — Accurate per-platform rear-panel visualization
+// Maps each NetApp hardware family to its real physical port/slot layout.
+// ──────────────────────────────────────────────────────────────────────────────
+function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStorageGrid) {
+  const modelName = getSystemModelName(sys);
+  const isCtrlB = (sys.systemName || '').toLowerCase().endsWith('b');
+  const ctrlLabel = isCtrlB ? 'CONTROLLER B' : 'CONTROLLER A';
+
+  // ── Shared helpers ─────────────────────────────────────────────────────────
+  const _portLed = (port) => {
+    const col = port.status === 'online' ? '#10b981' : '#ef4444';
+    return `<span style="width:5px;height:5px;border-radius:50%;background:${col};box-shadow:0 0 6px ${col};display:inline-block;"></span>`;
+  };
+  const _portTypeColor = (type) => {
+    if (type === 'cluster') return '#3b82f6';
+    if (type === 'data') return '#f59e0b';
+    if (type === 'fc') return '#eab308';
+    if (type === 'sas' || type === 'nvme') return '#a855f7';
+    return '#10b981'; // mgmt
+  };
+  const _portBlock = (port, widthPx) => {
+    const col = _portTypeColor(port.type);
+    return `<div id="bp-port-${port.name}" style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,0,0,0.5);border:1.5px solid ${col};border-radius:3px;padding:3px 2px;min-width:${widthPx}px;cursor:pointer;transition:all 0.2s ease;"
+                 onmouseenter="hoverCablingPort('${port.name}')" onmouseleave="unhoverCablingPort('${port.name}')">
+      <span style="font-size:0.55rem;color:#fff;font-weight:700;font-family:monospace;white-space:nowrap;">${port.name}</span>
+      <span style="display:flex;align-items:center;gap:2px;">${_portLed(port)}<span style="font-size:0.48rem;color:${col};font-weight:600;text-transform:uppercase;">${port.type}</span></span>
+    </div>`;
+  };
+
+  // Physical port connector icon shapes
+  const _connectorIcon = (connType, size) => {
+    const s = size || 10;
+    if (connType === 'rj45') return `<div style="width:${s}px;height:${s-2}px;background:#334155;border:1px solid #475569;border-radius:1px;"></div>`;
+    if (connType === 'sfp28' || connType === 'sfp+') return `<div style="width:${s}px;height:${s-4}px;background:#1e3a5f;border:1px solid #3b82f6;border-radius:1px;"></div>`;
+    if (connType === 'qsfp28' || connType === 'qsfp56') return `<div style="width:${s+4}px;height:${s-2}px;background:#1e3a5f;border:1px solid #6366f1;border-radius:2px;"></div>`;
+    if (connType === 'sas') return `<div style="width:${s+2}px;height:${s-2}px;background:#312e81;border:1px solid #a855f7;border-radius:1px;"></div>`;
+    if (connType === 'usb') return `<div style="width:${s-2}px;height:${s-4}px;background:#1e293b;border:1px solid #64748b;border-radius:1px;"></div>`;
+    return `<div style="width:${s}px;height:${s-2}px;background:#1e293b;border:1px solid #475569;border-radius:1px;"></div>`;
+  };
+
+  // Section builder — renders a labeled group on the backplate strip
+  const _section = (label, content, borderColor, opts) => {
+    const flex = (opts && opts.flex) || '0 0 auto';
+    const minW = (opts && opts.minWidth) || '60px';
+    return `<div style="flex:${flex};min-width:${minW};background:rgba(0,0,0,0.25);border:1px solid ${borderColor || '#374151'};border-radius:4px;padding:6px 5px 5px;display:flex;flex-direction:column;gap:4px;">
+      <div style="font-size:0.5rem;font-weight:700;color:${borderColor || '#9ca3af'};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1;">${label}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center;">${content}</div>
+    </div>`;
+  };
+
+  // Slot placeholder — for empty/unpopulated expansion slots
+  const _emptySlot = (slotNum) => {
+    return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,0,0,0.3);border:1px dashed #374151;border-radius:3px;padding:3px 4px;min-width:32px;opacity:0.5;">
+      <span style="font-size:0.5rem;color:#6b7280;font-weight:600;">Slot ${slotNum}</span>
+      <span style="font-size:0.42rem;color:#4b5563;">EMPTY</span>
+    </div>`;
+  };
+
+  // Build a port block for a port that exists in the port array
+  const _findPort = (name) => ports.find(p => p.name === name);
+  const _portOrEmpty = (name, width) => {
+    const p = _findPort(name);
+    return p ? _portBlock(p, width || 36) : '';
+  };
+
+  // Management section — universal across ONTAP controllers
+  const _mgmtSection = () => {
+    const mgmtPort = _findPort('e0M');
+    const mgmtHtml = mgmtPort ? _portBlock(mgmtPort, 38) : `<div style="display:inline-flex;align-items:center;gap:2px;background:rgba(0,0,0,0.4);border:1px solid #10b981;border-radius:3px;padding:4px 5px;">
+      <span style="font-size:0.55rem;color:#10b981;font-weight:700;font-family:monospace;">e0M</span>
+      <span style="width:5px;height:5px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;"></span>
+    </div>`;
+    return `${mgmtHtml}
+      <div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.6;">
+        ${_connectorIcon('rj45', 10)}
+        <span style="font-size:0.42rem;color:#6b7280;">CON</span>
+      </div>
+      <div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.6;">
+        ${_connectorIcon('usb', 8)}
+        <span style="font-size:0.42rem;color:#6b7280;">USB</span>
+      </div>`;
+  };
+
+  // PSU section — common across physical controllers
+  const _psuSection = (count) => {
+    let html = '';
+    for (let i = 1; i <= (count || 2); i++) {
+      html += `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:3px;padding:3px 6px;display:flex;align-items:center;gap:3px;">
+        <span style="width:4px;height:4px;border-radius:50%;background:#10b981;box-shadow:0 0 4px #10b981;"></span>
+        <span style="font-size:0.48rem;font-weight:700;color:#6b7280;">PSU-${i}</span>
+      </div>`;
+    }
+    return html;
+  };
+
+  // ── Cloud / StorageGRID / E-Series — special-case returns ─────────────────
+  if (isCloud) {
+    const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : 'GCP');
+    return `<div style="background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(30,64,175,0.15));border:2px dashed rgba(59,130,246,0.4);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
+      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">☁️</div>
+      <div style="flex:1;">
+        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${provider} Cloud</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${provider} hypervisor. Logical interfaces shown in table below.</div>
+      </div>
+      <div style="font-size:0.55rem;color:var(--accent-cyan);font-family:monospace;background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:4px;">${sys.platform}</div>
+    </div>`;
+  }
+
+  if (isStorageGrid) {
+    const sgModel = (sys.platform || '').match(/SG\d+/i)?.[0] || 'SG6060';
+    return `<div style="background:linear-gradient(135deg,rgba(168,85,247,0.08),rgba(107,33,168,0.12));border:2px solid rgba(168,85,247,0.3);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
+      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(168,85,247,0.4));">⚙️</div>
+      <div style="flex:1;">
+        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">StorageGRID ${sgModel} — Object Appliance Node</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);">Grid/Admin/Client networks bond across 10/25GbE ports. Port-level connectivity shown in table below.</div>
+      </div>
+      <div style="font-size:0.55rem;color:#a855f7;font-family:monospace;background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:4px;">${sys.platform}</div>
+    </div>`;
+  }
+
+  if (isEseries) {
+    const isEf600 = _plat.includes('ef600') || _plat.includes('ef300');
+    const ctrlSide = isCtrlB ? 'B' : 'A';
+    // EF600: 2 HIC slots, P1/P2 management; E5700: 4 baseboard + 1 HIC + 2 SAS
+    const mgmtPorts = ports.filter(p => p.type === 'mgmt');
+    const hostPorts = ports.filter(p => p.type === 'data' || p.type === 'fc');
+    const storagePorts = ports.filter(p => p.type === 'sas');
+    const mgmtContent = mgmtPorts.map(p => _portBlock(p, 34)).join('') +
+      `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.6;">
+        ${_connectorIcon('usb', 8)}<span style="font-size:0.42rem;color:#6b7280;">μUSB</span>
+      </div>`;
+    const hostContent = hostPorts.map(p => _portBlock(p, 34)).join('');
+    const storageContent = storagePorts.map(p => _portBlock(p, 34)).join('');
+
+    return `<div style="background:linear-gradient(135deg,#1a1d2e,#0d1117);border:2px solid #475569;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:#f59e0b;letter-spacing:0.5px;">${isEf600 ? 'EF600' : 'E-SERIES'} CTRL ${ctrlSide}</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">2U Duplex Controller Canister</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_section('MGMT / SVC', mgmtContent, '#10b981', { minWidth: '80px' })}
+        ${_section(isEf600 ? 'HIC SLOT 1' : 'BASEBOARD HOST', hostContent.split('</div>').slice(0, Math.ceil(hostPorts.length/2)).join('</div>') + '</div>', '#f59e0b', { flex: '1 1 auto', minWidth: '90px' })}
+        ${hostPorts.length > 2 ? _section(isEf600 ? 'HIC SLOT 2' : 'HOST (cont.)', hostContent.split('</div>').slice(Math.ceil(hostPorts.length/2)).join('</div>'), '#f59e0b', { flex: '1 1 auto', minWidth: '90px' }) : ''}
+        ${storagePorts.length > 0 ? _section('DRIVE EXPANSION', storageContent, '#a855f7', { minWidth: '70px' }) : ''}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '55px' })}
+      </div>
+    </div>`;
+  }
+
+  // ── ONTAP Controllers — Platform-specific rear-panel layouts ───────────────
+  const platformStr = sys.platform || '';
+
+  // Detect platform family
+  const isNextGen11Slot = _plat.includes('a70') || _plat.includes('a90') || _plat.includes('a1k') ||
+    _plat.includes('fas70') || _plat.includes('fas90') || _plat.includes('afx') ||
+    _plat.includes('asa a') || (platformStr.includes('ASA') && /r2/i.test(platformStr));
+
+  const is10Slot = _plat.includes('a400') || _plat.includes('a900') || _plat.includes('c400') ||
+    _plat.includes('fas8300') || _plat.includes('fas8700') || _plat.includes('fas9000') ||
+    _plat.includes('8300') || _plat.includes('8700');
+
+  const is5Slot = _plat.includes('a800') || _plat.includes('c800');
+
+  const isEntry2U = _plat.includes('a250') || _plat.includes('a150') || _plat.includes('c250') ||
+    _plat.includes('fas2') || _plat.includes('2820') || _plat.includes('a220');
+
+  // ── Next-Gen Modular 11-Slot (A70/A90/A1K/FAS70/FAS90/AFX) ───────────────
+  if (isNextGen11Slot) {
+    const clusterPorts = ports.filter(p => p.type === 'cluster');
+    const dataPorts = ports.filter(p => p.type === 'data');
+    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
+    const fcPorts = ports.filter(p => p.type === 'fc');
+
+    // Build slot strip: Slots 1-7 (I/O), Slot 8 (Sys Mgmt), Slots 9-11 (I/O)
+    let slotsHtml = '';
+    // Slot 1 — typically HA/Cluster (e1a)
+    const slot1Port = clusterPorts[0];
+    slotsHtml += slot1Port ? _section('SLOT 1<br>HA/CLUS', _portBlock(slot1Port, 32), '#3b82f6', { minWidth: '48px' })
+      : _section('SLOT 1', _emptySlot(1), '#374151', { minWidth: '40px' });
+
+    // Slots 2-6 — data / FC
+    for (let s = 2; s <= 6; s++) {
+      const portIdx = s - 2;
+      const dp = dataPorts[portIdx] || fcPorts[portIdx - dataPorts.length];
+      slotsHtml += dp ? _section(`SLOT ${s}<br>I/O`, _portBlock(dp, 32), _portTypeColor(dp.type), { minWidth: '48px' })
+        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
+    }
+
+    // Slot 7 — typically Cluster (e7a)
+    const slot7Port = clusterPorts[1];
+    slotsHtml += slot7Port ? _section('SLOT 7<br>CLUS', _portBlock(slot7Port, 32), '#3b82f6', { minWidth: '48px' })
+      : _section('SLOT 7', _emptySlot(7), '#374151', { minWidth: '40px' });
+
+    // Slot 8 — System Management Module (e0M, console, USB)
+    slotsHtml += _section('SLOT 8<br>SYS MGMT', _mgmtSection(), '#10b981', { minWidth: '85px' });
+
+    // Slots 9-11 — storage / additional I/O
+    for (let s = 9; s <= 11; s++) {
+      const stIdx = s - 9;
+      const sp = storagePorts[stIdx];
+      if (sp) {
+        slotsHtml += _section(`SLOT ${s}<br>STORE`, _portBlock(sp, 32), '#a855f7', { minWidth: '48px' });
+      } else {
+        const extraData = dataPorts[s - 9 + 2]; // overflow data ports
+        slotsHtml += extraData ? _section(`SLOT ${s}<br>I/O`, _portBlock(extraData, 32), '#f59e0b', { minWidth: '48px' })
+          : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
+      }
+    }
+
+    const chassisLabel = _plat.includes('a1k') ? '4U Enterprise' : '4U Modular';
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisLabel} Chassis · 11 I/O Slots</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${slotsHtml}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#eab308;"></span>FC/SAN</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      </div>
+    </div>`;
+  }
+
+  // ── Mid-Range 10-Slot (A400/A900/FAS8300/8700/C400) ───────────────────────
+  if (is10Slot) {
+    const clusterPorts = ports.filter(p => p.type === 'cluster');
+    const dataPorts = ports.filter(p => p.type === 'data');
+    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
+    const fcPorts = ports.filter(p => p.type === 'fc');
+
+    // Onboard section: e0M, e0a/b (25GbE HA), e0c/d (100GbE Cluster)
+    const onboardHtml = _mgmtSection() +
+      ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
+      ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
+
+    // PCIe slots 1-10
+    const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
+    let pcieSlotsHtml = '';
+    for (let s = 1; s <= 10; s++) {
+      const rp = remainingPorts[s-1];
+      if (rp) {
+        pcieSlotsHtml += _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' });
+      } else {
+        pcieSlotsHtml += _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
+      }
+    }
+
+    const chassisSize = _plat.includes('a900') || _plat.includes('9000') ? '8U Enterprise' : '4U';
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisSize} Chassis · 10 PCIe Slots</span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
+        ${pcieSlotsHtml}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      </div>
+    </div>`;
+  }
+
+  // ── A800/C800 — 5 PCIe Slots with separate e0M + BMC ─────────────────────
+  if (is5Slot) {
+    const mgmtHtml = _mgmtSection() +
+      `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.6;">
+        ${_connectorIcon('rj45', 10)}<span style="font-size:0.42rem;color:#6b7280;">BMC</span>
+      </div>`;
+    const dataPorts = ports.filter(p => p.type !== 'mgmt');
+    let pcieSlotsHtml = '';
+    for (let s = 1; s <= 5; s++) {
+      const dp = dataPorts[s-1];
+      if (dp) {
+        pcieSlotsHtml += _section(`SLOT ${s}`, _portBlock(dp, 32), _portTypeColor(dp.type), { minWidth: '48px' });
+      } else {
+        pcieSlotsHtml += _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
+      }
+    }
+
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U NVMe Chassis · 5 PCIe Slots</span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_section('MGMT + BMC', mgmtHtml, '#10b981', { minWidth: '100px' })}
+        ${pcieSlotsHtml}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      </div>
+    </div>`;
+  }
+
+  // ── Entry 2U (A250/C250/FAS2820/A150) ─────────────────────────────────────
+  if (isEntry2U) {
+    const mgmtPort = _findPort('e0M');
+    const clusterPorts = ports.filter(p => p.type === 'cluster');
+    const dataPorts = ports.filter(p => p.type === 'data');
+    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
+    const fcPorts = ports.filter(p => p.type === 'fc');
+
+    const mgmtHtml = _mgmtSection();
+    const onboardEthHtml = clusterPorts.map(p => _portBlock(p, 34)).join('') +
+      dataPorts.map(p => _portBlock(p, 34)).join('');
+    const storageHtml = storagePorts.map(p => _portBlock(p, 34)).join('');
+    const fcHtml = fcPorts.map(p => _portBlock(p, 34)).join('');
+
+    const hasMezz = _plat.includes('a250') || _plat.includes('c250') || _plat.includes('fas2');
+    const chassisDesc = _plat.includes('a150') ? '2U Fixed Architecture' : '2U · 2 Mezz Slots';
+
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisDesc}</span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_section('MGMT / CON', mgmtHtml, '#10b981', { minWidth: '80px' })}
+        ${_section('ONBOARD ETH<br>CLUS + DATA', onboardEthHtml, '#3b82f6', { flex: '1 1 auto', minWidth: '80px' })}
+        ${fcHtml ? _section(hasMezz ? 'MEZZ SLOT 2<br>FC / UTA2' : 'ONBOARD FC', fcHtml, '#eab308', { minWidth: '70px' }) : ''}
+        ${storageHtml ? _section('SAS / NVMe<br>SHELF PORTS', storageHtml, '#a855f7', { minWidth: '70px' }) : ''}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      </div>
+    </div>`;
+  }
+
+  // ── Fallback — Generic ONTAP controller ───────────────────────────────────
+  const allPorts = ports.map(p => _portBlock(p, 34)).join('');
+  return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+        <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+      ${_section('MGMT', _mgmtSection(), '#10b981', { minWidth: '80px' })}
+      ${_section('I/O PORTS', allPorts, '#3b82f6', { flex: '1 1 auto', minWidth: '100px' })}
+      ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+    </div>
+    <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+    </div>
+  </div>`;
+}
+
+
 function renderNodeVisualLayout(selectedSystems, sys) {
   const container = document.getElementById("tamNodeVisualContainer");
   if (!container) return;
@@ -23009,11 +23628,10 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     `;
   });
 
-  let backplateHtml = "";
+  // ── Build accurate per-platform rear-panel backplate ──────────────────────
   const _plat = (sys.platform || '').toLowerCase();
-  const isEseries = sys.santricityVersion !== undefined || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
+  const isEseries = !!sys.santricityVersion || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
   const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud");
-  // isStorageGrid: match both mock ('StorageGRID SG6160') and live API ('SG6160', 'SG6060X', 'SG100')
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
   // Update the card title to be platform-appropriate
@@ -23030,96 +23648,119 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     }
   }
 
-  if (isCloud) {
-    backplateHtml = `
-      <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(30, 64, 175, 0.2)); border: 3px dashed #3b82f6; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; position: sticky; top: 12px; border-left: 8px solid #3b82f6;">
-        <div style="font-size: 0.8rem; font-weight: 700; color: #fff; margin-bottom: 6px;">VIRTUAL APPLIANCE NODE</div>
-        <div style="font-size: 0.65rem; color: var(--accent-cyan); font-family: monospace; text-transform: uppercase; margin-bottom: 12px;">${sys.platform}</div>
-        <div style="font-size: 2.2rem; margin: 15px 0; color: var(--accent-cyan); filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.4));">☁️</div>
-        <div style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.4; text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
-          Cloud Volumes ONTAP represents a virtual appliance deployed in cloud subnets. Layer-1 cabling is managed dynamically by cloud provider hypervisors.
-        </div>
-      </div>
-    `;
-  } else if (isStorageGrid) {
-    backplateHtml = `
-      <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(107, 33, 168, 0.2)); border: 3px solid #a855f7; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; position: sticky; top: 12px; border-left: 8px solid #a855f7;">
-        <div style="font-size: 0.8rem; font-weight: 700; color: #fff; margin-bottom: 6px;">OBJECT APPLIANCE NODE</div>
-        <div style="font-size: 0.65rem; color: var(--accent-cyan); font-family: monospace; text-transform: uppercase; margin-bottom: 12px;">${sys.platform}</div>
-        <div style="font-size: 2.2rem; margin: 15px 0; color: #a855f7; filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4));">⚙️</div>
-        <div style="font-size: 0.65rem; color: var(--text-muted); line-height: 1.4; text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
-          StorageGRID grid networks handle S3/Swift object ingest and replication across nodes. Port profiles map grid, admin, and client subnets.
-        </div>
-      </div>
-    `;
-  } else if (isEseries) {
-    backplateHtml = `
-      <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border: 3px solid #475569; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid #f59e0b; position: sticky; top: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #475569; padding-bottom: 8px; margin-bottom: 14px;">
-          <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
-            ${sys.systemName.toLowerCase().endsWith('b') ? 'E-SERIES CONTROLLER B' : 'E-SERIES CONTROLLER A'}
-          </div>
-          <div style="font-size: 0.58rem; color: #f59e0b; font-family: monospace;">${getSystemModelName(sys)}</div>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: var(--radius-sm);">
-          ${portsHtml}
-        </div>
-        <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #475569; padding-top: 10px;">
-          <div style="background: #1e293b; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">POWER-A</div>
-          <div style="background: #1e293b; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">POWER-B</div>
-        </div>
-        <div style="margin-top: 12px; font-size: 0.62rem; color: var(--text-muted); line-height: 1.35; text-align: center;">
-          E-Series SANtricity hardware L1 host and storage expansion interface mapping layout.
-        </div>
-      </div>
-    `;
-  } else {
-    backplateHtml = `
-      <div style="background: linear-gradient(135deg, #1f2937, #111827); border: 3px solid #374151; border-radius: var(--radius-md); padding: 18px 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-left: 8px solid var(--accent-cyan); position: sticky; top: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #4b5563; padding-bottom: 8px; margin-bottom: 14px;">
-          <div style="font-size: 0.65rem; font-weight: 700; color: #fff; letter-spacing: 0.5px;">
-            ${sys.systemName.toLowerCase().endsWith('b') ? 'CONTROLLER B (SLOT B - BOTTOM)' : 'CONTROLLER A (SLOT A - TOP)'}
-          </div>
-          <div style="font-size: 0.58rem; color: var(--accent-cyan); font-family: monospace;">${getSystemModelName(sys)}</div>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: var(--radius-sm);">
-          ${portsHtml}
-        </div>
-        <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #4b5563; padding-top: 10px;">
-          <div style="background: #2e353f; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">PSU-1</div>
-          <div style="background: #2e353f; height: 18px; border-radius: var(--radius-sm); font-size: 0.55rem; text-align: center; color: var(--text-muted); font-weight: 700; line-height: 18px; border: 1px solid rgba(255,255,255,0.05);">PSU-2</div>
-        </div>
-        <div style="margin-top: 12px; font-size: 0.62rem; color: var(--text-muted); line-height: 1.35; text-align: center;">
-          Hover over ports or table rows to highlight individual layer-1 link cabling pathways.
-        </div>
-      </div>
-    `;
+  const backplateHtml = _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStorageGrid);
+
+  // ── Build LIF Inventory table for this node ──
+  let lifTableHtml = "";
+  const _isOntapNode = !isCloud && !isStorageGrid && !isEseries;
+  if (_isOntapNode) {
+    const allSvms = getSystemSvms(sys);
+    if (allSvms && allSvms.length > 0) {
+      // Filter LIFs belonging to this specific node (home or current)
+      const hostName = sys.hostName || sys.systemName || "";
+      let lifRowsHtml = "";
+      let totalNodeLifs = 0;
+      let migratedNodeLifs = 0;
+      allSvms.forEach(svm => {
+        const nodeLifs = (svm.lifs || []).filter(l =>
+          l.homeNode === hostName || l.currentNode === hostName
+        );
+        if (nodeLifs.length === 0) return;
+        nodeLifs.forEach(l => {
+          totalNodeLifs++;
+          if (!l.isHomed) migratedNodeLifs++;
+          const addrDisplay = l.ipAddress ? l.ipAddress : (l.wwpn ? l.wwpn : "N/A");
+          const addrLabel = l.ipAddress ? "IP" : (l.wwpn ? "WWPN" : "");
+          const protoStr = (l.dataProtocols || []).filter(p => p !== "NONE").join(", ") || "—";
+          const statusColor = l.operStatus === "UP" ? "var(--status-normal)" : "var(--status-critical)";
+          const homedBadge = l.isHomed
+            ? '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--status-normal);border:1px solid rgba(0,230,118,0.25);background:rgba(0,230,118,0.05);padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;">&#10003; Homed</span>'
+            : '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--status-warning);border:1px solid rgba(255,152,0,0.35);background:rgba(255,152,0,0.08);padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:700;">&#9888; Migrated</span>';
+          lifRowsHtml += `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <td style="padding:8px 10px;font-weight:700;color:#fff;"><code>${l.name}</code></td>
+              <td style="padding:8px 10px;color:var(--text-secondary);font-size:0.75rem;">${svm.name}</td>
+              <td style="padding:8px 10px;font-family:monospace;font-size:0.72rem;color:var(--accent-cyan);" title="${addrLabel}">${addrDisplay}</td>
+              <td style="padding:8px 10px;">
+                ${protoStr.split(", ").map(p => {
+                  let c = "var(--accent-cyan)";
+                  if (p === "NFS") c = "#3b82f6";
+                  if (p === "CIFS") c = "#10b981";
+                  if (p === "iSCSI" || p === "ISCSI") c = "#f59e0b";
+                  if (p === "FCP") c = "#eab308";
+                  return '<span style="background:rgba(255,255,255,0.05);color:' + c + ';border:1px solid rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;font-size:0.66rem;font-weight:600;margin-right:3px;font-family:monospace;">' + p + '</span>';
+                }).join("")}
+              </td>
+              <td style="padding:8px 10px;font-size:0.75rem;color:var(--text-secondary);">${l.servicePolicy || "—"}</td>
+              <td style="padding:8px 10px;font-size:0.75rem;"><code>${l.homeNode}/${l.homePort}</code></td>
+              <td style="padding:8px 10px;font-size:0.75rem;"><code>${l.currentNode}/${l.currentPort}</code></td>
+              <td style="padding:8px 10px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;color:${statusColor};font-weight:600;"><span style="width:7px;height:7px;border-radius:50%;background:${statusColor};"></span>${l.operStatus}</span></td>
+              <td style="padding:8px 10px;">${homedBadge}</td>
+            </tr>`;
+        });
+      });
+      if (totalNodeLifs > 0) {
+        const migratedAlert = migratedNodeLifs > 0
+          ? `<span style="color:var(--status-warning);font-weight:600;margin-left:12px;">&#9888; ${migratedNodeLifs} migrated &mdash; run 'network interface revert' to remediate</span>`
+          : '<span style="color:var(--status-normal);margin-left:12px;">&#10003; All LIFs homed</span>';
+        lifTableHtml = `
+          <div style="margin-top:20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <h4 style="font-size:0.82rem;font-weight:700;color:#fff;letter-spacing:0.5px;text-transform:uppercase;margin:0;">Logical Interface (LIF) Inventory</h4>
+              <span style="font-size:0.72rem;color:var(--text-muted);">${totalNodeLifs} LIF${totalNodeLifs !== 1 ? 's' : ''} on this node</span>
+              ${migratedAlert}
+            </div>
+            <div class="data-table-container" style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+              <table class="data-table" style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+                <thead>
+                  <tr style="background:rgba(255,255,255,0.015);border-bottom:1px solid var(--border-color);text-align:left;">
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">LIF Name</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">SVM</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">IP / WWPN</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">Protocol</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">Service Policy</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">Home Port</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">Current Port</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">Status</th>
+                    <th style="padding:8px 10px;font-weight:600;color:var(--text-secondary);">Homed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${lifRowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+      }
+    }
   }
 
   container.innerHTML = `
     ${tabsHtml}
-    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start;">
-      ${backplateHtml}
-      
-      <!-- Detailed Cabling Audit Table -->
-      <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto; background: rgba(15,22,38,0.3);">
-        <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-          <thead>
-            <tr style="background: rgba(255, 255, 255, 0.015); border-bottom: 1px solid var(--border-color); text-align: left;">
-              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Port</th>
-              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Type</th>
-              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Speed / Configuration</th>
-              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Partner Device</th>
-              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Target Port</th>
-              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRowsHtml}
-          </tbody>
-        </table>
-      </div>
+
+    <!-- Physical Controller Rear Panel -->
+    ${backplateHtml}
+
+    <!-- Cabling Audit Table (full-width) -->
+    <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto; background: rgba(15,22,38,0.3);">
+      <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+        <thead>
+          <tr style="background: rgba(255, 255, 255, 0.015); border-bottom: 1px solid var(--border-color); text-align: left;">
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Port</th>
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Type</th>
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Speed / Configuration</th>
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Partner Device</th>
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Target Port</th>
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRowsHtml}
+        </tbody>
+      </table>
     </div>
+
+    ${lifTableHtml}
   `;
 }
 
@@ -23135,7 +23776,7 @@ function selectVisualNode(serial) {
     // Dynamically update E-Series visual health panel and SVM security panel to remain context-aware
     const eseriesCard = document.getElementById("tamEseriesVisualCard");
     const _aPlatLower2 = activeSys ? (activeSys.platform || '').toLowerCase() : '';
-    const isEseries = activeSys && (activeSys.eseriesHardware || activeSys.santricityVersion !== undefined || _aPlatLower2.includes("e-series") || _aPlatLower2.includes("ef600") || _aPlatLower2.includes("ef300") || _aPlatLower2.includes("e5700") || _aPlatLower2.includes("e2800") || _aPlatLower2.includes("ef50") || _aPlatLower2.includes("ef80") || _aPlatLower2.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower2.trim()));
+    const isEseries = activeSys && (activeSys.eseriesHardware || !!activeSys.santricityVersion || _aPlatLower2.includes("e-series") || _aPlatLower2.includes("ef600") || _aPlatLower2.includes("ef300") || _aPlatLower2.includes("e5700") || _aPlatLower2.includes("e2800") || _aPlatLower2.includes("ef50") || _aPlatLower2.includes("ef80") || _aPlatLower2.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower2.trim()));
     if (eseriesCard) {
       if (isEseries) {
         eseriesCard.style.display = "block";
@@ -23328,8 +23969,14 @@ function renderSvmSecurityAudit(sys) {
   if (!container) return;
 
   const svms = getSystemSvms(sys);
-  if (!svms || svms.length === 0) {
+  if (svms === null) {
+    // null means non-ONTAP platform (E-Series, StorageGRID, etc.)
     container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">SVM auditing is only available for ONTAP storage arrays.</div>`;
+    return;
+  }
+  if (svms.length === 0) {
+    // Empty array means ONTAP but no vserver data harvested yet
+    container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">No SVM/LIF data available. Click <strong>Re-Sync</strong> to harvest SVM inventory from the API.</div>`;
     return;
   }
 
@@ -23338,6 +23985,7 @@ function renderSvmSecurityAudit(sys) {
   let anySmb1 = false;
   let anyInsecureNfs = false;
   let anyDisabledAudit = false;
+  let totalMigratedLifs = 0;
 
   svms.forEach(svm => {
     const isSmb1 = svm.securitySettings.smb1Enabled === true;
@@ -23347,6 +23995,7 @@ function renderSvmSecurityAudit(sys) {
     if (isSmb1) anySmb1 = true;
     if (isInsecureNfs) anyInsecureNfs = true;
     if (isAuditDisabled) anyDisabledAudit = true;
+    totalMigratedLifs += (svm.migratedLifs || 0);
 
     // Security Status badge
     let secStatusBadge = `<span class="badge info" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.25); color: var(--status-normal);">✓ Secure</span>`;
@@ -23355,6 +24004,11 @@ function renderSvmSecurityAudit(sys) {
     } else if (isAuditDisabled) {
       secStatusBadge = `<span class="badge warning" style="background: rgba(255, 152, 0, 0.08); border-color: rgba(255, 152, 0, 0.25); color: var(--status-warning);">⚠️ Warning</span>`;
     }
+
+    // Migrated LIFs badge
+    const migratedBadge = (svm.migratedLifs || 0) > 0
+      ? `<span style="color: var(--status-warning); font-weight: 700; font-size: 0.72rem;">⚠ ${svm.migratedLifs}</span>`
+      : `<span style="color: var(--status-normal); font-size: 0.72rem;">✓ 0</span>`;
 
     // Protocol label list
     const protoBadges = svm.protocols.map(p => {
@@ -23376,8 +24030,9 @@ function renderSvmSecurityAudit(sys) {
           </span>
         </td>
         <td style="padding: 10px;">${protoBadges}</td>
-        <td style="padding: 10px; text-align: center; color: var(--text-secondary);">${svm.volumesCount}</td>
+        <td style="padding: 10px; text-align: center; color: var(--text-secondary);">${svm.volumesCount !== null ? svm.volumesCount : '—'}</td>
         <td style="padding: 10px; text-align: center; color: var(--text-secondary);">${svm.lifsCount}</td>
+        <td style="padding: 10px; text-align: center;">${migratedBadge}</td>
         <td style="padding: 10px;">${secStatusBadge}</td>
       </tr>
     `;
@@ -23409,6 +24064,7 @@ function renderSvmSecurityAudit(sys) {
               <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Protocols</th>
               <th style="padding: 10px; font-weight: 600; color: var(--text-secondary); text-align: center;">Volumes</th>
               <th style="padding: 10px; font-weight: 600; color: var(--text-secondary); text-align: center;">LIFs</th>
+              <th style="padding: 10px; font-weight: 600; color: var(--text-secondary); text-align: center;">Migrated</th>
               <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Security Level</th>
             </tr>
           </thead>
@@ -23443,6 +24099,15 @@ function renderSvmSecurityAudit(sys) {
             <div style="font-size: 0.75rem; margin-top: 2px;">
               <span style="color: var(--status-normal); font-weight: 600;">✓ Secure (TLSv1.2, TLSv1.3 only)</span>
               <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Deprecated SSLv3 and TLSv1.0/1.1 protocols are disabled cluster-wide.</div>
+            </div>
+          </div>
+
+          <div style="border-left: 3px solid ${totalMigratedLifs > 0 ? 'var(--status-warning)' : 'var(--status-normal)'}; padding-left: 10px;">
+            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">LIF Failover Health (Migrated LIFs)</div>
+            <div style="font-size: 0.75rem; margin-top: 2px;">
+              ${totalMigratedLifs > 0
+                ? `<span style="color: var(--status-warning); font-weight: 600;">⚠ ${totalMigratedLifs} LIF${totalMigratedLifs !== 1 ? 's' : ''} Not Homed</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">LIFs have migrated from home port to a partner node. Run <code>network interface revert -vserver &lt;svm&gt; -lif *</code> to remediate.</div>`
+                : `<span style="color: var(--status-normal); font-weight: 600;">✓ All LIFs Homed</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">All logical interfaces are running on their designated home nodes and ports.</div>`}
             </div>
           </div>
         </div>
