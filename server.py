@@ -2858,6 +2858,64 @@ class EnrichmentScheduler:
             ('https://docs.netapp.com/us-en/ontap-7mode-transition/index.html', 'migration', '7-Mode to ONTAP Transition'),
             ('https://docs.netapp.com/us-en/ontap-fli/', 'migration', 'Foreign LUN Import'),
             ('https://docs.netapp.com/us-en/ontap-select/', 'integration', 'ONTAP Select'),
+            
+            # VMware Integration
+            ('https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere-10/index.html', 'integration', 'ONTAP tools for VMware vSphere'),
+            ('https://docs.netapp.com/us-en/sc-plugin-vmware-vsphere/index.html', 'integration', 'SnapCenter Plug-in for VMware'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vsphere-overview.html', 'integration', 'ONTAP for VMware vSphere Administrators'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-otv-hardening-overview.html', 'best_practices', 'VMware vSphere with ONTAP Best Practices'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-srm-overview.html', 'integration', 'VMware SRM with ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vvols-overview.html', 'integration', 'VMware vVols with ONTAP'),
+
+            # Kubernetes/Containers
+            ('https://docs.netapp.com/us-en/trident/index.html', 'integration', 'Astra Trident (Kubernetes CSI)'),
+            ('https://docs.netapp.com/us-en/astra-control-center/index.html', 'integration', 'Astra Control Center'),
+
+            # Database Integration
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/oracle/oracle-overview.html', 'integration', 'Oracle on ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/mssql/mssql-overview.html', 'integration', 'Microsoft SQL Server on ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/sap-hana/sap-hana-overview.html', 'integration', 'SAP HANA on ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/postgres/postgres-overview.html', 'integration', 'PostgreSQL on ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/mysql/mysql-overview.html', 'integration', 'MySQL on ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/mongodb/mongodb-overview.html', 'integration', 'MongoDB on ONTAP'),
+            ('https://docs.netapp.com/us-en/ontap-apps-dbs/epic/epic-overview.html', 'integration', 'Epic EHR on ONTAP'),
+
+            # Automation/DevOps
+            ('https://docs.netapp.com/us-en/ontap-automation/index.html', 'automation', 'ONTAP REST API'),
+            ('https://docs.netapp.com/us-en/ontap/task_configure_ontap.html', 'automation', 'Ansible Automation'),
+            ('https://netapp.github.io/harvest/', 'automation', 'NetApp Harvest (Prometheus/Grafana)'),
+
+            # Backup & Recovery
+            ('https://docs.netapp.com/us-en/snapcenter/index.html', 'data_protection', 'SnapCenter Software'),
+            ('https://docs.netapp.com/us-en/bluexp-backup-recovery/index.html', 'data_protection', 'BlueXP Backup and Recovery'),
+            ('https://docs.netapp.com/us-en/bluexp-backup-recovery/concept-backup-to-cloud.html', 'cloud', 'Cloud Backup'),
+
+            # Cloud Integration
+            ('https://docs.netapp.com/us-en/bluexp-cloud-volumes-ontap/index.html', 'cloud', 'Cloud Volumes ONTAP'),
+            ('https://docs.netapp.com/us-en/bluexp-fsx-ontap/index.html', 'cloud', 'Amazon FSx for ONTAP'),
+            ('https://docs.netapp.com/us-en/bluexp-azure-netapp-files/index.html', 'cloud', 'Azure NetApp Files'),
+            ('https://docs.netapp.com/us-en/bluexp-google-cloud-netapp-volumes/index.html', 'cloud', 'Google Cloud NetApp Volumes'),
+            ('https://docs.netapp.com/us-en/bluexp-tiering/index.html', 'cloud', 'FabricPool Cloud Tiering'),
+            ('https://docs.netapp.com/us-en/bluexp-classification/index.html', 'compliance', 'BlueXP Classification (Data Sense)'),
+
+            # Monitoring & Observability
+            ('https://docs.netapp.com/us-en/active-iq-unified-manager/index.html', 'monitoring', 'Active IQ Unified Manager'),
+            ('https://docs.netapp.com/us-en/active-iq/index.html', 'monitoring', 'Active IQ Digital Advisor'),
+            ('https://docs.netapp.com/us-en/bluexp-digital-wallet/index.html', 'monitoring', 'BlueXP Digital Wallet'),
+
+            # Security & Compliance
+            ('https://docs.netapp.com/us-en/ontap/security/index.html', 'security', 'ONTAP Security Hardening Guide'),
+            ('https://docs.netapp.com/us-en/ontap/anti-ransomware/index.html', 'security', 'Autonomous Ransomware Protection'),
+            ('https://docs.netapp.com/us-en/ontap/encryption-at-rest/index.html', 'security', 'ONTAP Encryption at Rest (NVE/NAE)'),
+            ('https://docs.netapp.com/us-en/ontap/zero-trust/zero-trust-overview.html', 'security', 'Zero Trust with ONTAP'),
+
+            # Data Protection & DR
+            ('https://docs.netapp.com/us-en/ontap-metrocluster/index.html', 'data_protection', 'MetroCluster Configuration'),
+            ('https://docs.netapp.com/us-en/ontap/mediator/index.html', 'data_protection', 'ONTAP Mediator'),
+            ('https://docs.netapp.com/us-en/ontap/volumes/flexclone-efficient-copies-concept.html', 'data_protection', 'FlexClone'),
+
+            # Storage Efficiency
+            ('https://docs.netapp.com/us-en/ontap/volumes/deduplication-data-compression-efficiency-concept.html', 'performance', 'Storage Efficiency Overview'),
         ]
         for doc_url, category, title in integration_seeds:
             if doc_url not in existing_urls:
@@ -2866,6 +2924,7 @@ class EnrichmentScheduler:
                     'title': title,
                     'source': 'docs.netapp.com',
                     'category': category,
+                    'relevance': f'Fleet-relevant {category} documentation',
                     'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
                 })
                 existing_urls.add(doc_url)
