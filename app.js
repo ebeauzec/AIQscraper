@@ -7377,14 +7377,16 @@ function linkify(text) {
     // Raw https URLs — must come first so later patterns don't double-process
     .replace(/(https?:\/\/[^\s<>"']+)/g,
       '<a href="$1" target="_blank" ' + s() + ' onclick="window.open(this.href,\'_blank\');return false;">$1</a>')
-    // TR-XXXX NetApp technical reports
-    .replace(/\bTR-(\d{4})\b/g,
-      '<a href="https://www.netapp.com/search/#q=TR-$1&t=Resources" target="_blank" ' + s() + '>TR-$1</a>')
+    // TR-XXXX NetApp technical reports — skip if inside an href attribute
+    .replace(/(?<!=["\/])(\bTR-(\d{4})\b)/g,
+      '<a href="https://www.netapp.com/search/#q=TR-$2&t=Resources" target="_blank" ' + s() + '>$1</a>')
     // NTAP advisory IDs  NTAP-20260112-0001
-    .replace(/\b(NTAP-\d{8}-\d{4})\b/gi,
+    // Case-sensitive match only (URLs contain lowercase 'ntap-' which must be skipped)
+    // Also skip if preceded by / or " (i.e. inside an href URL)
+    .replace(/(?<![\/"])(\bNTAP-\d{8}-\d{4}\b)/g,
       '<a href="https://security.netapp.com/advisory/$1/" target="_blank" ' + w() + '>$1</a>')
-    // CVE IDs
-    .replace(/\b(CVE-\d{4}-\d+)\b/g,
+    // CVE IDs — skip if inside an already-linkified URL
+    .replace(/(?<![\/="])(\bCVE-\d{4}-\d+\b)/g,
       '<a href="https://security.netapp.com/advisory/?q=$1" target="_blank" ' + w() + '>$1</a>')
     // Microsoft KB numbers  KB5073381
     .replace(/\b(KB\d{7,})\b/g,
