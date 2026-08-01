@@ -7775,7 +7775,7 @@ function toggleBulletinSecondary(btn) {
 
         // Batched CVE enrichment for newly-rendered rows
         if (enrichQueue.length > 0) {
-          const batchSize = 5, delayMs = 100;
+          const batchSize = 3, delayMs = 15000;
           for (let i = 0; i < enrichQueue.length; i += batchSize) {
             const chunk = enrichQueue.slice(i, i + batchSize);
             setTimeout(() => {
@@ -7796,7 +7796,7 @@ function toggleBulletinSecondary(btn) {
     if (window._deferredBulletinEnrich && window._deferredBulletinEnrich.length > 0) {
       const queue = window._deferredBulletinEnrich;
       window._deferredBulletinEnrich = []; // clear so it only runs once
-      const batchSize = 5, delayMs = 100;
+      const batchSize = 3, delayMs = 15000;
       for (let i = 0; i < queue.length; i += batchSize) {
         const chunk = queue.slice(i, i + batchSize);
         setTimeout(() => {
@@ -8664,9 +8664,10 @@ function renderTAMTab() {
 
   document.getElementById('tamSecurityBulletinsBody').innerHTML = bulletinRows;
 
-  // ── CVE enrichment: batched queue — 5 per 100ms to avoid fetch burst ─────
+  // ── CVE enrichment: batched queue — 3 per 7s to respect NVD rate limits ─────
+  // NVD allows 5 req/30s without API key. We send 3 at a time with 7s delay.
   // Only enrich primary (visible) rows immediately; deferred rows enriched on expand.
-  const runEnrichBatch = (items, batchSize = 5, delayMs = 100) => {
+  const runEnrichBatch = (items, batchSize = 3, delayMs = 7000) => {
     for (let i = 0; i < items.length; i += batchSize) {
       const chunk = items.slice(i, i + batchSize);
       setTimeout(() => {
