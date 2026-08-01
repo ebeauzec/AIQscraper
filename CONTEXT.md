@@ -23,7 +23,7 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 │             Desktop Application                       │
 │  ┌──────────────┐   ┌──────────────────────────────┐ │
 │  │  server.py   │   │  index.html / index_src.html │ │
-│  │  (HTTP proxy │   │  app.js (1.1MB logic)        │ │
+│  │  (HTTP proxy │   │  app.js (1.3MB logic)        │ │
 │  │   + SQLite   │◄──►  styles.css                  │ │
 │  │   + harvest) │   │  chart.js (Chart.js lib)     │ │
 │  └──────┬───────┘   └──────────────────────────────┘ │
@@ -67,11 +67,12 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
    - `mysupport.netapp.com` — Bugs Online public search
    - `kb.netapp.com` — JSON-LD category tree crawler: 64+ KB articles across 3 hierarchy levels (root → product → topic categories)
    - `docs.netapp.com/us-en/ontap/` — Index page crawler: 139+ doc links extracted from ONTAP, hardware, NAS, SAN, upgrade indexes
-   - `docs.netapp.com` integration seeds — 38 verified doc URLs covering configuration, operations, security, data protection, performance, compliance, migration, and 3rd-party integrations
+   - `docs.netapp.com` integration seeds — **75 verified doc URLs** covering VMware (6), Kubernetes/Astra (5), databases (6), cloud/hybrid (8), backup (5), security (8), monitoring (5), data protection (7), networking (5), upgrades (6), sustainability (4), and common operations (10)
    - `kb.netapp.com/on-prem/ontap/` — Fleet-specific KB sub-category crawling: Data Access, Data Protection, MetroCluster, SnapMirror, SnapLock, NAS, SAN (27+ articles)
    - `docs.netapp.com` security/remediation docs — direct links for antivirus, anti-ransomware, NAS audit, multi-admin verify, SnapLock, authentication
 6. **Version Catalog Auto-Detection** (v3.8.0+) — Scrapes docs.netapp.com to discover newly released ONTAP, StorageGRID, and SANtricity versions; auto-updates the client-side `SOFTWARE_VERSION_DATABASES` on each page load
 7. **Fleet-Aware Deliverable Mapper** (v4.0.0) — All 13 TAM deliverables receive fleet-relevant enrichment references. Articles scored by ONTAP version match (+30), platform family (+20), model match (+25), operational category (+10). Minimum score 5 required for inclusion.
+8. **Enrichment Intelligence UI** (v4.0.0) — KB Intelligence Summary Panel (aggregate stats, fleet profile, per-category breakdown), enrichment badges on all 13 deliverable cards (★ N KB refs pills), and rich contextual intelligence engine (`getArticleContext`) generating CLI commands, effort estimates, and fleet-specific remediation steps per matched article.
 
 ---
 
