@@ -11288,7 +11288,13 @@ function enrichSystemTelemetry(s) {
     (s.productType || '').toLowerCase().includes('storagegrid') ||
     (s.productType || '').toLowerCase().includes('object');
   // E-Series: classic (EF600/EF300/E2800/E5700) + new gen (EF50/EF80 announced Mar 2026 — SANtricity OS, not ONTAP)
-  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800") || modelLower.includes("ef50") || modelLower.includes("ef80") || modelLower.includes("e4000");
+  // Also detect bare model numbers (2824, 5700, 4000, etc.) and SANtricity OS version pattern (11.xx.x)
+  const _santricityVer = s.santricityVersion || '';
+  const _osLooksLikeSANtricity = /^11\.\d{2}/.test(osVer);
+  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800") || modelLower.includes("ef50") || modelLower.includes("ef80") || modelLower.includes("e4000") ||
+    !!_santricityVer ||
+    /^(28|57|40)\d{2}$/.test(modelLower.trim()) ||
+    (!isAFF && !isASA && !isFAS && !isCVO && !isStorageGrid && _osLooksLikeSANtricity);
 
   // ASA r2 (new architecture — personality: ASA_R2; no aggregates, uses Storage Availability Zone)
   // Detected via: API personality field OR model prefix 'ASA A' + isDisaggregated flag from server.py harvest
@@ -11328,7 +11334,18 @@ function enrichSystemTelemetry(s) {
       if (s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)) {
         upgrades = { targetVersion: s.swRecMin, urgency: 'Recommended', benefits: `Upgrade to ${s.swRecMin} recommended by Active IQ minimum baseline.` };
       } else {
-        upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+        // SANtricity version-range fallback: 11.7x → 11.80.x, < 11.70 → 11.80.x
+        const sanMatch = osVer.match(/^11\.(\d{2})/);
+        if (sanMatch) {
+          const sanMinor = parseInt(sanMatch[1]);
+          if (sanMinor < 80) {
+            upgrades = { targetVersion: '11.80.2', urgency: 'Recommended', benefits: 'SANtricity 11.80 provides critical security fixes, drive firmware updates, and expanded SSD wear-life reporting.' };
+          } else {
+            upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+          }
+        } else {
+          upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+        }
       }
     } else {
       // ONTAP-based: AFF, FAS, ASA, ASA r2, AFX, CVO, unknown
@@ -11353,7 +11370,12 @@ function enrichSystemTelemetry(s) {
         ? { targetVersion: "12.0.0", urgency: "Recommended", benefits: "Mitigates CVE-2026-22051 authenticated metrics query and SSRF security bulletins." }
         : { targetVersion: "Up to Date", urgency: "None", benefits: "" };
     } else if (isEseries) {
-      upgrades = { targetVersion: "Up to Date", urgency: "None", benefits: "" };
+      const sanMatch = osVer.match(/^11\.(\d{2})/);
+      if (sanMatch && parseInt(sanMatch[1]) < 80) {
+        upgrades = { targetVersion: "11.80.2", urgency: "Recommended", benefits: "SANtricity 11.80 provides critical security fixes, drive firmware updates, and expanded SSD wear-life reporting." };
+      } else {
+        upgrades = { targetVersion: "Up to Date", urgency: "None", benefits: "" };
+      }
     } else {
       // ONTAP upgrades
       const match = osVer.match(/9\.([0-9]+)/);
