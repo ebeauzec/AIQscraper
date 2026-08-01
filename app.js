@@ -11319,7 +11319,14 @@ function enrichSystemTelemetry(s) {
       benefits: isUpToDate ? '' : `Upgrade to ${s.recommendedOSVersion} recommended by Active IQ.`
     };
   } else if (!upgrades && isLiveData) {
-    upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+    // Live API path: no recommendedOSVersion from AIQ — apply platform-aware fallback
+    if (isStorageGrid && osVer.startsWith('11.')) {
+      upgrades = { targetVersion: '12.0.0', urgency: 'Recommended', benefits: 'StorageGRID 11.x end-of-support approaching. Upgrade to 12.0 for security patches, S3 improvements, and extended support.' };
+    } else if (isEseries && s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)) {
+      upgrades = { targetVersion: s.swRecMin, urgency: 'Recommended', benefits: `Upgrade to ${s.swRecMin} recommended by Active IQ minimum baseline.` };
+    } else {
+      upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+    }
   } else if (!upgrades) {
     // Mock fallback for non-live systems
     if (isStorageGrid) {
