@@ -16335,6 +16335,23 @@ function computeFleetCapacitySummary(targetSystems) {
   };
 }
 
+function computeFleetCapacityForecast(targetSystems) {
+  const cap = computeFleetCapacitySummary(targetSystems);
+  const totalTB = cap.totalAvailTB || 1;
+  const growthTBDay = cap.fleetGrowthGBDay / 1024;
+  const growthTBMo = growthTBDay * 30;
+  const avgGrowthPctMo = totalTB > 0 ? parseFloat((growthTBMo / totalTB * 100).toFixed(1)) : 0;
+  return {
+    avgUtilPct: cap.utilPct,
+    avgGrowthPctMo,
+    redCount: cap.redCount,
+    amberCount: cap.amberCount,
+    greenCount: cap.greenCount,
+    atRisk: cap.atRisk,
+    totalGrowthTBMo: growthTBMo
+  };
+}
+
 function computeFleetWarrantyStatus(targetSystems) {
   let warrantyActive = 0, warrantyExpired = 0, warrantyUnknown = 0;
   const tierDist = {};
