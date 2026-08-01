@@ -14744,7 +14744,22 @@ ${platformLines}
   - Total Physical Used Capacity: ${totalCapTB.toFixed(1)} TB
   - Total Logical Capacity Represented: ${logicalCapTB.toFixed(1)} TB
   - Storage Efficiency Ratio: ${spaceSavedRatio}:1 (Saved ${totalSavedTB.toFixed(1)} TB via Deduplication/Compression)
-  - Capacity Projections: High-runway analytics applied. Tech refresh plans are mapped to lifecycle windows.
+  - Average Capacity Runway: ${avgRunwayDays} days to 90% (fleet average)
+${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
+  CAPACITY FORECAST:
+  - Fleet Avg Utilization:  ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
+  - Red Zone (>85%):        ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
+  - Amber Zone (70-85%):    ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
+  - <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
+  - Est. 12-Month Growth:   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
+
+* DATA PROTECTION & DR POSTURE:
+${(() => { const dr = computeFleetDRSummary(targetSystems); return `  - SnapMirror Coverage:    ${dr.smSystems}/${systemCount} systems (${dr.drCoveragePct}%)
+  - Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
+  - MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
+  - HA Configured:          ${dr.haSystems}/${systemCount} (${dr.haCoveragePct}%)
+  - Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
+  - RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
 * CUSTOMER SATISFACTION (CSAT):
   - Sentiment score: ${avgCsat}/10
@@ -15159,16 +15174,34 @@ ${sustainSection}
 ${contractLines}
 
 --------------------------------------------------------------------------------
-6. RECOMMENDATIONS (Active IQ) [MEDDPICC: D]
+6. DATA PROTECTION & DR POSTURE [MEDDPICC: I]
+--------------------------------------------------------------------------------
+${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverage:           ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
+  SnapMirror Relations:  ${dr.smRelCount} (${dr.smSync} Sync, ${dr.smAsync} Async)
+  HA Configured:         ${dr.haSystems}/${total}
+  Unprotected Systems:   ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems have DR coverage'}
+  RPO Warnings:          ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' — lag ' + w.lag).join('; ') : 'None — replication within SLA'}`; })()}
+
+--------------------------------------------------------------------------------
+7. CAPACITY FORECAST & GROWTH [MEDDPICC: I]
+--------------------------------------------------------------------------------
+${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Monthly Growth: ${cap.avgGrowthPctMo}%/mo
+  Red Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
+  Amber Zone (70-85%):   ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
+  At-Risk (<60d runway): ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
+  Est. Growth (12-mo):   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
+
+--------------------------------------------------------------------------------
+8. RECOMMENDATIONS (Active IQ) [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${recsSection}
 --------------------------------------------------------------------------------
-7. ARCHITECTURE ROADMAP & TECH REFRESH [MEDDPICC: D + C]
+9. ARCHITECTURE ROADMAP & TECH REFRESH [MEDDPICC: D + C]
 --------------------------------------------------------------------------------
 ${techRefreshLines}
 
 --------------------------------------------------------------------------------
-8. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
+10. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
@@ -15178,7 +15211,7 @@ ${techRefreshLines}
   □ Validate ITIL Change Control process for all planned remediation items
 
 --------------------------------------------------------------------------------
-9. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
+11. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
 --------------------------------------------------------------------------------
 ${priorActionsText}
 ================================================================================`;
@@ -15405,20 +15438,36 @@ ${casesLines}
 ${tierLines}
 
 --------------------------------------------------------------------------------
-7. CAPACITY & EFFICIENCY [MEDDPICC: I]
+7. DATA PROTECTION & DR COVERAGE [MEDDPICC: I]
+--------------------------------------------------------------------------------
+${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
+  Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
+  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
+  HA Configured:          ${dr.haSystems}/${total}
+  Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems protected'}
+  RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
+
+--------------------------------------------------------------------------------
+8. CAPACITY & EFFICIENCY [MEDDPICC: I]
 --------------------------------------------------------------------------------
   Total Physical Capacity Used: ${physTotal.toFixed(1)} TB
   Total Logical Capacity:       ${logTotal.toFixed(1)} TB
   Data Reduction Ratio:         ${drr}:1
   Space Saved via Efficiency:   ${savedTotal.toFixed(1)} TB
+${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
+  CAPACITY FORECAST:
+  Fleet Avg Utilization:  ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
+  Red Zone (>85%):        ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
+  Amber Zone (70-85%):    ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
+  <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-8. IMPROVEMENT BACKLOG [MEDDPICC: D]
+9. IMPROVEMENT BACKLOG [MEDDPICC: D]
 --------------------------------------------------------------------------------
 ${backlogLines}
 
 --------------------------------------------------------------------------------
-9. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
+10. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
   □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
@@ -15427,7 +15476,7 @@ ${backlogLines}
   □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
 
 --------------------------------------------------------------------------------
-10. PARTNER VALUE STATEMENT
+11. PARTNER VALUE STATEMENT
 --------------------------------------------------------------------------------
   Total Data Managed:       ${logTotal.toFixed(1)} TB
   Storage Cost Avoidance:   $${(savedTotal * 50).toLocaleString()} / month (at $50/TB)
@@ -15567,6 +15616,10 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
     Sustainability Score:     ${avgSust}/100
     Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
     Contract Coverage:        ${contractPct}%
+${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
+    HA Configured:            ${dr.haSystems}/${total}
+    Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
+    Capacity at Risk (<60d):  ${cap.atRisk.length} system${cap.atRisk.length !== 1 ? 's' : ''}`; })()}
 
   E — ECONOMIC BUYER
   ─────────────────────────────────────────────────────────────────────────────
@@ -15882,7 +15935,25 @@ ${upgradeLines}
 ${faLines}
 
 --------------------------------------------------------------------------------
-7. KEY TALKING POINTS & CONTEXT
+7. DATA PROTECTION & DR POSTURE
+--------------------------------------------------------------------------------
+${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
+  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
+  HA Configured:          ${dr.haSystems}/${total} (${dr.haCoveragePct}%)
+  Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
+  RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
+
+--------------------------------------------------------------------------------
+8. CAPACITY & GROWTH OUTLOOK
+--------------------------------------------------------------------------------
+${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
+  RED Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
+  AMBER Zone (70-85%):   ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
+  <60-day Runway:        ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None — capacity healthy'}
+  Procurement Alert:     ${cap.atRisk.length > 0 ? 'Yes — capacity procurement discussions may be in progress' : 'No immediate procurement needed'}`; })()}
+
+--------------------------------------------------------------------------------
+9. KEY TALKING POINTS & CONTEXT
 --------------------------------------------------------------------------------
 ${talkingPointsText}
 
@@ -15896,6 +15967,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   const today = new Date().toISOString().split('T')[0];
   const count = targetSystems.length;
   const tamName = window.currentUser ? window.currentUser.name : 'Unknown TAM';
+  const dr = computeFleetDRSummary(targetSystems);
 
   let critical = 0, high = 0, medium = 0, low = 0;
   let securityRisks = [];
@@ -16009,14 +16081,21 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   4. FEATURE GAP ANALYSIS
   ────────────────────────────────────────────────────────────────────────────
 ${featureLines}
-  5. SECURITY ROADMAP
+  5. DATA PROTECTION POSTURE
+  ────────────────────────────────────────────────────────────────────────────
+    DR Coverage:       ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)
+    Unprotected:       ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems protected'}
+    RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}
+    Immutable Copies:  ${snaplockEnabled}/${count} systems with SnapLock compliance
+
+  6. SECURITY ROADMAP
   ────────────────────────────────────────────────────────────────────────────
     Phase 1 (Week 1):   Patch critical CVEs, enable ARP on production volumes
-    Phase 2 (Week 2-4): Enable NVE/NAE, configure audit logging
+    Phase 2 (Week 2-4): Enable NVE/NAE, configure audit logging${dr.unprotected.length > 0 ? ', establish SnapMirror DR' : ''}
     Phase 3 (Month 2):  Deploy MAV, implement SnapLock for compliance data
     Phase 4 (Month 3):  Security review, penetration test, compliance audit
 
-  6. NIST CSF 2.0 ALIGNMENT
+  7. NIST CSF 2.0 ALIGNMENT
   ────────────────────────────────────────────────────────────────────────────
     Function        ONTAP Technical Control
     ─────────────── ──────────────────────────────────────────────────────
@@ -16116,12 +16195,195 @@ ${perSystemLines ? perSystemLines.trimRight() : '    No data available'}
   ────────────────────────────────────────────────────────────────────────────
 ${recLines}
 
-  5. CARBON REDUCTION ROADMAP
+  5. CAPACITY & GROWTH SUSTAINABILITY IMPACT
+  ────────────────────────────────────────────────────────────────────────────
+${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
+    Systems in RED zone (>85%): ${cap.redCount}/${count}
+    <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
+    Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}
+    Environmental Impact: ${cap.totalGrowthTBMo > 0 ? Math.round(cap.totalGrowthTBMo * 12 * 0.5) + ' kW additional power if not tiered' : 'Minimal'}
+    → FabricPool tiering can offset ${fabricPoolCount < count ? (count - fabricPoolCount) + ' remaining systems' : 'already deployed fleet-wide'}`; })()}
+
+  6. CARBON REDUCTION ROADMAP
   ────────────────────────────────────────────────────────────────────────────
     Quick Wins:   Enable FabricPool on ${count - fabricPoolCount} systems → est. ${(spaceSaved*0.1).toFixed(1)} TB tiered
     Medium Term:  Consolidate under-utilized systems → retire aging shelves
     Long Term:    Refresh legacy platforms → modern efficient hardware
 ================================================================================`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Cross-Deliverable Intelligence Helpers
+// ═══════════════════════════════════════════════════════════════════════
+// Reusable data extraction functions called by multiple deliverable
+// compilers. These functions expose dashboard-level intelligence
+// (Tabs 14–17) to all 13 downloadable deliverables.
+
+function computeFleetDRSummary(targetSystems) {
+  let smSystems = 0, smRelCount = 0, smAsync = 0, smSync = 0;
+  let mcSystems = 0, syncMirrorSystems = 0, haSystems = 0;
+  const unprotected = [];
+  const lagWarnings = [];
+  targetSystems.forEach(s => {
+    const sm = s.snapmirror || {};
+    const smCount = sm.totalCount || s.snapMirrorCount || s.snapmirrorCount || 0;
+    const hasCfg = sm.isHAConfigured || s.haConfigured || s.isHAConfigured || false;
+    const isMC = s.isMetroCluster || false;
+    const isSM = s.isSyncMirror || false;
+    if (smCount > 0) smSystems++;
+    smRelCount += smCount;
+    if (hasCfg) haSystems++;
+    if (isMC) mcSystems++;
+    if (isSM) syncMirrorSystems++;
+    // Unprotected: no SnapMirror, no MetroCluster, no HA
+    if (smCount === 0 && !isMC && !hasCfg) {
+      unprotected.push(s.systemName || s.serialNumber || 'Unknown');
+    }
+    // Lag warnings from relationships
+    (sm.relationships || []).forEach(r => {
+      const lag = (r.lagTime || '').toLowerCase();
+      if (lag.includes('hr') || lag.includes('hour') || lag.match(/>\s*60\s*min/)) {
+        lagWarnings.push({ system: s.systemName, dest: r.destination || r.destinationCluster || '', lag: r.lagTime, type: r.type || 'Async' });
+      }
+    });
+    // Sync/async counts
+    (sm.relationships || []).forEach(r => {
+      if ((r.type || '').toLowerCase().includes('sync') && !(r.type || '').toLowerCase().includes('async')) smSync++;
+      else smAsync++;
+    });
+  });
+  const total = targetSystems.length;
+  return {
+    smSystems, smRelCount, smAsync, smSync,
+    mcSystems, syncMirrorSystems, haSystems,
+    unprotected, lagWarnings,
+    drCoveragePct: total > 0 ? Math.round((smSystems + mcSystems) / total * 100) : 0,
+    haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0
+  };
+}
+
+function computeFleetFeatureMatrix(targetSystems) {
+  const features = { arp: 0, fabricPool: 0, nve: 0, snapMirror: 0, ha: 0, audit: 0, snapLock: 0, mav: 0 };
+  const perSystem = [];
+  const total = targetSystems.length;
+  targetSystems.forEach(s => {
+    const score = computeFeatureAdoptionScore(s);
+    const f = {
+      name: s.systemName || s.serialNumber,
+      platform: s.platform || '',
+      os: s.ontapVersion || s.osVersion || '',
+      arp: s.isARPEnabled === true,
+      fabricPool: s.isFabricPool === true,
+      nve: !!(s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled),
+      snapMirror: (s.snapMirrorCount || s.snapmirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0) > 0,
+      ha: !!(s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)),
+      audit: s.isAuditEnabled === true,
+      snapLock: s.isSnapLockEnabled === true,
+      mav: s.isMAVEnabled === true,
+      score: score.passed,
+      total: score.total,
+      pct: score.pct
+    };
+    if (f.arp) features.arp++;
+    if (f.fabricPool) features.fabricPool++;
+    if (f.nve) features.nve++;
+    if (f.snapMirror) features.snapMirror++;
+    if (f.ha) features.ha++;
+    if (f.audit) features.audit++;
+    if (f.snapLock) features.snapLock++;
+    if (f.mav) features.mav++;
+    perSystem.push(f);
+  });
+  const pct = (n) => total > 0 ? Math.round(n / total * 100) : 0;
+  const fleetAvgScore = perSystem.length > 0 ? Math.round(perSystem.reduce((s, p) => s + p.pct, 0) / perSystem.length) : 0;
+  return {
+    features,
+    pct: { arp: pct(features.arp), fabricPool: pct(features.fabricPool), nve: pct(features.nve), snapMirror: pct(features.snapMirror), ha: pct(features.ha), audit: pct(features.audit), snapLock: pct(features.snapLock), mav: pct(features.mav) },
+    perSystem,
+    fleetAvgScore
+  };
+}
+
+function computeFleetCapacitySummary(targetSystems) {
+  let totalPhysTB = 0, totalAvailTB = 0, totalLogTB = 0;
+  let redCount = 0, amberCount = 0, greenCount = 0;
+  const atRisk = [];
+  let totalGrowthGBDay = 0, growthCounted = 0;
+  targetSystems.forEach(s => {
+    if (s.efficiency) {
+      totalPhysTB += s.efficiency.physicalUsedTB || 0;
+      totalLogTB += s.efficiency.logicalUsedTB || 0;
+      totalAvailTB += s.efficiency.rawCapacityTB || s.efficiency.availableCapacityTB || 0;
+    }
+    const rag = computeCapacityRAG(s);
+    if (rag === 'red') { redCount++; atRisk.push({ name: s.systemName, runway: (s.projections && s.projections.daysToLimit) || 0, platform: s.platform || '' }); }
+    else if (rag === 'amber') amberCount++;
+    else greenCount++;
+    if (s.projections && s.projections.growthRateGBPerDay > 0) {
+      totalGrowthGBDay += s.projections.growthRateGBPerDay;
+      growthCounted++;
+    }
+  });
+  atRisk.sort((a, b) => a.runway - b.runway);
+  return {
+    totalPhysTB, totalAvailTB, totalLogTB,
+    redCount, amberCount, greenCount,
+    atRisk,
+    fleetGrowthGBDay: totalGrowthGBDay,
+    avgGrowthGBDay: growthCounted > 0 ? (totalGrowthGBDay / growthCounted) : 0,
+    utilPct: totalAvailTB > 0 ? Math.round(totalPhysTB / totalAvailTB * 100) : 0
+  };
+}
+
+function computeFleetWarrantyStatus(targetSystems) {
+  let warrantyActive = 0, warrantyExpired = 0, warrantyUnknown = 0;
+  const tierDist = {};
+  const perSystem = [];
+  const now = new Date();
+  targetSystems.forEach(s => {
+    const wEnd = s.warrantyEndDate ? new Date(s.warrantyEndDate) : null;
+    const wActive = wEnd ? wEnd > now : null;
+    if (wActive === true) warrantyActive++;
+    else if (wActive === false) warrantyExpired++;
+    else warrantyUnknown++;
+    const tier = s.serviceLevel || s.serviceTier || s.supportLevel || 'Unknown';
+    tierDist[tier] = (tierDist[tier] || 0) + 1;
+    perSystem.push({
+      name: s.systemName, serial: s.serialNumber || '',
+      warrantyEnd: s.warrantyEndDate ? (s.warrantyEndDate + '').substring(0, 10) : 'N/A',
+      warrantyActive: wActive, tier: tier
+    });
+  });
+  return { warrantyActive, warrantyExpired, warrantyUnknown, tierDist, perSystem };
+}
+
+function classifyITILTier(fixOrDesc) {
+  const t = (fixOrDesc || '').toLowerCase();
+  // Destructive
+  if (t.includes('destroy') || t.includes('delete') || t.includes('sanitiz') || t.includes('unmap') || t.includes('wipe') || t.includes('remove lun') || t.includes('remove vol')) return 'DESTRUCTIVE';
+  // Disruptive
+  if (t.includes('upgrade') || t.includes('reboot') || t.includes('takeover') || t.includes('giveback') || t.includes('failover') || t.includes('switchover') || t.includes('firmware') || t.includes('relocat') || t.includes('migrate') || t.includes('issu') || t.includes('restart')) return 'DISRUPTIVE-SAFE';
+  // Non-disruptive (default for config, enable, logging, etc.)
+  return 'NON-DISRUPTIVE';
+}
+
+function estimateEffort(fixOrDesc) {
+  const t = (fixOrDesc || '').toLowerCase();
+  if (t.includes('upgrade') && t.includes('ontap')) return '2-4 hrs (rolling HA upgrade)';
+  if (t.includes('upgrade') && (t.includes('firmware') || t.includes('shelf') || t.includes('disk'))) return '1-2 hrs (background update)';
+  if (t.includes('switch') && t.includes('firmware')) return '1-2 hrs per switch (ISSU if supported)';
+  if (t.includes('metrocluster')) return '4-6 hrs (DR site first, then primary)';
+  if (t.includes('arp') || t.includes('ransomware')) return '~15 min per system';
+  if (t.includes('encrypt') || t.includes('nve') || t.includes('nae')) return '~30 min per system + key manager setup';
+  if (t.includes('snaplock')) return '~30 min per volume';
+  if (t.includes('mav') || t.includes('multi-admin')) return '~15 min per cluster';
+  if (t.includes('audit') || t.includes('logging')) return '~10 min per SVM';
+  if (t.includes('fabricpool') || t.includes('tiering')) return '~30 min per aggregate + cloud config';
+  if (t.includes('snapmirror') || t.includes('replicat')) return '~30 min per relationship + initial transfer';
+  if (t.includes('asup') || t.includes('autosupport')) return '~5 min per node';
+  if (t.includes('config') || t.includes('enable') || t.includes('set') || t.includes('modify')) return '~10 min per system';
+  if (t.includes('kerberos') || t.includes('ldap') || t.includes('saml')) return '~30 min per SVM';
+  return '~15-30 min';
 }
 
 function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
@@ -16216,7 +16478,16 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const scopeHosts = new Set(targetSystems.map(s => (s.systemName || '').toLowerCase()));
   const scopedRenewals = (state.tamRenewals || []).filter(r => scopeHosts.has((r.hostName || '').toLowerCase()));
 
-  // ===================== 1. PROBLEM STATEMENTS =====================
+  // ── Cross-Deliverable Intelligence (Phase 1 helpers) ──
+  const dr = computeFleetDRSummary(targetSystems);
+  const fm = computeFleetFeatureMatrix(targetSystems);
+  const cap = computeFleetCapacitySummary(targetSystems);
+  const warranty = computeFleetWarrantyStatus(targetSystems);
+  const healthScore = computeAccountHealthScore(targetSystems);
+  const healthGrade = healthScore >= 90 ? 'A' : healthScore >= 75 ? 'B' : healthScore >= 60 ? 'C' : healthScore >= 40 ? 'D' : 'F';
+  const coi = computeCostOfInaction(targetSystems);
+  const coiLabel = coi.score >= 50 ? 'CRITICAL' : coi.score >= 25 ? 'MATERIAL' : coi.score >= 10 ? 'MODERATE' : 'LOW';
+
   let problemStatements = `================================================================================
 EXECUTIVE RISK ASSESSMENT
 ================================================================================
@@ -16241,6 +16512,24 @@ OPERATIONAL HEALTH
   Firmware Currency:  ${fwCurrentCount}/${sysCount} (${pctFw}%)
   Contract Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%)
 
+ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
+COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unpatched CVEs, ${coi.capacityRed} capacity-red systems, ${coi.noArp} without ARP
+
+DATA PROTECTION POSTURE
+  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror + ${dr.mcSystems} MetroCluster of ${sysCount})
+  HA Coverage:        ${dr.haCoveragePct}% (${dr.haSystems}/${sysCount})
+  Relationships:      ${dr.smRelCount} total (${dr.smAsync} async / ${dr.smSync} sync)
+  Unprotected:        ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None'}${dr.lagWarnings.length > 0 ? '\n  RPO Risks:          ' + dr.lagWarnings.map(w => w.system + ' → ' + w.dest + ' lag: ' + w.lag).join('; ') : ''}
+
+CAPACITY RISK
+  Utilisation:        ${cap.utilPct}% fleet-wide (${cap.totalPhysTB.toFixed(1)} / ${cap.totalAvailTB.toFixed(1)} TB)
+  RAG Distribution:   ${cap.greenCount} Green / ${cap.amberCount} Amber / ${cap.redCount} Red
+  Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : ''}
+
+FEATURE ADOPTION:     ${fm.fleetAvgScore}% fleet average (${fm.perSystem.length > 0 ? fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + (fm.perSystem.length * 15) + ' best-practice criteria met' : 'N/A'})
+  ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  NVE: ${fm.pct.nve}%  SnapMirror: ${fm.pct.snapMirror}%
+  HA: ${fm.pct.ha}%  Audit: ${fm.pct.audit}%  SnapLock: ${fm.pct.snapLock}%  MAV: ${fm.pct.mav}%
+
 `;
 
   if (sortedRisks.length === 0 && expiringContracts.length === 0 && asupIssues.length === 0) {
@@ -16256,8 +16545,11 @@ OPERATIONAL HEALTH
         return sys && sys.platform ? `${name} (${sys.platform})` : name;
       });
       const sysLabel = sysNames.join(', ');
-      problemStatements += `${idx + 1}. [${g.severity.toUpperCase()}] ${g.fix}
+      const itilTier = classifyITILTier(g.fix);
+      const effort = estimateEffort(g.fix);
+      problemStatements += `${idx + 1}. [${g.severity.toUpperCase()}] [${itilTier}] ${g.fix}
    Systems: ${sysLabel}
+   Effort:  ${effort}
 `;
       if (g.count === 1) {
         problemStatements += `   Finding: ${g.findings[0].description}
@@ -16331,6 +16623,13 @@ OPERATIONAL HEALTH SNAPSHOT:
   Firmware Currency:  ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
   Contract Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
 
+ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
+COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity, ${coi.noArp} without ransomware protection
+
+DATA PROTECTION: ${dr.drCoveragePct}% DR coverage (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)${dr.unprotected.length > 0 ? '\n  ⚠ UNPROTECTED: ' + dr.unprotected.join(', ') : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
+
+CAPACITY: ${cap.utilPct}% fleet utilisation (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)${cap.atRisk.length > 0 ? '\n  ⚠ SYSTEMS AT RISK: ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd runway)').join(', ') : ''}
+
 ${emailRiskLines}
 
 ${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • ${a.name}: ${a.issue}`).join('\n') : 'AutoSupport: All systems reporting healthy.'}
@@ -16359,10 +16658,15 @@ Period:   ${today}
 Systems:  ${targetSystems.length}  |  Sites: ${siteDetails.length}
 
 HEALTH METRICS:
+  Account Health:     ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel}
   ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
   ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
   Firmware Currency:  ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
   Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
+  Feature Adoption:   ${fm.fleetAvgScore}% fleet average
+  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)
+  Capacity:           ${cap.utilPct}% fleet (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)
+  Warranty:           ${warranty.active}/${sysCount} active${warranty.expired > 0 ? ', ' + warranty.expired + ' EXPIRED' : ''}${warranty.expiring30 > 0 ? ', ' + warranty.expiring30 + ' <30d' : ''}
 
 RISK POSTURE:
   Findings: ${totalDeduped} (${critCount}C / ${highCount}H / ${medCount}M)
@@ -16373,8 +16677,8 @@ PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} findings)` : ''}`).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
 ${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}
-${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}`;
-
+${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}
+${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (sysCount - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}`;
   // ===================== 3. CHANGE TICKETS =====================
   let changeTickets = `================================================================================
 CHANGE CONTROL TICKETS
@@ -16395,6 +16699,18 @@ rollback plan, and confirm cluster health before initiating any corrective actio
     const ct = sys.contacts || { name: 'N/A', phone: 'N/A' };
     const priority = sysRisks.some(r => r.severity === 'critical') ? 'CRITICAL' : sysRisks.length > 0 ? 'HIGH' : 'STANDARD';
 
+    const sysCapRAG = computeCapacityRAG(sys);
+    const sysRunway = (sys.projections && sys.projections.daysToLimit) || 'N/A';
+    const sysFAScore = computeFeatureAdoptionScore(sys);
+    const sysWarranty = sys.warrantyEndDate ? (new Date(sys.warrantyEndDate) > new Date() ? 'Active (exp ' + (sys.warrantyEndDate + '').substring(0, 10) + ')' : 'EXPIRED') : 'Unknown';
+    const sysSmCount = (sys.snapmirror && sys.snapmirror.totalCount) || sys.snapMirrorCount || sys.snapmirrorCount || 0;
+    const sysHasHA = sys.haConfigured || sys.isHAConfigured || (sys.snapmirror && sys.snapmirror.isHAConfigured) || false;
+    let estTotalEffort = sysRisks.reduce((sum, r) => {
+      const e = estimateEffort(r.description + ' ' + (r.recommendation || ''));
+      const m = e.match(/(\d+)/); return sum + (m ? parseInt(m[1]) : 15);
+    }, 0);
+    if (sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date') estTotalEffort += 180;
+
     changeTickets += `================================================================================
 CHANGE TICKET #${sidx + 1} — ${sys.systemName}
 ================================================================================
@@ -16406,6 +16722,14 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
   Contact:  ${ct.name} | ${ct.phone}
   Priority: ${priority}
   Tasks:    ${sysRisks.length} corrective action${sysRisks.length !== 1 ? 's' : ''}${sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date' ? ' + 1 OS upgrade' : ''}
+  Est. Change Window: ~${estTotalEffort >= 60 ? Math.round(estTotalEffort / 60) + ' hr' + (Math.round(estTotalEffort / 60) !== 1 ? 's' : '') : estTotalEffort + ' min'}
+
+  SYSTEM INTELLIGENCE:
+    Warranty:          ${sysWarranty}
+    Capacity:          ${sysCapRAG.toUpperCase()} (runway: ${sysRunway === 'N/A' ? 'N/A' : sysRunway + 'd'})
+    Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)
+    DR Protection:     ${sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None'}${sysHasHA ? ' | HA configured' : ''}
+    Contract:          ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
 
 --- PRE-CHANGE HEALTH VALIDATION ---
   cluster show
@@ -16422,7 +16746,10 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
       changeTickets += `--- CORRECTIVE ACTIONS (${sysRisks.length}) ---\n\n`;
       sysRisks.forEach((r, rIdx) => {
         const plan = r.remediationPlan || {};
-        changeTickets += `  [${rIdx + 1}] [${(r.severity || '').toUpperCase()}] ${r.description}\n`;
+        const itilTier = classifyITILTier(r.description + ' ' + (r.recommendation || '') + ' ' + (plan.steps || []).join(' '));
+        const effort = estimateEffort(r.description + ' ' + (r.recommendation || ''));
+        changeTickets += `  [${rIdx + 1}] [${(r.severity || '').toUpperCase()}] [${itilTier}] ${r.description}\n`;
+        changeTickets += `      Effort:     ${effort}\n`;
         if (plan.cause) changeTickets += `      Root Cause: ${plan.cause}\n`;
         if (plan.impact) changeTickets += `      Impact:     ${plan.impact}\n`;
         if (plan.steps && plan.steps.length > 0) {
@@ -16596,6 +16923,10 @@ GLOBAL PRE-FLIGHT CHECKS (run before any system):
       .filter(r => { const c = (r.category||'').toLowerCase(); return c !== 'best practice' && c !== 'best_practice' && c !== 'best practices'; })
       .sort((a, b) => (sevRank[a.severity] ?? 4) - (sevRank[b.severity] ?? 4));
 
+    const rbFAScore = computeFeatureAdoptionScore(sys);
+    const rbCapRAG = computeCapacityRAG(sys);
+    const rbRunway = (sys.projections && sys.projections.daysToLimit) || 'N/A';
+    const rbSmCount = (sys.snapmirror && sys.snapmirror.totalCount) || sys.snapMirrorCount || sys.snapmirrorCount || 0;
     implementationPlans += `================================================================================
 SYSTEM ${sysIdx + 1}: ${sys.systemName}
 ================================================================================
@@ -16605,14 +16936,20 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   OS:       ${sys.ontapVersion || sys.osVersion || 'N/A'}
   Site:     ${sys.siteName || 'N/A'}
   Contract: ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
+  Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
+  Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
+  DR Protection: ${rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
 `;
 
     if (sysRisks.length > 0) {
       sysRisks.forEach((r, rIdx) => {
         const plan = r.remediationPlan || {};
+        const itilTier = classifyITILTier(r.description + ' ' + (r.recommendation || '') + ' ' + (plan.steps || []).join(' '));
+        const effort = estimateEffort(r.description + ' ' + (r.recommendation || ''));
         implementationPlans += `
 --------------------------------------------------------------------------------
-ACTION ${rIdx + 1}: [${(r.severity||'').toUpperCase()}] ${r.description}
+ACTION ${rIdx + 1}: [${(r.severity||'').toUpperCase()}] [${itilTier}] ${r.description}
+  Effort: ${effort}
 --------------------------------------------------------------------------------`;
         if (plan.cause)    implementationPlans += `\n  Root Cause:   ${plan.cause}`;
         if (plan.impact)   implementationPlans += `\n  Impact:       ${plan.impact}`;
@@ -16699,8 +17036,21 @@ ONTAP/OS UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
     network interface show
     event log show -severity EMERGENCY,ALERT -time-range -1h
     cluster ping-cluster -node *
-
+${rbSmCount > 0 ? '    snapmirror show -fields state,lag-time,healthy\n' : ''}
 `;
+    // Feature gap enablement CLI (best-practice items not yet enabled)
+    const featureGaps = [];
+    if (sys.isARPEnabled !== true) featureGaps.push('  ARP:        security anti-ransomware volume enable -volume <vol> -vserver <svm>');
+    if (!(sys.nvEncryptionEnabled || sys.isNVEEnabled || sys.isNAEEnabled || sys.isEncryptionEnabled)) featureGaps.push('  NVE:        vol encryption conversion start -vserver <svm> -volume <vol>');
+    if (sys.isFabricPool !== true) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
+    if (sys.isAuditEnabled !== true) featureGaps.push('  Audit:      vserver audit create -vserver <svm> -destination /audit_log && vserver audit enable -vserver <svm>');
+    if (sys.isMAVEnabled !== true) featureGaps.push('  MAV:        security multi-admin-verify modify -enabled true');
+    if (sys.isSnapLockEnabled !== true) featureGaps.push('  SnapLock:   vol snaplock modify -volume <vol> -snaplock-type compliance');
+    if (featureGaps.length > 0) {
+      implementationPlans += `  [FEATURE ENABLEMENT RECOMMENDATIONS (${featureGaps.length} gaps)]\n`;
+      featureGaps.forEach(g => { implementationPlans += `  ${g}\n`; });
+      implementationPlans += '\n';
+    }
   });
 
   // ===================== 6. SALES PROPOSALS =====================
@@ -16709,6 +17059,13 @@ SALES PROPOSALS & HARDWARE REFRESH
 ================================================================================
 CUSTOMER: ${cleanScope}  |  DATE: ${today}
 Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TAM: ' + personnel.csm : ''}
+Account Health: ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel} (${coi.score})
+
+OPPORTUNITY INTELLIGENCE:
+  Capacity:         ${cap.utilPct}% fleet utilisation (${cap.redCount} RED systems${cap.atRisk.length > 0 ? ', ' + cap.atRisk.length + ' with <60d runway' : ''})
+  DR Gaps:          ${dr.unprotected.length} unprotected system${dr.unprotected.length !== 1 ? 's' : ''} (SnapMirror/MC opportunity)
+  Feature Gaps:     ${fm.fleetAvgScore < 60 ? 'LOW (' + fm.fleetAvgScore + '%) \u2014 significant enablement opportunity' : fm.fleetAvgScore < 80 ? 'MODERATE (' + fm.fleetAvgScore + '%)' : 'GOOD (' + fm.fleetAvgScore + '%)'}
+  Warranty:         ${warranty.expired} expired, ${warranty.expiring30} <30d, ${warranty.expiring90} <90d
 
 `;
 
@@ -16774,6 +17131,41 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
 `;
     if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} system(s) without Anti-Ransomware Protection\n    → ONTAP ARP licensing or upgrade engagement\n`;
     if (fwGap > 0) salesProposals += `  • Firmware Currency: ${fwGap} system(s) behind recommended OS version\n    → Professional Services upgrade engagement\n`;
+  }
+
+  // DR protection upsell
+  if (dr.unprotected.length > 0) {
+    salesProposals += `\nDATA PROTECTION UPSELL [MEDDPICC: I]
+--------------------------------------------------------------------------------
+  ${dr.unprotected.length} system(s) without SnapMirror or MetroCluster protection:
+${dr.unprotected.map(n => `    • ${n}`).join('\n')}
+  → SnapMirror async/sync licensing + destination capacity
+  → Cloud Volumes ONTAP as DR target (AWS/Azure/GCP)
+  → MetroCluster IP for zero-RPO metro-distance sites
+`;
+  }
+
+  // Capacity expansion upsell
+  if (cap.redCount > 0 || cap.atRisk.length > 0) {
+    salesProposals += `\nCAPACITY EXPANSION [MEDDPICC: P + T]
+--------------------------------------------------------------------------------
+  ${cap.redCount} system(s) in RED capacity zone, ${cap.atRisk.length} with <60d runway:
+${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remaining`).join('\n')}
+  → Additional disk shelves or Flash Cache
+  → FabricPool auto-tiering to object storage (reduce primary cost)
+  → Keystone capacity-on-demand (burst without CAPEX)
+`;
+  }
+
+  // Feature adoption upsell
+  if (fm.fleetAvgScore < 80) {
+    salesProposals += `\nFEATURE ADOPTION UPLIFT [MEDDPICC: D + C]
+--------------------------------------------------------------------------------
+  Fleet Average: ${fm.fleetAvgScore}%  |  Bottom Performers:
+${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => `    • ${s.name}: ${s.passed}/${s.total} (${s.pct}%) — gaps: ${s.gaps.slice(0, 3).join(', ')}`).join('\n')}
+  → Professional Services enablement engagement
+  → NetApp Learning Services training credits
+`;
   }
 
   // Financial Business Case
