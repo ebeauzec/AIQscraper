@@ -18,9 +18,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "3.8.1";
+const APP_VERSION = "4.0.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.0.0",
+    date: "01 August 2026",
+    title: "Version/branding unified to ARIA across all files.",
+    sections: [
+      {
+        icon: "🚀",
+        label: "v4.0.0 Updates",
+        color: "#14b8a6",
+        items: [
+          "Major release: fleet-aware enrichment engine with 268+ live article discovery, rewritten scanner using JSON-LD extraction and docs.netapp.com index crawling, all 13 TAM deliverables now receive fleet-relevant KB references."
+        ]
+      }
+    ]
+  },
   {
     version: "3.8.1",
     date: "30 July 2026",

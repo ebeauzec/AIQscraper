@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    NetApp Active IQ TAM Dashboard Launcher (PowerShell)
+    ARIA — Active IQ Risk Intelligence Advisor Launcher (PowerShell)
 .DESCRIPTION
     Stops any existing server on port 8080, starts server.py,
     and opens the dashboard in your default browser.
@@ -10,11 +10,11 @@
 #>
 
 $Port = 8080
-$Host.UI.RawUI.WindowTitle = "NetApp Active IQ TAM Dashboard"
+$Host.UI.RawUI.WindowTitle = "ARIA — Active IQ Risk Intelligence Advisor"
 
 Write-Host ""
 Write-Host "  =================================================" -ForegroundColor Cyan
-Write-Host "    NetApp Active IQ TAM Dashboard" -ForegroundColor White
+Write-Host "    ARIA — Active IQ Risk Intelligence Advisor" -ForegroundColor White
 Write-Host "  =================================================" -ForegroundColor Cyan
 Write-Host ""
 

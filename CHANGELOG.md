@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.0] - 2026-08-01
+
+### Added
+- **Fleet-Aware Enrichment Engine** — complete rewrite of the knowledge base scanner (§6a–6e). The enrichment system now discovers **268+ real articles** per scan from NetApp's public documentation, up from 0 in the previous release.
+- **JSON-LD Category Tree Crawler** (§6a) — replaced the broken `kb.netapp.com` regex scraper (JS-rendered, returned 0 results) with a structured data crawler that extracts categories and sub-categories from JSON-LD `<script>` blocks. Discovers 64+ KB articles across 3 hierarchy levels.
+- **docs.netapp.com Index Crawler** (§6b) — crawls the real ONTAP, hardware systems, NAS management, SAN management, and upgrade index pages, extracting 139+ doc links with auto-classification by URL path keywords.
+- **Fleet KB Sub-Category Crawling** (§6e-iv) — crawls ONTAP-specific KB domains (Data Access, Data Protection, MetroCluster, SnapMirror, SnapLock, NAS, SAN) using JSON-LD extraction. Discovers 27+ fleet-relevant articles.
+- **Deliverable Enrichment Mapper** — new `getFleetEnrichmentSections()` function maps scored fleet-relevant articles into all 13 TAM deliverables. Each deliverable receives contextually appropriate reference blocks:
+  - Problem Statements → security/remediation guides, troubleshooting procedures
+  - Customer Communications → summary of attached reference counts
+  - Change Tickets → upgrade procedures, operational procedures
+  - Solution Proposals → integration docs, cloud/hybrid references
+  - Implementation Runbooks → upgrade, ops, troubleshooting, security, data protection
+  - Sales Proposals → lifecycle/migration, cloud modernisation, ecosystem docs
+  - Customer Success Plan → full KB by category
+  - QBR Pack → KB coverage summary, top security & upgrade refs
+  - MSP Report → ops procedures, troubleshooting, performance tuning
+  - Account Handover Brief → complete reference library by category
+  - MEDDPICC Brief → pain-mapped evidence (security, upgrades, known issues)
+  - Security Brief → remediation/hardening + data protection refs
+  - Sustainability Report → efficiency, cloud tiering, lifecycle/refresh docs
+- **Fleet Relevance Scoring** — articles are scored 0–100+ based on ONTAP version match (+30), model match (+25), platform family match (+20), operational category (+10), and ops keywords (+5). Minimum score of 5 required for inclusion.
+- **`GET /api/knowledge-base`** endpoint — serves KB articles with CISA KEV count and bulletin severity summary for client-side enrichment.
+- **Client-side KB loader** — `loadEnrichmentKB()` fetches and caches KB data at startup; `getFleetRelevantArticles()` filters and scores articles by fleet context.
+
+### Fixed
+- **Scanner §6a (KB search)** — `kb.netapp.com/?q=` search pages are JS-rendered; the HTML regex found 0 results. Replaced with JSON-LD structured data extraction.
+- **Scanner §6b (docs URLs)** — some hardcoded `docs.netapp.com` sub-paths returned 404 (URL structure changed). Replaced with live index page crawling.
+- **Scanner §6e-i (version docs)** — versioned URLs like `/ontap914/` all return 404 (ONTAP docs are not versioned by URL). Replaced with single `/ontap/` tree tagged with fleet version context.
+- **Scanner §6e-ii (platform docs)** — incorrect hardware paths (`/a-series/` → `/aff-aseries/`, `/c-series/` → `/aff-cseries/`, `/asa/` → `/allsan-landing/`). Corrected to actual docs.netapp.com structure.
+- **Scanner §6e-iv (KB troubleshooting)** — same broken regex scraper as §6a. Replaced with JSON-LD sub-category crawling.
+- **Scanner §6e-v (remediation)** — same broken search. Replaced with direct security doc links and bulletin cross-referencing.
+- **MindTouch API** — `@api/deki/site/search` returns 403 Forbidden. Abandoned in favour of JSON-LD extraction.
+
+### Changed
+- **Version unified to 4.0.0** across all files: `version.json`, `app.js` (`APP_VERSION`), `README.md` badge, `CONTEXT.md`, `index.html`, `index_src.html` footer, `launcher.py`, `Start-Dashboard.ps1`, `start_dashboard.bat`, `build/AIQscraper.spec`, `build/Install_NetApp_AIQ_Advisor.py`.
+- **ARIA branding aligned** — `launcher.py`, `Start-Dashboard.ps1`, and `start_dashboard.bat` now use "ARIA — Active IQ Risk Intelligence Advisor" instead of legacy "NetApp Active IQ TAM Dashboard" / "NetApp Active IQ Advisor" names.
+- **CHANGELOG.md** — added missing version header for the enrichment engine features that were previously listed between v3.8.2 and v3.7.0 without a release number.
+- **`bump_version.ps1` limitation documented** — the script only updates `version.json`, `app.js`, and `CHANGELOG.md`, leaving HTML footers, installer scripts, and `CONTEXT.md` at stale versions.
+
+---
+
 ## [3.8.2] - 2026-07-31
 
 ### Fixed
@@ -20,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **version.json** — bumped to 3.8.2.
 
 ---
+
+## [3.8.0] - 2026-07-28
 
 ### Added
 - **Enhanced Enrichment Engine** — 7-source external intelligence pipeline that scrapes NetApp KB articles, upgrade path documentation, and best practice TR guides alongside the existing release notes, PSIRT advisories, NVD CVEs, and Bugs Online sources. All data persistently cached in SQLite (`enrich_cache`) with 7-day TTL and automatic refresh during each harvest cycle.
