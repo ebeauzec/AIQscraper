@@ -1,8 +1,8 @@
 {
-  "version": "4.0.2",
+  "version": "4.0.3",
   "major": 4,
   "minor": 0,
-  "patch": 2,
+  "patch": 3,
   "date": "2026-08-01",
-  "notes": "Platform-specific controller rear-panel backplate visualization, SVM/LIF inventory enrichment in cabling & deliverables, vserver data harvesting via GraphQL, harvest merge-back guard for transient API failures, networkPorts GraphQL field addition, card overflow fix."
+  "notes": "25-point categorized TAM/MSP remediation readiness checklist with 2-column layout (Operations & Security, Data Protection & Lifecycle), 10 new checks including CISA KEV, firmware currency, port health, QoS coverage, config drift, MTTR posture, FlexClone sprawl, SVM/LIF mapping, feature adoption score, and co-term alignment."
 }

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.3] - 2026-08-01
+
+### Added
+- **25-Point Categorized TAM/MSP Remediation Readiness Checklist** — expanded the previous 15-point flat checklist to 25 checks organized into a 2-column categorized layout:
+  - **Left Column: Operations & Security** (15 checks across 4 categories):
+    - *Software & Platform*: OS version currency, hardware EOA status, firmware & disk qualification currency
+    - *Infrastructure Health*: storage efficiency ratio, aggregate capacity headroom ≥20%, HA pair configuration, network port health (link-down detection), QoS adaptive policy coverage
+    - *Security & Compliance*: PSIRT CVE exposure, CISA KEV active exploitation alerts, NVE/NAE volume encryption, Anti-Ransomware Protection (ARP) status
+    - *Support & Monitoring*: AutoSupport HTTPS reporting recency, S1/S2 critical case detection, outstanding Field Safety Alerts
+  - **Right Column: Data Protection & Lifecycle** (10 checks across 3 categories):
+    - *Data Protection*: SnapMirror replication configuration, FabricPool cold-data tiering, SVM/LIF inventory mapping, FlexClone sprawl detection (≤10 threshold)
+    - *Risk & Remediation*: critical/high risk count, feature adoption score ≥60%, config drift detection (unassigned ports), MTTR posture (stale cases >90 days)
+    - *Contracts & Lifecycle*: support contract expiry (>90 days), contract co-term alignment
+- **Per-Column Pass/Fail Score Headers** — each column displays a dynamic "X/Y passed" score badge that updates with the check results.
+- **Category Divider Labels** — visual category separators within each column for quick scanning during TAM/MSP reviews.
+
+### Changed
+- **Checklist UI layout** — replaced single-column scrollable list with a `grid-template-columns: 1fr 1fr` two-card layout. Each card has its own header with title and score badge. Both `index.html` and `index_src.html` updated.
+- **Aggregate and single-system rendering paths synchronized** — both the multi-system aggregate view and single-system detail view now render the same 25-check categorized structure.
+- **Reset/clear logic updated** — both view-switch clear points now also reset the right-column panel and score header elements to prevent stale data display.
+- **Version bumped to 4.0.3** across `version.json`, `app.js` (`APP_VERSION`), `README.md` badge, and documentation.
+
+---
+
 ## [4.0.2] - 2026-08-01
 
 ### Added
