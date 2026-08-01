@@ -41,7 +41,10 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import html
+import urllib.parse
+
 
 # ASUP offline import parser (stdlib-only core, py7zr optional)
 try:
@@ -63,6 +66,12 @@ REST_BASE = "https://api.activeiq.netapp.com"
 _sync_lock = threading.Lock()
 _is_syncing = False
 _last_sync_error = None
+
+# Enrichment scanner state
+_enrichment_scheduler = None  # Set during server startup
+KEV_PATH = SCRIPT_DIR / "data" / "cisa_kev.json"
+KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
+
 
 # ─────────────────────────────────────────────────────────────────────
 # TLS Certificate Auto-Scraping
@@ -1988,6 +1997,11 @@ def _background_sync():
         print(f"  [BACKGROUND] Starting background re-sync{scope_msg}...", flush=True)
         _do_full_harvest(watchlist_ids=wl_ids)
         print("  [BACKGROUND] Background re-sync complete.", flush=True)
+        # Trigger enrichment scan after harvest
+        global _enrichment_scheduler
+        if _enrichment_scheduler and not _enrichment_scheduler._running:
+            print('  [BACKGROUND] Triggering post-harvest enrichment scan...', flush=True)
+            _enrichment_scheduler.run_now()
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -2304,6 +2318,903 @@ def scan_and_persist_advisories():
         'errors':  errors,
         'newIds':  new_ids
     }
+
+# ─────────────────────────────────────────────────────────────────────
+# Enrichment Scanner — Scheduled Background Auto-Enrichment
+# Scans 6 free public sources on a configurable interval:
+#   1. CISA KEV (Known Exploited Vulnerabilities catalog)
+#   2. NetApp PSIRT (security.netapp.com advisories)
+#   3. NVD API 2.0 (NetApp CVEs with CVSS scores)
+#   4. EPSS (Exploit Prediction Scoring System)
+#   5. docs.netapp.com (version catalog + EOA platforms)
+#   6. KB / Best Practices / Integration Docs
+# ─────────────────────────────────────────────────────────────────────
+
+class EnrichmentScheduler:
+    """Background scheduler that periodically scans external sources for enrichment data."""
+
+    def __init__(self, interval_hours=12, nvd_api_key=None):
+        self._interval = max(1, interval_hours) * 3600
+        self._nvd_api_key = nvd_api_key
+        self._timer = None
+        self._running = False
+        self._last_scan = None
+        self._last_results = {}
+        self._lock = threading.Lock()
+
+    def start(self):
+        """Start the recurring timer. First scan after 60s delay."""
+        self._timer = threading.Timer(60, self._do_scan)
+        self._timer.daemon = True
+        self._timer.start()
+        print(f'  [ENRICH] Scheduler started (interval: {self._interval // 3600}h)', flush=True)
+
+    def stop(self):
+        """Cancel pending timer."""
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
+    def update_config(self, interval_hours=None, nvd_api_key=None):
+        """Update scheduler configuration. Restarts timer if interval changed."""
+        if nvd_api_key is not None:
+            self._nvd_api_key = nvd_api_key
+        if interval_hours is not None:
+            new_interval = max(1, interval_hours) * 3600
+            if new_interval != self._interval:
+                self._interval = new_interval
+                self.stop()
+                self._schedule_next()
+                print(f'  [ENRICH] Interval updated to {interval_hours}h', flush=True)
+
+    def run_now(self):
+        """Manual trigger (from /api/enrich/scan POST)."""
+        if self._running:
+            return {'status': 'already_running'}
+        threading.Thread(target=self._do_scan, daemon=True, name='enrich-manual').start()
+        return {'status': 'started'}
+
+    def status(self):
+        """Return current scheduler status."""
+        return {
+            'enabled': True,
+            'intervalHours': self._interval // 3600,
+            'lastScan': self._last_scan,
+            'isRunning': self._running,
+            'results': self._last_results,
+            'hasNvdKey': bool(self._nvd_api_key),
+        }
+
+    def _schedule_next(self):
+        self._timer = threading.Timer(self._interval, self._do_scan)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def _do_scan(self):
+        """Run all enrichment scanners sequentially."""
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+
+        scan_start = time.time()
+        print(f'  [ENRICH] ══════════════════════════════════════════════════════', flush=True)
+        print(f'  [ENRICH] Starting scheduled enrichment scan...', flush=True)
+        results = {}
+        try:
+            results['cisa_kev'] = self._scan_cisa_kev()
+            results['netapp_psirt'] = self._scan_netapp_psirt()
+            results['nvd_netapp'] = self._scan_nvd_netapp()
+            results['epss'] = self._scan_epss()
+            results['version_catalog'] = self._scan_version_catalog()
+            results['knowledge_base'] = self._scan_knowledge_base()
+            elapsed = round(time.time() - scan_start, 1)
+            results['_elapsed'] = elapsed
+            self._last_scan = datetime.now(timezone.utc).isoformat()[:19] + 'Z'
+            self._last_results = results
+            print(f'  [ENRICH] Scan complete in {elapsed}s', flush=True)
+            print(f'  [ENRICH] ══════════════════════════════════════════════════════', flush=True)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            results['_error'] = str(e)
+            self._last_results = results
+            print(f'  [ENRICH] Scan failed: {e}', flush=True)
+        finally:
+            self._running = False
+            self._schedule_next()
+
+    # ── Scanner 1: CISA KEV ──────────────────────────────────────────
+    def _scan_cisa_kev(self):
+        """Download CISA Known Exploited Vulnerabilities catalog and cross-reference."""
+        print('  [ENRICH] [1/6] Scanning CISA KEV catalog...', flush=True)
+        url = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
+        text, err = _enrich_fetch(url, timeout=30)
+        if err or not text:
+            print(f'  [ENRICH]   CISA KEV fetch failed: {err}', flush=True)
+            return {'error': str(err), 'matched': 0}
+
+        try:
+            kev_data = json.loads(text)
+            kev_cves = {v.get('cveID'): v for v in kev_data.get('vulnerabilities', [])}
+            print(f'  [ENRICH]   CISA KEV catalog: {len(kev_cves)} entries', flush=True)
+
+            # Cross-reference with existing bulletins
+            matched = 0
+            updated_bulletins = False
+            if BULLETINS_PATH.exists():
+                bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+                bulletins = bdata.get('bulletins', [])
+                for b in bulletins:
+                    for cve_id in (b.get('cve') or []):
+                        if cve_id in kev_cves:
+                            kev_entry = kev_cves[cve_id]
+                            if not b.get('cisaKev'):
+                                b['cisaKev'] = True
+                                b['cisaKevDateAdded'] = kev_entry.get('dateAdded', '')
+                                b['cisaKevDueDate'] = kev_entry.get('dueDate', '')
+                                b['cisaKevAction'] = kev_entry.get('requiredAction', '')
+                                updated_bulletins = True
+                            matched += 1
+                if updated_bulletins:
+                    bdata['lastUpdated'] = datetime.now(timezone.utc).isoformat()[:10]
+                    payload = json.dumps(bdata, indent=2, ensure_ascii=False)
+                    tmp_path = BULLETINS_PATH.with_suffix('.tmp')
+                    bak_path = BULLETINS_PATH.with_suffix('.bak')
+                    tmp_path.write_text(payload, encoding='utf-8')
+                    if BULLETINS_PATH.exists():
+                        import shutil
+                        shutil.copy2(str(BULLETINS_PATH), str(bak_path))
+                    tmp_path.replace(BULLETINS_PATH)
+                    print(f'  [ENRICH]   Updated bulletins with {matched} KEV cross-references', flush=True)
+
+            # Save KEV catalog for local reference
+            kev_out = {
+                'version': 1,
+                'lastUpdated': datetime.now(timezone.utc).isoformat()[:10],
+                'catalogVersion': kev_data.get('catalogVersion', ''),
+                'totalKevEntries': len(kev_cves),
+                'matchedToFleet': matched,
+            }
+            KEV_PATH.parent.mkdir(parents=True, exist_ok=True)
+            KEV_PATH.write_text(json.dumps(kev_out, indent=2), encoding='utf-8')
+            print(f'  [ENRICH]   CISA KEV: {matched} matched to fleet advisories', flush=True)
+            return {'total': len(kev_cves), 'matched': matched}
+        except Exception as e:
+            print(f'  [ENRICH]   CISA KEV parse error: {e}', flush=True)
+            return {'error': str(e), 'matched': 0}
+
+    # ── Scanner 2: NetApp PSIRT ──────────────────────────────────────
+    def _scan_netapp_psirt(self):
+        """Run the existing NetApp PSIRT advisory scanner."""
+        print('  [ENRICH] [2/6] Scanning NetApp PSIRT advisories...', flush=True)
+        try:
+            result = scan_and_persist_advisories()
+            print(f'  [ENRICH]   PSIRT: +{result.get("added", 0)} new, {result.get("total", 0)} total', flush=True)
+            return result
+        except Exception as e:
+            print(f'  [ENRICH]   PSIRT scan failed: {e}', flush=True)
+            return {'error': str(e), 'added': 0}
+
+    # ── Scanner 3: NVD API (NetApp CVEs) ─────────────────────────────
+    def _scan_nvd_netapp(self):
+        """Query NVD API 2.0 for new NetApp-related CVEs."""
+        print('  [ENRICH] [3/6] Scanning NVD for NetApp CVEs...', flush=True)
+        base_url = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
+        headers_extra = ''
+        if self._nvd_api_key:
+            headers_extra = f'&apiKey={self._nvd_api_key}'
+
+        # Get CVEs published in the last 30 days for NetApp
+        from_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%dT00:00:00.000')
+        to_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT23:59:59.999')
+        url = f'{base_url}?keywordSearch=netapp&pubStartDate={from_date}&pubEndDate={to_date}{headers_extra}'
+
+        text, err = _enrich_fetch(url, timeout=30)
+        if err or not text:
+            print(f'  [ENRICH]   NVD fetch failed: {err}', flush=True)
+            return {'error': str(err), 'new': 0}
+
+        try:
+            nvd_data = json.loads(text)
+            cves = nvd_data.get('vulnerabilities', [])
+            print(f'  [ENRICH]   NVD returned {len(cves)} CVEs (last 30 days)', flush=True)
+
+            # Load existing bulletin IDs for dedup
+            existing_cves = set()
+            if BULLETINS_PATH.exists():
+                bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+                for b in bdata.get('bulletins', []):
+                    for c in (b.get('cve') or []):
+                        existing_cves.add(c)
+
+            new_cves = []
+            for vuln in cves:
+                cve_item = vuln.get('cve', {})
+                cve_id = cve_item.get('id', '')
+                if cve_id in existing_cves:
+                    continue
+
+                # Extract CVSS score
+                metrics = cve_item.get('metrics', {})
+                cvss_score = 0.0
+                severity = 'medium'
+                for metric_key in ['cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2']:
+                    metric_list = metrics.get(metric_key, [])
+                    if metric_list:
+                        cvss_data = metric_list[0].get('cvssData', {})
+                        cvss_score = cvss_data.get('baseScore', 0.0)
+                        severity = cvss_data.get('baseSeverity', 'MEDIUM').lower()
+                        break
+
+                # Extract description
+                descriptions = cve_item.get('descriptions', [])
+                desc = ''
+                for d in descriptions:
+                    if d.get('lang') == 'en':
+                        desc = d.get('value', '')
+                        break
+
+                # Only include if it seems NetApp-related based on description
+                desc_lower = desc.lower()
+                if not any(kw in desc_lower for kw in ['netapp', 'ontap', 'storagegrid', 'snapcenter', 'trident', 'active iq', 'santricity']):
+                    continue
+
+                new_cves.append({
+                    'id': f'NVD-{cve_id}',
+                    'cve': [cve_id],
+                    'cvss': cvss_score,
+                    'severity': severity,
+                    'title': f'{cve_id}: {desc[:120]}...' if len(desc) > 120 else f'{cve_id}: {desc}',
+                    'description': desc,
+                    'affectedProducts': _infer_affected_products(cve_id, desc),
+                    'mitigation': 'Review NVD advisory and apply vendor patches.',
+                    'published': cve_item.get('published', '')[:10],
+                    'link': f'https://nvd.nist.gov/vuln/detail/{cve_id}',
+                    '_source': 'nvd_auto_scan',
+                    '_addedAt': datetime.now(timezone.utc).isoformat()[:10],
+                })
+
+            if new_cves:
+                # POST to existing bulletin pipeline
+                if BULLETINS_PATH.exists():
+                    bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+                    bulletins = bdata.get('bulletins', [])
+                else:
+                    bulletins = []
+                    bdata = {'version': 1, 'source': 'dynamic', 'bulletins': []}
+
+                id_set = {b.get('id') for b in bulletins}
+                added = 0
+                for entry in new_cves:
+                    if entry['id'] not in id_set:
+                        bulletins.append(entry)
+                        id_set.add(entry['id'])
+                        added += 1
+
+                if added > 0:
+                    bdata['lastUpdated'] = datetime.now(timezone.utc).isoformat()[:10]
+                    bdata['bulletinCount'] = len(bulletins)
+                    bdata['bulletins'] = bulletins
+                    payload = json.dumps(bdata, indent=2, ensure_ascii=False)
+                    tmp_path = BULLETINS_PATH.with_suffix('.tmp')
+                    bak_path = BULLETINS_PATH.with_suffix('.bak')
+                    tmp_path.write_text(payload, encoding='utf-8')
+                    if BULLETINS_PATH.exists():
+                        import shutil
+                        shutil.copy2(str(BULLETINS_PATH), str(bak_path))
+                    tmp_path.replace(BULLETINS_PATH)
+                    print(f'  [ENRICH]   NVD: Added {added} new CVEs to bulletin DB', flush=True)
+
+            print(f'  [ENRICH]   NVD: {len(new_cves)} new NetApp CVEs found', flush=True)
+            return {'scanned': len(cves), 'new': len(new_cves)}
+        except Exception as e:
+            print(f'  [ENRICH]   NVD parse error: {e}', flush=True)
+            return {'error': str(e), 'new': 0}
+
+    # ── Scanner 4: EPSS Scores ───────────────────────────────────────
+    def _scan_epss(self):
+        """Enrich existing CVEs with EPSS exploit prediction scores."""
+        print('  [ENRICH] [4/6] Enriching CVEs with EPSS scores...', flush=True)
+        if not BULLETINS_PATH.exists():
+            return {'enriched': 0}
+
+        try:
+            bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+            bulletins = bdata.get('bulletins', [])
+
+            # Collect all CVE IDs that don't yet have EPSS scores
+            cves_needing_epss = []
+            for b in bulletins:
+                if b.get('epssScore') is not None:
+                    continue
+                for cve_id in (b.get('cve') or []):
+                    if cve_id.startswith('CVE-'):
+                        cves_needing_epss.append((cve_id, b))
+
+            if not cves_needing_epss:
+                print('  [ENRICH]   EPSS: All CVEs already have scores', flush=True)
+                return {'enriched': 0, 'total': len(bulletins)}
+
+            # Batch query EPSS (up to 100 CVEs per request)
+            enriched = 0
+            batch_size = 30
+            for i in range(0, len(cves_needing_epss), batch_size):
+                batch = cves_needing_epss[i:i + batch_size]
+                cve_ids = ','.join(c[0] for c in batch)
+                url = f'https://api.first.org/data/v1/epss?cve={cve_ids}'
+                text, err = _enrich_fetch(url, timeout=15)
+                if err or not text:
+                    continue
+
+                try:
+                    epss_data = json.loads(text)
+                    epss_map = {d['cve']: d for d in epss_data.get('data', [])}
+                    for cve_id, bulletin in batch:
+                        if cve_id in epss_map:
+                            bulletin['epssScore'] = float(epss_map[cve_id].get('epss', 0))
+                            bulletin['epssPercentile'] = float(epss_map[cve_id].get('percentile', 0))
+                            enriched += 1
+                except Exception:
+                    pass
+
+                # Rate limiting: small pause between batches
+                time.sleep(1)
+
+            if enriched > 0:
+                bdata['lastUpdated'] = datetime.now(timezone.utc).isoformat()[:10]
+                payload = json.dumps(bdata, indent=2, ensure_ascii=False)
+                tmp_path = BULLETINS_PATH.with_suffix('.tmp')
+                bak_path = BULLETINS_PATH.with_suffix('.bak')
+                tmp_path.write_text(payload, encoding='utf-8')
+                if BULLETINS_PATH.exists():
+                    import shutil
+                    shutil.copy2(str(BULLETINS_PATH), str(bak_path))
+                tmp_path.replace(BULLETINS_PATH)
+
+            print(f'  [ENRICH]   EPSS: Enriched {enriched}/{len(cves_needing_epss)} CVEs', flush=True)
+            return {'enriched': enriched, 'total': len(bulletins)}
+        except Exception as e:
+            print(f'  [ENRICH]   EPSS error: {e}', flush=True)
+            return {'error': str(e), 'enriched': 0}
+
+    # ── Scanner 5: Version Catalog + EOA ─────────────────────────────
+    def _scan_version_catalog(self):
+        """Refresh ONTAP/StorageGRID/SANtricity version catalog from docs.netapp.com."""
+        print('  [ENRICH] [5/6] Refreshing version catalog from docs.netapp.com...', flush=True)
+        try:
+            catalog = fetch_latest_version_catalog()
+            total = sum(len(v) for v in catalog.values())
+            print(f'  [ENRICH]   Version catalog: {total} versions across {len(catalog)} products', flush=True)
+            return {'products': list(catalog.keys()), 'totalVersions': total}
+        except Exception as e:
+            print(f'  [ENRICH]   Version catalog error: {e}', flush=True)
+            return {'error': str(e)}
+
+    # ── Scanner 6: KB / Best Practices / Integration Docs ────────────
+    def _scan_knowledge_base(self):
+        """Scan NetApp KB, docs.netapp.com, and integration sources for new articles."""
+        print('  [ENRICH] [6/6] Scanning knowledge base sources...', flush=True)
+
+        # Load existing knowledge base
+        if KNOWLEDGE_PATH.exists():
+            try:
+                kb_data = json.loads(KNOWLEDGE_PATH.read_text(encoding='utf-8'))
+            except Exception:
+                kb_data = {'version': 1, 'articles': []}
+        else:
+            kb_data = {'version': 1, 'articles': []}
+
+        existing_urls = {a.get('url') for a in kb_data.get('articles', [])}
+        new_articles = []
+
+        # ── 6a. NetApp KB articles (best practices, troubleshooting) ──
+        import json as _json_mod
+
+        def _fetch_kb_jsonld(url):
+            found_urls = []
+            try:
+                text, err = _enrich_fetch(url, timeout=15)
+                if err or not text:
+                    return found_urls
+                ld_blocks = _re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', text, _re.DOTALL)
+                for block in ld_blocks:
+                    try:
+                        data = _json_mod.loads(block)
+                        if 'mainEntity' in data:
+                            for item in data['mainEntity'].get('itemListElement', []):
+                                name = item.get('name', '')
+                                iurl = item.get('url', '')
+                                if iurl:
+                                    found_urls.append((iurl, name))
+                    except: pass
+                time.sleep(1)
+            except: pass
+            return found_urls
+
+        kb_root_urls = _fetch_kb_jsonld('https://kb.netapp.com/')
+        kb_level1 = []
+        for curl, cname in kb_root_urls:
+            kb_level1.extend(_fetch_kb_jsonld(curl))
+            
+        ontap_urls = [u for u in kb_level1 if 'ontap' in u[0].lower()]
+        kb_level2 = []
+        for curl, cname in ontap_urls:
+            kb_level2.extend(_fetch_kb_jsonld(curl))
+
+        for curl, cname in kb_root_urls + kb_level1 + kb_level2:
+            if curl not in existing_urls:
+                cat = 'knowledge_base'
+                lower_url = curl.lower()
+                if 'troubleshoot' in lower_url: cat = 'troubleshooting'
+                elif 'best-practice' in lower_url: cat = 'best_practices'
+                elif 'security' in lower_url: cat = 'security'
+                
+                new_articles.append({
+                    'url': curl,
+                    'title': html.unescape(cname).strip() if cname else curl.split('/')[-1].replace('-', ' ').title(),
+                    'source': 'kb.netapp.com',
+                    'category': cat,
+                    'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                })
+                existing_urls.add(curl)
+
+        # ── 6b. Technical Reports (TRs) from docs.netapp.com ──
+        docs_indexes = [
+            'https://docs.netapp.com/us-en/ontap/',
+            'https://docs.netapp.com/us-en/ontap-systems/',
+            'https://docs.netapp.com/us-en/ontap/nas-management/index.html',
+            'https://docs.netapp.com/us-en/ontap/san-management/index.html',
+            'https://docs.netapp.com/us-en/ontap/upgrade/index.html',
+        ]
+        for url in docs_indexes:
+            try:
+                text, err = _enrich_fetch(url, timeout=15)
+                if not err and text:
+                    links = _re.findall(r'href="([^"]+)"[^>]*>([^<]{5,})</a>', text)
+                    for href, title in links:
+                        if href.startswith('http') and not href.startswith('https://docs.netapp.com/'):
+                            continue
+                        if href.startswith('#') or href.startswith('javascript:'):
+                            continue
+                        full_url = href if href.startswith('http') else urllib.parse.urljoin(url, href)
+                        if full_url in existing_urls:
+                            continue
+                        title_clean = html.unescape(title).strip()
+                        lower_url = full_url.lower()
+                        cat = 'reference'
+                        if '/security/' in lower_url: cat = 'security'
+                        elif '/upgrade/' in lower_url: cat = 'upgrade'
+                        elif '/performance/' in lower_url: cat = 'performance'
+                        elif '/san' in lower_url: cat = 'operations'
+                        elif '/nas' in lower_url: cat = 'operations'
+                        elif '/fabricpool/' in lower_url: cat = 'configuration'
+                        
+                        new_articles.append({
+                            'url': full_url,
+                            'title': title_clean,
+                            'source': 'docs.netapp.com',
+                            'category': cat,
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                        })
+                        existing_urls.add(full_url)
+                time.sleep(2)
+            except Exception:
+                pass
+
+        # ── 6c. 3rd-party integration docs — DYNAMIC DISCOVERY ──
+        integration_seeds = [
+            ('https://docs.netapp.com/us-en/ontap/release-notes/index.html', 'reference', 'Release Notes'),
+            ('https://docs.netapp.com/us-en/ontap/quick-start.html', 'reference', 'Quick Start'),
+            ('https://docs.netapp.com/us-en/ontap/software_setup/workflow-summary.html', 'reference', 'Software Setup Workflow'),
+            ('https://docs.netapp.com/us-en/ontap-cli/index.html', 'automation', 'ONTAP CLI Reference'),
+            ('https://docs.netapp.com/us-en/ontap/setup-upgrade/index.html', 'upgrade', 'Setup and Upgrade'),
+            ('https://docs.netapp.com/us-en/ontap/disks-aggregates/index.html', 'operations', 'Disks and Aggregates Management'),
+            ('https://docs.netapp.com/us-en/ontap/fabricpool/index.html', 'configuration', 'FabricPool Configuration'),
+            ('https://docs.netapp.com/us-en/ontap/flexgroup/index.html', 'operations', 'FlexGroup Volumes'),
+            ('https://docs.netapp.com/us-en/ontap/flexcache/index.html', 'operations', 'FlexCache Volumes'),
+            ('https://docs.netapp.com/us-en/ontap/nfs-config/index.html', 'configuration', 'NFS Configuration'),
+            ('https://docs.netapp.com/us-en/ontap/nfs-admin/index.html', 'operations', 'NFS Administration'),
+            ('https://docs.netapp.com/us-en/ontap/smb-config/index.html', 'configuration', 'SMB Configuration'),
+            ('https://docs.netapp.com/us-en/ontap/smb-admin/index.html', 'operations', 'SMB Administration'),
+            ('https://docs.netapp.com/us-en/ontap/smb-hyper-v-sql/index.html', 'integration', 'SMB for Hyper-V and SQL Server'),
+            ('https://docs.netapp.com/us-en/ontap/san-admin/index.html', 'operations', 'SAN Administration'),
+            ('https://docs.netapp.com/us-en/ontap/san-config/index.html', 'configuration', 'SAN Configuration'),
+            ('https://docs.netapp.com/us-en/ontap-sanhost/', 'integration', 'SAN Host Utilities'),
+            ('https://docs.netapp.com/us-en/ontap/s3-config/workflow-concept.html', 'configuration', 'S3 Configuration Workflow'),
+            ('https://docs.netapp.com/us-en/ontap/s3-snapmirror/index.html', 'data_protection', 'S3 SnapMirror'),
+            ('https://docs.netapp.com/us-en/ontap/authentication/workflow-concept.html', 'security', 'Authentication and RBAC Workflow'),
+            ('https://docs.netapp.com/us-en/ontap/multi-admin-verify/index.html', 'security', 'Multi-Admin Verification'),
+            ('https://docs.netapp.com/us-en/ontap/authentication/overview-oauth2.html', 'security', 'OAuth2 Authentication'),
+            ('https://docs.netapp.com/us-en/ontap/nas-audit/index.html', 'security', 'NAS Auditing'),
+            ('https://docs.netapp.com/us-en/ontap/antivirus/index.html', 'security', 'Antivirus Configuration'),
+            ('https://docs.netapp.com/us-en/ontap/snaplock/index.html', 'compliance', 'SnapLock Compliance'),
+            ('https://docs.netapp.com/us-en/ontap/snapmirror-active-sync/index.html', 'data_protection', 'SnapMirror Active Sync'),
+            ('https://docs.netapp.com/us-en/ontap/tape-backup/index.html', 'integration', 'Tape Backup Integration'),
+            ('https://docs.netapp.com/us-en/ontap/ndmp/index.html', 'integration', 'NDMP Backup Integration'),
+            ('https://docs.netapp.com/us-en/ontap/performance-config/index.html', 'performance', 'Performance Configuration'),
+            ('https://docs.netapp.com/us-en/ontap/performance-admin/index.html', 'performance', 'Performance Administration'),
+            ('https://docs.netapp.com/us-en/ontap/concept_nas_file_system_analytics_overview.html', 'performance', 'File System Analytics'),
+            ('https://docs.netapp.com/us-en/ontap/error-messages/index.html', 'troubleshooting', 'EMS Error Messages'),
+            ('https://docs.netapp.com/us-en/ai-data-engine/index.html', 'integration', 'AI Data Engine'),
+            ('https://docs.netapp.com/us-en/ontap-technical-reports/ransomware-solutions/ransomware-overview.html', 'security', 'Ransomware Solutions Overview'),
+            ('https://docs.netapp.com/us-en/ontap-7mode-transition/index.html', 'migration', '7-Mode to ONTAP Transition'),
+            ('https://docs.netapp.com/us-en/ontap-fli/', 'migration', 'Foreign LUN Import'),
+            ('https://docs.netapp.com/us-en/ontap-select/', 'integration', 'ONTAP Select'),
+        ]
+        for doc_url, category, title in integration_seeds:
+            if doc_url not in existing_urls:
+                new_articles.append({
+                    'url': doc_url,
+                    'title': title,
+                    'source': 'docs.netapp.com',
+                    'category': category,
+                    'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                })
+                existing_urls.add(doc_url)
+
+        # ── 6c-auto. Dynamic discovery: crawl docs.netapp.com product index ──
+        _discovery_urls = [
+            'https://docs.netapp.com/us-en/',
+            'https://docs.netapp.com/us-en/netapp-solutions/',
+        ]
+        for catalog_url in _discovery_urls:
+            try:
+                text, err = _enrich_fetch(catalog_url, timeout=20)
+                if err or not text:
+                    continue
+                links = _re.findall(
+                    r'href="((?:https://docs\.netapp\.com)?/us-en/([a-z0-9][a-z0-9_-]{3,60})(?:/[^"]{0,80})?\.html)"[^>]*>([^<]{5,120})</a>',
+                    text, _re.IGNORECASE
+                )
+                for href, repo_slug, link_title in links:
+                    full_url = href if href.startswith('http') else f'https://docs.netapp.com{href}'
+                    if full_url in existing_urls:
+                        continue
+                    if any(x in full_url for x in ['#', '.png', '.jpg', '.svg', 'mailto:', 'javascript:']):
+                        continue
+                    title_clean = html.unescape(link_title).strip()
+                    if len(title_clean) < 8 or title_clean.lower() in ('index', 'home', 'back', 'next', 'previous'):
+                        continue
+                    slug_lower = repo_slug.lower()
+                    title_lower = title_clean.lower()
+                    cat = 'reference'
+                    if any(k in slug_lower or k in title_lower for k in ['vmware', 'vsphere', 'vcenter', 'vvol']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['trident', 'kubernetes', 'k8s', 'astra', 'openshift', 'container', 'docker', 'rancher']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['oracle', 'sql', 'sap', 'hana', 'db2', 'mysql', 'postgres', 'mongo', 'database', 'epic']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['ansible', 'terraform', 'automation', 'rest-api', 'powershell']):
+                        cat = 'automation'
+                    elif any(k in slug_lower or k in title_lower for k in ['aws', 'azure', 'gcp', 'cloud', 'fsx', 'bluexp', 'occm']):
+                        cat = 'cloud'
+                    elif any(k in slug_lower or k in title_lower for k in ['backup', 'commvault', 'veeam', 'veritas', 'ndmp', 'snapcenter']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['splunk', 'kafka', 'spark', 'hadoop', 'analytics', 'ai', 'gpu', 'nvidia', 'ml']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['migrate', 'transition', 'import', 'xcp']):
+                        cat = 'migration'
+                    elif any(k in slug_lower or k in title_lower for k in ['security', 'ransomware', 'encrypt', 'zero-trust']):
+                        cat = 'security'
+                    elif any(k in slug_lower or k in title_lower for k in ['san', 'nvme', 'iscsi', 'fc', 'host']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['storagegrid', 's3', 'object']):
+                        cat = 'integration'
+                    elif any(k in slug_lower or k in title_lower for k in ['solution', 'best-practice', 'validated', 'design']):
+                        cat = 'best_practices'
+
+                    new_articles.append({
+                        'url': full_url,
+                        'title': title_clean,
+                        'source': 'docs.netapp.com',
+                        'category': cat,
+                        'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                        '_autoDiscovered': True,
+                    })
+                    existing_urls.add(full_url)
+                time.sleep(2)
+            except Exception:
+                pass
+
+        # ── 6d. Scan for new EOA announcements ──
+        try:
+            eoa_url = 'https://docs.netapp.com/us-en/ontap-systems/endofavail/'
+            text, err = _enrich_fetch(eoa_url, timeout=15)
+            if text and not err:
+                eoa_links = _re.findall(r'href="([^"]*end-of-avail[^"]*\.html)"', text)
+                for link in eoa_links:
+                    full_url = f'https://docs.netapp.com/us-en/ontap-systems/endofavail/{link}' if not link.startswith('http') else link
+                    if full_url not in existing_urls:
+                        new_articles.append({
+                            'url': full_url,
+                            'title': f'EOA Notice: {link.replace(".html", "").replace("-", " ").title()}',
+                            'source': 'docs.netapp.com',
+                            'category': 'lifecycle',
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                        })
+                        existing_urls.add(full_url)
+        except Exception:
+            pass
+
+        # ── 6e. Fleet-aware operational / troubleshooting / remediation docs ──
+        fleet_articles_added = 0
+        try:
+            db = _init_db()
+            cached_result, _ = _load_cached(db)
+            db.close()
+        except Exception:
+            cached_result = None
+
+        if cached_result:
+            fleet_systems = cached_result.get('systems', [])
+            fleet_versions = set()
+            fleet_major_versions = set()
+            fleet_platforms = set()
+            fleet_products = set()
+            fleet_models = set()
+            for sys in fleet_systems:
+                ver = sys.get('osVersion') or ''
+                if ver:
+                    fleet_versions.add(ver)
+                    m = _re.match(r'(\d+\.\d+)', ver)
+                    if m:
+                        fleet_major_versions.add(m.group(1))
+                plat = (sys.get('platform') or sys.get('platformType') or '').lower()
+                if plat:
+                    fleet_platforms.add(plat)
+                prod = (sys.get('productType') or sys.get('systemType') or '').lower()
+                if prod:
+                    fleet_products.add(prod)
+                model = (sys.get('model') or '').upper()
+                if model:
+                    model_family = _re.sub(r'\s+', '-', model.strip())
+                    fleet_models.add(model_family)
+
+            print(f'  [ENRICH]   Fleet profile: {len(fleet_systems)} systems, '
+                  f'{len(fleet_major_versions)} ONTAP versions, '
+                  f'{len(fleet_models)} model families', flush=True)
+
+            # ── 6e-i. Version-specific ONTAP documentation ──
+            for major_ver in sorted(fleet_major_versions):
+                ver_docs = [
+                    ('https://docs.netapp.com/us-en/ontap/release-notes/index.html', 'operations', f'ONTAP Release Notes'),
+                    ('https://docs.netapp.com/us-en/ontap/upgrade/index.html', 'upgrade', f'ONTAP Upgrade Guide'),
+                    ('https://docs.netapp.com/us-en/ontap/revert/index.html', 'operations', f'ONTAP Revert Procedures'),
+                    ('https://docs.netapp.com/us-en/ontap/system-admin/index.html', 'operations', f'ONTAP System Administration'),
+                    ('https://docs.netapp.com/us-en/ontap-cli/index.html', 'operations', f'ONTAP CLI Reference'),
+                    ('https://docs.netapp.com/us-en/ontap/networking/index.html', 'operations', f'ONTAP Network Management'),
+                    ('https://docs.netapp.com/us-en/ontap/security/index.html', 'security', f'ONTAP Security Hardening'),
+                    ('https://docs.netapp.com/us-en/ontap/anti-ransomware/index.html', 'security', f'ONTAP Anti-Ransomware'),
+                    ('https://docs.netapp.com/us-en/ontap/data-protection/index.html', 'data_protection', f'ONTAP Data Protection'),
+                    ('https://docs.netapp.com/us-en/ontap/performance-admin/index.html', 'performance', f'ONTAP Performance Monitoring'),
+                    ('https://docs.netapp.com/us-en/ontap/error-messages/index.html', 'troubleshooting', f'ONTAP Error Messages & Remediation'),
+                    ('https://docs.netapp.com/us-en/ontap/volumes/index.html', 'operations', f'ONTAP Volume Management'),
+                    ('https://docs.netapp.com/us-en/ontap/san-admin/index.html', 'operations', f'ONTAP SAN Administration'),
+                    ('https://docs.netapp.com/us-en/ontap/nas-audit/index.html', 'operations', f'ONTAP NAS Audit & Tracking'),
+                    ('https://docs.netapp.com/us-en/ontap/fabricpool/index.html', 'configuration', f'ONTAP FabricPool Configuration'),
+                    ('https://docs.netapp.com/us-en/ontap/peering/index.html', 'data_protection', f'ONTAP Cluster Peering'),
+                    ('https://docs.netapp.com/us-en/ontap/mediator/index.html', 'data_protection', f'ONTAP Mediator for MetroCluster/SMBC'),
+                    ('https://docs.netapp.com/us-en/ontap/encryption-at-rest/index.html', 'security', f'ONTAP Encryption at Rest'),
+                ]
+                
+                for doc_url, category, title in ver_docs:
+                    if doc_url not in existing_urls:
+                        new_articles.append({
+                            'url': doc_url,
+                            'title': title,
+                            'source': 'docs.netapp.com',
+                            'category': category,
+                            'relevance': f'ONTAP {major_ver} deployed in fleet',
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                            '_fleetRelevant': True,
+                        })
+                        existing_urls.add(doc_url)
+                        fleet_articles_added += 1
+
+            # ── 6e-ii. Platform-specific hardware & maintenance docs ──
+            platform_doc_map = {
+                'aff': [
+                    ('https://docs.netapp.com/us-en/ontap-systems/index.html', 'operations', 'AFF/FAS Hardware Installation & Maintenance'),
+                    ('https://docs.netapp.com/us-en/ontap-systems/aff-aseries/index.html', 'operations', 'AFF A-Series Systems Installation'),
+                    ('https://docs.netapp.com/us-en/ontap-systems/aff-cseries/index.html', 'operations', 'AFF C-Series Systems Installation'),
+                ],
+                'fas': [
+                    ('https://docs.netapp.com/us-en/ontap-systems/index.html', 'operations', 'AFF/FAS Hardware Installation & Maintenance'),
+                    ('https://docs.netapp.com/us-en/ontap-systems/fas/index.html', 'operations', 'FAS Systems Installation'),
+                ],
+                'asa': [
+                    ('https://docs.netapp.com/us-en/ontap-systems/index.html', 'operations', 'AFF/FAS Hardware Installation & Maintenance'),
+                    ('https://docs.netapp.com/us-en/ontap/san-admin/index.html', 'operations', 'ASA — SAN Administration (Block-Optimised)'),
+                    ('https://docs.netapp.com/us-en/ontap-systems/allsan-landing/index.html', 'operations', 'ASA Systems Documentation'),
+                    ('https://docs.netapp.com/us-en/asa-r2/index.html', 'operations', 'ASA r2 Systems Documentation'),
+                ],
+                'afx': [
+                    ('https://docs.netapp.com/us-en/ontap-systems/afx/index.html', 'operations', 'AFX Systems Documentation'),
+                ],
+                'shelves': [
+                    ('https://docs.netapp.com/us-en/ontap-systems/drive-shelves/index.html', 'operations', 'Drive Shelves Installation'),
+                ],
+                'switches': [
+                    ('https://docs.netapp.com/us-en/ontap-systems-switches/index.html', 'operations', 'Switches Documentation'),
+                ]
+            }
+            
+            detected_families = set()
+            for plat in fleet_platforms:
+                for family_key in platform_doc_map:
+                    if family_key in plat: detected_families.add(family_key)
+            for prod in fleet_products:
+                for family_key in platform_doc_map:
+                    if family_key in prod: detected_families.add(family_key)
+            for model in fleet_models:
+                model_l = model.lower()
+                if 'aff' in model_l or model_l.startswith('a'): detected_families.add('aff')
+                if 'fas' in model_l: detected_families.add('fas')
+                if 'asa' in model_l: detected_families.add('asa')
+                if 'afx' in model_l: detected_families.add('afx')
+
+            if not detected_families:
+                detected_families = {'aff', 'fas'}
+
+            detected_families.add('shelves')
+            detected_families.add('switches')
+
+            for family in detected_families:
+                docs = platform_doc_map.get(family, [])
+                for doc_url, category, title in docs:
+                    if doc_url not in existing_urls:
+                        new_articles.append({
+                            'url': doc_url,
+                            'title': title,
+                            'source': 'docs.netapp.com',
+                            'category': category,
+                            'relevance': f'{family.upper()} platform in fleet',
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                            '_fleetRelevant': True,
+                        })
+                        existing_urls.add(doc_url)
+                        fleet_articles_added += 1
+
+            # ── 6e-iii. Model-specific hardware procedures ──
+            for model in sorted(fleet_models):
+                model_slug = model.lower().replace(' ', '-')
+                hw_docs = [
+                    (f'https://docs.netapp.com/us-en/ontap-systems/{model_slug}/install-setup.html',
+                     'operations', f'{model} — Installation & Setup'),
+                    (f'https://docs.netapp.com/us-en/ontap-systems/{model_slug}/maintain-overview.html',
+                     'operations', f'{model} — Hardware Maintenance'),
+                ]
+                for doc_url, category, title in hw_docs:
+                    if doc_url not in existing_urls:
+                        new_articles.append({
+                            'url': doc_url,
+                            'title': title,
+                            'source': 'docs.netapp.com',
+                            'category': category,
+                            'relevance': f'{model} deployed in fleet',
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                            '_fleetRelevant': True,
+                        })
+                        existing_urls.add(doc_url)
+                        fleet_articles_added += 1
+
+            # ── 6e-iv. Fleet KB searches (JSON-LD category crawling) ──
+            fleet_kb_urls = [
+                'https://kb.netapp.com/on-prem/ontap/da',
+                'https://kb.netapp.com/on-prem/ontap/DP',
+                'https://kb.netapp.com/on-prem/ontap/DM',
+                'https://kb.netapp.com/on-prem/ontap/mc',
+                'https://kb.netapp.com/on-prem/ontap/DP/SnapMirror',
+                'https://kb.netapp.com/on-prem/ontap/DP/SnapLock',
+                'https://kb.netapp.com/on-prem/ontap/da/NAS',
+                'https://kb.netapp.com/on-prem/ontap/da/SAN',
+            ]
+            
+            for base_url in fleet_kb_urls:
+                try:
+                    text, err = _enrich_fetch(base_url, timeout=15)
+                    if not err and text:
+                        ld_blocks = _re.findall(r'<script type="application/ld\+json"[^>]*>(.*?)</script>', text, _re.DOTALL)
+                        for block in ld_blocks:
+                            try:
+                                data = _json_mod.loads(block)
+                                if 'mainEntity' in data:
+                                    for item in data['mainEntity'].get('itemListElement', []):
+                                        url = item.get('url', '')
+                                        name = item.get('name', '')
+                                        if url and url.startswith('https://kb.netapp.com/'):
+                                            if url not in existing_urls:
+                                                new_articles.append({
+                                                    'url': url,
+                                                    'title': html.unescape(name).strip() if name else url.split('/')[-1].replace('-', ' ').title(),
+                                                    'source': 'kb.netapp.com',
+                                                    'category': 'troubleshooting',
+                                                    'relevance': 'fleet-specific',
+                                                    'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                                                    '_fleetRelevant': True,
+                                                })
+                                                existing_urls.add(url)
+                                                fleet_articles_added += 1
+                            except: pass
+                    time.sleep(2)
+                except Exception:
+                    pass
+
+            # ── 6e-v. Remediation docs for active risks/advisories ──
+            if BULLETINS_PATH.exists():
+                try:
+                    bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+                    bulletins = bdata.get('bulletins', [])
+                    critical_bulletins = [
+                        b for b in bulletins
+                        if b.get('severity', '').lower() in ('critical', 'high')
+                    ]
+                    
+                    remediation_docs = [
+                        ('https://docs.netapp.com/us-en/ontap/antivirus/index.html', 'Antivirus Configuration'),
+                        ('https://docs.netapp.com/us-en/ontap/anti-ransomware/index.html', 'Anti-Ransomware Configuration'),
+                        ('https://docs.netapp.com/us-en/ontap/nas-audit/index.html', 'NAS Audit Configuration'),
+                        ('https://docs.netapp.com/us-en/ontap/multi-admin-verify/index.html', 'Multi-Admin Verify'),
+                        ('https://docs.netapp.com/us-en/ontap/snaplock/index.html', 'SnapLock Configuration'),
+                        ('https://docs.netapp.com/us-en/ontap/authentication/workflow-concept.html', 'Authentication Workflow'),
+                        ('https://docs.netapp.com/us-en/ontap-technical-reports/ransomware-solutions/ransomware-overview.html', 'Ransomware Solutions Overview'),
+                    ]
+                    
+                    for b in critical_bulletins[:20]:
+                        adv_url = b.get('url')
+                        if adv_url and adv_url.startswith('https://security.netapp.com/') and adv_url not in existing_urls:
+                            new_articles.append({
+                                'url': adv_url,
+                                'title': f"Advisory Remediation: {b.get('title', 'Security Bulletin')}",
+                                'source': 'security.netapp.com',
+                                'category': 'remediation',
+                                'relevance': 'Active critical advisory',
+                                'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                                '_fleetRelevant': True,
+                            })
+                            existing_urls.add(adv_url)
+                            fleet_articles_added += 1
+                            
+                    for r_url, r_title in remediation_docs:
+                        if r_url not in existing_urls:
+                            new_articles.append({
+                                'url': r_url,
+                                'title': r_title,
+                                'source': 'docs.netapp.com',
+                                'category': 'remediation',
+                                'relevance': 'Security Remediation Guide',
+                                'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                                '_fleetRelevant': True,
+                            })
+                            existing_urls.add(r_url)
+                            fleet_articles_added += 1
+                            
+                except Exception:
+                    pass
+
+            print(f'  [ENRICH]   Fleet-aware docs: +{fleet_articles_added} articles '
+                  f'for {len(fleet_major_versions)} ONTAP versions, '
+                  f'{len(detected_families)} platform families', flush=True)
+        else:
+            print('  [ENRICH]   Fleet-aware docs: skipped (no cached fleet data)', flush=True)
+
+        # Persist
+        if new_articles:
+            all_articles = kb_data.get('articles', []) + new_articles
+            kb_out = {
+                'version': 1,
+                'lastUpdated': datetime.now(timezone.utc).isoformat()[:10],
+                'articleCount': len(all_articles),
+                'articles': all_articles,
+            }
+            KNOWLEDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = KNOWLEDGE_PATH.with_suffix('.tmp')
+            tmp_path.write_text(json.dumps(kb_out, indent=2, ensure_ascii=False), encoding='utf-8')
+            tmp_path.replace(KNOWLEDGE_PATH)
+            print(f'  [ENRICH]   Knowledge base: +{len(new_articles)} new articles ({len(all_articles)} total)', flush=True)
+
+        return {'new': len(new_articles), 'total': len(kb_data.get('articles', [])) + len(new_articles)}
 
 
 def _infer_affected_products(adv_id, title):
@@ -3199,6 +4110,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_config_get()
         elif self.path.startswith('/api/watchlists'):
             self.handle_watchlists()
+        elif self.path == '/api/knowledge-base':
+            self.handle_knowledge_base_get()
+        elif self.path == '/api/enrich/status':
+            self.handle_enrich_status()
         elif self.path.startswith('/api/enrich'):
             self.handle_enrich()
         elif self.path.startswith('/api/bulletins/scan'):
@@ -3484,6 +4399,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_config_post()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_post()
+        elif self.path == '/api/enrich/scan':
+            self.handle_enrich_scan()
         elif self.path == '/api/asup/import':
             self.handle_asup_import()
         elif self.path == '/api/asup/associate':
@@ -3817,6 +4734,75 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._json_response(500, {"ok": False, "error": str(e), "customers": [], "sites": []})
 
+    def handle_knowledge_base_get(self):
+        """GET /api/knowledge-base — Return the full knowledge base for enrichment mapping."""
+        global _enrichment_scheduler
+        kb = {'version': 1, 'articles': [], 'lastUpdated': None, 'articleCount': 0}
+        if KNOWLEDGE_PATH.exists():
+            try:
+                kb = json.loads(KNOWLEDGE_PATH.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+        # Also include CISA KEV data if available
+        kev = []
+        if KEV_PATH.exists():
+            try:
+                kev_data = json.loads(KEV_PATH.read_text(encoding='utf-8'))
+                kev = kev_data.get('vulnerabilities', [])
+            except Exception:
+                pass
+        # Include bulletin summary counts by category
+        bulletin_summary = {}
+        if BULLETINS_PATH.exists():
+            try:
+                bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
+                for b in bdata.get('bulletins', []):
+                    cat = b.get('severity', 'unknown').lower()
+                    bulletin_summary[cat] = bulletin_summary.get(cat, 0) + 1
+            except Exception:
+                pass
+        response = {
+            'articles': kb.get('articles', []),
+            'articleCount': kb.get('articleCount', len(kb.get('articles', []))),
+            'lastUpdated': kb.get('lastUpdated'),
+            'kevCount': len(kev),
+            'bulletinSummary': bulletin_summary,
+        }
+        body = json.dumps(response, ensure_ascii=False).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def handle_enrich_status(self):
+        """GET /api/enrich/status — Return enrichment scanner status."""
+        global _enrichment_scheduler
+        if _enrichment_scheduler:
+            status = _enrichment_scheduler.status()
+        else:
+            status = {'enabled': False, 'lastScan': None, 'isRunning': False}
+        res = json.dumps(status).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(res)
+
+    def handle_enrich_scan(self):
+        """POST /api/enrich/scan — Manually trigger an enrichment scan."""
+        global _enrichment_scheduler
+        if not _enrichment_scheduler:
+            self.send_response(503)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': 'Enrichment scheduler not running'}).encode('utf-8'))
+            return
+        result = _enrichment_scheduler.run_now()
+        self.send_response(202)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(result).encode('utf-8'))
+
     def handle_asup_delete(self):
         """DELETE /api/asup/imports?serial=XXX — remove an ASUP import."""
         try:
@@ -3849,6 +4835,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "watchlistIds": cfg.get("watchlistIds") or cfg.get("watchlistId") or cfg.get("watchlist_id") or "",
                 "watchlistName": cfg.get("watchlistName", ""),
                 "hasToken": bool(cfg.get("refreshToken") or cfg.get("refresh_token")),
+                "enrichEnabled": cfg.get("enrichEnabled", True),
+                "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
+                "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
             }
             res_bytes = json.dumps(safe_cfg).encode("utf-8")
             self.send_response(200)
@@ -3889,6 +4878,19 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["tamName"] = body["tamName"] or ""
             if "tamEmail" in body:
                 cfg["tamEmail"] = body["tamEmail"] or ""
+            if "enrichEnabled" in body:
+                cfg["enrichEnabled"] = bool(body["enrichEnabled"])
+            if "enrichIntervalHours" in body:
+                cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "nvdApiKey" in body:
+                cfg["nvdApiKey"] = body["nvdApiKey"].strip()
+            # Update enrichment scheduler if running
+            global _enrichment_scheduler
+            if _enrichment_scheduler:
+                _enrichment_scheduler.update_config(
+                    interval_hours=cfg.get('enrichIntervalHours', 12),
+                    nvd_api_key=cfg.get('nvdApiKey') or None
+                )
             # Write back
             CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             has_token = bool(cfg.get("refreshToken") or cfg.get("refresh_token"))
@@ -4331,6 +5333,17 @@ if __name__ == '__main__':
             print(f"  [STARTUP] Advisory scan failed: {_scan_err}", flush=True)
 
     threading.Thread(target=_startup_advisory_scan, daemon=True, name="startup-advisory-scan").start()
+
+    # Start enrichment scheduler
+    try:
+        _cfg = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.exists() else {}
+        if _cfg.get('enrichEnabled', True):
+            _enrich_interval = int(_cfg.get('enrichIntervalHours', 12))
+            _nvd_key = _cfg.get('nvdApiKey') or None
+            _enrichment_scheduler = EnrichmentScheduler(interval_hours=_enrich_interval, nvd_api_key=_nvd_key)
+            _enrichment_scheduler.start()
+    except Exception as _sched_err:
+        print(f'  [STARTUP] Enrichment scheduler failed to start: {_sched_err}', flush=True)
 
     print(f"Starting CORS Proxy Web Server on port {PORT}...")
     if cached:
