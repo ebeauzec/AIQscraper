@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 4.0.0 (per `version.json`, dated 2026-08-01)
+> **Current Version**: 4.0.1 (per `version.json`, dated 2026-08-01)
 
 ---
 
@@ -82,8 +82,8 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 
 | File | Size | Purpose |
 |------|------|---------|
-| `server.py` | 207KB | Central HTTP proxy, SQLite cache, GraphQL harvester, enrichment engine (7 external sources), version catalog, ASUP handler, TLS auto-config |
-| `app.js` | 1.14MB | All frontend logic: state management, API calls, tab rendering, enrichment display, remediation plan generator, reference library, dynamic version management |
+| `server.py` | 275KB | Central HTTP proxy, SQLite cache, GraphQL harvester, enrichment engine (7 external sources), version catalog, ASUP handler, TLS auto-config, cluster name derivation, E-Series hardware synthesis |
+| `app.js` | 1.36MB | All frontend logic: state management, API calls, tab rendering, enrichment display, remediation plan generator, reference library, dynamic version management, platform-aware upgrade paths (ONTAP + StorageGRID + E-Series), deliverable DR/capacity/adoption intelligence |
 | `index.html` | 81KB | Production dashboard SPA (6 views, sidebar nav, search, modals) |
 | `index_src.html` | 85KB | Development/source version of dashboard — includes ASUP import modal DOM + enhanced error handling |
 | `styles.css` | 28KB | Complete dark-mode design system with CSS custom properties, responsive layouts, animations |
@@ -118,8 +118,8 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 
 | File | Purpose |
 |------|---------|
-| `README.md` | Comprehensive user & developer manual (616 lines) |
-| `CHANGELOG.md` | Full release history (v1.0.0 through v3.6.3) |
+| `README.md` | Comprehensive user & developer manual (790+ lines) |
+| `CHANGELOG.md` | Full release history (v1.0.0 through v4.0.1) |
 | `LEGAL.md` | IP ownership declaration |
 | `LICENSE` | Proprietary license (Eugene Beauzec, non-commercial free, commercial requires consent) |
 
@@ -213,9 +213,12 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - `REFERENCE_LIBRARY_ONTAP_HIGHLIGHTS` — per-version upgrade motivation text (9.7 → 9.19.1)
 - `REFERENCE_LIBRARY_UPGRADE_CAVEATS` — breaking changes per target version
 - `NETAPP_SECURITY_BULLETIN_DB` — full CVE/NTAP advisory database
-- `generateDynamicRemediationPlan()` — 20+ risk category remediation engine (~900 lines)
-- EOA platform flagging, Kerberos KB5073381 detection
-- `linkify()` function auto-linking CVE IDs, TR references, NTAP IDs, KB articles
+- `generateDynamicRemediationPlan()` — 20+ risk category remediation engine (~900 lines), now populates Options/Trade-Offs and Compliance fields for live API risks
+- EOA platform flagging, Kerberos KB5073381 detection, E-Series model recognition (E2824, E5700, EF4000)
+- `linkify()` function auto-linking CVE IDs, TR references, NTAP IDs, KB articles — anchor-tag-safe (no double-wrapping)
+- Platform-aware upgrade path calculator: ONTAP (multi-hop), StorageGRID (11.x → 11.9), E-Series/SANtricity (version-range)
+- Cluster identity derivation from hostname when API lookup returns empty
+- Deliverable intelligence enrichment: DR coverage, capacity forecast, feature adoption sections injected into all 13 deliverables
 
 ### External Enrichment Pipeline (v3.8.0+)
 - **7 external sources** per version: release notes, PSIRT advisories, NVD CVEs, Bugs Online, KB articles, upgrade paths, best practice guides
@@ -251,8 +254,8 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | **Large watchlist pagination** | Pagination implemented | UX rough for >500 systems |
 | **Token refresh** | Retry logic exists | Occasional silent failures; needs retry queue |
 | **PDF export long tables** | Works with manual page breaks | Auto page-break logic cuts off some long tables |
-| **v3.7.0 CHANGELOG entry** | `version.json` = 3.7.0 | CHANGELOG.md last entry is 3.6.3 — needs v3.7.0 prepended |
-| **README version badge** | Shows 3.3.1 | Should show 3.7.0 |
+| ~~**v3.7.0 CHANGELOG entry**~~ | ✅ Done in v4.0.0 | All versions through 4.0.1 now documented |
+| ~~**README version badge**~~ | ✅ Done | Badge shows 4.0.1 |
 | **Data protection coverage %** | SnapMirror count exists | Volume-level protection ratio calculation missing |
 | **`index.html` vs `index_src.html` sync** | `index_src.html` has ASUP modal; `index.html` does not | Need to decide which is canonical and sync |
 | **Firmware Phase 2** | Phase 1 (Unverified badge) complete | Model-specific SP/BMC baseline research and `data/firmware_baselines.json` expansion |
@@ -337,6 +340,8 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | 3.7.0 | 2026-07-20 | ASUP Offline Import |
 | 3.8.0 | 2026-07-28 | Enhanced Enrichment Engine — 7 external sources, version catalog auto-update, KB articles + upgrade paths + best practices in Version Intel card |
 | 3.8.2 | 2026-07-31 | Fix: ESeriesSystem GQL schema error broke efficiency harvest — removed invalid fragment, restored snapshot-excluded data reduction ratios, donut chart savings, and capacity fields |
+| 4.0.0 | 2026-08-01 | Fleet-Aware Enrichment Engine rewrite — 268+ KB articles, JSON-LD crawlers, deliverable enrichment mapper, KB Intelligence panel, enrichment badges |
+| 4.0.1 | 2026-08-01 | Deliverable DR/capacity/adoption intelligence, dynamic remediation fields, cluster name derivation, multi-platform upgrade paths, E-Series detection fixes |
 
 ---
 
@@ -364,8 +369,8 @@ The previous agent conversation (ID: `73665ae2-...`) produced these planning/rev
 
 ### Immediate Housekeeping
 1. **Sync `index.html` with `index_src.html`** — the ASUP modal DOM from `index_src.html` should be in the production file
-2. **Add v3.7.0 entry to CHANGELOG.md** — version.json is ahead of changelog
-3. **Update README.md version badge** — currently shows 3.3.1, should be 3.7.0
+2. ~~**Add v3.7.0 entry to CHANGELOG.md**~~ — ✅ Done (all versions through 4.0.1 documented)
+3. ~~**Update README.md version badge**~~ — ✅ Done (badge shows 4.0.1)
 4. **Fix `AIQscraper.spec` macOS version** — hardcoded 3.0.0
 5. **Fix `build_mac.sh` corrupted string** on line 22
 
