@@ -13633,6 +13633,396 @@ function formatCostOfInactionText(systems) {
   • ${coi.noArp} systems lack ransomware protection (ARP)`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Enrichment Knowledge Base — Loader, Filters & Deliverable Mapper
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Load the enrichment knowledge base from the server.
+ * Caches into state.enrichmentKB. Silently no-ops when offline.
+ */
+async function loadEnrichmentKB() {
+  if (!state.isRunningViaProxy) return;
+  try {
+    const resp = await fetch('/api/knowledge-base');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    state.enrichmentKB = {
+      articles: data.articles || [],
+      kevCount: data.kevCount || 0,
+      bulletinSummary: data.bulletinSummary || {},
+      lastUpdated: data.lastUpdated,
+      loadedAt: new Date().toISOString(),
+    };
+    console.log(`[ENRICH-KB] Loaded ${state.enrichmentKB.articles.length} articles`);
+  } catch (e) {
+    console.warn('[ENRICH-KB] Failed to load knowledge base:', e);
+  }
+}
+
+/**
+ * Filter enrichment KB articles to those relevant to the fleet in scope.
+ * Matches on ONTAP versions, platform families, model names, and categories.
+ * Returns articles grouped by category with deduplication.
+ */
+function getFleetRelevantArticles(targetSystems) {
+  const articles = (state.enrichmentKB && state.enrichmentKB.articles) || [];
+  if (articles.length === 0) return {};
+
+  // Build fleet profile from target systems
+  const fleetVersions = new Set();
+  const fleetMajorVersions = new Set();
+  const fleetPlatforms = new Set();
+  const fleetModels = new Set();
+  const fleetProducts = new Set();
+
+  targetSystems.forEach(s => {
+    const ver = s.osVersion || s.ontapVersion || '';
+    if (ver) {
+      fleetVersions.add(ver);
+      const m = ver.match(/^(\d+\.\d+)/);
+      if (m) fleetMajorVersions.add(m[1]);
+    }
+    const plat = (s.platform || s.platformType || '').toLowerCase();
+    if (plat) fleetPlatforms.add(plat);
+    const model = (s.model || '').toLowerCase();
+    if (model) fleetModels.add(model);
+    const prod = (s.productType || s.systemType || '').toLowerCase();
+    if (prod) fleetProducts.add(prod);
+  });
+
+  // Relevance scoring function
+  function scoreArticle(a) {
+    let score = 0;
+    const title = (a.title || '').toLowerCase();
+    const url = (a.url || '').toLowerCase();
+    const cat = (a.category || '').toLowerCase();
+    const relevance = (a.relevance || '').toLowerCase();
+
+    // Fleet-specific articles get highest score
+    if (a._fleetRelevant) score += 50;
+
+    // Version matches
+    for (const ver of fleetMajorVersions) {
+      if (title.includes(`ontap ${ver}`) || title.includes(`ontap${ver.replace('.', '')}`) ||
+          url.includes(`ontap${ver.replace('.', '')}`)) {
+        score += 30;
+        break;
+      }
+    }
+
+    // Platform family matches
+    const platformKeywords = ['aff', 'fas', 'asa', 'storagegrid', 'e-series'];
+    for (const plat of fleetPlatforms) {
+      for (const kw of platformKeywords) {
+        if (plat.includes(kw) && (title.includes(kw) || url.includes(kw))) {
+          score += 20;
+        }
+      }
+    }
+
+    // Model matches
+    for (const model of fleetModels) {
+      if (model && (title.includes(model) || url.includes(model.replace(/\s+/g, '-')))) {
+        score += 25;
+      }
+    }
+
+    // Category relevance (always-relevant categories)
+    const alwaysRelevant = ['troubleshooting', 'operations', 'upgrade', 'remediation', 'security', 'performance'];
+    if (alwaysRelevant.includes(cat)) score += 10;
+
+    // Keyword relevance boosts
+    const opsKeywords = ['troubleshoot', 'remediat', 'known issue', 'error message', 'procedure',
+                         'maintenance', 'upgrade', 'revert', 'failover', 'takeover', 'giveback',
+                         'firmware', 'patch', 'cli', 'runbook', 'best practice'];
+    for (const kw of opsKeywords) {
+      if (title.includes(kw)) { score += 5; break; }
+    }
+
+    // If relevance field mentions fleet
+    if (relevance.includes('fleet') || relevance.includes('deployed')) score += 15;
+
+    return score;
+  }
+
+  // Score and filter articles (minimum score of 5 to be included)
+  const scored = articles
+    .map(a => ({ ...a, _score: scoreArticle(a) }))
+    .filter(a => a._score >= 5)
+    .sort((a, b) => b._score - a._score);
+
+  // Group by category
+  const grouped = {};
+  const seen = new Set();
+  scored.forEach(a => {
+    if (seen.has(a.url)) return;
+    seen.add(a.url);
+    const cat = a.category || 'reference';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(a);
+  });
+
+  return grouped;
+}
+
+/**
+ * Build enrichment reference sections for deliverables.
+ * Maps KB categories to specific deliverable contexts and returns
+ * formatted text blocks ready to inject.
+ */
+function getFleetEnrichmentSections(targetSystems) {
+  const grouped = getFleetRelevantArticles(targetSystems);
+  const sections = {};
+
+  // Helper: format a list of articles as reference lines
+  function fmtRefs(articles, max = 8) {
+    return articles.slice(0, max).map((a, i) =>
+      `  ${i + 1}. ${a.title}\n     ${a.url}`
+    ).join('\n');
+  }
+  function fmtBrief(articles, max = 5) {
+    return articles.slice(0, max).map((a, i) =>
+      `  ${i + 1}. ${a.title} — ${a.url}`
+    ).join('\n');
+  }
+
+  // ── Category collections for each deliverable type ──
+  const opsArticles = [
+    ...(grouped['operations'] || []),
+    ...(grouped['configuration'] || []),
+  ];
+  const troubleArticles = [
+    ...(grouped['troubleshooting'] || []),
+  ];
+  const upgradeArticles = [
+    ...(grouped['upgrade'] || []),
+  ];
+  const secArticles = [
+    ...(grouped['security'] || []),
+    ...(grouped['remediation'] || []),
+  ];
+  const integrationArticles = [
+    ...(grouped['integration'] || []),
+    ...(grouped['automation'] || []),
+  ];
+  const dpArticles = [
+    ...(grouped['data_protection'] || []),
+  ];
+  const perfArticles = [
+    ...(grouped['performance'] || []),
+  ];
+  const lifecycleArticles = [
+    ...(grouped['lifecycle'] || []),
+    ...(grouped['migration'] || []),
+  ];
+  const cloudArticles = [
+    ...(grouped['cloud'] || []),
+  ];
+  const bpArticles = [
+    ...(grouped['best_practices'] || []),
+  ];
+  const allArticles = Object.values(grouped).flat();
+
+  // ── 1. Problem Statements — operational + troubleshooting refs ──
+  if (opsArticles.length > 0 || troubleArticles.length > 0 || secArticles.length > 0) {
+    let block = `\nFLEET-SPECIFIC REFERENCE DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
+    if (secArticles.length > 0) {
+      block += `SECURITY & REMEDIATION GUIDES (${secArticles.length}):\n${fmtRefs(secArticles)}\n\n`;
+    }
+    if (troubleArticles.length > 0) {
+      block += `TROUBLESHOOTING PROCEDURES (${troubleArticles.length}):\n${fmtRefs(troubleArticles)}\n\n`;
+    }
+    if (opsArticles.length > 0) {
+      block += `OPERATIONAL GUIDES (${opsArticles.length}):\n${fmtRefs(opsArticles)}\n\n`;
+    }
+    sections.problemStatements = block;
+  }
+
+  // ── 2. Customer Communications — brief refs for email ──
+  if (allArticles.length > 0) {
+    let block = `\nATTACHED REFERENCE DOCUMENTATION:\n`;
+    if (secArticles.length > 0) block += `  Security & Remediation: ${secArticles.length} guide(s) — see attached runbook\n`;
+    if (upgradeArticles.length > 0) block += `  Upgrade Procedures: ${upgradeArticles.length} guide(s) — version-specific to your fleet\n`;
+    if (troubleArticles.length > 0) block += `  Troubleshooting: ${troubleArticles.length} article(s) from NetApp KB\n`;
+    block += `  Full reference library: ${allArticles.length} article(s) covering your deployed platforms and software versions\n`;
+    sections.customerComms = block;
+  }
+
+  // ── 3. Change Tickets — operational procedures ──
+  if (opsArticles.length > 0 || upgradeArticles.length > 0) {
+    let block = `\nVENDOR REFERENCE DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
+    if (upgradeArticles.length > 0) {
+      block += `UPGRADE PROCEDURES:\n${fmtRefs(upgradeArticles, 6)}\n\n`;
+    }
+    if (opsArticles.length > 0) {
+      block += `OPERATIONAL PROCEDURES:\n${fmtRefs(opsArticles, 6)}\n\n`;
+    }
+    if (troubleArticles.length > 0) {
+      block += `TROUBLESHOOTING REFERENCES:\n${fmtRefs(troubleArticles, 5)}\n\n`;
+    }
+    sections.changeTickets = block;
+  }
+
+  // ── 4. Solution Proposals — integration + best practices ──
+  if (integrationArticles.length > 0 || bpArticles.length > 0 || cloudArticles.length > 0) {
+    let block = `\nSUPPORTING DOCUMENTATION & INTEGRATION GUIDES\n--------------------------------------------------------------------------------\n`;
+    if (integrationArticles.length > 0) {
+      block += `3RD-PARTY INTEGRATION DOCS (${integrationArticles.length}):\n${fmtRefs(integrationArticles, 10)}\n\n`;
+    }
+    if (cloudArticles.length > 0) {
+      block += `CLOUD & HYBRID REFERENCES (${cloudArticles.length}):\n${fmtRefs(cloudArticles, 6)}\n\n`;
+    }
+    if (bpArticles.length > 0) {
+      block += `BEST PRACTICES (${bpArticles.length}):\n${fmtRefs(bpArticles, 6)}\n\n`;
+    }
+    sections.solutionProposals = block;
+  }
+
+  // ── 5. Implementation Runbooks — ops, troubleshooting, upgrade ──
+  if (opsArticles.length > 0 || upgradeArticles.length > 0 || troubleArticles.length > 0) {
+    let block = `\n================================================================================\nFLEET-SPECIFIC PROCEDURES & TROUBLESHOOTING REFERENCES\n================================================================================\n`;
+    if (upgradeArticles.length > 0) {
+      block += `\nUPGRADE PROCEDURES (version-specific to deployed fleet):\n${fmtRefs(upgradeArticles, 10)}\n`;
+    }
+    if (opsArticles.length > 0) {
+      block += `\nOPERATIONAL PROCEDURES:\n${fmtRefs(opsArticles, 12)}\n`;
+    }
+    if (troubleArticles.length > 0) {
+      block += `\nTROUBLESHOOTING KB ARTICLES:\n${fmtRefs(troubleArticles, 10)}\n`;
+    }
+    if (secArticles.length > 0) {
+      block += `\nSECURITY REMEDIATION GUIDES:\n${fmtRefs(secArticles, 8)}\n`;
+    }
+    if (dpArticles.length > 0) {
+      block += `\nDATA PROTECTION REFERENCES:\n${fmtRefs(dpArticles, 6)}\n`;
+    }
+    sections.implementationPlans = block;
+  }
+
+  // ── 6. Sales Proposals — lifecycle + cloud + integration ──
+  if (lifecycleArticles.length > 0 || cloudArticles.length > 0 || integrationArticles.length > 0) {
+    let block = `\nSUPPORTING REFERENCE DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
+    if (lifecycleArticles.length > 0) {
+      block += `LIFECYCLE & MIGRATION GUIDES (${lifecycleArticles.length}):\n${fmtBrief(lifecycleArticles)}\n\n`;
+    }
+    if (cloudArticles.length > 0) {
+      block += `CLOUD MODERNISATION OPTIONS (${cloudArticles.length}):\n${fmtBrief(cloudArticles)}\n\n`;
+    }
+    if (integrationArticles.length > 0) {
+      block += `ECOSYSTEM INTEGRATION DOCS (${integrationArticles.length}):\n${fmtBrief(integrationArticles, 8)}\n\n`;
+    }
+    sections.salesProposals = block;
+  }
+
+  // ── 7. Customer Success Plan — all categories ──
+  if (allArticles.length > 0) {
+    let block = `\nENRICHMENT KNOWLEDGE BASE — FLEET-SPECIFIC REFERENCES\n--------------------------------------------------------------------------------\n`;
+    block += `Total Articles: ${allArticles.length} | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
+    const catOrder = ['security', 'remediation', 'troubleshooting', 'operations', 'upgrade',
+                      'performance', 'data_protection', 'configuration', 'integration',
+                      'automation', 'cloud', 'lifecycle', 'migration', 'best_practices', 'reference'];
+    catOrder.forEach(cat => {
+      const arts = grouped[cat];
+      if (arts && arts.length > 0) {
+        const label = cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        block += `${label} (${arts.length}):\n${fmtBrief(arts, 6)}\n\n`;
+      }
+    });
+    sections.customerSuccessPlan = block;
+  }
+
+  // ── 8. QBR Pack — summary + key references ──
+  if (allArticles.length > 0) {
+    let block = `\nKNOWLEDGE BASE COVERAGE\n--------------------------------------------------------------------------------\n`;
+    block += `  Fleet-relevant articles:  ${allArticles.length}\n`;
+    const catCounts = Object.entries(grouped).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v.length}`).join('  |  ');
+    block += `  Categories: ${catCounts}\n`;
+    if (secArticles.length > 0) {
+      block += `\n  TOP SECURITY & REMEDIATION REFERENCES:\n${fmtBrief(secArticles, 4)}\n`;
+    }
+    if (upgradeArticles.length > 0) {
+      block += `\n  UPGRADE DOCUMENTATION:\n${fmtBrief(upgradeArticles, 4)}\n`;
+    }
+    sections.qbrPack = block;
+  }
+
+  // ── 9. MSP Report — operational + troubleshooting ──
+  if (opsArticles.length > 0 || troubleArticles.length > 0) {
+    let block = `\nVENDOR KNOWLEDGE BASE REFERENCES\n--------------------------------------------------------------------------------\n`;
+    block += `  Fleet-specific articles available: ${allArticles.length}\n`;
+    if (opsArticles.length > 0) {
+      block += `\n  OPERATIONAL PROCEDURES:\n${fmtBrief(opsArticles, 6)}\n`;
+    }
+    if (troubleArticles.length > 0) {
+      block += `\n  TROUBLESHOOTING:\n${fmtBrief(troubleArticles, 5)}\n`;
+    }
+    if (perfArticles.length > 0) {
+      block += `\n  PERFORMANCE TUNING:\n${fmtBrief(perfArticles, 4)}\n`;
+    }
+    sections.mspReport = block;
+  }
+
+  // ── 10. Handover Brief — full reference library ──
+  if (allArticles.length > 0) {
+    let block = `\nENRICHMENT KNOWLEDGE BASE (${allArticles.length} fleet-relevant articles)\n--------------------------------------------------------------------------------\n`;
+    block += `Source: Auto-enrichment scanner | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
+    const catOrder2 = ['operations', 'troubleshooting', 'security', 'remediation', 'upgrade',
+                       'integration', 'data_protection', 'performance', 'configuration',
+                       'automation', 'cloud', 'lifecycle', 'migration', 'best_practices'];
+    catOrder2.forEach(cat => {
+      const arts = grouped[cat];
+      if (arts && arts.length > 0) {
+        const label = cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        block += `${label} (${arts.length}):\n${fmtRefs(arts, 10)}\n\n`;
+      }
+    });
+    sections.handoverBrief = block;
+  }
+
+  // ── 11. MEDDPICC Brief — pain points mapped to docs ──
+  if (secArticles.length > 0 || troubleArticles.length > 0 || upgradeArticles.length > 0) {
+    let block = `\nSUPPORTING EVIDENCE [MEDDPICC: I — Implicate the Pain]\n--------------------------------------------------------------------------------\n`;
+    if (secArticles.length > 0) {
+      block += `  Security Exposure — ${secArticles.length} vendor-published remediation guide(s):\n${fmtBrief(secArticles, 4)}\n\n`;
+    }
+    if (upgradeArticles.length > 0) {
+      block += `  Upgrade Complexity — ${upgradeArticles.length} version-specific procedure(s):\n${fmtBrief(upgradeArticles, 3)}\n\n`;
+    }
+    if (troubleArticles.length > 0) {
+      block += `  Known Issues — ${troubleArticles.length} KB article(s) for deployed versions:\n${fmtBrief(troubleArticles, 3)}\n\n`;
+    }
+    sections.meddpiccBrief = block;
+  }
+
+  // ── 12. Security Brief — security + remediation ──
+  if (secArticles.length > 0) {
+    let block = `\nREMEDIATION & HARDENING REFERENCES\n--------------------------------------------------------------------------------\n`;
+    block += `${fmtRefs(secArticles, 12)}\n`;
+    if (dpArticles.length > 0) {
+      block += `\nDATA PROTECTION & RECOVERY:\n${fmtRefs(dpArticles, 6)}\n`;
+    }
+    sections.securityBrief = block;
+  }
+
+  // ── 13. Sustainability Report — efficiency + cloud ──
+  if (cloudArticles.length > 0 || perfArticles.length > 0 || lifecycleArticles.length > 0) {
+    let block = `\nSUPPORTING DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
+    if (perfArticles.length > 0) {
+      block += `EFFICIENCY & PERFORMANCE:\n${fmtBrief(perfArticles, 4)}\n\n`;
+    }
+    if (cloudArticles.length > 0) {
+      block += `CLOUD TIERING & SUSTAINABILITY:\n${fmtBrief(cloudArticles, 4)}\n\n`;
+    }
+    if (lifecycleArticles.length > 0) {
+      block += `LIFECYCLE & REFRESH:\n${fmtBrief(lifecycleArticles, 4)}\n\n`;
+    }
+    sections.sustainabilityReport = block;
+  }
+
+  return sections;
+}
+
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases) {
   let totalCapTB = 0;
   let logicalCapTB = 0;
@@ -15992,6 +16382,22 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
 
   // 13. Sustainability & ESG Report
   let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+
+  // ── Inject fleet-relevant enrichment KB references into all deliverables ──
+  const enrichSections = getFleetEnrichmentSections(targetSystems);
+  if (enrichSections.problemStatements)   problemStatements   += enrichSections.problemStatements;
+  if (enrichSections.customerComms)       customerComms       += enrichSections.customerComms;
+  if (enrichSections.changeTickets)       changeTickets       += enrichSections.changeTickets;
+  if (enrichSections.solutionProposals)   solutionProposals   += enrichSections.solutionProposals;
+  if (enrichSections.implementationPlans) implementationPlans += enrichSections.implementationPlans;
+  if (enrichSections.salesProposals)      salesProposals      += enrichSections.salesProposals;
+  if (enrichSections.customerSuccessPlan) customerSuccessPlan += enrichSections.customerSuccessPlan;
+  if (enrichSections.qbrPack)             qbrPack             += enrichSections.qbrPack;
+  if (enrichSections.mspReport)           mspReport           += enrichSections.mspReport;
+  if (enrichSections.handoverBrief)       handoverBrief       += enrichSections.handoverBrief;
+  if (enrichSections.meddpiccBrief)       meddpiccBrief       += enrichSections.meddpiccBrief;
+  if (enrichSections.securityBrief)       securityBrief       += enrichSections.securityBrief;
+  if (enrichSections.sustainabilityReport) sustainabilityReport += enrichSections.sustainabilityReport;
 
   return {
     problemStatements,
@@ -19804,6 +20210,9 @@ async function saveSettings() {
     }
   }
 
+  // Persist enrichment scanner settings to server
+  await saveEnrichmentConfig();
+
   if (!mockToggle) {
     // Switching to live API mode: clear all mock data from state and localStorage
     // so stale mock systems don't persist across the mode switch
@@ -19839,7 +20248,105 @@ async function saveSettings() {
   switchTab("settings");
 }
 
+// ── Enrichment Scanner Controls ──────────────────────────────────────
+
+async function triggerEnrichmentScan() {
+  const statusText = document.getElementById("enrichStatusText");
+  const statusLed = document.getElementById("enrichStatusLed");
+  if (statusText) statusText.textContent = "Starting enrichment scan...";
+  if (statusLed) statusLed.style.background = "#fbbf24";
+
+  try {
+    const res = await fetch("/api/enrich/scan", { method: "POST" });
+    const data = await res.json();
+    if (data.status === "started") {
+      if (statusText) statusText.textContent = "Scan in progress — check status in ~60s...";
+      if (statusLed) { statusLed.style.background = "#fbbf24"; statusLed.style.animation = "pulse 1.5s infinite"; }
+      // Auto-refresh status after delay
+      setTimeout(() => refreshEnrichmentStatus(), 5000);
+      setTimeout(() => refreshEnrichmentStatus(), 30000);
+      setTimeout(() => refreshEnrichmentStatus(), 90000);
+    } else if (data.status === "already_running") {
+      if (statusText) statusText.textContent = "Scan already in progress...";
+    }
+  } catch (err) {
+    console.warn("[ENRICH] Scan trigger failed:", err);
+    if (statusText) statusText.textContent = "Scan trigger failed — is the server running?";
+    if (statusLed) statusLed.style.background = "#ef4444";
+  }
+}
+
+async function refreshEnrichmentStatus() {
+  const statusText = document.getElementById("enrichStatusText");
+  const statusLed = document.getElementById("enrichStatusLed");
+  const statusTime = document.getElementById("enrichStatusTime");
+
+  try {
+    const res = await fetch("/api/enrich/status");
+    const data = await res.json();
+
+    if (data.isRunning) {
+      if (statusText) statusText.textContent = "Scan in progress...";
+      if (statusLed) { statusLed.style.background = "#fbbf24"; statusLed.style.animation = "pulse 1.5s infinite"; }
+      if (statusTime) statusTime.textContent = "";
+    } else if (data.lastScan) {
+      const lastDt = new Date(data.lastScan);
+      const ageMs = Date.now() - lastDt.getTime();
+      const ageH = Math.round(ageMs / 3600000);
+
+      // Build summary from results
+      const r = data.results || {};
+      const parts = [];
+      if (r.cisa_kev && r.cisa_kev.matched !== undefined) parts.push(`KEV: ${r.cisa_kev.matched} matched`);
+      if (r.netapp_psirt && r.netapp_psirt.added !== undefined) parts.push(`PSIRT: +${r.netapp_psirt.added}`);
+      if (r.nvd_netapp && r.nvd_netapp.new !== undefined) parts.push(`NVD: +${r.nvd_netapp.new}`);
+      if (r.epss && r.epss.enriched !== undefined) parts.push(`EPSS: ${r.epss.enriched} scored`);
+      if (r.knowledge_base && r.knowledge_base.new !== undefined) parts.push(`KB: +${r.knowledge_base.new}`);
+      const summary = parts.length > 0 ? parts.join(" · ") : "No results yet";
+
+      if (statusText) statusText.innerHTML = `<span style="color: var(--accent-green);">✓</span> Last scan: ${summary}`;
+      if (statusLed) {
+        statusLed.style.animation = "none";
+        statusLed.style.background = ageH < 24 ? "#34d399" : ageH < 48 ? "#fbbf24" : "#ef4444";
+      }
+      if (statusTime) statusTime.textContent = ageH < 1 ? "< 1h ago" : `${ageH}h ago`;
+
+      // Update interval selector from server
+      if (data.intervalHours) {
+        const sel = document.getElementById("settingsEnrichInterval");
+        if (sel) sel.value = data.intervalHours.toString();
+      }
+    } else {
+      if (statusText) statusText.textContent = data.enabled ? "Scanner active — waiting for first scan..." : "Scanner disabled";
+      if (statusLed) { statusLed.style.background = data.enabled ? "#fbbf24" : "var(--text-muted)"; statusLed.style.animation = "none"; }
+    }
+  } catch (err) {
+    // Not running via proxy, show offline status
+    if (statusText) statusText.textContent = "Server not connected — start server.py for auto-enrichment";
+    if (statusLed) { statusLed.style.background = "var(--text-muted)"; statusLed.style.animation = "none"; }
+  }
+}
+
+async function saveEnrichmentConfig() {
+  if (!state.isRunningViaProxy) return;
+  try {
+    const enrichEnabled = document.getElementById("settingsEnrichEnabled")?.checked ?? true;
+    const enrichInterval = parseInt(document.getElementById("settingsEnrichInterval")?.value) || 12;
+    const nvdApiKey = document.getElementById("settingsNvdApiKey")?.value?.trim() || "";
+
+    await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, nvdApiKey })
+    });
+    console.log("[ENRICH] Config saved to server.");
+  } catch (err) {
+    console.warn("[ENRICH] Could not save enrichment config:", err);
+  }
+}
+
 // ── Watchlist Import via ID Resolution ────────────────────────────────
+
 // The Active IQ watchlist REST API requires session-based SSO auth that
 // isn't available via the public developer API token.  Instead, users
 // paste watchlist IDs (from the AIQ web UI URL bar) and we resolve the
@@ -20620,6 +21127,18 @@ function switchTab(tabId) {
       document.getElementById("settingsSerialNumbers").value = state.serialNumbers || "";
     }
     updateScheduledSyncInfo();
+
+    // Load and display enrichment scanner status
+    refreshEnrichmentStatus();
+    // Load enrichment config from server
+    if (state.isRunningViaProxy) {
+      fetch("/api/config").then(r => r.json()).then(cfg => {
+        const enrichToggle = document.getElementById("settingsEnrichEnabled");
+        const enrichInterval = document.getElementById("settingsEnrichInterval");
+        if (enrichToggle && cfg.enrichEnabled !== undefined) enrichToggle.checked = cfg.enrichEnabled;
+        if (enrichInterval && cfg.enrichIntervalHours) enrichInterval.value = cfg.enrichIntervalHours.toString();
+      }).catch(() => {});
+    }
   }
 }
 
@@ -20789,6 +21308,9 @@ window.onload = async function() {
   // Load dynamic security bulletins from server — merges into NETAPP_SECURITY_BULLETIN_DB
   // so any CVEs added by the daily scan are available before systems are enriched.
   await loadDynamicBulletins();
+  
+  // Load enrichment knowledge base from server — fleet-relevant articles for deliverables
+  loadEnrichmentKB();  // async, non-blocking — will populate state.enrichmentKB in background
   
   // Force GraphQL sync on every page load when not in mock mode.
   // Clear stale clusterview data from previous versions.
