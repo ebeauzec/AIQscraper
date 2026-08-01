@@ -13784,257 +13784,702 @@ function getFleetRelevantArticles(targetSystems) {
 
 /**
  * Build enrichment reference sections for deliverables.
- * Maps KB categories to specific deliverable contexts and returns
- * formatted text blocks ready to inject.
+ * Produces rich, contextual intelligence briefings (not just URL lists).
+ * Each section explains WHY references matter to the specific fleet and
+ * includes actionable recommendations with CLI commands where applicable.
+ *
+ * Returns object with:
+ *   - Text blocks for each deliverable (problemStatements, customerComms, etc.)
+ *   - _counts: article counts per deliverable (for UI badges)
+ *   - _fleetProfile: human-readable fleet summary string
  */
 function getFleetEnrichmentSections(targetSystems) {
   const grouped = getFleetRelevantArticles(targetSystems);
   const sections = {};
 
-  // Helper: format a list of articles as reference lines
-  function fmtRefs(articles, max = 8) {
-    return articles.slice(0, max).map((a, i) =>
-      `  ${i + 1}. ${a.title}\n     ${a.url}`
-    ).join('\n');
+  // ── Build fleet profile for contextual intelligence ──────────────────────
+  const fleetVersions = new Set();
+  const fleetPlatforms = new Set();
+  const fleetModels = new Set();
+  let arpDisabled = 0, nveDisabled = 0, mcCount = 0, sanCount = 0, nasCount = 0;
+  let totalSystems = targetSystems.length;
+
+  targetSystems.forEach(s => {
+    const ver = s.osVersion || s.ontapVersion || '';
+    if (ver) fleetVersions.add(ver.split('P')[0]); // strip patch
+    const plat = (s.platform || s.platformType || '').toUpperCase();
+    if (plat) fleetPlatforms.add(plat.split(' ')[0]); // AFF, FAS, ASA
+    const model = s.model || '';
+    if (model) fleetModels.add(model);
+    if (s.arpStatus === 'disabled' || s.arpStatus === 'not_enabled') arpDisabled++;
+    if (s.nveStatus === 'disabled' || !s.nveStatus) nveDisabled++;
+    if (s.isMetroCluster || (s.platformType || '').includes('MetroCluster')) mcCount++;
+    if ((s.protocols || []).some(p => /iscsi|fc|fcp|nvme/i.test(p))) sanCount++;
+    if ((s.protocols || []).some(p => /nfs|cifs|smb/i.test(p))) nasCount++;
+  });
+
+  const versStr = [...fleetVersions].sort().join(', ') || 'N/A';
+  const platStr = [...fleetPlatforms].join(', ') || 'N/A';
+  const modelStr = [...fleetModels].slice(0, 5).join(', ') || 'N/A';
+  const fleetCtx = `${totalSystems} system${totalSystems !== 1 ? 's' : ''} running ONTAP ${versStr} on ${platStr} (${modelStr})`;
+
+  // Store fleet profile for UI display
+  sections._fleetProfile = fleetCtx;
+
+  // ── Article intelligence context generator ─────────────────────────────
+  // Maps article titles/URLs to actionable context descriptions
+  function getArticleContext(a) {
+    const t = (a.title || '').toLowerCase();
+    const u = (a.url || '').toLowerCase();
+    const cat = a.category || '';
+
+    // Security articles
+    if (t.includes('ransomware') || t.includes('anti-ransomware')) {
+      return {
+        covers: 'ML-based anomaly detection for NAS volumes, attack detection and auto-response',
+        action: arpDisabled > 0
+          ? `Enable ARP on ${arpDisabled} system${arpDisabled > 1 ? 's' : ''} with ARP disabled — available in your deployed ONTAP versions`
+          : 'Verify ARP learning mode has transitioned to active on all volumes',
+        cli: 'security anti-ransomware volume enable -vserver <svm> -volume <vol>',
+        effort: '15 min/volume'
+      };
+    }
+    if (t.includes('security hardening') || t.includes('security') && u.includes('/security/')) {
+      return {
+        covers: 'FIPS 140-2 compliance, TLS configuration, admin authentication, audit logging',
+        action: 'Review security hardening checklist against deployed fleet configuration',
+        cli: 'security config show; security login role show',
+        effort: '2 hours for full audit'
+      };
+    }
+    if (t.includes('encryption') || t.includes('nve') || t.includes('nae')) {
+      return {
+        covers: 'Volume encryption (NVE), aggregate encryption (NAE), key management',
+        action: nveDisabled > 0
+          ? `${nveDisabled} system${nveDisabled > 1 ? 's' : ''} without encryption at rest — evaluate NVE/NAE enablement`
+          : 'Verify key management server connectivity and encryption key rotation schedule',
+        cli: 'security key-manager key query; vol show -fields encryption-state',
+        effort: '30 min/system'
+      };
+    }
+    if (t.includes('multi-admin') || t.includes('mav')) {
+      return {
+        covers: 'Multi-admin verification for destructive operations, approval workflows',
+        action: 'Enable MAV to prevent single-admin destructive operations (volume delete, snapshot delete)',
+        cli: 'security multi-admin-verify modify -enabled true',
+        effort: '1 hour setup'
+      };
+    }
+    if (t.includes('snaplock') || t.includes('compliance')) {
+      return {
+        covers: 'WORM storage, regulatory compliance (SEC 17a-4, HIPAA), retention policies',
+        action: 'Evaluate SnapLock for compliance-sensitive volumes and regulatory requirements',
+        effort: '2 hours assessment'
+      };
+    }
+    if (t.includes('zero trust')) {
+      return {
+        covers: 'Zero Trust architecture implementation with ONTAP, identity-based access controls',
+        action: 'Review Zero Trust principles against current authentication and authorization configuration',
+        effort: '4 hours assessment'
+      };
+    }
+    if (t.includes('antivirus') || t.includes('vscan')) {
+      return {
+        covers: 'On-access virus scanning for CIFS/SMB shares, scanner pool configuration',
+        action: nasCount > 0 ? `Configure VSCAN on NAS-serving SVMs (${nasCount} system${nasCount > 1 ? 's' : ''} with NAS protocols)` : 'Review VSCAN configuration for NAS environments',
+        cli: 'vserver vscan enable -vserver <svm>',
+        effort: '30 min/SVM'
+      };
+    }
+
+    // VMware integration
+    if (t.includes('vmware') || t.includes('vsphere') || t.includes('esxi')) {
+      return {
+        covers: 'VMware vSphere integration, VAAI offload, NFS/iSCSI datastore best practices',
+        action: 'Review VMware integration settings for ONTAP-backed datastores',
+        effort: '1 hour review'
+      };
+    }
+    if (t.includes('srm')) {
+      return {
+        covers: 'VMware Site Recovery Manager integration for DR automation',
+        action: mcCount > 0 ? 'Review SRM configuration alongside MetroCluster DR' : 'Evaluate SRM for automated DR failover',
+        effort: '2 hours assessment'
+      };
+    }
+    if (t.includes('vvols')) {
+      return {
+        covers: 'VMware Virtual Volumes (vVols) for granular VM-level storage policies',
+        action: 'Assess vVols adoption for per-VM storage policy management',
+        effort: '4 hours POC'
+      };
+    }
+
+    // Kubernetes/Containers
+    if (t.includes('trident') || t.includes('kubernetes') || t.includes('astra')) {
+      return {
+        covers: 'Kubernetes persistent storage via CSI driver, dynamic provisioning, snapshots',
+        action: 'Deploy or update Astra Trident for container workload persistent storage',
+        effort: '2 hours deployment'
+      };
+    }
+
+    // Database integrations
+    if (t.includes('oracle')) {
+      return {
+        covers: 'Oracle database best practices on ONTAP — layout, snapshots, cloning',
+        action: 'Review Oracle data layout and Snapshot-based backup strategy',
+        effort: '2 hours assessment'
+      };
+    }
+    if (t.includes('sql server') || t.includes('mssql')) {
+      return {
+        covers: 'Microsoft SQL Server on ONTAP — storage layout, tempdb, transaction logs',
+        action: 'Validate SQL Server storage layout follows NetApp best practices',
+        effort: '1 hour review'
+      };
+    }
+    if (t.includes('sap') || t.includes('hana')) {
+      return {
+        covers: 'SAP HANA on ONTAP — data/log volume layout, backup integration',
+        action: 'Review SAP HANA storage configuration against NetApp TDI guidelines',
+        effort: '2 hours assessment'
+      };
+    }
+
+    // Cloud
+    if (t.includes('cloud volumes ontap') || t.includes('cvo')) {
+      return {
+        covers: 'Cloud Volumes ONTAP deployment in AWS/Azure/GCP, hybrid cloud DR',
+        action: 'Evaluate CVO for cloud-based DR or dev/test workloads',
+        effort: '4 hours POC'
+      };
+    }
+    if (t.includes('fsx') || t.includes('amazon')) {
+      return {
+        covers: 'Amazon FSx for NetApp ONTAP — fully managed ONTAP in AWS',
+        action: 'Assess FSx for ONTAP for AWS-hosted workloads requiring ONTAP features',
+        effort: '2 hours assessment'
+      };
+    }
+    if (t.includes('azure netapp')) {
+      return {
+        covers: 'Azure NetApp Files — enterprise NAS in Azure with ONTAP backend',
+        action: 'Evaluate ANF for Azure-hosted workloads',
+        effort: '2 hours assessment'
+      };
+    }
+    if (t.includes('fabricpool') || t.includes('cloud tiering') || t.includes('tiering')) {
+      return {
+        covers: 'Automatic tiering of cold data to object storage (S3/Azure Blob/GCS)',
+        action: 'Enable FabricPool on eligible aggregates for storage cost reduction',
+        cli: 'storage aggregate object-store config create; storage aggregate object-store attach',
+        effort: '1 hour/aggregate'
+      };
+    }
+
+    // Automation
+    if (t.includes('rest api') || t.includes('automation')) {
+      return {
+        covers: 'ONTAP REST API for infrastructure automation, CI/CD integration',
+        action: 'Leverage REST API for automated provisioning and monitoring workflows',
+        effort: 'Ongoing integration'
+      };
+    }
+    if (t.includes('ansible')) {
+      return {
+        covers: 'Ansible playbooks for ONTAP automation — provisioning, configuration, patching',
+        action: 'Implement Ansible automation for repeatable ONTAP operations',
+        effort: '4 hours initial setup'
+      };
+    }
+    if (t.includes('harvest') || t.includes('prometheus') || t.includes('grafana')) {
+      return {
+        covers: 'Performance monitoring with Prometheus/Grafana dashboards via NetApp Harvest',
+        action: 'Deploy Harvest for real-time fleet performance observability',
+        effort: '2 hours deployment'
+      };
+    }
+
+    // Data protection
+    if (t.includes('snapmirror') && (t.includes('active sync') || t.includes('business continuity'))) {
+      return {
+        covers: 'Zero RPO synchronous replication for business-critical workloads',
+        action: sanCount > 0 ? 'Evaluate SnapMirror Active Sync for SAN workload DR' : 'Review SnapMirror Active Sync for critical data protection',
+        effort: '4 hours assessment'
+      };
+    }
+    if (t.includes('metrocluster')) {
+      return {
+        covers: 'Continuous availability with automatic failover, RPO=0',
+        action: mcCount > 0 ? `Verify MetroCluster health on ${mcCount} MC system${mcCount > 1 ? 's' : ''}` : 'Evaluate MetroCluster for mission-critical availability requirements',
+        cli: mcCount > 0 ? 'metrocluster check run; metrocluster show' : '',
+        effort: mcCount > 0 ? '30 min health check' : '8 hours assessment'
+      };
+    }
+    if (t.includes('snapcenter')) {
+      return {
+        covers: 'Application-consistent backup and cloning for Oracle, SQL, VMware, SAP',
+        action: 'Deploy or upgrade SnapCenter for application-aware backup management',
+        effort: '4 hours deployment'
+      };
+    }
+    if (t.includes('backup') && (t.includes('bluexp') || t.includes('cloud'))) {
+      return {
+        covers: 'Cloud-based backup with 3-2-1 compliance, ransomware-safe copies',
+        action: 'Enable BlueXP Backup for offsite, air-gapped backup copies',
+        effort: '2 hours setup'
+      };
+    }
+
+    // Monitoring
+    if (t.includes('unified manager') || t.includes('active iq')) {
+      return {
+        covers: 'Centralized health monitoring, capacity planning, performance analytics',
+        action: 'Ensure Active IQ / Unified Manager is configured for all fleet systems',
+        effort: '1 hour verification'
+      };
+    }
+
+    // Operations
+    if (t.includes('upgrade') || t.includes('update')) {
+      return {
+        covers: 'ONTAP upgrade procedures, compatibility matrices, pre-upgrade checks',
+        action: `Review upgrade path for fleet systems running ${versStr}`,
+        cli: 'system image show; cluster image validate',
+        effort: '2-4 hours/cluster'
+      };
+    }
+    if (t.includes('performance')) {
+      return {
+        covers: 'Performance monitoring, QoS policies, workload analysis, bottleneck identification',
+        action: 'Review QoS policies and workload balance across fleet',
+        cli: 'qos workload show; statistics show -object processor',
+        effort: '1 hour assessment'
+      };
+    }
+    if (t.includes('troubleshoot') || t.includes('error message') || t.includes('ems')) {
+      return {
+        covers: 'EMS event management, troubleshooting procedures, known issue resolution',
+        action: 'Configure EMS alerting and review active warnings',
+        cli: 'event log show -severity EMERGENCY,ALERT,ERROR',
+        effort: '30 min review'
+      };
+    }
+    if (t.includes('data protection') || t.includes('snapmirror') || t.includes('snapshot')) {
+      return {
+        covers: 'SnapMirror replication, Snapshot policies, backup and recovery procedures',
+        action: 'Audit replication lag and Snapshot retention policies',
+        cli: 'snapmirror show -fields lag-time; snapshot policy show',
+        effort: '1 hour audit'
+      };
+    }
+    if (t.includes('file system analytics')) {
+      return {
+        covers: 'Real-time file activity tracking, capacity analytics, hot file detection',
+        action: 'Enable File System Analytics on NAS volumes for capacity insights',
+        cli: 'vol analytics show; vol analytics modify -state on',
+        effort: '15 min/volume'
+      };
+    }
+
+    // Fallback: generic context based on category
+    const catActions = {
+      'integration': { covers: 'Third-party ecosystem integration with ONTAP storage', action: 'Review integration compatibility with your environment' },
+      'automation': { covers: 'Automation and orchestration for ONTAP operations', action: 'Evaluate automation opportunities for fleet management' },
+      'security': { covers: 'Security hardening and compliance for ONTAP', action: 'Review security posture against vendor recommendations' },
+      'data_protection': { covers: 'Data protection, replication, and disaster recovery', action: 'Audit backup and DR strategy' },
+      'cloud': { covers: 'Hybrid cloud and cloud-native ONTAP services', action: 'Assess cloud integration opportunities' },
+      'performance': { covers: 'Performance tuning and workload optimization', action: 'Review performance configuration against best practices' },
+      'operations': { covers: 'Day-to-day ONTAP administration and management', action: 'Reference for operational procedures' },
+      'upgrade': { covers: 'Version upgrade procedures and compatibility', action: `Plan upgrade path from ${versStr}` },
+      'configuration': { covers: 'Initial setup and protocol configuration', action: 'Validate configuration against best practices' },
+      'troubleshooting': { covers: 'Issue diagnosis and resolution procedures', action: 'Reference for troubleshooting active issues' },
+      'monitoring': { covers: 'Health monitoring and alerting infrastructure', action: 'Verify monitoring coverage across fleet' },
+      'migration': { covers: 'Data migration and platform transition tools', action: 'Plan migration strategy for legacy systems' },
+      'compliance': { covers: 'Regulatory compliance and data governance', action: 'Audit compliance posture' },
+      'best_practices': { covers: 'Vendor-recommended configurations and architectures', action: 'Benchmark fleet against best practices' },
+    };
+    return catActions[cat] || { covers: 'NetApp vendor documentation', action: 'Review for fleet applicability' };
   }
-  function fmtBrief(articles, max = 5) {
-    return articles.slice(0, max).map((a, i) =>
-      `  ${i + 1}. ${a.title} — ${a.url}`
-    ).join('\n');
+
+  // ── Rich article formatter with contextual intelligence ─────────────────
+  function fmtRichArticle(a, idx) {
+    const ctx = getArticleContext(a);
+    let block = `  ${idx}. ${a.title}\n`;
+    if (ctx.covers) block += `     Covers: ${ctx.covers}\n`;
+    if (ctx.action) block += `     Action: ${ctx.action}\n`;
+    if (ctx.cli) block += `     CLI: ${ctx.cli}\n`;
+    if (ctx.effort) block += `     Effort: ${ctx.effort}\n`;
+    block += `     Reference: ${a.url}\n`;
+    return block;
+  }
+
+  function fmtRichSection(articles, max = 8) {
+    return articles.slice(0, max).map((a, i) => fmtRichArticle(a, i + 1)).join('\n');
+  }
+
+  // Brief format for email-style deliverables
+  function fmtBriefIntel(articles, max = 5) {
+    return articles.slice(0, max).map((a, i) => {
+      const ctx = getArticleContext(a);
+      return `  ${i + 1}. ${a.title}${ctx.action ? ' — ' + ctx.action : ''}\n     ${a.url}`;
+    }).join('\n');
   }
 
   // ── Category collections for each deliverable type ──
-  const opsArticles = [
-    ...(grouped['operations'] || []),
-    ...(grouped['configuration'] || []),
-  ];
-  const troubleArticles = [
-    ...(grouped['troubleshooting'] || []),
-  ];
-  const upgradeArticles = [
-    ...(grouped['upgrade'] || []),
-  ];
-  const secArticles = [
-    ...(grouped['security'] || []),
-    ...(grouped['remediation'] || []),
-  ];
-  const integrationArticles = [
-    ...(grouped['integration'] || []),
-    ...(grouped['automation'] || []),
-  ];
-  const dpArticles = [
-    ...(grouped['data_protection'] || []),
-  ];
-  const perfArticles = [
-    ...(grouped['performance'] || []),
-  ];
-  const lifecycleArticles = [
-    ...(grouped['lifecycle'] || []),
-    ...(grouped['migration'] || []),
-  ];
-  const cloudArticles = [
-    ...(grouped['cloud'] || []),
-  ];
-  const bpArticles = [
-    ...(grouped['best_practices'] || []),
-  ];
+  const opsArticles = [...(grouped['operations'] || []), ...(grouped['configuration'] || [])];
+  const troubleArticles = [...(grouped['troubleshooting'] || [])];
+  const upgradeArticles = [...(grouped['upgrade'] || [])];
+  const secArticles = [...(grouped['security'] || []), ...(grouped['remediation'] || []), ...(grouped['compliance'] || [])];
+  const integrationArticles = [...(grouped['integration'] || []), ...(grouped['automation'] || [])];
+  const dpArticles = [...(grouped['data_protection'] || [])];
+  const perfArticles = [...(grouped['performance'] || [])];
+  const lifecycleArticles = [...(grouped['lifecycle'] || []), ...(grouped['migration'] || [])];
+  const cloudArticles = [...(grouped['cloud'] || [])];
+  const bpArticles = [...(grouped['best_practices'] || [])];
+  const monitorArticles = [...(grouped['monitoring'] || [])];
   const allArticles = Object.values(grouped).flat();
 
-  // ── 1. Problem Statements — operational + troubleshooting refs ──
-  if (opsArticles.length > 0 || troubleArticles.length > 0 || secArticles.length > 0) {
-    let block = `\nFLEET-SPECIFIC REFERENCE DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
-    if (secArticles.length > 0) {
-      block += `SECURITY & REMEDIATION GUIDES (${secArticles.length}):\n${fmtRefs(secArticles)}\n\n`;
-    }
-    if (troubleArticles.length > 0) {
-      block += `TROUBLESHOOTING PROCEDURES (${troubleArticles.length}):\n${fmtRefs(troubleArticles)}\n\n`;
-    }
-    if (opsArticles.length > 0) {
-      block += `OPERATIONAL GUIDES (${opsArticles.length}):\n${fmtRefs(opsArticles)}\n\n`;
-    }
-    sections.problemStatements = block;
-  }
+  // Track counts per deliverable for UI badges
+  const counts = {};
 
-  // ── 2. Customer Communications — brief refs for email ──
-  if (allArticles.length > 0) {
-    let block = `\nATTACHED REFERENCE DOCUMENTATION:\n`;
-    if (secArticles.length > 0) block += `  Security & Remediation: ${secArticles.length} guide(s) — see attached runbook\n`;
-    if (upgradeArticles.length > 0) block += `  Upgrade Procedures: ${upgradeArticles.length} guide(s) — version-specific to your fleet\n`;
-    if (troubleArticles.length > 0) block += `  Troubleshooting: ${troubleArticles.length} article(s) from NetApp KB\n`;
-    block += `  Full reference library: ${allArticles.length} article(s) covering your deployed platforms and software versions\n`;
-    sections.customerComms = block;
-  }
+  // ── Fleet context header (used in all sections) ─────────────────────────
+  const fleetHeader = `Based on fleet analysis: ${fleetCtx}.\nARIA enrichment engine matched ${allArticles.length} vendor documents specific to your deployed hardware and software.\n`;
 
-  // ── 3. Change Tickets — operational procedures ──
-  if (opsArticles.length > 0 || upgradeArticles.length > 0) {
-    let block = `\nVENDOR REFERENCE DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
-    if (upgradeArticles.length > 0) {
-      block += `UPGRADE PROCEDURES:\n${fmtRefs(upgradeArticles, 6)}\n\n`;
-    }
-    if (opsArticles.length > 0) {
-      block += `OPERATIONAL PROCEDURES:\n${fmtRefs(opsArticles, 6)}\n\n`;
-    }
-    if (troubleArticles.length > 0) {
-      block += `TROUBLESHOOTING REFERENCES:\n${fmtRefs(troubleArticles, 5)}\n\n`;
-    }
-    sections.changeTickets = block;
-  }
-
-  // ── 4. Solution Proposals — integration + best practices ──
-  if (integrationArticles.length > 0 || bpArticles.length > 0 || cloudArticles.length > 0) {
-    let block = `\nSUPPORTING DOCUMENTATION & INTEGRATION GUIDES\n--------------------------------------------------------------------------------\n`;
-    if (integrationArticles.length > 0) {
-      block += `3RD-PARTY INTEGRATION DOCS (${integrationArticles.length}):\n${fmtRefs(integrationArticles, 10)}\n\n`;
-    }
-    if (cloudArticles.length > 0) {
-      block += `CLOUD & HYBRID REFERENCES (${cloudArticles.length}):\n${fmtRefs(cloudArticles, 6)}\n\n`;
-    }
-    if (bpArticles.length > 0) {
-      block += `BEST PRACTICES (${bpArticles.length}):\n${fmtRefs(bpArticles, 6)}\n\n`;
-    }
-    sections.solutionProposals = block;
-  }
-
-  // ── 5. Implementation Runbooks — ops, troubleshooting, upgrade ──
-  if (opsArticles.length > 0 || upgradeArticles.length > 0 || troubleArticles.length > 0) {
-    let block = `\n================================================================================\nFLEET-SPECIFIC PROCEDURES & TROUBLESHOOTING REFERENCES\n================================================================================\n`;
-    if (upgradeArticles.length > 0) {
-      block += `\nUPGRADE PROCEDURES (version-specific to deployed fleet):\n${fmtRefs(upgradeArticles, 10)}\n`;
-    }
-    if (opsArticles.length > 0) {
-      block += `\nOPERATIONAL PROCEDURES:\n${fmtRefs(opsArticles, 12)}\n`;
-    }
-    if (troubleArticles.length > 0) {
-      block += `\nTROUBLESHOOTING KB ARTICLES:\n${fmtRefs(troubleArticles, 10)}\n`;
-    }
-    if (secArticles.length > 0) {
-      block += `\nSECURITY REMEDIATION GUIDES:\n${fmtRefs(secArticles, 8)}\n`;
-    }
-    if (dpArticles.length > 0) {
-      block += `\nDATA PROTECTION REFERENCES:\n${fmtRefs(dpArticles, 6)}\n`;
-    }
-    sections.implementationPlans = block;
-  }
-
-  // ── 6. Sales Proposals — lifecycle + cloud + integration ──
-  if (lifecycleArticles.length > 0 || cloudArticles.length > 0 || integrationArticles.length > 0) {
-    let block = `\nSUPPORTING REFERENCE DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
-    if (lifecycleArticles.length > 0) {
-      block += `LIFECYCLE & MIGRATION GUIDES (${lifecycleArticles.length}):\n${fmtBrief(lifecycleArticles)}\n\n`;
-    }
-    if (cloudArticles.length > 0) {
-      block += `CLOUD MODERNISATION OPTIONS (${cloudArticles.length}):\n${fmtBrief(cloudArticles)}\n\n`;
-    }
-    if (integrationArticles.length > 0) {
-      block += `ECOSYSTEM INTEGRATION DOCS (${integrationArticles.length}):\n${fmtBrief(integrationArticles, 8)}\n\n`;
-    }
-    sections.salesProposals = block;
-  }
-
-  // ── 7. Customer Success Plan — all categories ──
-  if (allArticles.length > 0) {
-    let block = `\nENRICHMENT KNOWLEDGE BASE — FLEET-SPECIFIC REFERENCES\n--------------------------------------------------------------------------------\n`;
-    block += `Total Articles: ${allArticles.length} | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
-    const catOrder = ['security', 'remediation', 'troubleshooting', 'operations', 'upgrade',
-                      'performance', 'data_protection', 'configuration', 'integration',
-                      'automation', 'cloud', 'lifecycle', 'migration', 'best_practices', 'reference'];
-    catOrder.forEach(cat => {
-      const arts = grouped[cat];
-      if (arts && arts.length > 0) {
-        const label = cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        block += `${label} (${arts.length}):\n${fmtBrief(arts, 6)}\n\n`;
+  // ── 1. Problem Statements — security + operational intelligence ──
+  {
+    const arts = [...secArticles, ...troubleArticles, ...opsArticles.slice(0, 5)];
+    counts.problemStatements = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nFLEET-SPECIFIC INTELLIGENCE & VENDOR DOCUMENTATION\n================================================================================\n${fleetHeader}\n`;
+      if (secArticles.length > 0) {
+        block += `► SECURITY & REMEDIATION INTELLIGENCE (${secArticles.length} documents matched)\n`;
+        block += fmtRichSection(secArticles, 6) + '\n';
       }
-    });
-    sections.customerSuccessPlan = block;
-  }
-
-  // ── 8. QBR Pack — summary + key references ──
-  if (allArticles.length > 0) {
-    let block = `\nKNOWLEDGE BASE COVERAGE\n--------------------------------------------------------------------------------\n`;
-    block += `  Fleet-relevant articles:  ${allArticles.length}\n`;
-    const catCounts = Object.entries(grouped).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v.length}`).join('  |  ');
-    block += `  Categories: ${catCounts}\n`;
-    if (secArticles.length > 0) {
-      block += `\n  TOP SECURITY & REMEDIATION REFERENCES:\n${fmtBrief(secArticles, 4)}\n`;
-    }
-    if (upgradeArticles.length > 0) {
-      block += `\n  UPGRADE DOCUMENTATION:\n${fmtBrief(upgradeArticles, 4)}\n`;
-    }
-    sections.qbrPack = block;
-  }
-
-  // ── 9. MSP Report — operational + troubleshooting ──
-  if (opsArticles.length > 0 || troubleArticles.length > 0) {
-    let block = `\nVENDOR KNOWLEDGE BASE REFERENCES\n--------------------------------------------------------------------------------\n`;
-    block += `  Fleet-specific articles available: ${allArticles.length}\n`;
-    if (opsArticles.length > 0) {
-      block += `\n  OPERATIONAL PROCEDURES:\n${fmtBrief(opsArticles, 6)}\n`;
-    }
-    if (troubleArticles.length > 0) {
-      block += `\n  TROUBLESHOOTING:\n${fmtBrief(troubleArticles, 5)}\n`;
-    }
-    if (perfArticles.length > 0) {
-      block += `\n  PERFORMANCE TUNING:\n${fmtBrief(perfArticles, 4)}\n`;
-    }
-    sections.mspReport = block;
-  }
-
-  // ── 10. Handover Brief — full reference library ──
-  if (allArticles.length > 0) {
-    let block = `\nENRICHMENT KNOWLEDGE BASE (${allArticles.length} fleet-relevant articles)\n--------------------------------------------------------------------------------\n`;
-    block += `Source: Auto-enrichment scanner | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
-    const catOrder2 = ['operations', 'troubleshooting', 'security', 'remediation', 'upgrade',
-                       'integration', 'data_protection', 'performance', 'configuration',
-                       'automation', 'cloud', 'lifecycle', 'migration', 'best_practices'];
-    catOrder2.forEach(cat => {
-      const arts = grouped[cat];
-      if (arts && arts.length > 0) {
-        const label = cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        block += `${label} (${arts.length}):\n${fmtRefs(arts, 10)}\n\n`;
+      if (troubleArticles.length > 0) {
+        block += `► TROUBLESHOOTING PROCEDURES (${troubleArticles.length} documents matched)\n`;
+        block += fmtRichSection(troubleArticles, 6) + '\n';
       }
-    });
-    sections.handoverBrief = block;
+      if (opsArticles.length > 0) {
+        block += `► OPERATIONAL GUIDES (${opsArticles.length} documents matched)\n`;
+        block += fmtRichSection(opsArticles, 5) + '\n';
+      }
+      sections.problemStatements = block;
+    }
   }
 
-  // ── 11. MEDDPICC Brief — pain points mapped to docs ──
-  if (secArticles.length > 0 || troubleArticles.length > 0 || upgradeArticles.length > 0) {
-    let block = `\nSUPPORTING EVIDENCE [MEDDPICC: I — Implicate the Pain]\n--------------------------------------------------------------------------------\n`;
-    if (secArticles.length > 0) {
-      block += `  Security Exposure — ${secArticles.length} vendor-published remediation guide(s):\n${fmtBrief(secArticles, 4)}\n\n`;
+  // ── 2. Customer Communications — executive summary with context ──
+  {
+    counts.customerComms = allArticles.length;
+    if (allArticles.length > 0) {
+      let block = `\nENRICHMENT INTELLIGENCE SUMMARY\n--------------------------------------------------------------------------------\n`;
+      block += `As part of our proactive fleet management, the ARIA enrichment engine has\nidentified ${allArticles.length} vendor documents specifically relevant to your deployed\ninfrastructure (${fleetCtx}).\n\n`;
+      block += `Key areas of coverage:\n`;
+      if (secArticles.length > 0) block += `  ■ Security & Compliance: ${secArticles.length} guide(s) — covering hardening, encryption, and ransomware protection\n`;
+      if (integrationArticles.length > 0) block += `  ■ 3rd-Party Integration: ${integrationArticles.length} guide(s) — VMware, Kubernetes, database, and automation platforms\n`;
+      if (upgradeArticles.length > 0) block += `  ■ Upgrade Procedures: ${upgradeArticles.length} guide(s) — version-specific to your fleet's ONTAP ${versStr}\n`;
+      if (dpArticles.length > 0) block += `  ■ Data Protection: ${dpArticles.length} guide(s) — SnapMirror, MetroCluster, backup and recovery\n`;
+      if (cloudArticles.length > 0) block += `  ■ Cloud Integration: ${cloudArticles.length} guide(s) — hybrid cloud, tiering, and cloud-native services\n`;
+      if (troubleArticles.length > 0) block += `  ■ Troubleshooting: ${troubleArticles.length} article(s) — known issues and resolution procedures\n`;
+      if (opsArticles.length > 0) block += `  ■ Operations: ${opsArticles.length} guide(s) — administration and configuration references\n`;
+      if (perfArticles.length > 0) block += `  ■ Performance: ${perfArticles.length} guide(s) — tuning, QoS, and workload optimization\n`;
+      block += `\nFull reference library: ${allArticles.length} document(s) covering your deployed platforms and software versions.\n`;
+      block += `These references are version-matched to your fleet and available in detailed form in the attached deliverables.\n`;
+      sections.customerComms = block;
     }
-    if (upgradeArticles.length > 0) {
-      block += `  Upgrade Complexity — ${upgradeArticles.length} version-specific procedure(s):\n${fmtBrief(upgradeArticles, 3)}\n\n`;
-    }
-    if (troubleArticles.length > 0) {
-      block += `  Known Issues — ${troubleArticles.length} KB article(s) for deployed versions:\n${fmtBrief(troubleArticles, 3)}\n\n`;
-    }
-    sections.meddpiccBrief = block;
   }
 
-  // ── 12. Security Brief — security + remediation ──
-  if (secArticles.length > 0) {
-    let block = `\nREMEDIATION & HARDENING REFERENCES\n--------------------------------------------------------------------------------\n`;
-    block += `${fmtRefs(secArticles, 12)}\n`;
-    if (dpArticles.length > 0) {
-      block += `\nDATA PROTECTION & RECOVERY:\n${fmtRefs(dpArticles, 6)}\n`;
+  // ── 3. Change Tickets — operational procedures with CLI references ──
+  {
+    const arts = [...upgradeArticles, ...opsArticles, ...troubleArticles];
+    counts.changeTickets = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nVENDOR REFERENCE DOCUMENTATION & PROCEDURES\n================================================================================\n${fleetHeader}\n`;
+      if (upgradeArticles.length > 0) {
+        block += `► UPGRADE PROCEDURES (version-specific to ${versStr})\n`;
+        block += fmtRichSection(upgradeArticles, 6) + '\n';
+      }
+      if (opsArticles.length > 0) {
+        block += `► OPERATIONAL PROCEDURES\n`;
+        block += fmtRichSection(opsArticles, 8) + '\n';
+      }
+      if (troubleArticles.length > 0) {
+        block += `► TROUBLESHOOTING REFERENCES\n`;
+        block += fmtRichSection(troubleArticles, 5) + '\n';
+      }
+      sections.changeTickets = block;
     }
-    sections.securityBrief = block;
   }
 
-  // ── 13. Sustainability Report — efficiency + cloud ──
-  if (cloudArticles.length > 0 || perfArticles.length > 0 || lifecycleArticles.length > 0) {
-    let block = `\nSUPPORTING DOCUMENTATION\n--------------------------------------------------------------------------------\n`;
-    if (perfArticles.length > 0) {
-      block += `EFFICIENCY & PERFORMANCE:\n${fmtBrief(perfArticles, 4)}\n\n`;
+  // ── 4. Solution Proposals — integration + best practices intelligence ──
+  {
+    const arts = [...integrationArticles, ...cloudArticles, ...bpArticles];
+    counts.solutionProposals = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\n3RD-PARTY INTEGRATION & SOLUTION ARCHITECTURE INTELLIGENCE\n================================================================================\n${fleetHeader}\n`;
+      if (integrationArticles.length > 0) {
+        block += `► ECOSYSTEM INTEGRATION (${integrationArticles.length} platforms)\n`;
+        block += `  The following 3rd-party integrations have been validated for your fleet:\n\n`;
+        block += fmtRichSection(integrationArticles, 12) + '\n';
+      }
+      if (cloudArticles.length > 0) {
+        block += `► CLOUD & HYBRID ARCHITECTURE (${cloudArticles.length} options)\n`;
+        block += fmtRichSection(cloudArticles, 6) + '\n';
+      }
+      if (bpArticles.length > 0) {
+        block += `► BEST PRACTICES & REFERENCE ARCHITECTURES\n`;
+        block += fmtRichSection(bpArticles, 6) + '\n';
+      }
+      if (monitorArticles.length > 0) {
+        block += `► MONITORING & OBSERVABILITY\n`;
+        block += fmtRichSection(monitorArticles, 4) + '\n';
+      }
+      sections.solutionProposals = block;
     }
-    if (cloudArticles.length > 0) {
-      block += `CLOUD TIERING & SUSTAINABILITY:\n${fmtBrief(cloudArticles, 4)}\n\n`;
-    }
-    if (lifecycleArticles.length > 0) {
-      block += `LIFECYCLE & REFRESH:\n${fmtBrief(lifecycleArticles, 4)}\n\n`;
-    }
-    sections.sustainabilityReport = block;
   }
+
+  // ── 5. Implementation Runbooks — full procedural intelligence ──
+  {
+    const arts = [...upgradeArticles, ...opsArticles, ...troubleArticles, ...secArticles, ...dpArticles];
+    counts.implementationPlans = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nFLEET-SPECIFIC PROCEDURES & IMPLEMENTATION REFERENCES\n================================================================================\n${fleetHeader}\n`;
+      if (upgradeArticles.length > 0) {
+        block += `► UPGRADE PROCEDURES (version-specific to deployed fleet)\n`;
+        block += fmtRichSection(upgradeArticles, 10) + '\n';
+      }
+      if (opsArticles.length > 0) {
+        block += `► OPERATIONAL PROCEDURES\n`;
+        block += fmtRichSection(opsArticles, 12) + '\n';
+      }
+      if (troubleArticles.length > 0) {
+        block += `► TROUBLESHOOTING KB ARTICLES\n`;
+        block += fmtRichSection(troubleArticles, 10) + '\n';
+      }
+      if (secArticles.length > 0) {
+        block += `► SECURITY REMEDIATION GUIDES\n`;
+        block += fmtRichSection(secArticles, 8) + '\n';
+      }
+      if (dpArticles.length > 0) {
+        block += `► DATA PROTECTION REFERENCES\n`;
+        block += fmtRichSection(dpArticles, 6) + '\n';
+      }
+      sections.implementationPlans = block;
+    }
+  }
+
+  // ── 6. Sales Proposals — lifecycle + modernisation intelligence ──
+  {
+    const arts = [...lifecycleArticles, ...cloudArticles, ...integrationArticles];
+    counts.salesProposals = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nMODERNISATION & EXPANSION INTELLIGENCE\n================================================================================\n${fleetHeader}\n`;
+      if (lifecycleArticles.length > 0) {
+        block += `► LIFECYCLE & MIGRATION PATHS (${lifecycleArticles.length} options)\n`;
+        block += fmtRichSection(lifecycleArticles, 5) + '\n';
+      }
+      if (cloudArticles.length > 0) {
+        block += `► CLOUD MODERNISATION OPTIONS (${cloudArticles.length} solutions)\n`;
+        block += `  The following cloud-native and hybrid services are compatible with your fleet:\n\n`;
+        block += fmtRichSection(cloudArticles, 6) + '\n';
+      }
+      if (integrationArticles.length > 0) {
+        block += `► ECOSYSTEM EXPANSION OPPORTUNITIES (${integrationArticles.length} integrations)\n`;
+        block += fmtBriefIntel(integrationArticles, 8) + '\n\n';
+      }
+      sections.salesProposals = block;
+    }
+  }
+
+  // ── 7. Customer Success Plan — comprehensive KB intelligence ──
+  {
+    counts.customerSuccessPlan = allArticles.length;
+    if (allArticles.length > 0) {
+      let block = `\n================================================================================\nENRICHMENT KNOWLEDGE BASE — FLEET-SPECIFIC INTELLIGENCE\n================================================================================\n`;
+      block += `Fleet Profile: ${fleetCtx}\n`;
+      block += `Total Documents: ${allArticles.length} | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n`;
+      block += `Source: ARIA Enrichment Engine (automated vendor documentation discovery)\n\n`;
+      const catOrder = ['security', 'remediation', 'compliance', 'troubleshooting', 'operations', 'upgrade',
+                        'performance', 'data_protection', 'configuration', 'integration',
+                        'automation', 'monitoring', 'cloud', 'lifecycle', 'migration', 'best_practices'];
+      catOrder.forEach(cat => {
+        const arts = grouped[cat];
+        if (arts && arts.length > 0) {
+          const label = cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          block += `► ${label.toUpperCase()} (${arts.length} document${arts.length > 1 ? 's' : ''})\n`;
+          block += fmtRichSection(arts, 6) + '\n';
+        }
+      });
+      sections.customerSuccessPlan = block;
+    }
+  }
+
+  // ── 8. QBR Pack — executive summary with KB coverage metrics ──
+  {
+    counts.qbrPack = allArticles.length;
+    if (allArticles.length > 0) {
+      let block = `\nKNOWLEDGE BASE INTELLIGENCE COVERAGE\n================================================================================\n`;
+      block += `Fleet: ${fleetCtx}\n`;
+      block += `Total Fleet-Relevant Documents: ${allArticles.length}\n\n`;
+      block += `COVERAGE BY CATEGORY:\n`;
+      const catCounts = Object.entries(grouped)
+        .sort((a, b) => b[1].length - a[1].length)
+        .map(([k, v]) => `  ${k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}: ${v.length} document${v.length > 1 ? 's' : ''}`)
+        .join('\n');
+      block += catCounts + '\n\n';
+      if (secArticles.length > 0) {
+        block += `TOP SECURITY & COMPLIANCE REFERENCES:\n`;
+        block += fmtBriefIntel(secArticles, 4) + '\n\n';
+      }
+      if (integrationArticles.length > 0) {
+        block += `3RD-PARTY INTEGRATION COVERAGE:\n`;
+        block += fmtBriefIntel(integrationArticles, 6) + '\n\n';
+      }
+      if (upgradeArticles.length > 0) {
+        block += `UPGRADE DOCUMENTATION:\n`;
+        block += fmtBriefIntel(upgradeArticles, 4) + '\n\n';
+      }
+      sections.qbrPack = block;
+    }
+  }
+
+  // ── 9. MSP Report — operational SLA references ──
+  {
+    const arts = [...opsArticles, ...troubleArticles, ...perfArticles, ...monitorArticles];
+    counts.mspReport = arts.length;
+    if (arts.length > 0) {
+      let block = `\nVENDOR KNOWLEDGE BASE & OPERATIONAL INTELLIGENCE\n================================================================================\n`;
+      block += `Fleet: ${fleetCtx}\n`;
+      block += `Fleet-specific documents available: ${allArticles.length}\n\n`;
+      if (opsArticles.length > 0) {
+        block += `OPERATIONAL PROCEDURES (${opsArticles.length}):\n`;
+        block += fmtRichSection(opsArticles, 6) + '\n';
+      }
+      if (troubleArticles.length > 0) {
+        block += `TROUBLESHOOTING (${troubleArticles.length}):\n`;
+        block += fmtRichSection(troubleArticles, 5) + '\n';
+      }
+      if (perfArticles.length > 0) {
+        block += `PERFORMANCE TUNING (${perfArticles.length}):\n`;
+        block += fmtRichSection(perfArticles, 4) + '\n';
+      }
+      if (monitorArticles.length > 0) {
+        block += `MONITORING & OBSERVABILITY (${monitorArticles.length}):\n`;
+        block += fmtRichSection(monitorArticles, 4) + '\n';
+      }
+      sections.mspReport = block;
+    }
+  }
+
+  // ── 10. Handover Brief — full reference library with intelligence ──
+  {
+    counts.handoverBrief = allArticles.length;
+    if (allArticles.length > 0) {
+      let block = `\n================================================================================\nENRICHMENT KNOWLEDGE BASE (${allArticles.length} fleet-relevant documents)\n================================================================================\n`;
+      block += `Fleet Profile: ${fleetCtx}\n`;
+      block += `Source: ARIA Auto-Enrichment Scanner | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
+      block += `This knowledge base was automatically curated by ARIA's enrichment engine,\nwhich scans vendor documentation, KB articles, and technical reports, then\nscores them for relevance against your deployed fleet profile.\n\n`;
+      const catOrder2 = ['operations', 'troubleshooting', 'security', 'remediation', 'compliance', 'upgrade',
+                         'integration', 'automation', 'data_protection', 'performance', 'configuration',
+                         'monitoring', 'cloud', 'lifecycle', 'migration', 'best_practices'];
+      catOrder2.forEach(cat => {
+        const arts = grouped[cat];
+        if (arts && arts.length > 0) {
+          const label = cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          block += `── ${label.toUpperCase()} (${arts.length}) ──\n`;
+          block += fmtRichSection(arts, 10) + '\n';
+        }
+      });
+      sections.handoverBrief = block;
+    }
+  }
+
+  // ── 11. MEDDPICC Brief — pain points mapped to evidence ──
+  {
+    const arts = [...secArticles, ...upgradeArticles, ...troubleArticles];
+    counts.meddpiccBrief = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nSUPPORTING EVIDENCE [MEDDPICC: I — Implicate the Pain]\n================================================================================\nFleet Profile: ${fleetCtx}\n\n`;
+      if (secArticles.length > 0) {
+        block += `► SECURITY EXPOSURE — ${secArticles.length} vendor-published remediation guide(s)\n`;
+        block += `  Evidence: NetApp has published ${secArticles.length} security-specific documents that\n`;
+        block += `  directly address vulnerabilities and hardening requirements for this fleet.\n\n`;
+        block += fmtRichSection(secArticles, 4) + '\n';
+      }
+      if (upgradeArticles.length > 0) {
+        block += `► UPGRADE COMPLEXITY — ${upgradeArticles.length} version-specific procedure(s)\n`;
+        block += `  Evidence: Fleet requires coordinated upgrade from ONTAP ${versStr}.\n`;
+        block += `  ${upgradeArticles.length} vendor procedures document the required steps.\n\n`;
+        block += fmtRichSection(upgradeArticles, 3) + '\n';
+      }
+      if (troubleArticles.length > 0) {
+        block += `► KNOWN ISSUES — ${troubleArticles.length} KB article(s) for deployed versions\n`;
+        block += `  Evidence: NetApp KB contains ${troubleArticles.length} troubleshooting articles\n`;
+        block += `  applicable to your deployed ONTAP versions and hardware models.\n\n`;
+        block += fmtRichSection(troubleArticles, 3) + '\n';
+      }
+      if (integrationArticles.length > 0) {
+        block += `► ECOSYSTEM EXPANSION — ${integrationArticles.length} integration opportunity(ies)\n`;
+        block += `  Evidence: ${integrationArticles.length} validated integration paths available\n`;
+        block += `  for VMware, Kubernetes, database, automation, and cloud platforms.\n\n`;
+        block += fmtBriefIntel(integrationArticles, 5) + '\n\n';
+      }
+      sections.meddpiccBrief = block;
+    }
+  }
+
+  // ── 12. Security Brief — remediation intelligence with CLI ──
+  {
+    const arts = [...secArticles, ...dpArticles];
+    counts.securityBrief = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nREMEDIATION & HARDENING INTELLIGENCE\n================================================================================\n${fleetHeader}\n`;
+      if (arpDisabled > 0) {
+        block += `⚠ CRITICAL: ${arpDisabled} of ${totalSystems} systems have Autonomous Ransomware Protection DISABLED\n`;
+        block += `  Action: Enable ARP on all NAS volumes → security anti-ransomware volume enable\n\n`;
+      }
+      if (nveDisabled > 0) {
+        block += `⚠ WARNING: ${nveDisabled} of ${totalSystems} systems without encryption at rest detected\n`;
+        block += `  Action: Evaluate NVE/NAE enablement → vol encryption conversion start\n\n`;
+      }
+      block += `SECURITY & COMPLIANCE DOCUMENTATION (${secArticles.length}):\n`;
+      block += fmtRichSection(secArticles, 12) + '\n';
+      if (dpArticles.length > 0) {
+        block += `DATA PROTECTION & RECOVERY (${dpArticles.length}):\n`;
+        block += fmtRichSection(dpArticles, 6) + '\n';
+      }
+      sections.securityBrief = block;
+    }
+  }
+
+  // ── 13. Sustainability Report — efficiency + cloud intelligence ──
+  {
+    const arts = [...perfArticles, ...cloudArticles, ...lifecycleArticles];
+    counts.sustainabilityReport = arts.length;
+    if (arts.length > 0) {
+      let block = `\n================================================================================\nSUSTAINABILITY & EFFICIENCY INTELLIGENCE\n================================================================================\n${fleetHeader}\n`;
+      if (perfArticles.length > 0) {
+        block += `► EFFICIENCY & PERFORMANCE OPTIMISATION (${perfArticles.length})\n`;
+        block += fmtRichSection(perfArticles, 4) + '\n';
+      }
+      if (cloudArticles.length > 0) {
+        block += `► CLOUD TIERING & DATA LIFECYCLE (${cloudArticles.length})\n`;
+        block += `  FabricPool and cloud tiering can reduce on-premises storage footprint by\n`;
+        block += `  moving cold data to object storage, directly reducing power consumption.\n\n`;
+        block += fmtRichSection(cloudArticles, 4) + '\n';
+      }
+      if (lifecycleArticles.length > 0) {
+        block += `► LIFECYCLE REFRESH & CONSOLIDATION (${lifecycleArticles.length})\n`;
+        block += fmtRichSection(lifecycleArticles, 4) + '\n';
+      }
+      sections.sustainabilityReport = block;
+    }
+  }
+
+  // Store counts for UI badge display
+  sections._counts = counts;
 
   return sections;
 }
@@ -16428,7 +16873,10 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
     handoverBrief,
     meddpiccBrief,
     securityBrief,
-    sustainabilityReport
+    sustainabilityReport,
+    _enrichmentCounts: enrichSections._counts || {},
+    _fleetProfile: enrichSections._fleetProfile || '',
+    _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0)
   };
 }
 
@@ -17723,6 +18171,46 @@ function generateActionPlan() {
   // 8. Compile Executable Deliverables (Draft Email, Upgrade Proposal, and Internal Dispatch Ticket)
   const docs = compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
 
+  // ── Enrichment Badge Helper ──
+  const ec = docs._enrichmentCounts || {};
+  const totalEnrich = docs._totalEnrichmentArticles || 0;
+  const fleetProfile = docs._fleetProfile || '';
+  function enrBadge(key) {
+    const n = ec[key] || 0;
+    if (n === 0) return '';
+    return `<span style="display:inline-flex;align-items:center;gap:3px;background:linear-gradient(135deg,rgba(56,189,248,0.12),rgba(139,92,246,0.12));border:1px solid rgba(56,189,248,0.3);border-radius:10px;padding:1px 8px;font-size:0.65rem;font-weight:600;color:#38bdf8;margin-left:8px;white-space:nowrap;letter-spacing:0.3px;" title="${n} KB intelligence article${n > 1 ? 's' : ''} enriching this deliverable with actionable context, CLI commands, and vendor documentation references"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M8 1L10 6H15L11 9.5L12.5 15L8 11.5L3.5 15L5 9.5L1 6H6L8 1Z" fill="#38bdf8" opacity="0.9"/></svg> ${n} KB ref${n > 1 ? 's' : ''}</span>`;
+  }
+
+  // ── KB Intelligence Summary Panel (rendered above deliverable cards) ──
+  const kbSummaryHtml = totalEnrich > 0 ? `
+      <div style="margin-bottom:28px;background:linear-gradient(135deg,rgba(56,189,248,0.04),rgba(139,92,246,0.04));border:1px solid rgba(56,189,248,0.2);border-radius:var(--radius-sm);padding:18px 20px;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,#38bdf8,#8b5cf6,#38bdf8);"></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6H15L11 9.5L12.5 15L8 11.5L3.5 15L5 9.5L1 6H6L8 1Z" fill="#8b5cf6" opacity="0.9"/></svg>
+              <span style="font-size:0.82rem;font-weight:700;color:#e2e8f0;letter-spacing:0.5px;">ARIA Knowledge Base Intelligence</span>
+              <span style="font-size:0.6rem;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:1px 6px;font-weight:600;">v4.0</span>
+            </div>
+            <p style="font-size:0.78rem;color:var(--text-muted);margin:0;line-height:1.5;">
+              <strong style="color:#38bdf8;">${totalEnrich}</strong> contextual intelligence reference${totalEnrich !== 1 ? 's' : ''} injected across <strong style="color:#38bdf8;">13</strong> deliverables &mdash;
+              each enriched with fleet-specific CLI commands, remediation guidance, estimated effort, and vendor documentation links.
+            </p>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,auto);gap:8px 16px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;flex-shrink:0;">
+            <div title="Risk-focused deliverables (A, B, C)">⬥ Risk: <strong style="color:var(--status-critical);">${(ec.problemStatements||0)+(ec.changeTickets||0)+(ec.implementationPlans||0)}</strong></div>
+            <div title="Customer-facing deliverables (D, E, F)">⬥ Customer: <strong style="color:var(--accent-cyan);">${(ec.customerComms||0)+(ec.solutionProposals||0)+(ec.salesProposals||0)}</strong></div>
+            <div title="Security deliverables (H, I)">⬥ Security: <strong style="color:#f472b6;">${(ec.securityBrief||0)+(ec.meddpiccBrief||0)}</strong></div>
+            <div title="TAM operations deliverables (G, J)">⬥ TAM Ops: <strong style="color:var(--status-normal);">${(ec.customerSuccessPlan||0)+(ec.handoverBrief||0)}</strong></div>
+            <div title="MSP and QBR deliverables (H, I)">⬥ QBR/MSP: <strong style="color:#fbbf24;">${(ec.qbrPack||0)+(ec.mspReport||0)}</strong></div>
+            <div title="Sustainability report (M)">⬥ ESG: <strong style="color:#34d399;">${ec.sustainabilityReport||0}</strong></div>
+          </div>
+        </div>
+        ${fleetProfile ? `<div style="margin-top:10px;font-size:0.7rem;color:var(--text-muted);border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;">
+          <span style="color:#8b5cf6;font-weight:600;">Fleet Profile:</span> ${fleetProfile}
+        </div>` : ''}
+      </div>` : '';
+
   let html = `
     <div class="plan-section active" data-section-index="1">
       <div class="plan-document-header">
@@ -18414,7 +18902,7 @@ function generateActionPlan() {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
               <h2 style="font-size: 1.25rem; margin: 0; border: none; padding: 0; color: #ffd700;">★ Executable Account Deliverables Suite</h2>
-              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">11 DELIVERABLES</span>
+              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">13 DELIVERABLES</span>
             </div>
             <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; max-width: 700px;">
               Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT file for distribution to stakeholders.
@@ -18429,6 +18917,8 @@ function generateActionPlan() {
         </div>
       </div>
 
+      ${kbSummaryHtml}
+
       <!-- Category 1: Risk & Remediation -->
       <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--status-critical); white-space: nowrap;">&#x2B25; Risk &amp; Remediation</span>
@@ -18437,7 +18927,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">A. Executive Risk Assessment</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">A. Executive Risk Assessment${enrBadge('problemStatements')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('PROBLEM_STATEMENTS')">Download Draft (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Consolidated risk posture with account team context, operational health scorecard (ASUP/ARP/firmware/contract compliance), and prioritized corrective actions grouped by fix.</p>
@@ -18446,7 +18936,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">B. ITIL Change Control &amp; Dispatch Tickets</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">B. ITIL Change Control &amp; Dispatch Tickets${enrBadge('changeTickets')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('TICKET')">Download Draft (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands.</p>
@@ -18455,7 +18945,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">C. CLI Runbooks &amp; Upgrade Execution Plans</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">C. CLI Runbooks &amp; Upgrade Execution Plans${enrBadge('implementationPlans')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('IMPLEMENTATION')">Download Runbook (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Step-by-step remediation runbooks with exact ONTAP CLI syntax, multi-hop upgrade paths, and platform-specific checks (ASA SAN, E-Series).</p>
@@ -18470,7 +18960,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">D. Customer Advisory &amp; QBR Communications</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">D. Customer Advisory &amp; QBR Communications${enrBadge('customerComms')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('EMAIL')">Download Draft (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Advisory email template with health snapshot, sustainability score, and lifecycle milestones. QBR executive summary with compliance indicators and priority actions.</p>
@@ -18479,7 +18969,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">E. Technical Solution &amp; Architecture Proposals</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">E. Technical Solution &amp; Architecture Proposals${enrBadge('solutionProposals')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SOLUTION_PROPOSAL')">Download Draft (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Solution design with prioritized corrections, OS upgrade targets, and a phased implementation timeline (6-week remediation roadmap).</p>
@@ -18488,7 +18978,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">F. Sales Refresh &amp; Renewal Proposals</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">F. Sales Refresh &amp; Renewal Proposals${enrBadge('salesProposals')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SALES_PROPOSAL')">Download Draft (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Contract renewals, TAM renewal pipeline with tech refresh status, lifecycle refresh candidates, and security/compliance upsell opportunities.</p>
@@ -18497,7 +18987,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. MEDDPICC Deal Intelligence Brief</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. MEDDPICC Deal Intelligence Brief${enrBadge('meddpiccBrief')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MEDDPICC_BRIEF')">Download Brief (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Quantifiable account metrics, deal qualification criteria (Metrics, Economic Buyer, Decision Criteria, etc.), risk evaluation, and cost of inaction summaries.</p>
@@ -18506,7 +18996,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">H. Security Posture Executive Brief</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">H. Security Posture Executive Brief${enrBadge('securityBrief')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SECURITY_BRIEF')">Download Brief (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Security health summary, CVE exposure matrix, ransomware protection gaps, and security roadmap.</p>
@@ -18515,7 +19005,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. Sustainability &amp; ESG Report</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. Sustainability &amp; ESG Report${enrBadge('sustainabilityReport')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUSTAINABILITY_REPORT')">Download Report (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Fleet sustainability summary, data reduction impact, estimated power/CO2 avoided, and optimization recommendations.</p>
@@ -18530,7 +19020,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. TAM Success &amp; Posture Optimization Plan</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">J. TAM Success &amp; Posture Optimization Plan${enrBadge('customerSuccessPlan')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download TAM Success Plan (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Phased TAM roadmap (Phase 1: critical mitigation, Phase 2: OS upgrades, Phase 3: compliance audits) with ITIL governance guidelines.</p>
@@ -18539,7 +19029,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">H. TAM Quarterly Business Review (QBR) Pack</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">K. TAM Quarterly Business Review (QBR) Pack${enrBadge('qbrPack')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('QBR_PACK')">Download QBR Pack (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Structured QBR document with account overview, operational health scorecard (A-F grade), sustainability metrics, lifecycle pipeline, AIQ recommendations, and templated action items.</p>
@@ -18548,7 +19038,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. MSP Service Delivery Report</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">L. MSP Service Delivery Report${enrBadge('mspReport')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MSP_REPORT')">Download MSP Report (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Managed services SLA compliance matrix (ASUP/ARP/firmware/contracts with MET/MISSED indicators), incident management, contract portfolio, and capacity efficiency analysis.</p>
@@ -18557,7 +19047,7 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">J. Account Handover &amp; Transition Brief</h4>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">M. Account Handover &amp; Transition Brief${enrBadge('handoverBrief')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('HANDOVER_BRIEF')">Download Handover Brief (TXT)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Comprehensive account profile for SAM/TAM transitions &mdash; environment inventory, personnel, risk posture, contract status, recent activity, and auto-generated talking points.</p>
