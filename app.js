@@ -4822,13 +4822,37 @@ const enrichmentEngine = {
     const badge = document.getElementById('enrichBadge');
     const text  = document.getElementById('enrichBadgeText');
     if (!badge || !text) return;
+
+    // Gather counts from enrichment log
     const cveCount = this._log.filter(e => e.type === 'cve').length;
     const verCount = this._log.filter(e => e.type.includes('version')).length;
-    let label = `${this._count} enriched`;
-    if (verCount > 0 && cveCount > 0) label = `${verCount} versions · ${cveCount} CVEs`;
-    else if (verCount > 0) label = `${verCount} version${verCount > 1 ? 's' : ''} enriched`;
-    else if (cveCount > 0) label = `${cveCount} CVE${cveCount > 1 ? 's' : ''} enriched`;
-    text.textContent = label;
+
+    // Gather counts from global state
+    const kbCount  = (state.enrichmentKB && state.enrichmentKB.articles) ? state.enrichmentKB.articles.length : 0;
+    const advCount = (typeof NETAPP_SECURITY_BULLETIN_DB !== 'undefined') ? NETAPP_SECURITY_BULLETIN_DB.length : 0;
+    const kevCount = (state.enrichmentKB && state.enrichmentKB.kevCount) ? state.enrichmentKB.kevCount : 0;
+
+    // Build segments — only show non-zero counts
+    const sep = '<span style="opacity:0.35;margin:0 4px">·</span>';
+    const segments = [];
+    if (verCount > 0) segments.push(`<span title="${verCount} ONTAP/StorageGRID/SANtricity versions enriched with release notes, known issues, and upgrade paths" style="cursor:help">${verCount} ver</span>`);
+    if (cveCount > 0) segments.push(`<span title="${cveCount} CVEs enriched with CVSS scores, severity, and NVD details" style="cursor:help">${cveCount} CVE</span>`);
+    if (advCount > 0) segments.push(`<span title="${advCount} NetApp PSIRT security advisories loaded from security.netapp.com" style="color:#f0abfc;cursor:help">${advCount} PSIRT</span>`);
+    if (kbCount > 0)  segments.push(`<span title="${kbCount} knowledge base articles matched to fleet ONTAP versions and platform families" style="color:#93c5fd;cursor:help">${kbCount} KB</span>`);
+    if (kevCount > 0) segments.push(`<span title="${kevCount} advisories matched to CISA Known Exploited Vulnerabilities catalog — actively exploited in the wild" style="color:#fbbf24;cursor:help">⚠ ${kevCount} KEV</span>`);
+
+    if (segments.length === 0) {
+      text.textContent = `${this._count} enriched`;
+    } else {
+      text.innerHTML = segments.join(sep);
+    }
+
+    // Update tooltip with last enrichment time
+    const lastEntry = this._log.length > 0 ? this._log[this._log.length - 1] : null;
+    if (lastEntry && lastEntry.fetched_at) {
+      const t = new Date(lastEntry.fetched_at);
+      badge.title = `Enrichment: ${this._count} items fetched · Last: ${t.toLocaleTimeString()} — Click to view log`;
+    }
     badge.style.display = 'flex';
   },
 
@@ -6551,6 +6575,8 @@ async function loadDynamicBulletins() {
     console.warn(`[AIQ Security] /api/bulletins unavailable — security advisory DB is empty. Start the server to load advisories. Error: ${err.message}`);
   }
   _updateBulletinDbIndicator();
+  // Refresh enrichment badge to include PSIRT advisory count
+  if (typeof enrichmentEngine !== 'undefined') enrichmentEngine._updateBadge();
 }
 
 function _updateBulletinDbIndicator() {
@@ -14460,6 +14486,8 @@ async function loadEnrichmentKB() {
       loadedAt: new Date().toISOString(),
     };
     console.log(`[ENRICH-KB] Loaded ${state.enrichmentKB.articles.length} articles`);
+    // Refresh enrichment badge to include KB/KEV counts
+    if (typeof enrichmentEngine !== 'undefined') enrichmentEngine._updateBadge();
   } catch (e) {
     console.warn('[ENRICH-KB] Failed to load knowledge base:', e);
   }
