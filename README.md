@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.0.4-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.5-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -343,7 +343,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are 
 | **14** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
 | **15** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **16** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
-| **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, NVE/NAE, SnapMirror, HA, Audit, SnapLock, MAV), OS diversity analysis, 25-point categorized best-practice score per system (Operations & Security + Data Protection & Lifecycle), CLI enablement commands |
+| **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, MetroCluster, All Flash Optimized, HA, SnapMirror, Operating Mode), tri-state rendering (✅ enabled / ❌ disabled / — unknown), OS diversity analysis, 25-point categorized best-practice score per system (Operations & Security + Data Protection & Lifecycle), CLI enablement commands |
 
 ---
 
@@ -432,7 +432,7 @@ Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPI
 | 8 | Infrastructure Health | QoS adaptive policy coverage |
 | 9 | Security & Compliance | No active security CVEs (PSIRT) |
 | 10 | Security & Compliance | No CISA KEV active exploitation alerts |
-| 11 | Security & Compliance | Volume encryption (NVE/NAE) enabled |
+| 11 | Security & Compliance | Anti-Ransomware Protection (ARP) active on all volumes |
 | 12 | Security & Compliance | Anti-Ransomware Protection (ARP) active |
 | 13 | Support & Monitoring | AutoSupport HTTPS reported within 7 days |
 | 14 | Support & Monitoring | No open S1/S2 critical support cases |
@@ -476,8 +476,8 @@ Average resolution time in days for closed support cases. Calculated as: `(sum o
 
 ---
 
-### Encryption Coverage
-Percentage of ONTAP systems with volume/aggregate encryption (NVE/NAE) enabled.
+### ARP Coverage
+Percentage of ONTAP systems (where ARP status is known) with Anti-Ransomware Protection active. Uses known-system denominator to avoid inflated disabled counts.
 
 ---
 

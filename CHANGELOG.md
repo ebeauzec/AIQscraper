@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.5] - 2026-08-02
+
+### Removed
+- **6 unreportable feature fields purged** — the following fields were always `null` from the Active IQ GraphQL API and have been completely removed from `normalizeSystem()`, `computeFeatureAdoptionScore()`, `_buildSecurityChecklist()`, `_renderFeatureAdoptionSection()`, and all remediation/hardening blocks:
+  - `isAuditEnabled` — NAS audit logging state not exposed by API
+  - `isSnapLockEnabled` — SnapLock compliance/enterprise mode not exposed by API
+  - `isMAVEnabled` — Multi-Admin Verification state not exposed by API
+  - `nvEncryptionEnabled` (+ `nveStatus`, `nveDisabled`) — NVE/NAE encryption state not exposed by API; was a heuristic guess
+  - `isFlexPod` — FlexPod membership not exposed by API
+  - `belongsToMixModelCluster` — mixed-model cluster membership not exposed by API
+- **Encryption/Audit/MAV/SnapLock columns** removed from Feature Adoption HTML table (header, data rows, summary row, and missing-feature recommendations)
+- **`nveDisabled` counter variable** and its counting logic removed from remediation blocks
+
+### Fixed
+- **ARP denominator inflation** — ARP coverage percentage now uses "known-system" count (systems where ARP status is actually reported) instead of total fleet size. Prevents systems that don't report ARP from being counted as "disabled". Applied across 6 deliverable templates: Account Health Score, CSM Report, Executive Briefing, QBR, MEDDPICC, Talking Points
+- **False-negative feature flags** — Feature Adoption table now renders tri-state icons: ✅ enabled, ❌ disabled, — unknown/not reported. API `null` values no longer counted as disabled
+
+### Changed
+- **Feature Adoption scope narrowed to API-confirmed fields only**: ARP, FabricPool, MetroCluster, All Flash Optimized, HA Configured, SnapMirror, Operating Mode
+- **Checklist item #11** updated from "Volume encryption (NVE/NAE) enabled" to "Anti-Ransomware Protection (ARP) active on all volumes"
+- **Encryption Coverage metric renamed** to "ARP Coverage" with known-system denominator
+- **Version bumped to 4.0.5** across `version.json`, `app.js` (`APP_VERSION`), `README.md` badge, and CHANGELOG.md
+
+---
+
 ## [4.0.4] - 2026-08-02
 
 ### Added
