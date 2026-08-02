@@ -9947,7 +9947,7 @@ function renderCSMTab() {
       else _verDetails.push(`${s.systemName}: ${s.ontapVersion || '?'} \u2192 ${s.upgrades.targetVersion}`);
 
       // 2. Storage efficiency >= 1.5:1
-      if (parseFloat((s.efficiency.ratio || '1:1').split(':')[0]) > 1.5) _effPass++;
+      if (parseFloat(((s.efficiency || {}).ratio || '1:1').split(':')[0]) > 1.5) _effPass++;
 
       // 3. AutoSupport HTTPS reporting (<=7 days)
       const _asup = s.autosupport || {};
@@ -10020,7 +10020,7 @@ function renderCSMTab() {
 
       // ── Data Protection & Lifecycle checks ──────────────────────────────────
       // 16. FabricPool tiering active
-      if (s.efficiency.fabricPoolTieredTB > 0) _cloudPass++;
+      if ((s.efficiency || {}).fabricPoolTieredTB > 0) _cloudPass++;
 
       // 17. SnapMirror replication configured
       if (s.snapmirror && s.snapmirror.enabled) _drPass++;
@@ -10349,7 +10349,7 @@ function renderCSMTab() {
   `;
 
 
-  const fpTiered = sys.efficiency.fabricPoolTieredTB || 0;
+  const fpTiered = (sys.efficiency || {}).fabricPoolTieredTB || 0;
   let fpAdoptionBadge = "";
   let fpStatusText = "";
   
@@ -10414,6 +10414,8 @@ function renderCSMTab() {
     `;
   }
 
+  } // end else (ONTAP/standard platform — capacity data available)
+
   // Single-system checklist — 25 TAM/MSP categorised remediation checks
   const _sLatestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
   const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
@@ -10462,8 +10464,8 @@ function renderCSMTab() {
     // INFRASTRUCTURE HEALTH
     { cat: 'INFRASTRUCTURE HEALTH',
       name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',
-      ok: parseFloat((sys.efficiency.ratio || '1:1').split(':')[0]) > 1.5,
-      detail: `Current ratio: ${sys.efficiency.ratio || 'N/A'}`
+      ok: parseFloat(((sys.efficiency || {}).ratio || '1:1').split(':')[0]) > 1.5 || _sIsES || _sIsSG,
+      detail: _sIsES || _sIsSG ? 'N/A \u2014 platform manages efficiency at controller level' : `Current ratio: ${(sys.efficiency || {}).ratio || 'N/A'}`
     },
     { name: 'Aggregate Capacity Headroom \u2265 20%',
       ok: (() => {
@@ -10680,7 +10682,6 @@ function renderCSMTab() {
     proj.usableCapacityTB = sys.efficiency.usableCapacityTB;
   }
   renderProjectionsChart(proj, sys.systemName);
-  } // end else (ONTAP/standard platform — capacity data available)
 } // end renderCSMTab
 
 function renderProjectionsChart(proj, systemName) {
