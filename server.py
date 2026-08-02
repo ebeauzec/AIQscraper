@@ -3307,8 +3307,1112 @@ class EnrichmentScheduler:
             print(f'  [ENRICH]   Fleet-aware docs: +{fleet_articles_added} articles '
                   f'for {len(fleet_major_versions)} ONTAP versions, '
                   f'{len(detected_families)} platform families', flush=True)
+
+            # ── 6f. 3rd Party Vendor Documentation & Best Practice Alignment ──
+            # Comprehensive vendor guideline enrichment: detects which 3rd party
+            # integrations are in use (or likely in use) based on fleet telemetry,
+            # then pulls relevant vendor documentation, NetApp configuration
+            # guidelines, and best practice alignment notes.
+            vendor_articles_added = 0
+
+            # ── Fleet Integration Detection Heuristics ──
+            # Scan fleet telemetry for signals that indicate which 3rd party
+            # platforms/tools are in use or relevant.
+            fleet_signals = {
+                'vmware':    False, 'hyperv':     False, 'kvm_linux':  False,
+                'proxmox':   False, 'nutanix':    False, 'kubernetes': False,
+                'cisco_san': False, 'brocade_fc': False, 'broadcom_eth': False,
+                'oracle_db': False, 'mssql':      False, 'sap_hana':   False,
+                'veeam':     False, 'commvault':  False, 'rubrik':     False,
+                'cohesity':  False, 'hycu':       False, 'veritas':    False,
+                'snapcenter': False, 'fabricpool': False, 'metrocluster': False,
+                'snapmirror': False, 'arp':        False, 'fpolicy':    False,
+                'eseries':   False, 'storagegrid': False, 'asa_r2':     False,
+                'afx':       False, 'nvme':       False, 'iscsi':      False,
+                'fc_san':    False, 'nfs':        False, 'smb_cifs':   False,
+                'ai_ml':     False, 'splunk':     False, 'crowdstrike': False,
+                'paloalto':  False, 'varonis':    False, 'cyberark':   False,
+                'flexpod':   False,
+            }
+
+            for sys_item in fleet_systems:
+                plat_str = (sys_item.get('platform') or sys_item.get('platformType') or '').lower()
+                model_str = (sys_item.get('model') or '').lower()
+                prod_str = (sys_item.get('productType') or sys_item.get('systemType') or '').lower()
+                ver_str = sys_item.get('osVersion') or ''
+                all_text = f'{plat_str} {model_str} {prod_str}'.lower()
+
+                # Platform type detection
+                if 'storagegrid' in all_text: fleet_signals['storagegrid'] = True
+                if 'e-series' in all_text or 'ef6' in all_text or 'ef3' in all_text or 'ef50' in all_text or 'ef80' in all_text or 'e2800' in all_text or 'e5700' in all_text:
+                    fleet_signals['eseries'] = True
+                if 'asa' in all_text and ('r2' in all_text or 'a20' in model_str or 'a30' in model_str or 'a50' in model_str or 'a70' in model_str or 'a90' in model_str):
+                    fleet_signals['asa_r2'] = True
+                if 'afx' in all_text: fleet_signals['afx'] = True
+                if 'flexpod' in all_text or 'ucs' in all_text: fleet_signals['flexpod'] = True
+                if 'nutanix' in all_text: fleet_signals['nutanix'] = True
+
+                # Feature/protocol detection from system properties
+                if sys_item.get('isARPEnabled'): fleet_signals['arp'] = True
+                if sys_item.get('isFabricPoolEnabled') or (sys_item.get('efficiency') or {}).get('fabricPoolTieredTB', 0) > 0:
+                    fleet_signals['fabricpool'] = True
+                if sys_item.get('snapmirror') and sys_item.get('snapmirror', {}).get('enabled'):
+                    fleet_signals['snapmirror'] = True
+                if sys_item.get('haConfigured') and sys_item.get('isMetroClusterConfigured'):
+                    fleet_signals['metrocluster'] = True
+
+                # Switch detection from switch data
+                switches = sys_item.get('switches') or sys_item.get('clusterSwitches') or []
+                if isinstance(switches, list):
+                    for sw in switches:
+                        sw_model = (sw.get('model') or sw.get('switchModel') or '').lower()
+                        sw_vendor = (sw.get('vendor') or '').lower()
+                        if 'cisco' in sw_model or 'cisco' in sw_vendor or 'nexus' in sw_model or 'mds' in sw_model:
+                            fleet_signals['cisco_san'] = True
+                        if 'brocade' in sw_model or 'brocade' in sw_vendor:
+                            fleet_signals['brocade_fc'] = True
+                        if 'broadcom' in sw_model or 'bes-53248' in sw_model:
+                            fleet_signals['broadcom_eth'] = True
+
+                # Host/hypervisor detection from connected hosts
+                hosts = sys_item.get('hosts') or sys_item.get('connectedHosts') or []
+                if isinstance(hosts, list):
+                    for host in hosts:
+                        host_os = (host.get('os') or host.get('osType') or host.get('type') or '').lower()
+                        if 'vmware' in host_os or 'esxi' in host_os or 'vsphere' in host_os:
+                            fleet_signals['vmware'] = True
+                        if 'hyper-v' in host_os or 'hyperv' in host_os or 'windows' in host_os:
+                            fleet_signals['hyperv'] = True
+                        if 'linux' in host_os or 'rhel' in host_os or 'suse' in host_os or 'ubuntu' in host_os or 'centos' in host_os:
+                            fleet_signals['kvm_linux'] = True
+
+                # Protocol detection from LIF/interface data
+                lifs = sys_item.get('lifs') or sys_item.get('interfaces') or []
+                if isinstance(lifs, list):
+                    for lif in lifs:
+                        proto = (lif.get('dataProtocol') or lif.get('protocol') or '').lower()
+                        if 'nfs' in proto: fleet_signals['nfs'] = True
+                        if 'cifs' in proto or 'smb' in proto: fleet_signals['smb_cifs'] = True
+                        if 'iscsi' in proto: fleet_signals['iscsi'] = True
+                        if 'fc' in proto or 'fcp' in proto: fleet_signals['fc_san'] = True
+                        if 'nvme' in proto: fleet_signals['nvme'] = True
+
+                # Risk-based detection (risks mentioning 3rd party tools)
+                risks = sys_item.get('risks') or []
+                if isinstance(risks, list):
+                    for risk in risks:
+                        risk_text = (risk.get('description') or risk.get('name') or '').lower()
+                        if 'snapcenter' in risk_text: fleet_signals['snapcenter'] = True
+                        if 'fpolicy' in risk_text: fleet_signals['fpolicy'] = True
+                        if 'veeam' in risk_text: fleet_signals['veeam'] = True
+                        if 'commvault' in risk_text or 'intellisnap' in risk_text: fleet_signals['commvault'] = True
+                        if 'flexPod' in risk_text or 'flexpod' in risk_text or 'ucs' in risk_text: fleet_signals['flexpod'] = True
+                        if 'nutanix' in risk_text or 'ahv' in risk_text: fleet_signals['nutanix'] = True
+                        # Backup vendors
+                        if 'rubrik' in risk_text: fleet_signals['rubrik'] = True
+                        if 'cohesity' in risk_text: fleet_signals['cohesity'] = True
+                        if 'hycu' in risk_text: fleet_signals['hycu'] = True
+                        if 'veritas' in risk_text or 'netbackup' in risk_text or 'backup exec' in risk_text: fleet_signals['veritas'] = True
+                        # Databases
+                        if 'oracle' in risk_text or 'dnfs' in risk_text or 'asm' in risk_text: fleet_signals['oracle_db'] = True
+                        if 'sql server' in risk_text or 'mssql' in risk_text or 'always on' in risk_text: fleet_signals['mssql'] = True
+                        if 'sap hana' in risk_text or 'sap' in risk_text: fleet_signals['sap_hana'] = True
+                        # Security & observability
+                        if 'crowdstrike' in risk_text or 'falcon' in risk_text: fleet_signals['crowdstrike'] = True
+                        if 'palo alto' in risk_text or 'prisma' in risk_text or 'cortex' in risk_text: fleet_signals['paloalto'] = True
+                        if 'varonis' in risk_text: fleet_signals['varonis'] = True
+                        if 'cyberark' in risk_text: fleet_signals['cyberark'] = True
+                        if 'splunk' in risk_text: fleet_signals['splunk'] = True
+                        # Kubernetes / containers
+                        if 'kubernetes' in risk_text or 'trident' in risk_text or 'openshift' in risk_text: fleet_signals['kubernetes'] = True
+                        # AI/ML workloads
+                        if 'gpu' in risk_text or 'dgx' in risk_text or 'nvidia' in risk_text or 'ai ' in risk_text or 'machine learning' in risk_text: fleet_signals['ai_ml'] = True
+
+                # FlexPod flag from system properties (AIQ API provides isFlexPod boolean)
+                if sys_item.get('isFlexPod'): fleet_signals['flexpod'] = True
+
+                # Host-based extended detection (Proxmox, Nutanix, Kubernetes)
+                if isinstance(hosts, list):
+                    for host in hosts:
+                        host_os = (host.get('os') or host.get('osType') or host.get('type') or '').lower()
+                        if 'proxmox' in host_os or 'pve' in host_os: fleet_signals['proxmox'] = True
+                        if 'nutanix' in host_os or 'ahv' in host_os: fleet_signals['nutanix'] = True
+
+            # Count detected integrations
+            detected_count = sum(1 for v in fleet_signals.values() if v)
+            print(f'  [ENRICH]   Fleet integration signals: {detected_count} detected '
+                  f'({", ".join(k for k, v in fleet_signals.items() if v) or "none"})', flush=True)
+
+            # ── Vendor Documentation Source Registry ──
+            # Maps vendor documentation URLs to categories, with fleet signal
+            # conditions for relevance-aware enrichment. URLs with condition=None
+            # are always fetched (core NetApp best practices). URLs with a
+            # condition are only fetched when that fleet signal is detected.
+            VENDOR_GUIDELINE_SOURCES = [
+                # ═══════════════════════════════════════════════════════════════
+                # CORE NETAPP BEST PRACTICES (always fetched)
+                # ═══════════════════════════════════════════════════════════════
+                # Security hardening & zero trust
+                {'url': 'https://docs.netapp.com/us-en/ontap/security/index.html',
+                 'title': 'ONTAP Security Hardening Guide', 'category': 'best_practices',
+                 'alignment': 'TLS 1.2+ minimum, disable HTTP, MFA, MAV for destructive ops',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/zero-trust/zero-trust-overview.html',
+                 'title': 'Zero Trust Architecture with ONTAP', 'category': 'best_practices',
+                 'alignment': 'Zero-trust microsegmentation, least-privilege SVM isolation',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/anti-ransomware/index.html',
+                 'title': 'Autonomous Ransomware Protection (ARP) Configuration',
+                 'category': 'best_practices',
+                 'alignment': 'ARP/AI (9.16.1+) zero-learning ML detection, 99% precision',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/encryption-at-rest/index.html',
+                 'title': 'ONTAP Encryption at Rest (NVE/NAE)', 'category': 'best_practices',
+                 'alignment': 'Data-at-rest encryption, key management, FIPS 140-2 compliance',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/multi-admin-verify/index.html',
+                 'title': 'Multi-Admin Verification (MAV)', 'category': 'best_practices',
+                 'alignment': 'MAV prevents single-admin destructive operations (9.11.1+)',
+                 'condition': None},
+                # Data protection & DR
+                {'url': 'https://docs.netapp.com/us-en/ontap/data-protection/index.html',
+                 'title': 'ONTAP Data Protection Overview', 'category': 'best_practices',
+                 'alignment': 'SnapMirror, SnapVault, snapshot policies, consistency groups',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/snapmirror-active-sync/index.html',
+                 'title': 'SnapMirror Active Sync (zero RPO/RTO)', 'category': 'best_practices',
+                 'alignment': 'Transparent app failover <15s, requires Mediator + AFF/ASA',
+                 'condition': None},
+                # Performance & efficiency
+                {'url': 'https://docs.netapp.com/us-en/ontap/performance-admin/index.html',
+                 'title': 'ONTAP Performance Monitoring & QoS', 'category': 'best_practices',
+                 'alignment': 'Adaptive QoS policies, workload balancing, latency monitoring',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/volumes/deduplication-data-compression-efficiency-concept.html',
+                 'title': 'Storage Efficiency (Dedup/Compression)', 'category': 'best_practices',
+                 'alignment': 'Inline dedup+compression, post-process dedup scheduling',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # VIRTUALIZATION — VMware vSphere
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere-10/index.html',
+                 'title': 'ONTAP Tools for VMware vSphere 10.x', 'category': 'vendor_guidelines',
+                 'alignment': 'OTV 10.x for VAAI, VASA 3.0, vVols provisioning',
+                 'condition': 'vmware'},
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vsphere-overview.html',
+                 'title': 'VMware vSphere with ONTAP Best Practices', 'category': 'vendor_guidelines',
+                 'alignment': 'NFS/iSCSI/FC datastore config, ESXi host settings, VAAI',
+                 'condition': 'vmware'},
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-otv-hardening-overview.html',
+                 'title': 'VMware OTV Security Hardening', 'category': 'vendor_guidelines',
+                 'alignment': 'OTV appliance hardening, certificate management',
+                 'condition': 'vmware'},
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-srm-overview.html',
+                 'title': 'VMware SRM with ONTAP (DR Automation)', 'category': 'vendor_guidelines',
+                 'alignment': 'SRA configuration, SnapMirror-based DR failover for VMs',
+                 'condition': 'vmware'},
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vvols-overview.html',
+                 'title': 'VMware vVols with ONTAP', 'category': 'vendor_guidelines',
+                 'alignment': 'Per-VM storage policy, VASA Provider, FlexVol-backed vVols',
+                 'condition': 'vmware'},
+                {'url': 'https://docs.netapp.com/us-en/sc-plugin-vmware-vsphere/index.html',
+                 'title': 'SnapCenter Plugin for VMware vSphere', 'category': 'vendor_guidelines',
+                 'alignment': 'Application-consistent VM snapshots, backup scheduling',
+                 'condition': 'vmware'},
+                # VMware 3rd party docs
+                {'url': 'https://docs.vmware.com/en/VMware-vSphere/index.html',
+                 'title': 'VMware vSphere Documentation Portal', 'category': 'vendor_guidelines',
+                 'alignment': 'Official VMware vSphere release docs and compatibility',
+                 'condition': 'vmware'},
+                {'url': 'https://knowledge.broadcom.com/external/article?articleNumber=315039',
+                 'title': 'VMware NFS Best Practices (Broadcom KB)', 'category': 'vendor_guidelines',
+                 'alignment': 'ESXi NFS mount options, timeout settings, multipath',
+                 'condition': 'vmware'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # VIRTUALIZATION — Microsoft Hyper-V
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap/smb-hyper-v-sql/index.html',
+                 'title': 'ONTAP SMB for Hyper-V and SQL Server', 'category': 'vendor_guidelines',
+                 'alignment': 'SMB 3.0 ODX, CSV with iSCSI, Hyper-V over SMB best practices',
+                 'condition': 'hyperv'},
+                {'url': 'https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/best-practices-analyzer/best-practices-analyzer-for-hyper-v',
+                 'title': 'Microsoft Hyper-V Best Practices Analyzer', 'category': 'vendor_guidelines',
+                 'alignment': 'Microsoft-recommended Hyper-V configuration guidelines',
+                 'condition': 'hyperv'},
+                {'url': 'https://docs.netapp.com/us-en/ontap-sanhost/hu_wuhu_72.html',
+                 'title': 'Windows Unified Host Utilities 7.2', 'category': 'vendor_guidelines',
+                 'alignment': 'MPIO configuration, disk timeout settings, iSCSI initiator',
+                 'condition': 'hyperv'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # VIRTUALIZATION — KVM/Linux
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-sanhost/hu_luhu_71.html',
+                 'title': 'Linux Host Utilities 7.1 Configuration', 'category': 'vendor_guidelines',
+                 'alignment': 'dm-multipath, iSCSI initiator, NFS mount options for Linux',
+                 'condition': 'kvm_linux'},
+                {'url': 'https://docs.netapp.com/us-en/ontap/nfs-config/index.html',
+                 'title': 'ONTAP NFS Configuration for Linux Hosts', 'category': 'vendor_guidelines',
+                 'alignment': 'NFSv4.1 export policies, Kerberos, pNFS for FlexGroup',
+                 'condition': 'kvm_linux'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # CONTAINERS — Kubernetes / OpenShift
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/trident/index.html',
+                 'title': 'Astra Trident CSI Driver Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'Trident 26.02.1 GA, StorageClass config, backend setup',
+                 'condition': 'kubernetes'},
+                {'url': 'https://docs.netapp.com/us-en/astra-control-center/index.html',
+                 'title': 'Astra Control Center (K8s App Data Management)',
+                 'category': 'vendor_guidelines',
+                 'alignment': 'Application-aware backup/restore/clone for Kubernetes',
+                 'condition': 'kubernetes'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # SAN SWITCHING — Cisco
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-systems-switches/index.html',
+                 'title': 'NetApp Switch Documentation Portal', 'category': 'vendor_guidelines',
+                 'alignment': 'Cluster/MetroCluster switch install, firmware upgrade procedures',
+                 'condition': 'cisco_san'},
+                {'url': 'https://www.cisco.com/c/en/us/support/switches/nexus-9000-series-switches/series.html',
+                 'title': 'Cisco Nexus 9000 Series Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'NX-OS 10.4.2 recommended for AFX, 9.3(12) for legacy 9336C-FX2',
+                 'condition': 'cisco_san'},
+                {'url': 'https://www.cisco.com/c/en/us/support/switches/mds-9000-series-multilayer-switches/series.html',
+                 'title': 'Cisco MDS 9000 FC SAN Switch Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'MDS firmware 9.2(2) recommended, FC zone configuration',
+                 'condition': 'cisco_san'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # SAN SWITCHING — Broadcom/Brocade
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.broadcom.com/docs/FOS-92x-Admin',
+                 'title': 'Brocade Fabric OS 9.2.x Administration Guide',
+                 'category': 'vendor_guidelines',
+                 'alignment': 'FOS 9.2.1 recommended, TruFOS certificate requirements',
+                 'condition': 'brocade_fc'},
+                {'url': 'https://techdocs.broadcom.com/us/en/fibre-channel-networking/fabric-os/fabric-os-administration/9-2-x.html',
+                 'title': 'Broadcom Fabric OS Administration (9.2.x)',
+                 'category': 'vendor_guidelines',
+                 'alignment': 'Zone configuration, ISL trunking, firmware management',
+                 'condition': 'brocade_fc'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # BACKUP & DATA PROTECTION — Veeam
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://helpcenter.veeam.com/docs/backup/plugins/netapp_ontap_plugin.html',
+                 'title': 'Veeam NetApp ONTAP Plugin Guide', 'category': 'vendor_guidelines',
+                 'alignment': 'NetApp Plugin v2 for VBR 12.3+, snapshot orchestration',
+                 'condition': 'veeam'},
+                {'url': 'https://helpcenter.veeam.com/docs/backup/plugins/netapp_ontap_snapdiff.html',
+                 'title': 'Veeam SnapDiff CFT Configuration', 'category': 'vendor_guidelines',
+                 'alignment': 'Changed File Tracking via ONTAP SnapDiff API, NOT on 9.10.1-P10',
+                 'condition': 'veeam'},
+                {'url': 'https://www.veeam.com/kb4516',
+                 'title': 'Veeam NetApp ONTAP Integration Requirements', 'category': 'vendor_guidelines',
+                 'alignment': 'Storage integration compatibility matrix, plugin versions',
+                 'condition': 'veeam'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # BACKUP & DATA PROTECTION — Commvault
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://documentation.commvault.com/2024e/essential/snap_backup_netapp.html',
+                 'title': 'Commvault IntelliSnap for NetApp ONTAP', 'category': 'vendor_guidelines',
+                 'alignment': 'IntelliSnap snapshot orchestration, SnapVault integration',
+                 'condition': 'commvault'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # BACKUP & DATA PROTECTION — Rubrik
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://www.rubrik.com/solutions/netapp',
+                 'title': 'Rubrik for NetApp ONTAP Integration', 'category': 'vendor_guidelines',
+                 'alignment': 'NAS Cloud Direct, NDMP backup, Security Cloud DSPM',
+                 'condition': 'rubrik'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # BACKUP & DATA PROTECTION — Cohesity
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.cohesity.com/',
+                 'title': 'Cohesity DataProtect Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'NDMP/NFS registration, DataHawk threat scanning',
+                 'condition': 'cohesity'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # BACKUP & DATA PROTECTION — HYCU
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://support.hycu.com/hc/en-us/categories/360001985619-HYCU-for-NetApp',
+                 'title': 'HYCU for NetApp ONTAP Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'Agentless REST API integration, R-Shield YARA scanning',
+                 'condition': 'hycu'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # BACKUP & DATA PROTECTION — SnapCenter (always if ONTAP)
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/snapcenter/index.html',
+                 'title': 'SnapCenter Software Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'Application-consistent backups for Oracle, SQL, VMware, SAP',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # DATABASES — Oracle
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/oracle/oracle-overview.html',
+                 'title': 'Oracle Database on ONTAP Best Practices', 'category': 'vendor_guidelines',
+                 'alignment': 'dNFS config, ASM on iSCSI/FC, RMAN to NFS, SnapCenter Oracle',
+                 'condition': 'oracle_db'},
+                {'url': 'https://docs.oracle.com/en/database/oracle/oracle-database/23/ntdbi/',
+                 'title': 'Oracle Database NFS Direct (dNFS) Guide', 'category': 'vendor_guidelines',
+                 'alignment': 'Oracle-side dNFS setup, oranfstab, multipath dispatchers',
+                 'condition': 'oracle_db'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # DATABASES — Microsoft SQL Server
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/mssql/mssql-overview.html',
+                 'title': 'Microsoft SQL Server on ONTAP Best Practices', 'category': 'vendor_guidelines',
+                 'alignment': 'SMB 3.0 for .mdf/.ldf, iSCSI MPIO, tempdb on NVMe/TCP',
+                 'condition': 'mssql'},
+                {'url': 'https://learn.microsoft.com/en-us/sql/sql-server/install/hardware-and-software-requirements-for-installing-sql-server',
+                 'title': 'SQL Server Hardware & Software Requirements', 'category': 'vendor_guidelines',
+                 'alignment': 'Microsoft storage requirements for SQL Server deployments',
+                 'condition': 'mssql'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # DATABASES — SAP HANA
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/sap-hana/sap-hana-overview.html',
+                 'title': 'SAP HANA on ONTAP Best Practices', 'category': 'vendor_guidelines',
+                 'alignment': 'SAP HANA TDI certification, NFS data/log volume layout',
+                 'condition': 'sap_hana'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # SAN HOST UTILITIES & MULTIPATH
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-sanhost/',
+                 'title': 'NetApp SAN Host Configuration Guide', 'category': 'vendor_guidelines',
+                 'alignment': 'OS-specific SAN host settings, multipath, HBA drivers',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap-sanhost/hu_vsphere_8.html',
+                 'title': 'VMware ESXi 8.x SAN Host Settings', 'category': 'vendor_guidelines',
+                 'alignment': 'ESXi multipath PSP, disk timeout, NFS VAAI plugin',
+                 'condition': 'vmware'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # PROTOCOLS — NVMe, iSCSI, FC, NFS, SMB
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap/san-admin/index.html',
+                 'title': 'ONTAP SAN Administration (iSCSI/FC/NVMe)', 'category': 'best_practices',
+                 'alignment': 'LUN provisioning, igroup config, ALUA, port sets',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap/nvme/index.html',
+                 'title': 'ONTAP NVMe-oF Configuration', 'category': 'vendor_guidelines',
+                 'alignment': 'NVMe/FC and NVMe/TCP setup, namespace management (9.14.1+)',
+                 'condition': 'nvme'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # CLOUD TIERING — FabricPool
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap/fabricpool/index.html',
+                 'title': 'FabricPool Cloud Tiering Configuration', 'category': 'best_practices',
+                 'alignment': 'Cold data tiering to S3/Azure/GCS, auto/snapshot-only policies',
+                 'condition': 'fabricpool'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # METROCLUSTER & HA
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-metrocluster/index.html',
+                 'title': 'MetroCluster Configuration & Management', 'category': 'vendor_guidelines',
+                 'alignment': 'FC/IP MetroCluster, ISL requirements, switchover/switchback',
+                 'condition': 'metrocluster'},
+                {'url': 'https://docs.netapp.com/us-en/ontap/mediator/index.html',
+                 'title': 'ONTAP Mediator for MetroCluster/SMBC', 'category': 'vendor_guidelines',
+                 'alignment': 'Mediator deployment for automatic unplanned switchover (AUSO)',
+                 'condition': 'metrocluster'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # SECURITY & CYBER VENDORS
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap/nas-audit/index.html',
+                 'title': 'ONTAP NAS Auditing & FPolicy', 'category': 'vendor_guidelines',
+                 'alignment': 'FPolicy for 3rd party security (Varonis, Netwrix, Superna)',
+                 'condition': 'fpolicy'},
+                {'url': 'https://docs.netapp.com/us-en/ontap/antivirus/index.html',
+                 'title': 'ONTAP Antivirus (Vscan) Configuration', 'category': 'best_practices',
+                 'alignment': 'Vscan integration with CrowdStrike, Sophos, Symantec, McAfee',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # AI / ML WORKLOADS
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/netapp-dataops-toolkit/',
+                 'title': 'NetApp DataOps Toolkit (AI/ML)', 'category': 'vendor_guidelines',
+                 'alignment': 'Python library for data scientists, NearClone, Jupyter',
+                 'condition': 'ai_ml'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # MONITORING & OBSERVABILITY
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://netapp.github.io/harvest/',
+                 'title': 'NetApp Harvest 2.0 (Prometheus/Grafana)', 'category': 'vendor_guidelines',
+                 'alignment': 'Open-source ONTAP metrics, pre-built Grafana dashboards',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/active-iq-unified-manager/index.html',
+                 'title': 'Active IQ Unified Manager', 'category': 'vendor_guidelines',
+                 'alignment': 'Fleet-wide ONTAP monitoring, health scoring, event management',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # E-SERIES / STORAGEGRID
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/e-series-santricity/index.html',
+                 'title': 'SANtricity System Manager Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'E-Series block array management, firmware updates',
+                 'condition': 'eseries'},
+                {'url': 'https://docs.netapp.com/us-en/storagegrid/index.html',
+                 'title': 'StorageGRID Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'Object storage grid management, ILM policies, S3 API',
+                 'condition': 'storagegrid'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # ASA r2 / AFX
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/asa-r2/index.html',
+                 'title': 'ASA r2 Systems Documentation', 'category': 'vendor_guidelines',
+                 'alignment': 'Storage units, SAN-optimized provisioning, SAZ topology',
+                 'condition': 'asa_r2'},
+                {'url': 'https://docs.netapp.com/us-en/ontap-systems/afx/index.html',
+                 'title': 'AFX Disaggregated ONTAP Systems', 'category': 'vendor_guidelines',
+                 'alignment': 'AFX 1K/2K hardware, NSM140 shelves, REST-only API',
+                 'condition': 'afx'},
+
+                # ═══════════════════════════════════════════════════════════════
+                # AUTOMATION & DEVOPS
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-automation/index.html',
+                 'title': 'ONTAP REST API Automation', 'category': 'best_practices',
+                 'alignment': 'REST API for all ONTAP operations, Ansible modules',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # CLOUD INTEGRATIONS
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/bluexp-cloud-volumes-ontap/index.html',
+                 'title': 'Cloud Volumes ONTAP (CVO)', 'category': 'vendor_guidelines',
+                 'alignment': 'CVO 9.18.1 across AWS/Azure/GCP, same Trident/SnapCenter surface',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-fsx-ontap/index.html',
+                 'title': 'Amazon FSx for ONTAP', 'category': 'vendor_guidelines',
+                 'alignment': 'Fully managed ONTAP on AWS, sub-ms SSD latency',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-azure-netapp-files/index.html',
+                 'title': 'Azure NetApp Files (ANF)', 'category': 'vendor_guidelines',
+                 'alignment': 'Azure-native file storage, migration assistant, cache volumes',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-google-cloud-netapp-volumes/index.html',
+                 'title': 'Google Cloud NetApp Volumes (GCNV)', 'category': 'vendor_guidelines',
+                 'alignment': 'GCNV Flex Unified service level, backup/replication GA',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # MIGRATION
+                # ═══════════════════════════════════════════════════════════════
+                {'url': 'https://docs.netapp.com/us-en/ontap-fli/',
+                 'title': 'Foreign LUN Import (FLI)', 'category': 'vendor_guidelines',
+                 'alignment': 'Non-disruptive LUN migration from 3rd party arrays to ONTAP',
+                 'condition': None},
+
+                # ═══════════════════════════════════════════════════════════════
+                # CERTIFIED REFERENCE ARCHITECTURES & VALIDATED DESIGNS (NVA/CVD)
+                # ═══════════════════════════════════════════════════════════════
+                # FlexPod (Cisco + NetApp converged infrastructure)
+                {'url': 'https://www.cisco.com/c/en/us/solutions/design-zone/data-center-design-guides/flexpod-design-guides.html',
+                 'title': 'FlexPod Design Zone — Cisco Validated Designs (CVDs)',
+                 'category': 'reference_architecture',
+                 'alignment': 'Cisco UCS + NetApp ONTAP converged infrastructure — validated end-to-end designs for enterprise workloads',
+                 'condition': None},
+                {'url': 'https://www.netapp.com/flexpod/',
+                 'title': 'FlexPod Solutions Portal',
+                 'category': 'reference_architecture',
+                 'alignment': 'NetApp + Cisco joint solution: compute, network, storage — pre-validated reference architectures',
+                 'condition': 'flexpod'},
+                {'url': 'https://docs.netapp.com/us-en/flexpod/',
+                 'title': 'FlexPod Documentation Center',
+                 'category': 'reference_architecture',
+                 'alignment': 'FlexPod deployment guides, upgrade procedures, and architecture updates',
+                 'condition': 'flexpod'},
+
+                # NetApp Verified Architectures (NVA) — workload-specific validated designs
+                {'url': 'https://www.netapp.com/data-management/resources/?type=verified-architecture',
+                 'title': 'NetApp Verified Architectures (NVA) Library',
+                 'category': 'reference_architecture',
+                 'alignment': 'Workload-specific validated architectures: databases, VDI, AI/ML, healthcare, SAP, analytics',
+                 'condition': None},
+
+                # Technical Reports (TRs) — deep-dive reference documents
+                {'url': 'https://www.netapp.com/media/10674-tr4569.pdf',
+                 'title': 'TR-4569: ONTAP 9 Security Hardening Guide',
+                 'category': 'reference_architecture',
+                 'alignment': 'NetApp-certified security hardening procedures, CIS benchmarks, STIG compliance, zero-trust',
+                 'condition': None},
+                {'url': 'https://www.netapp.com/media/10720-tr4067.pdf',
+                 'title': 'TR-4067: NFS on ONTAP Best Practices',
+                 'category': 'reference_architecture',
+                 'alignment': 'NFS v3/v4.1 tuning, mount options, pNFS, VMware NFS datastores',
+                 'condition': 'nfs'},
+                {'url': 'https://www.netapp.com/media/16423-tr-4515.pdf',
+                 'title': 'TR-4515: ONTAP AFF All-SAN Array Systems',
+                 'category': 'reference_architecture',
+                 'alignment': 'AFF/ASA SAN design: FC, iSCSI, NVMe/FC, multipathing, ALUA',
+                 'condition': 'fc_san'},
+                {'url': 'https://www.netapp.com/media/85481-tr-4929.pdf',
+                 'title': 'TR-4929: FlexPod Datacenter with Cisco UCS',
+                 'category': 'reference_architecture',
+                 'alignment': 'FlexPod DC reference architecture: Cisco UCS X-Series + AFF A-Series + Nexus 9000',
+                 'condition': 'flexpod'},
+                {'url': 'https://www.netapp.com/media/21702-tr-4616.pdf',
+                 'title': 'TR-4616: NFS Kerberos in ONTAP',
+                 'category': 'reference_architecture',
+                 'alignment': 'NFS Kerberos krb5p in-flight encryption, Microsoft AD integration, mutual authentication',
+                 'condition': None},
+                {'url': 'https://www.netapp.com/media/17229-tr4571.pdf',
+                 'title': 'TR-4571: FlexPod Solution Architecture',
+                 'category': 'reference_architecture',
+                 'alignment': 'End-to-end FlexPod architectural deep-dive: compute, network, storage tiers',
+                 'condition': 'flexpod'},
+                {'url': 'https://www.netapp.com/media/7334-tr4613.pdf',
+                 'title': 'TR-4613: NVMe/FC SAN Host Configuration',
+                 'category': 'reference_architecture',
+                 'alignment': 'NVMe/FC host setup for Linux, Windows, ESXi — multipath, queues, tuning',
+                 'condition': 'nvme'},
+                {'url': 'https://www.netapp.com/media/17068-tr4733.pdf',
+                 'title': 'TR-4733: SnapMirror Business Continuity',
+                 'category': 'reference_architecture',
+                 'alignment': 'SM-BC/Active Sync zero-RPO design, Mediator deployment, application failover',
+                 'condition': 'snapmirror'},
+                {'url': 'https://docs.netapp.com/us-en/ontap/san-admin/san-host-reporting-concept.html',
+                 'title': 'ONTAP SAN Host Reporting & Alignment Guide',
+                 'category': 'reference_architecture',
+                 'alignment': 'SAN host configuration verification, LUN alignment, SCSI timeout tuning',
+                 'condition': 'fc_san'},
+                {'url': 'https://www.netapp.com/media/10680-tr4614.pdf',
+                 'title': 'TR-4614: SAP HANA Backup & Recovery with SnapCenter',
+                 'category': 'reference_architecture',
+                 'alignment': 'SAP HANA SnapCenter backup, HANA Studio integration, file-based and snapshot-based backup',
+                 'condition': None},
+                {'url': 'https://www.netapp.com/media/17009-tr4668.pdf',
+                 'title': 'TR-4668: Oracle Database Deployment on ONTAP',
+                 'category': 'reference_architecture',
+                 'alignment': 'Oracle NVA: dNFS, ASM, RAC, RMAN, SnapCenter — validated architecture',
+                 'condition': None},
+                {'url': 'https://www.netapp.com/media/8585-tr4590.pdf',
+                 'title': 'TR-4590: Microsoft SQL Server on ONTAP',
+                 'category': 'reference_architecture',
+                 'alignment': 'SQL Server NVA: iSCSI/SMB, Always On AG, SnapCenter, tempdb tuning',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/ontap-apps-dbs/sap-hana/sap-hana-overview.html',
+                 'title': 'SAP HANA on ONTAP Best Practices (NVA)',
+                 'category': 'reference_architecture',
+                 'alignment': 'SAP HANA TDI certified, NFS/FC, data tiering, backup with SnapCenter',
+                 'condition': None},
+
+                # AI/ML/DL Reference Architectures
+                {'url': 'https://www.netapp.com/artificial-intelligence/',
+                 'title': 'NetApp AI Solutions — NVIDIA DGX + ONTAP',
+                 'category': 'reference_architecture',
+                 'alignment': 'NVIDIA DGX SuperPOD + AFF A900/A90/A1K, BeeGFS on E-Series, AI/ML data pipelines',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/netapp-solutions/ai/index.html',
+                 'title': 'NetApp AI Solutions Documentation',
+                 'category': 'reference_architecture',
+                 'alignment': 'NVA for AI/ML: NVIDIA DGX, MLOps, data lakehouse, Domino Data Lab',
+                 'condition': None},
+
+                # Industry-Specific Validated Designs
+                {'url': 'https://www.netapp.com/solutions/healthcare/',
+                 'title': 'NetApp Healthcare Solutions (Epic, Cerner, Imaging)',
+                 'category': 'reference_architecture',
+                 'alignment': 'Healthcare NVA: Epic EHR, medical imaging (DICOM), HIPAA compliance, FlexPod for Healthcare',
+                 'condition': None},
+                {'url': 'https://www.netapp.com/solutions/financial-services/',
+                 'title': 'NetApp Financial Services Solutions',
+                 'category': 'reference_architecture',
+                 'alignment': 'Low-latency trading, regulatory compliance (SEC 17a-4), SnapLock WORM',
+                 'condition': None},
+
+                # Automation & Infrastructure-as-Code
+                {'url': 'https://docs.netapp.com/us-en/ontap-automation/migrate/mapping.html',
+                 'title': 'ONTAP Automation Toolkit — Ansible, Terraform, PowerShell',
+                 'category': 'reference_architecture',
+                 'alignment': 'NetApp-certified Ansible modules (na_ontap_*), Terraform provider, PowerShell Toolkit 9.x',
+                 'condition': None},
+                {'url': 'https://galaxy.ansible.com/netapp/ontap',
+                 'title': 'NetApp ONTAP Ansible Collection (Ansible Galaxy)',
+                 'category': 'reference_architecture',
+                 'alignment': 'Certified Ansible modules for ONTAP provisioning, SVM, LIF, volume, snapshot automation',
+                 'condition': None},
+                {'url': 'https://registry.terraform.io/providers/NetApp/netapp-ontap/latest/docs',
+                 'title': 'NetApp ONTAP Terraform Provider',
+                 'category': 'reference_architecture',
+                 'alignment': 'Infrastructure-as-code: declarative ONTAP resource management via Terraform',
+                 'condition': None},
+
+                # BlueXP Services (SaaS management layer)
+                {'url': 'https://docs.netapp.com/us-en/bluexp-ransomware-protection/index.html',
+                 'title': 'BlueXP Ransomware Protection',
+                 'category': 'reference_architecture',
+                 'alignment': 'SaaS-based ransomware dashboard: ARP status, backup readiness, workload risk scoring',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-classification/index.html',
+                 'title': 'BlueXP Classification (Data Sense)',
+                 'category': 'reference_architecture',
+                 'alignment': 'AI-driven data discovery, PII/PHI scanning, GDPR/HIPAA compliance automation',
+                 'condition': None},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-tiering/index.html',
+                 'title': 'BlueXP Tiering (FabricPool Management)',
+                 'category': 'reference_architecture',
+                 'alignment': 'Policy-driven cold data tiering to S3/Azure Blob/GCS, capacity savings dashboard',
+                 'condition': 'fabricpool'},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-disaster-recovery/index.html',
+                 'title': 'BlueXP Disaster Recovery',
+                 'category': 'reference_architecture',
+                 'alignment': 'VMware DR orchestration via SnapMirror, automated failover/failback runbooks',
+                 'condition': 'vmware'},
+                {'url': 'https://docs.netapp.com/us-en/bluexp-backup-recovery/index.html',
+                 'title': 'BlueXP Backup & Recovery',
+                 'category': 'reference_architecture',
+                 'alignment': 'Policy-based cloud backup for ONTAP volumes, 3-2-1 rule automation',
+                 'condition': None},
+
+                # Keystone STaaS
+                {'url': 'https://docs.netapp.com/us-en/keystone/',
+                 'title': 'NetApp Keystone STaaS — Subscription Storage',
+                 'category': 'reference_architecture',
+                 'alignment': 'Subscription-based opex storage: AFF/FAS/ASA/AFX/CVO, usage-based billing, SLA-guaranteed',
+                 'condition': None},
+
+                # Nutanix AHV (Early Access)
+                {'url': 'https://docs.netapp.com/us-en/ontap/san-admin/index.html',
+                 'title': 'Nutanix AHV with ONTAP (Early Access — Q3 2026 GA target)',
+                 'category': 'reference_architecture',
+                 'alignment': 'Nutanix AHV + AFF all-flash A-series: iSCSI SAN integration (Early Access, GA targeted Q3 2026)',
+                 'condition': 'nutanix'},
+            ]
+
+            # ── Fetch and persist vendor guideline articles ──
+            for source in VENDOR_GUIDELINE_SOURCES:
+                doc_url = source['url']
+                if doc_url in existing_urls:
+                    continue
+
+                # Conditional fetch: only pull if fleet signal is detected (or unconditional)
+                condition = source.get('condition')
+                if condition and not fleet_signals.get(condition, False):
+                    continue
+
+                # Build article entry — lightweight: we store the URL and metadata,
+                # not the full page content (same pattern as existing KB articles)
+                new_articles.append({
+                    'url': doc_url,
+                    'title': source['title'],
+                    'source': 'vendor-docs' if condition else 'docs.netapp.com',
+                    'category': source['category'],
+                    'alignment': source.get('alignment', ''),
+                    'relevance': f'Fleet integration: {condition}' if condition else 'Core NetApp best practice',
+                    'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                    '_vendorGuideline': True,
+                    '_fleetRelevant': bool(condition),
+                    '_integrationKey': condition or 'core',
+                })
+                existing_urls.add(doc_url)
+                vendor_articles_added += 1
+
+            # ── Vendor page title enrichment (scrape titles for new articles) ──
+            # For articles that were just added, attempt to fetch actual page
+            # titles from the vendor sites to improve KB display quality.
+            vendor_scrape_count = 0
+            vendor_scrape_errors = 0
+            for article in new_articles:
+                if not article.get('_vendorGuideline'):
+                    continue
+                if vendor_scrape_count >= 40:  # rate limit: max 40 vendor fetches per scan cycle
+                    break
+                try:
+                    text, err = _enrich_fetch(article['url'], timeout=10)
+                    vendor_scrape_count += 1
+                    if text and not err:
+                        # Extract <title> tag
+                        title_match = _re.search(r'<title[^>]*>([^<]{5,200})</title>', text, _re.IGNORECASE)
+                        if title_match:
+                            scraped_title = html.unescape(title_match.group(1)).strip()
+                            # Clean up common suffixes
+                            for suffix in [' — NetApp', ' | NetApp', ' - NetApp', ' — Cisco', ' | Cisco',
+                                           ' - Broadcom', ' | Broadcom', ' - VMware', ' | VMware',
+                                           ' - Veeam', ' | Veeam', ' — docs.netapp.com',
+                                           ' — Oracle', ' - Oracle', ' | Oracle',
+                                           ' | Microsoft Learn', ' - Microsoft Learn',
+                                           ' :: NetApp', ' — HYCU', ' | Rubrik']:
+                                if scraped_title.endswith(suffix):
+                                    scraped_title = scraped_title[:-len(suffix)].strip()
+                            if len(scraped_title) > 10:
+                                article['_scrapedTitle'] = scraped_title
+
+                        # Extract key configuration directives/version numbers
+                        # Look for version patterns, CLI commands, requirements
+                        config_hints = []
+                        ver_matches = _re.findall(
+                            r'(?:version|requires?|minimum|recommended|supported)[:\s]+([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:P[0-9]+)?)',
+                            text, _re.IGNORECASE
+                        )
+                        if ver_matches:
+                            config_hints.extend([f'Version: {v}' for v in set(ver_matches[:5])])
+
+                        cmd_matches = _re.findall(
+                            r'(?:run|execute|configure|command)[:\s]*[`"]([a-z][a-z0-9 \-_]{10,80})[`"]',
+                            text, _re.IGNORECASE
+                        )
+                        if cmd_matches:
+                            config_hints.extend([f'CLI: {c.strip()}' for c in cmd_matches[:3]])
+
+                        if config_hints:
+                            article['_configHints'] = config_hints[:5]
+
+                    else:
+                        vendor_scrape_errors += 1
+                    time.sleep(1.5)  # polite rate limit for vendor sites
+                except Exception:
+                    vendor_scrape_errors += 1
+
+            # ── Gap Analysis: detect uncovered integrations ──
+            # Identify integrations that are likely in use but have no
+            # corresponding vendor documentation or NetApp best practice guide.
+            gap_signals = []
+            # Common backup vendors not explicitly detected but likely present
+            backup_signals = ['veeam', 'commvault', 'rubrik', 'cohesity', 'hycu', 'veritas']
+            if fleet_signals.get('snapmirror') and not any(fleet_signals.get(b) for b in backup_signals):
+                gap_signals.append({
+                    'type': 'backup_gap',
+                    'message': 'SnapMirror active but no 3rd party backup vendor detected — verify backup strategy covers application-consistent protection',
+                    'recommendation': 'Consider SnapCenter for application-consistent snapshots, or integrate Veeam/Commvault/Rubrik for comprehensive backup'
+                })
+
+            if fleet_signals.get('smb_cifs') and not fleet_signals.get('hyperv'):
+                gap_signals.append({
+                    'type': 'smb_gap',
+                    'message': 'SMB/CIFS protocol in use — verify Windows host configuration aligns with ONTAP SMB best practices',
+                    'recommendation': 'Review ODX offload settings, SMB 3.0 encryption, and Kerberos AES compliance'
+                })
+
+            if fleet_signals.get('fc_san') and not fleet_signals.get('cisco_san') and not fleet_signals.get('brocade_fc'):
+                gap_signals.append({
+                    'type': 'fc_switch_gap',
+                    'message': 'FC SAN protocol detected but no switch vendor identified — verify switch firmware alignment with NetApp IMT',
+                    'recommendation': 'Cross-reference switch firmware against REFERENCE_LIBRARY_FIRMWARE_BASELINES'
+                })
+
+            if fleet_signals.get('nfs') and not fleet_signals.get('vmware') and not fleet_signals.get('kvm_linux'):
+                gap_signals.append({
+                    'type': 'nfs_host_gap',
+                    'message': 'NFS protocol active but host platform not detected — verify NFS mount options and host utility versions',
+                    'recommendation': 'Install NetApp Host Utilities, configure recommended mount options (rsize/wsize=1048576, hard,nointr)'
+                })
+
+            if not fleet_signals.get('arp') and any(fleet_signals.get(p) for p in ['nfs', 'smb_cifs']):
+                gap_signals.append({
+                    'type': 'security_gap',
+                    'message': 'NAS protocols active but ARP (Anti-Ransomware Protection) not detected — security gap',
+                    'recommendation': 'Enable ARP on NAS volumes (9.10.1+ FlexVol, 9.13.1+ FlexGroup, 9.16.1+ ARP/AI)'
+                })
+
+            # ── Integration version alignment gaps ──
+            # Check if fleet ONTAP versions meet minimum requirements for detected integrations
+            integration_version_reqs = {
+                'vmware':     {'tool': 'ONTAP Tools for VMware (OTV)', 'minOntap': '9.12', 'recommended': '10.3'},
+                'kubernetes': {'tool': 'Astra Trident', 'minOntap': '9.8', 'recommended': '26.06'},
+                'snapcenter': {'tool': 'SnapCenter', 'minOntap': '9.12', 'recommended': '6.2.2'},
+                'veeam':      {'tool': 'Veeam VBR + NetApp Plugin', 'minOntap': '9.8', 'recommended': '12.3'},
+                'commvault':  {'tool': 'Commvault IntelliSnap', 'minOntap': '9.10', 'recommended': '2024'},
+                'oracle_db':  {'tool': 'SnapCenter for Oracle', 'minOntap': '9.12', 'recommended': '6.2'},
+                'mssql':      {'tool': 'SnapCenter for SQL Server', 'minOntap': '9.12', 'recommended': '6.2'},
+                'sap_hana':   {'tool': 'SnapCenter for SAP HANA', 'minOntap': '9.12', 'recommended': '6.2'},
+                'cisco_san':  {'tool': 'Cisco NX-OS (cluster/SAN switch)', 'minOntap': '9.8', 'recommended': 'NX-OS 10.4.2'},
+                'brocade_fc': {'tool': 'Brocade Fabric OS (FC switch)', 'minOntap': '9.8', 'recommended': 'FOS 9.2.1'},
+                'rubrik':     {'tool': 'Rubrik NAS Direct Archive', 'minOntap': '9.5', 'recommended': 'latest'},
+                'cohesity':   {'tool': 'Cohesity DataProtect', 'minOntap': '9.5', 'recommended': 'latest'},
+                'hycu':       {'tool': 'HYCU for ONTAP', 'minOntap': '9.8', 'recommended': 'latest'},
+            }
+
+            for signal_key, req in integration_version_reqs.items():
+                if not fleet_signals.get(signal_key):
+                    continue
+                req_major = float(req['minOntap'])
+                fleet_below = False
+                below_system = ''
+                below_ver = ''
+                for sys_item in fleet_systems:
+                    os_ver = sys_item.get('osVersion', '')
+                    if not os_ver:
+                        continue
+                    ver_match = _re.match(r'(\d+\.\d+)', os_ver)
+                    if not ver_match:
+                        continue
+                    ver_num = float(ver_match.group(1))
+                    if ver_num < req_major:
+                        fleet_below = True
+                        below_system = sys_item.get('hostname') or sys_item.get('serialNumber') or 'unknown'
+                        below_ver = os_ver
+                        break
+                if fleet_below:
+                    gap_signals.append({
+                        'type': f'imt_version_gap_{signal_key}',
+                        'message': f'{req["tool"]} v{req["recommended"]} requires minimum ONTAP {req["minOntap"]} — system {below_system} is running ONTAP {below_ver}',
+                        'recommendation': f'Upgrade ONTAP to {req["minOntap"]}+ or verify compatibility of an older {req["tool"]} version in the NetApp IMT (imt.netapp.com)',
+                    })
+
+            if gap_signals:
+                for gap in gap_signals:
+                    new_articles.append({
+                        'url': f'https://docs.netapp.com/us-en/ontap/{gap["type"]}-gap',
+                        'title': f'⚠ Gap Detected: {gap["message"][:80]}',
+                        'source': 'gap-analysis',
+                        'category': 'gap_analysis',
+                        'alignment': gap['recommendation'],
+                        'relevance': 'Fleet gap analysis',
+                        'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                        '_vendorGuideline': True,
+                        '_gapAnalysis': True,
+                        '_fleetRelevant': True,
+                        '_integrationKey': gap['type'],
+                    })
+
+            # ── Version-specific NetApp feature mapping ──
+            # Map detected ONTAP versions to key features, enhancements, and
+            # configuration changes introduced in each release.
+            ontap_feature_map = {
+                '9.19': [
+                    ('SnapMirror active sync transparent failover for AIX', 'data_protection', 'Requires ONTAP Mediator 1.12: mediator show'),
+                    ('Tamperproof snapshot locking for SnapMirror Synchronous', 'data_protection', 'Enable: snapmirror modify -destination-path <path> -is-lock-enabled true'),
+                    ('ASA r2 direct-attach FC (switchless)', 'configuration', 'No FC switch required for 2-node ASA r2 HA pairs — verify cabling with Hardware Universe'),
+                    ('ARP/AI within SnapMirror active sync relationships', 'security', 'Verify ARP/AI status on both source and destination: security anti-ransomware volume show'),
+                    ('AFX global deduplication across SAZ', 'configuration', 'Enabled by default on AFX — verify: storage aggregate show -fields dedupe-enabled'),
+                    ('S3 idle connection timeout reduced 20min to 5min', 'configuration', 'Update S3 client timeout settings if applications rely on long-lived idle connections'),
+                ],
+                '9.18': [
+                    ('SnapMirror cloud for MetroCluster FlexGroup volumes', 'data_protection', 'Enable: snapmirror create -type XDP -source-path <svm:vol> -destination-path <cloud-target>'),
+                    ('100Gbps ISL minimum for high-speed MC-IP platforms', 'configuration', 'Verify ISL bandwidth: metrocluster interconnect show — must be 100Gbps for A70/A90/A1K'),
+                    ('AFX ATM performance-aware balancing', 'configuration', 'ATM now balances by node load, not just volume count — monitor: storage aggregate show -fields atm-status'),
+                    ('FlexCache/SnapMirror interop between AFX and Unified ONTAP', 'configuration', 'Unified ONTAP side must be 9.16.1+ for FlexCache/SnapMirror with AFX nodes'),
+                    ('Controller replace combos for MC-IP (A70→A90, FAS70→FAS90)', 'operations', 'Use: system controller replace start — NDU controller upgrade in MetroCluster IP'),
+                ],
+                '9.17': [
+                    ('AFX platform GA — minimum ONTAP for AFX 1K and AFX 2K', 'configuration', 'AFX requires 9.17.1+, REST-only API (no ZAPI), NX224 shelves with NSM140 only'),
+                    ('Zero Copy Volume Move (ZCVM) for AFX', 'operations', 'Metadata-only volume relocation — triggered on failover/node events: volume move show'),
+                    ('JIT privilege elevation for RBAC', 'security', 'Just-in-time admin access: security login role create -role <name> -cmddirname <cmd> -access all -query -jit-elevation true'),
+                    ('MetroCluster IP E2E encryption extended to full lineup', 'security', 'Enable: metrocluster modify -is-encryption-enabled true — covers A20/A30/C30/A50/C60/A70/A90/A1K/C80, FAS50/70/90'),
+                ],
+                '9.16': [
+                    ('ARP/AI zero-learning ML ransomware detection', 'security', 'Enable on all NAS volumes: security anti-ransomware volume enable -vserver <svm> -volume <vol> -state active'),
+                    ('TLS 1.3 for S3, SnapMirror, FabricPool', 'security', 'SSLv3/TLS 1.0/1.1 disabled — verify client compatibility: security ssl show'),
+                    ('NVMe/TCP UNMAP/TRIM default enabled', 'configuration', 'Verify host HBA UNMAP/TRIM support before upgrading SAN hosts: lun show -fields space-allocation'),
+                    ('MAV expanded to Consistency Groups, VScan, ARP, LUN delete, NVMe', 'security', 'Review MAV rule coverage: security multi-admin-verify rule show'),
+                    ('IPsec hardware offload', 'security', 'Enable: security ipsec config modify -is-enabled true — hardware offload automatic on supported platforms'),
+                    ('WebAuthn MFA for System Manager', 'security', 'Register FIDO2 keys: security webauthn credentials create -username <admin>'),
+                    ('OAuth 2.0 Entra ID integration', 'security', 'Configure: security oauth2 client create -name <name> -issuer-uri <entra-endpoint>'),
+                ],
+                '9.15': [
+                    ('SnapMirror active sync symmetric active/active for all-SAN', 'data_protection', 'Requires ASA or AFF SAN-only volumes — transparent failover <15s: snapmirror show -fields active-sync-status'),
+                    ('NFS over TLS GA', 'security', 'Enable: vserver nfs tls interface enable -vserver <svm> -lif <lif> -certificate-name <cert>'),
+                    ('MetroCluster E2E backend encryption', 'security', 'Validate switch firmware compatibility before enabling: metrocluster check run'),
+                    ('3-node ROBO cluster support', 'configuration', 'Reduced node count for remote office/branch office — cluster show'),
+                    ('ARP FlexGroup support', 'security', 'Extend ARP to FlexGroup: security anti-ransomware volume enable (all nodes must be 9.13.1+)'),
+                ],
+                '9.14': [
+                    ('NVMe/TCP GA for SAN workloads', 'configuration', 'Requires NVMe-oF host driver — configure: vserver nvme subsystem create'),
+                    ('CLI support for consistency groups', 'data_protection', 'Create: consistency-group create -vserver <svm> -consistency-group <name> -volume <vol1,vol2>'),
+                    ('FPolicy persistent stores', 'security', 'Enable persistent store: vserver fpolicy persistent-store create -vserver <svm> -persistent-store <name> -volume <vol>'),
+                    ('TSSE physical-used semantics changed', 'configuration', 'Capacity dashboards may show different values — not a data issue. Recalibrate alert thresholds.'),
+                    ('Cisco Duo 2FA for SSH', 'security', 'Enable MFA: security login create -user-or-group-name <admin> -authentication-method duosecurity'),
+                ],
+                '9.13': [
+                    ('ARP for FlexGroup volumes', 'security', 'Enable: security anti-ransomware volume enable — all cluster nodes must be 9.13.1+'),
+                    ('AES Kerberos encryption DEFAULT-ON for new CIFS SVMs', 'security', 'Critical for KB5073381/CVE-2026-20833: vserver cifs security show -fields kerberos-encryption-types'),
+                    ('FPolicy v2 persistent store mode', 'security', 'Buffers FPolicy events locally — prevents event loss: vserver fpolicy show -fields is-persistent-store-enabled'),
+                    ('S3 object versioning', 'configuration', 'Required for Veeam immutable backup: vserver object-store-server bucket modify -bucket <name> -versioning-state enabled'),
+                    ('NVMe/FC 4-node cluster support', 'configuration', 'Expanded from 2-node: vserver nvme show'),
+                ],
+                '9.12': [
+                    ('TSSE default-on for AFF C-Series', 'configuration', 'Changes efficiency ratio reporting — verify capacity dashboards: storage aggregate show -fields efficiency-data-reduction'),
+                    ('Tamper-proof audit logging default-on', 'security', 'Immutable audit log — vserver audit show -fields log-format,guaranteed-purge'),
+                    ('REST API parity with ZAPI', 'automation', 'Begin migration from ZAPI to REST API: curl -X GET https://<cluster>/api/cluster'),
+                    ('NVMe/FC in MetroCluster IP', 'configuration', 'Enable NVMe/FC on MC-IP: vserver nvme create -vserver <svm>'),
+                ],
+                '9.11': [
+                    ('Multi-Admin Verification (MAV) introduced', 'security', 'Enable: security multi-admin-verify modify -approval-groups <group> -enabled true'),
+                    ('Consistency groups GA in System Manager', 'data_protection', 'System Manager: Storage > Consistency Groups — create, snapshot, replicate'),
+                    ('SnapMirror active sync expanded platform support', 'data_protection', 'Requires ONTAP Mediator: snapmirror mediator show'),
+                ],
+                '9.10': [
+                    ('ARP for FlexVol NAS (30-day learning)', 'security', 'Enable per volume: security anti-ransomware volume enable -vserver <svm> -volume <vol>'),
+                    ('Firewall policies DEPRECATED to LIF service policies', 'configuration', 'BREAKING: migrate before upgrade — network interface service-policy show'),
+                    ('NVMe/TCP introduced', 'configuration', 'New SAN protocol: vserver nvme subsystem show'),
+                    ('SnapLock+non-SnapLock coexistence on same aggregate', 'configuration', 'Mixed SnapLock: storage aggregate show -fields snaplock-type'),
+                ],
+                '9.9': [
+                    ('SnapMirror active sync (SM-BC) GA', 'data_protection', 'Configure: snapmirror create -source-path <src> -destination-path <dst> -type automatedfailover'),
+                    ('MetroCluster IP 8-node support', 'configuration', 'Expanded from 4-node: metrocluster show -fields cluster-type,node-count'),
+                    ('L3 IP-routed MetroCluster backend', 'configuration', 'IP routing for MC backend: metrocluster configuration-settings network show'),
+                ],
+                '9.8': [
+                    ('ONTAP REST API parity begins (ZAPI deprecated)', 'automation', 'Migrate scripts from ZAPI to REST: https://<cluster>/api — ZAPI removed entirely from AFX'),
+                    ('SnapDiff v3 for backup integrations', 'data_protection', 'Veeam/Rubrik CFT: volume snapshot diff start -vserver <svm> -volume <vol>'),
+                ],
+                '9.7': [
+                    ('FabricPool for all platforms', 'configuration', 'Enable cold data tiering: storage aggregate object-store config create -object-store-name <name>'),
+                    ('WAFL metadata format upgrade', 'operations', 'Ensure aggregates have >15% free capacity: storage aggregate show -fields percent-used'),
+                    ('TLS 1.0/1.1 disabled for management APIs', 'security', 'Verify client TLS version support: security ssl show -fields minimum-protocol'),
+                ],
+            }
+
+            # ── StorageGRID version-specific feature mapping ──
+            storagegrid_feature_map = {
+                '12.1': [
+                    ('12 TB/s aggregate throughput (400% vs 12.0)', 'performance', 'Validate network bandwidth for upgraded throughput: grid topology show'),
+                    ('Global Federated Namespace up to 10EB', 'configuration', 'Cross-grid bucket federation — configure via Grid Manager: CONFIGURATION > Cross-grid federation'),
+                    ('Batch operations on billions of objects', 'operations', 'S3 batch ops for lifecycle, tagging, copy — configure via Grid Manager'),
+                    ('Multi-Admin Verification for StorageGRID', 'security', 'Requires approval for destructive admin operations: Grid Manager > CONFIGURATION > Access control'),
+                    ('AI-agent change tracking on buckets', 'automation', 'Bucket-level change feed for AI/ML data pipelines — enable via bucket settings'),
+                ],
+                '12.0': [
+                    ('StorageGRID 12.0 GA architecture refresh', 'operations', 'Major version upgrade — backup Grid Manager configuration before upgrading'),
+                    ('Enhanced ILM rule engine', 'configuration', 'Information Lifecycle Management v2 rules — review existing policies for compatibility'),
+                ],
+                '11.9': [
+                    ('S3 Select support for Parquet', 'configuration', 'Query objects server-side without full download — configure via bucket policy'),
+                    ('Improved erasure coding profiles', 'data_protection', 'New EC 6+3 profile for improved storage efficiency with fault tolerance'),
+                ],
+            }
+
+            # ── SANtricity version-specific feature mapping ──
+            santricity_feature_map = {
+                '12.0': [
+                    ('SANtricity 12.0 GA for EF50/EF80 NVMe arrays', 'operations', 'Required for new-gen NVMe: 110+ GB/s read, 1.5PB capacity, AI/ML scratch workloads'),
+                    ('NVMe-oF support expanded (NVMe/TCP, NVMe/FC, NVMe/RoCE)', 'configuration', 'Configure host-side NVMe-oF initiators: eseries cli host-port identify'),
+                ],
+                '11.90': [
+                    ('Enhanced volume snapshots for E-Series', 'data_protection', 'Point-in-time copies: SANtricity System Manager > Storage > Snapshots'),
+                    ('Improved SSD wear-leveling algorithms', 'operations', 'Monitor drive wear: SANtricity System Manager > Hardware > Drives > SSD statistics'),
+                ],
+                '11.80': [
+                    ('E-Series REST API GA', 'automation', 'Migrate from Symbol/SMcli to REST: https://<controller>/devmgr/v2'),
+                    ('Dynamic Disk Pool rebalancing', 'operations', 'Automatic capacity optimization across pool: Storage > Pools > Rebalance'),
+                ],
+            }
+
+            # ── SnapCenter version-specific feature mapping ──
+            snapcenter_feature_map = {
+                '6.2': [
+                    ('SnapCenter 6.2 with ONTAP 9.16.1+ validation', 'operations', 'Verify SnapCenter-ONTAP compatibility: Get-SmStorageConnection | Select Version'),
+                    ('Enhanced Oracle RAC backup coordination', 'data_protection', 'Multi-node RAC snapshot orchestration: New-SmBackup -Resources <rac-db>'),
+                    ('SQL Server Always On AG log backup improvements', 'data_protection', 'Cross-replica log coordination: New-SmBackup -Resources <ag-name> -BackupType Log'),
+                ],
+                '6.0': [
+                    ('Linux Server support (RHEL/Oracle Linux/SLES)', 'operations', 'Install SnapCenter Server on Linux: ./InstallSnapCenter -AcceptEULA'),
+                    ('Plug-in for VMware vSphere 6.x with NVMe/TCP VMFS', 'configuration', 'Deploy SnapCenter Plug-in for VMware: register-vsc -vcenter <vcenter-ip>'),
+                ],
+                '5.0': [
+                    ('SnapCenter 5.0 — cloud-native plugin architecture', 'operations', 'Modernized plug-in framework: Get-SmHost | Select PluginVersion'),
+                ],
+            }
+
+            # ── Trident version-specific feature mapping ──
+            trident_feature_map = {
+                '26.06': [
+                    ('Trident 26.06 GA with Kubernetes 1.36 support', 'configuration', 'Upgrade: tridentctl upgrade --to 26.06 — verify: tridentctl version'),
+                    ('AFX FlexGroup driver support (ontap-nas-flexgroup on AFX)', 'configuration', 'Configure AFX backend: tridentctl create backend -f afx-flexgroup-backend.json'),
+                    ('GCNV NAS+SAN AutoGrow GA', 'configuration', 'Enable auto-expand for GCNV PVCs: storageClass.parameters.autoGrow=true'),
+                    ('Read-only root filesystems support', 'security', 'Pod security: securityContext.readOnlyRootFilesystem: true — Trident handles mount setup'),
+                ],
+                '26.02': [
+                    ('CVE-2026-24051 fix (PATH hijacking in OpenTelemetry-Go)', 'security', 'CRITICAL: upgrade from any version below 26.02 — tridentctl upgrade'),
+                    ('Concurrency GA for Economy/SolidFire backends', 'performance', 'Parallel provisioning: tridentctl get backends -o json | grep concurrency'),
+                ],
+                '25.10': [
+                    ('Trident Operator improvements', 'operations', 'Helm chart v25.10: helm upgrade trident netapp-trident/trident-operator'),
+                ],
+            }
+
+            for major_ver in sorted(fleet_major_versions):
+                features = ontap_feature_map.get(major_ver, [])
+                for feat_name, feat_cat, feat_guidance in features:
+                    feat_url = f'https://docs.netapp.com/us-en/ontap/release-notes/ontap-{major_ver}-features'
+                    if feat_url not in existing_urls:
+                        new_articles.append({
+                            'url': feat_url,
+                            'title': f'ONTAP {major_ver}: {feat_name}',
+                            'source': 'version-features',
+                            'category': feat_cat,
+                            'alignment': feat_guidance,
+                            'relevance': f'ONTAP {major_ver} deployed in fleet',
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                            '_vendorGuideline': True,
+                            '_versionFeature': True,
+                            '_fleetRelevant': True,
+                            '_integrationKey': f'ontap-{major_ver}',
+                        })
+                        existing_urls.add(feat_url)
+                        vendor_articles_added += 1
+
+            # ── Multi-platform version feature enrichment ──
+            # StorageGRID, SANtricity, SnapCenter, and Trident version features
+            platform_feature_maps = [
+                (storagegrid_feature_map, 'storagegrid', fleet_signals.get('storagegrid', False),
+                 'https://docs.netapp.com/us-en/storagegrid/release-notes/',
+                 'StorageGRID'),
+                (santricity_feature_map, 'eseries', fleet_signals.get('eseries', False),
+                 'https://docs.netapp.com/us-en/e-series/getting-started/',
+                 'SANtricity'),
+                (snapcenter_feature_map, 'snapcenter', fleet_signals.get('snapcenter', False),
+                 'https://docs.netapp.com/us-en/snapcenter/release-notes/',
+                 'SnapCenter'),
+                (trident_feature_map, 'kubernetes', fleet_signals.get('kubernetes', False),
+                 'https://docs.netapp.com/us-en/trident/trident-rn.html',
+                 'Trident'),
+            ]
+
+            for feat_map, signal_key, is_detected, base_url, product_name in platform_feature_maps:
+                if not is_detected:
+                    continue
+                for ver, features in feat_map.items():
+                    for feat_name, feat_cat, feat_guidance in features:
+                        feat_url = f'{base_url}#{product_name.lower()}-{ver}-features'
+                        if feat_url not in existing_urls:
+                            new_articles.append({
+                                'url': feat_url,
+                                'title': f'{product_name} {ver}: {feat_name}',
+                                'source': 'version-features',
+                                'category': feat_cat,
+                                'alignment': feat_guidance,
+                                'relevance': f'{product_name} detected in fleet',
+                                'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                                '_vendorGuideline': True,
+                                '_versionFeature': True,
+                                '_fleetRelevant': True,
+                                '_integrationKey': f'{signal_key}-{ver}',
+                            })
+                            existing_urls.add(feat_url)
+                            vendor_articles_added += 1
+
+            print(f'  [ENRICH]   Vendor guidelines: +{vendor_articles_added} articles '
+                  f'(scraped {vendor_scrape_count}, errors {vendor_scrape_errors})', flush=True)
+            if gap_signals:
+                print(f'  [ENRICH]   Gap analysis: {len(gap_signals)} coverage gaps detected', flush=True)
+
         else:
             print('  [ENRICH]   Fleet-aware docs: skipped (no cached fleet data)', flush=True)
+
 
         # Persist
         if new_articles:

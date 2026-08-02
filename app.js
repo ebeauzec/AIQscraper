@@ -18,7 +18,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.3";
+const APP_VERSION = "4.0.4";
 
 const APP_CHANGELOG = [
   {
@@ -5986,6 +5986,263 @@ const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// IMT Interoperability Matrix — 3rd Party Version Compatibility
+// Source: NetApp IMT (imt.netapp.com), vendor support matrices
+// Maps each integration to ONTAP compatibility windows per tool version
+// Updated: 2026-08-02
+// ─────────────────────────────────────────────────────────────────────────────
+const IMT_INTEROP_MATRIX = {
+  // ── Virtualization ──
+  vmware_otv: {
+    name: "ONTAP Tools for VMware vSphere (OTV)",
+    signal: "vmware",
+    currentRecommended: "10.3",
+    versions: {
+      "10.3": { minOntap: "9.12.1", maxOntap: "9.19.1", status: "current", notes: "Major redesign — not drop-in from OTV 9.x" },
+      "10.2": { minOntap: "9.12.1", maxOntap: "9.18.1", status: "supported" },
+      "10.1": { minOntap: "9.12.1", maxOntap: "9.16.1", status: "supported" },
+      "9.13": { minOntap: "9.9.1",  maxOntap: "9.14.1", status: "eol-imminent", notes: "OTV 9.x architecture — parallel deploy required for migration to 10.x" },
+    },
+    imtProduct: "ONTAP+Tools+for+VMware+vSphere",
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere/",
+  },
+
+  // ── Kubernetes ──
+  trident: {
+    name: "Astra Trident (CSI Driver)",
+    signal: "kubernetes",
+    currentRecommended: "26.06",
+    versions: {
+      "26.06": { minOntap: "9.8",  maxOntap: "9.19.1", minK8s: "1.28", status: "current", notes: "K8s 1.36 support, AFX FlexGroup driver, GCNV AutoGrow GA" },
+      "26.02": { minOntap: "9.8",  maxOntap: "9.19.1", minK8s: "1.28", status: "supported", notes: "CVE-2026-24051 fix" },
+      "25.10": { minOntap: "9.8",  maxOntap: "9.18.1", minK8s: "1.27", status: "supported" },
+      "24.10": { minOntap: "9.8",  maxOntap: "9.16.1", minK8s: "1.25", status: "maintenance" },
+    },
+    imtProduct: "Astra+Trident",
+    upgradeDoc: "https://docs.netapp.com/us-en/trident/trident-managing-k8s/upgrade-trident.html",
+    cve: "CVE-2026-24051 fixed in 26.02.0+ — upgrade immediately if below 26.02",
+  },
+
+  // ── Backup & Recovery ──
+  snapcenter: {
+    name: "SnapCenter",
+    signal: "snapcenter",
+    currentRecommended: "6.2.2",
+    versions: {
+      "6.2":  { minOntap: "9.12.1", maxOntap: "9.19.1", status: "current", notes: "Linux Server support GA, Oracle RAC enhancements" },
+      "6.1":  { minOntap: "9.12.1", maxOntap: "9.18.1", status: "supported" },
+      "6.0":  { minOntap: "9.12.1", maxOntap: "9.16.1", status: "supported", notes: "Landmark: Linux Server host support" },
+      "5.0":  { minOntap: "9.8",    maxOntap: "9.14.1", status: "maintenance" },
+      "4.9":  { minOntap: "9.5",    maxOntap: "9.13.1", status: "eol-imminent" },
+    },
+    imtProduct: "SnapCenter+Software",
+    upgradeDoc: "https://docs.netapp.com/us-en/snapcenter/upgrade/upgrade_workflow.html",
+  },
+  veeam: {
+    name: "Veeam Backup & Replication",
+    signal: "veeam",
+    currentRecommended: "12.3",
+    versions: {
+      "12.3": { minOntap: "9.8",  maxOntap: "9.19.1", status: "current", notes: "SnapDiff API CFT — NOT on ONTAP 9.10.1-P10" },
+      "12.2": { minOntap: "9.8",  maxOntap: "9.16.1", status: "supported" },
+      "12.1": { minOntap: "9.8",  maxOntap: "9.14.1", status: "supported" },
+      "12.0": { minOntap: "9.8",  maxOntap: "9.13.1", status: "maintenance" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://www.veeam.com/kb2930",
+    notes: "Veeam not in NetApp IMT — use Veeam's own support matrix. NetApp Plugin v2 for VBR 12.3+.",
+  },
+  commvault: {
+    name: "Commvault (IntelliSnap)",
+    signal: "commvault",
+    currentRecommended: "2024",
+    versions: {
+      "2024": { minOntap: "9.10.1", maxOntap: "9.19.1", status: "current", notes: "IntelliSnap + ASA r2 storage units" },
+      "2023": { minOntap: "9.8",    maxOntap: "9.16.1", status: "supported" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://documentation.commvault.com/",
+  },
+  rubrik: {
+    name: "Rubrik (NAS Cloud Direct)",
+    signal: "rubrik",
+    currentRecommended: "latest",
+    versions: {
+      "latest": { minOntap: "9.5", maxOntap: "9.19.1", status: "current" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://docs.rubrik.com/",
+    notes: "First backup vendor with SnapDiff API access. Rubrik Security Cloud for DSPM.",
+  },
+  cohesity: {
+    name: "Cohesity DataProtect",
+    signal: "cohesity",
+    currentRecommended: "latest",
+    versions: {
+      "latest": { minOntap: "9.5", maxOntap: "9.19.1", status: "current" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://docs.cohesity.com/",
+    notes: "DataHawk AI/ML threat protection (Sophos engine). FortKnox cyber vaulting.",
+  },
+  hycu: {
+    name: "HYCU for ONTAP",
+    signal: "hycu",
+    currentRecommended: "latest",
+    versions: {
+      "latest": { minOntap: "9.8", maxOntap: "9.19.1", status: "current" },
+    },
+    imtProduct: null,
+    upgradeDoc: null,
+    notes: "Agentless REST API integration. R-Shield YARA malware scanning.",
+  },
+
+  // ── SAN Switching ──
+  cisco_nxos: {
+    name: "Cisco Nexus NX-OS (Cluster/Storage Switch)",
+    signal: "cisco_san",
+    currentRecommended: "10.4.2",
+    versions: {
+      "10.4.2":  { minOntap: "9.14.1", maxOntap: "9.19.1", status: "current", notes: "Recommended for AFX 1K (9332D-GX2B, 9364D-GX2A)" },
+      "10.3.4":  { minOntap: "9.12.1", maxOntap: "9.18.1", status: "supported" },
+      "9.3(12)": { minOntap: "9.8",    maxOntap: "9.16.1", status: "legacy", notes: "9336C-FX2 EOA — replacement path to 9332D-GX2B" },
+    },
+    imtProduct: "Cluster+Interconnect+Switch",
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-systems-switches/",
+    notes: "NX-OS 10.6+ required for AFX 2K Nexus 9808 + ONTAP 9.19.1GA.",
+  },
+  cisco_mds: {
+    name: "Cisco MDS 9000 (FC SAN Switch)",
+    signal: "cisco_san",
+    currentRecommended: "9.2(2)",
+    versions: {
+      "9.2(2)": { minOntap: "9.8",  maxOntap: "9.19.1", status: "current" },
+      "9.2(1)": { minOntap: "9.8",  maxOntap: "9.16.1", status: "supported" },
+      "8.4(2)": { minOntap: "9.5",  maxOntap: "9.13.1", status: "eol-imminent" },
+    },
+    imtProduct: "SAN+Switch",
+    upgradeDoc: "https://software.cisco.com/download/home/280283452",
+  },
+  brocade_fos: {
+    name: "Brocade Fabric OS (FC SAN Switch)",
+    signal: "brocade_fc",
+    currentRecommended: "9.2.1",
+    versions: {
+      "9.2.1": { minOntap: "9.10.1", maxOntap: "9.19.1", status: "current", notes: "TruFOS certs required from FOS 9.2+ (G620/G720)" },
+      "9.1.1": { minOntap: "9.8",    maxOntap: "9.16.1", status: "supported", notes: "TruFOS required from FOS 9.1+ (G630)" },
+      "8.2.3": { minOntap: "9.5",    maxOntap: "9.13.1", status: "eol-imminent" },
+    },
+    imtProduct: "SAN+Switch",
+    upgradeDoc: "https://www.broadcom.com/support/fibre-channel-networking/software-downloads",
+  },
+  broadcom_efos: {
+    name: "Broadcom BES-53248 (EFOS)",
+    signal: "broadcom_eth",
+    currentRecommended: "3.12.0.1",
+    versions: {
+      "3.12.0.1": { minOntap: "9.10.1", maxOntap: "9.19.1", status: "current", notes: "Switch is EOA — intermediate 3.4.4.6 step required from 3.4.x" },
+      "3.8.0.2":  { minOntap: "9.8",    maxOntap: "9.16.1", status: "supported" },
+    },
+    imtProduct: "Cluster+Interconnect+Switch",
+    upgradeDoc: "https://mysupport.netapp.com/site/products/all/details/broadcom-cluster-switches/downloads-tab",
+  },
+
+  // ── Host Utilities ──
+  host_utilities_linux: {
+    name: "NetApp Linux Host Utilities",
+    signal: "kvm_linux",
+    currentRecommended: "7.2",
+    versions: {
+      "7.2": { minOntap: "9.8",  maxOntap: "9.19.1", status: "current" },
+      "7.1": { minOntap: "9.5",  maxOntap: "9.16.1", status: "supported" },
+    },
+    imtProduct: "Host+Utilities+-+Linux",
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-sanhost/hu_luhu_71.html",
+  },
+  host_utilities_windows: {
+    name: "NetApp Windows Host Utilities",
+    signal: "hyperv",
+    currentRecommended: "7.2",
+    versions: {
+      "7.2": { minOntap: "9.8",  maxOntap: "9.19.1", status: "current" },
+      "7.1": { minOntap: "9.5",  maxOntap: "9.16.1", status: "supported" },
+    },
+    imtProduct: "Host+Utilities+-+Windows",
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-sanhost/hu_wuhu_71.html",
+  },
+  host_utilities_esxi: {
+    name: "NetApp NFS Plugin for VMware VAAI",
+    signal: "vmware",
+    currentRecommended: "2.3",
+    versions: {
+      "2.3": { minOntap: "9.8",  maxOntap: "9.19.1", status: "current" },
+      "2.1": { minOntap: "9.5",  maxOntap: "9.14.1", status: "maintenance" },
+    },
+    imtProduct: "NFS+Plugin+for+VMware+VAAI",
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere/",
+  },
+
+  // ── Database Integrations ──
+  oracle_dnfs: {
+    name: "Oracle Direct NFS (dNFS) on ONTAP",
+    signal: "oracle_db",
+    currentRecommended: "ONTAP 9.14.1+",
+    versions: {
+      "recommended": { minOntap: "9.14.1", maxOntap: "9.19.1", status: "current", notes: "dNFS requires NFS v4.1 exports. SnapCenter Oracle Plugin validates connectivity." },
+      "supported":    { minOntap: "9.3",   maxOntap: "9.13.1", status: "supported" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap/nfs-admin/index.html",
+  },
+  mssql_ontap: {
+    name: "Microsoft SQL Server on ONTAP",
+    signal: "mssql",
+    currentRecommended: "ONTAP 9.12.1+",
+    versions: {
+      "recommended": { minOntap: "9.12.1", maxOntap: "9.19.1", status: "current", notes: "iSCSI or FC for shared storage. SnapCenter coordinates AG log backups." },
+      "supported":    { minOntap: "9.3",   maxOntap: "9.13.1", status: "supported" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-apps-dbs/mssql/mssql-overview.html",
+  },
+  sap_hana_ontap: {
+    name: "SAP HANA TDI on ONTAP",
+    signal: "sap_hana",
+    currentRecommended: "ONTAP 9.14.1+",
+    versions: {
+      "recommended": { minOntap: "9.14.1", maxOntap: "9.19.1", status: "current", notes: "TDI-certified. NFS or FC. SnapCenter storage connector for hdbsql-consistent snapshots." },
+      "supported":    { minOntap: "9.8",   maxOntap: "9.13.1", status: "supported" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://docs.netapp.com/us-en/ontap-apps-dbs/saphana/saphana-overview.html",
+  },
+
+  // ── Monitoring & Security ──
+  harvest: {
+    name: "NetApp Harvest (Prometheus/Grafana)",
+    signal: "splunk",
+    currentRecommended: "24.05",
+    versions: {
+      "24.05": { minOntap: "9.6",  maxOntap: "9.19.1", status: "current" },
+    },
+    imtProduct: null,
+    upgradeDoc: "https://github.com/NetApp/harvest",
+    notes: "300+ ONTAP metrics via REST/ZAPI. Grafana dashboards included.",
+  },
+  fpolicy_varonis: {
+    name: "Varonis DatAdvantage (FPolicy)",
+    signal: "varonis",
+    currentRecommended: "latest",
+    versions: {
+      "latest": { minOntap: "9.8", maxOntap: "9.19.1", status: "current" },
+    },
+    imtProduct: null,
+    upgradeDoc: null,
+    notes: "FPolicy v2 persistent store (9.13.1+) recommended. Varonis on-prem scheduled for retirement — verify with vendor.",
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MetroCluster ISL Requirements
 // Source: NetApp MetroCluster Deep Dive TR-4510, docs.netapp.com/us-en/ontap-metrocluster
 // ─────────────────────────────────────────────────────────────────────────────
@@ -7089,6 +7346,103 @@ const REFERENCE_LIBRARY_INTEGRATIONS = {
       "High availability: Deploy FPolicy external server in HA pair with load balancing. ONTAP connects to multiple FPolicy servers simultaneously"
     ],
     checkCmd: "vserver fpolicy show"
+  },
+
+  // ── CERTIFIED REFERENCE ARCHITECTURES & VALIDATED DESIGNS ─────────────────────
+  referenceArchitectures: {
+    name: "Certified Reference Architectures & Validated Designs",
+    description: "NetApp Verified Architectures (NVA), FlexPod Cisco Validated Designs (CVD), and Technical Reports (TR) that provide pre-validated, certified end-to-end solution blueprints",
+    categories: {
+      flexpod: {
+        name: "FlexPod — Cisco + NetApp Converged Infrastructure",
+        description: "Pre-validated converged infrastructure combining Cisco UCS compute, Cisco Nexus networking, and NetApp ONTAP storage. Cisco Validated Designs (CVDs) provide tested deployment guides for enterprise workloads.",
+        keyDesigns: [
+          "FlexPod Datacenter with Cisco UCS X-Series (TR-4929): Latest-generation FlexPod with UCS X210c/X410c blades + AFF A-Series + Nexus 9000 — validated for VMware 8, Oracle, SQL Server, SAP",
+          "FlexPod for VMware vSphere 8 (CVD): End-to-end deployment guide — Cisco UCS, Nexus 9336C-FX2, ONTAP 9.14.1+, vSphere 8 U2, iSCSI/FC/NFS",
+          "FlexPod for Microsoft Private Cloud (CVD): Hyper-V, System Center VMM, SMB 3.0 on ONTAP, Cisco UCS — validated HA design",
+          "FlexPod for Healthcare (CVD): Epic EHR, medical imaging DICOM, HIPAA-compliant design — Cisco UCS + NetApp AFF + Cisco ACI",
+          "FlexPod for SAP HANA (CVD): SAP HANA TDI on FlexPod — NFS/FC, scale-out/scale-up, backup with SnapCenter",
+          "FlexPod XCS: Extended Compute and Storage — disaggregated FlexPod with Cisco UCS X-Fabric and NetApp AFF/ASA"
+        ],
+        benefits: [
+          "Cisco TAC + NetApp Support joint escalation path for FlexPod — single case number covers compute+network+storage",
+          "Pre-validated firmware matrices: Cisco UCS + ONTAP + Nexus versions tested end-to-end by Cisco/NetApp engineering",
+          "Reduced deployment risk: CVD step-by-step guides eliminate configuration guesswork",
+          "Lifecycle management: FlexPod Upgrade Guides provide tested upgrade paths for all stack components"
+        ]
+      },
+      nva: {
+        name: "NetApp Verified Architectures (NVA)",
+        description: "Workload-specific validated architectures tested and certified by NetApp engineering. Each NVA includes sizing guidance, configuration, and performance data.",
+        keyDesigns: [
+          "NVA: NVIDIA DGX SuperPOD with NetApp AFF — AI/ML training reference architecture with BeeGFS or NFS, GPU-optimized storage I/O",
+          "NVA: Oracle Database on ONTAP — dNFS, ASM, RAC, RMAN, SnapCenter integration, 12c/19c/21c validated",
+          "NVA: Microsoft SQL Server on ONTAP — iSCSI/SMB, Always On AG, SnapCenter, tempdb on SSD tier",
+          "NVA: SAP HANA on NetApp AFF Systems — TDI-certified, NFS/FC, data tiering, backup with SnapCenter",
+          "NVA: VMware Horizon VDI on ONTAP — persistent/non-persistent desktops, RDSH, Instant Clone with VAAI",
+          "NVA: Splunk Enterprise on ONTAP — SmartStore S3 tiering, hot/warm/cold data lifecycle, FlexGroup ingest",
+          "NVA: Kubernetes (Red Hat OpenShift) on ONTAP — Astra Trident, persistent volumes, backup with Astra Control",
+          "NVA: Epic EHR on FlexPod — healthcare-specific validated design, HIPAA compliance, Cache/Clarity/Cogito separation"
+        ]
+      },
+      technicalReports: {
+        name: "NetApp Technical Reports (TR)",
+        description: "Deep-dive reference documents authored by NetApp engineering. TRs provide authoritative best practices, configuration guidance, and performance benchmarks.",
+        keyReports: [
+          "TR-4569: ONTAP Security Hardening (https://docs.netapp.com/us-en/ontap/security/hardening-overview.html) — CIS benchmarks, STIG compliance, zero-trust microsegmentation, MAV, MFA",
+          "TR-4067: NFS on ONTAP Best Practices — NFSv3/v4.1 tuning, mount options, pNFS, VMware NFS datastores, dNFS",
+          "TR-4515: AFF All-SAN Array Design — FC, iSCSI, NVMe/FC, multipathing, ALUA, ASA-specific optimizations",
+          "TR-4616: NFS Kerberos in ONTAP — implementation, configuration, and troubleshooting guide",
+          "TR-4613: NVMe/FC Host Configuration — Linux, Windows, ESXi host setup, multipath, queue depth tuning",
+          "TR-4733: SnapMirror Business Continuity — SM-BC/Active Sync design, Mediator, zero-RPO failover architecture",
+          "TR-4614: SAP HANA Backup and Recovery with SnapCenter",
+          "TR-4929: FlexPod Datacenter — Cisco UCS X-Series + AFF A-Series + Nexus 9000, VMware/Oracle/SQL validated"
+        ]
+      },
+      partnerSolutions: {
+        name: "Certified Partner Solutions & Ecosystem",
+        description: "NetApp Alliance Partner integrations that have been jointly validated, certified, and supported by both NetApp and the partner.",
+        certifiedPartners: [
+          "Cisco (FlexPod): Joint support, CVDs, firmware interop matrices — the deepest NetApp alliance partnership",
+          "VMware/Broadcom: ONTAP Tools (OTV), VASA Provider, SRM SRA, SnapCenter for vSphere — VMware-certified",
+          "Veeam: NetApp Plugin v2, SnapDiff CFT, ONTAP S3 immutable repository — Veeam Alliance Partner",
+          "Commvault: IntelliSnap, ARP+Synthetic Recovery closed-loop, Metallic DMaaS — Strategic Alliance (2026)",
+          "Microsoft: SQL Server on ONTAP (SMB 3.0/iSCSI certified), Hyper-V, Windows Host Utilities, Azure NetApp Files",
+          "Red Hat: OpenShift + Astra Trident (CSI certified), RHEL Host Utilities, KVM validated",
+          "NVIDIA: DGX SuperPOD + AFF/EF-Series, GPU-optimized NFS, AI/ML reference architectures",
+          "SAP: HANA on ONTAP (TDI certified), SnapCenter for SAP, storage connector",
+          "Oracle: dNFS certified, ASM+ONTAP validated, SnapCenter Oracle Plugin, RAC support",
+          "Ansible/Red Hat: NetApp ONTAP Ansible Collection (galaxy.ansible.com) — certified automation modules",
+          "HashiCorp: Terraform NetApp ONTAP Provider — certified IaC for storage provisioning",
+          "Rubrik: NDMP integration, NAS Direct Archive, volume-level snapshot orchestration",
+          "Cohesity: NDMP/API integration, DataProtect for ONTAP NAS workloads",
+          "HYCU: Agentless REST API integration, R-Shield YARA scanning for ransomware-safe recovery"
+        ]
+      },
+      bluexp: {
+        name: "BlueXP SaaS Management Services",
+        description: "NetApp BlueXP provides a unified SaaS control plane for hybrid multicloud storage management, data protection, and compliance.",
+        services: [
+          "BlueXP Ransomware Protection: SaaS dashboard for ARP status, backup readiness scoring, workload risk assessment across all ONTAP estates",
+          "BlueXP Classification (Data Sense): AI-driven data discovery, PII/PHI scanning, GDPR/HIPAA compliance automation for NAS volumes",
+          "BlueXP Tiering (FabricPool): Policy-driven cold data tiering to S3/Azure Blob/GCS with capacity savings dashboard",
+          "BlueXP Disaster Recovery: VMware DR orchestration via SnapMirror, automated failover/failback runbooks",
+          "BlueXP Backup & Recovery: 3-2-1 backup automation — ONTAP volumes to cloud object storage with policy-based retention",
+          "BlueXP Digital Wallet: Keystone STaaS subscription management, capacity usage tracking, SLA monitoring"
+        ]
+      },
+      keystone: {
+        name: "NetApp Keystone STaaS",
+        description: "Subscription-based Storage-as-a-Service (STaaS) delivering on-premises ONTAP storage with cloud-like opex consumption and SLA guarantees.",
+        features: [
+          "Pay-per-use: Consumption-based billing for AFF, FAS, ASA, AFX, and CVO platforms — true opex model",
+          "SLA-guaranteed: Performance tiers (Extreme/Premium/Standard/Value) with committed latency and IOPS targets",
+          "Burst capacity: Automatic burst above committed capacity with overage billing — no capacity planning required",
+          "Unified management: BlueXP Digital Wallet for real-time usage dashboards and subscription lifecycle management",
+          "Advanced data protection: SnapMirror, MetroCluster, ransomware protection included in service tiers"
+        ]
+      }
+    }
   }
 };
 
@@ -7454,6 +7808,104 @@ function getSwitchFirmwareLink(model) {
 // ── getSwitchIMTLink(model) ───────────────────────────────────────────────────
 function getSwitchIMTLink(ontapVersion) {
   return `https://imt.netapp.com/matrix/#search&searchByProductIdAndFamilyName=search&productNameForSearch=switch&userSelectedTargetFamilyList=ONTAP&userSelectedTargetProductList=ONTAP+${encodeURIComponent(ontapVersion || '9.16.1')}`;
+}
+
+// ── buildIMTUrl(product, ontapVersion) ────────────────────────────────────────
+// Generates a deep-link URL to the NetApp IMT pre-populated with product and
+// ONTAP version for direct interoperability verification.
+function buildIMTUrl(product, ontapVersion) {
+  if (!product) return 'https://imt.netapp.com/matrix/';
+  return `https://imt.netapp.com/matrix/#search&searchByProductIdAndFamilyName=search&productNameForSearch=${product}&userSelectedTargetFamilyList=ONTAP&userSelectedTargetProductList=ONTAP+${encodeURIComponent(ontapVersion || '9.16.1')}`;
+}
+
+// ── runIMTInteropCheck(systems, detectedSignals) ──────────────────────────────
+// Cross-references each system's ONTAP version against IMT_INTEROP_MATRIX for
+// all fleet-detected integrations. Returns structured findings array.
+function runIMTInteropCheck(systems, detectedSignals) {
+  if (!systems || !systems.length || !detectedSignals) return [];
+  const findings = [];
+  const _vNum = v => parseFloat((v || '0').replace(/P\d+$/, '').replace(/^(\d+\.\d+).*/, '$1'));
+
+  for (const [key, integration] of Object.entries(IMT_INTEROP_MATRIX)) {
+    // Skip integrations not detected in fleet
+    if (integration.signal && !detectedSignals[integration.signal]) continue;
+    if (!integration.versions) continue;
+
+    const recommended = integration.versions[integration.currentRecommended];
+    if (!recommended) continue;
+
+    // Deduplicate: track one finding per integration (worst case across fleet)
+    let worstFinding = null;
+
+    for (const sys of systems) {
+      const ontapVer = sys.ontapVersion;
+      if (!ontapVer) continue;
+      const ontapNum = _vNum(ontapVer);
+      const minNum = _vNum(recommended.minOntap);
+
+      if (ontapNum < minNum) {
+        const f = {
+          type: 'ontap_below_minimum',
+          severity: 'warning',
+          system: sys.hostname || sys.serialNumber || 'Unknown',
+          ontapVersion: ontapVer,
+          integration: integration.name,
+          integrationKey: key,
+          currentRecommended: integration.currentRecommended,
+          minOntap: recommended.minOntap,
+          maxOntap: recommended.maxOntap,
+          message: `ONTAP ${ontapVer} is below minimum ONTAP ${recommended.minOntap} required for ${integration.name} ${integration.currentRecommended}`,
+          recommendation: `Upgrade ONTAP to ${recommended.minOntap}+ to use ${integration.name} ${integration.currentRecommended}, or verify an older compatible version in IMT`,
+          imtUrl: buildIMTUrl(integration.imtProduct, ontapVer),
+          upgradeDoc: integration.upgradeDoc,
+          cve: integration.cve || null,
+        };
+        if (!worstFinding || ontapNum < _vNum(worstFinding.ontapVersion)) worstFinding = f;
+      }
+    }
+
+    if (worstFinding) findings.push(worstFinding);
+
+    // Check for EOL-imminent tool versions that could match fleet ONTAP range
+    for (const [toolVer, compat] of Object.entries(integration.versions)) {
+      if (compat.status !== 'eol-imminent') continue;
+      const eolMin = _vNum(compat.minOntap);
+      const eolMax = _vNum(compat.maxOntap);
+      const affected = systems.some(s => {
+        const v = _vNum(s.ontapVersion);
+        return v >= eolMin && v <= eolMax;
+      });
+      if (affected) {
+        findings.push({
+          type: 'tool_eol_warning',
+          severity: 'info',
+          integration: integration.name,
+          integrationKey: key,
+          toolVersion: toolVer,
+          currentRecommended: integration.currentRecommended,
+          message: `${integration.name} ${toolVer} is approaching end-of-life — upgrade to ${integration.currentRecommended}`,
+          recommendation: `Upgrade ${integration.name} to ${integration.currentRecommended} (current). Check vendor support matrix.`,
+          upgradeDoc: integration.upgradeDoc,
+          notes: compat.notes || '',
+        });
+      }
+    }
+
+    // Check for CVE urgency
+    if (integration.cve && systems.some(s => _vNum(s.ontapVersion) > 0)) {
+      findings.push({
+        type: 'cve_advisory',
+        severity: 'critical',
+        integration: integration.name,
+        integrationKey: key,
+        message: integration.cve,
+        recommendation: `Upgrade ${integration.name} to ${integration.currentRecommended} immediately`,
+        upgradeDoc: integration.upgradeDoc,
+      });
+    }
+  }
+
+  return findings;
 }
 
 function getRiskSafetyTier(r) {
@@ -14082,8 +14534,15 @@ function getFleetRelevantArticles(targetSystems) {
     }
 
     // Category relevance (always-relevant categories)
-    const alwaysRelevant = ['troubleshooting', 'operations', 'upgrade', 'remediation', 'security', 'performance'];
+    const alwaysRelevant = ['troubleshooting', 'operations', 'upgrade', 'remediation', 'security', 'performance',
+                            'vendor_guidelines', 'best_practices', 'gap_analysis'];
     if (alwaysRelevant.includes(cat)) score += 10;
+
+    // Vendor guideline and gap analysis boost
+    if (a._vendorGuideline) score += 35;
+    if (a._gapAnalysis) score += 60;  // Gaps are highest priority
+    if (a._versionFeature) score += 25;
+    if (a.alignment) score += 10;  // Has NetApp alignment notes
 
     // Keyword relevance boosts
     const opsKeywords = ['troubleshoot', 'remediat', 'known issue', 'error message', 'procedure',
@@ -14091,6 +14550,15 @@ function getFleetRelevantArticles(targetSystems) {
                          'firmware', 'patch', 'cli', 'runbook', 'best practice'];
     for (const kw of opsKeywords) {
       if (title.includes(kw)) { score += 5; break; }
+    }
+
+    // Integration vendor keyword boosts
+    const vendorKeywords = ['veeam', 'commvault', 'rubrik', 'cohesity', 'hycu', 'vmware', 'vsphere',
+                            'cisco', 'brocade', 'broadcom', 'oracle', 'sql server', 'sap hana',
+                            'kubernetes', 'trident', 'hyper-v', 'proxmox', 'nutanix', 'crowdstrike',
+                            'splunk', 'varonis', 'snapcenter', 'metrocluster', 'fabricpool'];
+    for (const kw of vendorKeywords) {
+      if (title.includes(kw)) { score += 8; break; }
     }
 
     // If relevance field mentions fleet
@@ -14421,6 +14889,79 @@ function getFleetEnrichmentSections(targetSystems) {
       };
     }
 
+    // Vendor guideline articles with alignment notes
+    if (a._vendorGuideline && a.alignment) {
+      return {
+        covers: a.alignment,
+        action: a._gapAnalysis
+          ? `⚠ COVERAGE GAP: ${a.alignment}`
+          : `Review vendor alignment: ${a.alignment}`,
+        effort: a._gapAnalysis ? 'Requires assessment' : '1 hour review'
+      };
+    }
+
+    // Version feature articles
+    if (a._versionFeature && a.alignment) {
+      return {
+        covers: `ONTAP feature: ${a.alignment}`,
+        action: `Evaluate enablement for fleet systems on this ONTAP version`,
+        effort: '30 min assessment'
+      };
+    }
+
+    // Backup vendor articles
+    if (t.includes('veeam')) {
+      return {
+        covers: 'Veeam Backup & Replication integration with NetApp ONTAP — SnapDiff CFT, snapshot orchestration',
+        action: 'Validate Veeam-ONTAP plugin version and SnapDiff API compatibility',
+        effort: '1 hour review'
+      };
+    }
+    if (t.includes('commvault') || t.includes('intellisnap')) {
+      return {
+        covers: 'Commvault IntelliSnap snapshot-based protection with ONTAP',
+        action: 'Verify IntelliSnap configuration and snapshot retention alignment',
+        effort: '1 hour review'
+      };
+    }
+    if (t.includes('rubrik')) {
+      return {
+        covers: 'Rubrik NAS Cloud Direct integration with ONTAP via NDMP/API',
+        action: 'Verify Rubrik data management policy alignment with ONTAP snapshot schedule',
+        effort: '1 hour review'
+      };
+    }
+    if (t.includes('cohesity')) {
+      return {
+        covers: 'Cohesity DataProtect NDMP/NFS integration with ONTAP',
+        action: 'Review Cohesity NDMP user scope and backup SLA alignment',
+        effort: '1 hour review'
+      };
+    }
+    if (t.includes('hycu')) {
+      return {
+        covers: 'HYCU agentless REST API backup with ONTAP — R-Shield malware scanning',
+        action: 'Verify HYCU REST API access and R-Shield YARA scanning configuration',
+        effort: '1 hour review'
+      };
+    }
+
+    // Switch firmware articles
+    if (t.includes('cisco') && (t.includes('nexus') || t.includes('mds') || t.includes('nx-os'))) {
+      return {
+        covers: 'Cisco switch firmware alignment with NetApp cluster/MetroCluster requirements',
+        action: 'Validate NX-OS firmware version against REFERENCE_LIBRARY_FIRMWARE_BASELINES',
+        effort: '30 min validation'
+      };
+    }
+    if (t.includes('brocade') || t.includes('fabric os') || t.includes('fos')) {
+      return {
+        covers: 'Brocade FC switch firmware and TruFOS certificate management',
+        action: 'Verify FOS version and TruFOS certificate validity',
+        effort: '30 min validation'
+      };
+    }
+
     // Fallback: generic context based on category
     const catActions = {
       'integration': { covers: 'Third-party ecosystem integration with ONTAP storage', action: 'Review integration compatibility with your environment' },
@@ -14437,6 +14978,8 @@ function getFleetEnrichmentSections(targetSystems) {
       'migration': { covers: 'Data migration and platform transition tools', action: 'Plan migration strategy for legacy systems' },
       'compliance': { covers: 'Regulatory compliance and data governance', action: 'Audit compliance posture' },
       'best_practices': { covers: 'Vendor-recommended configurations and architectures', action: 'Benchmark fleet against best practices' },
+      'vendor_guidelines': { covers: '3rd party vendor documentation aligned with NetApp best practices', action: 'Review vendor guidelines for integration compatibility' },
+      'gap_analysis': { covers: 'Detected coverage gaps in fleet configuration or integration alignment', action: 'Address identified configuration gaps' },
     };
     return catActions[cat] || { covers: 'NetApp vendor documentation', action: 'Review for fleet applicability' };
   }
@@ -14477,6 +15020,9 @@ function getFleetEnrichmentSections(targetSystems) {
   const cloudArticles = [...(grouped['cloud'] || [])];
   const bpArticles = [...(grouped['best_practices'] || [])];
   const monitorArticles = [...(grouped['monitoring'] || [])];
+  const vendorArticles = [...(grouped['vendor_guidelines'] || [])];
+  const gapArticles = [...(grouped['gap_analysis'] || [])];
+  const refArchArticles = [...(grouped['reference_architecture'] || [])];
   const allArticles = Object.values(grouped).flat();
 
   // Track counts per deliverable for UI badges
@@ -14487,10 +15033,15 @@ function getFleetEnrichmentSections(targetSystems) {
 
   // ── 1. Problem Statements — security + operational intelligence ──
   {
-    const arts = [...secArticles, ...troubleArticles, ...opsArticles.slice(0, 5)];
+    const arts = [...secArticles, ...troubleArticles, ...gapArticles, ...opsArticles.slice(0, 5)];
     counts.problemStatements = arts.length;
     if (arts.length > 0) {
       let block = `\n================================================================================\nFLEET-SPECIFIC INTELLIGENCE & VENDOR DOCUMENTATION\n================================================================================\n${fleetHeader}\n`;
+      if (gapArticles.length > 0) {
+        block += `► ⚠ COVERAGE GAPS & CONFIGURATION RISKS (${gapArticles.length} item${gapArticles.length > 1 ? 's' : ''})\n`;
+        block += `  The following integration/configuration gaps were detected by fleet analysis:\n\n`;
+        block += fmtRichSection(gapArticles, 8) + '\n';
+      }
       if (secArticles.length > 0) {
         block += `► SECURITY & REMEDIATION INTELLIGENCE (${secArticles.length} documents matched)\n`;
         block += fmtRichSection(secArticles, 6) + '\n';
@@ -14515,12 +15066,16 @@ function getFleetEnrichmentSections(targetSystems) {
       block += `As part of our proactive fleet management, the ARIA enrichment engine has\nidentified ${allArticles.length} vendor documents specifically relevant to your deployed\ninfrastructure (${fleetCtx}).\n\n`;
       block += `Key areas of coverage:\n`;
       if (secArticles.length > 0) block += `  ■ Security & Compliance: ${secArticles.length} guide(s) — covering hardening, encryption, and ransomware protection\n`;
-      if (integrationArticles.length > 0) block += `  ■ 3rd-Party Integration: ${integrationArticles.length} guide(s) — VMware, Kubernetes, database, and automation platforms\n`;
+      if (vendorArticles.length > 0) block += `  ■ 3rd-Party Vendor Guidelines: ${vendorArticles.length} document(s) — backup, hypervisor, switch, database, and cyber vendor alignment\n`;
+      if (gapArticles.length > 0) block += `  ⚠ Coverage Gaps: ${gapArticles.length} gap(s) detected — integration or configuration areas requiring attention\n`;
+      if (integrationArticles.length > 0) block += `  ■ Ecosystem Integration: ${integrationArticles.length} guide(s) — VMware, Kubernetes, database, and automation platforms\n`;
       if (upgradeArticles.length > 0) block += `  ■ Upgrade Procedures: ${upgradeArticles.length} guide(s) — version-specific to your fleet's ONTAP ${versStr}\n`;
       if (dpArticles.length > 0) block += `  ■ Data Protection: ${dpArticles.length} guide(s) — SnapMirror, MetroCluster, backup and recovery\n`;
       if (cloudArticles.length > 0) block += `  ■ Cloud Integration: ${cloudArticles.length} guide(s) — hybrid cloud, tiering, and cloud-native services\n`;
       if (troubleArticles.length > 0) block += `  ■ Troubleshooting: ${troubleArticles.length} article(s) — known issues and resolution procedures\n`;
       if (opsArticles.length > 0) block += `  ■ Operations: ${opsArticles.length} guide(s) — administration and configuration references\n`;
+      if (bpArticles.length > 0) block += `  ■ Best Practices: ${bpArticles.length} guide(s) — NetApp-recommended configuration baselines\n`;
+      if (refArchArticles.length > 0) block += `  ■ Reference Architectures: ${refArchArticles.length} document(s) — NVA, FlexPod CVD, and Technical Reports aligned to your fleet\n`;
       if (perfArticles.length > 0) block += `  ■ Performance: ${perfArticles.length} guide(s) — tuning, QoS, and workload optimization\n`;
       block += `\nFull reference library: ${allArticles.length} document(s) covering your deployed platforms and software versions.\n`;
       block += `These references are version-matched to your fleet and available in detailed form in the attached deliverables.\n`;
@@ -14552,10 +15107,20 @@ function getFleetEnrichmentSections(targetSystems) {
 
   // ── 4. Solution Proposals — integration + best practices intelligence ──
   {
-    const arts = [...integrationArticles, ...cloudArticles, ...bpArticles];
+    const arts = [...integrationArticles, ...cloudArticles, ...bpArticles, ...vendorArticles, ...gapArticles, ...refArchArticles];
     counts.solutionProposals = arts.length;
     if (arts.length > 0) {
       let block = `\n================================================================================\n3RD-PARTY INTEGRATION & SOLUTION ARCHITECTURE INTELLIGENCE\n================================================================================\n${fleetHeader}\n`;
+      if (gapArticles.length > 0) {
+        block += `► ⚠ COVERAGE GAPS DETECTED (${gapArticles.length} gap${gapArticles.length > 1 ? 's' : ''})\n`;
+        block += `  The enrichment engine identified the following integration/configuration gaps:\n\n`;
+        block += fmtRichSection(gapArticles, 10) + '\n';
+      }
+      if (vendorArticles.length > 0) {
+        block += `► 3RD-PARTY VENDOR GUIDELINES (${vendorArticles.length} documents)\n`;
+        block += `  Vendor documentation aligned to your detected fleet integrations:\n\n`;
+        block += fmtRichSection(vendorArticles, 15) + '\n';
+      }
       if (integrationArticles.length > 0) {
         block += `► ECOSYSTEM INTEGRATION (${integrationArticles.length} platforms)\n`;
         block += `  The following 3rd-party integrations have been validated for your fleet:\n\n`;
@@ -14572,6 +15137,11 @@ function getFleetEnrichmentSections(targetSystems) {
       if (monitorArticles.length > 0) {
         block += `► MONITORING & OBSERVABILITY\n`;
         block += fmtRichSection(monitorArticles, 4) + '\n';
+      }
+      if (refArchArticles.length > 0) {
+        block += `► CERTIFIED REFERENCE ARCHITECTURES & VALIDATED DESIGNS (${refArchArticles.length} documents)\n`;
+        block += `  NetApp Verified Architectures (NVA), FlexPod CVDs, and Technical Reports aligned to your fleet:\n\n`;
+        block += fmtRichSection(refArchArticles, 20) + '\n';
       }
       sections.solutionProposals = block;
     }
@@ -16938,6 +17508,52 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const coi = computeCostOfInaction(targetSystems);
   const coiLabel = coi.score >= 50 ? 'CRITICAL' : coi.score >= 25 ? 'MATERIAL' : coi.score >= 10 ? 'MODERATE' : 'LOW';
 
+  // ── IMT Interoperability Validation ──
+  // Build fleet signals from targetSystems to detect 3rd-party integrations
+  const _fleetSignals = {};
+  targetSystems.forEach(s => {
+    const allText = JSON.stringify(s).toLowerCase();
+    if (!_fleetSignals.vmware && (allText.includes('vmware') || allText.includes('esxi') || allText.includes('vmfs') || allText.includes('vaai'))) _fleetSignals.vmware = true;
+    if (!_fleetSignals.kubernetes && (allText.includes('kubernetes') || allText.includes('trident') || allText.includes('k8s'))) _fleetSignals.kubernetes = true;
+    if (!_fleetSignals.snapcenter && (allText.includes('snapcenter') || allText.includes('snap center'))) _fleetSignals.snapcenter = true;
+    if (!_fleetSignals.veeam && allText.includes('veeam')) _fleetSignals.veeam = true;
+    if (!_fleetSignals.commvault && (allText.includes('commvault') || allText.includes('intellisnap'))) _fleetSignals.commvault = true;
+    if (!_fleetSignals.rubrik && allText.includes('rubrik')) _fleetSignals.rubrik = true;
+    if (!_fleetSignals.cohesity && allText.includes('cohesity')) _fleetSignals.cohesity = true;
+    if (!_fleetSignals.hycu && allText.includes('hycu')) _fleetSignals.hycu = true;
+    if (!_fleetSignals.cisco_san && (allText.includes('cisco') || allText.includes('nexus') || allText.includes('mds'))) _fleetSignals.cisco_san = true;
+    if (!_fleetSignals.brocade_fc && (allText.includes('brocade') || allText.includes('fabric os'))) _fleetSignals.brocade_fc = true;
+    if (!_fleetSignals.broadcom_eth && allText.includes('bes-53248')) _fleetSignals.broadcom_eth = true;
+    if (!_fleetSignals.kvm_linux && (allText.includes('linux') || allText.includes('kvm'))) _fleetSignals.kvm_linux = true;
+    if (!_fleetSignals.hyperv && (allText.includes('hyper-v') || allText.includes('hyperv'))) _fleetSignals.hyperv = true;
+    if (!_fleetSignals.oracle_db && allText.includes('oracle')) _fleetSignals.oracle_db = true;
+    if (!_fleetSignals.mssql && (allText.includes('mssql') || allText.includes('sql server'))) _fleetSignals.mssql = true;
+    if (!_fleetSignals.sap_hana && (allText.includes('sap') || allText.includes('hana'))) _fleetSignals.sap_hana = true;
+    if (!_fleetSignals.splunk && (allText.includes('splunk') || allText.includes('harvest') || allText.includes('grafana'))) _fleetSignals.splunk = true;
+    if (!_fleetSignals.varonis && (allText.includes('varonis') || allText.includes('fpolicy'))) _fleetSignals.varonis = true;
+    // Also detect from enrichment KB articles if available
+    const kbArts = (state.enrichmentKB && state.enrichmentKB.articles) || [];
+    kbArts.forEach(a => {
+      const at = ((a.title || '') + ' ' + (a.url || '')).toLowerCase();
+      if (at.includes('vmware') || at.includes('esxi')) _fleetSignals.vmware = true;
+      if (at.includes('trident') || at.includes('kubernetes')) _fleetSignals.kubernetes = true;
+      if (at.includes('snapcenter')) _fleetSignals.snapcenter = true;
+      if (at.includes('veeam')) _fleetSignals.veeam = true;
+      if (at.includes('commvault')) _fleetSignals.commvault = true;
+    });
+  });
+
+  // Map targetSystems to format expected by runIMTInteropCheck
+  const _imtSystems = targetSystems.map(s => ({
+    hostname: s.systemName || s.hostname || '',
+    serialNumber: s.serialNumber || '',
+    ontapVersion: s.osVersion || s.ontapVersion || '',
+  }));
+  const imtFindings = (typeof runIMTInteropCheck === 'function') ? runIMTInteropCheck(_imtSystems, _fleetSignals) : [];
+  const imtCritical = imtFindings.filter(f => f.severity === 'critical');
+  const imtWarnings = imtFindings.filter(f => f.severity === 'warning');
+  const imtInfo = imtFindings.filter(f => f.severity === 'info' || f.type === 'tool_eol_warning');
+
   let problemStatements = `================================================================================
 EXECUTIVE RISK ASSESSMENT
 ================================================================================
@@ -16980,7 +17596,11 @@ FEATURE ADOPTION:     ${fm.fleetAvgScore}% fleet average (${fm.perSystem.length 
   ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  NVE: ${fm.pct.nve}%  SnapMirror: ${fm.pct.snapMirror}%
   HA: ${fm.pct.ha}%  Audit: ${fm.pct.audit}%  SnapLock: ${fm.pct.snapLock}%  MAV: ${fm.pct.mav}%
 
-`;
+${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
+  Integrations Checked: ${Object.keys(_fleetSignals).filter(k => _fleetSignals[k]).length}
+  Findings: ${imtCritical.length} critical, ${imtWarnings.length} warning, ${imtInfo.length} advisory
+${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ') + ' ' + f.message).join('\n')}
+` : ''}`;
 
   if (sortedRisks.length === 0 && expiringContracts.length === 0 && asupIssues.length === 0) {
     problemStatements += "No critical or high-severity issues identified.\n";
@@ -17128,7 +17748,8 @@ ${sortedRisks.slice(0, 6).map((g, i) => `  ${i+1}. [${g.severity.toUpperCase()}]
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
 ${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}
 ${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}
-${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (sysCount - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}`;
+${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (sysCount - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}
+${imtFindings.length > 0 ? `\nINTEROPERABILITY POSTURE (IMT CHECK):\n${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ') + ' ' + f.message).join('\n')}` : ''}`;
   // ===================== 3. CHANGE TICKETS =====================
   let changeTickets = `================================================================================
 CHANGE CONTROL TICKETS
@@ -17339,7 +17960,15 @@ CHANGE SAFETY CLASSIFICATION
   Potentially Disruptive: Network interface reconfigurations, aggregate relocation
   Destructive/Irreversible: Snapshot deletion, volume destroy, LUN unmap — require backup verification
 
-KEY REFERENCES
+${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (NetApp IMT)
+--------------------------------------------------------------------------------
+${imtFindings.map((f, i) => {
+  let line = `${i + 1}. [${f.severity.toUpperCase()}] ${f.message}\n   Recommendation: ${f.recommendation || 'Verify in NetApp IMT'}`;
+  if (f.upgradeDoc) line += `\n   Upgrade Docs: ${f.upgradeDoc}`;
+  if (f.imtUrl) line += `\n   IMT Link: ${f.imtUrl}`;
+  if (f.cve) line += `\n   ⚠ CVE: ${f.cve}`;
+  return line;
+}).join('\n\n')}\n\n` : ''}KEY REFERENCES
 --------------------------------------------------------------------------------
   Active IQ:         activeiq.netapp.com
   Security:          security.netapp.com
@@ -17369,6 +17998,22 @@ GLOBAL PRE-FLIGHT CHECKS (run before any system):
   event log show -severity EMERGENCY,ALERT -time-range -1h
 
 `;
+
+  if (imtFindings.length > 0) {
+    implementationPlans += `INTEROPERABILITY PRE-FLIGHT VALIDATION (IMT)
+--------------------------------------------------------------------------------
+Before proceeding with any firmware upgrades, validate 3rd-party tool compatibility:
+
+${imtFindings.map((f, i) => {
+  let line = `${i + 1}. [${f.severity.toUpperCase()}] ${f.integration || 'Unknown'}: ${f.message}`;
+  if (f.recommendation) line += `\n   → ${f.recommendation}`;
+  if (f.upgradeDoc) line += `\n   Docs: ${f.upgradeDoc}`;
+  return line;
+}).join('\n\n')}
+
+`;
+  }
+
 
   targetSystems.forEach((sys, sysIdx) => {
     const sysRisks = (sys.risks || [])
@@ -17706,6 +18351,38 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   if (enrichSections.securityBrief)       securityBrief       += enrichSections.securityBrief;
   if (enrichSections.sustainabilityReport) sustainabilityReport += enrichSections.sustainabilityReport;
 
+  // ── Inject IMT Interoperability Findings into remaining deliverables ──
+  if (imtFindings.length > 0) {
+    const _imtBlock = `\n================================================================================
+INTEROPERABILITY VALIDATION (NetApp IMT)
+================================================================================
+Integrations Checked: ${Object.keys(_fleetSignals).filter(k => _fleetSignals[k]).length}
+Findings: ${imtCritical.length} critical, ${imtWarnings.length} warning, ${imtInfo.length} advisory
+
+${imtFindings.map((f, i) => {
+  let line = `${i + 1}. [${f.severity.toUpperCase()}] ${f.integration || 'Unknown'}: ${f.message}`;
+  if (f.recommendation) line += `\n   Recommendation: ${f.recommendation}`;
+  if (f.imtUrl) line += `\n   IMT Link: ${f.imtUrl}`;
+  if (f.upgradeDoc) line += `\n   Upgrade Docs: ${f.upgradeDoc}`;
+  if (f.cve) line += `\n   ⚠ CVE: ${f.cve}`;
+  return line;
+}).join('\n\n')}
+
+Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
+================================================================================\n`;
+
+    // Append to deliverables that didn't get inline IMT sections
+    securityBrief += _imtBlock;
+    qbrPack += _imtBlock;
+    mspReport += _imtBlock;
+    handoverBrief += _imtBlock;
+    meddpiccBrief += _imtBlock;
+    customerSuccessPlan += _imtBlock;
+    salesProposals += _imtBlock;
+    changeTickets += _imtBlock;
+    sustainabilityReport += `\n  INTEROPERABILITY NOTE: ${imtFindings.length} IMT finding(s) detected — see full details in Security Brief or Solution Proposal deliverables.\n`;
+  }
+
   return {
     problemStatements,
     customerComms,
@@ -17722,7 +18399,10 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
     sustainabilityReport,
     _enrichmentCounts: enrichSections._counts || {},
     _fleetProfile: enrichSections._fleetProfile || '',
-    _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0)
+    _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0),
+    _imtFindings: imtFindings,
+    _imtFindingsCount: imtFindings.length,
+    _fleetSignals: _fleetSignals
   };
 }
 
@@ -19054,6 +19734,14 @@ function generateActionPlan() {
         </div>
         ${fleetProfile ? `<div style="margin-top:10px;font-size:0.7rem;color:var(--text-muted);border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;">
           <span style="color:#8b5cf6;font-weight:600;">Fleet Profile:</span> ${fleetProfile}
+        </div>` : ''}
+        ${docs._imtFindingsCount > 0 ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:0.72rem;">
+          <span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(251,191,36,0.12),rgba(245,158,11,0.08));border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:2px 10px;font-weight:600;color:#fbbf24;white-space:nowrap;">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M2 2h12v12H2V2zm2 2v8h8V4H4zm2 2h4v1H6V6zm0 2h4v1H6V8z" fill="#fbbf24" opacity="0.9"/></svg>
+            IMT: ${docs._imtFindingsCount} finding${docs._imtFindingsCount !== 1 ? 's' : ''}
+          </span>
+          <span style="color:var(--text-muted);">across <strong style="color:#fbbf24;">${Object.keys(docs._fleetSignals || {}).filter(k => docs._fleetSignals[k]).length}</strong> detected integrations</span>
+          ${docs._imtFindings.filter(f => f.severity === 'critical').length > 0 ? `<span style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:1px 6px;font-size:0.6rem;font-weight:600;color:#ef4444;">${docs._imtFindings.filter(f => f.severity === 'critical').length} CRITICAL</span>` : ''}
         </div>` : ''}
       </div>` : '';
 
