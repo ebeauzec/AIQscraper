@@ -7824,7 +7824,6 @@ function buildIMTUrl(product, ontapVersion) {
 function runIMTInteropCheck(systems, detectedSignals) {
   if (!systems || !systems.length || !detectedSignals) return [];
   const findings = [];
-  const _vNum = v => parseFloat((v || '0').replace(/P\d+$/, '').replace(/^(\d+\.\d+).*/, '$1'));
 
   for (const [key, integration] of Object.entries(IMT_INTEROP_MATRIX)) {
     // Skip integrations not detected in fleet
@@ -7840,10 +7839,9 @@ function runIMTInteropCheck(systems, detectedSignals) {
     for (const sys of systems) {
       const ontapVer = sys.ontapVersion;
       if (!ontapVer) continue;
-      const ontapNum = _vNum(ontapVer);
-      const minNum = _vNum(recommended.minOntap);
 
-      if (ontapNum < minNum) {
+      // Use proper semantic version comparison (major.minor.patch)
+      if (versionLt(ontapVer, recommended.minOntap)) {
         const f = {
           type: 'ontap_below_minimum',
           severity: 'warning',
@@ -7860,7 +7858,8 @@ function runIMTInteropCheck(systems, detectedSignals) {
           upgradeDoc: integration.upgradeDoc,
           cve: integration.cve || null,
         };
-        if (!worstFinding || ontapNum < _vNum(worstFinding.ontapVersion)) worstFinding = f;
+        // Keep worst (lowest version) finding per integration
+        if (!worstFinding || versionLt(ontapVer, worstFinding.ontapVersion)) worstFinding = f;
       }
     }
 
@@ -7869,11 +7868,12 @@ function runIMTInteropCheck(systems, detectedSignals) {
     // Check for EOL-imminent tool versions that could match fleet ONTAP range
     for (const [toolVer, compat] of Object.entries(integration.versions)) {
       if (compat.status !== 'eol-imminent') continue;
-      const eolMin = _vNum(compat.minOntap);
-      const eolMax = _vNum(compat.maxOntap);
+      // System is in range if: ontapVer >= minOntap AND ontapVer <= maxOntap
+      // i.e., NOT below min AND NOT above max
       const affected = systems.some(s => {
-        const v = _vNum(s.ontapVersion);
-        return v >= eolMin && v <= eolMax;
+        const v = s.ontapVersion;
+        if (!v) return false;
+        return !versionLt(v, compat.minOntap) && !versionLt(compat.maxOntap, v);
       });
       if (affected) {
         findings.push({
@@ -7892,7 +7892,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
     }
 
     // Check for CVE urgency
-    if (integration.cve && systems.some(s => _vNum(s.ontapVersion) > 0)) {
+    if (integration.cve && systems.some(s => s.ontapVersion)) {
       findings.push({
         type: 'cve_advisory',
         severity: 'critical',
