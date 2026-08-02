@@ -10032,7 +10032,7 @@ function renderCSMTab() {
       if (s.contracts && s.contracts.daysRemaining > 90) _contractPass++;
 
       // 20. SVM/LIF inventory available
-      const _svms = (typeof getSystemSvms === 'function') ? getSystemSvms(s) : (s.vservers || []);
+      const _svms = (typeof getSystemSvms === 'function') ? (getSystemSvms(s) || []) : (s.vservers || []);
       if (_svms.length > 0) _svmPass++;
 
       // 21. No excessive FlexClone sprawl
@@ -10433,7 +10433,7 @@ function renderCSMTab() {
     return desc.includes('firmware') || desc.includes('disk qual') || desc.includes('shelf fw');
   });
   const _sCisaHits   = _sCVEs.filter(b => b.cisaKEV === true || b.cisaKev === true || (b.tags || []).includes('CISA-KEV'));
-  const _sSvms       = (typeof getSystemSvms === 'function') ? getSystemSvms(sys) : (sys.vservers || []);
+  const _sSvms       = (typeof getSystemSvms === 'function') ? (getSystemSvms(sys) || []) : (sys.vservers || []);
   const _sCloneCount = sys.flexCloneCount || 0;
   const _sAdoptScore = (typeof computeFeatureAdoptionScore === 'function') ? computeFeatureAdoptionScore(sys) : null;
   const _sUnassigned = _sPorts.filter(p => !p.broadcastDomain || p.broadcastDomain === '');
