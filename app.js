@@ -14497,6 +14497,12 @@ async function loadEnrichmentKB() {
  * Filter enrichment KB articles to those relevant to the fleet in scope.
  * Matches on ONTAP versions, platform families, model names, and categories.
  * Returns articles grouped by category with deduplication.
+ *
+ * FILTERING PHILOSOPHY:
+ *   Articles MUST demonstrate fleet-specific relevance — matching a version,
+ *   platform, model, or carrying a server-side fleet flag (_fleetRelevant,
+ *   _vendorGuideline, _gapAnalysis, _versionFeature). Generic category pages,
+ *   landing pages, and product index pages are stripped before scoring.
  */
 function getFleetRelevantArticles(targetSystems) {
   const articles = (state.enrichmentKB && state.enrichmentKB.articles) || [];
@@ -14508,6 +14514,7 @@ function getFleetRelevantArticles(targetSystems) {
   const fleetPlatforms = new Set();
   const fleetModels = new Set();
   const fleetProducts = new Set();
+  const fleetProtocols = new Set();
 
   targetSystems.forEach(s => {
     const ver = s.osVersion || s.ontapVersion || '';
@@ -14522,24 +14529,75 @@ function getFleetRelevantArticles(targetSystems) {
     if (model) fleetModels.add(model);
     const prod = (s.productType || s.systemType || '').toLowerCase();
     if (prod) fleetProducts.add(prod);
+    (s.protocols || []).forEach(p => fleetProtocols.add(p.toLowerCase()));
   });
 
-  // Relevance scoring function
+  // ── Pre-filter: reject generic landing/index pages ─────────────────────
+  // These are category indexes with very short titles and no actionable content.
+  // Examples: "Cloud", "Legacy", "All Products", "ONTAP", "Upgrade", "Videos"
+  const actionableKeywords = [
+    'how to', 'troubleshoot', 'error', 'configure', 'enable', 'disable',
+    'upgrade', 'migrate', 'install', 'deploy', 'best practice', 'hardening',
+    'ransomware', 'encryption', 'failover', 'takeover', 'giveback', 'restore',
+    'backup', 'replication', 'snapmirror', 'metrocluster', 'fabricpool',
+    'performance', 'qos', 'firmware', 'patch', 'certificate', 'vulnerability',
+    'cve-', 'ntap-', 'known issue', 'resolution', 'procedure', 'runbook',
+    'veeam', 'commvault', 'rubrik', 'vmware', 'vsphere', 'kubernetes',
+    'trident', 'oracle', 'sql server', 'sap', 'cisco', 'brocade', 'broadcom',
+    'crowdstrike', 'splunk', 'hycu', 'cohesity', 'nutanix', 'proxmox',
+    'snapcenter', 'active sync', 'zero trust', 'multi-admin', 'snaplock',
+    'antivirus', 'vscan', 'nve', 'nae', 'arp', 'file system analytics',
+    'rest api', 'ansible', 'harvest', 'grafana', 'prometheus', 'cloud volumes',
+    'fsx', 'azure netapp', 'tiering', 'data protection', 'audit', 'compliance'
+  ];
+
+  function isGenericPage(a) {
+    const title = (a.title || '').trim();
+    const titleLower = title.toLowerCase();
+    const wordCount = title.split(/\s+/).length;
+
+    // Very short titles (≤ 3 words) are almost always index pages unless
+    // they contain an actionable keyword
+    if (wordCount <= 3) {
+      const hasAction = actionableKeywords.some(kw => titleLower.includes(kw));
+      if (!hasAction) return true;
+    }
+
+    // Known generic landing page patterns
+    const genericPatterns = [
+      /^(cloud|legacy|on premises|all products|videos|customer success)$/i,
+      /^(entitlement|licensing|user profile|support site|system registration)$/i,
+      /^(installed products|general support|interactive and resolution guides)$/i,
+      /^(field support order|part request|netapp non-technical support)$/i,
+      /^(netapp cloud customer success|lifecycle management)$/i,
+      /^ontap\s*$/i,            // just "ONTAP" with no qualifier
+      /^all topics$/i,
+    ];
+    if (genericPatterns.some(p => p.test(title))) return true;
+
+    return false;
+  }
+
+  const candidateArticles = articles.filter(a => !isGenericPage(a));
+
+  // ── Relevance scoring function ─────────────────────────────────────────
   function scoreArticle(a) {
     let score = 0;
+    let hasFleetAnchor = false;  // Track whether article matches a fleet attribute
     const title = (a.title || '').toLowerCase();
     const url = (a.url || '').toLowerCase();
     const cat = (a.category || '').toLowerCase();
     const relevance = (a.relevance || '').toLowerCase();
 
     // Fleet-specific articles get highest score
-    if (a._fleetRelevant) score += 50;
+    if (a._fleetRelevant) { score += 50; hasFleetAnchor = true; }
 
     // Version matches
     for (const ver of fleetMajorVersions) {
       if (title.includes(`ontap ${ver}`) || title.includes(`ontap${ver.replace('.', '')}`) ||
           url.includes(`ontap${ver.replace('.', '')}`)) {
         score += 30;
+        hasFleetAnchor = true;
         break;
       }
     }
@@ -14550,6 +14608,7 @@ function getFleetRelevantArticles(targetSystems) {
       for (const kw of platformKeywords) {
         if (plat.includes(kw) && (title.includes(kw) || url.includes(kw))) {
           score += 20;
+          hasFleetAnchor = true;
         }
       }
     }
@@ -14558,47 +14617,69 @@ function getFleetRelevantArticles(targetSystems) {
     for (const model of fleetModels) {
       if (model && (title.includes(model) || url.includes(model.replace(/\s+/g, '-')))) {
         score += 25;
+        hasFleetAnchor = true;
       }
     }
 
-    // Category relevance (always-relevant categories)
+    // Vendor guideline and gap analysis boost (server-side fleet-matched)
+    if (a._vendorGuideline) { score += 35; hasFleetAnchor = true; }
+    if (a._gapAnalysis)     { score += 60; hasFleetAnchor = true; }
+    if (a._versionFeature)  { score += 25; hasFleetAnchor = true; }
+    if (a.alignment)        { score += 10; hasFleetAnchor = true; }
+
+    // Category relevance — ONLY grant category bonus if article has a fleet anchor
+    // This prevents generic articles from qualifying on category alone
     const alwaysRelevant = ['troubleshooting', 'operations', 'upgrade', 'remediation', 'security', 'performance',
                             'vendor_guidelines', 'best_practices', 'gap_analysis'];
-    if (alwaysRelevant.includes(cat)) score += 10;
+    if (alwaysRelevant.includes(cat) && hasFleetAnchor) score += 10;
 
-    // Vendor guideline and gap analysis boost
-    if (a._vendorGuideline) score += 35;
-    if (a._gapAnalysis) score += 60;  // Gaps are highest priority
-    if (a._versionFeature) score += 25;
-    if (a.alignment) score += 10;  // Has NetApp alignment notes
-
-    // Keyword relevance boosts
-    const opsKeywords = ['troubleshoot', 'remediat', 'known issue', 'error message', 'procedure',
-                         'maintenance', 'upgrade', 'revert', 'failover', 'takeover', 'giveback',
-                         'firmware', 'patch', 'cli', 'runbook', 'best practice'];
-    for (const kw of opsKeywords) {
-      if (title.includes(kw)) { score += 5; break; }
+    // Keyword relevance boosts — only for articles with fleet anchors
+    if (hasFleetAnchor) {
+      const opsKeywords = ['troubleshoot', 'remediat', 'known issue', 'error message', 'procedure',
+                           'maintenance', 'upgrade', 'revert', 'failover', 'takeover', 'giveback',
+                           'firmware', 'patch', 'cli', 'runbook', 'best practice'];
+      for (const kw of opsKeywords) {
+        if (title.includes(kw)) { score += 5; break; }
+      }
     }
 
-    // Integration vendor keyword boosts
+    // Integration vendor keyword boosts — these are specific enough to count
+    // as fleet-relevant IF the fleet actually uses the protocol/product
     const vendorKeywords = ['veeam', 'commvault', 'rubrik', 'cohesity', 'hycu', 'vmware', 'vsphere',
                             'cisco', 'brocade', 'broadcom', 'oracle', 'sql server', 'sap hana',
                             'kubernetes', 'trident', 'hyper-v', 'proxmox', 'nutanix', 'crowdstrike',
                             'splunk', 'varonis', 'snapcenter', 'metrocluster', 'fabricpool'];
     for (const kw of vendorKeywords) {
-      if (title.includes(kw)) { score += 8; break; }
+      if (title.includes(kw)) { score += 8; hasFleetAnchor = true; break; }
     }
 
     // If relevance field mentions fleet
-    if (relevance.includes('fleet') || relevance.includes('deployed')) score += 15;
+    if (relevance.includes('fleet') || relevance.includes('deployed')) {
+      score += 15;
+      hasFleetAnchor = true;
+    }
+
+    // ONTAP-specific content that mentions ONTAP generically — give a small
+    // fleet anchor since all target systems run ONTAP
+    if (!hasFleetAnchor && fleetMajorVersions.size > 0) {
+      // Check if article is specifically about ONTAP features/procedures
+      if ((title.includes('ontap') || url.includes('/ontap/')) &&
+          title.split(/\s+/).length >= 4) {  // must have substance, not just "ONTAP 9"
+        score += 15;
+        hasFleetAnchor = true;
+      }
+    }
+
+    // Articles without ANY fleet anchor get score 0 regardless of category
+    if (!hasFleetAnchor) return 0;
 
     return score;
   }
 
-  // Score and filter articles (minimum score of 5 to be included)
-  const scored = articles
+  // Score and filter articles — minimum score of 20 to ensure meaningful relevance
+  const scored = candidateArticles
     .map(a => ({ ...a, _score: scoreArticle(a) }))
-    .filter(a => a._score >= 5)
+    .filter(a => a._score >= 20)
     .sort((a, b) => b._score - a._score);
 
   // Group by category
@@ -14614,6 +14695,7 @@ function getFleetRelevantArticles(targetSystems) {
 
   return grouped;
 }
+
 
 /**
  * Build enrichment reference sections for deliverables.
