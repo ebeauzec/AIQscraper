@@ -1630,12 +1630,10 @@ def _do_full_harvest(watchlist_ids=None):
                 # ── ONTAP flags ──
                 "isMetroCluster": s.get("isMetroCluster"),
                 "isAllFlashOptimized": s.get("isAllFlashOptimized"),
-                "isFlexPod": s.get("isFlexPod"),
                 "isARPEnabled": s.get("isARPEnabled"),
                 "operatingMode": s.get("operatingMode", ""),
                 "propensityCategory": s.get("propensityCategory", ""),
                 "nextBestAction": s.get("nextBestAction", ""),
-                "belongsToMixModelCluster": s.get("belongsToMixModelCluster"),
                 "serviceProcessorIP": s.get("serviceProcessorIPAddress", ""),
                 "autoUpdateEnabled": s.get("autoUpdateEnabled"),
                 # ASA r2: SAZ-level capacity (no aggregates; pull from storageAvailabilityZone)
@@ -3427,9 +3425,6 @@ class EnrichmentScheduler:
                         if 'kubernetes' in risk_text or 'trident' in risk_text or 'openshift' in risk_text: fleet_signals['kubernetes'] = True
                         # AI/ML workloads
                         if 'gpu' in risk_text or 'dgx' in risk_text or 'nvidia' in risk_text or 'ai ' in risk_text or 'machine learning' in risk_text: fleet_signals['ai_ml'] = True
-
-                # FlexPod flag from system properties (AIQ API provides isFlexPod boolean)
-                if sys_item.get('isFlexPod'): fleet_signals['flexpod'] = True
 
                 # Host-based extended detection (Proxmox, Nutanix, Kubernetes)
                 if isinstance(hosts, list):

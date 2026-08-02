@@ -1,8 +1,8 @@
 {
-  "version": "4.0.4",
+  "version": "4.0.5",
   "major": 4,
   "minor": 0,
-  "patch": 4,
+  "patch": 5,
   "date": "2026-08-02",
-  "notes": "Certified partner solutions & reference architecture enrichment: 31 NVA/FlexPod CVD/TR/BlueXP/Keystone/AI/healthcare sources added to VENDOR_GUIDELINE_SOURCES, REFERENCE_LIBRARY_INTEGRATIONS expanded with referenceArchitectures catalog (FlexPod CVDs, NVA library, Technical Reports, partner ecosystem, BlueXP services, Keystone STaaS), all 39 fleet signals now have detection logic (14 previously unmapped), FlexPod isFlexPod API field integration, deliverable templates surface reference architectures in Solution Proposals and Customer Communications."
+  "notes": "Data integrity cleanup: removed 6 unreportable feature fields (isAuditEnabled, isSnapLockEnabled, isMAVEnabled, nvEncryptionEnabled, isFlexPod, belongsToMixModelCluster) that Active IQ GraphQL API does not expose. Feature Adoption tab now reports only on API-confirmed fields (ARP, FabricPool, MetroCluster, All Flash Optimized, HA, SnapMirror, Operating Mode). ARP denominator fixed to use known-system count. Tri-state rendering (enabled/disabled/unknown) for all feature flags."
 }
