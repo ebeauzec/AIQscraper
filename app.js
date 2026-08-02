@@ -4420,7 +4420,7 @@ function renderCharts() {
   capacityChartInstance = new Chart(ctxCap, {
     type: 'bar',
     data: {
-      labels: barSystems.map(s => (s.clusterName || s.systemName || '').replace(/-0[12]$/, '')),
+      labels: barSystems.map(s => s.systemName || s.clusterName || ''),
       datasets: barDatasets
     },
     options: {
