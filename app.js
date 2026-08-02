@@ -18,9 +18,44 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.4";
+const APP_VERSION = "4.0.5";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.0.5",
+    date: "02 August 2026",
+    title: "Data Integrity Cleanup — Unreportable Feature Fields Removed, ARP Denominator Fixed, Tri-State Rendering",
+    sections: [
+      {
+        icon: "🧹",
+        label: "Removed Unreportable Fields",
+        color: "#f87171",
+        items: [
+          "Removed 6 feature fields that Active IQ GraphQL API does not expose: isAuditEnabled, isSnapLockEnabled, isMAVEnabled, nvEncryptionEnabled, isFlexPod, belongsToMixModelCluster",
+          "Feature Adoption tab now reports exclusively on API-confirmed fields: ARP, FabricPool, MetroCluster, All Flash Optimized, HA Configured, SnapMirror, Operating Mode",
+          "Eliminated false-positive encryption/audit/MAV/SnapLock warnings from Remediation & Hardening blocks and security checklists"
+        ]
+      },
+      {
+        icon: "🔧",
+        label: "ARP Denominator Fix",
+        color: "#2dd4bf",
+        items: [
+          "ARP coverage percentage now uses 'known-system' count (systems where ARP status is reported) instead of total fleet count — eliminates inflated disabled counts from systems that don't report ARP",
+          "Applied across all 6 deliverable templates: Account Health Score, CSM Report, Executive Briefing, QBR, MEDDPICC, Talking Points"
+        ]
+      },
+      {
+        icon: "🔀",
+        label: "Tri-State Feature Rendering",
+        color: "#818cf8",
+        items: [
+          "Feature Adoption table now distinguishes three states: ✅ enabled, ❌ disabled, — unknown/not reported",
+          "Prevents false negatives where API returns null (unknown) — no longer counted as 'disabled'"
+        ]
+      }
+    ]
+  },
   {
     version: "4.0.0",
     date: "01 August 2026",
@@ -10405,7 +10440,7 @@ function renderCSMTab() {
     // ── LEFT COLUMN: Operations & Security ──────────────────────────────────────
     const _latestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
     let _verPass = 0, _effPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
-    let _capPass = 0, _haPass = 0, _casePass = 0, _encPass = 0, _arpPass = 0, _fsaPass = 0;
+    let _capPass = 0, _haPass = 0, _casePass = 0, _arpPass = 0, _fsaPass = 0;
     // New ops checks
     let _portHealthPass = 0, _fwCurrPass = 0, _cisaKevPass = 0, _qosPass = 0;
     // ── RIGHT COLUMN: Data Protection & Lifecycle ───────────────────────────────
@@ -10463,9 +10498,6 @@ function renderCSMTab() {
       });
       if (_openCritCases.length === 0) _casePass++;
       else _caseDetails.push(`${s.systemName}: ${_openCritCases.length} critical case${_openCritCases.length > 1 ? 's' : ''}`);
-
-      // 9. Volume Encryption (NVE/NAE)
-      if (s.nvEncryptionEnabled === true || s.nvEncryptionEnabled === null) _encPass++;
 
       // 10. Anti-Ransomware Protection (ARP)
       if (_isStorageGrid || _isEseries || s.isARPEnabled === true || s.isARPEnabled === null) _arpPass++;
@@ -10583,7 +10615,7 @@ function renderCSMTab() {
       // — Security & Compliance —
       { cat: 'SECURITY \u0026 COMPLIANCE', name: 'No Active Security CVEs Applicable (PSIRT)',            completedCount: _secPass,         detail: '' },
       { name: 'No CISA KEV Active Exploitation Alerts',               completedCount: _cisaKevPass,     detail: '' },
-      { name: 'Volume Encryption (NVE/NAE) Enabled',                  completedCount: _encPass,         detail: '' },
+
       { name: 'Anti-Ransomware Protection (ARP) Active',              completedCount: _arpPass,         detail: '' },
       // — Support & Monitoring —
       { cat: 'SUPPORT \u0026 MONITORING', name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',  completedCount: _asupPass,  detail: '' },
@@ -10992,14 +11024,7 @@ function renderCSMTab() {
       ok: _sCisaHits.length === 0,
       detail: _sCisaHits.length > 0 ? `${_sCisaHits.length} CVE(s) on CISA Known Exploited Vulnerabilities list` : 'No actively exploited CVEs applicable'
     },
-    { name: 'Volume Encryption (NVE/NAE) Enabled',
-      ok: sys.nvEncryptionEnabled === true || sys.nvEncryptionEnabled === null,
-      detail: (() => {
-        if (sys.nvEncryptionEnabled === true) return 'NVE/NAE enabled \u2014 data at rest is protected';
-        if (sys.nvEncryptionEnabled === false) return 'Encryption not confirmed \u2014 verify with: security key-manager show';
-        return 'Encryption status unavailable \u2014 validate on-cluster';
-      })()
-    },
+
     { name: 'Anti-Ransomware Protection (ARP) Active',
       ok: sys.isARPEnabled === true || sys.isARPEnabled === null || _sIsSG || _sIsES,
       detail: (() => {
@@ -11767,8 +11792,9 @@ function computeAccountHealthScore(targetSystems) {
     const d = new Date(s.latestAsupDate);
     return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
   }).length / total;
-  // ARP enablement
-  const arpPct = targetSystems.filter(s => s.isARPEnabled === true).length / total;
+  // ARP enablement (only among systems that report ARP status)
+  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const arpPct = arpKnownSys.length > 0 ? arpKnownSys.filter(s => s.isARPEnabled === true).length / arpKnownSys.length : 0;
   // Firmware currency
   const fwPct = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length / total;
   // Contract coverage
@@ -11827,43 +11853,68 @@ function computeCapacityRAG(sys) {
   return 'amber';
 }
 
-function computeEncryptionCoverage(targetSystems) {
-  // Percentage of systems with volume encryption enabled (NVE/NAE)
-  const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
-  if (ontapSystems.length === 0) return 0;
-  const encrypted = ontapSystems.filter(s => s.nvEncryptionEnabled || s.isNVEEnabled === true || s.isNAEEnabled === true || s.isEncryptionEnabled === true).length;
-  return Math.round((encrypted / ontapSystems.length) * 100);
-}
 
 function computeFeatureAdoptionScore(sys) {
-  // Returns {passed, total, pct} based on 15-point checklist
+  // Returns {passed, total, pct} based on a checklist that only counts features
+  // where we have confirmed data. Unknown features (null) are excluded from scoring.
   let passed = 0;
-  const total = 15;
+  let total = 0;
+
+  // ── Operational items (always known from API) ──
+  // 1. OS Currency
+  total++;
   if (sys.swRecMin && sys.osVersion && !versionLt(sys.osVersion, sys.swRecMin)) passed++;
+  // 2. Data Reduction ratio ≥ 1.5:1
+  total++;
   const dr = sys.efficiency ? parseFloat(String(sys.efficiency.dataReductionRatio || '1').split(':')[0]) : 1;
   if (dr >= 1.5) passed++;
-  if (sys.isFabricPool === true) passed++;
-  if ((sys.snapmirrorCount || sys.snapMirrorCount || (sys.snapmirror && sys.snapmirror.totalCount) || 0) > 0) passed++;
+  // 3. Zero critical/high risks
+  total++;
   const critHigh = (sys.risks || []).filter(r => ['critical','high'].includes(r.severity)).length;
   if (critHigh === 0) passed++;
+  // 4. Active contract
+  total++;
   if (sys.contractActive === true) passed++;
+  // 5. ASUP compliance (received within 7 days)
+  total++;
   const now = Date.now();
   const asupOk = sys.latestAsupDate && (now - new Date(sys.latestAsupDate).getTime()) <= 7 * 86400000;
   if (asupOk) passed++;
+  // 6. Lifecycle health (not near EoS)
+  total++;
   if (sys.lifecycle && !sys.lifecycle.isNearEos) passed++;
+  // 7. Zero CVEs / security bulletins
+  total++;
   const secBulletins = (sys.securityBulletins || []).length;
   if (secBulletins === 0) passed++;
+  // 8. Capacity ≤ 80%
+  total++;
   const utilPct = sys.efficiency ? (sys.efficiency.physicalUsedTB / Math.max(sys.efficiency.rawCapacityTB || 1, 1)) * 100 : 50;
   if (utilPct <= 80) passed++;
-  if (sys.haConfigured || sys.isHAConfigured || (sys.snapmirror && sys.snapmirror.isHAConfigured)) passed++;
+  // 9. Zero P1/P2 support cases
+  total++;
   const critCases = (sys.supportCases || []).filter(c => c.severity && ['1','2','S1','S2','P1','P2'].includes(String(c.severity).replace(/[^0-9]/g, '') ? 'P' + String(c.severity).replace(/[^0-9]/g, '') : c.severity)).length;
   if (critCases === 0) passed++;
-  if (sys.nvEncryptionEnabled || sys.isNVEEnabled || sys.isNAEEnabled || sys.isEncryptionEnabled) passed++;
-  if (sys.isARPEnabled === true) passed++;
+  // 10. Zero field actions
+  total++;
   const fsas = (sys.risks || []).filter(r => (r.category || '').toLowerCase().includes('field') || (r.description || '').toLowerCase().includes('field action')).length;
   if (fsas === 0) passed++;
-  return { passed, total, pct: Math.round((passed / total) * 100) };
+
+  // ── Feature flags (only counted if API reports them — null = excluded) ──
+  // 11. FabricPool
+  if (sys.isFabricPool != null) { total++; if (sys.isFabricPool === true) passed++; }
+  // 12. SnapMirror (always known — 0 relationships = no SM)
+  total++;
+  if ((sys.snapmirrorCount || sys.snapMirrorCount || (sys.snapmirror && sys.snapmirror.totalCount) || 0) > 0) passed++;
+  // 13. HA configured
+  const haVal = sys.haConfigured != null ? sys.haConfigured : (sys.isHAConfigured != null ? sys.isHAConfigured : (sys.snapmirror && sys.snapmirror.isHAConfigured));
+  if (haVal != null) { total++; if (haVal === true) passed++; }
+  // 14. ARP
+  if (sys.isARPEnabled != null) { total++; if (sys.isARPEnabled === true) passed++; }
+
+  return { passed, total: total || 1, pct: Math.round((passed / (total || 1)) * 100) };
 }
+
 
 function computeCostOfInaction(targetSystems) {
   // Weighted score quantifying urgency of addressing issues
@@ -11873,7 +11924,7 @@ function computeCostOfInaction(targetSystems) {
   const cves = targetSystems.reduce((s, sys) => s + (sys.securityBulletins || []).length, 0);
   const eosaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
   const capacityRed = targetSystems.filter(s => computeCapacityRAG(s) === 'red').length;
-  const noArp = targetSystems.filter(s => s.isARPEnabled !== true).length;
+  const noArp = targetSystems.filter(s => s.isARPEnabled === false).length;
   score = critRisks * 10 + highRisks * 3 + cves * 5 + eosaSystems * 8 + capacityRed * 7 + noArp * 2;
   return { score, critRisks, highRisks, cves, eosaSystems, capacityRed, noArp };
 }
@@ -13077,18 +13128,17 @@ function enrichSystemTelemetry(s) {
   if (hasCritRisk || contractExpired) computedStatus = 'critical';
   else if (hasHighRisk || asupFailed || (contracts && contracts.daysRemaining <= 90)) computedStatus = 'warning';
 
-  // ── Backfill contractActive + isARPEnabled for mock/non-live systems ───────
+  // ── Backfill contractActive for mock/non-live systems ──────────────────────
   // contractActive: derived from contracts object; real API provides it as a boolean.
   // Without this, Contract Coverage in CSM/reports shows 0/N (undefined !== true).
   const _contractActive = s.contractActive != null
     ? s.contractActive
     : (contracts ? contracts.daysRemaining > 0 && contracts.status !== 'expired' : false);
 
-  // isARPEnabled: AFF/ASA systems support ARP (ONTAP 9.10.1+). FAS/SG/E-Series do not.
-  // Without this, ARP Coverage in CSM/reports shows 0/N (undefined !== true).
-  const _isARPEnabled = s.isARPEnabled != null
-    ? s.isARPEnabled
-    : !isStorageGrid && !isEseries && (isAFF || isASA || isASAr2 || isAFX || isCVO);
+  // ── Feature flags: tri-state (true = confirmed on, false = confirmed off, null = unknown) ──
+  // The Active IQ GraphQL API exposes isARPEnabled via the ONTAPSystem fragment.
+  // null = "not reported by API" — displayed as '—' in the UI, not counted as disabled.
+  const _isARPEnabled = s.isARPEnabled != null ? s.isARPEnabled : null;
 
 
   return {
@@ -13181,12 +13231,10 @@ function enrichSystemTelemetry(s) {
     // ── ONTAP Flags ──
     isMetroCluster:    s.isMetroCluster,
     isAllFlashOptimized: s.isAllFlashOptimized,
-    isFlexPod:         s.isFlexPod,
     isARPEnabled:      _isARPEnabled,
     operatingMode:     s.operatingMode || '',
     propensityCategory: s.propensityCategory || '',
     nextBestAction:    s.nextBestAction || '',
-    belongsToMixModelCluster: s.belongsToMixModelCluster,
     serviceProcessorIP: s.serviceProcessorIP || '',
     autoUpdateEnabled: s.autoUpdateEnabled,
     // ── AutoSupport Extended ──
@@ -13224,20 +13272,6 @@ function enrichSystemTelemetry(s) {
     // ── Cluster Topology (readiness checks) ──
     // haConfigured: normalize mock field name (haConfigured) vs real API field name (isHAConfigured)
     haConfigured:      s.haConfigured != null ? s.haConfigured : (s.isHAConfigured != null ? s.isHAConfigured : null),
-    // nvEncryptionEnabled: Active IQ GraphQL does not expose NVE/NAE state directly.
-    // Derive from well-known ONTAP defaults: AFF/ASA platforms with ONTAP 9.7+
-    // ship with NVE enabled by default (OKM/ONTAP Key Manager auto-provisioned).
-    // FAS, CVO, StorageGRID, E-Series are treated as 'not confirmed encrypted'.
-    // TAMs should validate per-volume encryption state on-cluster directly.
-    nvEncryptionEnabled: (function() {
-      if (s.nvEncryptionEnabled != null) return s.nvEncryptionEnabled; // explicit mock/API override
-      if (isStorageGrid || isEseries || isCVO || isFAS) return false;
-      if (isAFF || isASA || isASAr2 || isAFX) {
-        const verNum = parseFloat((osVer || '9.0').replace(/^9\./, '').split('.')[0]) || 0;
-        return verNum >= 7; // NVE on by default from ONTAP 9.7 with integrated OKM
-      }
-      return null; // unknown platform — don't assume
-    })(),
     // ── Raw Cluster Capacity (used by readiness checklist via efficiency object) ──
     clusterUsableCapacityTB:  s.clusterUsableCapacityTB  || 0,
     clusterPhysicalUsedTB:    s.clusterPhysicalUsedTB    || 0,
@@ -14716,7 +14750,7 @@ function getFleetEnrichmentSections(targetSystems) {
   const fleetVersions = new Set();
   const fleetPlatforms = new Set();
   const fleetModels = new Set();
-  let arpDisabled = 0, nveDisabled = 0, mcCount = 0, sanCount = 0, nasCount = 0;
+  let arpDisabled = 0, mcCount = 0, sanCount = 0, nasCount = 0;
   let totalSystems = targetSystems.length;
 
   targetSystems.forEach(s => {
@@ -14726,8 +14760,7 @@ function getFleetEnrichmentSections(targetSystems) {
     if (plat) fleetPlatforms.add(plat.split(' ')[0]); // AFF, FAS, ASA
     const model = s.model || '';
     if (model) fleetModels.add(model);
-    if (s.arpStatus === 'disabled' || s.arpStatus === 'not_enabled') arpDisabled++;
-    if (s.nveStatus === 'disabled' || !s.nveStatus) nveDisabled++;
+    if (s.isARPEnabled === false) arpDisabled++;
     if (s.isMetroCluster || (s.platformType || '').includes('MetroCluster')) mcCount++;
     if ((s.protocols || []).some(p => /iscsi|fc|fcp|nvme/i.test(p))) sanCount++;
     if ((s.protocols || []).some(p => /nfs|cifs|smb/i.test(p))) nasCount++;
@@ -14770,9 +14803,7 @@ function getFleetEnrichmentSections(targetSystems) {
     if (t.includes('encryption') || t.includes('nve') || t.includes('nae')) {
       return {
         covers: 'Volume encryption (NVE), aggregate encryption (NAE), key management',
-        action: nveDisabled > 0
-          ? `${nveDisabled} system${nveDisabled > 1 ? 's' : ''} without encryption at rest — evaluate NVE/NAE enablement`
-          : 'Verify key management server connectivity and encryption key rotation schedule',
+        action: 'Verify encryption status on-cluster — Active IQ does not report NVE/NAE state. Check key management connectivity and key rotation.',
         cli: 'security key-manager key query; vol show -fields encryption-state',
         effort: '30 min/system'
       };
@@ -15457,10 +15488,6 @@ function getFleetEnrichmentSections(targetSystems) {
         block += `⚠ CRITICAL: ${arpDisabled} of ${totalSystems} systems have Autonomous Ransomware Protection DISABLED\n`;
         block += `  Action: Enable ARP on all NAS volumes → security anti-ransomware volume enable\n\n`;
       }
-      if (nveDisabled > 0) {
-        block += `⚠ WARNING: ${nveDisabled} of ${totalSystems} systems without encryption at rest detected\n`;
-        block += `  Action: Evaluate NVE/NAE enablement → vol encryption conversion start\n\n`;
-      }
       block += `SECURITY & COMPLIANCE DOCUMENTATION (${secArticles.length}):\n`;
       block += fmtRichSection(secArticles, 12) + '\n';
       if (dpArticles.length > 0) {
@@ -15619,11 +15646,18 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
   // ── Features ──
-  const fabricPoolCount = targetSystems.filter(s => s.isFabricPool === true).length;
-  const nveCount = targetSystems.filter(s => s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled).length;
-  const snapMirrorCount = targetSystems.filter(s => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0).length;
-  const haCount = targetSystems.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
-  const auditCount = targetSystems.filter(s => s.isAuditEnabled === true).length;
+  const fpKnownSys = targetSystems.filter(s => s.isFabricPool != null || s.fabricPoolEnabled != null);
+  const fabricPoolCount = fpKnownSys.filter(s => s.isFabricPool === true || s.fabricPoolEnabled === true).length;
+
+  const smKnownSys = targetSystems.filter(s => s.snapmirrorCount != null || s.snapMirrorCount != null || (s.snapmirror && s.snapmirror.totalCount != null));
+  const snapMirrorCount = smKnownSys.filter(s => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0).length;
+  const haKnownSys = targetSystems.filter(s => s.haConfigured != null || s.isHAConfigured != null || (s.snapmirror && s.snapmirror.isHAConfigured != null));
+  const haCount = haKnownSys.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
+
+  // Helper: format ratio as "enabled/known" or "N/A*" when no systems report the feature
+  const _fmtAdopt = (enabled, knownLen, totalLen) => knownLen > 0
+    ? `${enabled}         ${knownLen}      ${Math.round(enabled/knownLen*100)}%`
+    : `N/A*        ${totalLen}      N/A*`;
 
   const platformAges = {};
   targetSystems.forEach(s => {
@@ -15648,7 +15682,8 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     const d = new Date(s.latestAsupDate);
     return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
   }).length;
-  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
 
@@ -15813,19 +15848,17 @@ ${platformLines}
 
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
-  - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled
+  - ARP Coverage:            ${arpCount}/${arpKnownSys.length} (${arpKnownSys.length > 0 ? Math.round(arpCount/arpKnownSys.length*100) : 0}%) — Anti-Ransomware Protection enabled
   - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
 
 * FEATURE ADOPTION SCORECARD [MEDDPICC: D — Decision Criteria]
   Feature                       Enabled     Total    Coverage    CLI Command
   ───────────────────────────── ─────────── ──────── ─────────── ──────────────────────────
-  Anti-Ransomware (ARP)         ${arpCount}         ${systemCount}      ${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%      security anti-ransomware volume ...
-  FabricPool (Cloud Tiering)    ${fabricPoolCount}         ${systemCount}      ${systemCount > 0 ? Math.round(fabricPoolCount/systemCount*100) : 0}%      storage aggregate ... -cloud-target
-  Volume Encryption (NVE)       ${nveCount}         ${systemCount}      ${systemCount > 0 ? Math.round(nveCount/systemCount*100) : 0}%      vol encryption ...
-  SnapMirror DR                 ${snapMirrorCount}         ${systemCount}      ${systemCount > 0 ? Math.round(snapMirrorCount/systemCount*100) : 0}%      snapmirror show
-  HA Configuration              ${haCount}         ${systemCount}      ${systemCount > 0 ? Math.round(haCount/systemCount*100) : 0}%      cluster ha show
-  Audit Logging                 ${auditCount}         ${systemCount}      ${systemCount > 0 ? Math.round(auditCount/systemCount*100) : 0}%      vserver audit show
+  Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, systemCount)}      security anti-ransomware volume ...
+  FabricPool (Cloud Tiering)    ${_fmtAdopt(fabricPoolCount, fpKnownSys.length, systemCount)}      storage aggregate ... -cloud-target
+  SnapMirror DR                 ${_fmtAdopt(snapMirrorCount, smKnownSys.length, systemCount)}      snapmirror show
+  HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, systemCount)}      cluster ha show
 
 * RISK POSTURE SUMMARY:
   - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
@@ -16085,8 +16118,9 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
 
   // ── ARP Coverage ──
-  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
+  const arpPct = arpKnownSys.length > 0 ? ((arpCount / arpKnownSys.length) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
@@ -16197,7 +16231,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   // ── Action Items ──
   const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = total - arpCount;
+  const unprotectedArp = arpKnownSys.length - arpCount;
   const correctiveCount = sortedRisks.length;
   const renewCount = exp90;
 
@@ -16231,7 +16265,7 @@ Prepared: ${salesRep}
 2. OPERATIONAL HEALTH SCORECARD [MEDDPICC: M]
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
-  ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled
+  ARP Coverage:             ${arpCount}/${arpKnownSys.length} systems (${arpPct}%) — Anti-Ransomware Protection enabled
   Firmware Currency:        ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
   Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
 
@@ -16404,8 +16438,9 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
 
   // ── ARP ──
-  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
+  const arpPct = arpKnownSys.length > 0 ? ((arpCount / arpKnownSys.length) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
@@ -16475,7 +16510,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   // ── Next Period ──
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = total - arpCount;
+  const unprotectedArp = arpKnownSys.length - arpCount;
   const fwBehind = total - fwCurrent;
 
   return `================================================================================
@@ -16634,12 +16669,13 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && !isNaN(new Date(s.latestAsupDate)) && (now - new Date(s.latestAsupDate).getTime()) <= sevenDaysMs).length;
-  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
+  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   
   const asupPct = total > 0 ? Math.round((asupCompliant / total) * 100) : 0;
-  const arpPct = total > 0 ? Math.round((arpCount / total) * 100) : 0;
+  const arpPct = arpKnownSys.length > 0 ? Math.round((arpCount / arpKnownSys.length) * 100) : 0;
   const fwPct = total > 0 ? Math.round((fwCurrent / total) * 100) : 0;
   const contractPct = total > 0 ? Math.round((activeContracts / total) * 100) : 0;
 
@@ -16655,7 +16691,7 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const ontapCount = ontapSystems.length;
   
   const fpAdopted = targetSystems.filter(s => s.isFabricPool === true).length;
-  const nveAdopted = targetSystems.filter(s => s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled).length;
+
   const smAdopted = targetSystems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0) > 0).length;
   const haAdopted = targetSystems.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
 
@@ -16736,9 +16772,9 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
   D — DECISION CRITERIA (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
     Feature Adoption Score:   ${avgFeaturePassed}/15 (${avgFeaturePct}%)
-    ARP Enablement:           ${arpCount}/${total}
+    ARP Enablement:           ${arpCount}/${arpKnownSys.length}
     FabricPool Adoption:      ${fpAdopted}/${total}
-    Volume Encryption:        ${nveAdopted}/${ontapCount || total}
+
     SnapMirror Usage:         ${smAdopted}/${total}
     HA Configured:            ${haAdopted}/${total}
     OS Currency:              ${fwCurrent}/${total} on recommended version
@@ -16866,8 +16902,9 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   }).length;
   const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
 
-  const arpCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
+  const arpPct = arpKnownSys.length > 0 ? ((arpCount / arpKnownSys.length) * 100).toFixed(0) : 0;
 
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
@@ -16944,7 +16981,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
 
   // ASUP / ARP gaps
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = total - arpCount;
+  const unprotectedArp = arpKnownSys.length - arpCount;
   if (staleAsup > 0) {
     talkingPoints.push(`${staleAsup} system${staleAsup > 1 ? 's' : ''} with stale or missing AutoSupport telemetry — proactive monitoring gap.`);
   }
@@ -17083,16 +17120,11 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   let securityRisks = [];
   let cveExposures = new Set();
   let systemsWithCve = new Set();
-  let arpEnabled = 0, nveEnabled = 0, naeEnabled = 0, fwCurrent = 0, kevExposures = 0;
-  let mavEnabled = 0, snaplockEnabled = 0, auditEnabled = 0;
+  let arpEnabled = 0, fwCurrent = 0, kevExposures = 0;
+  let arpKnown = 0;
 
   targetSystems.forEach(s => {
-    if (s.isARPEnabled) arpEnabled++;
-    if (s.isNVEEnabled) nveEnabled++;
-    if (s.isNAEEnabled) naeEnabled++;
-    if (s.isMAVEnabled) mavEnabled++;
-    if (s.isSnapLockEnabled) snaplockEnabled++;
-    if (s.isAuditEnabled) auditEnabled++;
+    if (s.isARPEnabled != null) { arpKnown++; if (s.isARPEnabled) arpEnabled++; }
     if (s.firmwareStatus === 'Current' || s.firmwareStatus === 'Recommended') fwCurrent++;
 
     (s.risks || []).forEach(r => {
@@ -17117,8 +17149,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   });
 
   const totalRisks = critical + high + medium + low;
-  const arpPct = count > 0 ? Math.round((arpEnabled / count) * 100) : 0;
-  const encryptPct = count > 0 ? Math.round(((nveEnabled + naeEnabled) / (count * 2)) * 100) : 0;
+  const arpPct = arpKnown > 0 ? Math.round((arpEnabled / arpKnown) * 100) : 0;
   const daysSinceOldestCVE = 30; // Default estimate
 
   const cveMap = new Map();
@@ -17152,14 +17183,14 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   if (matrixLines.trim() === '') matrixLines = '    No specific CVEs detected.\n';
   else matrixLines = '\n' + matrixLines + '\n';
 
+  // Helper: show gap as N/A when no systems report the feature, or actual gap when data exists
+  const _fGap = (enabled, known) => known > 0 ? String(known - enabled).padEnd(8) : 'N/A     ';
+  const _fRatio = (enabled, known) => known > 0 ? `${enabled}/${known}` : `0/${count}*`;
+
   let featureLines = `    Feature                 Enabled    Gap      Action Required
     ─────────────────────── ────────── ──────── ──────────────────────────────
-    ARP (Anti-Ransomware)   ${arpEnabled}/${count}    ${count - arpEnabled}        security anti-ransomware volume ...
-    NVE (Volume Encrypt)    ${nveEnabled}/${count}    ${count - nveEnabled}        vol encryption ...
-    NAE (Aggr Encrypt)      ${naeEnabled}/${count}    ${count - naeEnabled}        aggr encryption ...
-    MAV (Multi-Admin)       ${mavEnabled}/${count}    ${count - mavEnabled}        security multi-admin-verify ...
-    SnapLock                ${snaplockEnabled}/${count}    ${count - snaplockEnabled}        snaplock compliance ...
-    Audit Logging           ${auditEnabled}/${count}    ${count - auditEnabled}        vserver audit create ...\n`;
+    ARP (Anti-Ransomware)   ${_fRatio(arpEnabled, arpKnown).padEnd(10)} ${_fGap(arpEnabled, arpKnown)}security anti-ransomware volume ...
+    (* = not reported by Active IQ API — verify on-cluster)\n`;
 
   return `================================================================================
   SECURITY POSTURE EXECUTIVE BRIEF [MEDDPICC: I + D]
@@ -17173,7 +17204,6 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
     Security-Specific Risks:  ${securityRisks.length}
     CVE Exposure:             ${cveExposures.size} unique advisories across ${systemsWithCve.size} systems
     ARP Coverage:             ${arpEnabled}/${count} (${arpPct}%) — Anti-Ransomware Protection
-    Encryption Coverage:      ${encryptPct}% systems with NVE/NAE enabled
     Firmware Currency:        ${fwCurrent}/${count} on recommended version
     CISA KEV Exposure:        ${kevExposures}
 
@@ -17199,14 +17229,12 @@ ${compileSvmLifInventoryText(targetSystems)}
     DR Coverage:       ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)
     Unprotected:       ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems protected'}
     RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}
-    Immutable Copies:  ${snaplockEnabled}/${count} systems with SnapLock compliance
 
   7. SECURITY ROADMAP
   ────────────────────────────────────────────────────────────────────────────
     Phase 1 (Week 1):   Patch critical CVEs, enable ARP on production volumes
-    Phase 2 (Week 2-4): Enable NVE/NAE, configure audit logging${dr.unprotected.length > 0 ? ', establish SnapMirror DR' : ''}
-    Phase 3 (Month 2):  Deploy MAV, implement SnapLock for compliance data
-    Phase 4 (Month 3):  Security review, penetration test, compliance audit
+    Phase 2 (Week 2-4): ${dr.unprotected.length > 0 ? 'Establish SnapMirror DR' : 'Review Security Baseline'}
+    Phase 3 (Month 2):  Security review, penetration test, compliance audit
 
   7. NIST CSF 2.0 ALIGNMENT
   ────────────────────────────────────────────────────────────────────────────
@@ -17387,31 +17415,23 @@ function computeFleetFeatureMatrix(targetSystems) {
       os: s.ontapVersion || s.osVersion || '',
       arp: s.isARPEnabled === true,
       fabricPool: s.isFabricPool === true,
-      nve: !!(s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled),
       snapMirror: (s.snapMirrorCount || s.snapmirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0) > 0,
       ha: !!(s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)),
-      audit: s.isAuditEnabled === true,
-      snapLock: s.isSnapLockEnabled === true,
-      mav: s.isMAVEnabled === true,
       score: score.passed,
       total: score.total,
       pct: score.pct
     };
     if (f.arp) features.arp++;
     if (f.fabricPool) features.fabricPool++;
-    if (f.nve) features.nve++;
     if (f.snapMirror) features.snapMirror++;
     if (f.ha) features.ha++;
-    if (f.audit) features.audit++;
-    if (f.snapLock) features.snapLock++;
-    if (f.mav) features.mav++;
     perSystem.push(f);
   });
   const pct = (n) => total > 0 ? Math.round(n / total * 100) : 0;
   const fleetAvgScore = perSystem.length > 0 ? Math.round(perSystem.reduce((s, p) => s + p.pct, 0) / perSystem.length) : 0;
   return {
     features,
-    pct: { arp: pct(features.arp), fabricPool: pct(features.fabricPool), nve: pct(features.nve), snapMirror: pct(features.snapMirror), ha: pct(features.ha), audit: pct(features.audit), snapLock: pct(features.snapLock), mav: pct(features.mav) },
+    pct: { arp: pct(features.arp), fabricPool: pct(features.fabricPool), snapMirror: pct(features.snapMirror), ha: pct(features.ha) },
     perSystem,
     fleetAvgScore
   };
@@ -18249,12 +18269,8 @@ ${rbSmCount > 0 ? '    snapmirror show -fields state,lag-time,healthy\n' : ''}
 `;
     // Feature gap enablement CLI (best-practice items not yet enabled)
     const featureGaps = [];
-    if (sys.isARPEnabled !== true) featureGaps.push('  ARP:        security anti-ransomware volume enable -volume <vol> -vserver <svm>');
-    if (!(sys.nvEncryptionEnabled || sys.isNVEEnabled || sys.isNAEEnabled || sys.isEncryptionEnabled)) featureGaps.push('  NVE:        vol encryption conversion start -vserver <svm> -volume <vol>');
-    if (sys.isFabricPool !== true) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
-    if (sys.isAuditEnabled !== true) featureGaps.push('  Audit:      vserver audit create -vserver <svm> -destination /audit_log && vserver audit enable -vserver <svm>');
-    if (sys.isMAVEnabled !== true) featureGaps.push('  MAV:        security multi-admin-verify modify -enabled true');
-    if (sys.isSnapLockEnabled !== true) featureGaps.push('  SnapLock:   vol snaplock modify -volume <vol> -snaplock-type compliance');
+    if (sys.isARPEnabled === false) featureGaps.push('  ARP:        security anti-ransomware volume enable -volume <vol> -vserver <svm>');
+    if (sys.isFabricPool === false) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
     if (featureGaps.length > 0) {
       implementationPlans += `  [FEATURE ENABLEMENT RECOMMENDATIONS (${featureGaps.length} gaps)]\n`;
       featureGaps.forEach(g => { implementationPlans += `  ${g}\n`; });
@@ -19355,7 +19371,7 @@ function _renderMonthlySLASection(systems) {
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${daysColor};font-weight:600;">${s._asupDaysAgo}</span></td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.model || s.platform || ''}</td>
-          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled ? '<span style="color:#10b981;">Yes</span>' : '<span style="color:#6b7280;">No</span>'}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled === true ? '<span style="color:#10b981;">Yes</span>' : s.isARPEnabled === false ? '<span style="color:#ef4444;">No</span>' : '<span style="color:#6b7280;">—</span>'}</td>
         </tr>`;
       });
       html += `</tbody></table></div>`;
@@ -19507,22 +19523,43 @@ function _renderFeatureAdoptionSection(systems) {
   const tdLeft = tdStyle.replace('text-align:center;', 'text-align:left;');
 
   // ── Helper: resolve feature flags across enrichment + raw field names ──
-  const _hasHA = (s) => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured);
-  const _hasEncryption = (s) => s.nvEncryptionEnabled || s.isNVEEnabled || s.isNAEEnabled || s.isEncryptionEnabled;
+  // Returns true (confirmed on), false (confirmed off), or null (unknown/not reported)
+  const _hasHA = (s) => {
+    if (s.haConfigured === true || s.isHAConfigured === true) return true;
+    if (s.snapmirror && s.snapmirror.isHAConfigured === true) return true;
+    if (s.haConfigured === false) return false;
+    return null;
+  };
   const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
 
-  const features = {
-    'ARP': systems.filter(s => s.isARPEnabled).length,
-    'FabricPool': systems.filter(s => s.isFabricPool).length,
-    'NVE/NAE': systems.filter(s => _hasEncryption(s)).length,
-    'SnapMirror': systems.filter(s => _smCount(s) > 0).length,
-    'HA': systems.filter(s => _hasHA(s)).length,
-    'Audit': systems.filter(s => s.isAuditEnabled).length,
-    'SnapLock': systems.filter(s => s.isSnapLockEnabled).length,
-    'MAV': systems.filter(s => s.isMAVEnabled).length
+  // Tri-state icon renderer: ✅ = confirmed on, ❌ = confirmed off, — = unknown/not reported
+  const _icon = (val) => {
+    if (val === true) return '<span title="Confirmed enabled">✅</span>';
+    if (val === false) return '<span title="Confirmed disabled">❌</span>';
+    return '<span title="Not reported by Active IQ API — verify on cluster" style="color:var(--text-muted);font-size:1rem;">—</span>';
   };
 
-  const getPct = (val) => Math.round((val / (systems.length || 1)) * 100);
+  // ── Compute fleet-wide feature adoption with tri-state awareness ──
+  // Each feature tracks: enabled (confirmed true), disabled (confirmed false), unknown (null)
+  const featureDefs = [
+    { name: 'ARP',       get: (s) => s.isARPEnabled != null ? s.isARPEnabled : null },
+    { name: 'FabricPool', get: (s) => s.isFabricPool != null ? s.isFabricPool : null },
+    { name: 'SnapMirror', get: (s) => _smCount(s) > 0 },  // always known (0 = no relationships)
+    { name: 'HA',         get: (s) => _hasHA(s) }
+  ];
+
+  const featureStats = featureDefs.map(f => {
+    let enabled = 0, disabled = 0, unknown = 0;
+    systems.forEach(s => {
+      const v = f.get(s);
+      if (v === true) enabled++;
+      else if (v === false) disabled++;
+      else unknown++;
+    });
+    const known = enabled + disabled;
+    const pct = known > 0 ? Math.round((enabled / known) * 100) : null;
+    return { name: f.name, enabled, disabled, unknown, known, pct };
+  });
 
   const versions = {};
   systems.forEach(s => {
@@ -19548,48 +19585,56 @@ function _renderFeatureAdoptionSection(systems) {
 
   const trs = systems.map(s => {
     const scoreObj = computeFeatureAdoptionScore(s);
-    const scoreText = `${scoreObj.passed}/15 (${scoreObj.pct}%)`;
+    const scoreText = `${scoreObj.passed}/${scoreObj.total} (${scoreObj.pct}%)`;
     
     return `
       <tr>
         <td style="${tdLeft}font-family:monospace;">${s.systemName || s.serialNumber}</td>
-        <td style="${tdStyle}">${s.isARPEnabled ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${s.isFabricPool ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${_hasEncryption(s) ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${_smCount(s) > 0 ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${_hasHA(s) ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${s.isAuditEnabled ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${s.isSnapLockEnabled ? '✅' : '❌'}</td>
-        <td style="${tdStyle}">${s.isMAVEnabled ? '✅' : '❌'}</td>
+        <td style="${tdStyle}">${_icon(s.isARPEnabled != null ? s.isARPEnabled : null)}</td>
+        <td style="${tdStyle}">${_icon(s.isFabricPool != null ? s.isFabricPool : null)}</td>
+        <td style="${tdStyle}">${_icon(_smCount(s) > 0)}</td>
+        <td style="${tdStyle}">${_icon(_hasHA(s))}</td>
         <td style="${tdStyle}">${scoreText}</td>
       </tr>
     `;
   }).join('');
 
+  // Optimization recommendations — only for CONFIRMED disabled features, not unknown ones
   const recs = systems.map(s => {
     const missing = [];
-    if (!s.isARPEnabled) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
-    if (!_hasEncryption(s)) missing.push('Encryption (NVE for per-volume granularity, NAE for per-aggregate enables cross-volume deduplication. OKM for simple deployments, KMIP for enterprise compliance. `volume create -encrypt true`)');
-    if (!s.isMAVEnabled) missing.push('MAV (ONTAP 9.15.1+: MAV protection expanded to cover Consistency Groups, VScan rules, ARP management, LUN deletions, and NVMe configurations. `security multi-admin-verify setup`)');
-    if (!s.isFabricPool) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
-    if (!s.isSnapLockEnabled) missing.push('SnapLock (Compliance mode: SEC 17a-4, no privileged delete. Enterprise mode: allows audited privileged delete)');
+    if (s.isARPEnabled === false) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
+    if (s.isFabricPool === false) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
     
     if (missing.length === 0) return '';
     return `<li><strong>${s.systemName || s.serialNumber}:</strong> Enable ${missing.join(', ')}</li>`;
   }).filter(Boolean).slice(0, 10);
 
+  // Count how many features have unknown state
+  const unknownFeatureCount = featureStats.filter(f => f.unknown === systems.length).length;
+  const unknownNote = unknownFeatureCount > 0
+    ? `<div style="margin-top: 10px; font-size: 0.7rem; color: var(--text-muted); font-style: italic;">
+        ⚠ ${unknownFeatureCount} feature${unknownFeatureCount > 1 ? 's' : ''} not reported by Active IQ API — verify on-cluster via CLI. Features marked '—' in the matrix below are unknown.
+      </div>`
+    : '';
+
   return `
     <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
       <div style="flex:2; min-width: 300px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
-        <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;" title="15-point best-practice checklist scored per system: OS currency, DR ratio ≥1.5:1, FabricPool, SnapMirror, zero critical/high risks, active contract, ASUP compliance, lifecycle health, zero CVEs, capacity ≤80%, HA configured, zero P1/P2 cases, encryption (NVE/NAE), ARP enabled, zero field actions.">Fleet-Wide Feature Adoption</h4>
+        <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;" title="Feature adoption rates based on data confirmed by Active IQ API. Features showing '—' are not reported by the API and must be verified on-cluster.">Fleet-Wide Feature Adoption</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;">
-          ${Object.entries(features).map(([name, count]) => `
-            <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center;">
-              <div style="font-size: 1.2rem; color: var(--accent-cyan); font-weight: bold;">${getPct(count)}%</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">${name}</div>
+          ${featureStats.map(f => {
+            const display = f.pct != null ? `${f.pct}%` : '—';
+            const color = f.pct != null ? 'var(--accent-cyan)' : 'var(--text-muted)';
+            const subtitle = f.pct != null ? `${f.enabled}/${f.known} confirmed` : 'Not reported';
+            return `
+            <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center;" title="${f.enabled} enabled, ${f.disabled} disabled, ${f.unknown} unknown">
+              <div style="font-size: 1.2rem; color: ${color}; font-weight: bold;">${display}</div>
+              <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">${f.name}</div>
+              <div style="font-size: 0.6rem; color: var(--text-muted); margin-top: 2px;">${subtitle}</div>
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
+        ${unknownNote}
       </div>
       <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
         <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Fleet Diversity (OS)</h4>
@@ -19598,6 +19643,7 @@ function _renderFeatureAdoptionSection(systems) {
     </div>
 
     <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">Per-System Feature Matrix</h3>
+    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">✅ = Confirmed enabled &nbsp;&nbsp; ❌ = Confirmed disabled &nbsp;&nbsp; — = Not reported by API (verify on-cluster)</div>
     <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
       <table style="${tblStyle}">
         <thead>
@@ -19605,12 +19651,8 @@ function _renderFeatureAdoptionSection(systems) {
             ${_sth(thStyle, 'System')}
             ${_sth(thStyle, 'ARP')}
             ${_sth(thStyle, 'FabricPool')}
-            ${_sth(thStyle, 'NVE/NAE')}
             ${_sth(thStyle, 'SnapMirror')}
             ${_sth(thStyle, 'HA')}
-            ${_sth(thStyle, 'Audit')}
-            ${_sth(thStyle, 'SnapLock')}
-            ${_sth(thStyle, 'MAV')}
             ${_sth(thStyle, 'Score')}
           </tr>
         </thead>
@@ -19630,6 +19672,7 @@ function _renderFeatureAdoptionSection(systems) {
     ` : ''}
   `;
 }
+
 
 
 
