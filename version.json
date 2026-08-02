@@ -1,8 +1,8 @@
 {
-  "version": "4.0.3",
+  "version": "4.0.4",
   "major": 4,
   "minor": 0,
-  "patch": 3,
-  "date": "2026-08-01",
-  "notes": "25-point categorized TAM/MSP remediation readiness checklist with 2-column layout (Operations & Security, Data Protection & Lifecycle), 10 new checks including CISA KEV, firmware currency, port health, QoS coverage, config drift, MTTR posture, FlexClone sprawl, SVM/LIF mapping, feature adoption score, and co-term alignment."
+  "patch": 4,
+  "date": "2026-08-02",
+  "notes": "Certified partner solutions & reference architecture enrichment: 31 NVA/FlexPod CVD/TR/BlueXP/Keystone/AI/healthcare sources added to VENDOR_GUIDELINE_SOURCES, REFERENCE_LIBRARY_INTEGRATIONS expanded with referenceArchitectures catalog (FlexPod CVDs, NVA library, Technical Reports, partner ecosystem, BlueXP services, Keystone STaaS), all 39 fleet signals now have detection logic (14 previously unmapped), FlexPod isFlexPod API field integration, deliverable templates surface reference architectures in Solution Proposals and Customer Communications."
 }

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.4] - 2026-08-02
+
+### Added
+- **Certified Reference Architecture Enrichment** — 31 new `reference_architecture` sources added to `VENDOR_GUIDELINE_SOURCES` covering:
+  - **FlexPod CVDs** — Cisco Validated Designs (Design Zone, FlexPod Solutions Portal, FlexPod Documentation Center)
+  - **NetApp Verified Architectures (NVA)** — workload-specific validated architecture library
+  - **Technical Reports (TRs)** — TR-4569 (Security Hardening), TR-4067 (NFS), TR-4515 (AFF SAN), TR-4929 (FlexPod DC), TR-4616 (NFS Kerberos), TR-4571 (FlexPod Architecture), TR-4613 (NVMe/FC), TR-4733 (SM-BC), TR-4614 (SAP HANA Backup), TR-4668 (Oracle), TR-4590 (SQL Server)
+  - **AI/ML Reference Architectures** — NVIDIA DGX SuperPOD + ONTAP, NetApp AI Solutions documentation
+  - **Industry Solutions** — Healthcare (Epic, Cerner, Imaging), Financial Services (SEC 17a-4, SnapLock WORM)
+  - **Automation & IaC** — Ansible Galaxy ONTAP Collection, Terraform ONTAP Provider, ONTAP Automation Toolkit
+  - **BlueXP Services** — Ransomware Protection, Classification/Data Sense, Tiering, Disaster Recovery, Backup & Recovery
+  - **Keystone STaaS** — subscription-based opex storage documentation
+  - **Nutanix AHV** — Early Access iSCSI SAN integration (GA targeted Q3 2026)
+- **REFERENCE_LIBRARY_INTEGRATIONS: referenceArchitectures catalog** — new app.js knowledge base section with 7 sub-categories:
+  - `flexpod` — 6 key FlexPod CVD designs + 4 benefits (joint support, firmware matrices, deployment risk, lifecycle)
+  - `nva` — 8 NetApp Verified Architectures (DGX SuperPOD, Oracle, SQL Server, SAP HANA, VDI, Splunk, OpenShift, Epic)
+  - `technicalReports` — 8 key NetApp TRs with corrected titles (TR-4614→SAP HANA Backup, TR-4616→NFS Kerberos)
+  - `partnerSolutions` — 14 certified alliance partners (Cisco, VMware, Veeam, Commvault, Microsoft, Red Hat, NVIDIA, SAP, Oracle, Ansible, Terraform, Rubrik, Cohesity, HYCU)
+  - `bluexp` — 6 BlueXP SaaS services
+  - `keystone` — 5 Keystone STaaS features
+- **Comprehensive Fleet Signal Detection** — 14 previously unmapped signal keys now have detection logic:
+  - **Backup vendors**: `rubrik`, `cohesity`, `hycu`, `veritas` (via risk text matching)
+  - **Databases**: `oracle_db`, `mssql`, `sap_hana` (via risk text: Oracle/dNFS/ASM, SQL Server/MSSQL/Always On, SAP HANA)
+  - **Security tools**: `crowdstrike`/Falcon, `paloalto`/Prisma/Cortex, `varonis`, `cyberark` (via risk text)
+  - **Observability**: `splunk` (via risk text)
+  - **Containers**: `kubernetes`/Trident/OpenShift (via risk text)
+  - **AI/ML**: `ai_ml`/GPU/DGX/NVIDIA (via risk text)
+  - **Hypervisors**: `proxmox`/PVE, `nutanix`/AHV (via host OS detection)
+  - **FlexPod**: `flexpod` (via `isFlexPod` API property, platform text, and risk text)
+- **Deliverable Template Updates** — Solution Proposals now include a dedicated "CERTIFIED REFERENCE ARCHITECTURES & VALIDATED DESIGNS" section; Customer Communications includes reference architecture document count badge
+
+### Fixed
+- **FlexPod signal initialization** — added `'flexpod': False` to `fleet_signals` init dict (was being set but never initialized)
+- **TR number corrections** — TR-4614 correctly mapped to SAP HANA Backup & Recovery (not SAN Host Reporting), TR-4616 correctly mapped to NFS Kerberos (not general ONTAP encryption)
+
+### Changed
+- **Version bumped to 4.0.4** across `version.json`, `app.js` (APP_VERSION), `README.md` badge, and CHANGELOG.md
+- **Total fleet signal keys expanded to 40** (39 original + flexpod), all with active detection logic
+
+---
+
 ## [4.0.3] - 2026-08-01
 
 ### Added
