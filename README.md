@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.0.7-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.8-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -334,7 +334,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 18 sections are 
 | **4** | **Support Cases** | Active, in-progress, and recently closed cases — priority sorted, with case age and system link |
 | **5** | **OS Upgrades** | Hop-by-hop upgrade paths. Direct where possible; multi-hop with intermediate versions and per-version notes. Covers ONTAP, StorageGRID, SANtricity |
 | **6** | **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
-| **7** | **Logistics & Health** | Site locations (city/country/state), account contacts, CSAT scores |
+| **7** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
 | **8** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
 | **9** | **Deliverables** | 13 one-click downloadable report generators — each with KB intelligence badge showing enrichment article count |
 | **10** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
@@ -394,7 +394,7 @@ Composite index measuring overall customer account posture. Used in: TAM tab gau
 | Contract Coverage | 13% | Active support contract | % covered × 13 |
 | Risk Posture | 20% | Inverse of critical/high risk count | max(0, 1 - (criticals × 0.15 + highs × 0.05)) × 20 |
 | Data Reduction | 10% | Avg DR ratio, capped at 5:1 | (avg ratio / 5) × 10 |
-| CSAT Sentiment | 10% | Customer satisfaction score | (avg score / 10) × 10 |
+| Case Health | 10% | Support case health score (computed from real case data) | (avg score / 10) × 10 |
 
 **Grading**: A (≥90), B (≥80), C (≥65), D (≥50), F (<50)
 
@@ -499,7 +499,7 @@ Sales qualification methodology integrated into deliverables:
 | D | Decision Process | Phased remediation roadmap (critical→lifecycle→optimization) |
 | P | Paper Process | Contract pipeline, co-term opportunities, service tiers |
 | I | Implicate Pain | Cost of Inaction score, CVE exposure, EOSA countdown |
-| C | Champion | Primary contact, CSAT score, engagement history |
+| C | Champion | Primary contact, case health score, engagement history |
 | C | Competition | Tech refresh candidates, platform age, EOA hardware |
 
 ---
