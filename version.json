@@ -1,8 +1,8 @@
 {
-  "version": "4.0.5",
+  "version": "4.0.6",
   "major": 4,
   "minor": 0,
-  "patch": 5,
-  "date": "2026-08-02",
-  "notes": "Data integrity cleanup: removed 6 unreportable feature fields (isAuditEnabled, isSnapLockEnabled, isMAVEnabled, nvEncryptionEnabled, isFlexPod, belongsToMixModelCluster) that Active IQ GraphQL API does not expose. Feature Adoption tab now reports only on API-confirmed fields (ARP, FabricPool, MetroCluster, All Flash Optimized, HA, SnapMirror, Operating Mode). ARP denominator fixed to use known-system count. Tri-state rendering (enabled/disabled/unknown) for all feature flags."
+  "patch": 6,
+  "date": "2026-08-04",
+  "notes": "Firmware Currency: Section 18 with full drive/shelf/switch firmware auditing, per-system firmware cards with recommended-vs-actual comparison, drive firmware recommended column fix (recommendedDriveFirmwares field was silently dropped during system enrichment), multi-source firmware harvester (endoflife.date, PyPI, GitHub fallback), server-side fleet-driven DQP-based drive firmware auto-discovery."
 }

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.6] - 2026-08-04
+
+### Added
+- **Section 18 — Firmware Currency** — new Action Planner tab providing comprehensive per-system firmware auditing:
+  - Per-system firmware cards showing ONTAP version, system firmware, motherboard firmware, DQP version
+  - Shelf module firmware table with current vs. recommended baseline status
+  - **Drive firmware aggregation table** with model, current FW, recommended FW, ✅/⚠️ status badge, vendor, and count columns
+  - Fleet-wide firmware currency summary ribbon: current / behind / unknown drive counts across all systems
+  - Semantic version comparison (`_fwMatch`) handles dot-delimited, patch-level (e.g., `9.16.1P11`), and alphanumeric firmware strings
+- **Multi-source firmware harvester** (`tools/firmware_harvester.py`) — cascading fallback strategy to bypass Cloudflare/Akamai WAFs on docs.netapp.com:
+  - Source 1: `endoflife.date` API for ONTAP and SANtricity lifecycle/version data
+  - Source 2: PyPI package metadata for NetApp SDK versions
+  - Source 3: GitHub release APIs for Trident, Harvest, and related tools
+- **Server-side drive firmware auto-discovery** — `server.py` enhanced with fleet-driven DQP-based drive firmware recommendations:
+  - Populates `recommendedDriveFirmwares` map keyed by drive hardware model name during harvest
+  - Recommendations flow through to per-system objects for client-side rendering
+- **DQP parser utility** (`tools/dqp_parser.py`) — parses Disk Qualification Package files for drive firmware extraction
+
+### Fixed
+- **Drive firmware Recommended/Status columns always showing `—`** — `enrichSystemTelemetry()` constructs a new object with an explicit field list; `recommendedDriveFirmwares` was missing from that return object and was silently dropped during system enrichment. One-line fix at the return statement.
+- **Firmware probe endpoint** (`/api/firmware-probe`) added for live drive firmware debugging
+
+### Changed
+- **Version bumped to 4.0.6** across `version.json`, `app.js` (`APP_VERSION`), `README.md` badge, and CHANGELOG.md
+- **README.md** updated: Section count 17→18, file tree includes `tools/firmware_harvester.py`, component reference sizes updated, drive firmware currency added to feature list
+- **Firmware baselines expanded** with current ONTAP 9.19.1+ and SANtricity 12.00 versions in `data/firmware_baselines.json`
+
+---
+
 ## [4.0.5] - 2026-08-02
 
 ### Removed

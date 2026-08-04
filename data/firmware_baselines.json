@@ -1,21 +1,56 @@
 {
-  "_comment": "Ground-truth latest GA versions for NetApp products. Updated by daily Reference Library scan (0 8 * * *). Edit this file manually if the scan agent identifies a newer GA release not yet reflected here. See CHANGELOG.md in the Reference Library for authoritative update history.",
-  "_lastUpdated": "2026-07-23",
+  "_comment": "Ground-truth latest GA versions for NetApp products. Updated by automated harvester + daily Reference Library scan (0 8 * * *). Edit this file manually if the scan agent identifies a newer GA release not yet reflected here.",
+  "_lastUpdated": "2026-08-04",
   "_sources": {
-    "ontap":            "ONTAP-Core/README.md — verified 2026-07-22 via docs.netapp.com/us-en/ontap",
-    "cloudVolumesOntap":"Cloud-BlueXP/README.md — What's New page verified 2026-07-22",
-    "storageGrid":      "Cloud-BlueXP/README.md — storagegrid/release-notes/ verified 2026-07-22 (12.1 announced 2026-06-23, docs not yet live)",
-    "santricity":       "mysupport.netapp.com/site/downloads/eseries (authenticated; manually verified)",
-    "snapCenter":       "Data-Protection/README.md — snapcenter/release-notes/ verified 2026-07-22",
-    "trident":          "Kubernetes-Containers/README.md — trident/trident-rn.html verified 2026-07-22",
-    "hostUtilities":    "Host-Integration-Cabling/README.md — verified 2026-07-22",
-    "spBmcByModel":     "Platforms-Hardware/Firmware-Versions.md — direct-fetch-confirmed via public KB CONTAP-* issue summaries 2026-07-23. Per-family independent version tracks; not exhaustive — gap flag: AFX and unlisted families require Hardware Universe/Support Site."
+    "ontap": "mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab \u2014 verified 2026-08-04",
+    "cloudVolumesOntap": "docs.netapp.com/us-en/cloud-volumes-ontap \u2014 verified 2026-07-22",
+    "storageGrid": "docs.netapp.com/us-en/storagegrid/release-notes/ \u2014 verified 2026-07-22 (12.1 announced)",
+    "santricity": "mysupport.netapp.com/site/downloads/eseries \u2014 verified 2026-08-04",
+    "snapCenter": "docs.netapp.com/us-en/snapcenter/release-notes/ \u2014 verified 2026-07-22",
+    "trident": "docs.netapp.com/us-en/trident/ \u2014 verified 2026-07-22",
+    "hostUtilities": "docs.netapp.com/us-en/ontap-sanhost/ \u2014 verified 2026-07-22",
+    "spBmcByModel": "CONTAP-* KB articles via kb.netapp.com + mysupport.netapp.com/site/info/firmware-support-matrix \u2014 verified 2026-08-04",
+    "shelfModules": "mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware + mysupport.netapp.com/site/info/firmware-support-matrix \u2014 verified 2026-08-04",
+    "switches": "docs.netapp.com/us-en/ontap-systems-switches/ + vendor documentation \u2014 verified 2026-08-04"
   },
   "ontap": {
     "latestGA": "9.19.1",
     "previousGA": "9.18.1",
     "gaDate": "2026-06-11",
-    "releaseNotesUrl": "https://docs.netapp.com/us-en/ontap/release-notes/whats-new-9191.html"
+    "releaseNotesUrl": "https://docs.netapp.com/us-en/ontap/release-notes/whats-new-9191.html",
+    "latestByBranch": {
+      "9.16.1": "9.16.1P11",
+      "9.15.1": "9.15.1P19",
+      "9.14.1": "9.14.1P16",
+      "9.13.1": "9.13.1P19",
+      "9.12.1": "9.12.1P20",
+      "9.11.1": "9.11.1P16",
+      "9.10.1": "9.10.1P22",
+      "9.9.1": "9.9.1P22",
+      "9.8": "9.8P20",
+      "9.19.1": "9.19.1",
+      "9.18.1": "9.18.1",
+      "9.17.1": "9.17.1",
+      "9.8.0": "9.8.0",
+      "9.7.3": "9.7.3",
+      "9.7.2": "9.7.2",
+      "9.7.1": "9.7.1",
+      "9.7.0": "9.7.0",
+      "9.6.0": "9.6.0"
+    },
+    "supportedBranches": [
+      "9.16.1",
+      "9.15.1",
+      "9.14.1",
+      "9.13.1",
+      "9.12.1"
+    ],
+    "eolBranches": [
+      "9.11.1",
+      "9.10.1",
+      "9.9.1",
+      "9.8"
+    ]
   },
   "cloudVolumesOntap": {
     "latestGA": "9.18.1",
@@ -27,8 +62,15 @@
     "releaseNotesUrl": "https://docs.netapp.com/us-en/storagegrid/release-notes/"
   },
   "santricity": {
-    "latestGA": "11.80",
-    "note": "SANtricity OS (E-Series). Verify via mysupport.netapp.com/site/downloads/eseries — requires NetApp Support login.",
+    "latestGA": "12.00",
+    "latestPatch": "11.80.3",
+    "latestByBranch": {
+      "11.80": "11.80.3",
+      "11.70": "11.70.5",
+      "11.90": "11.90R5",
+      "12.00": "12.00R1"
+    },
+    "note": "SANtricity OS (E-Series/EF-Series). 11.90.x and 12.00.x are for newer EF/E-Series hardware.",
     "releaseNotesUrl": "https://mysupport.netapp.com/site/downloads/eseries"
   },
   "snapCenter": {
@@ -46,109 +88,362 @@
     "releaseNotesUrl": "https://docs.netapp.com/us-en/ontap-sanhost/"
   },
   "spBmc": {
-    "_comment": "SP/BMC firmware is hardware model-specific. NetApp best practice: always run the latest available version regardless of ONTAP release. The ONTAP-bundled catalog baseline is NOT the same as the globally latest available firmware.",
-    "validationNote": "Firmware currency cannot be confirmed without live API data. Validate installed version via ONTAP CLI: 'system service-processor show'. Download latest from mysupport.netapp.com/site/downloads.",
+    "_comment": "SP/BMC firmware is hardware model-specific. NetApp best practice: always run the latest available version. The ONTAP-bundled catalog baseline is NOT the same as the globally latest available firmware.",
+    "validationNote": "Validate installed version via ONTAP CLI: 'system service-processor show'. Download latest from mysupport.netapp.com/site/downloads.",
     "cliCommand": "system service-processor show",
     "downloadUrl": "https://mysupport.netapp.com/site/downloads",
-    "families": {
-      "SP": {
-        "note": "AFF/FAS Service Processor firmware — model-specific, verify via mysupport.netapp.com",
-        "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
-      },
-      "BMC": {
-        "note": "AFF A-series / ASA / AFX Baseboard Management Controller firmware — model-specific, verify via mysupport.netapp.com",
-        "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
-      },
-      "BIOS": {
-        "note": "System BIOS — bundled with ONTAP releases; verify via mysupport.netapp.com for standalone updates",
-        "latestKnownHint": "See mysupport.netapp.com/site/downloads for model-specific latest"
-      }
+    "byModel": {
+      "_comment": "Direct model-keyword \u2192 latest SP/BMC version lookup. Each platform family has INDEPENDENT version tracks.",
+      "A1K": "18.6",
+      "A90": "18.6",
+      "A70": "18.6",
+      "C80": "18.6",
+      "FAS90": "18.6",
+      "FAS70": "18.6",
+      "A50": "19.2P1",
+      "A30": "19.2P1",
+      "A20": "19.2P1",
+      "C60": "19.2P1",
+      "C30": "19.2P1",
+      "FAS50": "19.2P1",
+      "A900": "16.7",
+      "FAS9500": "16.7",
+      "A400": "13.11",
+      "C400": "13.11",
+      "FAS8700": "13.11",
+      "FAS8300": "13.11",
+      "A250": "15.13",
+      "C250": "15.13",
+      "FAS500f": "15.13",
+      "FAS500F": "15.13",
+      "A220": "11.12",
+      "A150": "11.12",
+      "C190": "11.12",
+      "FAS2750": "11.12",
+      "FAS2720": "11.12",
+      "A800": "10.9P2",
+      "C800": "10.9P2",
+      "A700": "4.5P1",
+      "A700s": "4.5P1",
+      "FAS9000": "4.5P1",
+      "A300": "5.8",
+      "FAS8200": "5.8",
+      "FAS8060": "3.10",
+      "FAS8080": "3.10",
+      "FAS2820": "17.5",
+      "A200": "5.8",
+      "FAS2650": "5.8",
+      "FAS2620": "5.8"
     },
-    "_phase2_byPlatformFamily": {
-      "_gapFlag": "Table covers families with discoverable public KB entries only (CONTAP-* issue summaries, direct-fetch-confirmed 2026-07-23). NOT exhaustive. AFX BMC-equivalent and unlisted families require Hardware Universe / mysupport.netapp.com. Each family has an INDEPENDENT version track — do NOT compare version numbers across families. 'mostRecentFound' entries may have newer unreleased updates.",
-      "families": [
-        {
-          "label": "AFF A1K, A90, A70, C80 / ASA A1K, A90, A70 / FAS90, FAS70",
-          "modelKeywords": ["A1K","A90","A70","C80","FAS90","FAS70"],
-          "latestKnown": "18.4P1",
-          "confidence": "confirmed",
-          "kbSources": "CONTAP-363315, CONTAP-409406, CONTAP-504896"
-        },
-        {
-          "label": "AFF A50, A30, A20, C60, C30 / ASA A50, A30, A20, C30 / FAS50",
-          "modelKeywords": ["A50","A30","A20","C60","C30","FAS50"],
-          "latestKnown": "19.2P1",
-          "confidence": "confirmed",
-          "kbSources": "CONTAP-474838, CONTAP-502118"
-        },
-        {
-          "label": "AFF A400, C400 / ASA A400, C400 / FAS8700, FAS8300",
-          "modelKeywords": ["A400","C400","FAS8700","FAS8300"],
-          "latestKnown": "13.11",
-          "confidence": "mostRecentFound",
-          "kbSources": "CONTAP-300963"
-        },
-        {
-          "label": "AFF A250, C250 / ASA A250, C250 / FAS500f",
-          "modelKeywords": ["A250","C250","FAS500f","FAS500F"],
-          "latestKnown": "15.12",
-          "confidence": "mostRecentFound",
-          "kbSources": "CONTAP-323139"
-        },
-        {
-          "label": "AFF A220, A150, C190 / ASA A150 / FAS2750, FAS2720",
-          "modelKeywords": ["A220","A150","C190","FAS2750","FAS2720"],
-          "latestKnown": "11.12",
-          "confidence": "confirmed",
-          "kbSources": "CONTAP-271514, CONTAP-422222"
-        },
-        {
-          "label": "AFF A800, C800 / ASA A800, C800",
-          "modelKeywords": ["A800","C800"],
-          "latestKnown": "10.9P2",
-          "confidence": "mostRecentFound",
-          "kbSources": "CONTAP-323134"
-        }
-      ]
+    "families": [
+      {
+        "label": "AFF A1K, A90, A70, C80 / ASA A1K, A90, A70 / FAS90, FAS70 / AFX",
+        "modelKeywords": [
+          "A1K",
+          "A90",
+          "A70",
+          "C80",
+          "FAS90",
+          "FAS70",
+          "AFX",
+          "EF50",
+          "EF80"
+        ],
+        "latestKnown": "18.6",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "CONTAP-474887, mysupport.netapp.com"
+      },
+      {
+        "label": "AFF A50, A30, A20, C60, C30 / ASA A50, A30, A20, C30 / FAS50",
+        "modelKeywords": [
+          "A50",
+          "A30",
+          "A20",
+          "C60",
+          "C30",
+          "FAS50"
+        ],
+        "latestKnown": "19.2P1",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "CONTAP-344840"
+      },
+      {
+        "label": "AFF A900 / ASA A900 / FAS9500",
+        "modelKeywords": [
+          "A900",
+          "FAS9500"
+        ],
+        "latestKnown": "16.7",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "mysupport.netapp.com"
+      },
+      {
+        "label": "AFF A400, C400 / ASA A400, C400 / FAS8700, FAS8300",
+        "modelKeywords": [
+          "A400",
+          "C400",
+          "FAS8700",
+          "FAS8300"
+        ],
+        "latestKnown": "13.11",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "CONTAP-705061"
+      },
+      {
+        "label": "AFF A250, C250 / ASA A250, C250 / FAS500f",
+        "modelKeywords": [
+          "A250",
+          "C250",
+          "FAS500f",
+          "FAS500F"
+        ],
+        "latestKnown": "15.13",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "CONTAP-323139"
+      },
+      {
+        "label": "AFF A220, A150, C190 / ASA A150 / FAS2750, FAS2720",
+        "modelKeywords": [
+          "A220",
+          "A150",
+          "C190",
+          "FAS2750",
+          "FAS2720"
+        ],
+        "latestKnown": "11.12",
+        "fwType": "SP",
+        "confidence": "confirmed",
+        "kbSources": "CONTAP-657167"
+      },
+      {
+        "label": "AFF A800, C800 / ASA A800, C800",
+        "modelKeywords": [
+          "A800",
+          "C800"
+        ],
+        "latestKnown": "10.9P2",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "CONTAP-323134"
+      },
+      {
+        "label": "AFF A700, A700s / FAS9000",
+        "modelKeywords": [
+          "A700",
+          "FAS9000"
+        ],
+        "latestKnown": "4.5P1",
+        "fwType": "SP",
+        "confidence": "confirmed",
+        "kbSources": "mysupport.netapp.com/site/info/firmware-support-matrix"
+      },
+      {
+        "label": "AFF A300 / FAS8200",
+        "modelKeywords": [
+          "A300",
+          "FAS8200"
+        ],
+        "latestKnown": "5.8",
+        "fwType": "SP",
+        "confidence": "confirmed",
+        "kbSources": "mysupport.netapp.com/site/info/firmware-support-matrix"
+      },
+      {
+        "label": "FAS8060 / FAS8080",
+        "modelKeywords": [
+          "FAS8060",
+          "FAS8080"
+        ],
+        "latestKnown": "3.10",
+        "fwType": "SP",
+        "confidence": "confirmed",
+        "kbSources": "mysupport.netapp.com/site/info/firmware-support-matrix"
+      },
+      {
+        "label": "FAS2820",
+        "modelKeywords": [
+          "FAS2820"
+        ],
+        "latestKnown": "17.5",
+        "fwType": "BMC",
+        "confidence": "confirmed",
+        "kbSources": "mysupport.netapp.com"
+      },
+      {
+        "label": "AFF A200 / FAS2650 / FAS2620",
+        "modelKeywords": [
+          "A200",
+          "FAS2650",
+          "FAS2620"
+        ],
+        "latestKnown": "5.8",
+        "fwType": "SP",
+        "confidence": "confirmed",
+        "kbSources": "mysupport.netapp.com/site/info/firmware-support-matrix"
+      }
+    ]
+  },
+  "shelfModules": {
+    "_comment": "Shelf module firmware baselines. Source: mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware + firmware-support-matrix",
+    "NSM100": {
+      "recommended": "02.15",
+      "label": "NSM100 NVMe Shelf Module (NS224, AFF A/C-Series, ASA r2, FAS)"
+    },
+    "NSM100B": {
+      "recommended": "02.15",
+      "label": "NSM100B NVMe Shelf Module (AFF/ASA r2 next-gen)"
+    },
+    "NSM140": {
+      "recommended": "current",
+      "label": "NSM140 NVMe Shelf Module (AFX NX224 shelves ONLY)"
+    },
+    "IOM12": {
+      "recommended": "04.11",
+      "label": "IOM12 SAS Module (DS224C, DS212C)"
+    },
+    "IOM12G": {
+      "recommended": "04.11",
+      "label": "IOM12G SAS Module (DS460C, DS224C-G)"
+    },
+    "IOM12B": {
+      "recommended": "04.11",
+      "label": "IOM12B SAS Module (FAS/AFF hybrid)"
+    },
+    "IOM12E": {
+      "recommended": "04.11",
+      "label": "IOM12E SAS Module"
+    },
+    "IOM6": {
+      "recommended": "0191",
+      "label": "IOM6 SAS Module (legacy DS4246/DS2246)"
+    },
+    "IOM6E": {
+      "recommended": "0191",
+      "label": "IOM6E SAS Module (legacy)"
+    },
+    "IOM3": {
+      "recommended": "0200",
+      "label": "IOM3 SAS Module (legacy DS2246/DS4243)"
+    }
+  },
+  "switches": {
+    "_comment": "Cluster/MetroCluster/SAN switch firmware baselines. Source: docs.netapp.com/us-en/ontap-systems-switches/ + vendor docs.",
+    "Cisco NX-OS": {
+      "recommended": "10.4.2",
+      "label": "Cisco Nexus 9000 Series (cluster/MC-IP, AFX switches)"
+    },
+    "Cisco NX-OS Legacy": {
+      "recommended": "9.3(12)",
+      "label": "Cisco Nexus 9336C-FX2 legacy cluster switch (EOA)"
+    },
+    "Cisco MDS": {
+      "recommended": "9.2(2)",
+      "label": "Cisco MDS 9000 Series (FC SAN)"
+    },
+    "Brocade FOS": {
+      "recommended": "9.2.1",
+      "label": "Brocade FC Switch (Fabric OS)"
+    },
+    "Broadcom EFOS": {
+      "recommended": "3.12.0.1",
+      "label": "Broadcom BES-53248 (cluster switch, EOA)"
+    },
+    "NVIDIA Cumulus": {
+      "recommended": "5.11.0",
+      "label": "NVIDIA SN2100 cluster switch (EOA)"
+    },
+    "Cisco 9332D-GX2B": {
+      "recommended": "10.4.2",
+      "label": "Cisco Nexus 9332D-GX2B (AFX 1K, 400GbE)"
+    },
+    "Cisco 9364D-GX2A": {
+      "recommended": "10.4.2",
+      "label": "Cisco Nexus 9364D-GX2A (AFX 1K, 400GbE)"
+    },
+    "Cisco 9808": {
+      "recommended": "10.6",
+      "label": "Cisco Nexus 9808 (AFX 2K, 400GbE)"
     }
   },
   "storageGridAppliance": {
-    "_comment": "StorageGRID appliance node firmware (BMC, drive controllers, expansion card firmware) is managed through the StorageGRID Appliance Installer and Grid Manager. No unified firmware version matrix is available via public API or ActiveIQ — versions are hardware-model-specific and require authenticated access to mysupport.netapp.com to verify.",
-    "validationNote": "Validate appliance firmware via Grid Manager → Nodes → [Appliance Node] → Hardware tab. For detailed firmware info use SANtricity System Manager (E-Series-based SG nodes) or the Appliance Installer page (SG6160, SGF6112, SG6000, SG5800, etc.). Download latest from mysupport.netapp.com.",
-    "gridManagerPath": "Grid Manager → Nodes → [Node] → Hardware",
-    "applianceInstallerPort": "8443",
+    "_comment": "StorageGRID appliance firmware \u2014 hardware-model-specific, managed via Grid Manager.",
     "downloadUrl": "https://mysupport.netapp.com/site/downloads",
-    "knownAppliances": ["SG6160","SG6060","SG6060X","SGF6112","SG5800","SG100","SG1000","SG5712","SG5760"],
-    "firmwareComponents": {
-      "computeController": "Runs StorageGRID Appliance Installer + node OS. Validate via Appliance Installer or Grid Manager Hardware tab.",
-      "storageController": "E-Series-derived storage controllers (SANtricity) in SG6x60/SG5x60 appliances — validate via SANtricity System Manager embedded in the appliance.",
-      "bmc": "Appliance-specific BMC — validate via Grid Manager Hardware tab or appliance out-of-band management interface.",
-      "drives": "Drive firmware validated via SANtricity Upgrade Center (storage-controller appliances) or Grid Manager for compute-only nodes."
-    }
+    "knownAppliances": [
+      "SG6160",
+      "SG6060",
+      "SG6060X",
+      "SGF6112",
+      "SG5800",
+      "SG100",
+      "SG1000",
+      "SG5712",
+      "SG5760"
+    ]
   },
   "eSeriesFirmware": {
-    "_comment": "E-Series / EF-Series component firmware independent of SANtricity OS (controller firmware). Drive firmware, cache backup device (CBD/BBU), and expansion module firmware all have separate version tracks.",
-    "validationNote": "Validate all E-Series component firmware via SANtricity System Manager → Upgrade Center → View/Update Firmware. Download latest from mysupport.netapp.com/site/downloads/eseries — requires NetApp Support login.",
-    "santricitySystemManager": "Upgrade Center → View/Update Firmware (controller, drive, and CBD/BBU firmware all tracked here)",
-    "downloadUrl": "https://mysupport.netapp.com/site/downloads/eseries",
-    "firmwareComponents": {
-      "controllerFirmware": "SANtricity OS/Controller Firmware (8.xx/7.xx — see 'santricity' key above for latest GA). This IS the primary OS-level version.",
-      "driveFirmware": "Per-drive-model firmware. Model-specific — no public current-version matrix. See NetApp E/EF-Series Disk Drive and Firmware Matrix (authenticated). Validate via SANtricity System Manager → Upgrade Center → Drive Firmware.",
-      "cbdFirmware": "Cache Backup Device (CBD/BBU) firmware — model-specific. Validate via SANtricity System Manager → Upgrade Center.",
-      "nvsramVersion": "Controller NVSRAM defines controller configuration settings and must match the SANtricity OS version. Always upgrade NVSRAM when upgrading controller firmware.",
-      "expansionModule": "Expansion Enclosure Module (ESM/IOM) firmware — separate version track from controller firmware. Validate via SANtricity System Manager."
-    }
+    "_comment": "E-Series component firmware independent of SANtricity OS.",
+    "downloadUrl": "https://mysupport.netapp.com/site/downloads/eseries"
   },
   "diskFirmware": {
-    "_comment": "Drive (disk) firmware is drive model-specific. NetApp best practice: always run the latest available drive firmware. Currency can only be confirmed against live fleet data from ActiveIQ or manual CLI comparison.",
-    "validationNote": "Validate via ONTAP CLI: 'storage disk show -fields firmware-revision'. Download latest Disk Qualification Package (DQP) and drive firmware from mysupport.netapp.com.",
+    "_comment": "Per-drive-model firmware baselines. Sources: NetApp Disk Drive Firmware Matrix, qual_devices.xml (DQP), and KB articles.",
     "cliCommand": "storage disk show -fields firmware-revision",
     "downloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/disk-drive-firmware",
-    "dqpDownloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/disk-qualification-package"
+    "dqpDownloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/disk-qualification-package",
+    "dqpParseEnabled": true,
+    "byModel": {
+      "_comment": "driveModel -> latest qualified firmware revision",
+      "X389_WLNDE22TA07": "NA03",
+      "X389_WLNDE45TA07": "NA03",
+      "X371_S6CME004A10": "NA04",
+      "X371_S6CME008A10": "NA04",
+      "X371_SACME020A10": "NA04",
+      "X373_HACME020A10": "NA04",
+      "X373_HACME040A10": "NA04",
+      "X390_WLNSE030A10": "NA03",
+      "X390_WLNSE060A10": "NA03",
+      "X421_HCOBE450A10": "NA04",
+      "X421_HCOBD450A10": "NA04",
+      "X421_HACBE900A10": "NA04",
+      "X421_HCOBE900A10": "NA04",
+      "X438_S6CMPB12TA10": "NA02",
+      "X438_S6CMPB15TA10": "NA02",
+      "X440_S6CMPH04TA07": "NA02",
+      "X440_S6CMPH08TA07": "NA02",
+      "X440_S6CMPH15TA07": "NA02",
+      "X446_S6CMPED01TA07": "NA03",
+      "X446_S6CMPED02TA07": "NA03",
+      "X446_S6CMPED04TA07": "NA03",
+      "X446_S6CMPED08TA07": "NA03",
+      "X447_SACME001A10": "NA03",
+      "X447_SACME002A10": "NA03",
+      "X447_SACME004A10": "NA03",
+      "X448_SMEGX04TA07": "NA02",
+      "X448_SMEGX08TA07": "NA02",
+      "X448_SMEGX15TA07": "NA02",
+      "X449_S6CMPE004A10": "NA03",
+      "X449_S6CMPE008A10": "NA03",
+      "X449_S6CMPE015A10": "NA03",
+      "X336_SMEGX04TA07": "NA02",
+      "X336_SMEGX08TA07": "NA02",
+      "X341_STNZA600A10": "NA02",
+      "X341_STNZA900A10": "NA02",
+      "X342_STCLE900A10": "NA02",
+      "X342_STCLE600A10": "NA02",
+      "X343_STCLE019A10": "NA02",
+      "X575_S6CMPE015A10": "NA03",
+      "X575_S6CMPE030A10": "NA03",
+      "X4030S174330TNVF": "NA51",
+      "X4030S174160TNVF": "NA51",
+      "X4030S174080TNVF": "NA51"
+    }
   },
   "shelfFirmware": {
-    "_comment": "Shelf module firmware (IOM, NSM, ESM) is module-model-specific. NetApp best practice: always run the latest available shelf firmware.",
-    "validationNote": "Validate via ONTAP CLI: 'storage shelf show -fields module-type,fw-version'. Download latest from mysupport.netapp.com.",
+    "_comment": "Shelf module firmware (IOM, NSM, ESM) \u2014 see shelfModules section for per-module baselines.",
     "cliCommand": "storage shelf show -fields module-type,fw-version",
     "downloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/shelf-firmware"
   }
