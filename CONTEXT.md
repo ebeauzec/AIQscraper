@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 4.0.6 (per `version.json`, dated 2026-08-04)
+> **Current Version**: 4.0.7 (per `version.json`, dated 2026-08-04)
 
 ---
 
@@ -59,7 +59,7 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 1. **AIQ GraphQL API** (`gql.aiq.netapp.com`) — Watchlists, system inventory, TAM info, cluster configs, switches, shelves, support cases
 2. **AIQ REST API** (`api.activeiq.netapp.com`) — Token exchange, capacity, risks
 3. **ASUP Files** — Offline AutoSupport bundle parsing (`.7z`, `.tgz`, `.zip`, `.xml`, `.gz`) for air-gapped environments
-4. **Local Reference Library** — `data/firmware_baselines.json`, `data/security_bulletins.json`, plus embedded EOA platform lists, CVE database, upgrade caveats, MetroCluster ISL specs
+4. **Local Reference Library** — `data/firmware_baselines.json`, `data/security_bulletins.json`, `data/imt_interop.json` (20+ vendors, expanded from ~11), `data/ecosystem.json`, `data/version_catalog.json`, `data/eoa_database.json`, plus embedded EOA platform lists, CVE database, upgrade caveats, MetroCluster ISL specs
 5. **External Enrichment Sources** (v4.0.0 scanner architecture):
    - `docs.netapp.com` — ONTAP/StorageGRID/SANtricity release notes (known issues, fixed issues, what's new)
    - `security.netapp.com` — PSIRT advisory index and individual advisory detail pages
@@ -90,15 +90,20 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 | `chart.js` | 208KB | Bundled Chart.js library |
 | `launcher.py` | 7.8KB | Desktop launcher (pywebview native window + embedded CORS proxy + fallback browser) |
 | `asup_parser.py` | 25KB | Offline ASUP bundle parser (ONTAP, StorageGRID, E-Series) with ARIA schema normalization |
+| `reference_harvester.py` | — | Dedicated reference harvester tool for harvesting and updating offline reference libraries, data catalogs, IMT interop (20+ vendors), and EOA databases |
 
 ### Configuration & Data Files
 
 | File | Purpose |
 |------|---------|
 | `aiq_config.json` | Stores refresh token, watchlist IDs, TAM info |
-| `version.json` | Source of truth for version number (currently 4.0.0) |
+| `version.json` | Source of truth for version number (currently 4.0.7) |
 | `data/firmware_baselines.json` | Ground-truth firmware recommendations (ONTAP, SP/BMC, shelf, disk, StorageGRID, SANtricity) |
 | `data/security_bulletins.json` | Local CVE/NTAP advisory database for offline security matching |
+| `data/imt_interop.json` | Interoperability matrix database covering 20+ vendors (was ~11) |
+| `data/ecosystem.json` | Ecosystem vendor integration specs and reference mappings |
+| `data/version_catalog.json` | Scraped version catalog data for OS/software updates |
+| `data/eoa_database.json` | End-of-Availability (EOA) & End-of-Support (EOS) hardware/software lifecycle database |
 | `aiq_cache.db` | SQLite cache database (~22MB, stores all harvested data) |
 
 ### Build & Distribution
@@ -188,6 +193,9 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - System discovery and inventory harvesting via GraphQL
 - Risk/action harvesting
 - Capacity data with per-aggregate trend charts and runway forecasting
+- 8-component Account Health Score engine (including HW Firmware Currency at 8%, was 7 components)
+- IMT interoperability engine covering 20+ vendors (expanded from ~11)
+- Reference harvester tool (`reference_harvester.py`) and offline data catalogs (`data/imt_interop.json`, `data/ecosystem.json`, `data/version_catalog.json`, `data/eoa_database.json`)
 - Firmware currency comparison against `data/firmware_baselines.json` (ONTAP, SP/BMC, disk, shelf)
 - Security bulletin matching (77+ entries, 82+ CVEs, CISA KEV integration)
 - MetroCluster health monitoring (config, partner status, mirror state)
@@ -347,6 +355,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 | 4.0.0 | 2026-08-01 | Fleet-Aware Enrichment Engine rewrite — 268+ KB articles, JSON-LD crawlers, deliverable enrichment mapper, KB Intelligence panel, enrichment badges |
 | 4.0.1 | 2026-08-01 | Deliverable DR/capacity/adoption intelligence, dynamic remediation fields, cluster name derivation, multi-platform upgrade paths, E-Series detection fixes |
 | 4.0.2 | 2026-08-01 | Platform-specific rear-panel backplate, SVM/LIF enrichment, vserver GraphQL harvesting, harvest merge-back guard, networkPorts field, card overflow fix |
+| 4.0.7 | 2026-08-04 | 8-component Account Health Score (added HW Firmware Currency @ 8%), IMT interop expanded to 20+ vendors, reference harvester tool (`reference_harvester.py`), new data files (`imt_interop.json`, `ecosystem.json`, `version_catalog.json`, `eoa_database.json`) |
 
 ---
 
@@ -397,7 +406,7 @@ The previous agent conversation (ID: `73665ae2-...`) produced these planning/rev
 
 Key metric calculations are implemented in `app.js` at the following locations:
 
-- **`computeAccountHealthScore(targetSystems)`** — Line 11009. Computes the 0-100 Account Health Score using a weighted formula of 7 factors (ASUP, ARP, Firmware, Contracts, Risks, Data Reduction, CSAT).
+- **`computeAccountHealthScore(targetSystems)`** — Line 11009. Computes the 0-100 Account Health Score using a weighted formula of 8 components (ASUP, ARP, SW Firmware, HW Firmware Currency at 8%, Contracts, Risks, Data Reduction, CSAT).
 - **`computeMTTR(allSupportCases)`** — Line 11060. Calculates the Mean Time to Resolve in days for all closed cases.
 - **`computeFeatureAdoptionScore(sys)`** — Line 11088. Evaluates a 25-point best-practice checklist to return an adoption score (0-25) and percentage. Checks are categorized into Operations & Security (15) and Data Protection & Lifecycle (10).
 - **`computeCostOfInaction(targetSystems)`** — Line 11118. Computes the weighted Cost of Inaction urgency score based on risks, CVEs, capacity runway, and lifecycle status.

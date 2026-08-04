@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.0.6-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.7-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -19,7 +19,7 @@
 3. [Use Cases](#3-use-cases)
 4. [Getting Started](#4-getting-started)
 5. [Dashboard Guide](#5-dashboard-guide)
-6. [Action Planner — All 17 Sections](#6-action-planner--all-17-sections)
+6. [Action Planner — All 18 Sections](#6-action-planner--all-18-sections)
 7. [Downloadable Deliverables](#7-downloadable-deliverables)
 8. [Scores, KPIs & Metrics Reference](#8-scores-kpis--metrics-reference)
 9. [Security & Data Privacy](#9-security--data-privacy)
@@ -314,7 +314,7 @@ Storage efficiency and capacity intelligence:
 
 ### Action Planner
 
-The core reporting engine. Click **Generate** to build all 17 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-17-sections) for full detail on each section.
+The core reporting engine. Click **Generate** to build all 18 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-18-sections) for full detail on each section.
 
 ### Settings & Config
 
@@ -384,13 +384,14 @@ All deliverables are generated in the browser from your local data. Nothing is u
 ### Account Health Score (0-100)
 Composite index measuring overall customer account posture. Used in: TAM tab gauge, deliverables, MEDDPICC brief.
 
-**Formula**: Weighted sum of 7 component metrics:
+**Formula**: Weighted sum of 8 component metrics:
 | Component | Weight | Description | Scoring |
 |---|---|---|---|
 | ASUP Compliance | 15% | Systems reporting AutoSupport within 7 days | % compliant × 15 |
-| ARP Enablement | 15% | Autonomous Ransomware Protection enabled | % enabled × 15 |
-| Firmware Currency | 15% | OS version ≥ recommended minimum | % current × 15 |
-| Contract Coverage | 15% | Active support contract | % covered × 15 |
+| ARP Enablement | 12% | Autonomous Ransomware Protection enabled | % enabled × 12 |
+| OS Firmware Currency | 12% | ONTAP version ≥ recommended minimum | % current × 12 |
+| HW Firmware Currency | 8% | SP/MB/DQP/Drive firmware composite score | (composite / 100) × 8 |
+| Contract Coverage | 13% | Active support contract | % covered × 13 |
 | Risk Posture | 20% | Inverse of critical/high risk count | max(0, 1 - (criticals × 0.15 + highs × 0.05)) × 20 |
 | Data Reduction | 10% | Avg DR ratio, capped at 5:1 | (avg ratio / 5) × 10 |
 | CSAT Sentiment | 10% | Customer satisfaction score | (avg score / 10) × 10 |
@@ -639,10 +640,11 @@ server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
 ```
 AIQscraper/
 ├── build/           ← Packaging, installers, build scripts
-├── data/            ← Reference data (security bulletins, firmware baselines)
+├── data/            ← Reference data (security bulletins, firmware baselines, imt_interop.json, ecosystem.json, version_catalog.json, eoa_database.json)
 ├── dist/            ← Pre-built desktop app (PyInstaller output)
 ├── tools/           ← Developer utilities, diagnostic & probe scripts
 │   └── firmware_harvester.py  ← Multi-source firmware version harvester
+│   └── reference_harvester.py  ← IMT interop version harvester (9 vendor scrapers)
 ├── server.py        ← Python HTTP server + API harvester + firmware auto-discovery
 ├── app.js           ← Frontend application (~26K lines)
 ├── index.html       ← Compiled single-file build
@@ -659,13 +661,15 @@ AIQscraper/
 | File | Size | Role |
 |---|---|---|
 | `server.py` | ~400 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery |
-| `app.js` | ~1.48 MB | ~26,300 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 18-tab Action Planner renderer, 13 deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library |
+| `app.js` | ~1.50 MB | ~26,500 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 18-tab Action Planner renderer, 13 deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library |
 | `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
 | `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
 | `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
 | `chart.js` | ~209 KB | Local copy of Chart.js library (vendored) |
 | `data/security_bulletins.json` | ~83 KB | Live CVE/NTAP advisory database for offline security matching |
 | `data/firmware_baselines.json` | ~10 KB | Ground-truth firmware recommendations |
+| `data/imt_interop.json` | ~25 KB | IMT interoperability matrix — version compatibility for 20+ third-party integrations (Veeam, Commvault, VMware, Hyper-V, etc.) |
+| `tools/reference_harvester.py` | ~25 KB | Reference data harvester — ecosystem docs, firmware baselines, IMT vendor version scraping |
 | `start_dashboard.bat` | ~1 KB | Windows batch launcher |
 | `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher with Python version check |
 | `launcher.py` | ~8 KB | Desktop app wrapper (pywebview) |
