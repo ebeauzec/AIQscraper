@@ -1,0 +1,46 @@
+{
+  "_comment": "End-of-Availability (EOA) database. Auto-updated by reference_harvester.py via EnrichmentScheduler Scanner 7. Source: docs.netapp.com/us-en/ontap-systems/endofavail/ + NetApp Support Communications.",
+  "_lastUpdated": "2026-08-04",
+  "_source": "docs.netapp.com/us-en/ontap-systems/endofavail/",
+  "platforms": [
+    "A200", "A220", "A300", "A320", "A700", "A700s", "A800",
+    "C190", "C800",
+    "ASA C250", "ASA C400", "ASA C800",
+    "FAS2600", "FAS500f", "FAS8200", "FAS9000"
+  ],
+  "dates": {
+    "A200":     { "eoaDate": "2020-06", "eosDate": "2025-06", "replacement": "AFF A20 / AFF A30" },
+    "A220":     { "eoaDate": "2023-03", "eosDate": "2028-03", "replacement": "AFF A20 / AFF A30" },
+    "A300":     { "eoaDate": "2021-06", "eosDate": "2026-06", "replacement": "AFF A50 / AFF A70" },
+    "A320":     { "eoaDate": "2023-03", "eosDate": "2028-03", "replacement": "AFF A50 / AFF A70" },
+    "A700":     { "eoaDate": "2023-10", "eosDate": "2028-10", "replacement": "AFF A90 / AFF A1K" },
+    "A700s":    { "eoaDate": "2021-06", "eosDate": "2026-06", "replacement": "AFF A90 / AFF A1K" },
+    "A800":     { "eoaDate": "2024-06", "eosDate": "2029-06", "replacement": "AFF A90 / AFF A1K" },
+    "C190":     { "eoaDate": "2022-06", "eosDate": "2027-06", "replacement": "AFF C30 / AFF C60" },
+    "C800":     { "eoaDate": "2024-06", "eosDate": "2029-06", "replacement": "AFF C80" },
+    "ASA C250": { "eoaDate": "2024-03", "eosDate": "2029-03", "replacement": "ASA A20 / ASA A30" },
+    "ASA C400": { "eoaDate": "2024-03", "eosDate": "2029-03", "replacement": "ASA A50 / ASA A70" },
+    "ASA C800": { "eoaDate": "2024-06", "eosDate": "2029-06", "replacement": "ASA A90 / ASA A1K" },
+    "FAS2600":  { "eoaDate": "2021-03", "eosDate": "2026-03", "replacement": "FAS50 / FAS70" },
+    "FAS500f":  { "eoaDate": "2022-06", "eosDate": "2027-06", "replacement": "FAS50" },
+    "FAS8200":  { "eoaDate": "2022-06", "eosDate": "2027-06", "replacement": "FAS70 / FAS90" },
+    "FAS9000":  { "eoaDate": "2023-10", "eosDate": "2028-10", "replacement": "FAS90" }
+  },
+  "switches": [
+    {
+      "model": "Broadcom BES-53248",
+      "type": "cluster",
+      "note": "EOA per docs.netapp.com endofavail page. Replacement: Cisco Nexus 9336C-FX2S or 9332D-GX2B depending on cluster type."
+    },
+    {
+      "model": "Cisco Nexus 9336C-FX2",
+      "type": "cluster/shared",
+      "note": "Both cluster-only and shared-configuration variants are EOA. Replacement: Cisco Nexus 9336C-FX2S."
+    },
+    {
+      "model": "NVIDIA SN2100",
+      "type": "cluster",
+      "note": "EOA per same source. Commonly used with AFF A-Series. NVIDIA Cumulus Linux 5.11.0 was the last qualified firmware."
+    }
+  ]
+}

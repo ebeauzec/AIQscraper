@@ -39,17 +39,19 @@
       "9.6.0": "9.6.0"
     },
     "supportedBranches": [
+      "9.19.1",
+      "9.18.1",
+      "9.17.1",
       "9.16.1",
       "9.15.1",
-      "9.14.1",
-      "9.13.1",
-      "9.12.1"
+      "9.14.1"
     ],
     "eolBranches": [
+      "9.13.1",
+      "9.12.1",
       "9.11.1",
       "9.10.1",
-      "9.9.1",
-      "9.8"
+      "9.9.1"
     ]
   },
   "cloudVolumesOntap": {
@@ -78,7 +80,7 @@
     "releaseNotesUrl": "https://docs.netapp.com/us-en/snapcenter/release-notes/release-notes.html"
   },
   "trident": {
-    "latestGA": "26.02.1",
+    "latestGA": "26.06.0",
     "releaseNotesUrl": "https://docs.netapp.com/us-en/trident/trident-rn.html"
   },
   "hostUtilities": {
@@ -446,5 +448,14 @@
     "_comment": "Shelf module firmware (IOM, NSM, ESM) \u2014 see shelfModules section for per-module baselines.",
     "cliCommand": "storage shelf show -fields module-type,fw-version",
     "downloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/shelf-firmware"
+  },
+  "harvest": {
+    "latestGA": "26.05.0"
+  },
+  "snapcenter": {
+    "latestGA": "6.2.2"
+  },
+  "cvo": {
+    "latestGA": "9.19.1"
   }
 }

@@ -1,0 +1,705 @@
+{
+  "_comment": "IMT Interoperability Matrix — 3rd party version compatibility data. Auto-updated by reference_harvester.py via EnrichmentScheduler Scanner 7. Source: imt.netapp.com, vendor support matrices, GitHub/PyPI APIs.",
+  "_lastUpdated": "2026-08-04",
+  "_source": "imt.netapp.com + vendor documentation + GitHub/PyPI APIs",
+  "vmware_otv": {
+    "name": "ONTAP Tools for VMware vSphere (OTV)",
+    "signal": "vmware",
+    "currentRecommended": "10.3",
+    "versions": {
+      "10.3": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "Major redesign -- not drop-in from OTV 9.x"
+      },
+      "10.2": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.18.1",
+        "status": "supported"
+      },
+      "10.1": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "9.13": {
+        "minOntap": "9.9.1",
+        "maxOntap": "9.14.1",
+        "status": "eol-imminent",
+        "notes": "OTV 9.x architecture -- parallel deploy required for migration to 10.x"
+      }
+    },
+    "imtProduct": "ONTAP+Tools+for+VMware+vSphere",
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere/"
+  },
+  "trident": {
+    "name": "Astra Trident (CSI Driver)",
+    "signal": "kubernetes",
+    "currentRecommended": "26.06.0",
+    "versions": {
+      "26.06": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "minK8s": "1.28",
+        "status": "current",
+        "notes": "K8s 1.36 support, AFX FlexGroup driver, GCNV AutoGrow GA"
+      },
+      "26.02": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "minK8s": "1.28",
+        "status": "supported",
+        "notes": "CVE-2026-24051 fix"
+      },
+      "25.10": {
+        "minOntap": "9.8",
+        "maxOntap": "9.18.1",
+        "minK8s": "1.27",
+        "status": "supported"
+      },
+      "24.10": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "minK8s": "1.25",
+        "status": "maintenance"
+      }
+    },
+    "imtProduct": "Astra+Trident",
+    "upgradeDoc": "https://docs.netapp.com/us-en/trident/trident-managing-k8s/upgrade-trident.html",
+    "cve": "CVE-2026-24051 fixed in 26.02.0+ -- upgrade immediately if below 26.02",
+    "source": "github.com/NetApp/trident",
+    "published_at": "2026-06-30"
+  },
+  "snapcenter": {
+    "name": "SnapCenter",
+    "signal": "snapcenter",
+    "currentRecommended": "6.2",
+    "versions": {
+      "6.2": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "Linux Server support GA, Oracle RAC enhancements"
+      },
+      "6.1": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.18.1",
+        "status": "supported"
+      },
+      "6.0": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.16.1",
+        "status": "supported",
+        "notes": "Landmark: Linux Server host support"
+      },
+      "5.0": {
+        "minOntap": "9.8",
+        "maxOntap": "9.14.1",
+        "status": "maintenance"
+      },
+      "4.9": {
+        "minOntap": "9.5",
+        "maxOntap": "9.13.1",
+        "status": "eol-imminent"
+      }
+    },
+    "imtProduct": "SnapCenter+Software",
+    "upgradeDoc": "https://docs.netapp.com/us-en/snapcenter/upgrade/upgrade_workflow.html",
+    "source": "https://docs.netapp.com/us-en/snapcenter/release-notes/release-notes.html"
+  },
+  "veeam": {
+    "name": "Veeam Backup & Replication",
+    "signal": "veeam",
+    "currentRecommended": "4.0",
+    "versions": {
+      "12.3": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "SnapDiff API CFT -- NOT on ONTAP 9.10.1-P10"
+      },
+      "12.2": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "12.1": {
+        "minOntap": "9.8",
+        "maxOntap": "9.14.1",
+        "status": "supported"
+      },
+      "12.0": {
+        "minOntap": "9.8",
+        "maxOntap": "9.13.1",
+        "status": "maintenance"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://www.veeam.com/kb2930",
+    "notes": "Veeam not in NetApp IMT -- use Veeam's own support matrix. NetApp Plugin v2 for VBR 12.3+.",
+    "source": "https://www.veeam.com/veeam_backup_12_3_release_notes_rn.html"
+  },
+  "commvault": {
+    "name": "Commvault (IntelliSnap)",
+    "signal": "commvault",
+    "currentRecommended": "2025",
+    "versions": {
+      "2024": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "IntelliSnap + ASA r2 storage units"
+      },
+      "2023": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://documentation.commvault.com/",
+    "source": "documentation.commvault.com"
+  },
+  "rubrik": {
+    "name": "Rubrik (NAS Cloud Direct)",
+    "signal": "rubrik",
+    "currentRecommended": "latest",
+    "versions": {
+      "latest": {
+        "minOntap": "9.5",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.rubrik.com/",
+    "notes": "First backup vendor with SnapDiff API access. Rubrik Security Cloud for DSPM."
+  },
+  "cohesity": {
+    "name": "Cohesity DataProtect",
+    "signal": "cohesity",
+    "currentRecommended": "latest",
+    "versions": {
+      "latest": {
+        "minOntap": "9.5",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.cohesity.com/",
+    "notes": "DataHawk AI/ML threat protection (Sophos engine). FortKnox cyber vaulting."
+  },
+  "hycu": {
+    "name": "HYCU for ONTAP",
+    "signal": "hycu",
+    "currentRecommended": "latest",
+    "versions": {
+      "latest": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": null,
+    "notes": "Agentless REST API integration. R-Shield YARA malware scanning."
+  },
+  "cisco_nxos": {
+    "name": "Cisco Nexus NX-OS (Cluster/Storage Switch)",
+    "signal": "cisco_san",
+    "currentRecommended": "10.4.2",
+    "versions": {
+      "10.4.2": {
+        "minOntap": "9.14.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "Recommended for AFX 1K (9332D-GX2B, 9364D-GX2A)"
+      },
+      "10.3.4": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.18.1",
+        "status": "supported"
+      },
+      "9.3(12)": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "legacy",
+        "notes": "9336C-FX2 EOA -- replacement path to 9332D-GX2B"
+      }
+    },
+    "imtProduct": "Cluster+Interconnect+Switch",
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-systems-switches/",
+    "notes": "NX-OS 10.6+ required for AFX 2K Nexus 9808 + ONTAP 9.19.1GA."
+  },
+  "cisco_mds": {
+    "name": "Cisco MDS 9000 (FC SAN Switch)",
+    "signal": "cisco_san",
+    "currentRecommended": "9.2(2)",
+    "versions": {
+      "9.2(2)": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      },
+      "9.2(1)": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "8.4(2)": {
+        "minOntap": "9.5",
+        "maxOntap": "9.13.1",
+        "status": "eol-imminent"
+      }
+    },
+    "imtProduct": "SAN+Switch",
+    "upgradeDoc": "https://software.cisco.com/download/home/280283452"
+  },
+  "brocade_fos": {
+    "name": "Brocade Fabric OS (FC SAN Switch)",
+    "signal": "brocade_fc",
+    "currentRecommended": "9.2.1",
+    "versions": {
+      "9.2.1": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "TruFOS certs required from FOS 9.2+ (G620/G720)"
+      },
+      "9.1.1": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported",
+        "notes": "TruFOS required from FOS 9.1+ (G630)"
+      },
+      "8.2.3": {
+        "minOntap": "9.5",
+        "maxOntap": "9.13.1",
+        "status": "eol-imminent"
+      }
+    },
+    "imtProduct": "SAN+Switch",
+    "upgradeDoc": "https://www.broadcom.com/support/fibre-channel-networking/software-downloads"
+  },
+  "broadcom_efos": {
+    "name": "Broadcom BES-53248 (EFOS)",
+    "signal": "broadcom_eth",
+    "currentRecommended": "3.12.0.1",
+    "versions": {
+      "3.12.0.1": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "Switch is EOA -- intermediate 3.4.4.6 step required from 3.4.x"
+      },
+      "3.8.0.2": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": "Cluster+Interconnect+Switch",
+    "upgradeDoc": "https://mysupport.netapp.com/site/products/all/details/broadcom-cluster-switches/downloads-tab"
+  },
+  "host_utilities_linux": {
+    "name": "NetApp Linux Host Utilities",
+    "signal": "kvm_linux",
+    "currentRecommended": "7.2",
+    "versions": {
+      "7.2": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      },
+      "7.1": {
+        "minOntap": "9.5",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": "Host+Utilities+-+Linux",
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-sanhost/hu_luhu_71.html"
+  },
+  "host_utilities_windows": {
+    "name": "NetApp Windows Host Utilities",
+    "signal": "hyperv",
+    "currentRecommended": "7.2",
+    "versions": {
+      "7.2": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      },
+      "7.1": {
+        "minOntap": "9.5",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": "Host+Utilities+-+Windows",
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-sanhost/hu_wuhu_71.html"
+  },
+  "host_utilities_esxi": {
+    "name": "NetApp NFS Plugin for VMware VAAI",
+    "signal": "vmware",
+    "currentRecommended": "2.3",
+    "versions": {
+      "2.3": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      },
+      "2.1": {
+        "minOntap": "9.5",
+        "maxOntap": "9.14.1",
+        "status": "maintenance"
+      }
+    },
+    "imtProduct": "NFS+Plugin+for+VMware+VAAI",
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-tools-vmware-vsphere/"
+  },
+  "oracle_dnfs": {
+    "name": "Oracle Direct NFS (dNFS) on ONTAP",
+    "signal": "oracle_db",
+    "currentRecommended": "ONTAP 9.14.1+",
+    "versions": {
+      "recommended": {
+        "minOntap": "9.14.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "dNFS requires NFS v4.1 exports. SnapCenter Oracle Plugin validates connectivity."
+      },
+      "supported": {
+        "minOntap": "9.3",
+        "maxOntap": "9.13.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap/nfs-admin/index.html"
+  },
+  "mssql_ontap": {
+    "name": "Microsoft SQL Server on ONTAP",
+    "signal": "mssql",
+    "currentRecommended": "ONTAP 9.12.1+",
+    "versions": {
+      "recommended": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "iSCSI or FC for shared storage. SnapCenter coordinates AG log backups."
+      },
+      "supported": {
+        "minOntap": "9.3",
+        "maxOntap": "9.13.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-apps-dbs/mssql/mssql-overview.html"
+  },
+  "sap_hana_ontap": {
+    "name": "SAP HANA TDI on ONTAP",
+    "signal": "sap_hana",
+    "currentRecommended": "ONTAP 9.14.1+",
+    "versions": {
+      "recommended": {
+        "minOntap": "9.14.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "TDI-certified. NFS or FC. SnapCenter storage connector for hdbsql-consistent snapshots."
+      },
+      "supported": {
+        "minOntap": "9.8",
+        "maxOntap": "9.13.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-apps-dbs/saphana/saphana-overview.html"
+  },
+  "harvest": {
+    "name": "NetApp Harvest (Prometheus/Grafana)",
+    "signal": "splunk",
+    "currentRecommended": "26.05.0",
+    "versions": {
+      "24.05": {
+        "minOntap": "9.6",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://github.com/NetApp/harvest",
+    "notes": "300+ ONTAP metrics via REST/ZAPI. Grafana dashboards included.",
+    "source": "github.com/NetApp/harvest",
+    "published_at": "2026-05-11"
+  },
+  "fpolicy_varonis": {
+    "name": "Varonis DatAdvantage (FPolicy)",
+    "signal": "varonis",
+    "currentRecommended": "latest",
+    "versions": {
+      "latest": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": null,
+    "notes": "FPolicy v2 persistent store (9.13.1+) recommended. Varonis on-prem scheduled for retirement -- verify with vendor."
+  },
+  "veritas_netbackup": {
+    "name": "Veritas NetBackup",
+    "signal": "veritas",
+    "currentRecommended": "10.5",
+    "versions": {
+      "10.5": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "FlexClone+SnapVault integration. Snapshot orchestration via NBAR."
+      },
+      "10.4": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "10.3": {
+        "minOntap": "9.5",
+        "maxOntap": "9.14.1",
+        "status": "maintenance"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://www.veritas.com/support/en_US/doc-viewer.HOWTO82031.html",
+    "source": "veritas.com"
+  },
+  "veritas_backupexec": {
+    "name": "Veritas Backup Exec",
+    "signal": "veritas",
+    "currentRecommended": "24",
+    "versions": {
+      "24": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "NDMP v4 support for ONTAP. Granular Recovery Technology (GRT)."
+      },
+      "22": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "21": {
+        "minOntap": "9.5",
+        "maxOntap": "9.13.1",
+        "status": "eol-imminent"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://www.veritas.com/support/en_US/article.100040088"
+  },
+  "vmware_vsphere": {
+    "name": "VMware vSphere (ESXi)",
+    "signal": "vmware",
+    "currentRecommended": "7.0",
+    "versions": {
+      "8.0 U3": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "NVMe-oF/FC support with ONTAP. vVols 3.0 GA."
+      },
+      "8.0 U2": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.18.1",
+        "status": "supported"
+      },
+      "8.0 U1": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "7.0 U3": {
+        "minOntap": "9.8",
+        "maxOntap": "9.16.1",
+        "status": "maintenance",
+        "notes": "Last vSphere 7 release. VMFS 6 only."
+      },
+      "6.7 U3": {
+        "minOntap": "9.3",
+        "maxOntap": "9.12.1",
+        "status": "eol-imminent",
+        "notes": "End of General Support Oct 2024"
+      }
+    },
+    "imtProduct": "Host+Operating+System",
+    "upgradeDoc": "https://docs.vmware.com/en/VMware-vSphere/8.0/rn/vmware-vsphere-80-release-notes/index.html",
+    "source": "https://docs.vmware.com/en/VMware-vSphere/index.html"
+  },
+  "hyperv": {
+    "name": "Microsoft Hyper-V (Windows Server)",
+    "signal": "hyperv",
+    "currentRecommended": "2022",
+    "versions": {
+      "2025": {
+        "minOntap": "9.14.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "SMB over QUIC, GPU-P support. Host Utils 7.2 required."
+      },
+      "2022": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "supported",
+        "notes": "SMB Direct RDMA, Storage Replica improvements."
+      },
+      "2019": {
+        "minOntap": "9.5",
+        "maxOntap": "9.16.1",
+        "status": "maintenance"
+      },
+      "2016": {
+        "minOntap": "9.3",
+        "maxOntap": "9.13.1",
+        "status": "eol-imminent",
+        "notes": "Extended support ends Jan 2027"
+      }
+    },
+    "imtProduct": "Host+Operating+System",
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-sanhost/hu_wuhu_71.html",
+    "source": "https://learn.microsoft.com/en-us/windows-server/get-started/whats-new-in-windows-server"
+  },
+  "rhev": {
+    "name": "Red Hat Virtualization / oVirt",
+    "signal": "rhev",
+    "currentRecommended": "4.4",
+    "versions": {
+      "4.4": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "KVM+GlusterFS. RHEL 8.6+ host. iSCSI/FC SAN supported via ONTAP."
+      },
+      "4.3": {
+        "minOntap": "9.5",
+        "maxOntap": "9.14.1",
+        "status": "eol-imminent"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.redhat.com/en/documentation/red_hat_virtualization/",
+    "notes": "RHV is EOL — migration path to OpenShift Virtualization (OCP-V) recommended."
+  },
+  "openstack": {
+    "name": "OpenStack (Manila/Cinder NetApp Drivers)",
+    "signal": "openstack",
+    "currentRecommended": "2025.1 (Epoxy)",
+    "versions": {
+      "2025.1": {
+        "minOntap": "9.12.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "Manila ONTAP FlexGroup driver GA. Cinder NVMe-oF/TCP driver."
+      },
+      "2024.2": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.18.1",
+        "status": "supported",
+        "notes": "Cinder multi-attach for ONTAP iSCSI volumes."
+      },
+      "2024.1": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      },
+      "2023.2": {
+        "minOntap": "9.8",
+        "maxOntap": "9.14.1",
+        "status": "maintenance"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.openstack.org/cinder/latest/configuration/block-storage/drivers/netapp-volume-driver.html",
+    "notes": "Manila file share driver: https://docs.openstack.org/manila/latest/configuration/shared-file-systems/drivers/netapp-cluster-mode-driver.html"
+  },
+  "citrix_hypervisor": {
+    "name": "Citrix Hypervisor (XenServer)",
+    "signal": "citrix",
+    "currentRecommended": "8.4",
+    "versions": {
+      "8.2 CU1": {
+        "minOntap": "9.8",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "NFS/iSCSI SR storage. IntelliCache support."
+      },
+      "8.2": {
+        "minOntap": "9.5",
+        "maxOntap": "9.16.1",
+        "status": "supported"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://docs.citrix.com/en-us/citrix-hypervisor",
+    "notes": "Citrix rebranded to Cloud Software Group. XenServer 8+ is successor.",
+    "source": "https://docs.citrix.com/en-us/citrix-hypervisor"
+  },
+  "proxmox_ve": {
+    "name": "Proxmox VE",
+    "signal": "proxmox",
+    "currentRecommended": "9.2",
+    "versions": {
+      "8.3": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "NFS/iSCSI/Ceph storage. ZFS-on-Linux with ONTAP NFS backing."
+      },
+      "8.2": {
+        "minOntap": "9.8",
+        "maxOntap": "9.18.1",
+        "status": "supported"
+      },
+      "7.4": {
+        "minOntap": "9.5",
+        "maxOntap": "9.14.1",
+        "status": "eol-imminent"
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": "https://pve.proxmox.com/wiki/Upgrade_from_7_to_8",
+    "notes": "Community-driven. No formal NetApp certification — iSCSI and NFS interop validated by community.",
+    "source": "https://pve.proxmox.com/wiki/Roadmap"
+  },
+  "nutanix_ahv": {
+    "name": "Nutanix AHV",
+    "signal": "nutanix",
+    "currentRecommended": "latest",
+    "versions": {
+      "latest": {
+        "minOntap": "9.10.1",
+        "maxOntap": "9.19.1",
+        "status": "current",
+        "notes": "iSCSI/NFS data services via ONTAP. Nutanix Files alternative."
+      }
+    },
+    "imtProduct": null,
+    "upgradeDoc": null,
+    "notes": "Limited formal interop — Nutanix promotes own HCI storage. ONTAP used as secondary/backup tier."
+  },
+  "netapp-ontap": {
+    "currentRecommended": "9.18.1.0",
+    "source": "pypi.org/netapp-ontap",
+    "product": "ONTAP Python SDK"
+  },
+  "solidfire-sdk-python": {
+    "currentRecommended": "12.3.0.203",
+    "source": "pypi.org/solidfire-sdk-python",
+    "product": "SolidFire Python SDK"
+  }
+}

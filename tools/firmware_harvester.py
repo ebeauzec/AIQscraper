@@ -225,6 +225,119 @@ def harvest_ontap_docs():
 
     return versions
 
+def harvest_trident_github():
+    """Fetch latest Trident release from GitHub API."""
+    versions = {"latestGA": None, "source": "github.com/NetApp/trident"}
+    data = fetch_json("https://api.github.com/repos/NetApp/trident/releases?per_page=10")
+    if not data or not isinstance(data, list):
+        return versions
+    
+    for rel in data:
+        if rel.get("prerelease"):
+            continue
+        tag = rel.get("tag_name", "").lstrip("v")
+        if tag and not versions["latestGA"]:
+            versions["latestGA"] = tag
+            break
+    return versions
+
+def harvest_harvest_github():
+    """Fetch latest NetApp Harvest release from GitHub API."""
+    versions = {"latestGA": None, "source": "github.com/NetApp/harvest"}
+    data = fetch_json("https://api.github.com/repos/NetApp/harvest/releases?per_page=10")
+    if not data or not isinstance(data, list):
+        return versions
+    
+    for rel in data:
+        if rel.get("prerelease") or "nightly" in rel.get("tag_name", "").lower():
+            continue
+        tag = rel.get("tag_name", "").lstrip("v")
+        if tag and not versions["latestGA"]:
+            versions["latestGA"] = tag
+            break
+    return versions
+
+def harvest_snapcenter_docs():
+    """Best-effort scrape for SnapCenter version."""
+    versions = {"latestGA": None, "source": "docs.netapp.com"}
+    html = fetch_url("https://docs.netapp.com/us-en/snapcenter/release-notes/release-notes.html")
+    if not html:
+        html = fetch_url("https://docs.netapp.com/us-en/snapcenter/")
+    if html:
+        matches = re.findall(r'SnapCenter\s+(\d+\.\d+(?:\.\d+)?)', html, re.IGNORECASE)
+        for m in matches:
+            if version_greater(m, versions["latestGA"]):
+                versions["latestGA"] = m
+    return versions
+
+def harvest_storagegrid():
+    """Fetch StorageGRID version."""
+    versions = {"latestGA": None, "source": "docs.netapp.com"}
+    html = fetch_url("https://docs.netapp.com/us-en/storagegrid/release-notes/index.html")
+    if html:
+        matches = re.findall(r'StorageGRID\s+(\d+\.\d+(?:\.\d+)?)', html, re.IGNORECASE)
+        for m in matches:
+            if version_greater(m, versions["latestGA"]):
+                versions["latestGA"] = m
+    return versions
+
+def harvest_host_utilities():
+    """Fetch Host Utilities version."""
+    versions = {"latestGA": None, "source": "docs.netapp.com"}
+    html = fetch_url("https://docs.netapp.com/us-en/ontap-sanhost/")
+    if html:
+        matches = re.findall(r'Host Utilities\s+(\d+\.\d+)', html, re.IGNORECASE)
+        for m in matches:
+            if version_greater(m, versions["latestGA"]):
+                versions["latestGA"] = m
+    return versions
+
+def harvest_ontap_eol_dates():
+    """Fetch ONTAP branch EOL dates from endoflife.date."""
+    result = {"branches": {}, "supportedBranches": [], "eolBranches": []}
+    data = fetch_json("https://endoflife.date/api/netapp-ontap.json")
+    if not data or not isinstance(data, list):
+        return result
+    
+    now = datetime.now()
+    
+    for entry in data:
+        cycle = entry.get("cycle")
+        eol = entry.get("eol")
+        releaseDate = entry.get("releaseDate")
+        lts = entry.get("lts", False)
+        
+        if not cycle or not eol or not isinstance(eol, str):
+            continue
+            
+        result["branches"][cycle] = {
+            "eol": eol,
+            "releaseDate": releaseDate,
+            "lts": lts
+        }
+        
+        try:
+            eol_date = datetime.strptime(eol, "%Y-%m-%d")
+            if eol_date > now:
+                result["supportedBranches"].append(cycle)
+            else:
+                result["eolBranches"].append(cycle)
+        except ValueError:
+            pass
+            
+    return result
+
+def harvest_cvo_version():
+    """Fetch Cloud Volumes ONTAP version."""
+    versions = {"latestGA": None, "source": "docs.netapp.com"}
+    html = fetch_url("https://docs.netapp.com/us-en/cloud-volumes-ontap-relnotes/")
+    if html:
+        matches = re.findall(r'Cloud Volumes ONTAP\s+(\d+\.\d+\.\d+)', html, re.IGNORECASE)
+        for m in matches:
+            if version_greater(m, versions["latestGA"]):
+                versions["latestGA"] = m
+    return versions
+
 def harvest_santricity():
     """Fetch SANtricity versions from docs.netapp.com (fallback: web search)."""
     versions = {"latestGA": None}
@@ -351,6 +464,89 @@ def run_harvest(baselines_path=None, dry_run=False, ontap_only=False, spbmc_only
                     baselines["ontap"]["latestByBranch"] = {}
                 baselines["ontap"]["latestByBranch"][branch] = latest_p
 
+        print("Harvesting ONTAP EOL dates...")
+        eol_data = harvest_ontap_eol_dates()
+        if eol_data.get("supportedBranches"):
+            current_supported = baselines.get("ontap", {}).get("supportedBranches", [])
+            if set(eol_data["supportedBranches"]) != set(current_supported):
+                changes["ontap.supportedBranches"] = {"old": current_supported, "new": eol_data["supportedBranches"]}
+                if "ontap" not in baselines:
+                    baselines["ontap"] = {}
+                baselines["ontap"]["supportedBranches"] = eol_data["supportedBranches"]
+                baselines["ontap"]["eolBranches"] = eol_data["eolBranches"]
+
+    # Trident
+    if not spbmc_only:
+        print("Harvesting Trident version...")
+        trident_data = harvest_trident_github()
+        if trident_data.get("latestGA"):
+            current = baselines.get("trident", {}).get("latestGA")
+            if version_greater(trident_data["latestGA"], current):
+                changes["trident.latestGA"] = {"old": current, "new": trident_data["latestGA"]}
+                if "trident" not in baselines:
+                    baselines["trident"] = {}
+                baselines["trident"]["latestGA"] = trident_data["latestGA"]
+
+    # Harvest
+    if not spbmc_only:
+        print("Harvesting NetApp Harvest version...")
+        harvest_gh_data = harvest_harvest_github()
+        if harvest_gh_data.get("latestGA"):
+            current = baselines.get("harvest", {}).get("latestGA")
+            if version_greater(harvest_gh_data["latestGA"], current):
+                changes["harvest.latestGA"] = {"old": current, "new": harvest_gh_data["latestGA"]}
+                if "harvest" not in baselines:
+                    baselines["harvest"] = {}
+                baselines["harvest"]["latestGA"] = harvest_gh_data["latestGA"]
+
+    # SnapCenter
+    if not spbmc_only:
+        print("Harvesting SnapCenter version...")
+        sc_data = harvest_snapcenter_docs()
+        if sc_data.get("latestGA"):
+            current = baselines.get("snapcenter", {}).get("latestGA")
+            if version_greater(sc_data["latestGA"], current):
+                changes["snapcenter.latestGA"] = {"old": current, "new": sc_data["latestGA"]}
+                if "snapcenter" not in baselines:
+                    baselines["snapcenter"] = {}
+                baselines["snapcenter"]["latestGA"] = sc_data["latestGA"]
+
+    # StorageGRID
+    if not spbmc_only:
+        print("Harvesting StorageGRID version...")
+        sg_data = harvest_storagegrid()
+        if sg_data.get("latestGA"):
+            current = baselines.get("storagegrid", {}).get("latestGA")
+            if version_greater(sg_data["latestGA"], current):
+                changes["storagegrid.latestGA"] = {"old": current, "new": sg_data["latestGA"]}
+                if "storagegrid" not in baselines:
+                    baselines["storagegrid"] = {}
+                baselines["storagegrid"]["latestGA"] = sg_data["latestGA"]
+
+    # Host Utilities
+    if not spbmc_only:
+        print("Harvesting Host Utilities version...")
+        hu_data = harvest_host_utilities()
+        if hu_data.get("latestGA"):
+            current = baselines.get("host_utilities", {}).get("latestGA")
+            if version_greater(hu_data["latestGA"], current):
+                changes["host_utilities.latestGA"] = {"old": current, "new": hu_data["latestGA"]}
+                if "host_utilities" not in baselines:
+                    baselines["host_utilities"] = {}
+                baselines["host_utilities"]["latestGA"] = hu_data["latestGA"]
+
+    # CVO
+    if not spbmc_only:
+        print("Harvesting Cloud Volumes ONTAP version...")
+        cvo_data = harvest_cvo_version()
+        if cvo_data.get("latestGA"):
+            current = baselines.get("cvo", {}).get("latestGA")
+            if version_greater(cvo_data["latestGA"], current):
+                changes["cvo.latestGA"] = {"old": current, "new": cvo_data["latestGA"]}
+                if "cvo" not in baselines:
+                    baselines["cvo"] = {}
+                baselines["cvo"]["latestGA"] = cvo_data["latestGA"]
+
     if ontap_only or spbmc_only:
         pass
     else:
@@ -400,7 +596,12 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Report only, no writes")
     parser.add_argument("--ontap-only", action="store_true", help="Only check ONTAP versions")
     parser.add_argument("--spbmc-only", action="store_true", help="Only check SP/BMC versions")
+    parser.add_argument("--all", action="store_true", help="Run all harvest sources")
     
     args = parser.parse_args()
     
+    if args.all:
+        args.ontap_only = False
+        args.spbmc_only = False
+        
     run_harvest(dry_run=args.dry_run, ontap_only=args.ontap_only, spbmc_only=args.spbmc_only)

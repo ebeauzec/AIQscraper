@@ -18,9 +18,46 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.6";
+const APP_VERSION = "4.0.7";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.0.7",
+    date: "04 August 2026",
+    title: "HW Firmware Scoring, IMT Vendor Expansion & Deliverable Enrichment",
+    sections: [
+      {
+        icon: "🔧",
+        label: "HW Firmware Currency Engine",
+        color: "#2dd4bf",
+        items: [
+          "New computeFleetFirmwareSummary() — fleet-wide composite firmware health scoring across SP/BMC (25%), Motherboard BIOS (25%), DQP (20%), and Drive firmware (30%)",
+          "Per-system breakdown with status classification: Current (≥80%), At Risk (≥50%), Critical (<50%)",
+          "Color-coded firmware currency badge in KB Intelligence Summary Panel with inline SP/MB/DQP/Drive breakdown"
+        ]
+      },
+      {
+        icon: "📋",
+        label: "7 Deliverable Templates Enriched",
+        color: "#818cf8",
+        items: [
+          "All 7 report generators now include hardware firmware data: CSP, QBR, MSP, MEDDPICC, Handover, Security Brief, Sustainability",
+          "Security Brief shows HW Firmware Attack Surface with per-subsystem breakdown",
+          "MEDDPICC brief frames firmware gaps as risk/upsell opportunity metrics"
+        ]
+      },
+      {
+        icon: "🔌",
+        label: "9 New IMT Vendor Integrations",
+        color: "#f59e0b",
+        items: [
+          "New IMT interop entries: Veritas NetBackup, Veritas Backup Exec, VMware vSphere, Microsoft Hyper-V, Red Hat Virtualization, OpenStack, Citrix Hypervisor, Proxmox VE, Nutanix AHV",
+          "Matching reference harvester scrapers for automated version tracking of all 9 vendors",
+          "Account Health Score rebalanced: 8 components with new HW Firmware weight (8%)"
+        ]
+      }
+    ]
+  },
   {
     version: "4.0.6",
     date: "04 August 2026",
@@ -5819,6 +5856,33 @@ const REFERENCE_LIBRARY_EOA_SWITCHES = [
   { model: "NVIDIA SN2100",          type: "cluster",        note: "EOA per same source. Commonly used with AFF A-Series — flag when those controllers are also EOA. NVIDIA Cumulus Linux 5.11.0 was the last qualified firmware." }
 ];
 
+// Dynamic accessor: merges server-provided EOA data with hardcoded fallbacks.
+function _getEoaPlatforms() {
+  const db = (typeof state !== 'undefined' && state.eoa_database) || null;
+  if (!db || !db.platforms || !db.platforms.length) return REFERENCE_LIBRARY_EOA_PLATFORMS;
+  // Merge: server data + any hardcoded entries not in server
+  const merged = [...db.platforms];
+  for (const p of REFERENCE_LIBRARY_EOA_PLATFORMS) {
+    if (!merged.some(m => m.toUpperCase() === p.toUpperCase())) merged.push(p);
+  }
+  return merged;
+}
+function _getEoaDates() {
+  const db = (typeof state !== 'undefined' && state.eoa_database) || null;
+  if (!db || !db.dates) return REFERENCE_LIBRARY_EOA_DATES;
+  return { ...REFERENCE_LIBRARY_EOA_DATES, ...db.dates };
+}
+function _getEoaSwitches() {
+  const db = (typeof state !== 'undefined' && state.eoa_database) || null;
+  if (!db || !db.switches || !db.switches.length) return REFERENCE_LIBRARY_EOA_SWITCHES;
+  // Merge by model name
+  const merged = [...db.switches];
+  for (const sw of REFERENCE_LIBRARY_EOA_SWITCHES) {
+    if (!merged.some(m => m.model === sw.model)) merged.push(sw);
+  }
+  return merged;
+}
+
 // NetApp Keystone — Storage as a Service (STaaS) consumption wrapper
 // Added 2026-07-20 per reference library update (Platforms-Hardware/README.md)
 // NOT a distinct hardware line — consumption model over existing AFF/FAS/ASA/AFX/CVO
@@ -6352,6 +6416,25 @@ const IMT_INTEROP_MATRIX = {
     notes: "FPolicy v2 persistent store (9.13.1+) recommended. Varonis on-prem scheduled for retirement — verify with vendor.",
   },
 };
+
+// Dynamic accessor: merges server-provided IMT data with hardcoded fallbacks.
+function _getImtInterop() {
+  const db = (typeof state !== 'undefined' && state.imt_interop) || null;
+  if (!db) return IMT_INTEROP_MATRIX;
+  const merged = { ...IMT_INTEROP_MATRIX };
+  // Server data overrides hardcoded currentRecommended
+  for (const [key, entry] of Object.entries(db)) {
+    if (key.startsWith('_')) continue; // skip metadata keys
+    if (merged[key]) {
+      if (entry.currentRecommended) merged[key].currentRecommended = entry.currentRecommended;
+      if (entry.versions) merged[key].versions = { ...merged[key].versions, ...entry.versions };
+      if (entry.notes) merged[key].notes = entry.notes;
+    } else {
+      merged[key] = entry;
+    }
+  }
+  return merged;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MetroCluster ISL Requirements
@@ -7938,7 +8021,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
   if (!systems || !systems.length || !detectedSignals) return [];
   const findings = [];
 
-  for (const [key, integration] of Object.entries(IMT_INTEROP_MATRIX)) {
+  for (const [key, integration] of Object.entries(_getImtInterop())) {
     // Skip integrations not detected in fleet
     if (integration.signal && !detectedSignals[integration.signal]) continue;
     if (!integration.versions) continue;
@@ -10521,7 +10604,7 @@ function renderCSMTab() {
 
       // 4. Hardware non-EOA
       const _modelStr = (s.platform || s.model || '').toUpperCase();
-      if (!REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => _modelStr.includes(p.toUpperCase()))) _hwPass++;
+      if (!_getEoaPlatforms().some(p => _modelStr.includes(p.toUpperCase()))) _hwPass++;
 
       // 5. No active CVEs (PSIRT)
       const _sec = getApplicableSecurityBulletins(s.ontapVersion, s.platform).filter(b => b.status !== 'resolved');
@@ -10983,7 +11066,7 @@ function renderCSMTab() {
   const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
   const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date');
   const _sAsup       = sys.autosupport || {};
-  const _sIsEOA      = REFERENCE_LIBRARY_EOA_PLATFORMS.some(p => (sys.platform || sys.model || '').toUpperCase().includes(p.toUpperCase()));
+  const _sIsEOA      = _getEoaPlatforms().some(p => (sys.platform || sys.model || '').toUpperCase().includes(p.toUpperCase()));
   const _sCVEs       = getApplicableSecurityBulletins(sys.ontapVersion, sys.platform).filter(b => b.status !== 'resolved');
   const _sCritH      = (sys.risks || []).filter(r => r.severity === 'critical' || r.severity === 'high');
   const _sCrit       = _sCritH.filter(r => r.severity === 'critical').length;
@@ -11849,6 +11932,9 @@ function computeAccountHealthScore(targetSystems) {
   const arpPct = arpKnownSys.length > 0 ? arpKnownSys.filter(s => s.isARPEnabled === true).length / arpKnownSys.length : 0;
   // Firmware currency
   const fwPct = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length / total;
+  // Hardware firmware currency (SP/MB/DQP/Drive composite)
+  const hwFw = computeFleetFirmwareSummary(targetSystems);
+  const hwFwPct = (hwFw && typeof hwFw.overallFwScore === 'number') ? hwFw.overallFwScore / 100 : fwPct; // fallback to OS fw
   // Contract coverage
   const contractPct = targetSystems.filter(s => s.contractActive === true).length / total;
   // Risk score (inverse: fewer critical risks = higher score)
@@ -11863,8 +11949,9 @@ function computeAccountHealthScore(targetSystems) {
   // CSAT sentiment (normalized to 0-1 from 0-10)
   const avgCsat = targetSystems.reduce((sum, s) => sum + ((s.salesHealth && s.salesHealth.sentimentScore) || 7.5), 0) / total / 10;
 
+  // Weights: ASUP 15 + ARP 12 + OS FW 12 + HW FW 8 + Contract 13 + Risk 20 + Efficiency 10 + CSAT 10 = 100
   const score = Math.round(
-    asupPct * 15 + arpPct * 15 + fwPct * 15 + contractPct * 15 +
+    asupPct * 15 + arpPct * 12 + fwPct * 12 + hwFwPct * 8 + contractPct * 13 +
     riskScore * 20 + avgEff * 10 + avgCsat * 10
   );
   return Math.min(100, Math.max(0, score));
@@ -12830,7 +12917,7 @@ function enrichSystemTelemetry(s) {
   // Sourced from 2026-07-10 Reference Library: Platforms-Hardware/README.md
   if (!isStorageGrid && !isEseries) {
     const platformStr = (s.platform || s.model || s.platformModel || name || "").toUpperCase();
-    const matchedEOA = REFERENCE_LIBRARY_EOA_PLATFORMS.find(eoa => {
+    const matchedEOA = _getEoaPlatforms().find(eoa => {
       const eoaUpper = eoa.toUpperCase();
       // Match "A700" in "AFF A700", "FAS9000" in "FAS9000 (SAS)", etc.
       return platformStr.includes(eoaUpper) || (name || "").toUpperCase().includes(eoaUpper);
@@ -12970,7 +13057,7 @@ function enrichSystemTelemetry(s) {
   // Sourced from 2026-07-10 Reference Library: Platforms-Hardware/README.md
   if (s.switches && s.switches.length > 0) {
     const switchNames = s.switches.map(sw => (sw.name || sw.model || "").toUpperCase());
-    const matchedSwitchObj = REFERENCE_LIBRARY_EOA_SWITCHES.find(eoaSw =>
+    const matchedSwitchObj = _getEoaSwitches().find(eoaSw =>
       switchNames.some(sn => sn.includes((eoaSw.model || "").toUpperCase()))
     );
     const matchedSwitch = matchedSwitchObj ? matchedSwitchObj.model : null;
@@ -15660,7 +15747,7 @@ function compileSvmLifInventoryText(targetSystems) {
   return summaryText + detailsText + healthText;
 }
 
-function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases) {
+function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases, fw) {
   let totalCapTB = 0;
   let logicalCapTB = 0;
   let totalSavedTB = 0;
@@ -15904,6 +15991,7 @@ ${platformLines}
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
   - ARP Coverage:            ${arpCount}/${arpKnownSys.length} (${arpKnownSys.length > 0 ? Math.round(arpCount/arpKnownSys.length*100) : 0}%) — Anti-Ransomware Protection enabled
   - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
+  - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
 
 * FEATURE ADOPTION SCORECARD [MEDDPICC: D — Decision Criteria]
@@ -16147,7 +16235,7 @@ All operations under this plan must comply with standard ITIL Change Control pro
 
 
 
-function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
+function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   const total = targetSystems.length;
@@ -16321,6 +16409,7 @@ Prepared: ${salesRep}
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${arpCount}/${arpKnownSys.length} systems (${arpPct}%) — Anti-Ransomware Protection enabled
   Firmware Currency:        ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
@@ -16407,7 +16496,7 @@ ${priorActionsText}
 }
 
 
-function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const slaDefaults = { asup: 100, arp: 100, fw: 100, contract: 100, critRisks: 0 };
   const slaThresholds = JSON.parse(localStorage.getItem('aria_msp_sla_thresholds') || JSON.stringify(slaDefaults));
@@ -16581,6 +16670,7 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Systems Under Management:  ${total}
   Contract Coverage:         ${activeContracts}/${total} (${contractPct}%) active contracts
   ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Average System Age:        ${avgAge} years
 
 --------------------------------------------------------------------------------
@@ -16681,7 +16771,7 @@ ${backlogLines}
 }
 
 
-function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   let tamName = 'Not Assigned';
@@ -16857,6 +16947,7 @@ ${tierLines}
     Critical Risks:           ${coi.critRisks}
     High Risks:               ${coi.highRisks}
     Unpatched CVEs:           ${coi.cves} security advisories
+  HW Firmware Gap:     ${(fw || {}).overallFwScore < 80 ? 'AT RISK (' + ((fw || {}).overallFwScore || 0) + '%) — professional services upsell' : 'CURRENT (' + ((fw || {}).overallFwScore || 0) + '%)'}
     EOSA < 12 Months:         ${coi.eosaSystems} systems
     Capacity < 60 Days:       ${coi.capacityRed} systems
     Open P1/P2 Cases:         ${openP1P2}
@@ -16884,7 +16975,7 @@ ${eoaSystems.length > 0 ? eoaLines : '    None'}
 `;
 }
 
-function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
+function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   const total = targetSystems.length;
@@ -17109,6 +17200,7 @@ ${compileSvmLifInventoryText(targetSystems)}
   ASUP Compliance:      ${asupPct}%
   ARP Coverage:         ${arpPct}%
   Contract Coverage:    ${contractPct}%
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 
   Top Issues Requiring Attention:
 ${topIssues}
@@ -17163,7 +17255,7 @@ ${talkingPointsText}
 ================================================================================`;
 }
 
-function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   const count = targetSystems.length;
@@ -17259,6 +17351,9 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
     CVE Exposure:             ${cveExposures.size} unique advisories across ${systemsWithCve.size} systems
     ARP Coverage:             ${arpEnabled}/${count} (${arpPct}%) — Anti-Ransomware Protection
     Firmware Currency:        ${fwCurrent}/${count} on recommended version
+    HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
+      SP Firmware: ${(fw || {}).spPct || 0}% current | MB Firmware: ${(fw || {}).mbPct || 0}% current
+      DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current
     CISA KEV Exposure:        ${kevExposures}
 
   2. COST OF INACTION — SECURITY
@@ -17303,7 +17398,7 @@ ${compileSvmLifInventoryText(targetSystems)}
 ================================================================================`;
 }
 
-function compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) {
+function compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   const count = targetSystems.length;
@@ -17379,6 +17474,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     Physical Footprint Avoided:    ${spaceSaved.toFixed(1)} TB (equivalent shelves/racks not needed)
     Estimated Power Avoided:       ${powerAvoided} kW (at 0.5 kW/TB)
     Estimated CO2 Avoided:         ${co2Avoided} kg/year (at 0.5 kg CO2/kWh)
+    Hardware Firmware Health:      ${(fw || {}).overallFwScore || 'N/A'}% — current firmware extends hardware operational lifespan
 
   3. PER-SYSTEM SUSTAINABILITY SCORES
   ────────────────────────────────────────────────────────────────────────────
@@ -17561,6 +17657,105 @@ function computeFleetWarrantyStatus(targetSystems) {
   return { warrantyActive, warrantyExpired, warrantyUnknown, tierDist, perSystem };
 }
 
+function computeFleetFirmwareSummary(targetSystems) {
+  // Firmware version comparison (reuse logic from _renderFirmwareCurrencySection)
+  const _fwCmp = (cur, rec) => {
+    if (!cur || !rec) return null;
+    if (cur === rec) return true;
+    const _pv = (v) => v.replace(/[Pp](\d)/g, '.$1').split(/[.\-_]+/).map(s => { const n = parseInt(s, 10); return isNaN(n) ? s : n; });
+    const a = _pv(cur), b = _pv(rec);
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+      const ai = i < a.length ? a[i] : 0, bi = i < b.length ? b[i] : 0;
+      if (typeof ai === 'number' && typeof bi === 'number') { if (ai > bi) return true; if (ai < bi) return false; }
+      else { const sa = String(ai), sb = String(bi); if (sa > sb) return true; if (sa < sb) return false; }
+    }
+    return true;
+  };
+
+  let spCurrent = 0, spBehind = 0, spUnknown = 0;
+  let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
+  let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
+  let driveFwCurrent = 0, driveFwBehind = 0, driveFwUnknown = 0;
+  let totalDrives = 0, totalShelves = 0;
+  const perSystem = [];
+
+  targetSystems.forEach(sys => {
+    const sfwRaw = sys.systemFirmware;
+    const sfw = (Array.isArray(sfwRaw) ? sfwRaw[0] : sfwRaw) || {};
+    const mbfw = sys.motherboardFirmware || {};
+    const dqp = sys.diskQualificationPackage || {};
+    const shelves = sys.shelves || [];
+
+    // SP/BMC
+    const spMatch = _fwCmp(sfw.currentVersion, sfw.recommendedVersion);
+    if (spMatch === true) spCurrent++; else if (spMatch === false) spBehind++; else spUnknown++;
+
+    // Motherboard
+    const mbMatch = _fwCmp(mbfw.currentVersion, mbfw.recommendedVersion);
+    if (mbMatch === true) mbCurrent++; else if (mbMatch === false) mbBehind++; else mbUnknown++;
+
+    // DQP
+    const dqpMatch = _fwCmp(dqp.currentVersion, dqp.recommendedVersion);
+    if (dqpMatch === true) dqpCurrent++; else if (dqpMatch === false) dqpBehind++; else dqpUnknown++;
+
+    // Shelves and drives
+    const shelfCount = shelves.length;
+    totalShelves += shelfCount;
+    let sysDrvCur = 0, sysDrvBeh = 0, sysDrvUnk = 0;
+    const recDriveFw = sys.recommendedDriveFirmwares || {};
+    const shelfModules = [];
+    shelves.forEach(sh => {
+      const modName = (sh.moduleHardwareModel || {}).name || '';
+      if (modName && !shelfModules.includes(modName)) shelfModules.push(modName);
+      for (const drive of ((sh.drives || {}).drives || [])) {
+        const model = (drive.hardwareModel || {}).name || 'Unknown';
+        const fw = drive.firmwareRevision || 'Unknown';
+        const rec = recDriveFw[model];
+        if (rec && fw !== 'Unknown') {
+          if (_fwCmp(fw, rec)) { sysDrvCur++; driveFwCurrent++; }
+          else { sysDrvBeh++; driveFwBehind++; }
+        } else { sysDrvUnk++; driveFwUnknown++; }
+        totalDrives++;
+      }
+    });
+
+    perSystem.push({
+      name: sys.systemName || sys.serialNumber || '?',
+      serial: sys.serialNumber || '',
+      platform: sys.platform || '',
+      sp: { current: sfw.currentVersion || '', recommended: sfw.recommendedVersion || '', match: spMatch, type: sfw.type || 'SP' },
+      mb: { current: mbfw.currentVersion || '', recommended: mbfw.recommendedVersion || '', match: mbMatch },
+      dqp: { current: dqp.currentVersion || '', recommended: dqp.recommendedVersion || '', match: dqpMatch },
+      drives: { current: sysDrvCur, behind: sysDrvBeh, unknown: sysDrvUnk, total: sysDrvCur + sysDrvBeh + sysDrvUnk },
+      shelves: shelfCount,
+      shelfModules: shelfModules.join(', ')
+    });
+  });
+
+  const total = targetSystems.length;
+  const spTotal = spCurrent + spBehind + spUnknown;
+  const mbTotal = mbCurrent + mbBehind + mbUnknown;
+  const dqpTotal = dqpCurrent + dqpBehind + dqpUnknown;
+  const drvTotal = driveFwCurrent + driveFwBehind + driveFwUnknown;
+  const spPct = spTotal > 0 ? Math.round(spCurrent / spTotal * 100) : 0;
+  const mbPct = mbTotal > 0 ? Math.round(mbCurrent / mbTotal * 100) : 0;
+  const dqpPct = dqpTotal > 0 ? Math.round(dqpCurrent / dqpTotal * 100) : 0;
+  const drivePct = drvTotal > 0 ? Math.round(driveFwCurrent / drvTotal * 100) : 0;
+  // Weighted composite: SP 25%, MB 25%, DQP 20%, Drive 30%
+  const overallFwScore = Math.round(spPct * 0.25 + mbPct * 0.25 + dqpPct * 0.20 + drivePct * 0.30);
+
+  return {
+    spCurrent, spBehind, spUnknown,
+    mbCurrent, mbBehind, mbUnknown,
+    dqpCurrent, dqpBehind, dqpUnknown,
+    driveFwCurrent, driveFwBehind, driveFwUnknown,
+    totalDrives, totalShelves,
+    spPct, mbPct, dqpPct, drivePct, overallFwScore,
+    perSystem
+  };
+}
+
 function classifyITILTier(fixOrDesc) {
   const t = (fixOrDesc || '').toLowerCase();
   // Destructive
@@ -17687,6 +17882,7 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const fm = computeFleetFeatureMatrix(targetSystems);
   const cap = computeFleetCapacitySummary(targetSystems);
   const warranty = computeFleetWarrantyStatus(targetSystems);
+  const fw = computeFleetFirmwareSummary(targetSystems);
   const healthScore = computeAccountHealthScore(targetSystems);
   const healthGrade = healthScore >= 90 ? 'A' : healthScore >= 75 ? 'B' : healthScore >= 60 ? 'C' : healthScore >= 40 ? 'D' : 'F';
   const coi = computeCostOfInaction(targetSystems);
@@ -17715,15 +17911,33 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
     if (!_fleetSignals.sap_hana && (allText.includes('sap') || allText.includes('hana'))) _fleetSignals.sap_hana = true;
     if (!_fleetSignals.splunk && (allText.includes('splunk') || allText.includes('harvest') || allText.includes('grafana'))) _fleetSignals.splunk = true;
     if (!_fleetSignals.varonis && (allText.includes('varonis') || allText.includes('fpolicy'))) _fleetSignals.varonis = true;
+    // New hypervisor/vendor auto-detection
+    if (!_fleetSignals.veritas && (allText.includes('netbackup') || allText.includes('veritas') || allText.includes('backup exec'))) _fleetSignals.veritas = true;
+    if (!_fleetSignals.openstack && (allText.includes('openstack') || allText.includes('manila') || allText.includes('cinder'))) _fleetSignals.openstack = true;
+    if (!_fleetSignals.citrix && (allText.includes('citrix') || allText.includes('xenserver') || allText.includes('xencenter'))) _fleetSignals.citrix = true;
+    if (!_fleetSignals.proxmox && (allText.includes('proxmox') || allText.includes('pve'))) _fleetSignals.proxmox = true;
+    if (!_fleetSignals.nutanix && (allText.includes('nutanix') || allText.includes('ahv') || allText.includes('prism'))) _fleetSignals.nutanix = true;
+    if (!_fleetSignals.rhev && (allText.includes('rhev') || allText.includes('ovirt') || allText.includes('red hat virtualization'))) _fleetSignals.rhev = true;
+    if (!_fleetSignals.docker && (allText.includes('docker') || allText.includes('podman') || allText.includes('container'))) _fleetSignals.docker = true;
+    if (!_fleetSignals.vmware_vsphere && (allText.includes('vsphere') || allText.includes('vcenter') || allText.includes('vvol'))) _fleetSignals.vmware_vsphere = true;
     // Also detect from enrichment KB articles if available
     const kbArts = (state.enrichmentKB && state.enrichmentKB.articles) || [];
     kbArts.forEach(a => {
       const at = ((a.title || '') + ' ' + (a.url || '')).toLowerCase();
       if (at.includes('vmware') || at.includes('esxi')) _fleetSignals.vmware = true;
+      if (at.includes('vsphere') || at.includes('vcenter')) _fleetSignals.vmware_vsphere = true;
       if (at.includes('trident') || at.includes('kubernetes')) _fleetSignals.kubernetes = true;
       if (at.includes('snapcenter')) _fleetSignals.snapcenter = true;
       if (at.includes('veeam')) _fleetSignals.veeam = true;
       if (at.includes('commvault')) _fleetSignals.commvault = true;
+      if (at.includes('netbackup') || at.includes('veritas')) _fleetSignals.veritas = true;
+      if (at.includes('openstack') || at.includes('manila') || at.includes('cinder')) _fleetSignals.openstack = true;
+      if (at.includes('citrix') || at.includes('xenserver')) _fleetSignals.citrix = true;
+      if (at.includes('proxmox')) _fleetSignals.proxmox = true;
+      if (at.includes('nutanix') || at.includes('ahv')) _fleetSignals.nutanix = true;
+      if (at.includes('rhev') || at.includes('ovirt') || at.includes('red hat virtualization')) _fleetSignals.rhev = true;
+      if (at.includes('hyper-v') || at.includes('hyperv')) _fleetSignals.hyperv = true;
+      if (at.includes('docker') || at.includes('podman')) _fleetSignals.docker = true;
     });
   });
 
@@ -17761,6 +17975,14 @@ OPERATIONAL HEALTH
   ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
   Firmware Currency:  ${fwCurrentCount}/${sysCount} (${pctFw}%)
   Contract Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%)
+
+HARDWARE FIRMWARE CURRENCY (Detailed)
+  SP/BMC:             ${fw.spCurrent}/${sysCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
+  Motherboard BIOS:   ${fw.mbCurrent}/${sysCount} current (${fw.mbPct}%)${fw.mbBehind > 0 ? ' — ' + fw.mbBehind + ' need update' : ''}
+  DQP:                ${fw.dqpCurrent}/${sysCount} current (${fw.dqpPct}%)${fw.dqpBehind > 0 ? ' — ' + fw.dqpBehind + ' need update' : ''}
+  Drive Firmware:     ${fw.driveFwCurrent}/${fw.totalDrives} current (${fw.drivePct}%)${fw.driveFwBehind > 0 ? ' — ' + fw.driveFwBehind + ' behind' : ''}
+  Disk Shelves:       ${fw.totalShelves} total across fleet
+  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)
 
 ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unpatched CVEs, ${coi.capacityRed} capacity-red systems, ${coi.noArp} without ARP
@@ -17875,6 +18097,7 @@ OPERATIONAL HEALTH SNAPSHOT:
   ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
   ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
   Firmware Currency:  ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
+  HW Firmware Score:  ${fw.overallFwScore}% (SP: ${fw.spPct}%, MB: ${fw.mbPct}%, DQP: ${fw.dqpPct}%, Drives: ${fw.drivePct}%)
   Contract Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
@@ -17916,6 +18139,7 @@ HEALTH METRICS:
   ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
   ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
   Firmware Currency:  ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
+  HW Firmware:        ${fw.overallFwScore}% ${fw.overallFwScore < 80 ? '⚠' : '✓'} (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
   Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
   Feature Adoption:   ${fm.fleetAvgScore}% fleet average
   DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)
@@ -17987,6 +18211,8 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
     Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)
     DR Protection:     ${sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None'}${sysHasHA ? ' | HA configured' : ''}
     Contract:          ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
+    HW Firmware:       ${(() => { const m = fw.perSystem.find(f => f.name === sys.systemName); return m ? m.status + ' (' + m.score + '%)' : 'N/A'; })()}
+    Disk Shelves:      ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
     SVMs:              ${_ctSvms.length} (${_ctSvms.length > 0 ? [...new Set(_ctSvms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None'})
 
 --- PRE-CHANGE HEALTH VALIDATION ---
@@ -18083,6 +18309,7 @@ OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
   ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
   Firmware Currency:      ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
+  HW Firmware Score:      ${fw.overallFwScore}% (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
   Contract Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems)
 
 PRIORITISED CORRECTIVE ACTIONS
@@ -18218,6 +18445,8 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   OS:       ${sys.ontapVersion || sys.osVersion || 'N/A'}
   Site:     ${sys.siteName || 'N/A'}
   Contract: ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
+  HW Firmware: ${(() => { const m = fw.perSystem.find(f => f.name === sys.systemName); return m ? m.status + ' (' + m.score + '%)' : 'N/A'; })()}
+  Disk Shelves: ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
   Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
   Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
   DR Protection: ${rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
@@ -18345,6 +18574,7 @@ OPPORTUNITY INTELLIGENCE:
   DR Gaps:          ${dr.unprotected.length} unprotected system${dr.unprotected.length !== 1 ? 's' : ''} (SnapMirror/MC opportunity)
   Feature Gaps:     ${fm.fleetAvgScore < 60 ? 'LOW (' + fm.fleetAvgScore + '%) \u2014 significant enablement opportunity' : fm.fleetAvgScore < 80 ? 'MODERATE (' + fm.fleetAvgScore + '%)' : 'GOOD (' + fm.fleetAvgScore + '%)'}
   Warranty:         ${warranty.expired} expired, ${warranty.expiring30} <30d, ${warranty.expiring90} <90d
+  HW Firmware:      ${fw.overallFwScore < 80 ? 'AT RISK (' + fw.overallFwScore + '%) — upgrade engagement opportunity' : 'CURRENT (' + fw.overallFwScore + '%)'}
 
 `;
 
@@ -18495,25 +18725,25 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   }
 
   // 7. TAM Success Plan
-  let customerSuccessPlan = compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases);
+  let customerSuccessPlan = compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases, fw);
 
   // 8. TAM QBR Pack
-  let qbrPack = compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
+  let qbrPack = compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // 9. MSP Service Delivery Report
-  let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+  let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // 10. Account Handover Brief
-  let handoverBrief = compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);
+  let handoverBrief = compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // 11. MEDDPICC Deal Intelligence Brief
-  let meddpiccBrief = compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+  let meddpiccBrief = compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // 12. Security Posture Executive Brief
-  let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+  let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // 13. Sustainability & ESG Report
-  let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle);
+  let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // ── Inject fleet-relevant enrichment KB references into all deliverables ──
   const enrichSections = getFleetEnrichmentSections(targetSystems);
@@ -18582,7 +18812,8 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0),
     _imtFindings: imtFindings,
     _imtFindingsCount: imtFindings.length,
-    _fleetSignals: _fleetSignals
+    _fleetSignals: _fleetSignals,
+    _firmwareSummary: fw
   };
 }
 
@@ -19900,6 +20131,17 @@ function _renderFirmwareCurrencySection(systems) {
     html += `<div style="font-size:0.6rem;color:var(--text-muted);text-align:right;margin-bottom:6px;" title="Firmware baselines sourced from NetApp KB articles, support site firmware matrices, and docs.netapp.com. Last updated: ${blDate}">📋 External baselines: ${blDate}</div>`;
   }
 
+  // Reference data freshness indicators
+  const _eoaDate = ((typeof state !== 'undefined' && state.eoa_database) || {})._lastUpdated || '';
+  const _imtDate = ((typeof state !== 'undefined' && state.imt_interop) || {})._lastUpdated || '';
+  const _freshParts = [];
+  if (blDate) _freshParts.push('Firmware: ' + blDate);
+  if (_eoaDate) _freshParts.push('EOA: ' + _eoaDate);
+  if (_imtDate) _freshParts.push('IMT: ' + _imtDate);
+  if (_freshParts.length) {
+    html += '<div style="font-size:0.6rem;color:var(--text-muted);text-align:right;margin-bottom:6px;" title="Reference data auto-updated by server enrichment scheduler">Auto-updated: ' + _freshParts.join(' | ') + '</div>';
+  }
+
   // ── Per-system collapsible cards ──
   html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;">Click a system to expand firmware details. ${systems.length} system${systems.length !== 1 ? 's' : ''} shown.</div>`;
   html += systemCards.join('');
@@ -20288,6 +20530,14 @@ function generateActionPlan() {
           <span style="color:var(--text-muted);">across <strong style="color:#fbbf24;">${Object.keys(docs._fleetSignals || {}).filter(k => docs._fleetSignals[k]).length}</strong> detected integrations</span>
           ${docs._imtFindings.filter(f => f.severity === 'critical').length > 0 ? `<span style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:1px 6px;font-size:0.6rem;font-weight:600;color:#ef4444;">${docs._imtFindings.filter(f => f.severity === 'critical').length} CRITICAL</span>` : ''}
         </div>` : ''}
+        ${(() => { const fws = docs._firmwareSummary; if (!fws) return ''; const score = fws.overallFwScore; const color = score >= 80 ? '#34d399' : score >= 50 ? '#fbbf24' : '#ef4444'; const label = score >= 80 ? 'CURRENT' : score >= 50 ? 'AT RISK' : 'CRITICAL'; return `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:0.72rem;">
+          <span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,${color}18,${color}0d);border:1px solid ${color}4d;border-radius:10px;padding:2px 10px;font-weight:600;color:${color};white-space:nowrap;">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 1h10v14H3V1zm2 2v10h6V3H5zm1 1h4v2H6V4zm0 3h3v1H6V7z" fill="${color}" opacity="0.9"/></svg>
+            HW Firmware: ${score}%
+          </span>
+          <span style="color:var(--text-muted);">SP ${fws.spPct}% · MB ${fws.mbPct}% · DQP ${fws.dqpPct}% · Drive ${fws.drivePct}%</span>
+          <span style="background:${color}26;border:1px solid ${color}4d;border-radius:8px;padding:1px 6px;font-size:0.6rem;font-weight:600;color:${color};">${label}</span>
+        </div>`; })()}
       </div>` : '';
 
   let html = `
@@ -23585,6 +23835,16 @@ async function loadProductionData(forceRefresh = false) {
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
     state.firmwareBaselines = result.firmwareBaselines || {};
+
+    // ── Load dynamic reference data (EOA, IMT) from server ──
+    try {
+      const [eoa_resp, imt_resp] = await Promise.all([
+        fetch('/api/eoa-database').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/imt-interop').then(r => r.ok ? r.json() : null).catch(() => null)
+      ]);
+      if (eoa_resp) state.eoa_database = eoa_resp;
+      if (imt_resp) state.imt_interop = imt_resp;
+    } catch (_e) { /* fallback to hardcoded */ }
     // Per-customer sustainability scores (sustainabilityScorePercentage.overall)
     state.customers = result.customers || [];
 

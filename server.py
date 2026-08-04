@@ -72,6 +72,8 @@ _current_token = None  # Last-used access token for debug probes
 _enrichment_scheduler = None  # Set during server startup
 KEV_PATH = SCRIPT_DIR / "data" / "cisa_kev.json"
 KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
+VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
+ECOSYSTEM_PATH = SCRIPT_DIR / "data" / "ecosystem.json"
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2812,6 +2814,7 @@ class EnrichmentScheduler:
             results['epss'] = self._scan_epss()
             results['version_catalog'] = self._scan_version_catalog()
             results['knowledge_base'] = self._scan_knowledge_base()
+            results['reference_library'] = self._scan_reference_library()
             elapsed = round(time.time() - scan_start, 1)
             results['_elapsed'] = elapsed
             self._last_scan = datetime.now(timezone.utc).isoformat()[:19] + 'Z'
@@ -2831,7 +2834,7 @@ class EnrichmentScheduler:
     # ── Scanner 1: CISA KEV ──────────────────────────────────────────
     def _scan_cisa_kev(self):
         """Download CISA Known Exploited Vulnerabilities catalog and cross-reference."""
-        print('  [ENRICH] [1/6] Scanning CISA KEV catalog...', flush=True)
+        print('  [ENRICH] [1/7] Scanning CISA KEV catalog...', flush=True)
         url = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
         text, err = _enrich_fetch(url, timeout=30)
         if err or not text:
@@ -2872,13 +2875,18 @@ class EnrichmentScheduler:
                     tmp_path.replace(BULLETINS_PATH)
                     print(f'  [ENRICH]   Updated bulletins with {matched} KEV cross-references', flush=True)
 
-            # Save KEV catalog for local reference
+            # Save full KEV catalog for local reference and offline access
             kev_out = {
                 'version': 1,
                 'lastUpdated': datetime.now(timezone.utc).isoformat()[:10],
                 'catalogVersion': kev_data.get('catalogVersion', ''),
                 'totalKevEntries': len(kev_cves),
                 'matchedToFleet': matched,
+                'vulnerabilities': [{k: v for k, v in entry.items()
+                                     if k in ('cveID', 'vendorProject', 'product',
+                                              'dateAdded', 'dueDate', 'requiredAction',
+                                              'knownRansomwareCampaignUse')}
+                                    for entry in kev_cves.values()],
             }
             KEV_PATH.parent.mkdir(parents=True, exist_ok=True)
             KEV_PATH.write_text(json.dumps(kev_out, indent=2), encoding='utf-8')
@@ -2891,7 +2899,7 @@ class EnrichmentScheduler:
     # ── Scanner 2: NetApp PSIRT ──────────────────────────────────────
     def _scan_netapp_psirt(self):
         """Run the existing NetApp PSIRT advisory scanner."""
-        print('  [ENRICH] [2/6] Scanning NetApp PSIRT advisories...', flush=True)
+        print('  [ENRICH] [2/7] Scanning NetApp PSIRT advisories...', flush=True)
         try:
             result = scan_and_persist_advisories()
             print(f'  [ENRICH]   PSIRT: +{result.get("added", 0)} new, {result.get("total", 0)} total', flush=True)
@@ -2903,7 +2911,7 @@ class EnrichmentScheduler:
     # ── Scanner 3: NVD API (NetApp CVEs) ─────────────────────────────
     def _scan_nvd_netapp(self):
         """Query NVD API 2.0 for new NetApp-related CVEs."""
-        print('  [ENRICH] [3/6] Scanning NVD for NetApp CVEs...', flush=True)
+        print('  [ENRICH] [3/7] Scanning NVD for NetApp CVEs...', flush=True)
         base_url = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
         headers_extra = ''
         if self._nvd_api_key:
@@ -3019,7 +3027,7 @@ class EnrichmentScheduler:
     # ── Scanner 4: EPSS Scores ───────────────────────────────────────
     def _scan_epss(self):
         """Enrich existing CVEs with EPSS exploit prediction scores."""
-        print('  [ENRICH] [4/6] Enriching CVEs with EPSS scores...', flush=True)
+        print('  [ENRICH] [4/7] Enriching CVEs with EPSS scores...', flush=True)
         if not BULLETINS_PATH.exists():
             return {'enriched': 0}
 
@@ -3085,10 +3093,16 @@ class EnrichmentScheduler:
     # ── Scanner 5: Version Catalog + EOA ─────────────────────────────
     def _scan_version_catalog(self):
         """Refresh ONTAP/StorageGRID/SANtricity version catalog from docs.netapp.com."""
-        print('  [ENRICH] [5/6] Refreshing version catalog from docs.netapp.com...', flush=True)
+        print('  [ENRICH] [5/7] Refreshing version catalog from docs.netapp.com...', flush=True)
         try:
             catalog = fetch_latest_version_catalog()
-            total = sum(len(v) for v in catalog.values())
+            total = sum(len(v) for v in catalog.values() if isinstance(v, list))
+            # Persist version catalog to local file
+            catalog['_lastUpdated'] = datetime.now(timezone.utc).isoformat()[:10]
+            VERSION_CATALOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = VERSION_CATALOG_PATH.with_suffix('.tmp')
+            tmp_path.write_text(json.dumps(catalog, indent=2, ensure_ascii=False), encoding='utf-8')
+            tmp_path.replace(VERSION_CATALOG_PATH)
             print(f'  [ENRICH]   Version catalog: {total} versions across {len(catalog)} products', flush=True)
             return {'products': list(catalog.keys()), 'totalVersions': total}
         except Exception as e:
@@ -3098,7 +3112,7 @@ class EnrichmentScheduler:
     # ── Scanner 6: KB / Best Practices / Integration Docs ────────────
     def _scan_knowledge_base(self):
         """Scan NetApp KB, docs.netapp.com, and integration sources for new articles."""
-        print('  [ENRICH] [6/6] Scanning knowledge base sources...', flush=True)
+        print('  [ENRICH] [6/7] Scanning knowledge base sources...', flush=True)
 
         # Load existing knowledge base
         if KNOWLEDGE_PATH.exists():
@@ -4780,6 +4794,55 @@ class EnrichmentScheduler:
 
         return {'new': len(new_articles), 'total': len(kb_data.get('articles', [])) + len(new_articles)}
 
+    # ── Scanner 7: Reference Library Auto-Update (EOA, IMT, Firmware) ──
+    def _scan_reference_library(self):
+        """Automated reference data refresh: firmware baselines, EOA database,
+        IMT interop matrix, and integration version discovery.
+        Uses fuzzy-matching against GitHub, PyPI, vendor docs, and endoflife.date."""
+        print('  [ENRICH] [7/7] Scanning reference library (firmware + EOA + IMT)...', flush=True)
+        _data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        changes = {}
+        # ── 7a. Firmware baselines harvester ──
+        try:
+            import sys as _sys7
+            _tools_dir = os.path.join(os.path.dirname(__file__), 'tools')
+            if _tools_dir not in _sys7.path:
+                _sys7.path.insert(0, _tools_dir)
+            from firmware_harvester import scheduled_harvest as _fw_harvest
+            fw_changes = _fw_harvest(_data_dir)
+            if fw_changes:
+                changes['firmware_baselines'] = fw_changes
+                print(f'  [ENRICH]   Firmware baselines: {len(fw_changes)} updates', flush=True)
+                for k, v in fw_changes.items():
+                    print(f'    {k}: {v.get("old","")} -> {v.get("new","")}', flush=True)
+            else:
+                print('  [ENRICH]   Firmware baselines: up to date', flush=True)
+        except Exception as _fw_err:
+            print(f'  [ENRICH]   Firmware baselines harvest failed: {_fw_err}', flush=True)
+
+        # ── 7b. Reference library harvester (EOA, IMT, advisories) ──
+        try:
+            from reference_harvester import scheduled_reference_harvest as _ref_harvest
+            ref_changes = _ref_harvest(_data_dir)
+            if ref_changes:
+                changes['reference_library'] = ref_changes
+                _ref_summary = []
+                if ref_changes.get('eoa'):
+                    _ref_summary.append(f"EOA: {len(ref_changes['eoa'])} changes")
+                if ref_changes.get('imt'):
+                    _ref_summary.append(f"IMT: {len(ref_changes['imt'])} updates")
+                if ref_changes.get('advisories'):
+                    _ref_summary.append(f"Advisories: {len(ref_changes['advisories'])} new")
+                if ref_changes.get('docs_discovered'):
+                    _ref_summary.append(f"Docs: {ref_changes['docs_discovered']} discovered")
+                print(f'  [ENRICH]   Reference library: {", ".join(_ref_summary) if _ref_summary else "up to date"}', flush=True)
+            else:
+                print('  [ENRICH]   Reference library: up to date', flush=True)
+        except Exception as _ref_err:
+            print(f'  [ENRICH]   Reference library harvest failed: {_ref_err}', flush=True)
+
+        return changes
+
 
 def _infer_affected_products(adv_id, title):
     """Heuristic: infer which products an advisory affects from its ID and title."""
@@ -5714,6 +5777,12 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_config_get()
         elif self.path.startswith('/api/watchlists'):
             self.handle_watchlists()
+        elif self.path == '/api/eoa-database':
+            self.handle_eoa_database_get()
+        elif self.path == '/api/imt-interop':
+            self.handle_imt_interop_get()
+        elif self.path == '/api/reference-library/status':
+            self.handle_reference_status_get()
         elif self.path == '/api/knowledge-base':
             self.handle_knowledge_base_get()
         elif self.path == '/api/enrich/status':
@@ -6380,6 +6449,76 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def handle_eoa_database_get(self):
+        """GET /api/eoa-database — Return the EOA platform database."""
+        eoa_path = os.path.join(os.path.dirname(__file__), 'data', 'eoa_database.json')
+        try:
+            with open(eoa_path, 'r', encoding='utf-8') as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(data.encode('utf-8'))
+        except FileNotFoundError:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(b'{"platforms":[],"dates":{},"switches":[]}')
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
+
+    def handle_imt_interop_get(self):
+        """GET /api/imt-interop — Return the IMT interoperability matrix."""
+        imt_path = os.path.join(os.path.dirname(__file__), 'data', 'imt_interop.json')
+        try:
+            with open(imt_path, 'r', encoding='utf-8') as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(data.encode('utf-8'))
+        except FileNotFoundError:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(b'{}')
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
+
+    def handle_reference_status_get(self):
+        """GET /api/reference-library/status — Return freshness of all reference data files."""
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        status = {}
+        for fname in ['firmware_baselines.json', 'security_bulletins.json', 'knowledge_base.json',
+                      'eoa_database.json', 'imt_interop.json', 'cisa_kev.json']:
+            fpath = os.path.join(data_dir, fname)
+            try:
+                with open(fpath, 'r', encoding='utf-8') as f:
+                    fdata = json.load(f)
+                last_updated = fdata.get('_lastUpdated') or fdata.get('lastUpdated') or 'unknown'
+                status[fname] = {'lastUpdated': last_updated, 'exists': True}
+            except FileNotFoundError:
+                status[fname] = {'lastUpdated': None, 'exists': False}
+            except Exception:
+                status[fname] = {'lastUpdated': 'error', 'exists': True}
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(status, indent=2).encode('utf-8'))
 
     def handle_enrich_status(self):
         """GET /api/enrich/status — Return enrichment scanner status."""
@@ -7057,18 +7196,18 @@ if __name__ == '__main__':
     try:
         _cfg = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.exists() else {}
         if _cfg.get('enrichEnabled', True):
-            _enrich_interval = int(_cfg.get('enrichIntervalHours', 12))
+            _enrich_interval = int(_cfg.get('enrichIntervalHours', 6))
             _nvd_key = _cfg.get('nvdApiKey') or None
             _enrichment_scheduler = EnrichmentScheduler(interval_hours=_enrich_interval, nvd_api_key=_nvd_key)
             _enrichment_scheduler.start()
     except Exception as _sched_err:
         print(f'  [STARTUP] Enrichment scheduler failed to start: {_sched_err}', flush=True)
 
-    # Start firmware baselines harvester (runs every 24h in background)
+    # Start firmware baselines harvester (runs every 48h in background as fallback)
     def _firmware_harvest_loop():
         """Periodic firmware baseline harvester — checks NetApp docs for newer versions."""
         import time as _fh_time
-        _fh_interval = 24 * 3600  # 24 hours
+        _fh_interval = 48 * 3600  # 48 hours
         _fh_data_dir = os.path.join(os.path.dirname(__file__), "data")
         # Wait 5 minutes after startup before first harvest
         _fh_time.sleep(300)
@@ -7093,9 +7232,32 @@ if __name__ == '__main__':
 
     try:
         threading.Thread(target=_firmware_harvest_loop, daemon=True, name="fw-baseline-harvester").start()
-        print("  [STARTUP] Firmware baseline harvester scheduled (24h interval, first run in 5min)", flush=True)
+        print("  [STARTUP] Firmware baseline harvester scheduled (48h interval, first run in 5min)", flush=True)
     except Exception as _fh_start_err:
         print(f"  [STARTUP] Firmware harvester failed to start: {_fh_start_err}", flush=True)
+
+    # ── Print reference data freshness banner ──
+    _data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    print('  [STARTUP] Reference Data Status:', flush=True)
+    for _ref_file in ['firmware_baselines.json', 'security_bulletins.json', 'knowledge_base.json',
+                       'eoa_database.json', 'imt_interop.json']:
+        _ref_path = os.path.join(_data_dir, _ref_file)
+        try:
+            with open(_ref_path, 'r', encoding='utf-8') as _rf:
+                _rdata = json.load(_rf)
+            _last = _rdata.get('_lastUpdated') or _rdata.get('lastUpdated') or '?'
+            _age = ''
+            try:
+                from datetime import date as _date_cls
+                _d = _date_cls.fromisoformat(_last)
+                _days = (_date_cls.today() - _d).days
+                _age = f' ({_days}d old)'
+            except: pass
+            print(f'    {_ref_file:35s}: {_last}{_age}', flush=True)
+        except FileNotFoundError:
+            print(f'    {_ref_file:35s}: [NOT FOUND]', flush=True)
+        except Exception as _ref_err:
+            print(f'    {_ref_file:35s}: [ERROR: {_ref_err}]', flush=True)
 
     print(f"Starting CORS Proxy Web Server on port {PORT}...")
     if cached:

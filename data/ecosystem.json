@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "_lastUpdated": "2026-08-04",
+  "sources": {
+    "github_netapp": {
+      "totalRepos": 12,
+      "lastChecked": "2026-08-04",
+      "repos": [
+        {
+          "description": "Storage orchestrator for containers"
+        },
+        {
+          "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
+        },
+        {
+          "description": "NetApp's ONTAP model context protocol server"
+        },
+        {
+          "description": "Ansible collection that facilitates host related tasks for NetApp E-Series storage."
+        },
+        {
+          "description": "Terrafrom ONTAP provider"
+        },
+        {
+          "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
+        },
+        {
+          "description": "Terraform provider to create NetAPP OCCM instances, CVO resources, volumes, snapshots, ... in Azure, AWS, GCP."
+        },
+        {
+          "description": "tridentctl plugin for NetApp Trident protect"
+        },
+        {
+          "description": "Repo for Ansible roles developed for NetApp Ansible modules and playbooks"
+        },
+        {
+          "description": "Ansible Validated Content for NetApp Trident Protect Roles and Tasks in OpenShift Virtualization environment"
+        },
+        {
+          "description": "Ansible Validated Content for NetApp Trident Roles and Tasks in OpenShift Virtualization environment"
+        },
+        {
+          "description": "Support for Volume, Initiator, Account, and Volume Access Group resources."
+        }
+      ]
+    },
+    "pypi": {
+      "lastChecked": "2026-08-04",
+      "packages": {
+        "netapp-ontap": {
+          "version": "9.18.1.0",
+          "summary": "A library for working with ONTAP's REST APIs simply in Python"
+        },
+        "solidfire-sdk-python": {
+          "version": "12.3.0.203",
+          "summary": "SolidFire Python SDK"
+        }
+      }
+    },
+    "ansible_galaxy": {
+      "lastChecked": "2026-08-04",
+      "collections": {
+        "netapp.ontap": {
+          "version": "23.6.0",
+          "namespace": ""
+        },
+        "netapp.storagegrid": {
+          "version": "21.16.0",
+          "namespace": ""
+        },
+        "netapp.um_info": {
+          "version": "21.8.1",
+          "namespace": ""
+        },
+        "netapp.cloudmanager": {
+          "version": "21.24.0",
+          "namespace": ""
+        }
+      }
+    },
+    "terraform": {
+      "lastChecked": "2026-08-04",
+      "providers": {
+        "NetApp/netapp-ontap": {
+          "version": "2.7.1",
+          "source": "registry.terraform.io"
+        },
+        "NetApp/netapp-cloudmanager": {
+          "version": "27.2.0",
+          "source": "registry.terraform.io"
+        }
+      }
+    },
+    "cloud_providers": {
+      "lastChecked": "2026-08-04",
+      "providers": {
+        "aws_fsx_ontap": {
+          "name": "Amazon FSx for NetApp ONTAP",
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/",
+          "accessible": true,
+          "whatsnew_links": []
+        },
+        "azure_anf": {
+          "name": "Azure NetApp Files",
+          "url": "https://learn.microsoft.com/en-us/azure/azure-netapp-files/",
+          "accessible": true,
+          "whatsnew_links": [
+            {
+              "href": "whats-new",
+              "text": "What's new?"
+            }
+          ]
+        },
+        "gcp_gcnv": {
+          "name": "Google Cloud NetApp Volumes",
+          "url": "https://cloud.google.com/netapp/volumes/docs",
+          "accessible": true,
+          "whatsnew_links": [
+            {
+              "href": "/docs/whats-new",
+              "text": "What's new in documentation"
+            },
+            {
+              "href": "/release-notes",
+              "text": "Recent product release notes"
+            },
+            {
+              "href": "/netapp/volumes/docs/release-notes",
+              "text": "Release notes"
+            },
+            {
+              "href": "//docs.cloud.google.com/release-notes",
+              "text": "Release Notes"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
