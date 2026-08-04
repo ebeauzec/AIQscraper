@@ -1661,7 +1661,7 @@ def _do_full_harvest(watchlist_ids=None):
                 "asupHistory": s.get("autoSupports") or [],
                 "asupByType": s.get("latestAsupOfEachType") or [],
                 # ── Firmware ──
-                "systemFirmware": s.get("systemFirmware") or [],
+                "systemFirmware": s.get("systemFirmware") or {},
                 "motherboardFirmware": s.get("motherboardFirmware") or {},
                 "diskQualificationPackage": s.get("diskQualificationPackage") or {},
                 "shelves": s.get("shelves") or [],

@@ -13243,7 +13243,7 @@ function enrichSystemTelemetry(s) {
     asupOnDemand:      s.asupOnDemand,
     asupDomain:        s.asupDomain || '',
     // ── Firmware ──
-    systemFirmware:    s.systemFirmware || [],
+    systemFirmware:    s.systemFirmware || {},
     motherboardFirmware: s.motherboardFirmware || {},
     diskQualificationPackage: s.diskQualificationPackage || {},
     shelves:               s.shelves || [],
@@ -19523,6 +19523,13 @@ function _renderDRReplicationSection(systems) {
 // Renders per-system collapsible cards (NOT a flat table) to avoid DOM
 // explosion and Chart.js corruption that caused the previous rollback.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Global toggle for firmware card expand/collapse (avoids IIFE onclick issues)
+function _toggleFwCard(cardId) {
+  var d = document.getElementById(cardId);
+  if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
+}
+
 function _renderFirmwareCurrencySection(systems) {
   // ── Helpers ──
   const _fwMatch = (cur, rec) => {
@@ -19575,7 +19582,10 @@ function _renderFirmwareCurrencySection(systems) {
   const systemCards = [];
 
   systems.forEach(sys => {
-    const sfw = sys.systemFirmware || {};
+    // systemFirmware may be a single object {type,currentVersion,recommendedVersion}
+    // or an array [{type,currentVersion,recommendedVersion}] depending on GQL schema.
+    const sfwRaw = sys.systemFirmware;
+    const sfw = (Array.isArray(sfwRaw) ? sfwRaw[0] : sfwRaw) || {};
     const mbfw = sys.motherboardFirmware || {};
     const dqp = sys.diskQualificationPackage || {};
     const shelves = sys.shelves || [];
@@ -19629,7 +19639,7 @@ function _renderFirmwareCurrencySection(systems) {
 
     let cardHtml = `
     <div style="border:1px solid ${headerBorder};border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden;">
-      <div onclick="(function(){ var d=document.getElementById('${cardId}'); d.style.display=d.style.display==='none'?'block':'none'; })()"
+      <div onclick="_toggleFwCard('${cardId}')"
            style="background:${headerColor};padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span style="font-weight:700;font-size:0.85rem;color:var(--text-primary);min-width:180px;">${sysLabel}</span>
         <span style="font-size:0.75rem;color:var(--text-secondary);">${sys.platformModel || sys.platformType || ''}</span>
