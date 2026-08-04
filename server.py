@@ -711,6 +711,14 @@ def _do_full_harvest(watchlist_ids=None):
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
                     swRecommendationDetails { minRecommendedVersion latestRecommendedVersion }
                     systemFirmware { type currentVersion recommendedVersion }
+                    motherboardFirmware { currentVersion recommendedVersion }
+                    diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
+                    shelves {
+                      serialNumber shelfId
+                      hardwareModel { name endOfAvailability endOfHwSupport }
+                      moduleHardwareModel { name }
+                      drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                    }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -1656,6 +1664,7 @@ def _do_full_harvest(watchlist_ids=None):
                 "systemFirmware": s.get("systemFirmware") or [],
                 "motherboardFirmware": s.get("motherboardFirmware") or {},
                 "diskQualificationPackage": s.get("diskQualificationPackage") or {},
+                "shelves": s.get("shelves") or [],
                 "autoUpdateSettings": s.get("autoUpdateSettings") or {},
                 # ── Lifecycle & TAM intelligence ──
                 "lifecycleEvents": s.get("lifecycleEvents") or [],
