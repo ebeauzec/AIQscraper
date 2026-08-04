@@ -406,7 +406,8 @@ The previous agent conversation (ID: `73665ae2-...`) produced these planning/rev
 
 Key metric calculations are implemented in `app.js` at the following locations:
 
-- **`computeAccountHealthScore(targetSystems)`** — Line 11009. Computes the 0-100 Account Health Score using a weighted formula of 8 components (ASUP, ARP, SW Firmware, HW Firmware Currency at 8%, Contracts, Risks, Data Reduction, CSAT).
+- **`computeSupportCaseHealth(sys)`** — Line ~11992. Computes a 0–10 support case health score from real case data (severity penalties, volume penalties, aging penalties, escalation penalties, resolution velocity bonuses). Replaces the legacy fake CSAT sentimentScore.
+- **`computeAccountHealthScore(targetSystems)`** — Line ~12100. Computes the 0-100 Account Health Score using a weighted formula of 8 components (ASUP 15%, ARP 12%, OS FW 12%, HW FW 8%, Contracts 13%, Risks 20%, Data Reduction 10%, Case Health 10%).
 - **`computeMTTR(allSupportCases)`** — Line 11060. Calculates the Mean Time to Resolve in days for all closed cases.
 - **`computeFeatureAdoptionScore(sys)`** — Line 11088. Evaluates a 25-point best-practice checklist to return an adoption score (0-25) and percentage. Checks are categorized into Operations & Security (15) and Data Protection & Lifecycle (10).
 - **`computeCostOfInaction(targetSystems)`** — Line 11118. Computes the weighted Cost of Inaction urgency score based on risks, CVEs, capacity runway, and lifecycle status.

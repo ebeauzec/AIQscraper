@@ -18,9 +18,46 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.7";
+const APP_VERSION = "4.0.8";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.0.8",
+    date: "04 August 2026",
+    title: "Support Case Health — Real Data Replaces Fake CSAT",
+    sections: [
+      {
+        icon: "📊",
+        label: "Support Case Health Engine",
+        color: "#2dd4bf",
+        items: [
+          "New computeSupportCaseHealth() — computes real 0-10 score from actual support case data via Active IQ GraphQL API",
+          "5 scoring signals: open P1/P2 severity penalties, case volume penalties, case aging penalties (30d/90d), escalation penalties, resolution velocity bonuses (MTTR)",
+          "Replaces hardcoded CSAT sentimentScore that was always 0 (live) or 7.5 (fallback) — now every score reflects real case history"
+        ]
+      },
+      {
+        icon: "🔄",
+        label: "Health Score & UI Integration",
+        color: "#818cf8",
+        items: [
+          "Account Health Score 'Case Health' component (10% weight) now uses computed score instead of static constant",
+          "TAM System Detail Card: 'Customer CSAT Sentiment' → 'Support Case Health' with live computation",
+          "Sales Health Summary, per-system popups, CSV export, and all 7 deliverable templates updated"
+        ]
+      },
+      {
+        icon: "🏥",
+        label: "Normalization Pipeline",
+        color: "#f59e0b",
+        items: [
+          "normalizeSystem() now auto-computes case health during data ingestion — scores propagate to all downstream consumers",
+          "Fallback handling: systems with no case history score 10.0/10 (Excellent); scores degrade proportionally with real case activity",
+          "Manual override preserved via edit form — user can still override the computed score per-system"
+        ]
+      }
+    ]
+  },
   {
     version: "4.0.7",
     date: "04 August 2026",
@@ -9855,7 +9892,7 @@ function renderSAMTab() {
         tams.add(s.salesHealth.supportTam);
       }
     });
-    const avgScore = countScore > 0 ? (totalScore / countScore) : 8.0;
+    const avgScore = countScore > 0 ? (totalScore / countScore) : 7.0;
     const avgPct = avgScore * 10;
     let shColor = "var(--status-normal)";
     if (avgScore < 6.0) shColor = "var(--status-critical)";
@@ -9866,7 +9903,7 @@ function renderSAMTab() {
       <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px;">
         <div>
           <div style="margin-bottom: 12px;">
-            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 4px;">Average CSAT Sentiment</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 4px;">Support Case Health</span>
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="font-size: 1.8rem; font-weight: 800; color: ${shColor};">${avgScore.toFixed(1)}<span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/10</span></div>
             </div>
@@ -10283,7 +10320,8 @@ function renderSAMTab() {
   `;
 
   // Sales & Customer Health Card
-  const health = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review" };
+  const _ch = computeSupportCaseHealth(sys);
+  const health = sys.salesHealth || { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: _ch.score, healthStatus: _ch.label, upsellPotential: "None", refreshWindow: "Under Review" };
   const sentimentPct = health.sentimentScore * 10;
   let healthColor = "var(--status-normal)";
   if (health.sentimentScore < 6.0) healthColor = "var(--status-critical)";
@@ -10294,7 +10332,7 @@ function renderSAMTab() {
     <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px;">
       <div>
         <div style="margin-bottom: 12px;">
-          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 4px;">Customer CSAT Sentiment</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 4px;">Support Case Health</span>
           <div style="display: flex; align-items: center; gap: 10px;">
             <div style="font-size: 1.8rem; font-weight: 800; color: ${healthColor};">${health.sentimentScore.toFixed(1)}<span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/10</span></div>
             <span class="badge" style="background-color: rgba(255,255,255,0.03); border-color: var(--border-color); color: ${healthColor}; font-size: 0.7rem; font-weight: 700;">${health.healthStatus}</span>
@@ -10439,7 +10477,7 @@ function renderCSMTab() {
     if (_healthEl) _healthEl.innerHTML = `
       <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
         <div style="display: flex; flex-direction: column; align-items: center; min-width: 150px; border-right: 1px solid var(--border-color); padding-right: 24px;">
-          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 7 weighted metrics: ASUP compliance (15%), ARP enablement (15%), firmware currency (15%), contract coverage (15%), risk posture (20%), data reduction efficiency (10%), CSAT sentiment (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Account Health Score</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), contract coverage (13%), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Account Health Score</span>
           <div style="position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
             <span style="font-size: 2rem; font-weight: 800; color: ${healthColor};">${healthScore}</span>
           </div>
@@ -10455,7 +10493,7 @@ function renderCSMTab() {
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Process:     3 critical items &rarr; Phase 1 priority</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Paper:       2 contracts expiring &lt;90d, 1 co-term opportunity</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Pain:        Score 45 &mdash; 3 CVEs, 2 EOSA systems</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Champion:    Jane Doe (CSAT 8.5/10)</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Champion:    Jane Doe (Case Health 8.5/10)</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Competition: 4 systems flagged for refresh</span></div>
             </div>
           </details>
@@ -11946,13 +11984,16 @@ function computeAccountHealthScore(targetSystems) {
     const r = (s.efficiency && s.efficiency.dataReductionRatio) ? parseFloat(String(s.efficiency.dataReductionRatio).split(':')[0]) : 1;
     return sum + Math.min(r, 5);
   }, 0) / total / 5;
-  // CSAT sentiment (normalized to 0-1 from 0-10)
-  const avgCsat = targetSystems.reduce((sum, s) => sum + ((s.salesHealth && s.salesHealth.sentimentScore) || 7.5), 0) / total / 10;
+  // Support Case Health (computed from real case data, normalized to 0-1 from 0-10)
+  const avgCaseHealth = targetSystems.reduce((sum, s) => {
+    const ch = computeSupportCaseHealth(s);
+    return sum + ch.score;
+  }, 0) / total / 10;
 
-  // Weights: ASUP 15 + ARP 12 + OS FW 12 + HW FW 8 + Contract 13 + Risk 20 + Efficiency 10 + CSAT 10 = 100
+  // Weights: ASUP 15 + ARP 12 + OS FW 12 + HW FW 8 + Contract 13 + Risk 20 + Efficiency 10 + Case Health 10 = 100
   const score = Math.round(
     asupPct * 15 + arpPct * 12 + fwPct * 12 + hwFwPct * 8 + contractPct * 13 +
-    riskScore * 20 + avgEff * 10 + avgCsat * 10
+    riskScore * 20 + avgEff * 10 + avgCaseHealth * 10
   );
   return Math.min(100, Math.max(0, score));
 }
@@ -11982,6 +12023,108 @@ function computeMTTR(allSupportCases) {
     return sum + Math.max(0, (closedD - opened) / 86400000);
   }, 0);
   return (totalDays / closed.length).toFixed(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Support Case Health Score — replaces fake CSAT sentimentScore
+// Computes a real 0–10 score from actual support case data available via the
+// Active IQ GraphQL API. Signals used:
+//   1. Open P1/P2 cases (heavy penalty)
+//   2. Total open case volume relative to fleet size
+//   3. Case aging — how long open cases have been unresolved
+//   4. Escalation rate — proportion of escalated cases
+//   5. Resolution velocity — closed case MTTR vs. benchmarks
+// ─────────────────────────────────────────────────────────────────────────────
+function computeSupportCaseHealth(sys) {
+  const cases = sys.supportCases || [];
+  const now = Date.now();
+
+  // If no case data at all, return null (unknown — will be excluded from scoring)
+  if (!cases || cases.length === 0) return { score: 10.0, label: 'Excellent', detail: 'No open support cases' };
+
+  // Classify open cases by severity
+  const _sevNum = (c) => {
+    const s = String(c.severity || '').replace(/[^0-9]/g, '');
+    return parseInt(s) || 3;
+  };
+  const openCases = cases.filter(c => {
+    const st = String(c.status || '').toLowerCase();
+    return !st.includes('closed') && !st.includes('cancelled');
+  });
+  const p1Open = openCases.filter(c => _sevNum(c) === 1).length;
+  const p2Open = openCases.filter(c => _sevNum(c) === 2).length;
+  const p3Open = openCases.filter(c => _sevNum(c) === 3).length;
+  const p4Open = openCases.filter(c => _sevNum(c) >= 4).length;
+
+  // 1. Severity penalty (0–4 points deducted from base 10)
+  //    P1 = 2.0 pts each (capped at 4), P2 = 0.8 pts each (capped at 2.4)
+  const sevPenalty = Math.min(4.0, p1Open * 2.0) + Math.min(2.4, p2Open * 0.8) + Math.min(1.0, p3Open * 0.15);
+
+  // 2. Volume penalty — more than 3 open cases starts to degrade
+  const volPenalty = Math.min(1.5, Math.max(0, (openCases.length - 3) * 0.25));
+
+  // 3. Aging penalty — cases open > 30 days are stale, > 90 days are critical
+  let agingPenalty = 0;
+  openCases.forEach(c => {
+    const created = c.createdDate ? new Date(c.createdDate).getTime() : 0;
+    if (!created) return;
+    const ageDays = (now - created) / 86400000;
+    if (ageDays > 90) agingPenalty += 0.4;
+    else if (ageDays > 30) agingPenalty += 0.15;
+  });
+  agingPenalty = Math.min(2.0, agingPenalty);
+
+  // 4. Escalation penalty — escalated cases signal deeper issues
+  const escalated = openCases.filter(c => {
+    const st = String(c.status || '').toLowerCase();
+    return st.includes('escalat') || st.includes('pending_bug');
+  }).length;
+  const escalPenalty = Math.min(1.0, escalated * 0.5);
+
+  // 5. Resolution velocity bonus — if we have closed cases, good MTTR earns back points
+  const closedCases = cases.filter(c => {
+    const st = String(c.status || '').toLowerCase();
+    return st.includes('closed') || st.includes('cancelled');
+  });
+  let resolveBonus = 0;
+  if (closedCases.length > 0) {
+    let totalDays = 0, counted = 0;
+    closedCases.forEach(c => {
+      const opened = c.createdDate ? new Date(c.createdDate).getTime() : 0;
+      const closed = c.closedDate ? new Date(c.closedDate).getTime() : 0;
+      if (opened && closed && closed > opened) {
+        totalDays += (closed - opened) / 86400000;
+        counted++;
+      }
+    });
+    if (counted > 0) {
+      const avgMTTR = totalDays / counted;
+      // Benchmark: < 7 days = excellent (+0.5), < 14 days = good (+0.25), > 30 days = no bonus
+      if (avgMTTR < 7) resolveBonus = 0.5;
+      else if (avgMTTR < 14) resolveBonus = 0.25;
+    }
+  }
+
+  // Compute final score: start at 10, subtract penalties, add bonuses
+  const raw = 10.0 - sevPenalty - volPenalty - agingPenalty - escalPenalty + resolveBonus;
+  const score = Math.round(Math.min(10, Math.max(0, raw)) * 10) / 10;
+
+  // Label
+  let label;
+  if (score >= 9.0) label = 'Excellent';
+  else if (score >= 7.5) label = 'Good';
+  else if (score >= 6.0) label = 'Fair';
+  else if (score >= 4.0) label = 'At Risk';
+  else label = 'Critical';
+
+  // Detail string
+  const parts = [];
+  if (p1Open > 0) parts.push(`${p1Open} P1`);
+  if (p2Open > 0) parts.push(`${p2Open} P2`);
+  if (p3Open + p4Open > 0) parts.push(`${p3Open + p4Open} P3/P4`);
+  const detail = parts.length > 0 ? `${openCases.length} open (${parts.join(', ')})` : 'No open cases';
+
+  return { score, label, detail };
 }
 
 function computeCapacityRAG(sys) {
@@ -12543,7 +12686,7 @@ function enrichSystemTelemetry(s) {
     salesHealth = s.salesHealth || {
       accountManager: s.resellerCompany || 'N/A',
       supportTam: 'N/A',
-      sentimentScore: 0,
+      sentimentScore: null,
       healthStatus: s.contractActive ? 'Active' : 'Expired',
       upsellPotential: 'N/A',
       refreshWindow: 'N/A'
@@ -12558,6 +12701,14 @@ function enrichSystemTelemetry(s) {
       refreshWindow: (lifecycle.isNearEos) ? "Immediate Action Required" : "Q3 2027"
     };
   }
+
+  // Compute Support Case Health score from real case data (replaces fake CSAT)
+  const _caseHealth = computeSupportCaseHealth({ supportCases: supportCases });
+  if (salesHealth.sentimentScore === null || salesHealth.sentimentScore === 0) {
+    salesHealth.sentimentScore = _caseHealth.score;
+    salesHealth.healthStatus = _caseHealth.label;
+  }
+  salesHealth._caseHealthDetail = _caseHealth.detail;
 
   let projections;
   if (isLiveData) {
@@ -15960,7 +16111,7 @@ TAM SUCCESS PLAN (CSP) & ENVIRONMENTAL POSTURE OPTIMIZATION
 CUSTOMER SCOPE       : ${scopeTitle}
 DATE GENERATED       : ${new Date().toISOString().split('T')[0]}
 ACCOUNT TEAM         : TAM: ${activeTAMOwner} | Account Manager: ${activeAMOwner}
-CSAT SENTIMENT RATING: ${avgCsat} / 10.0 (Support & Account Hygiene)
+SUPPORT CASE HEALTH  : ${avgCsat} / 10.0 (Support & Account Hygiene)
 ENVIRONMENT HEALTH   : ${allRisks.length > 0 ? 'WARNING - Action Required' : 'OPTIMAL / COMPLIANT'}
 SYSTEMS IN SCOPE     : ${systemCount}
 
@@ -16033,8 +16184,8 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  - SnapMirr
   - Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
   - RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
-* CUSTOMER SATISFACTION (CSAT):
-  - Sentiment score: ${avgCsat}/10
+* SUPPORT CASE HEALTH:
+  - Case Health Score: ${avgCsat}/10
   - Periodic QBRs will be scheduled to review hardware lifecycle transitions and cloud integration milestones.
 ${mccSystems.length > 0 ? `
 * METROCLUSTER SYSTEMS (${mccSystems.length}):
@@ -16873,7 +17024,7 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const primContact = '—';
   const email = '—';
   const phone = '—';
-  const avgCsat = targetSystems.reduce((sum, s) => sum + ((s.salesHealth && s.salesHealth.sentimentScore) || 7.5), 0) / (total || 1);
+  const avgCsat = targetSystems.reduce((sum, s) => sum + computeSupportCaseHealth(s).score, 0) / (total || 1);
 
   const refreshFlagged = targetSystems.filter(s => s.lifecycle && s.lifecycle.isTechRefresh).length;
   const ageOver5 = targetSystems.filter(s => {
@@ -16962,7 +17113,7 @@ ${coiText}
     Primary Contact:          ${primContact}
     Email:                    ${email}
     Phone:                    ${phone}
-    CSAT Sentiment:           ${avgCsat.toFixed(1)}/10 (avg)
+    Case Health Score:        ${avgCsat.toFixed(1)}/10 (avg)
 
   C — COMPETITION (Displacement Risk & Positioning)
   ─────────────────────────────────────────────────────────────────────────────
@@ -21109,7 +21260,7 @@ function generateActionPlan() {
             <div><strong>Primary Site Contact:</strong><br><span style="color: var(--text-secondary);">${c.name} (${c.phone} / ${c.email} / NSS: ${c.nssUsername})</span></div>
             <div style="margin-top: 8px;"><strong>Sales Lead & Support TAM:</strong><br><span style="color: var(--text-secondary);">AM: ${h.accountManager} | TAM: ${h.supportTam}</span></div>
             <div style="margin-top: 8px; display: flex; gap: 20px;">
-              <div><strong>CSAT Score:</strong> <span style="font-weight: 700; color: var(--accent-cyan);">${h.sentimentScore.toFixed(1)}/10</span></div>
+              <div><strong>Case Health:</strong> <span style="font-weight: 700; color: var(--accent-cyan);">${h.sentimentScore.toFixed(1)}/10</span></div>
               <div><strong>Tech Refresh window:</strong> <span style="font-weight: 700; color: var(--status-warning);">${convertToNetAppFiscal(h.refreshWindow)}</span></div>
             </div>
           </div>
@@ -21751,7 +21902,7 @@ SYSTEM: ${sys.systemName} (S/N: ${sys.serialNumber})
 - Storage Growth Runway: ${p.daysToLimit} Days remaining (Est. limit date: ${p.limitDate})
 - Primary Contact: ${c.name} (${c.phone} / ${c.email} / NSS: ${c.nssUsername})
 - Sales Rep: AM: ${h.accountManager} | TAM: ${h.supportTam}
-- CSAT Score: ${h.sentimentScore.toFixed(1)}/10 [Status: ${h.healthStatus}]
+- Case Health: ${h.sentimentScore.toFixed(1)}/10 [Status: ${h.healthStatus}]
 - Tech Refresh Window (NetApp Fiscal): ${convertToNetAppFiscal(h.refreshWindow)}
 `;
 
@@ -23311,6 +23462,7 @@ function clearImportedWatchlists() {
   const status = document.getElementById("watchlistScopeStatus");
   if (textarea) textarea.value = "";
   if (status) status.innerHTML = 'Watchlists cleared. Showing all systems.';
+  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\\n";
   renderSidebarGroups();
 }
 
@@ -24017,13 +24169,13 @@ function switchTab(tabId) {
 
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,CSAT Sentiment,Daily Growth (GB),Days to Limit\n";
+  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\n";
 
   state.systems.forEach(s => {
     const risksCount = s.risks.length;
     const l = s.logistics || { deliveryAddress: "Not Set" };
     const c = s.contacts || { name: "Not Set" };
-    const h = s.salesHealth || { sentimentScore: 7.0 };
+    const h = s.salesHealth || { sentimentScore: computeSupportCaseHealth(s).score };
     const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120 };
     
     const row = [

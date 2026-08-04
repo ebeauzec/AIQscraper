@@ -1,8 +1,8 @@
 {
-  "version": "4.0.7",
+  "version": "4.0.8",
   "major": 4,
   "minor": 0,
-  "patch": 7,
+  "patch": 8,
   "date": "2026-08-04",
-  "notes": "HW Firmware Currency scoring engine (SP/MB/DQP/Drive composite), firmware injection into all 7 deliverable templates, 9 new IMT vendor entries (Veritas, VMware, Hyper-V, RHEV, OpenStack, Citrix, Proxmox, Nutanix), 9 new reference harvester scrapers, health score rebalanced with 8% HW firmware weight, firmware currency UI badge."
+  "notes": "Support Case Health engine replaces fake CSAT sentimentScore. New computeSupportCaseHealth() computes real 0-10 score from live support case data (severity, volume, aging, escalation, resolution velocity). Integrated into Account Health Score, TAM cards, sales summaries, CSV export, and all 7 deliverable templates."
 }

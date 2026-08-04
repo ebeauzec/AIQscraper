@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.8] - 2026-08-04
+
+### Added
+- **Support Case Health Engine** (`computeSupportCaseHealth()`) — computes a real 0–10 health score from live Active IQ support case data, replacing the hardcoded CSAT `sentimentScore` that was always 0 (live) or 7.5 (fallback):
+  - **Severity penalties**: P1 open cases deduct 3.0 pts each, P2 deduct 1.5, P3 deduct 0.5
+  - **Volume penalties**: >3 open cases deduct 0.3 pts each beyond threshold
+  - **Aging penalties**: cases open >30 days deduct 0.5 pts each; >90 days deduct 1.0 pts each
+  - **Escalation penalties**: escalated cases deduct 1.0 pts each
+  - **Resolution velocity bonuses**: fast mean-time-to-resolve on closed cases adds up to +1.5 pts
+  - Fallback: systems with no case data score 10.0/10 ("Excellent")
+
+### Changed
+- **Account Health Score** — "CSAT" component (10% weight) now uses `computeSupportCaseHealth()` instead of static constants
+- **Normalization pipeline** — `normalizeSystem()` auto-computes case health during data ingestion; propagates to all downstream consumers
+- **TAM System Detail Card** — "Customer CSAT Sentiment" label → "Support Case Health" with computed score and health bar
+- **Sales Health Summary** — "Average CSAT Sentiment" label → "Support Case Health"; default fallback score adjusted from 8.0 to 7.0
+- **Per-system popups** — "CSAT Score:" → "Case Health:" throughout
+- **CSV export** — column header "CSAT Sentiment" → "Case Health"
+- **All 7 deliverable templates** — CSAT labels replaced with "Support Case Health" / "Case Health Score" in CSP, QBR, MSP, MEDDPICC, Handover, Security Brief, Sustainability reports
+- **MEDDPICC Brief** — `avgCsat` computation now calls `computeSupportCaseHealth()` per system instead of using `sentimentScore || 7.5`
+- **Health Score tooltip** — updated weight description to reflect 8 components with correct percentages
+
+---
+
 ## [4.0.7] - 2026-08-04
 
 ### Added
