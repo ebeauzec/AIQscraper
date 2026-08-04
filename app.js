@@ -13246,6 +13246,7 @@ function enrichSystemTelemetry(s) {
     systemFirmware:    s.systemFirmware || [],
     motherboardFirmware: s.motherboardFirmware || {},
     diskQualificationPackage: s.diskQualificationPackage || {},
+    shelves:               s.shelves || [],
     autoUpdateSettings: s.autoUpdateSettings || {},
     // ── Lifecycle Events & Licenses ──
     lifecycleEvents:   s.lifecycleEvents || [],
@@ -19513,10 +19514,263 @@ function _renderDRReplicationSection(systems) {
     `;
   }
 
+
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 18: Firmware Currency — SP/BMC, Motherboard, DQP, Shelf, Disk
+// Renders per-system collapsible cards (NOT a flat table) to avoid DOM
+// explosion and Chart.js corruption that caused the previous rollback.
+// ─────────────────────────────────────────────────────────────────────────────
+function _renderFirmwareCurrencySection(systems) {
+  // ── Helpers ──
+  const _fwMatch = (cur, rec) => {
+    if (!cur || !rec) return null; // unknown
+    return cur === rec;
+  };
+  const _badge = (isCurrent) => {
+    if (isCurrent === true)  return '<span style="color:#10b981;font-weight:600;" title="Current">✅ Current</span>';
+    if (isCurrent === false) return '<span style="color:#f59e0b;font-weight:600;" title="Update available">⚠️ Update</span>';
+    return '<span style="color:var(--text-muted);" title="Not reported by Active IQ">—</span>';
+  };
+  const _ver = (v) => v || '<span style="color:var(--text-muted);">—</span>';
+
+  // ── Aggregate drive firmware from shelves → drives → firmwareRevision ──
+  const _aggregateDrives = (shelves) => {
+    const byKey = {};
+    for (const shelf of (shelves || [])) {
+      for (const drive of ((shelf.drives || {}).drives || [])) {
+        const model = (drive.hardwareModel || {}).name || 'Unknown';
+        const fw = drive.firmwareRevision || 'Unknown';
+        const key = `${model}|${fw}`;
+        if (!byKey[key]) byKey[key] = { model, firmware: fw, count: 0, vendor: drive.vendor || '' };
+        byKey[key].count++;
+      }
+    }
+    return Object.values(byKey).sort((a, b) => b.count - a.count);
+  };
+
+  // ── Shelf module currency check against REFERENCE_LIBRARY_FIRMWARE_BASELINES ──
+  const _shelfModuleCurrency = (moduleModelName) => {
+    if (!moduleModelName) return null;
+    // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
+    const baseline = REFERENCE_LIBRARY_FIRMWARE_BASELINES[moduleModelName];
+    if (baseline) return { recommended: baseline.recommended, label: baseline.label };
+    // Try prefix: "IOM12" from "IOM12 v0260"
+    for (const [key, val] of Object.entries(REFERENCE_LIBRARY_FIRMWARE_BASELINES)) {
+      if (moduleModelName.startsWith(key) || key.startsWith(moduleModelName)) {
+        return { recommended: val.recommended, label: val.label };
+      }
+    }
+    return null;
+  };
+
+  // ── Fleet-wide firmware stats ──
+  let spCurrent = 0, spBehind = 0, spUnknown = 0;
+  let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
+  let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
+  let totalDrives = 0, totalShelves = 0;
+
+  const systemCards = [];
+
+  systems.forEach(sys => {
+    const sfw = sys.systemFirmware || {};
+    const mbfw = sys.motherboardFirmware || {};
+    const dqp = sys.diskQualificationPackage || {};
+    const shelves = sys.shelves || [];
+    const drives = _aggregateDrives(shelves);
+
+    // SP/BMC
+    const spMatch = _fwMatch(sfw.currentVersion, sfw.recommendedVersion);
+    if (spMatch === true) spCurrent++;
+    else if (spMatch === false) spBehind++;
+    else spUnknown++;
+
+    // Motherboard
+    const mbMatch = _fwMatch(mbfw.currentVersion, mbfw.recommendedVersion);
+    if (mbMatch === true) mbCurrent++;
+    else if (mbMatch === false) mbBehind++;
+    else mbUnknown++;
+
+    // DQP
+    const dqpMatch = _fwMatch(dqp.currentVersion, dqp.recommendedVersion);
+    if (dqpMatch === true) dqpCurrent++;
+    else if (dqpMatch === false) dqpBehind++;
+    else dqpUnknown++;
+
+    // Totals
+    const shelfCount = shelves.length;
+    const driveCount = drives.reduce((sum, d) => sum + d.count, 0);
+    totalShelves += shelfCount;
+    totalDrives += driveCount;
+
+    // Shelf module info
+    const shelfModules = {};
+    shelves.forEach(sh => {
+      const modName = (sh.moduleHardwareModel || {}).name || '';
+      const shelfModel = (sh.hardwareModel || {}).name || '?';
+      if (modName) {
+        if (!shelfModules[modName]) shelfModules[modName] = { count: 0, shelfModels: new Set(), baseline: _shelfModuleCurrency(modName) };
+        shelfModules[modName].count++;
+        shelfModules[modName].shelfModels.add(shelfModel);
+      }
+    });
+
+    // ── Build card HTML ──
+    const cardId = `fw-card-${(sys.serialNumber || Math.random().toString(36).slice(2))}`;
+    const sysLabel = sys.systemName || sys.serialNumber || '?';
+
+    // Determine worst-case status for the card header color
+    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false;
+    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null);
+    const headerColor = anyBehind ? 'rgba(245,158,11,0.12)' : (allCurrent ? 'rgba(16,185,129,0.08)' : 'rgba(99,102,241,0.08)');
+    const headerBorder = anyBehind ? 'rgba(245,158,11,0.3)' : (allCurrent ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)');
+
+    let cardHtml = `
+    <div style="border:1px solid ${headerBorder};border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden;">
+      <div onclick="(function(){ var d=document.getElementById('${cardId}'); d.style.display=d.style.display==='none'?'block':'none'; })()"
+           style="background:${headerColor};padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-weight:700;font-size:0.85rem;color:var(--text-primary);min-width:180px;">${sysLabel}</span>
+        <span style="font-size:0.75rem;color:var(--text-secondary);">${sys.platformModel || sys.platformType || ''}</span>
+        <span style="font-size:0.72rem;color:var(--text-muted);font-family:monospace;">SN: ${sys.serialNumber || '—'}</span>
+        <span style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;font-size:0.72rem;">
+          <span title="SP/BMC Firmware">${sfw.type || 'SP'}: ${_badge(spMatch)}</span>
+          <span title="Motherboard BIOS">MB: ${_badge(mbMatch)}</span>
+          <span title="Disk Qualification Package">DQP: ${_badge(dqpMatch)}</span>
+          <span style="color:var(--text-muted);">📦 ${shelfCount} shelf${shelfCount !== 1 ? 's' : ''} · ${driveCount} drive${driveCount !== 1 ? 's' : ''}</span>
+        </span>
+      </div>
+      <div id="${cardId}" style="display:none;padding:12px 14px;background:rgba(15,22,38,0.3);">`;
+
+    // ── Detail grid: SP/BMC, MB, DQP ──
+    cardHtml += `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+          <div style="background:rgba(255,255,255,0.03);border-radius:var(--radius-sm);padding:10px;">
+            <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">${sfw.type || 'SP'} / BMC Firmware</div>
+            <div style="font-size:0.8rem;">Current: <code style="color:var(--text-primary);">${_ver(sfw.currentVersion)}</code></div>
+            <div style="font-size:0.8rem;">Recommended: <code style="color:var(--accent-cyan);">${_ver(sfw.recommendedVersion)}</code></div>
+            <div style="margin-top:4px;">${_badge(spMatch)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:var(--radius-sm);padding:10px;">
+            <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Motherboard BIOS</div>
+            <div style="font-size:0.8rem;">Current: <code style="color:var(--text-primary);">${_ver(mbfw.currentVersion)}</code></div>
+            <div style="font-size:0.8rem;">Recommended: <code style="color:var(--accent-cyan);">${_ver(mbfw.recommendedVersion)}</code></div>
+            <div style="margin-top:4px;">${_badge(mbMatch)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:var(--radius-sm);padding:10px;">
+            <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Disk Qualification Package</div>
+            <div style="font-size:0.8rem;">Current: <code style="color:var(--text-primary);">${_ver(dqp.currentVersion)}</code></div>
+            <div style="font-size:0.8rem;">Recommended: <code style="color:var(--accent-cyan);">${_ver(dqp.recommendedVersion)}</code></div>
+            <div style="margin-top:4px;">${_badge(dqpMatch)}</div>
+          </div>
+        </div>`;
+
+    // ── Shelf modules table ──
+    const moduleEntries = Object.entries(shelfModules);
+    if (moduleEntries.length > 0) {
+      cardHtml += `
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Shelf Modules</div>
+          <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+            <thead><tr>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Module</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Shelf Models</th>
+              <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Count</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Recommended FW</th>
+            </tr></thead><tbody>`;
+      moduleEntries.forEach(([modName, info]) => {
+        const rec = info.baseline ? info.baseline.recommended : '—';
+        const label = info.baseline ? info.baseline.label : '';
+        cardHtml += `
+            <tr>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${modName}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text-secondary);">${Array.from(info.shelfModels).join(', ')}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">${info.count}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);">
+                <code style="color:var(--accent-cyan);">${rec}</code>
+                ${label ? `<div style="font-size:0.65rem;color:var(--text-muted);">${label}</div>` : ''}
+              </td>
+            </tr>`;
+      });
+      cardHtml += `</tbody></table></div>`;
+    }
+
+    // ── Drive firmware aggregation table ──
+    if (drives.length > 0) {
+      cardHtml += `
+        <div>
+          <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Drive Firmware (${driveCount} drives, ${drives.length} unique model/fw combinations)</div>
+          <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+            <thead><tr>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Drive Model</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Firmware</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Vendor</th>
+              <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Count</th>
+            </tr></thead><tbody>`;
+      drives.slice(0, 20).forEach(d => {
+        cardHtml += `
+            <tr>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-family:monospace;font-size:0.72rem;">${d.model}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);"><code>${d.firmware}</code></td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text-secondary);">${d.vendor}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">${d.count}</td>
+            </tr>`;
+      });
+      if (drives.length > 20) {
+        cardHtml += `<tr><td colspan="4" style="padding:4px 8px;color:var(--text-muted);font-style:italic;">... and ${drives.length - 20} more</td></tr>`;
+      }
+      cardHtml += `</tbody></table></div>`;
+    } else {
+      cardHtml += `<div style="font-size:0.78rem;color:var(--text-muted);padding:6px 0;">No drive firmware data reported by Active IQ for this system.</div>`;
+    }
+
+    cardHtml += `</div></div>`;
+    systemCards.push(cardHtml);
+  });
+
+  // ── Build fleet summary KPI tiles ──
+  const _kpiTile = (label, current, behind, unknown, icon, desc) => {
+    const total = current + behind + unknown;
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    const color = behind > 0 ? '#f59e0b' : '#10b981';
+    const bg = behind > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(16,185,129,0.08)';
+    const border = behind > 0 ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)';
+    return `
+    <div style="background:${bg};border:1px solid ${border};border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="${desc}">
+      <div style="font-size:0.85rem;margin-bottom:4px;">${icon}</div>
+      <div style="font-size:1.6rem;font-weight:700;color:${color};">${current}<span style="font-size:0.9rem;color:var(--text-muted);font-weight:400;">/${total}</span></div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">${label}</div>
+      ${behind > 0 ? `<div style="font-size:0.65rem;color:#f59e0b;margin-top:4px;">${behind} need update</div>` : ''}
+      ${unknown > 0 ? `<div style="font-size:0.6rem;color:var(--text-muted);margin-top:2px;">${unknown} unknown</div>` : ''}
+    </div>`;
+  };
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+    ${_kpiTile('SP/BMC Current', spCurrent, spBehind, spUnknown, '🔧', 'Service Processor / BMC firmware — manages remote console, power cycling, and out-of-band management. Updated automatically with ONTAP patches or manually via system service-processor image update.')}
+    ${_kpiTile('Motherboard Current', mbCurrent, mbBehind, mbUnknown, '🖥️', 'Motherboard BIOS firmware — controls hardware initialization, PCIe enumeration, and boot sequence. Updated via system firmware update command.')}
+    ${_kpiTile('DQP Current', dqpCurrent, dqpBehind, dqpUnknown, '💿', 'Disk Qualification Package — determines which drive models are supported. Outdated DQP may prevent new drives from being recognized. Updated via storage disk option modify or automatic updates.')}
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total shelves across all systems with shelf module type information from Active IQ inventory.">
+      <div style="font-size:0.85rem;margin-bottom:4px;">📦</div>
+      <div style="font-size:1.6rem;font-weight:700;color:#6366f1;">${totalShelves}</div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Total Shelves</div>
+    </div>
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total drives across all shelves with firmware revision reported by Active IQ.">
+      <div style="font-size:0.85rem;margin-bottom:4px;">💾</div>
+      <div style="font-size:1.6rem;font-weight:700;color:#6366f1;">${totalDrives}</div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Total Drives</div>
+    </div>
+  </div>`;
+
+  // ── Per-system collapsible cards ──
+  html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;">Click a system to expand firmware details. ${systems.length} system${systems.length !== 1 ? 's' : ''} shown.</div>`;
+  html += systemCards.join('');
+
   return html;
 }
 
 function _renderFeatureAdoptionSection(systems) {
+
   const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
   const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
   const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem; text-align:center;';
@@ -20829,7 +21083,19 @@ function generateActionPlan() {
     </div>
     ${_renderFeatureAdoptionSection(targetSystems)}`;
   planBody.appendChild(sec17);
-  
+
+  const sec18 = document.createElement('div');
+  sec18.className = 'plan-section';
+  sec18.setAttribute('data-section-index', '18');
+  sec18.style.display = 'none';
+  sec18.style.marginTop = '32px';
+  sec18.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">18. Firmware Currency</h2>
+    </div>
+    ${_renderFirmwareCurrencySection(targetSystems)}`;
+  planBody.appendChild(sec18);
+
 
   // Render plan sub-tabs bar dynamically
   const planTabsHeader = document.getElementById("planTabsHeader");
@@ -20855,6 +21121,7 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)">15. Operational Health</button>
       <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)">🔄 16. DR &amp; Replication Health</button>
       <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)">✅ 17. Feature Adoption</button>
+      <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)">🔧 18. Firmware Currency</button>
     `;
   }
 
