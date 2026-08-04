@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.7] - 2026-08-04
+
+### Added
+- **Hardware Firmware Currency Scoring Engine** (`computeFleetFirmwareSummary()`) — fleet-wide composite firmware health scoring across 4 subsystems:
+  - SP/BMC firmware currency (25% weight)
+  - Motherboard BIOS firmware currency (25% weight)
+  - DQP currency (20% weight)
+  - Drive firmware currency (30% weight)
+  - Per-system breakdown with status classification (Current ≥80% / At Risk ≥50% / Critical <50%)
+  - Weighted composite score (0-100%) exposed via `_firmwareSummary` in deliverables return object
+- **Hardware Firmware Currency UI Badge** — color-coded indicator in the KB Intelligence Summary Panel showing fleet-wide firmware health with inline SP/MB/DQP/Drive breakdown and CURRENT/AT RISK/CRITICAL status label
+- **9 New IMT Vendor Entries** in `data/imt_interop.json` — full version compatibility matrices for:
+  - Veritas NetBackup (v10.3–10.5)
+  - Veritas Backup Exec (v21–24)
+  - VMware vSphere/ESXi (v6.7 U3–8.0 U3)
+  - Microsoft Hyper-V / Windows Server (2016–2025)
+  - Red Hat Virtualization / oVirt (v4.3–4.4)
+  - OpenStack Manila/Cinder NetApp Drivers (2023.2–2025.1 Epoxy)
+  - Citrix Hypervisor / XenServer (v8.2–8.2 CU1)
+  - Proxmox VE (v7.4–8.3)
+  - Nutanix AHV (latest)
+- **9 New Reference Harvester Scrapers** in `tools/reference_harvester.py` — automated version tracking for all new IMT vendors, matching the `harvest_imt_versions()` pattern with per-vendor URL and regex extraction
+- **Firmware data injection into all 7 deliverable templates**:
+  - `compileCustomerSuccessPlanText` — HW Firmware Currency in Operational Health Scorecard
+  - `compileQBRPack` — HW Firmware Currency in health scorecard
+  - `compileMSPServiceReport` — HW Firmware Currency in SLA section
+  - `compileMEDDPICCBrief` — HW Firmware Gap as MEDDPICC risk/upsell metric
+  - `compileAccountHandoverBrief` — HW Firmware Currency in posture section
+  - `compileSecurityBrief` — HW Firmware Attack Surface (3-line breakdown: SP, MB, DQP, Drive)
+  - `compileSustainabilityReport` — Hardware Firmware Health in efficiency section
+
+### Changed
+- **Account Health Score rebalanced** — added hardware firmware as 8th component (8% weight). New weights: ASUP 15% + ARP 12% + OS FW 12% + HW FW 8% + Contract 13% + Risk 20% + Efficiency 10% + CSAT 10% = 100%
+- **Version bumped to 4.0.7** across `version.json`, `app.js` (`APP_VERSION`), `README.md` badge, `CONTEXT.md`, and CHANGELOG.md
+- **README.md** updated: health score formula table reflects 8-component weighting, file tree includes `tools/reference_harvester.py` and new data files, component reference sizes updated
+
+---
+
 ## [4.0.6] - 2026-08-04
 
 ### Added

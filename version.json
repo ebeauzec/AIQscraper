@@ -1,8 +1,8 @@
 {
-  "version": "4.0.6",
+  "version": "4.0.7",
   "major": 4,
   "minor": 0,
-  "patch": 6,
+  "patch": 7,
   "date": "2026-08-04",
-  "notes": "Firmware Currency: Section 18 with full drive/shelf/switch firmware auditing, per-system firmware cards with recommended-vs-actual comparison, drive firmware recommended column fix (recommendedDriveFirmwares field was silently dropped during system enrichment), multi-source firmware harvester (endoflife.date, PyPI, GitHub fallback), server-side fleet-driven DQP-based drive firmware auto-discovery."
+  "notes": "HW Firmware Currency scoring engine (SP/MB/DQP/Drive composite), firmware injection into all 7 deliverable templates, 9 new IMT vendor entries (Veritas, VMware, Hyper-V, RHEV, OpenStack, Citrix, Proxmox, Nutanix), 9 new reference harvester scrapers, health score rebalanced with 8% HW firmware weight, firmware currency UI badge."
 }
