@@ -66,6 +66,7 @@ REST_BASE = "https://api.activeiq.netapp.com"
 _sync_lock = threading.Lock()
 _is_syncing = False
 _last_sync_error = None
+_current_token = None  # Last-used access token for debug probes
 
 # Enrichment scanner state
 _enrichment_scheduler = None  # Set during server startup
@@ -617,6 +618,8 @@ def _do_full_harvest(watchlist_ids=None):
             token = raw_s if len(raw_s) > 30 else None
         if not token:
             raise Exception("No access token in response")
+        global _current_token
+        _current_token = token
         print("  [HARVEST] Authenticated OK", flush=True)
 
         # 3. Fetch summary (best-effort — accounts without unfiltered_system_access
@@ -952,6 +955,20 @@ def _do_full_harvest(watchlist_ids=None):
             if len(all_systems) > 0:
                 used_tam_query = attempt <= 1  # TAM or EFFICIENCY both include capacity/efficiency
                 print(f"  [HARVEST] {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
+                # ── DIAGNOSTIC: dump firmware fields from first system to debug null data ──
+                if all_systems:
+                    _dbg = all_systems[0]
+                    print(f"  [FW-DEBUG] First system: {_dbg.get('hostName', '?')} (SN: {_dbg.get('serialNumber', '?')})", flush=True)
+                    print(f"  [FW-DEBUG]   systemFirmware:    {_dbg.get('systemFirmware')}", flush=True)
+                    print(f"  [FW-DEBUG]   motherboardFW:     {_dbg.get('motherboardFirmware')}", flush=True)
+                    print(f"  [FW-DEBUG]   DQP:               {_dbg.get('diskQualificationPackage')}", flush=True)
+                    _dbg_sh = _dbg.get('shelves') or []
+                    print(f"  [FW-DEBUG]   shelves count:     {len(_dbg_sh)}", flush=True)
+                    if _dbg_sh:
+                        _sh0 = _dbg_sh[0] if isinstance(_dbg_sh, list) else {}
+                        print(f"  [FW-DEBUG]   shelf[0] keys:     {list(_sh0.keys()) if isinstance(_sh0, dict) else type(_sh0)}", flush=True)
+                        _dr = _sh0.get('drives') if isinstance(_sh0, dict) else None
+                        print(f"  [FW-DEBUG]   shelf[0].drives:   {type(_dr).__name__} = {str(_dr)[:200] if _dr else 'None'}", flush=True)
                 break
             else:
                 print(f"  [HARVEST] WARNING: {_QUERY_NAMES[attempt]} query returned 0 systems — trying next tier...", flush=True)
@@ -5345,6 +5362,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_import()
         elif self.path == '/api/asup/customers':
             self.handle_asup_customers()
+        elif self.path.startswith('/api/firmware-probe'):
+            self.handle_firmware_probe()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -6418,6 +6437,119 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             res_json = {"status": "error", "message": f"Server error: {str(e)}"}
             self.wfile.write(json.dumps(res_json).encode('utf-8'))
+
+    def handle_firmware_probe(self):
+        """Live probe: query per-system firmware + top-level firmware endpoints and return raw results."""
+        global _current_token
+        token = _current_token
+        if not token:
+            # Try to get a fresh token from config
+            try:
+                cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
+                if refresh_token:
+                    status, raw = _http("POST", f"{REST_BASE}/v1/tokens/accessToken",
+                        {"Content-Type": "application/json", "Accept": "application/json"},
+                        {"refresh_token": refresh_token})
+                    if status == 200:
+                        token_data = json.loads(raw.decode("utf-8", errors="replace"))
+                        token = token_data.get("access_token")
+                        if token:
+                            _current_token = token
+            except Exception:
+                pass
+        if not token:
+            self.send_response(401)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "No token. Harvest first."}).encode())
+            return
+
+        results = {}
+
+        # 1. Per-system firmware (first 2 systems)
+        _, sys_resp = _gql(token, """{
+            systems(pageSize: 2) {
+                systems {
+                    serialNumber hostName platformType type
+                    ... on ONTAPSystem {
+                        systemFirmware { type currentVersion recommendedVersion }
+                        motherboardFirmware { currentVersion recommendedVersion }
+                        diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
+                        shelves {
+                            serialNumber shelfId
+                            hardwareModel { name }
+                            moduleHardwareModel { name }
+                            drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                        }
+                    }
+                }
+            }
+        }""")
+        results["per_system"] = sys_resp
+
+        # 2. Top-level systemFirmwares
+        _, sf_resp = _gql(token, """{
+            systemFirmwares(pageSize: 5) {
+                totalCount cursor
+                systemFirmwares { currentVersion recommendedVersion type autoUpdateEligible }
+            }
+        }""")
+        results["systemFirmwares"] = sf_resp
+
+        # 3. Top-level driveFirmwares
+        _, df_resp = _gql(token, """{
+            driveFirmwares(pageSize: 5) {
+                totalCount cursor
+                driveFirmwares { currentVersion recommendedVersion driveModel }
+            }
+        }""")
+        results["driveFirmwares"] = df_resp
+
+        # 4. Top-level shelfFirmwares
+        _, shf_resp = _gql(token, """{
+            shelfFirmwares(pageSize: 5) {
+                totalCount cursor
+                shelfFirmwares { currentVersion recommendedVersion }
+            }
+        }""")
+        results["shelfFirmwares"] = shf_resp
+
+        # 5. Top-level diskQualificationPackages
+        _, dqp_resp = _gql(token, """{
+            diskQualificationPackages(pageSize: 5) {
+                totalCount cursor
+                diskQualificationPackages { currentVersion recommendedVersion autoUpdateEligible }
+            }
+        }""")
+        results["diskQualificationPackages"] = dqp_resp
+
+        # 6. Also check what we have in cached harvest data
+        _probe_db = _init_db()
+        try:
+            cached_data, _ = _load_cached(_probe_db)
+        finally:
+            _probe_db.close()
+        cached_sys = (cached_data or {}).get("systems") or []
+        cached_fw_samples = []
+        for s in cached_sys[:3]:
+            cached_fw_samples.append({
+                "serialNumber": s.get("serialNumber"),
+                "systemName": s.get("systemName"),
+                "systemFirmware": s.get("systemFirmware"),
+                "motherboardFirmware": s.get("motherboardFirmware"),
+                "diskQualificationPackage": s.get("diskQualificationPackage"),
+                "shelves_count": len(s.get("shelves") or []),
+                "first_shelf": (s.get("shelves") or [{}])[0] if s.get("shelves") else None,
+            })
+        results["cached_harvest_samples"] = cached_fw_samples
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(results, indent=2, default=str).encode())
 
     def handle_proxy(self, method):
         if self.path in ('/graphql', '/api/graphql'):
