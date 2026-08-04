@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.0.5-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.6-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -82,6 +82,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - Sustainability and energy efficiency scores
 - Capacity trends and storage efficiency ratios
 - AutoSupport status, firmware currency, and Anti-Ransomware Protection (ARP) coverage
+- **Drive firmware currency** — per-drive recommended FW comparison with current/behind/unknown status badges
 - OS version catalog for upgrade path calculation
 - Account personnel (Sales Rep, TAM, SAM, ASP, Propensity)
 - **SVM & LIF Inventory** — harvests vserver data (SVM name, type, LIFs with IPs, service policies, failover configuration) from the Active IQ GraphQL API and displays per-node LIF tables in the cabling audit view.
@@ -321,9 +322,9 @@ API token management, sync interval, custom account groups, watchlist IDs, and s
 
 ---
 
-## 6. Action Planner — All 17 Sections
+## 6. Action Planner — All 18 Sections
 
-Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are built and the numbered tab row appears above the content area.
+Click **Action Planner** in the sidebar, then **Generate**. All 18 sections are built and the numbered tab row appears above the content area.
 
 | # | Section | What's Inside |
 |---|---|---|
@@ -344,6 +345,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 17 sections are 
 | **15** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **16** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
 | **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, MetroCluster, All Flash Optimized, HA, SnapMirror, Operating Mode), tri-state rendering (✅ enabled / ❌ disabled / — unknown), OS diversity analysis, 25-point categorized best-practice score per system (Operations & Security + Data Protection & Lifecycle), CLI enablement commands |
+| **18** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
 
 ---
 
@@ -640,8 +642,9 @@ AIQscraper/
 ├── data/            ← Reference data (security bulletins, firmware baselines)
 ├── dist/            ← Pre-built desktop app (PyInstaller output)
 ├── tools/           ← Developer utilities, diagnostic & probe scripts
-├── server.py        ← Python HTTP server + API harvester
-├── app.js           ← Frontend application (~21K lines)
+│   └── firmware_harvester.py  ← Multi-source firmware version harvester
+├── server.py        ← Python HTTP server + API harvester + firmware auto-discovery
+├── app.js           ← Frontend application (~26K lines)
 ├── index.html       ← Compiled single-file build
 ├── index_src.html   ← Dev HTML shell (loads external app.js + styles.css)
 ├── styles.css       ← Dark-theme CSS
@@ -655,8 +658,8 @@ AIQscraper/
 
 | File | Size | Role |
 |---|---|---|
-| `server.py` | ~275 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis |
-| `app.js` | ~1.36 MB | ~24,200 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 17-tab Action Planner renderer, 13 deliverable generators with KB enrichment + DR/capacity/adoption intelligence, chart rendering, Reference Library |
+| `server.py` | ~400 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery |
+| `app.js` | ~1.48 MB | ~26,300 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 18-tab Action Planner renderer, 13 deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library |
 | `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
 | `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
 | `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |

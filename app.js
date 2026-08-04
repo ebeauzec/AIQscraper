@@ -18,9 +18,45 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.5";
+const APP_VERSION = "4.0.6";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.0.6",
+    date: "04 August 2026",
+    title: "Firmware Currency — Section 18 with Drive/Shelf/Switch Auditing & Recommended FW Comparison",
+    sections: [
+      {
+        icon: "🔩",
+        label: "Section 18 — Firmware Currency",
+        color: "#2dd4bf",
+        items: [
+          "New Action Planner tab: per-system firmware cards showing ONTAP version, system firmware, motherboard firmware, DQP version, shelf module firmware, and drive firmware",
+          "Drive firmware table with model, current FW, recommended FW, status badge (✅ Current / ⚠️ Update Available), vendor, and count",
+          "Fleet-wide firmware currency summary with current/behind/unknown drive counts and shelf module baseline checks"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Drive Firmware Fix",
+        color: "#f59e0b",
+        items: [
+          "Fixed: recommendedDriveFirmwares field was silently dropped during system enrichment — the Recommended and Status columns in the drive firmware table now populate correctly",
+          "Root cause: enrichSystemTelemetry() constructs a new object with explicit field list; recommendedDriveFirmwares was missing from that list"
+        ]
+      },
+      {
+        icon: "🔄",
+        label: "Multi-Source Firmware Harvester",
+        color: "#818cf8",
+        items: [
+          "New tools/firmware_harvester.py with cascading fallback: endoflife.date API → PyPI metadata → GitHub releases",
+          "Server-side fleet-driven auto-discovery: DQP-based drive firmware recommendations populated from Active IQ shelf/drive telemetry",
+          "Firmware baselines expanded with current ONTAP 9.19.1+ and SANtricity 12.00 versions"
+        ]
+      }
+    ]
+  },
   {
     version: "4.0.5",
     date: "02 August 2026",
@@ -6043,6 +6079,22 @@ const REFERENCE_LIBRARY_FIRMWARE_BASELINES = {
   "Cisco 9364D-GX2A": { recommended: "10.4.2",  label: "Cisco Nexus 9364D-GX2A (AFX 1K cluster switch, 400GbE, 2U)" },
   "Cisco 9808":       { recommended: "10.6",     label: "Cisco Nexus 9808 (AFX 2K cluster switch, 400GbE, 16U — AFX 2K only; NX-OS 10.6+ required for ONTAP 9.19.1GA+). PRIMARY-SOURCE CONFIRMED 2026-07-21 (docs.netapp.com configure-upgrade-nxos-9808.html, 07/09/2026)." }
 };
+
+// Dynamic accessor that merges server-provided baselines with hardcoded defaults.
+// Server baselines (from firmware_baselines.json) override hardcoded values.
+function _getRefLibBaselines() {
+  const baselines = { ...REFERENCE_LIBRARY_FIRMWARE_BASELINES };
+  const fb = (typeof state !== 'undefined' && state.firmwareBaselines) || {};
+  const serverShelf = fb.shelfModules || {};
+  const serverSwitches = fb.switches || {};
+  for (const [k, v] of Object.entries(serverShelf)) {
+    if (v && v.recommended) baselines[k] = v;
+  }
+  for (const [k, v] of Object.entries(serverSwitches)) {
+    if (v && v.recommended) baselines[k] = v;
+  }
+  return baselines;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IMT Interoperability Matrix — 3rd Party Version Compatibility
@@ -13246,6 +13298,7 @@ function enrichSystemTelemetry(s) {
     systemFirmware:    s.systemFirmware || {},
     motherboardFirmware: s.motherboardFirmware || {},
     diskQualificationPackage: s.diskQualificationPackage || {},
+    recommendedDriveFirmwares: s.recommendedDriveFirmwares || {},
     shelves:               s.shelves || [],
     autoUpdateSettings: s.autoUpdateSettings || {},
     // ── Lifecycle Events & Licenses ──
@@ -13498,7 +13551,7 @@ function generateDynamicRemediationPlan(risk, sys) {
                         desc.includes("iom12b") ? "IOM12B" :
                         desc.includes("iom12") ? "IOM12" :
                         desc.includes("iom3") ? "IOM3" : "shelf module";
-    const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[shelfModule.split(" ")[0]] || { recommended: "current" };
+    const fwBaseline = (_getRefLibBaselines())[shelfModule.split(" ")[0]] || { recommended: "current" };
     cause  = `${shelfModule} shelf module firmware is below the recommended baseline version (target: ${fwBaseline.recommended}).`;
     impact = "Outdated shelf module firmware may contain known stability bugs affecting SAS/NVMe path throughput or causing unexpected shelf resets.";
     steps  = [
@@ -13607,7 +13660,7 @@ function generateDynamicRemediationPlan(risk, sys) {
     if (isCiscoNexus || isAFXSwitch) {
       const swModel = isAFXSwitch ? (desc.includes("9332d") ? "Cisco Nexus 9332D-GX2B" : "Cisco Nexus 9364D-GX2A") : "Cisco Nexus 9000-series";
       const downloadUrl = isAFXSwitch ? "https://software.cisco.com/download/home/286325598" : "https://software.cisco.com/download/home/280275056";
-      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Cisco NX-OS"] || { recommended: "9.3(12)" };
+      const fwBaseline = (_getRefLibBaselines())["Cisco NX-OS"] || { recommended: "9.3(12)" };
       cause  = `${swModel} switch is running NX-OS below the recommended baseline version (target: ${fwBaseline.recommended}).`;
       impact = "Outdated NX-OS may expose cluster ISL links to known switch bugs causing traffic drops, incorrect ECMP hashing, or LACP timer issues that can disrupt cluster HA failover.";
       steps  = [
@@ -13630,7 +13683,7 @@ function generateDynamicRemediationPlan(risk, sys) {
       ];
       thirdParty = "Verify the Cisco NX-OS version is listed in the NetApp IMT (https://imt.netapp.com/matrix/) for your ONTAP version and switch model before installing.";
     } else if (isCiscoMDS) {
-      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Cisco MDS"] || { recommended: "9.2(2)" };
+      const fwBaseline = (_getRefLibBaselines())["Cisco MDS"] || { recommended: "9.2(2)" };
       cause  = `Cisco MDS 9000-series switch is running SAN-OS/NX-OS below the recommended baseline (target: ${fwBaseline.recommended}).`;
       impact = "Outdated MDS firmware may expose Fibre Channel fabric to known zoning bugs, FSPF routing issues, or port flap defects that can cause SAN fabric disruptions.";
       steps  = [
@@ -13648,7 +13701,7 @@ function generateDynamicRemediationPlan(risk, sys) {
       ];
       thirdParty = "Verify that all connected HBAs on host servers are qualified for the target MDS NX-OS version using the Cisco UCS/MDS HCL and the NetApp IMT.";
     } else if (isBrocade) {
-      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Brocade FOS"] || { recommended: "9.2.1" };
+      const fwBaseline = (_getRefLibBaselines())["Brocade FOS"] || { recommended: "9.2.1" };
       cause  = `Brocade FC switch is running Fabric OS (FOS) below the recommended baseline (target: ${fwBaseline.recommended}).`;
       impact = "Outdated FOS may contain known Fibre Channel fabric defects affecting zone enforcement, ISL stability, or E_Port negotiation with ONTAP FC target ports.";
       steps  = [
@@ -13668,7 +13721,7 @@ function generateDynamicRemediationPlan(risk, sys) {
       ];
       thirdParty = "Verify Brocade FOS version compatibility with ONTAP via the NetApp IMT: https://imt.netapp.com/matrix/. ESXi hosts may briefly log path errors during the ~15 second port flap — these are expected and self-recover.";
     } else if (isEFOS) {
-      const fwBaseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})["Broadcom EFOS"] || { recommended: "3.8.0.2" };
+      const fwBaseline = (_getRefLibBaselines())["Broadcom EFOS"] || { recommended: "3.8.0.2" };
       cause  = `BES-53248 cluster switch is running EFOS below the recommended baseline (target: ${fwBaseline.recommended}).`;
       impact = "Outdated EFOS may cause cluster ISL port flap issues, incorrect LACP negotiation, or missing QoS enhancements required for high-speed cluster traffic.";
       steps  = [
@@ -15709,7 +15762,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const shelfDrift = [];
   targetSystems.forEach(sys => {
     (sys.shelves || []).forEach(sh => {
-      const baseline = (REFERENCE_LIBRARY_FIRMWARE_BASELINES || {})[sh.moduleType];
+      const baseline = (_getRefLibBaselines())[sh.moduleType];
       if (baseline && sh.firmwareVersion && sh.firmwareVersion !== baseline.recommended) {
         shelfDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
       }
@@ -19534,7 +19587,34 @@ function _renderFirmwareCurrencySection(systems) {
   // ── Helpers ──
   const _fwMatch = (cur, rec) => {
     if (!cur || !rec) return null; // unknown
-    return cur === rec;
+    if (cur === rec) return true;  // exact match
+    // Semantic version compare: split into numeric segments
+    // Handles: "15.13" vs "15.12", "9.16.1P11" vs "9.16.1P9", "NA03" vs "NA03"
+    const _parseVer = (v) => {
+      // Split on dots, then further split on P/p (patch) boundaries
+      // "9.16.1P11" → ["9","16","1","11"], "15.13" → ["15","13"], "NA03" → ["NA03"]
+      return v.replace(/[Pp](\d)/g, '.$1').split(/[.\-_]+/).map(s => {
+        const n = parseInt(s, 10);
+        return isNaN(n) ? s : n;
+      });
+    };
+    const a = _parseVer(cur), b = _parseVer(rec);
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+      const ai = i < a.length ? a[i] : 0;
+      const bi = i < b.length ? b[i] : 0;
+      // If both are numbers, compare numerically
+      if (typeof ai === 'number' && typeof bi === 'number') {
+        if (ai > bi) return true;  // current is ahead → current
+        if (ai < bi) return false; // current is behind → update
+      } else {
+        // String compare (e.g. "NA03" vs "NA02")
+        const sa = String(ai), sb = String(bi);
+        if (sa > sb) return true;
+        if (sa < sb) return false;
+      }
+    }
+    return true; // all segments equal
   };
   const _badge = (isCurrent) => {
     if (isCurrent === true)  return '<span style="color:#10b981;font-weight:600;" title="Current">✅ Current</span>';
@@ -19562,10 +19642,10 @@ function _renderFirmwareCurrencySection(systems) {
   const _shelfModuleCurrency = (moduleModelName) => {
     if (!moduleModelName) return null;
     // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
-    const baseline = REFERENCE_LIBRARY_FIRMWARE_BASELINES[moduleModelName];
+    const baseline = _getRefLibBaselines()[moduleModelName];
     if (baseline) return { recommended: baseline.recommended, label: baseline.label };
     // Try prefix: "IOM12" from "IOM12 v0260"
-    for (const [key, val] of Object.entries(REFERENCE_LIBRARY_FIRMWARE_BASELINES)) {
+    for (const [key, val] of Object.entries(_getRefLibBaselines())) {
       if (moduleModelName.startsWith(key) || key.startsWith(moduleModelName)) {
         return { recommended: val.recommended, label: val.label };
       }
@@ -19577,6 +19657,7 @@ function _renderFirmwareCurrencySection(systems) {
   let spCurrent = 0, spBehind = 0, spUnknown = 0;
   let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
   let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
+  let driveFwCurrent = 0, driveFwBehind = 0, driveFwUnknown = 0;
   let totalDrives = 0, totalShelves = 0;
 
   const systemCards = [];
@@ -19615,6 +19696,18 @@ function _renderFirmwareCurrencySection(systems) {
     totalShelves += shelfCount;
     totalDrives += driveCount;
 
+    // Drive firmware currency (fleet-wide)
+    const recDriveFwFleet = sys.recommendedDriveFirmwares || {};
+    drives.forEach(d => {
+      const rec = recDriveFwFleet[d.model];
+      if (rec && d.firmware !== 'Unknown') {
+        if (_fwMatch(d.firmware, rec)) driveFwCurrent += d.count;
+        else driveFwBehind += d.count;
+      } else {
+        driveFwUnknown += d.count;
+      }
+    });
+
     // Shelf module info
     const shelfModules = {};
     shelves.forEach(sh => {
@@ -19631,9 +19724,23 @@ function _renderFirmwareCurrencySection(systems) {
     const cardId = `fw-card-${(sys.serialNumber || Math.random().toString(36).slice(2))}`;
     const sysLabel = sys.systemName || sys.serialNumber || '?';
 
+    // Per-system drive firmware currency summary
+    const recDriveFwCard = sys.recommendedDriveFirmwares || {};
+    let sysDrvBehind = 0, sysDrvCurrent = 0, sysDrvUnknown = 0;
+    drives.forEach(d => {
+      const rec = recDriveFwCard[d.model];
+      if (rec && d.firmware !== 'Unknown') {
+        if (_fwMatch(d.firmware, rec)) sysDrvCurrent += d.count;
+        else sysDrvBehind += d.count;
+      } else {
+        sysDrvUnknown += d.count;
+      }
+    });
+    const drvMatch = driveCount === 0 ? null : (sysDrvBehind > 0 ? false : (sysDrvCurrent > 0 ? true : null));
+
     // Determine worst-case status for the card header color
-    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false;
-    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null);
+    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false || drvMatch === false;
+    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null) && (drvMatch === true || drvMatch === null);
     const headerColor = anyBehind ? 'rgba(245,158,11,0.12)' : (allCurrent ? 'rgba(16,185,129,0.08)' : 'rgba(99,102,241,0.08)');
     const headerBorder = anyBehind ? 'rgba(245,158,11,0.3)' : (allCurrent ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)');
 
@@ -19648,6 +19755,7 @@ function _renderFirmwareCurrencySection(systems) {
           <span title="SP/BMC Firmware">${sfw.type || 'SP'}: ${_badge(spMatch)}</span>
           <span title="Motherboard BIOS">MB: ${_badge(mbMatch)}</span>
           <span title="Disk Qualification Package">DQP: ${_badge(dqpMatch)}</span>
+          <span title="Drive Firmware (${sysDrvCurrent} current, ${sysDrvBehind} behind)">Drv: ${_badge(drvMatch)}</span>
           <span style="color:var(--text-muted);">📦 ${shelfCount} shelf${shelfCount !== 1 ? 's' : ''} · ${driveCount} drive${driveCount !== 1 ? 's' : ''}</span>
         </span>
       </div>
@@ -19706,29 +19814,47 @@ function _renderFirmwareCurrencySection(systems) {
       cardHtml += `</tbody></table></div>`;
     }
 
-    // ── Drive firmware aggregation table ──
+    // ── Drive firmware aggregation table with currency ──
+    const recDriveFw = sys.recommendedDriveFirmwares || {};
     if (drives.length > 0) {
+      let driveBehind = 0, driveCurrent = 0;
+      drives.forEach(d => {
+        const rec = recDriveFw[d.model];
+        if (rec && d.firmware !== 'Unknown') {
+          if (_fwMatch(d.firmware, rec)) driveCurrent += d.count;
+          else driveBehind += d.count;
+        }
+      });
+      const driveStatusLine = (driveBehind > 0 || driveCurrent > 0)
+        ? ` — <span style="color:#10b981;">${driveCurrent} current</span>${driveBehind > 0 ? `, <span style="color:#f59e0b;">${driveBehind} need update</span>` : ''}`
+        : '';
       cardHtml += `
         <div>
-          <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Drive Firmware (${driveCount} drives, ${drives.length} unique model/fw combinations)</div>
+          <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Drive Firmware (${driveCount} drives, ${drives.length} unique model/fw combinations)${driveStatusLine}</div>
           <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
             <thead><tr>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Drive Model</th>
-              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Firmware</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Current FW</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Recommended</th>
+              <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Status</th>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Vendor</th>
               <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Count</th>
             </tr></thead><tbody>`;
       drives.slice(0, 20).forEach(d => {
+        const rec = recDriveFw[d.model] || '';
+        const driveMatch = _fwMatch(d.firmware !== 'Unknown' ? d.firmware : null, rec || null);
         cardHtml += `
             <tr>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-family:monospace;font-size:0.72rem;">${d.model}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);"><code>${d.firmware}</code></td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);"><code style="color:var(--accent-cyan);">${rec || '—'}</code></td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">${_badge(driveMatch)}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text-secondary);">${d.vendor}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">${d.count}</td>
             </tr>`;
       });
       if (drives.length > 20) {
-        cardHtml += `<tr><td colspan="4" style="padding:4px 8px;color:var(--text-muted);font-style:italic;">... and ${drives.length - 20} more</td></tr>`;
+        cardHtml += `<tr><td colspan="6" style="padding:4px 8px;color:var(--text-muted);font-style:italic;">... and ${drives.length - 20} more</td></tr>`;
       }
       cardHtml += `</tbody></table></div>`;
     } else {
@@ -19760,17 +19886,19 @@ function _renderFirmwareCurrencySection(systems) {
     ${_kpiTile('SP/BMC Current', spCurrent, spBehind, spUnknown, '🔧', 'Service Processor / BMC firmware — manages remote console, power cycling, and out-of-band management. Updated automatically with ONTAP patches or manually via system service-processor image update.')}
     ${_kpiTile('Motherboard Current', mbCurrent, mbBehind, mbUnknown, '🖥️', 'Motherboard BIOS firmware — controls hardware initialization, PCIe enumeration, and boot sequence. Updated via system firmware update command.')}
     ${_kpiTile('DQP Current', dqpCurrent, dqpBehind, dqpUnknown, '💿', 'Disk Qualification Package — determines which drive models are supported. Outdated DQP may prevent new drives from being recognized. Updated via storage disk option modify or automatic updates.')}
-    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total shelves across all systems with shelf module type information from Active IQ inventory.">
+    ${_kpiTile('Drive FW Current', driveFwCurrent, driveFwBehind, driveFwUnknown, '💾', 'Drive firmware currency — compares each drive\'s installed firmware revision against the recommended version bundled with the latest ONTAP release. Drives below recommended may lack bug fixes or performance improvements.')}
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total shelves and drives across all systems from Active IQ inventory.">
       <div style="font-size:0.85rem;margin-bottom:4px;">📦</div>
-      <div style="font-size:1.6rem;font-weight:700;color:#6366f1;">${totalShelves}</div>
-      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Total Shelves</div>
-    </div>
-    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total drives across all shelves with firmware revision reported by Active IQ.">
-      <div style="font-size:0.85rem;margin-bottom:4px;">💾</div>
-      <div style="font-size:1.6rem;font-weight:700;color:#6366f1;">${totalDrives}</div>
-      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Total Drives</div>
+      <div style="font-size:1.6rem;font-weight:700;color:#6366f1;">${totalShelves}<span style="font-size:0.9rem;color:var(--text-muted);font-weight:400;"> / ${totalDrives}</span></div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Shelves / Drives</div>
     </div>
   </div>`;
+
+  // Add baselines source attribution
+  const blDate = ((typeof state !== 'undefined' && state.firmwareBaselines) || {})._lastUpdated || '';
+  if (blDate) {
+    html += `<div style="font-size:0.6rem;color:var(--text-muted);text-align:right;margin-bottom:6px;" title="Firmware baselines sourced from NetApp KB articles, support site firmware matrices, and docs.netapp.com. Last updated: ${blDate}">📋 External baselines: ${blDate}</div>`;
+  }
 
   // ── Per-system collapsible cards ──
   html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;">Click a system to expand firmware details. ${systems.length} system${systems.length !== 1 ? 's' : ''} shown.</div>`;
@@ -23456,6 +23584,7 @@ async function loadProductionData(forceRefresh = false) {
     state.tamSustainability = result.tamSustainability || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
+    state.firmwareBaselines = result.firmwareBaselines || {};
     // Per-customer sustainability scores (sustainabilityScorePercentage.overall)
     state.customers = result.customers || [];
 

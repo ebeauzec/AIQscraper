@@ -955,20 +955,6 @@ def _do_full_harvest(watchlist_ids=None):
             if len(all_systems) > 0:
                 used_tam_query = attempt <= 1  # TAM or EFFICIENCY both include capacity/efficiency
                 print(f"  [HARVEST] {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
-                # ── DIAGNOSTIC: dump firmware fields from first system to debug null data ──
-                if all_systems:
-                    _dbg = all_systems[0]
-                    print(f"  [FW-DEBUG] First system: {_dbg.get('hostName', '?')} (SN: {_dbg.get('serialNumber', '?')})", flush=True)
-                    print(f"  [FW-DEBUG]   systemFirmware:    {_dbg.get('systemFirmware')}", flush=True)
-                    print(f"  [FW-DEBUG]   motherboardFW:     {_dbg.get('motherboardFirmware')}", flush=True)
-                    print(f"  [FW-DEBUG]   DQP:               {_dbg.get('diskQualificationPackage')}", flush=True)
-                    _dbg_sh = _dbg.get('shelves') or []
-                    print(f"  [FW-DEBUG]   shelves count:     {len(_dbg_sh)}", flush=True)
-                    if _dbg_sh:
-                        _sh0 = _dbg_sh[0] if isinstance(_dbg_sh, list) else {}
-                        print(f"  [FW-DEBUG]   shelf[0] keys:     {list(_sh0.keys()) if isinstance(_sh0, dict) else type(_sh0)}", flush=True)
-                        _dr = _sh0.get('drives') if isinstance(_sh0, dict) else None
-                        print(f"  [FW-DEBUG]   shelf[0].drives:   {type(_dr).__name__} = {str(_dr)[:200] if _dr else 'None'}", flush=True)
                 break
             else:
                 print(f"  [HARVEST] WARNING: {_QUERY_NAMES[attempt]} query returned 0 systems — trying next tier...", flush=True)
@@ -1007,8 +993,10 @@ def _do_full_harvest(watchlist_ids=None):
                     versionInfo { fwVersion rcfVersion }
                   }
                   shelves {
-                    serialNumber
+                    serialNumber shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
+                    moduleHardwareModel { name }
+                    drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
                   }
                   vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }
                   capacity {
@@ -1064,7 +1052,7 @@ def _do_full_harvest(watchlist_ids=None):
                             ' systems { serialNumber }'
                             ' switches { switchSerialNumber deviceName role vendor model ipAddress'
                             '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
-                            ' shelves { serialNumber hardwareModel { name endOfAvailability endOfHwSupport } }'
+                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
                             ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
                             ' capacity {'
                             '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
@@ -1246,6 +1234,35 @@ def _do_full_harvest(watchlist_ids=None):
             } } }""")
             tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or [] if isinstance(osv_resp, dict) else []
             print(f"  [HARVEST] OS versions: {len(tam_os_versions)}", flush=True)
+
+            # ── Fill gaps: query specifically for fleet OS versions not in first page ──
+            _cached_versions = set(v.get("osVersion", "") for v in tam_os_versions)
+            _fleet_versions = set()
+            for _s in all_systems:
+                _osv_str = _s.get("osVersion") or ""
+                if _osv_str:
+                    _fleet_versions.add(_osv_str)
+            _missing = sorted(_fleet_versions - _cached_versions)
+            if _missing:
+                # Query in batches of 50
+                _extra_count = 0
+                for _i in range(0, len(_missing), 50):
+                    _batch = _missing[_i:_i+50]
+                    _ver_list = json.dumps(_batch)
+                    _, _extra_resp = _gql(token, f"""{{ osVersions(osVersions: {_ver_list}, pageSize: 500) {{ osVersions {{
+                        osVersion majorOsVersion osType operatingMode
+                        releaseDate endOfVersionFullSupport endOfVersionLimitedSupport endOfSelfServiceSupport
+                        supportState progressionPath
+                        bundledSystemFirmwares {{ type version biosVersion systemModel }}
+                        bundledDriveFirmwares {{ driveModel version }}
+                        bundledShelfFirmwares {{ shelfName shelfModuleName firmwareType shelfModuleFirmwareVersion sysShelfModuleFirmwareVersion }}
+                        bundledSecurityFiles {{ fileType version }}
+                    }} }} }}""")
+                    _extra_versions = ((_extra_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or [] if isinstance(_extra_resp, dict) else []
+                    tam_os_versions.extend(_extra_versions)
+                    _extra_count += len(_extra_versions)
+                if _extra_count:
+                    print(f"  [HARVEST] OS versions (fleet-targeted): +{_extra_count} for {len(_missing)} fleet versions", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: OS versions failed: {e}", flush=True)
 
@@ -1359,6 +1376,185 @@ def _do_full_harvest(watchlist_ids=None):
         
         total_sw = sum(len(v) for v in serial_to_cluster_switches.values())
         print(f"  [HARVEST] Switch instances mapped: {total_sw // max(len(serial_to_cluster_switches), 1)} unique across clusters", flush=True)
+
+        # ── Load external ground-truth firmware baselines ──
+        _baselines_path = os.path.join(os.path.dirname(__file__), "data", "firmware_baselines.json")
+        _ext_baselines = {}
+        try:
+            with open(_baselines_path, "r", encoding="utf-8") as _bl_f:
+                _ext_baselines = json.load(_bl_f)
+            print(f"  [HARVEST] Loaded firmware baselines from {os.path.basename(_baselines_path)} (updated: {_ext_baselines.get('_lastUpdated', '?')})", flush=True)
+        except Exception as _bl_err:
+            print(f"  [HARVEST] WARNING: Could not load firmware_baselines.json: {_bl_err}", flush=True)
+
+        # ── Build firmware lookup from osVersions bundled firmware catalog ──
+        # Maps (osVersion, modelPrefix) → {spVersion, biosVersion, dqpVersion}
+        # Used to derive firmware currency when per-system GQL returns null.
+        _fw_by_os_model = {}  # key: (osVersion, model) → {type, version, biosVersion}
+        _latest_fw_by_model = {}  # key: model → {type, version, biosVersion} from latest ONTAP
+        _dqp_by_os = {}  # key: osVersion → {currentVersion from bundled DQP}
+        _drive_fw_by_os = {}  # key: osVersion → {driveModel: version}
+        _latest_drive_fw = {}  # key: driveModel → latest recommended version
+        _shelf_fw_by_os_module = {}  # key: (osVersion, shelfModuleName) → sysShelfModuleFirmwareVersion
+        _latest_shelf_fw_by_module = {}  # key: shelfModuleName → latest recommended version
+        for _osv in tam_os_versions:
+            _os_ver = _osv.get("osVersion", "")
+            if not _os_ver:
+                continue
+            for _bsf in (_osv.get("bundledSystemFirmwares") or []):
+                _sys_model = _bsf.get("systemModel", "")
+                _fw_type = _bsf.get("type", "SP")  # SP or BMC
+                _fw_ver = _bsf.get("version", "")
+                _bios_ver = _bsf.get("biosVersion", "")
+                if _sys_model and _fw_ver:
+                    _fw_by_os_model[(_os_ver, _sys_model)] = {
+                        "type": _fw_type, "version": _fw_ver, "biosVersion": _bios_ver
+                    }
+                    # Track the latest (last entry wins since osVersions is typically sorted)
+                    _latest_fw_by_model[_sys_model] = {
+                        "type": _fw_type, "version": _fw_ver, "biosVersion": _bios_ver,
+                        "osVersion": _os_ver,
+                    }
+            # Build bundled drive firmware lookup
+            _bdf = _osv.get("bundledDriveFirmwares") or []
+            if _bdf:
+                _os_drives = {}
+                for _d in _bdf:
+                    _dm = _d.get("driveModel", "")
+                    _dv = _d.get("version", "")
+                    if _dm and _dv:
+                        _os_drives[_dm] = _dv
+                        _latest_drive_fw[_dm] = _dv  # last wins
+                if _os_drives:
+                    _drive_fw_by_os[_os_ver] = _os_drives
+            # Build bundled shelf firmware lookup
+            for _bshf in (_osv.get("bundledShelfFirmwares") or []):
+                _smod = _bshf.get("shelfModuleName", "")
+                _sver = _bshf.get("sysShelfModuleFirmwareVersion", "")
+                if _smod and _sver:
+                    _shelf_fw_by_os_module[(_os_ver, _smod)] = _sver
+                    _latest_shelf_fw_by_module[_smod] = _sver  # last wins
+        _fw_derived = 0
+
+        # ── Override firmware baselines with external ground-truth ──
+        # The GQL catalog only knows firmware bundled with ONTAP releases.
+        # External baselines from firmware_baselines.json represent the actual
+        # latest published firmware from NetApp support site / KBs.
+        _ext_sp_families = ((_ext_baselines.get("spBmc") or {}).get("families") or [])
+        _ext_sp_by_model = ((_ext_baselines.get("spBmc") or {}).get("byModel") or {})
+        _ext_shelf_modules = _ext_baselines.get("shelfModules") or {}
+        _ext_ontap = _ext_baselines.get("ontap") or {}
+        _ext_ontap_by_branch = _ext_ontap.get("latestByBranch") or {}
+        _ext_santricity = _ext_baselines.get("santricity") or {}
+
+        def _resolve_ext_sp_bmc(model_name):
+            """Resolve SP/BMC version from external baselines using keyword matching."""
+            if not model_name:
+                return None, None
+            model_upper = model_name.upper().replace("-", "").replace(" ", "")
+            # Direct lookup by model keyword
+            for kw, ver in _ext_sp_by_model.items():
+                if kw.startswith("_"):  # skip _comment keys
+                    continue
+                kw_norm = kw.upper().replace("-", "").replace(" ", "")
+                if kw_norm in model_upper or model_upper.startswith(kw_norm):
+                    return ver, "external_baseline"
+            # Family keyword fallback
+            for fam in _ext_sp_families:
+                for kw in fam.get("modelKeywords", []):
+                    kw_norm = kw.upper().replace("-", "").replace(" ", "")
+                    if kw_norm in model_upper:
+                        return fam.get("latestKnown", ""), "external_baseline_family"
+            return None, None
+
+        def _resolve_ext_ontap_branch(os_version):
+            """Find the latest P-release for this system's ONTAP branch."""
+            if not os_version or not _ext_ontap_by_branch:
+                return None
+            import re as _re_br
+            # Extract branch: "9.16.1P11" → "9.16.1", "9.8P20" → "9.8"
+            m = _re_br.match(r'(\d+\.\d+(?:\.\d+)?)', os_version)
+            if m:
+                branch = m.group(1)
+                return _ext_ontap_by_branch.get(branch)
+            return None
+
+        # Override _latest_fw_by_model with external baselines
+        _ext_override_count = 0
+        for _model_key in list(_latest_fw_by_model.keys()):
+            _ext_ver, _ext_src = _resolve_ext_sp_bmc(_model_key)
+            if _ext_ver:
+                _latest_fw_by_model[_model_key]["version"] = _ext_ver
+                _latest_fw_by_model[_model_key]["_source"] = _ext_src
+                _ext_override_count += 1
+        # Also override shelf module baselines
+        for _mod_name, _mod_data in _ext_shelf_modules.items():
+            if not isinstance(_mod_data, dict):
+                continue
+            _rec = _mod_data.get("recommended", "")
+            if _rec and _rec != "current":
+                _latest_shelf_fw_by_module[_mod_name] = _rec
+        if _ext_override_count > 0 or _ext_shelf_modules:
+            print(f"  [HARVEST] Applied external baselines: {_ext_override_count} SP/BMC overrides, {len(_ext_shelf_modules)} shelf module baselines", flush=True)
+
+        # Also override drive firmware baselines from external baselines JSON
+        _ext_disk_fw = (_ext_baselines.get("diskFirmware") or {}).get("byModel") or {}
+        _ext_drive_fw_count = 0
+        for _dm, _dv in _ext_disk_fw.items():
+            if _dm.startswith("_"):  # skip _comment keys
+                continue
+            if isinstance(_dv, str) and _dv:
+                _latest_drive_fw[_dm] = _dv
+                _ext_drive_fw_count += 1
+        if _ext_drive_fw_count > 0:
+            print(f"  [HARVEST] Applied external drive firmware baselines: {_ext_drive_fw_count} drive models", flush=True)
+
+        # ── Override drive firmware baselines with DQP data (if available) ──
+        # The DQP (Disk Qualification Package) contains per-drive-model qualified
+        # firmware revisions. When qual_devices_v3.zip or qual_devices.xml is present
+        # in the data/ directory, its data overrides the GQL-derived _latest_drive_fw.
+        _dqp_override_count = 0
+        try:
+            import sys as _sys_mod
+            _tools_dir = os.path.join(os.path.dirname(__file__), "tools")
+            if _tools_dir not in _sys_mod.path:
+                _sys_mod.path.insert(0, _tools_dir)
+            from dqp_parser import load_dqp_drive_baselines
+            _dqp_baselines = load_dqp_drive_baselines(
+                data_dir=os.path.join(os.path.dirname(__file__), "data")
+            )
+            if _dqp_baselines:
+                for _dm, _dv in _dqp_baselines.items():
+                    _latest_drive_fw[_dm] = _dv
+                    _dqp_override_count += 1
+                print(f"  [HARVEST] Applied DQP drive firmware baselines: {_dqp_override_count} drive models", flush=True)
+        except ImportError:
+            pass  # dqp_parser not available — skip silently
+        except Exception as _dqp_err:
+            print(f"  [HARVEST] DQP load warning: {_dqp_err}", flush=True)
+
+        # ── Auto-discover drive firmware baselines from the fleet itself ──
+        # For any drive model not yet in _latest_drive_fw, use the highest firmware
+        # version seen across the fleet as a best-effort recommendation.
+        _fleet_drive_models = {}  # model → {fw_version: count}
+        for s in all_systems:
+            for _shelf in (s.get("shelves") or []):
+                for _drv in ((_shelf.get("drives") or {}).get("drives") or []):
+                    _dm = ((_drv.get("hardwareModel") or {}).get("name") or "").strip()
+                    _dfw = (_drv.get("firmwareRevision") or "").strip()
+                    if _dm and _dfw and _dfw != "Unknown":
+                        if _dm not in _fleet_drive_models:
+                            _fleet_drive_models[_dm] = {}
+                        _fleet_drive_models[_dm][_dfw] = _fleet_drive_models[_dm].get(_dfw, 0) + 1
+        _auto_discovered = 0
+        for _dm, _fw_counts in _fleet_drive_models.items():
+            if _dm not in _latest_drive_fw:
+                # Use the most common firmware version (or highest if tied) as baseline
+                _best_fw = max(_fw_counts.keys(), key=lambda v: (_fw_counts[v], v))
+                _latest_drive_fw[_dm] = _best_fw
+                _auto_discovered += 1
+        if _auto_discovered > 0:
+            print(f"  [HARVEST] Auto-discovered drive firmware baselines from fleet: {_auto_discovered} models", flush=True)
 
         # 13. Build final systems output (with full TAM enrichment)
         systems_out = []
@@ -1493,13 +1689,24 @@ def _do_full_harvest(watchlist_ids=None):
             # Merge cluster-level shelves
             cl_shelves = serial_to_cluster_shelves.get(serial, [])
             shelves_out = s.get("shelves") or []
+            seen_shelf_sns = {sh.get("serialNumber") for sh in shelves_out if sh.get("serialNumber")}
             for csh in cl_shelves:
+                csh_sn = csh.get("serialNumber", "")
+                if csh_sn in seen_shelf_sns:
+                    continue  # don't duplicate per-system shelves
+                seen_shelf_sns.add(csh_sn)
                 hm = csh.get("hardwareModel") or {}
+                mmhm = csh.get("moduleHardwareModel") or {}
+                drives_raw = csh.get("drives") or {}
                 shelves_out.append({
-                    "serialNumber": csh.get("serialNumber", ""),
+                    "serialNumber": csh_sn,
+                    "shelfId": csh.get("shelfId", ""),
                     "model": hm.get("name", ""),
+                    "hardwareModel": {"name": hm.get("name", ""), "endOfAvailability": hm.get("endOfAvailability", ""), "endOfHwSupport": hm.get("endOfHwSupport", "")},
                     "endOfAvailability": hm.get("endOfAvailability", ""),
                     "endOfHwSupport": hm.get("endOfHwSupport", ""),
+                    "moduleHardwareModel": {"name": mmhm.get("name", "")},
+                    "drives": drives_raw,
                 })
 
             # ── Pre-compute capacity from system-level ONTAPSystemPhysicalCapacity ──
@@ -1559,6 +1766,120 @@ def _do_full_harvest(watchlist_ids=None):
                 _usbl_kib = cl_cap.get("usableCapacityTB", 0) * (1024**3)
                 _qoq      = cl_cap.get("qoqUtilizationPct", 0)
                 _yoy      = cl_cap.get("yoyUtilizationPct", 0)
+
+            # ── Derive firmware from osVersions catalog if per-system GQL returned null ──
+            _raw_sfw = s.get("systemFirmware") or {}
+            _raw_mbfw = s.get("motherboardFirmware") or {}
+            _raw_dqp = s.get("diskQualificationPackage") or {}
+            _sys_model = hw.get("name", "")
+            _sys_os = s.get("osVersion", "") or ""
+            _sys_platform = s.get("platformType", "") or s.get("_source_platform", "") or ""
+            _sys_type_lower = (s.get("type") or "").lower()
+
+            # ── E-Series: SANtricity OS version IS the firmware ──
+            _is_eseries = (_sys_platform.upper() == "E-SERIES"
+                           or _sys_type_lower == "efiler"
+                           or _sys_type_lower == "e-series"
+                           or (s.get("productType") or "").upper() in ("EFILER", "E-SERIES")
+                           or (_sys_model[:2] in ("28", "48") and _sys_model[:4].isdigit()))
+            if _is_eseries:
+                _rec_os = s.get("recommendedOSVersion", "") or ""
+                if _sys_os:
+                    _raw_sfw = {
+                        "type": "SANtricity",
+                        "currentVersion": _sys_os,
+                        "recommendedVersion": _rec_os or _sys_os,
+                        "_derived": True,
+                    }
+                    # E-Series doesn't have separate MB firmware
+                    _raw_mbfw = {}
+                    _raw_dqp = {}
+                    _fw_derived += 1
+            elif (not _raw_sfw.get("currentVersion")) and _sys_model and _sys_os:
+                # Try exact match first
+                _bundled = _fw_by_os_model.get((_sys_os, _sys_model))
+                if not _bundled:
+                    # Progressive prefix fallback: 9.16.1P11 → 9.16.1P → 9.16.1 → 9.16 → 9.
+                    import re as _re_fw
+                    _prefixes = []
+                    _m = _re_fw.match(r'(\d+\.\d+(?:\.\d+)?(?:P)?)(\d*)', _sys_os)
+                    if _m:
+                        _prefixes.append(_m.group(1))          # e.g. "9.16.1P"
+                    _m2 = _re_fw.match(r'(\d+\.\d+\.\d+)', _sys_os)
+                    if _m2:
+                        _prefixes.append(_m2.group(1))         # e.g. "9.16.1"
+                    _m3 = _re_fw.match(r'(\d+\.\d+)', _sys_os)
+                    if _m3:
+                        _prefixes.append(_m3.group(1))         # e.g. "9.16"
+                    # De-duplicate while preserving order
+                    _seen_pfx = set()
+                    for _pfx in _prefixes:
+                        if _pfx in _seen_pfx:
+                            continue
+                        _seen_pfx.add(_pfx)
+                        _candidates = [(k[0], v) for k, v in _fw_by_os_model.items()
+                                       if k[1] == _sys_model and k[0].startswith(_pfx)]
+                        if _candidates:
+                            _candidates.sort(key=lambda x: x[0])
+                            _bundled = _candidates[-1][1]
+                            break
+                # Final fallback: use the latest known firmware for this model from ANY version
+                if not _bundled:
+                    _bundled = _latest_fw_by_model.get(_sys_model)
+                _latest = _latest_fw_by_model.get(_sys_model)
+                if _bundled:
+                    _raw_sfw = {
+                        "type": _bundled["type"],
+                        "currentVersion": _bundled["version"],
+                        "recommendedVersion": _latest["version"] if _latest else _bundled["version"],
+                        "_derived": True,
+                    }
+                    _raw_mbfw = {
+                        "currentVersion": _bundled.get("biosVersion", ""),
+                        "recommendedVersion": _latest.get("biosVersion", "") if _latest else _bundled.get("biosVersion", ""),
+                        "_derived": True,
+                    }
+                    _fw_derived += 1
+
+            # ── Override SP/BMC recommendedVersion with external ground-truth ──
+            if not _is_eseries:
+                _ext_sp_ver, _ext_sp_src = _resolve_ext_sp_bmc(_sys_model)
+                if _ext_sp_ver and _raw_sfw.get("currentVersion"):
+                    _raw_sfw["recommendedVersion"] = _ext_sp_ver
+                    _raw_sfw["_recommendedSource"] = _ext_sp_src
+
+            # ── Derive DQP from bundled drive firmware catalog ──
+            # DQP version = the ONTAP version that bundles the drive qualification package.
+            # If a system's ONTAP version has bundled drive firmware entries, it ships with that DQP.
+            # The "latest" recommended DQP is the one from the latest ONTAP P-release for same major.
+            if (not _raw_dqp.get("currentVersion")) and _sys_os and not _is_eseries:
+                # Current DQP = whatever ships with the system's current ONTAP version
+                _cur_dqp = _drive_fw_by_os.get(_sys_os)
+                if _cur_dqp:
+                    # Find the recommended (latest) version for same major branch
+                    import re as _re_dqp
+                    _major_match = _re_dqp.match(r'(\d+\.\d+\.\d+)', _sys_os)
+                    _rec_dqp_ver = _sys_os  # default: current version IS recommended
+                    if _major_match:
+                        _major = _major_match.group(1)
+                        _branch_versions = sorted([v for v in _drive_fw_by_os.keys() if v.startswith(_major)])
+                        if _branch_versions:
+                            _rec_dqp_ver = _branch_versions[-1]
+                    _raw_dqp = {
+                        "currentVersion": _sys_os,
+                        "recommendedVersion": _rec_dqp_ver,
+                        "_derived": True,
+                    }
+
+            # ── Override ONTAP recommendedOSVersion with external branch baseline ──
+            if not _is_eseries:
+                _ext_branch_latest = _resolve_ext_ontap_branch(_sys_os)
+                if _ext_branch_latest:
+                    _existing_rec_os = s.get("recommendedOSVersion", "") or ""
+                    # Use the external baseline if it's newer or if AIQ didn't provide one
+                    if not _existing_rec_os or _ext_branch_latest > _existing_rec_os:
+                        s["recommendedOSVersion"] = _ext_branch_latest
+                        s["_recommendedOSSource"] = "external_baseline"
 
             systems_out.append({
                 # ── Core identity ──
@@ -1678,10 +1999,10 @@ def _do_full_harvest(watchlist_ids=None):
                 "asupHistory": s.get("autoSupports") or [],
                 "asupByType": s.get("latestAsupOfEachType") or [],
                 # ── Firmware ──
-                "systemFirmware": s.get("systemFirmware") or {},
-                "motherboardFirmware": s.get("motherboardFirmware") or {},
-                "diskQualificationPackage": s.get("diskQualificationPackage") or {},
-                "shelves": s.get("shelves") or [],
+                "systemFirmware": _raw_sfw,
+                "motherboardFirmware": _raw_mbfw,
+                "diskQualificationPackage": _raw_dqp,
+                # Note: "shelves" is set further down using shelves_out (merged per-system + cluster shelves)
                 "autoUpdateSettings": s.get("autoUpdateSettings") or {},
                 # ── Lifecycle & TAM intelligence ──
                 "lifecycleEvents": s.get("lifecycleEvents") or [],
@@ -1723,6 +2044,8 @@ def _do_full_harvest(watchlist_ids=None):
                 "isHAConfigured": serial_to_cluster_ha.get(serial, False),
                 # ── Shelves, drives, ports, switches ──
                 "shelves": shelves_out,
+                "recommendedDriveFirmwares": _latest_drive_fw if _latest_drive_fw else (_drive_fw_by_os.get(_sys_os) or _drive_fw_by_os.get(s.get("recommendedOSVersion", "")) or {}),
+                "recommendedShelfFirmwares": {mod: _shelf_fw_by_os_module.get((_sys_os, mod)) or _latest_shelf_fw_by_module.get(mod, "") for mod in _latest_shelf_fw_by_module} if not _is_eseries else {},
                 "portInterface": s.get("portInterface") or {},
                 "networkPorts": s.get("networkPorts") or {},
                 "switches": switches,
@@ -1733,6 +2056,9 @@ def _do_full_harvest(watchlist_ids=None):
                 "cases": cases_by_serial.get(serial, []),
                 "_source": "graphql",
             })
+
+        if _fw_derived:
+            print(f"  [HARVEST] Firmware derived from osVersions catalog for {_fw_derived}/{len(systems_out)} systems", flush=True)
 
         # 14. Try fetching watchlists from REST API
         watchlists_out = []
@@ -1862,6 +2188,8 @@ def _do_full_harvest(watchlist_ids=None):
             "tamSustainability": tam_sustainability,
             "tamOsVersions": tam_os_versions,
             "tamRenewals": tam_renewals,
+            # ── External firmware baselines (ground-truth) ──
+            "firmwareBaselines": _ext_baselines,
         }
 
         print(f"  [HARVEST] Done in {duration_ms}ms: {len(systems_out)} systems, {len(all_clusters)} clusters, {len(all_risks)} unique risks, {len(all_risk_instances)} risk instances, {len(all_cases)} cases", flush=True)
@@ -5135,30 +5463,70 @@ def fetch_latest_version_catalog():
         p = v.split('.')
         return tuple(int(x) if x.isdigit() else 0 for x in p)
 
+    # ── ONTAP: Try endoflife.date API first (structured JSON, no WAF) ──
+    ontap_found = False
     try:
-        time.sleep(1.0)
-        ontap_text, _ = _enrich_fetch('https://docs.netapp.com/us-en/ontap/release-notes/index.html')
-        if ontap_text:
-            # Match ONTAP versions like 9.12.1, 9.9.1 — use word boundaries to avoid
-            # matching random decimal numbers in page text
-            ontap_raw = _re.findall(r'\b(9\.(?:[3-9]|1[0-9])\.\d{1})\b', ontap_text)
-            ontap_versions = sorted(set(ontap_raw), key=_vkey, reverse=True)
-            catalog['ontap'] = ontap_versions[:20]
+        time.sleep(0.5)
+        eol_raw, _ = _enrich_fetch('https://endoflife.date/api/netapp-ontap.json')
+        if eol_raw:
+            eol_data = json.loads(eol_raw)
+            if isinstance(eol_data, list) and eol_data:
+                ontap_versions = []
+                for entry in eol_data:
+                    cycle = entry.get('cycle', '')
+                    if _re.match(r'^9\.\d{1,2}\.\d+', cycle):
+                        ontap_versions.append(cycle)
+                if ontap_versions:
+                    ontap_versions = sorted(set(ontap_versions), key=_vkey, reverse=True)
+                    catalog['ontap'] = ontap_versions[:20]
+                    ontap_found = True
     except Exception:
         pass
 
+    # ── ONTAP fallback: PyPI netapp-ontap SDK releases ──
+    if not ontap_found:
+        try:
+            time.sleep(0.5)
+            pypi_raw, _ = _enrich_fetch('https://pypi.org/pypi/netapp-ontap/json')
+            if pypi_raw:
+                pypi_data = json.loads(pypi_raw)
+                releases = pypi_data.get('releases', {})
+                ontap_versions = []
+                for ver in releases.keys():
+                    m = _re.match(r'^(9\.\d{1,2}\.\d+)', ver)
+                    if m:
+                        ontap_versions.append(m.group(1))
+                if ontap_versions:
+                    ontap_versions = sorted(set(ontap_versions), key=_vkey, reverse=True)
+                    catalog['ontap'] = ontap_versions[:20]
+                    ontap_found = True
+        except Exception:
+            pass
+
+    # ── ONTAP fallback: docs.netapp.com (may 403) ──
+    if not ontap_found:
+        try:
+            time.sleep(1.0)
+            ontap_text, _ = _enrich_fetch('https://docs.netapp.com/us-en/ontap/release-notes/index.html')
+            if ontap_text:
+                ontap_raw = _re.findall(r'\b(9\.(?:[3-9]|1[0-9])\.\d{1})\b', ontap_text)
+                ontap_versions = sorted(set(ontap_raw), key=_vkey, reverse=True)
+                catalog['ontap'] = ontap_versions[:20]
+        except Exception:
+            pass
+
+    # ── StorageGRID: docs.netapp.com (no alternative API available) ──
     try:
         time.sleep(1.0)
         sg_text, _ = _enrich_fetch('https://docs.netapp.com/us-en/storagegrid/release-notes/index.html')
         if sg_text:
-            # Match SG versions: 11.3 through 12.x — word boundaries prevent matching '11.567'
             sg_raw = _re.findall(r'\b(1[12]\.\d{1,2}(?:\.\d{1,2})?)\b', sg_text)
-            # Filter out obvious non-versions (e.g. numbers > 12.99)
             sg_versions = sorted(set(v for v in sg_raw if _vkey(v)[1] < 20), key=_vkey, reverse=True)
             catalog['storagegrid'] = sg_versions[:20]
     except Exception:
         pass
 
+    # ── SANtricity: docs.netapp.com ──
     try:
         time.sleep(1.0)
         san_text, _ = _enrich_fetch('https://docs.netapp.com/us-en/e-series-santricity/whats-new.html')
@@ -6695,6 +7063,39 @@ if __name__ == '__main__':
             _enrichment_scheduler.start()
     except Exception as _sched_err:
         print(f'  [STARTUP] Enrichment scheduler failed to start: {_sched_err}', flush=True)
+
+    # Start firmware baselines harvester (runs every 24h in background)
+    def _firmware_harvest_loop():
+        """Periodic firmware baseline harvester — checks NetApp docs for newer versions."""
+        import time as _fh_time
+        _fh_interval = 24 * 3600  # 24 hours
+        _fh_data_dir = os.path.join(os.path.dirname(__file__), "data")
+        # Wait 5 minutes after startup before first harvest
+        _fh_time.sleep(300)
+        while True:
+            try:
+                import sys as _fh_sys
+                _tools_dir = os.path.join(os.path.dirname(__file__), "tools")
+                if _tools_dir not in _fh_sys.path:
+                    _fh_sys.path.insert(0, _tools_dir)
+                from firmware_harvester import scheduled_harvest
+                print("  [FW-HARVEST] Starting scheduled firmware baseline harvest...", flush=True)
+                changes = scheduled_harvest(_fh_data_dir)
+                if changes:
+                    print(f"  [FW-HARVEST] Baselines updated: {len(changes)} changes", flush=True)
+                    for k, v in changes.items():
+                        print(f"    {k}: {v.get('old','')} → {v.get('new','')}", flush=True)
+                else:
+                    print("  [FW-HARVEST] No newer versions found.", flush=True)
+            except Exception as _fh_err:
+                print(f"  [FW-HARVEST] Harvest failed: {_fh_err}", flush=True)
+            _fh_time.sleep(_fh_interval)
+
+    try:
+        threading.Thread(target=_firmware_harvest_loop, daemon=True, name="fw-baseline-harvester").start()
+        print("  [STARTUP] Firmware baseline harvester scheduled (24h interval, first run in 5min)", flush=True)
+    except Exception as _fh_start_err:
+        print(f"  [STARTUP] Firmware harvester failed to start: {_fh_start_err}", flush=True)
 
     print(f"Starting CORS Proxy Web Server on port {PORT}...")
     if cached:
