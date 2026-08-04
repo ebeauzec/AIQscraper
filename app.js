@@ -12703,7 +12703,7 @@ function enrichSystemTelemetry(s) {
   }
 
   // Compute Support Case Health score from real case data (replaces fake CSAT)
-  const _caseHealth = computeSupportCaseHealth({ supportCases: supportCases });
+  const _caseHealth = computeSupportCaseHealth(s);
   if (salesHealth.sentimentScore === null || salesHealth.sentimentScore === 0) {
     salesHealth.sentimentScore = _caseHealth.score;
     salesHealth.healthStatus = _caseHealth.label;
