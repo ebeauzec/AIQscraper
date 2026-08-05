@@ -18,9 +18,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.8";
+const APP_VERSION = "4.0.9";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.0.9",
+    date: "05 August 2026",
+    title: "E-Series / SANtricity Platform Detection Fix",
+    sections: [
+      {
+        icon: "🔧",
+        label: "E-Series Detection Engine",
+        color: "#2dd4bf",
+        items: [
+          "Numeric platform codes (2824, 2900, 5700, 4000) now correctly detected as E-Series/SANtricity instead of falling through to ONTAP",
+          "Fixed 5 detection sites: _getVersionType(), enrichVersion(), getLatestSupportedVersion(), calculateUpgradePath(), Version Intel header",
+          "Added regex /^(28|29|57|40)\\d{2}$/ and santricityVersion property check across all platform routers"
+        ]
+      },
+      {
+        icon: "🖥️",
+        label: "Server-Side Enrichment",
+        color: "#818cf8",
+        items: [
+          "fetch_upgrade_path_info() now has dedicated SANtricity branch — fetches E-Series docs and uses 11.x/12.x version regex",
+          "HTML parser strips <script>/<style>/<noscript> blocks — prevents raw JavaScript leaking into Version Intel cards",
+          "_strip_html_tags() upgraded to skip script/style tag content entirely"
+        ]
+      }
+    ]
+  },
   {
     version: "4.0.8",
     date: "04 August 2026",
@@ -4933,14 +4960,15 @@ const enrichmentEngine = {
       stype === 'storagegrid' || stype.includes('storagegrid') || stype.includes('object');
     if (_isSG) return 'sg-version';
     if (model.includes('e-series') || model.includes('ef6') || model.includes('ef3') ||
-        model.includes('e5700') || model.includes('e2800') || model.includes('ef50') ||
-        model.includes('ef80') || model.includes('e4000')) return 'santricity-version';
+        model.includes('e5700') || model.includes('e2800') || model.includes('e2900') ||
+        model.includes('ef50') || model.includes('ef80') || model.includes('e4000') ||
+        /^(28|29|57|40)\d{2}$/.test(model.trim()) || !!sys.santricityVersion) return 'santricity-version';
     return 'ontap-version';
   },
 
   // Dispatch by platform type
   async enrichVersion(sys) {
-    const ver = sys.ontapVersion || sys.osVersion || sys.softwareVersion || '';
+    const ver = sys.santricityVersion || sys.ontapVersion || sys.osVersion || sys.softwareVersion || '';
     if (!ver) return null;
     const model = (sys.platform || sys.model || '').toLowerCase();
     const stype = (sys.systemType || sys.productType || '').toLowerCase();
@@ -4954,8 +4982,9 @@ const enrichmentEngine = {
     if (_isSG) {
       return this.enrichSG(ver);
     } else if (model.includes('e-series') || model.includes('ef6') || model.includes('ef3') ||
-               model.includes('e5700') || model.includes('e2800') || model.includes('ef50') ||
-               model.includes('ef80') || model.includes('e4000')) {
+               model.includes('e5700') || model.includes('e2800') || model.includes('e2900') ||
+               model.includes('ef50') || model.includes('ef80') || model.includes('e4000') ||
+               /^(28|29|57|40)\d{2}$/.test(model.trim()) || !!sys.santricityVersion) {
       return this.enrichSANtricity(ver);
     } else {
       return this.enrichONTAP(ver);
@@ -5062,7 +5091,8 @@ const enrichmentEngine = {
     // ── Header ───────────────────────────────────────────────────────────────
     html += `<div style="font-weight:700; color:#2dd4bf; margin-bottom:6px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">`;
     html += `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>`;
-    html += `Version Intel · ${data.version || sys.ontapVersion || 'N/A'} (${data.platform || 'ONTAP'})`;
+    const _viPlatLabel = data.platform || (sys.santricityVersion ? 'SANtricity' : 'ONTAP');
+    html += `Version Intel · ${data.version || sys.santricityVersion || sys.ontapVersion || 'N/A'} (${_viPlatLabel})`;
     if (sources.length > 0) {
       sources.forEach(s => {
         html += `<span style="font-weight:400; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:3px; padding:1px 5px; font-size:0.63rem;">${s}</span>`;
@@ -7780,7 +7810,7 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
   const p = (platform || "").toLowerCase();
   let type = "ontap";
   if (p.includes("storagegrid")) type = "storagegrid";
-  else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e4000") || p.includes("santricity")) type = "santricity";
+  else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef300") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e2800") || p.includes("e2900") || p.includes("e4000") || p.includes("santricity") || /^(28|29|57|40)\d{2}$/.test(p.trim())) type = "santricity";
   
   // Clean versions (remove prefixes) — guard against null/undefined
   if (!currentVersion || !targetVersion) { _upgradePathCache.set(_cacheKey, []); return []; }
@@ -7952,7 +7982,7 @@ function getLatestSupportedVersion(platform) {
   if (p.includes("storagegrid")) {
     const db = SOFTWARE_VERSION_DATABASES.storagegrid;
     return "StorageGRID " + db[db.length - 1];
-  } else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e4000") || p.includes("santricity")) {
+  } else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef300") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e2800") || p.includes("e2900") || p.includes("e4000") || p.includes("santricity") || /^(28|29|57|40)\d{2}$/.test(p.trim())) {
     const db = SOFTWARE_VERSION_DATABASES.santricity;
     return "SANtricity OS " + db[db.length - 1];
   } else if (p.includes("cisco") || p.includes("mds") || p.includes("nexus")) {
@@ -23332,11 +23362,12 @@ async function saveEnrichmentConfig() {
     const enrichEnabled = document.getElementById("settingsEnrichEnabled")?.checked ?? true;
     const enrichInterval = parseInt(document.getElementById("settingsEnrichInterval")?.value) || 12;
     const nvdApiKey = document.getElementById("settingsNvdApiKey")?.value?.trim() || "";
+    const githubToken = document.getElementById("settingsGithubToken")?.value?.trim() || "";
 
     await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, nvdApiKey })
+      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, nvdApiKey, githubToken })
     });
     console.log("[ENRICH] Config saved to server.");
   } catch (err) {

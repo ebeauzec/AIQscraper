@@ -1,8 +1,8 @@
 {
-  "version": "4.0.8",
+  "version": "4.0.9",
   "major": 4,
   "minor": 0,
-  "patch": 8,
-  "date": "2026-08-04",
-  "notes": "Support Case Health engine replaces fake CSAT sentimentScore. New computeSupportCaseHealth() computes real 0-10 score from live support case data (severity, volume, aging, escalation, resolution velocity). Integrated into Account Health Score, TAM cards, sales summaries, CSV export, and all 7 deliverable templates."
+  "patch": 9,
+  "date": "2026-08-05",
+  "notes": "E-Series/SANtricity platform detection fix. Numeric platform codes (2824, 2900, 5700, 4000) now correctly route to SANtricity enrichment instead of ONTAP. Version Intel header, upgrade path, KB articles, and release notes all render correct SANtricity data. Server-side HTML parser strips script/style blocks to prevent JavaScript leaking into release notes."
 }
