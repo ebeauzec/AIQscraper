@@ -614,10 +614,20 @@
             <h2 class="settings-title">Settings &amp; Configuration</h2>
             <p class="settings-subtitle">Connect your Active IQ API, configure watchlists, and manage fleet metadata.</p>
           </div>
-          <button class="action-btn settings-save-btn" onclick="saveSettings()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            Save Configuration
-          </button>
+          <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+            <button class="action-btn" onclick="manualRefresh()" style="padding: 10px 16px; font-size: 0.86rem; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 7px; border-color: rgba(56,189,248,0.45); color: #60a5fa; background: rgba(56,189,248,0.10);">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              Refresh
+            </button>
+            <button class="action-btn settings-save-btn" onclick="saveSettings()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Configuration
+            </button>
+          </div>
         </div>
 
         <!-- ── Section: Connection & Sync ───────────────────── -->
@@ -736,6 +746,17 @@
             </div>
           </div>
           <div class="form-helper" style="margin-bottom: 12px;">Free NVD API key: <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" style="color: #34d399;">nvd.nist.gov/developers</a> — increases rate limit from 5 to 50 req/30s.</div>
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px;">
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="settingsGithubToken" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>GitHub Token <span style="font-weight:400;color:var(--text-muted);font-size:0.7rem;">(optional)</span></span>
+                <span class="settings-toggle-link" onclick="const t=document.getElementById('settingsGithubToken'); t.type=t.type==='password'?'text':'password'">👁</span>
+              </label>
+              <input type="password" id="settingsGithubToken" class="form-input" placeholder="ghp_… → 5,000 req/hr GitHub API" style="font-family: var(--font-mono); font-size: 0.76rem; border-color: rgba(129,140,248,0.25);">
+            </div>
+          </div>
+          <div class="form-helper" style="margin-bottom: 12px;">GitHub PAT: <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color: #818cf8;">github.com/settings/tokens</a> — raises GitHub API rate limit from 60 to 5,000 req/hr for reference harvester.</div>
 
           <div id="enrichStatusPanel" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(52,211,153,0.06); border: 1px solid rgba(52,211,153,0.15); margin-bottom: 12px; font-size: 0.78rem;">
             <div id="enrichStatusLed" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0;"></div>

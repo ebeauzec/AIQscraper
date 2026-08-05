@@ -2445,13 +2445,21 @@ def _enrich_fetch(url, timeout=12):
 
 
 def _strip_html_tags(text):
-    """Remove HTML tags, decode entities, collapse whitespace."""
+    """Remove HTML tags, decode entities, collapse whitespace. Skips <script>/<style> content."""
     class Stripper(HTMLParser):
         def __init__(self):
             super().__init__()
             self.parts = []
+            self._skip = False
+        def handle_starttag(self, tag, attrs):
+            if tag.lower() in ('script', 'style', 'noscript', 'svg'):
+                self._skip = True
+        def handle_endtag(self, tag):
+            if tag.lower() in ('script', 'style', 'noscript', 'svg'):
+                self._skip = False
         def handle_data(self, data):
-            self.parts.append(data)
+            if not self._skip:
+                self.parts.append(data)
     s = Stripper()
     s.feed(text)
     cleaned = ' '.join(s.parts)
@@ -4823,7 +4831,14 @@ class EnrichmentScheduler:
         # ── 7b. Reference library harvester (EOA, IMT, advisories) ──
         try:
             from reference_harvester import scheduled_reference_harvest as _ref_harvest
-            ref_changes = _ref_harvest(_data_dir)
+            # Pass GitHub PAT from config if available
+            _gh_token = ""
+            try:
+                _cfg_for_gh = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                _gh_token = _cfg_for_gh.get("githubToken", "") or ""
+            except Exception:
+                pass
+            ref_changes = _ref_harvest(_data_dir, github_token=_gh_token)
             if ref_changes:
                 changes['reference_library'] = ref_changes
                 _ref_summary = []
@@ -4870,6 +4885,9 @@ def _parse_netapp_release_notes(text, version, platform):
     fixed = []
     whatsnew = []
 
+    # Pre-strip <script>, <style>, <noscript>, <svg> blocks to prevent
+    # raw JavaScript/CSS from leaking into extracted release notes.
+    text = _re.sub(r'<(script|style|noscript|svg)[^>]*>.*?</\1>', '', text, flags=_re.DOTALL | _re.IGNORECASE)
     # ── Section-aware extraction ──────────────────────────────────────────────
     # Split HTML into segments by heading text so we pull issues from the right
     # section rather than from any random <li> on the page.
@@ -5442,8 +5460,13 @@ def fetch_upgrade_path_info(current_version, platform='ONTAP'):
     try:
         if platform == 'StorageGRID':
             url = 'https://docs.netapp.com/us-en/storagegrid/upgrade/index.html'
+            ver_regex = r'1[12]\.\d+\.\d+'
+        elif platform == 'SANtricity':
+            url = 'https://docs.netapp.com/us-en/e-series-santricity/whats-new.html'
+            ver_regex = r'1[12]\.\d+(?:\.\d+)?'
         else:
             url = 'https://docs.netapp.com/us-en/ontap/upgrade/concept_upgrade_paths.html'
+            ver_regex = r'9\.\d+\.\d+'
             
         time.sleep(1.0)
         text, err = _enrich_fetch(url)
@@ -5456,13 +5479,22 @@ def fetch_upgrade_path_info(current_version, platform='ONTAP'):
                     res['notes'].append(f"Found upgrade path details for {maj_min}")
                     res['directUpgradeSupported'] = True
             
-            versions = _re.findall(r'9\.\d+\.\d+', text)
+            versions = _re.findall(ver_regex, text)
             if versions:
                 def _vkey(v):
                     p = v.split('.')
                     return tuple(int(x) if x.isdigit() else 0 for x in p)
                 versions.sort(key=_vkey, reverse=True)
-                res['recommendedTarget'] = versions[0]
+                # Don't recommend the current version as the target
+                target = versions[0]
+                cur_m = _re.match(r'^(\d+\.\d+)', current_version)
+                tgt_m = _re.match(r'^(\d+\.\d+)', target)
+                if cur_m and tgt_m and cur_m.group(1) != tgt_m.group(1):
+                    res['recommendedTarget'] = target
+                elif len(versions) > 1:
+                    res['recommendedTarget'] = target
+                else:
+                    res['recommendedTarget'] = target
     except Exception:
         pass
     print(f"  [ENRICH] Upgrade path info for {platform} {current_version}: {'Found' if res['recommendedTarget'] else 'Not found'}", flush=True)
@@ -6419,28 +6451,39 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 pass
         # Also include CISA KEV data if available
-        kev = []
+        kev_cve_set = set()
         if KEV_PATH.exists():
             try:
                 kev_data = json.loads(KEV_PATH.read_text(encoding='utf-8'))
-                kev = kev_data.get('vulnerabilities', [])
+                for v in kev_data.get('vulnerabilities', []):
+                    cve_id = (v.get('cveID') or '').upper()
+                    if cve_id:
+                        kev_cve_set.add(cve_id)
             except Exception:
                 pass
         # Include bulletin summary counts by category
         bulletin_summary = {}
+        psirt_cve_set = set()
         if BULLETINS_PATH.exists():
             try:
                 bdata = json.loads(BULLETINS_PATH.read_text(encoding='utf-8'))
                 for b in bdata.get('bulletins', []):
                     cat = b.get('severity', 'unknown').lower()
                     bulletin_summary[cat] = bulletin_summary.get(cat, 0) + 1
+                    # Collect all CVE IDs from PSIRT bulletins
+                    for cve_id in b.get('cve', []):
+                        psirt_cve_set.add(cve_id.upper())
             except Exception:
                 pass
+        # kevCount = only PSIRT CVEs that appear in the CISA KEV catalog
+        # (i.e. NetApp advisories for actively exploited vulnerabilities)
+        kev_overlap = psirt_cve_set & kev_cve_set
         response = {
             'articles': kb.get('articles', []),
             'articleCount': kb.get('articleCount', len(kb.get('articles', []))),
             'lastUpdated': kb.get('lastUpdated'),
-            'kevCount': len(kev),
+            'kevCount': len(kev_overlap),
+            'kevCatalogSize': len(kev_cve_set),
             'bulletinSummary': bulletin_summary,
         }
         body = json.dumps(response, ensure_ascii=False).encode('utf-8')
@@ -6583,6 +6626,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "enrichEnabled": cfg.get("enrichEnabled", True),
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
                 "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
+                "hasGithubToken": bool(cfg.get("githubToken", "")),
             }
             res_bytes = json.dumps(safe_cfg).encode("utf-8")
             self.send_response(200)
@@ -6627,8 +6671,12 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
-            if "nvdApiKey" in body:
+            if "nvdApiKey" in body and body["nvdApiKey"].strip():
                 cfg["nvdApiKey"] = body["nvdApiKey"].strip()
+            if "githubToken" in body and body["githubToken"].strip():
+                val = body["githubToken"].strip()
+                cfg["githubToken"] = val
+                print(f"  [CONFIG] GitHub token updated ({len(val)} chars)", flush=True)
             # Update enrichment scheduler if running
             global _enrichment_scheduler
             if _enrichment_scheduler:

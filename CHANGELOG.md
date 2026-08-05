@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.9] - 2026-08-05
+
+### Fixed
+- **E-Series / SANtricity platform detection** — numeric platform codes from Active IQ (e.g. `2824` for E2800, `2900` for E2900, `5700` for E5700, `4000` for E4000) were falling through to ONTAP enrichment instead of SANtricity. Fixed in 5 detection sites:
+  - `_getVersionType()` — enrichment type router now detects numeric codes via `/^(28|29|57|40)\d{2}$/` regex and `santricityVersion` property
+  - `enrichVersion()` — dispatch function now routes E-Series to `enrichSANtricity()` correctly; also reads `sys.santricityVersion` as version source
+  - `getLatestSupportedVersion()` — returns "SANtricity OS 12.0" instead of "ONTAP 9.19.1" for E-Series systems
+  - `calculateUpgradePath()` — uses SANtricity version matrix instead of ONTAP upgrade rules
+  - Version Intel header — falls back to "SANtricity" label instead of hardcoded "ONTAP" when `santricityVersion` is present
+- **Server-side upgrade path** — `fetch_upgrade_path_info()` in `server.py` now has a dedicated SANtricity branch that fetches the E-Series what's-new page and uses `11.x` / `12.x` version regex instead of ONTAP's `9.x.x` pattern
+- **HTML parser script injection** — `_strip_html_tags()` now skips content inside `<script>`, `<style>`, `<noscript>`, and `<svg>` tags; `_parse_netapp_release_notes()` pre-strips these blocks with regex before extracting release notes, preventing raw JavaScript from appearing in Version Intel cards
+- **E-Series model coverage gaps** — added detection for `ef300`, `e2800`, `e2900` string matches that were missing from several detection functions
+
+### Changed
+- **Reference harvester** — expanded SANtricity data collection in `tools/reference_harvester.py`
+- **Knowledge base** — new E-Series and SANtricity KB entries added to `data/knowledge_base.json`
+
 ## [4.0.8] - 2026-08-04
 
 ### Added
