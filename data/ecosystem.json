@@ -1,11 +1,14 @@
 {
   "version": 1,
-  "_lastUpdated": "2026-08-04",
+  "_lastUpdated": "2026-08-05",
   "sources": {
     "github_netapp": {
       "totalRepos": 12,
-      "lastChecked": "2026-08-04",
+      "lastChecked": "2026-08-05",
       "repos": [
+        {
+          "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
+        },
         {
           "description": "Storage orchestrator for containers"
         },
@@ -20,9 +23,6 @@
         },
         {
           "description": "Terrafrom ONTAP provider"
-        },
-        {
-          "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
         },
         {
           "description": "Terraform provider to create NetAPP OCCM instances, CVO resources, volumes, snapshots, ... in Azure, AWS, GCP."
@@ -45,7 +45,7 @@
       ]
     },
     "pypi": {
-      "lastChecked": "2026-08-04",
+      "lastChecked": "2026-08-05",
       "packages": {
         "netapp-ontap": {
           "version": "9.18.1.0",
@@ -58,7 +58,7 @@
       }
     },
     "ansible_galaxy": {
-      "lastChecked": "2026-08-04",
+      "lastChecked": "2026-08-05",
       "collections": {
         "netapp.ontap": {
           "version": "23.6.0",
@@ -79,7 +79,7 @@
       }
     },
     "terraform": {
-      "lastChecked": "2026-08-04",
+      "lastChecked": "2026-08-05",
       "providers": {
         "NetApp/netapp-ontap": {
           "version": "2.7.1",
@@ -92,7 +92,7 @@
       }
     },
     "cloud_providers": {
-      "lastChecked": "2026-08-04",
+      "lastChecked": "2026-08-05",
       "providers": {
         "aws_fsx_ontap": {
           "name": "Amazon FSx for NetApp ONTAP",

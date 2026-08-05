@@ -51,6 +51,17 @@ USER_AGENT = (
 )
 GITHUB_UA = "AIQscraper-ReferenceHarvester/1.0"
 
+# GitHub Personal Access Token — raises API rate limit from 60 to 5,000 req/hr.
+# Set via: (1) env var GITHUB_TOKEN, (2) aiq_config.json "githubToken" field,
+#          (3) CLI --github-token, or (4) programmatic set_github_token().
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
+
+def set_github_token(token):
+    """Set the GitHub PAT at runtime (called from server.py during enrichment)."""
+    global GITHUB_TOKEN
+    if token and token.strip():
+        GITHUB_TOKEN = token.strip()
+
 # Rate limiting — shared across all harvest functions
 RATE_LIMIT_DELAY = 2.0  # seconds between requests
 _LAST_REQUEST_TIME = 0.0
@@ -174,6 +185,9 @@ def _fetch_url(url, is_json=False, timeout=15, ua=None):
     headers = {'User-Agent': ua or USER_AGENT}
     if is_json:
         headers['Accept'] = 'application/json'
+    # Inject GitHub PAT for api.github.com requests (raises rate limit 60 → 5,000/hr)
+    if GITHUB_TOKEN and 'api.github.com' in url:
+        headers['Authorization'] = f'Bearer {GITHUB_TOKEN}'
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -1348,8 +1362,10 @@ def run_reference_harvest(data_dir=None, dry_run=False,
     return changes
 
 
-def scheduled_reference_harvest(data_dir):
+def scheduled_reference_harvest(data_dir, github_token=None):
     """Called from server.py EnrichmentScheduler as Scanner 7."""
+    if github_token:
+        set_github_token(github_token)
     try:
         changes = run_reference_harvest(data_dir=data_dir, dry_run=False)
         return changes
@@ -1384,7 +1400,12 @@ Data Source Tiers:
     parser.add_argument("--docs-only", action="store_true", help="Documentation discovery only")
     parser.add_argument("--ecosystem-only", action="store_true",
                         help="PyPI/Galaxy/Terraform/GitHub ecosystem only")
+    parser.add_argument("--github-token", type=str, default="",
+                        help="GitHub PAT for higher API rate limits (5,000 req/hr vs 60)")
     args = parser.parse_args()
+
+    if args.github_token:
+        set_github_token(args.github_token)
 
     run_reference_harvest(
         data_dir=args.data_dir,
