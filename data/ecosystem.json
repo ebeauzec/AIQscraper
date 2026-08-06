@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "_lastUpdated": "2026-08-05",
+  "_lastUpdated": "2026-08-06",
   "sources": {
     "github_netapp": {
       "totalRepos": 12,
-      "lastChecked": "2026-08-05",
+      "lastChecked": "2026-08-06",
       "repos": [
+        {
+          "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
+        },
         {
           "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
         },
         {
           "description": "Storage orchestrator for containers"
-        },
-        {
-          "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
         },
         {
           "description": "NetApp's ONTAP model context protocol server"
@@ -45,7 +45,7 @@
       ]
     },
     "pypi": {
-      "lastChecked": "2026-08-05",
+      "lastChecked": "2026-08-06",
       "packages": {
         "netapp-ontap": {
           "version": "9.18.1.0",
@@ -58,7 +58,7 @@
       }
     },
     "ansible_galaxy": {
-      "lastChecked": "2026-08-05",
+      "lastChecked": "2026-08-06",
       "collections": {
         "netapp.ontap": {
           "version": "23.6.0",
@@ -79,7 +79,7 @@
       }
     },
     "terraform": {
-      "lastChecked": "2026-08-05",
+      "lastChecked": "2026-08-06",
       "providers": {
         "NetApp/netapp-ontap": {
           "version": "2.7.1",
@@ -92,7 +92,7 @@
       }
     },
     "cloud_providers": {
-      "lastChecked": "2026-08-05",
+      "lastChecked": "2026-08-06",
       "providers": {
         "aws_fsx_ontap": {
           "name": "Amazon FSx for NetApp ONTAP",
