@@ -18687,7 +18687,7 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
   Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
   DR Protection: ${rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
-  SVMs:     ${(() => { const _svms = typeof getSystemSvms === 'function' ? getSystemSvms(sys) : (sys.vservers || []); return _svms.length + ' (' + (_svms.length > 0 ? [...new Set(_svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None') + ')'; })()}
+  SVMs:     ${(() => { const _svms = typeof getSystemSvms === 'function' ? (getSystemSvms(sys) || []) : (sys.vservers || []); return _svms.length + ' (' + (_svms.length > 0 ? [...new Set(_svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None') + ')'; })()}
 `;
 
     if (sysRisks.length > 0) {
