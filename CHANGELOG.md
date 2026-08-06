@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Platform string duplication** — Parenthetical model suffix skipped when `platform === model` or when `systemName` already contains the platform string
 - **Site name concatenation** — City suffix suppressed when `siteName` already contains the city name (e.g. prevents "Johannesburg — Johannesburg, ZA")
 - **Security brief CVE sort** — Severity sort map handles lowercase values from API normalization
+- **Feature adoption NaN** — `_fmtAdopt()` helper now guards against `totalLen === 0` to prevent `NaN%` for customers with empty fleets
 
 ### Changed
 - **ARP protection logic** — `computeCostOfInaction()` uses `isARPEnabled !== true` instead of `=== false` to correctly identify systems with `null`/`undefined` ARP status as unprotected
