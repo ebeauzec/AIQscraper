@@ -15993,7 +15993,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const haCount = haKnownSys.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
 
   // Helper: format ratio as "enabled/known" or "N/A*" when no systems report the feature
-  const _fmtAdopt = (enabled, knownLen, totalLen) => knownLen > 0
+  const _fmtAdopt = (enabled, knownLen, totalLen) => knownLen > 0 && totalLen > 0
     ? `${enabled}         ${totalLen}      ${Math.round(enabled/totalLen*100)}%`
     : `N/A*        ${totalLen}      N/A*`;
 
