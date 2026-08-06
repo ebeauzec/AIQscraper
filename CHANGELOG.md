@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.1.0] - 2026-08-06
+
+### Fixed
+- **CVE count inflation** — `computeCostOfInaction()` now counts unique CVE IDs via `Set` instead of summing raw `securityBulletins.length` across all systems. "180 unpatched CVEs" corrected to actual unique count (e.g. 2 for test fleet)
+- **Security brief severity mismatch** — `compileSecurityBrief()` severity comparison now uses `.toLowerCase()` to match API-normalized values; previously compared uppercase literals against lowercase data, producing `Total Risks: 0` despite 18 findings
+- **ARP denominator errors** — All ARP coverage displays and computations (COI scoring, security brief, MEDDPICC, feature adoption table `_fmtAdopt`) now use total fleet size as denominator instead of `arpKnownSys.length`; systems with unknown ARP status are conservatively treated as unprotected
+- **HW firmware "undefined"** — `computeFleetFirmwareSummary()` per-system entries now include computed `score` (0-100) and `status` (`Current`/`Partial`/`Behind`) properties; eliminates "undefined (undefined%)" in implementation runbook
+- **SVM count "0 (None)"** — Implementation runbook now uses `getSystemSvms(sys)` instead of nonexistent `sys.svms` property
+- **Warranty expiring undefined** — `computeFleetWarrantyStatus()` now returns `expiring30`, `expiring90`, `active`, and `expired` fields; sales refresh proposal no longer shows "undefined" for warranty timeline
+- **Sustainability score disagreement** — `compileSustainabilityReport()` reads correct efficiency fields (`logicalUsedTB`/`physicalUsedTB`/`spaceSavedTB`); `compileMEDDPICCBrief()` removes arbitrary `|| 50` fallback that inflated scores
+- **Security brief TAM** — `compileSecurityBrief()` scans `csmName` from fleet data instead of unreliable `window.currentUser.name`
+- **MEDDPICC personnel** — `compileMEDDPICCBrief()` reads `csmName`/`salesRepName` directly instead of `salesHealth.supportTam`/`salesHealth.accountManager` which had wrong mappings
+- **Advisory email findings count** — Total findings label now uses per-severity sum instead of deduplication group count
+- **Indistinguishable upgrade actions** — Group headings now append affected system names (e.g. "Upgrade to ONTAP 9.19.1 — resolves 4 findings (SYS_01, SYS_02)")
+- **TAM QBR literal \n** — Risk descriptions sanitized via `_truncate(s, 300)` helper that strips raw `\n` and truncates at sentence boundaries
+- **Account handover document count** — Total derived from sum of category counts instead of independent `ecosystemData.length`
+- **Solution architecture system count** — Now counts distinct affected systems from risk data instead of using total fleet size
+- **Platform string duplication** — Parenthetical model suffix skipped when `platform === model` or when `systemName` already contains the platform string
+- **Site name concatenation** — City suffix suppressed when `siteName` already contains the city name (e.g. prevents "Johannesburg — Johannesburg, ZA")
+- **Security brief CVE sort** — Severity sort map handles lowercase values from API normalization
+
+### Changed
+- **ARP protection logic** — `computeCostOfInaction()` uses `isARPEnabled !== true` instead of `=== false` to correctly identify systems with `null`/`undefined` ARP status as unprotected
+
+---
+
 ## [4.0.9] - 2026-08-05
 
 ### Fixed

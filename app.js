@@ -18,11 +18,11 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.9";
+const APP_VERSION = "4.1.0";
 
 const APP_CHANGELOG = [
   {
-    version: "4.0.9",
+    version: "4.1.0",
     date: "05 August 2026",
     title: "E-Series / SANtricity Platform Detection Fix",
     sections: [
@@ -11995,9 +11995,9 @@ function computeAccountHealthScore(targetSystems) {
     const d = new Date(s.latestAsupDate);
     return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
   }).length / total;
-  // ARP enablement (only among systems that report ARP status)
+  // ARP enablement — use total fleet as denominator; unknown-status systems count as unprotected
   const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
-  const arpPct = arpKnownSys.length > 0 ? arpKnownSys.filter(s => s.isARPEnabled === true).length / arpKnownSys.length : 0;
+  const arpPct = total > 0 ? arpKnownSys.filter(s => s.isARPEnabled === true).length / total : 0;
   // Firmware currency
   const fwPct = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length / total;
   // Hardware firmware currency (SP/MB/DQP/Drive composite)
@@ -12233,12 +12233,23 @@ function computeCostOfInaction(targetSystems) {
   let score = 0;
   const critRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'critical').length, 0);
   const highRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'high').length, 0);
-  const cves = targetSystems.reduce((s, sys) => s + (sys.securityBulletins || []).length, 0);
+  // Count unique CVE IDs across fleet (not raw advisory pool size)
+  const _cveSet = new Set();
+  const _cveSystems = new Set();
+  targetSystems.forEach(sys => {
+    (sys.securityBulletins || []).forEach(b => {
+      const id = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
+      if (id) { _cveSet.add(id); _cveSystems.add(sys.systemName || sys.serialNumber); }
+    });
+  });
+  const cves = _cveSet.size;
+  const cveAffectedSystems = _cveSystems.size;
   const eosaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
   const capacityRed = targetSystems.filter(s => computeCapacityRAG(s) === 'red').length;
-  const noArp = targetSystems.filter(s => s.isARPEnabled === false).length;
+  // Any system not explicitly ARP-enabled is considered unprotected (catches null/undefined)
+  const noArp = targetSystems.filter(s => s.isARPEnabled !== true).length;
   score = critRisks * 10 + highRisks * 3 + cves * 5 + eosaSystems * 8 + capacityRed * 7 + noArp * 2;
-  return { score, critRisks, highRisks, cves, eosaSystems, capacityRed, noArp };
+  return { score, critRisks, highRisks, cves, cveAffectedSystems, eosaSystems, capacityRed, noArp };
 }
 
 function computeCoTermOpportunities(targetSystems) {
@@ -14674,6 +14685,8 @@ function filterActiveCases(cases) {
  *
  * Also exposes .asFlat() to return a flat risk array for legacy consumers.
  */
+const _truncate = (s, n = 300) => { const t = (s || '').replace(/\\n/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : t.substring(0, n).replace(/\s\S*$/, '') + '…'; };
+
 function _filterAndDeduplicateRisks(risks, targetSystems) {
   const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
 
@@ -14777,7 +14790,8 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
         // Single finding — return as-is
         flat.push({
           ...g.findings[0],
-          recommendation: g.fix,
+          description: _truncate(g.findings[0].description),
+          recommendation: _truncate(g.fix),
           remediationPlan: g.remediationPlan
         });
       } else {
@@ -14785,12 +14799,12 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
         const sysNames = [...new Set(g.systems.filter(Boolean))];
         const sysLabel = sysNames.length <= 3 ? sysNames.join(', ') : `${sysNames.slice(0, 3).join(', ')} +${sysNames.length - 3} more`;
         flat.push({
-          description: `${g.fix} — addresses ${g.count} findings across ${sysNames.length} system${sysNames.length > 1 ? 's' : ''}`,
+          description: _truncate(`${g.fix} — addresses ${g.count} findings across ${sysNames.length} system${sysNames.length > 1 ? 's' : ''}`),
           severity: g.severity,
           category: g.findings[0].category,
           systemName: sysLabel,
           advisoryUrl: g.fixUrl,
-          recommendation: g.fix,
+          recommendation: _truncate(g.fix),
           remediationPlan: g.remediationPlan,
           _consolidatedFindings: g.findings
         });
@@ -15747,13 +15761,15 @@ function getFleetEnrichmentSections(targetSystems) {
   {
     counts.handoverBrief = allArticles.length;
     if (allArticles.length > 0) {
-      let block = `\n================================================================================\nENRICHMENT KNOWLEDGE BASE (${allArticles.length} fleet-relevant documents)\n================================================================================\n`;
-      block += `Fleet Profile: ${fleetCtx}\n`;
-      block += `Source: ARIA Auto-Enrichment Scanner | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
-      block += `This knowledge base was automatically curated by ARIA's enrichment engine,\nwhich scans vendor documentation, KB articles, and technical reports, then\nscores them for relevance against your deployed fleet profile.\n\n`;
       const catOrder2 = ['operations', 'troubleshooting', 'security', 'remediation', 'compliance', 'upgrade',
                          'integration', 'automation', 'data_protection', 'performance', 'configuration',
                          'monitoring', 'cloud', 'lifecycle', 'migration', 'best_practices'];
+      let _handoverCatTotal = 0;
+      catOrder2.forEach(cat => { if (grouped[cat] && grouped[cat].length > 0) _handoverCatTotal += grouped[cat].length; });
+      let block = `\n================================================================================\nENRICHMENT KNOWLEDGE BASE (${_handoverCatTotal} fleet-relevant documents)\n================================================================================\n`;
+      block += `Fleet Profile: ${fleetCtx}\n`;
+      block += `Source: ARIA Auto-Enrichment Scanner | Last Updated: ${(state.enrichmentKB && state.enrichmentKB.lastUpdated) || 'N/A'}\n\n`;
+      block += `This knowledge base was automatically curated by ARIA's enrichment engine,\nwhich scans vendor documentation, KB articles, and technical reports, then\nscores them for relevance against your deployed fleet profile.\n\n`;
       catOrder2.forEach(cat => {
         const arts = grouped[cat];
         if (arts && arts.length > 0) {
@@ -15978,7 +15994,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
 
   // Helper: format ratio as "enabled/known" or "N/A*" when no systems report the feature
   const _fmtAdopt = (enabled, knownLen, totalLen) => knownLen > 0
-    ? `${enabled}         ${knownLen}      ${Math.round(enabled/knownLen*100)}%`
+    ? `${enabled}         ${totalLen}      ${Math.round(enabled/totalLen*100)}%`
     : `N/A*        ${totalLen}      N/A*`;
 
   const platformAges = {};
@@ -16170,7 +16186,7 @@ ${platformLines}
 
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
-  - ARP Coverage:            ${arpCount}/${arpKnownSys.length} (${arpKnownSys.length > 0 ? Math.round(arpCount/arpKnownSys.length*100) : 0}%) — Anti-Ransomware Protection enabled
+  - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < systemCount ? ' *' : ''}
   - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
@@ -16443,7 +16459,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   // ── ARP Coverage ──
   const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const arpPct = arpKnownSys.length > 0 ? ((arpCount / arpKnownSys.length) * 100).toFixed(0) : 0;
+  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
@@ -16471,7 +16487,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       return sys && sys.platform ? `${name} (${sys.platform})` : name;
     }).join(', ');
     const plan = g.remediationPlan || {};
-    let entry = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}`;
+    let entry = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${_truncate(g.fix)}`;
     if (g.count > 1) entry += ` (${g.count} findings across ${sysLabel})`;
     else entry += ` — ${sysLabel}`;
     if (plan.cause) entry += `\n       Root Cause: ${plan.cause}`;
@@ -16510,7 +16526,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const nearEos = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
   const contractLines = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
-    const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+    const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  (${e.daysRemaining} days)`;
   }).join('\n') ||  '  No expiring contracts within scope.';
 
@@ -16530,7 +16546,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       // Strip global "N of your systems" counts from the truncated text to avoid confusion
       const lines = items.slice(0, 5).map(r => {
         const clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `[see scoped count]`);
-        return `    • [Score ${r.score || 0}%] ${clean.substring(0, 150)}`;
+        return `    • [Score ${r.score || 0}%] ${_truncate(clean)}`;
       }).join('\n');
       return `  ${cat.replace(/_/g, ' ')} (${items.length}):\n${lines}`;
     }).join('\n\n') + '\n';
@@ -16554,7 +16570,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   // ── Action Items ──
   const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = arpKnownSys.length - arpCount;
+  const unprotectedArp = total - arpCount;
   const correctiveCount = sortedRisks.length;
   const renewCount = exp90;
 
@@ -16588,7 +16604,7 @@ Prepared: ${salesRep}
 2. OPERATIONAL HEALTH SCORECARD [MEDDPICC: M]
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
-  ARP Coverage:             ${arpCount}/${arpKnownSys.length} systems (${arpPct}%) — Anti-Ransomware Protection enabled
+  ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < total ? ' *' : ''}
   Firmware Currency:        ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
@@ -16764,7 +16780,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── ARP ──
   const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const arpPct = arpKnownSys.length > 0 ? ((arpCount / arpKnownSys.length) * 100).toFixed(0) : 0;
+  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
@@ -16790,7 +16806,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     ? allSupportCases.map(c =>
         (() => {
           const sys = targetSystems.find(s => s.systemName === c.systemName);
-          const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+          const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
           return `    • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}\n      Title: ${c.title}\n      Next Action: ${c.nextActionBy || 'Under Review'}`;
         })()
       ).join('\n')
@@ -16826,7 +16842,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
       return sys && sys.platform ? `${name} (${sys.platform})` : name;
     }).join(', ');
     const plan = g.remediationPlan || {};
-    let line = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
+    let line = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${_truncate(g.fix)}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
     if (plan.cause) line += `\n       Root Cause: ${plan.cause}`;
     if (plan.impact) line += `\n       Impact: ${plan.impact}`;
     return line;
@@ -16834,7 +16850,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   // ── Next Period ──
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = arpKnownSys.length - arpCount;
+  const unprotectedArp = total - arpCount;
   const fwBehind = total - fwCurrent;
 
   return `================================================================================
@@ -16959,11 +16975,17 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   let salesRep = 'Not Assigned';
   
   targetSystems.forEach(sys => {
-    if (sys.salesHealth) {
-      tamName = sys.salesHealth.supportTam || tamName;
-      salesRep = sys.salesHealth.accountManager || salesRep;
-    }
+    if (sys.csmName && tamName === 'Not Assigned') tamName = sys.csmName;
+    if (sys.salesRepName && salesRep === 'Not Assigned') salesRep = sys.salesRepName;
   });
+  if (tamName === 'Not Assigned' || salesRep === 'Not Assigned') {
+    targetSystems.forEach(sys => {
+      if (sys.salesHealth) {
+        if (tamName === 'Not Assigned' && sys.salesHealth.supportTam && sys.salesHealth.supportTam !== 'N/A') tamName = sys.salesHealth.supportTam;
+        if (salesRep === 'Not Assigned' && sys.salesHealth.accountManager && sys.salesHealth.accountManager !== 'N/A') salesRep = sys.salesHealth.accountManager;
+      }
+    });
+  }
 
   const accountHealthScore = computeAccountHealthScore(targetSystems);
   const grade = getHealthGrade(accountHealthScore);
@@ -16986,7 +17008,14 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0';
   const runway = capacityRunwayCount > 0 ? Math.round(daysToLimitSum / capacityRunwayCount) : '—';
   
-  const sustScores = targetSystems.map(s => (s.sustainability && s.sustainability.score) || 50);
+  const sustScores = targetSystems.map(s => {
+    if (s.sustainability && s.sustainability.overallScore) return s.sustainability.overallScore;
+    if (s.efficiency && s.efficiency.dataReductionRatio) {
+      const r = parseFloat(String(s.efficiency.dataReductionRatio).split(':')[0]) || 1;
+      return Math.min(100, Math.round((r / 5) * 100));
+    }
+    return 0;
+  });
   const avgSust = sustScores.length > 0 ? Math.round(sustScores.reduce((a,b)=>a+b,0)/sustScores.length) : '—';
 
   const total = targetSystems.length;
@@ -17000,7 +17029,7 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   
   const asupPct = total > 0 ? Math.round((asupCompliant / total) * 100) : 0;
-  const arpPct = arpKnownSys.length > 0 ? Math.round((arpCount / arpKnownSys.length) * 100) : 0;
+  const arpPct = total > 0 ? Math.round((arpCount / total) * 100) : 0;
   const fwPct = total > 0 ? Math.round((fwCurrent / total) * 100) : 0;
   const contractPct = total > 0 ? Math.round((activeContracts / total) * 100) : 0;
 
@@ -17097,7 +17126,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
   D — DECISION CRITERIA (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
     Feature Adoption Score:   ${avgFeaturePassed}/15 (${avgFeaturePct}%)
-    ARP Enablement:           ${arpCount}/${arpKnownSys.length}
+    ARP Enablement:           ${arpCount}/${total}${arpKnownSys.length < total ? ' *' : ''}
     FabricPool Adoption:      ${fpAdopted}/${total}
 
     SnapMirror Usage:         ${smAdopted}/${total}
@@ -17172,7 +17201,11 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   });
   const uniqueSiteNames = Object.keys(siteMap);
   const siteLines = uniqueSiteNames.map(name => {
-    const loc = [siteMap[name].city, siteMap[name].country].filter(Boolean).join(', ');
+    const _city = siteMap[name].city;
+    const _country = siteMap[name].country;
+    // Skip city in suffix if siteName already contains it to avoid "Johannesburg — Johannesburg, ZA"
+    const _locParts = [_city && !name.toLowerCase().includes(_city.toLowerCase()) ? _city : '', _country].filter(Boolean);
+    const loc = _locParts.join(', ');
     return `    • ${name}${loc ? ' — ' + loc : ''}`;
   }).join('\n') || '    No site data available.';
 
@@ -17230,7 +17263,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
 
   const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const arpPct = arpKnownSys.length > 0 ? ((arpCount / arpKnownSys.length) * 100).toFixed(0) : 0;
+  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
 
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
@@ -17241,7 +17274,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
       const sys = targetSystems.find(s => s.systemName === name);
       return sys && sys.platform ? `${name} (${sys.platform})` : name;
     }).join(', ');
-    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${g.fix}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
+    return `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${_truncate(g.fix)}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
   }).join('\n') || '  No critical or high-severity issues.';
 
   // ── Contract & Lifecycle ──
@@ -17257,7 +17290,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
     const svc  = s.serviceLevel || s.serviceTier || '—';
     const wEnd = (s.warrantyEndDate || '—').split('T')[0];
       const sys = targetSystems.find(xs => xs.systemName === s.systemName);
-      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       return `   ${s.systemName}${modelStr} (${s.serialNumber || 'N/A'}) - Contract End: ${cEnd} | Service: ${svc} | Warranty End: ${wEnd}`;  }).join('\n');
 
   // ── Recent Activity ──
@@ -17265,7 +17298,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
     ? allSupportCases.map(c =>
         (() => {
           const sys = targetSystems.find(s => s.systemName === c.systemName);
-          const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+          const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
           return `  • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}: ${c.title}\n    Next Action: ${c.nextActionBy || 'Under Review'}`;
         })()
       ).join('\n')
@@ -17274,7 +17307,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   const upgradeLines = allUpgrades.length > 0
     ? allUpgrades.map(u => {
       const sys = targetSystems.find(s => s.systemName === u.systemName);
-      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       return `    ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} →${u.targetVersion} (${u.urgency})`;
     }).join('\n')
     : '  No pending upgrades.';
@@ -17287,7 +17320,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   const faLines = fieldActions.length > 0
     ? fieldActions.map(fa => {
       const sys = targetSystems.find(s => s.systemName === fa.systemName);
-      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       return `   ${fa.systemName}${modelStr}: ${fa.title || fa.description || 'Field Action'} [${fa.status || 'Active'}]`;
     }).join('\n')
     : '  No active field actions.';
@@ -17307,7 +17340,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
 
   // ASUP / ARP gaps
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = arpKnownSys.length - arpCount;
+  const unprotectedArp = total - arpCount;
   if (staleAsup > 0) {
     talkingPoints.push(`${staleAsup} system${staleAsup > 1 ? 's' : ''} with stale or missing AutoSupport telemetry — proactive monitoring gap.`);
   }
@@ -17440,7 +17473,11 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   const count = targetSystems.length;
-  const tamName = window.currentUser ? window.currentUser.name : 'Unknown TAM';
+  let tamName = 'Not Assigned';
+  targetSystems.forEach(s => {
+    if (s.csmName && tamName === 'Not Assigned') tamName = s.csmName;
+  });
+  if (tamName === 'Not Assigned' && window.currentUser) tamName = window.currentUser.name;
   const dr = computeFleetDRSummary(targetSystems);
 
   let critical = 0, high = 0, medium = 0, low = 0;
@@ -17455,10 +17492,11 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
     if (s.firmwareStatus === 'Current' || s.firmwareStatus === 'Recommended') fwCurrent++;
 
     (s.risks || []).forEach(r => {
-      if (r.severity === 'CRITICAL') critical++;
-      if (r.severity === 'HIGH') high++;
-      if (r.severity === 'MEDIUM') medium++;
-      if (r.severity === 'LOW') low++;
+      const _sev = (r.severity || '').toLowerCase();
+      if (_sev === 'critical') critical++;
+      else if (_sev === 'high') high++;
+      else if (_sev === 'medium') medium++;
+      else if (_sev === 'low') low++;
       
       if (r.category === 'Security' || (r.title && r.title.toLowerCase().includes('cve')) || (r.title && r.title.toLowerCase().includes('security'))) {
         securityRisks.push({ system: s.systemName, ...r });
@@ -17476,7 +17514,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   });
 
   const totalRisks = critical + high + medium + low;
-  const arpPct = arpKnown > 0 ? Math.round((arpEnabled / arpKnown) * 100) : 0;
+  const arpPct = count > 0 ? Math.round((arpEnabled / count) * 100) : 0;
   const daysSinceOldestCVE = 30; // Default estimate
 
   const cveMap = new Map();
@@ -17493,7 +17531,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
 
   let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
   cveArray.sort((a, b) => {
-    const sevMap = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+    const sevMap = { 'critical': 4, 'CRITICAL': 4, 'high': 3, 'HIGH': 3, 'medium': 2, 'MEDIUM': 2, 'low': 1, 'LOW': 1 };
     let sA = sevMap[a.severity] || 0;
     let sB = sevMap[b.severity] || 0;
     if (sA !== sB) return sB - sA;
@@ -17599,10 +17637,10 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   targetSystems.forEach(s => {
     let score = s.sustainability ? s.sustainability.overallScore || 0 : 0;
     let trend = s.sustainability ? s.sustainability.weekOverWeekChange || 0 : 0;
-    let logical = s.efficiency ? s.efficiency.logicalData || 0 : 0;
-    let physical = s.efficiency ? s.efficiency.physicalCapacity || 0 : 0;
-    let saved = s.efficiency ? s.efficiency.spaceSaved || 0 : 0;
-    let drRatio = s.efficiency ? s.efficiency.drRatio || 1 : 1;
+    let logical = s.efficiency ? (s.efficiency.logicalUsedTB || s.efficiency.logicalData || 0) : 0;
+    let physical = s.efficiency ? (s.efficiency.physicalUsedTB || s.efficiency.physicalCapacity || 0) : 0;
+    let saved = s.efficiency ? (s.efficiency.spaceSavedTB || s.efficiency.spaceSaved || 0) : 0;
+    let drRatio = s.efficiency ? (parseFloat(String(s.efficiency.dataReductionRatio || s.efficiency.drRatio || '1').split(':')[0]) || 1) : 1;
     let isFP = s.isFabricPool || false;
 
     if (score > 0) {
@@ -17818,13 +17856,20 @@ function computeFleetCapacityForecast(targetSystems) {
 
 function computeFleetWarrantyStatus(targetSystems) {
   let warrantyActive = 0, warrantyExpired = 0, warrantyUnknown = 0;
+  let expiring30 = 0, expiring90 = 0;
   const tierDist = {};
   const perSystem = [];
   const now = new Date();
+  const d30 = new Date(now.getTime() + 30 * 86400000);
+  const d90 = new Date(now.getTime() + 90 * 86400000);
   targetSystems.forEach(s => {
     const wEnd = s.warrantyEndDate ? new Date(s.warrantyEndDate) : null;
     const wActive = wEnd ? wEnd > now : null;
-    if (wActive === true) warrantyActive++;
+    if (wActive === true) {
+      warrantyActive++;
+      if (wEnd <= d30) expiring30++;
+      else if (wEnd <= d90) expiring90++;
+    }
     else if (wActive === false) warrantyExpired++;
     else warrantyUnknown++;
     const tier = s.serviceLevel || s.serviceTier || s.supportLevel || 'Unknown';
@@ -17835,7 +17880,7 @@ function computeFleetWarrantyStatus(targetSystems) {
       warrantyActive: wActive, tier: tier
     });
   });
-  return { warrantyActive, warrantyExpired, warrantyUnknown, tierDist, perSystem };
+  return { warrantyActive, warrantyExpired, warrantyUnknown, expiring30, expiring90, active: warrantyActive, expired: warrantyExpired, tierDist, perSystem };
 }
 
 function computeFleetFirmwareSummary(targetSystems) {
@@ -17901,6 +17946,13 @@ function computeFleetFirmwareSummary(targetSystems) {
       }
     });
 
+    // Compute per-system firmware currency score (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)
+    const _sysDrvTotal = sysDrvCur + sysDrvBeh + sysDrvUnk;
+    const _sysScore = Math.round(
+      (spMatch ? 25 : 0) + (mbMatch ? 25 : 0) + (dqpMatch ? 20 : 0) +
+      (_sysDrvTotal > 0 ? Math.round(sysDrvCur / _sysDrvTotal * 30) : 0)
+    );
+    const _sysStatus = _sysScore >= 80 ? 'Current' : _sysScore >= 50 ? 'Partial' : 'Behind';
     perSystem.push({
       name: sys.systemName || sys.serialNumber || '?',
       serial: sys.serialNumber || '',
@@ -17908,9 +17960,11 @@ function computeFleetFirmwareSummary(targetSystems) {
       sp: { current: sfw.currentVersion || '', recommended: sfw.recommendedVersion || '', match: spMatch, type: sfw.type || 'SP' },
       mb: { current: mbfw.currentVersion || '', recommended: mbfw.recommendedVersion || '', match: mbMatch },
       dqp: { current: dqp.currentVersion || '', recommended: dqp.recommendedVersion || '', match: dqpMatch },
-      drives: { current: sysDrvCur, behind: sysDrvBeh, unknown: sysDrvUnk, total: sysDrvCur + sysDrvBeh + sysDrvUnk },
+      drives: { current: sysDrvCur, behind: sysDrvBeh, unknown: sysDrvUnk, total: _sysDrvTotal },
       shelves: shelfCount,
-      shelfModules: shelfModules.join(', ')
+      shelfModules: shelfModules.join(', '),
+      score: _sysScore,
+      status: _sysStatus
     });
   });
 
@@ -18139,7 +18193,7 @@ EXECUTIVE RISK ASSESSMENT
 Scope:        ${cleanScope}
 Date:         ${today}
 Systems:      ${targetSystems.length}
-Sites:        ${siteDetails.length}${siteDetails.length > 0 ? ' (' + siteDetails.map(s => s.name + (s.city ? ', ' + s.city : '')).join('; ') + ')' : ''}
+Sites:        ${siteDetails.length}${siteDetails.length > 0 ? ' (' + siteDetails.map(s => { const _c = s.city && !s.name.toLowerCase().includes(s.city.toLowerCase()) ? ', ' + s.city : ''; return s.name + _c; }).join('; ') + ')' : ''}
 
 ACCOUNT TEAM
   Sales Rep:  ${personnel.salesRep}
@@ -18240,7 +18294,7 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
 `;
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
-      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       problemStatements += `${i + 1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;    });
     problemStatements += '\n';
   }
@@ -18250,10 +18304,11 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
   if (sortedRisks.length > 0) {
     emailRiskLines = 'RECOMMENDED ACTIONS:\n';
     sortedRisks.forEach((g, i) => {
+      const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : '';
       if (g.count === 1) {
         emailRiskLines += `  ${i+1}. [${g.severity.toUpperCase()}] ${g.findings[0].description}\n     Fix: ${g.fix}\n`;
       } else {
-        emailRiskLines += `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix} — resolves ${g.count} findings\n`;
+        emailRiskLines += `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix} — resolves ${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ' (' + _affSys + ')' : ''}\n`;
       }
     });
   } else {
@@ -18296,7 +18351,7 @@ ${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map
 
 ${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
-    const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+    const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)`;
   }).join('\n') : ''}
 ${sustLatest.overallScore ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score: ${sustLatest.overallScore}%` : ''}
@@ -18333,7 +18388,7 @@ RISK POSTURE:
 ${sustLatest.overallScore ? `\nSUSTAINABILITY: ${sustLatest.overallScore}%` : ''}
 
 PRIORITY ACTIONS:
-${sortedRisks.slice(0, 6).map((g, i) => `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} findings)` : ''}`).join('\n')}
+${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
 ${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}
 ${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}
@@ -18474,6 +18529,7 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
   });
 
   // ===================== 4. SOLUTION PROPOSALS =====================
+  const _archAffSysCount = new Set(sortedRisks.flatMap(g => g.systems || [])).size;
   let solutionProposals = `================================================================================
 TECHNICAL SOLUTION PROPOSAL
 ================================================================================
@@ -18483,7 +18539,7 @@ Prepared By:  ${personnel.sam !== 'Not Assigned' ? personnel.sam + ' (SAM)' : pe
 
 EXECUTIVE SUMMARY
 --------------------------------------------------------------------------------
-This proposal addresses ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''} resolving ${totalDeduped} Active IQ finding${totalDeduped !== 1 ? 's' : ''} across ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.
+This proposal addresses ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''} resolving ${totalDeduped} Active IQ finding${totalDeduped !== 1 ? 's' : ''} across ${_archAffSysCount} system${_archAffSysCount !== 1 ? 's' : ''}.
 Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCount}
 
 OPERATIONAL HEALTH BASELINE:
@@ -18527,7 +18583,7 @@ PRIORITISED CORRECTIVE ACTIONS
 `;
     allUpgrades.forEach(u => {
       const sys = targetSystems.find(s => s.systemName === u.systemName);
-      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       solutionProposals += `  ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} -> ${u.targetVersion} (${u.urgency || 'Recommended'})\n`;
       solutionProposals += `    Benefit: ${u.benefits || 'Security patches, performance improvements, and new features.'}\n`;
       const hops = u.hops || [];
@@ -18631,7 +18687,7 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
   Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
   DR Protection: ${rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
-  SVMs:     ${sys.svms ? sys.svms.length : 0} (${sys.svms && sys.svms.length > 0 ? [...new Set(sys.svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None'})
+  SVMs:     ${(() => { const _svms = typeof getSystemSvms === 'function' ? getSystemSvms(sys) : (sys.vservers || []); return _svms.length + ' (' + (_svms.length > 0 ? [...new Set(_svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None') + ')'; })()}
 `;
 
     if (sysRisks.length > 0) {
@@ -18766,7 +18822,7 @@ OPPORTUNITY INTELLIGENCE:
 `;
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
-      const modelStr = sys && sys.platform ? ` (${sys.platform})` : '';
+      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n"     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)
 `;
     });
