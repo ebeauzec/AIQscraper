@@ -12860,7 +12860,11 @@ function enrichSystemTelemetry(s) {
       description:    r.description    || r.shortName       || r.riskDetail || r.riskDescription || r.title || "Unknown risk identified.",
       recommendation: r.recommendation || r.potentialImpact || r.riskRecommendation || r.mitigationAction || "Review system telemetry and consult NetApp support.",
       advisoryUrl:    '',
-      remediationPlan: r.remediationPlan || null
+      remediationPlan: r.remediationPlan || null,
+      // Native CVE data from Active IQ's Risk.cves — authoritative per-risk CVE
+      // linkage (id, CVSS score, description) straight from NetApp, distinct from
+      // the broader OS-version-matched securityBulletins enrichment elsewhere.
+      cveDetails:     Array.isArray(r.cves) ? r.cves : []
       // Note: kbLink is intentionally excluded — search URLs are built dynamically
       // at render time from description+category via buildKBSearchURL(), ensuring
       // any new condition from the AIQ API gets a working, relevant search link.
@@ -12876,7 +12880,10 @@ function enrichSystemTelemetry(s) {
     // The AIQ API often returns CVE risks without a correctiveAction URL. We build
     // a direct NetApp PSIRT link from the CVE ID so every CVE row has a link.
     if (!normRisk.advisoryUrl) {
-      const cveInDesc = (normRisk.description || '').match(/CVE-(\d{4})-(\d+)/i);
+      // Prefer the native CVE id from Active IQ's own Risk.cves — more reliable
+      // than regex-scraping free-text description, and always correct when present.
+      const nativeCveId = normRisk.cveDetails[0] && normRisk.cveDetails[0].id;
+      const cveInDesc = nativeCveId ? [nativeCveId] : (normRisk.description || '').match(/CVE-(\d{4})-(\d+)/i);
       if (cveInDesc) {
         // NetApp PSIRT advisory search by CVE ID
         normRisk.advisoryUrl = `https://security.netapp.com/advisory/?q=${cveInDesc[0]}`;
@@ -27538,15 +27545,9 @@ function showWhatsNewModal() {
         sectionsHtml +
         prevBlock +
       '</div>' +
-      '<div style="padding:16px 24px 20px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;">' +
-        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">' +
-          '<input type="checkbox" id="wn-dont-show" style="cursor:pointer;accent-color:#2dd4bf;" onchange="if(this.checked){safeSetItem(\'aiq_seen_version\',\'' + APP_VERSION + '\');}else{safeSetItem(\'aiq_seen_version\',\'\');}">' +
-          '<span style="font-size:0.72rem;color:var(--text-muted);">Don\'t show again for this version</span>' +
-        '</label>' +
-        '<div style="display:flex;gap:8px;">' +
-          '<button class="wn-dismiss" onclick="document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 16px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--text-secondary);font-size:0.8rem;cursor:pointer;transition:background 0.15s;">Dismiss</button>' +
-          '<button class="wn-got-it" onclick="safeSetItem(\'aiq_seen_version\',\'' + APP_VERSION + '\');document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 20px;background:linear-gradient(135deg,#2dd4bf,#818cf8);border:none;border-radius:8px;color:#0f1629;font-size:0.8rem;font-weight:700;cursor:pointer;transition:filter 0.15s;">Got it \u2713</button>' +
-        '</div>' +
+      '<div style="padding:16px 24px 20px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;">' +
+        '<button class="wn-dismiss" onclick="document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 16px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--text-secondary);font-size:0.8rem;cursor:pointer;transition:background 0.15s;" title="Close \u2014 will show again on next launch">Remind me later</button>' +
+        '<button class="wn-got-it" onclick="safeSetItem(\'aiq_seen_version\',\'' + APP_VERSION + '\');document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 20px;background:linear-gradient(135deg,#2dd4bf,#818cf8);border:none;border-radius:8px;color:#0f1629;font-size:0.8rem;font-weight:700;cursor:pointer;transition:filter 0.15s;">Don\'t show until next update \u2713</button>' +
       '</div>' +
     '</div>';
 
