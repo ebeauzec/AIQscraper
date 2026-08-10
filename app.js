@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.0";
+const APP_VERSION = "4.2.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.2.1",
+    date: "10 August 2026",
+    title: "Fixed: Fleet Silently Reported as Fully Upgraded",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Stale Upgrade Cache Bug",
+        color: "#f87171",
+        items: [
+          "enrichSystemTelemetry() used 'let upgrades = s.upgrades' — a pre-existing cached upgrades object (e.g. from before real Active IQ recommendation data was available) permanently skipped recomputation, same bug class already fixed for contracts",
+          "Confirmed live: a system running ONTAP 9.12.1 showed 'Systems Up to Date' in the Technical Audit tab; after the fix, 163 of 167 systems in the test fleet were correctly reclassified as needing an upgrade",
+          "Live-data systems now always recompute upgrade recommendations fresh; mock/non-live systems still respect their intentionally pre-set upgrades field"
+        ]
+      }
+    ]
+  },
   {
     version: "4.2.0",
     date: "10 August 2026",

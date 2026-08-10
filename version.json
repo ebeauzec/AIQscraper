@@ -1,8 +1,8 @@
 {
-  "version": "4.2.0",
+  "version": "4.2.1",
   "major": 4,
   "minor": 2,
-  "patch": 0,
+  "patch": 1,
   "date": "2026-08-10",
-  "notes": "Deliverables suite audit and Active IQ write-back actions. Wired native Risk.cves data; fixed MEDDPICC blank Economic Buyer/Champion fields, fabricated MSP report columns, three inconsistent health-grade formulas, literal-newline and stray-quote rendering bugs, and a What's New modal bug where a changelog entry's own <script> text silently broke its dismiss buttons. Added acknowledgeRiskInAIQ/mitigateRiskInAIQ/updateQualifiedVersionInAIQ write-back mutations and split the enrichment scheduler into fast/slow timers (325.8s to 8.5s for the fast group)."
+  "notes": "Fixed a stale-cache bug in enrichSystemTelemetry() that silently misreported most of the fleet as fully upgraded ('Systems Up to Date') regardless of actual OS version, because a pre-existing s.upgrades value skipped recomputation. Live-data systems now always recompute fresh upgrade recommendations."
 }
