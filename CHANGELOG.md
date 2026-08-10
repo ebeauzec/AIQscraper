@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.1] - 2026-08-10
+
+### Added
+- **Real per-system license data** — `server.py` now queries `licenses { licenseSerialNumber package type description name }` in both the full and fallback GraphQL tiers (added on its own, deliberately, after the previous version's field-count-limit regression from adding too much at once).
+- **As-Built "Lifecycle & Licenses" panel** — shows deduplicated licensed packages with descriptions (previously a mock-shaped placeholder that showed the license *key name* repeated for every row instead of the actual features), and cross-checks Anti-Ransomware Protection and SnapMirror licenses against real harvested enabled/active telemetry, flagging "licensed but not confirmed active" gaps.
+- **"Licensed Feature Adoption" table** — new section in the License Compliance deliverable, showing fleet-wide license package counts and the same licensed-vs-active cross-check. Confirmed live: 21 distinct license packages fleet-wide, 28 systems licensed for Anti-Ransomware Protection.
+
+### Fixed
+- A double-escaped apostrophe in one of the new template strings crashed all of `app.js` on load (`Uncaught SyntaxError: Unexpected identifier 't'`) — caught via live browser testing before this was pushed.
+
+---
+
 ## [4.5.0] - 2026-08-10
 
 ### Fixed

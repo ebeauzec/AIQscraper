@@ -788,6 +788,7 @@ def _do_full_harvest(watchlist_ids=None):
                     autoUpdateSettings { storageFirmware spbmc systemFile securityFile }
                     sustainabilityScores { scorePercentage percentageChange changeFactors generatedDate }
                     vcenters { id name version }
+                    licenses { licenseSerialNumber package type description name }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -875,6 +876,7 @@ def _do_full_harvest(watchlist_ids=None):
                     autoUpdateSettings { storageFirmware spbmc systemFile securityFile }
                     sustainabilityScores { scorePercentage percentageChange changeFactors generatedDate }
                     vcenters { id name version }
+                    licenses { licenseSerialNumber package type description name }
                     networkPorts {
                       totalCount
                       networkPorts { port role link type broadcastDomain ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes interfaceGroupOwner }
