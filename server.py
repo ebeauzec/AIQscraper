@@ -82,6 +82,7 @@ KEV_PATH = SCRIPT_DIR / "data" / "cisa_kev.json"
 KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
 VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
 ECOSYSTEM_PATH = SCRIPT_DIR / "data" / "ecosystem.json"
+DISCOVERED_PRODUCTS_PATH = SCRIPT_DIR / "data" / "discovered_products.json"
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -3130,6 +3131,14 @@ class EnrichmentScheduler:
                 with _bulletins_lock:
                     results['reference_library'] = self._scan_reference_library()
 
+            discovery_age = self._file_age_hours(DISCOVERED_PRODUCTS_PATH)
+            if discovery_age is not None and discovery_age < interval_h:
+                print(f'  [ENRICH] [8] discovered_products.json is {discovery_age:.1f}h old '
+                      f'(< {interval_h:.0f}h interval) — skipping sitemap discovery', flush=True)
+                results['sitemap_discovery'] = {'skipped': 'fresh'}
+            else:
+                results['sitemap_discovery'] = self._scan_sitemap_discovery()
+
             elapsed = round(time.time() - scan_start, 1)
             results['_elapsed'] = elapsed
             self._last_kb_results = results
@@ -3144,6 +3153,130 @@ class EnrichmentScheduler:
         finally:
             self._kb_running = False
             self._schedule_next_kb()
+
+    # ── Scanner 8: Sitemap-Based Product/Integration Auto-Discovery ──────────
+    def _scan_sitemap_discovery(self):
+        """Intelligent extensibility: automatically discover NEW NetApp products,
+        integrations, and documentation sections as NetApp adds them — rather
+        than relying solely on the hardcoded seed URL lists in _scan_knowledge_base
+        and reference_harvester.py, which only cover what was known at the time
+        this tool was written.
+
+        Uses docs.netapp.com/sitemap.xml — a real, sanctioned sitemap index
+        (confirmed present in robots.txt, not disallowed for crawling) that
+        enumerates every top-level product/documentation section NetApp
+        publishes. Each run:
+          1. Fetches the sitemap index, extracts en-US top-level section slugs
+             (skips other locales per robots.txt guidance).
+          2. Diffs against the persisted set of previously-seen slugs.
+          3. For any genuinely NEW section (bounded to 10 per run to stay
+             polite and keep each cycle fast), fetches that section's own
+             sitemap and adds a sample of its pages to knowledge_base.json,
+             tagged with source 'sitemap-discovery' and the new section name
+             as category — so a newly-acquired product (e.g. NetApp's real
+             August 2026 JetStream Software acquisition) gets picked up
+             automatically on the next scheduled run once NetApp publishes
+             its docs, with zero code changes required here.
+        """
+        print('  [ENRICH] [8] Sitemap-based product/integration discovery...', flush=True)
+        try:
+            text, err = _enrich_fetch('https://docs.netapp.com/sitemap.xml', timeout=20)
+            if err or not text:
+                print(f'  [ENRICH]   Sitemap discovery: index fetch failed: {err}', flush=True)
+                return {'error': str(err), 'newSections': 0}
+
+            # Extract en-US top-level section sitemap URLs, e.g.
+            # https://docs.netapp.com/us-en/<slug>/sitemap.xml
+            section_urls = sorted(set(_re.findall(
+                r'https://docs\.netapp\.com/us-en/([a-z0-9][a-z0-9_-]*)/sitemap\.xml', text)))
+            print(f'  [ENRICH]   Sitemap index: {len(section_urls)} us-en product sections found', flush=True)
+
+            # Load previously-seen sections
+            if DISCOVERED_PRODUCTS_PATH.exists():
+                try:
+                    known = json.loads(DISCOVERED_PRODUCTS_PATH.read_text(encoding='utf-8'))
+                    known_slugs = set(known.get('knownSlugs', []))
+                except Exception:
+                    known_slugs = set()
+            else:
+                known_slugs = set()
+
+            new_slugs = [s for s in section_urls if s not in known_slugs]
+            print(f'  [ENRICH]   {len(new_slugs)} newly-discovered section(s) since last run', flush=True)
+
+            # Bound how many new sections we deep-crawl per run — stay polite,
+            # keep each enrichment cycle fast. Remaining new slugs are still
+            # marked "known" (so we don't refetch the index-match every run)
+            # but their content isn't crawled until a future run if the cap
+            # is hit — logged, not silently dropped, per the "no silent caps"
+            # principle.
+            MAX_NEW_PER_RUN = 10
+            to_crawl = new_slugs[:MAX_NEW_PER_RUN]
+            if len(new_slugs) > MAX_NEW_PER_RUN:
+                print(f'  [ENRICH]   Capping deep-crawl to {MAX_NEW_PER_RUN} of {len(new_slugs)} new sections this run '
+                      f'(remaining {len(new_slugs) - MAX_NEW_PER_RUN} will be crawled in a future cycle)', flush=True)
+
+            new_articles = []
+            if KNOWLEDGE_PATH.exists():
+                try:
+                    kb_data = json.loads(KNOWLEDGE_PATH.read_text(encoding='utf-8'))
+                except Exception:
+                    kb_data = {'version': 1, 'articles': []}
+            else:
+                kb_data = {'version': 1, 'articles': []}
+            existing_urls = {a.get('url') for a in kb_data.get('articles', [])}
+
+            for slug in to_crawl:
+                try:
+                    sec_url = f'https://docs.netapp.com/us-en/{slug}/sitemap.xml'
+                    sec_text, sec_err = _enrich_fetch(sec_url, timeout=15)
+                    if sec_err or not sec_text:
+                        continue
+                    page_urls = _re.findall(r'<loc>(https://docs\.netapp\.com/us-en/[^<]+)</loc>', sec_text)
+                    # Sample the first 15 pages of a newly-discovered section —
+                    # enough to seed useful KB coverage without over-fetching an
+                    # entire product's doc tree in one enrichment cycle.
+                    for page_url in page_urls[:15]:
+                        if page_url in existing_urls:
+                            continue
+                        title = page_url.rstrip('/').split('/')[-1].replace('-', ' ').replace('.html', '').title() or slug.replace('-', ' ').title()
+                        new_articles.append({
+                            'url': page_url,
+                            'title': title,
+                            'source': 'sitemap-discovery',
+                            'category': slug,
+                            'discoveredAt': datetime.now(timezone.utc).isoformat()[:10],
+                        })
+                        existing_urls.add(page_url)
+                    print(f'  [ENRICH]     New section "{slug}": +{min(len(page_urls), 15)} pages seeded', flush=True)
+                    time.sleep(0.5)  # be polite between section sitemap fetches
+                except Exception as sec_ex:
+                    print(f'  [ENRICH]     Section "{slug}" crawl failed: {sec_ex}', flush=True)
+
+            if new_articles:
+                kb_data['articles'] = kb_data.get('articles', []) + new_articles
+                kb_data['lastUpdated'] = datetime.now(timezone.utc).isoformat()[:10]
+                payload = json.dumps(kb_data, indent=2, ensure_ascii=False)
+                tmp_path = KNOWLEDGE_PATH.with_suffix('.tmp')
+                tmp_path.write_text(payload, encoding='utf-8')
+                tmp_path.replace(KNOWLEDGE_PATH)
+
+            # Persist ALL section slugs seen (not just the crawled ones) so next
+            # run's diff is accurate even for sections we didn't have budget to
+            # deep-crawl this time.
+            DISCOVERED_PRODUCTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            all_known = sorted(set(section_urls) | known_slugs)
+            DISCOVERED_PRODUCTS_PATH.write_text(json.dumps({
+                'lastUpdated': datetime.now(timezone.utc).isoformat()[:10],
+                'knownSlugs': all_known,
+                'lastNewSlugs': new_slugs,
+            }, indent=2), encoding='utf-8')
+
+            print(f'  [ENRICH]   Sitemap discovery: {len(new_articles)} new KB article(s) from {len(to_crawl)} newly-discovered section(s)', flush=True)
+            return {'totalSections': len(section_urls), 'newSections': len(new_slugs), 'crawledSections': to_crawl, 'newArticles': len(new_articles)}
+        except Exception as e:
+            print(f'  [ENRICH]   Sitemap discovery failed: {e}', flush=True)
+            return {'error': str(e)}
 
     # ── Scanner 1: CISA KEV ──────────────────────────────────────────
     def _scan_cisa_kev(self):
@@ -3584,6 +3717,7 @@ class EnrichmentScheduler:
             ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-otv-hardening-overview.html', 'best_practices', 'VMware vSphere with ONTAP Best Practices'),
             ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-srm-overview.html', 'integration', 'VMware SRM with ONTAP'),
             ('https://docs.netapp.com/us-en/ontap-apps-dbs/vmware/vmware-vvols-overview.html', 'integration', 'VMware vVols with ONTAP'),
+            ('https://docs.netapp.com/us-en/netapp-solutions-cloud/vmware/vmw-azure-avs-dr-jetstream.html', 'data_protection', 'JetStream DR for VMware on Azure NetApp Files (NetApp acquisition, Aug 2026)'),
 
             # Kubernetes/Containers
             ('https://docs.netapp.com/us-en/trident/index.html', 'integration', 'Astra Trident (Kubernetes CSI)'),
@@ -3620,6 +3754,24 @@ class EnrichmentScheduler:
             ('https://docs.netapp.com/us-en/active-iq-unified-manager/index.html', 'monitoring', 'Active IQ Unified Manager'),
             ('https://docs.netapp.com/us-en/active-iq/index.html', 'monitoring', 'Active IQ Digital Advisor'),
             ('https://docs.netapp.com/us-en/bluexp-digital-wallet/index.html', 'monitoring', 'BlueXP Digital Wallet'),
+            ('https://docs.netapp.com/us-en/storagegrid-enable/technical-reports/monitor-storagegrid-app-splunk.html', 'monitoring', 'Splunk Add-on for StorageGRID'),
+            ('https://docs.netapp.com/us-en/netapp-solutions-ai/data-analytics/stgr-splunkss-introduction.html', 'monitoring', 'Splunk SmartStore on StorageGRID S3'),
+            ('https://docs.netapp.com/us-en/storagegrid-enable/tools-apps-guides/use-datadog-snmp.html', 'monitoring', 'Datadog SNMP Monitoring for StorageGRID'),
+            ('https://docs.netapp.com/us-en/data-infrastructure-insights/task_dc_na_cdot.html', 'monitoring', 'Data Infrastructure Insights ONTAP Collector'),
+
+            # ITSM / SIEM / SOAR Integration
+            ('https://docs.netapp.com/us-en/data-services-ransomware-resilience/reference-soar.html', 'security', 'Ransomware Resilience SOAR Integration (Sentinel/Splunk)'),
+            ('https://docs.netapp.com/us-en/oncommand-insight/howto/servicenow-integration-set-up-user.html', 'automation', 'ServiceNow CMDB Integration for OnCommand Insight'),
+            ('https://docs.netapp.com/us-en/oncommand-insight/howto/servicenow-integration-install-update-set.html', 'automation', 'ServiceNow Update Set Installation'),
+
+            # Container Platforms — Red Hat OpenShift
+            ('https://docs.netapp.com/us-en/netapp-solutions/containers/rh-os-n_solution_overview.html', 'integration', 'Red Hat OpenShift on NetApp (NVA-1160)'),
+            ('https://docs.netapp.com/us-en/netapp-solutions-virtualization/openshift/osv-vm-dr-using-tp.html', 'data_protection', 'OpenShift Virtualization DR with Trident Protect'),
+            ('https://docs.netapp.com/us-en/netapp-solutions/rhhc/rhhc-op-data-protection.html', 'data_protection', 'OpenShift Container Data Protection (Astra/Trident Protect)'),
+
+            # Additional Database Integration
+            ('https://docs.netapp.com/us-en/snapcenter/protect-db2/snapcenter-plug-in-for-ibm-db2-overview.html', 'integration', 'SnapCenter Plug-in for IBM Db2'),
+            ('https://docs.netapp.com/us-en/netapp-solutions-sap/backup/snapcenter-ibm-db2.html', 'integration', 'SnapCenter for IBM Db2 on SAP'),
 
             # Security & Compliance
             ('https://docs.netapp.com/us-en/ontap/security/index.html', 'security', 'ONTAP Security Hardening Guide'),

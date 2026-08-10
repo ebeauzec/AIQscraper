@@ -1,8 +1,8 @@
 {
-  "version": "4.3.2",
+  "version": "4.4.0",
   "major": 4,
-  "minor": 3,
-  "patch": 2,
+  "minor": 4,
+  "patch": 0,
   "date": "2026-08-10",
-  "notes": "Fixed a harvest crash ('NoneType' object has no attribute 'get') in the contract-renewals fetch, discovered by testing with a second Active IQ account that has zero accessible systems and no watchlists. Found and fixed 5 more instances of the same .get(key, default)-doesn't-apply-to-explicit-None bug across customers/sites/sustainability/osVersions parsing. Also documented (via live schema introspection) that the GraphQL 'watchlists' query field does not exist in the current API — the fallback code is harmless dead weight, not a functional path; REST discovery is the only channel that has ever worked."
+  "notes": "Added intelligent sitemap-based product/integration auto-discovery (new Scanner 8) that automatically finds new NetApp documentation sections every scheduled enrichment cycle using docs.netapp.com's real, sanctioned sitemap.xml -- no code changes needed as NetApp adds new products. Added 13 new verified third-party integration seeds (JetStream DR, Splunk x2, Datadog, Sentinel/SOAR, ServiceNow x2, IBM Db2 x2, Red Hat OpenShift x3). Also found and fixed a serious bug: getSystemIntegrations() fabricated an entire fake technology stack (VMware/Oracle/Commvault, OpenStack/NVIDIA AI BasePOD/etc.) from a hash of the serial number and presented it as real Active IQ telemetry for every live customer system -- now honestly reports 'Not Reported by Active IQ' since no such field exists in the real API."
 }

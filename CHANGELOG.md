@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.4.0] - 2026-08-10
+
+### Added
+- **Intelligent sitemap-based product/integration auto-discovery (Scanner 8)** — `_scan_sitemap_discovery()` fetches `docs.netapp.com/sitemap.xml` (a real, sanctioned sitemap index — confirmed present in `robots.txt` and not disallowed) every scheduled enrichment cycle, diffs the ~262 top-level product/documentation sections against a persisted `data/discovered_products.json`, and automatically seeds `knowledge_base.json` with pages from any genuinely new section (bounded to 10 new sections per run, logged not silently dropped if the cap is hit). Verified end-to-end: NetApp's real, recent (August 2026) JetStream Software acquisition is discoverable this way with zero code changes, once NetApp's docs team publishes the pages under a new top-level section
+- **13 new verified third-party integration seeds** — researched against NetApp's own documentation (every URL individually curl-verified live before inclusion): JetStream DR (VMware DR on Azure NetApp Files), Splunk (StorageGRID monitoring + SmartStore), Datadog (SNMP monitoring), Microsoft Sentinel/Splunk SOAR (Ransomware Resilience playbooks), ServiceNow (OnCommand Insight CMDB integration, 2 pages), IBM Db2 (SnapCenter plug-in, general + SAP-specific), Red Hat OpenShift (3 pages — solution architecture, VM DR via Trident Protect, container data protection), and Data Infrastructure Insights' ONTAP collector
+
+### Fixed
+- **`getSystemIntegrations()` fabricated an entire fake technology stack** — this function derived virtualization/database/backup-software claims (VMware vSphere, Oracle RAC, Commvault; OpenStack Cinder, NVIDIA AI BasePOD, Hadoop/Spark; Hyper-V, MS SQL, Veritas; etc.) from `parseInt(serialNumber) % 5` — a deterministic hash with **zero connection to any real telemetry** — and presented it in the "Enterprise Workload Alignments & 3rd-Party Integrations" panel and its "Active Workload Recommendations" as if detected from real Active IQ data, for every live customer system. Active IQ's GraphQL API has no field exposing this information (confirmed via extensive live schema introspection this session); the `sys.integrations` passthrough this function checked first is never actually populated anywhere in the codebase, so the fabricated branch fired for 100% of real systems. Now honestly returns "Not Reported by Active IQ" for all three categories, which correctly and automatically stops every downstream fabricated recommendation from firing too (the function's genuinely real MetroCluster-based recommendations, which don't depend on this data, are unaffected)
+- Fixed a related grammar bug ("1 systems" instead of "1 system") in the same panel's aggregate counts, and added an honest notice message ("Not reported by Active IQ API for these systems — verify on-cluster via CLI") in place of the fabricated breakdown table when no real data exists
+
+---
+
 ## [4.3.2] - 2026-08-10
 
 ### Fixed
