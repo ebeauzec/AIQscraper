@@ -48,6 +48,8 @@ import urllib.parse
 
 # ASUP offline import parser (stdlib-only core, py7zr optional)
 try:
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent / "tools"))
     import asup_parser
     _ASUP_AVAILABLE = True
 except ImportError:
@@ -1608,9 +1610,6 @@ def _do_full_harvest(watchlist_ids=None):
             evd = sv.get("endOfVersionDetails") or {}
             eos = s.get("endOfSupport") or {}
             srd = s.get("swRecommendationDetails") or {}
-            # ── DEBUG: trace software version / recommendation data ──
-            if len(systems_out) < 3:
-                print(f"  [DEBUG-SW] serial={serial} osVer={s.get('osVersion','')} sv={sv} evd={evd} srd={srd}", flush=True)
             cap = s.get("capacity") or {}
             cap_phys = cap.get("physical") or {}
             cap_eff = cap.get("efficiency") or {}
@@ -1944,7 +1943,7 @@ def _do_full_harvest(watchlist_ids=None):
                 "resellerCompany": s.get("incumbentResellerCompany", ""),
                 "techRefreshStatus": s.get("techRefreshStatus", ""),
                 "lastRebootTime": s.get("lastRebootTime", ""),
-                "originalShipDate": s.get("originalShipDate", ""),
+                "originalShipDate": s.get("originalShipDate") or "",
                 "marketingType": s.get("marketingType", ""),
                 "storageConfiguration": s.get("storageConfiguration", ""),
                 "isFabricPool": s.get("isFabricPool"),
@@ -1977,31 +1976,31 @@ def _do_full_harvest(watchlist_ids=None):
                 "samEmail": sam_d.get("emailAddress", ""),
                 "gard": gard,
                 "aspName": asp.get("name", ""),
-                "aspEndDate": asp.get("endDate", ""),
+                "aspEndDate": asp.get("endDate") or "",
                 "domesticParentName": dp.get("name", ""),
                 # ── Contract ──
                 "contractActive": contract.get("isContractActive"),
-                "contractEndDate": contract.get("overallContractEndDate", ""),
-                "contractHWEndDate": contract.get("hardwareContractEndDate", ""),
-                "contractSWEndDate": contract.get("softwareContractEndDate", ""),
-                "contractNRDEndDate": contract.get("nrdContractEndDate", ""),
-                "contractExpiry": contract.get("expiryDate", ""),
-                "warrantyEndDate": contract.get("hardwareWarrantyEndDate", ""),
-                "warrantyStartDate": contract.get("hardwareWarrantyStartDate", ""),
+                "contractEndDate": contract.get("overallContractEndDate") or "",
+                "contractHWEndDate": contract.get("hardwareContractEndDate") or "",
+                "contractSWEndDate": contract.get("softwareContractEndDate") or "",
+                "contractNRDEndDate": contract.get("nrdContractEndDate") or "",
+                "contractExpiry": contract.get("expiryDate") or "",
+                "warrantyEndDate": contract.get("hardwareWarrantyEndDate") or "",
+                "warrantyStartDate": contract.get("hardwareWarrantyStartDate") or "",
                 "serviceLevel": contract.get("hardwareServiceLevel", ""),
                 "contractSWId": contract.get("softwareContractId", ""),
                 "contractHWId": contract.get("hardwareContractId", ""),
                 # ── Hardware lifecycle ──
                 "hwEndOfAvailability": hw.get("endOfAvailability", ""),
                 "hwEndOfSupport": hw.get("endOfSupport", ""),
-                "eosEarliest": eos.get("earliestEndOfSupportDate", ""),
-                "eosShelf": eos.get("earliestShelfEndOfSupportDate", ""),
-                "eosDisk": eos.get("earliestDiskEndOfSupportDate", ""),
-                "eosPVR": eos.get("latestPVRDate", ""),
-                "eosLatest": eos.get("latestEndOfSupportDate", ""),
+                "eosEarliest": eos.get("earliestEndOfSupportDate") or "",
+                "eosShelf": eos.get("earliestShelfEndOfSupportDate") or "",
+                "eosDisk": eos.get("earliestDiskEndOfSupportDate") or "",
+                "eosPVR": eos.get("latestPVRDate") or "",
+                "eosLatest": eos.get("latestEndOfSupportDate") or "",
                 # ── Software version details ──
                 "softwareVersionFull": sv.get("fullVersionString", ""),
-                "swReleaseDate": evd.get("releaseDate", ""),
+                "swReleaseDate": evd.get("releaseDate") or "",
                 "swEndOfFullSupport": evd.get("endOfVersionFullSupport", ""),
                 "swEndOfLimitedSupport": evd.get("endOfVersionLimitedSupport", ""),
                 "swEndOfSelfService": evd.get("endOfSelfServiceSupport", ""),
@@ -2022,7 +2021,7 @@ def _do_full_harvest(watchlist_ids=None):
                 "sazUsedKiB": 0,
                 "sazAvailableKiB": 0,
                 # ── AutoSupport ──
-                "latestAsupDate": asup.get("receivedDate") or asup.get("generatedDate", ""),
+                "latestAsupDate": asup.get("receivedDate") or asup.get("generatedDate") or "",
                 "latestAsupSubject": asup.get("subject", ""),
                 "latestAsupType": asup.get("type", ""),
                 "latestAsupIsManual": asup.get("isManual"),
