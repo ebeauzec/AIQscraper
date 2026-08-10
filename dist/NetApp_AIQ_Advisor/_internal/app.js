@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.4.0";
+const APP_VERSION = "4.4.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.4.1",
+    date: "10 August 2026",
+    title: "As-Built Risk Register Fixes + Monthly Capacity Data-Gap Clarity",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Risk & Advisory Register",
+        color: "#f87171",
+        items: [
+          "Severity counts (\"Unknown: 6\") were wrong for every account — normRisk() lowercases severity but the count table compared against capitalized keys, so every risk miscounted as Unknown despite each row showing the correct badge",
+          "Risk titles in the As-Built Risk Register and Security Posture panels rendered blank (\"[medium]\" with nothing after it) — normRisk() has no title field, only description; both panels now show the real description text"
+        ]
+      },
+      {
+        icon: "🔍",
+        label: "Investigated: Monthly Used-Capacity Gap",
+        color: "#2dd4bf",
+        items: [
+          "Traced the blank Monthly Capacity \"Used (TB)\" column to the live Active IQ API — confirmed this is a genuine upstream data gap (Active IQ returns monthly raw/marketing capacity history but not used-capacity history for some accounts), not a bug",
+          "Added a per-month cluster-level fallback for accounts where the data does exist; the UI now states plainly when the column is unavailable instead of showing a column of dashes",
+          "Added tooltips clarifying that Active IQ's Propensity score (CRITICAL/HIGH/MEDIUM/LOW) is a proprietary NetApp model computed entirely inside Active IQ — this tool only displays it, it does not calculate it"
+        ]
+      }
+    ]
+  },
   {
     version: "4.4.0",
     date: "10 August 2026",
@@ -20072,7 +20098,8 @@ function _renderAccountIntelligenceSection(systems) {
     <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
       <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
         ${_sth(thS13,'System')}${_sth(thS13,'Sales Rep')}${_sth(thS13,'TAM')}
-        ${_sth(thS13,'SAM')}${_sth(thS13,'ASP')}${_sth(thS13,'Propensity')}
+        ${_sth(thS13,'SAM')}${_sth(thS13,'ASP')}
+        <th style="${thS13}cursor:help;" title="NetApp Active IQ's own churn/expansion-propensity model — a proprietary score (CRITICAL/HIGH/MEDIUM/LOW) computed inside Active IQ from signals such as support-case history, health-score trend, renewal timing, and usage patterns. This tool only displays whatever value AIQ assigns; the scoring logic is not calculated locally and AIQ does not expose a breakdown of contributing factors.">Propensity</th>
       </tr></thead><tbody>`;
     const seen = new Set();
     personnelSystems.forEach(s => {
@@ -20089,20 +20116,22 @@ function _renderAccountIntelligenceSection(systems) {
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${propColor};font-weight:600;">${s.propensityCategory || '—'}</span></td>
       </tr>`;
     });
-    html += `</tbody></table></div>`;
+    html += `</tbody></table></div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:6px;padding:0 2px;">Propensity is Active IQ's own churn/expansion score, not calculated by this tool — see the column header tooltip for details.</div>`;
   }
 
   // Sites table
   if (sites.length > 0) {
+    const thS13b = 'text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;';
     html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Sites (${sites.length})</h4>
     <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
       <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
-        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Site Name')}
-        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','City')}
-        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Country')}
-        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Age')}
-        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Critical Prop.')}
-        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','High Prop.')}
+        ${_sth(thS13b,'Site Name')}
+        ${_sth(thS13b,'City')}
+        ${_sth(thS13b,'Country')}
+        ${_sth(thS13b,'Age')}
+        <th style="${thS13b}cursor:help;" title="Number of systems at this site with an Active IQ propensity score of CRITICAL — NetApp's highest-priority churn/expansion signal.">Critical Prop.</th>
+        <th style="${thS13b}cursor:help;" title="Number of systems at this site with an Active IQ propensity score of HIGH.">High Prop.</th>
       </tr></thead><tbody>`;
     sites.forEach(s => {
       html += `<tr>
@@ -21189,18 +21218,23 @@ function _renderAsBuiltSection(systems) {
             const meaningfulMonths = s.clusterMonthlyCapacity.filter(c => (c.rawTB && c.rawTB > 0) || (c.usedTB && c.usedTB > 0));
             if (meaningfulMonths.length > 0) {
                 // Check if any month has used data — if not, derive from raw × utilPct where possible
-                const hasAnyUsed = meaningfulMonths.some(c => c.usedTB && c.usedTB > 0);
+                const monthUsed = meaningfulMonths.map(c => {
+                    let v = c.usedTB || 0;
+                    if (v === 0 && c.rawTB > 0 && c.utilPct > 0) v = c.rawTB * c.utilPct / 100.0;
+                    return v;
+                });
+                const hasAnyUsed = monthUsed.some(v => v > 0);
                 const hasAnyUtil = meaningfulMonths.some(c => c.utilPct && c.utilPct > 0);
-                monthlyCapHtml = '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Month</th><th style="' + thStyle + '">Used (TB)</th><th style="' + thStyle + '">Raw (TB)</th>' + (hasAnyUtil ? '<th style="' + thStyle + '">Utilization</th>' : '') + '</tr>'
-                    + meaningfulMonths.map(c => {
-                        let usedVal = c.usedTB || 0;
-                        // Derive used from raw × utilPct if usedTB is 0 but utilPct exists
-                        if (usedVal === 0 && c.rawTB > 0 && c.utilPct > 0) {
-                            usedVal = c.rawTB * c.utilPct / 100.0;
-                        }
-                        const usedStr = usedVal > 0 ? parseFloat(usedVal).toFixed(2) + ' TB' : emptyDash;
+                // Active IQ's monthlyCapacity.physical.usedKiB is genuinely null for every
+                // month on some accounts (confirmed live: raw/marketing capacity has full
+                // history, used capacity does not) — showing a column of nothing but "—"
+                // is noise, not data, so drop the column and say why instead of repeating dashes.
+                monthlyCapHtml = (!hasAnyUsed ? '<div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px;">Active IQ reports raw/marketing capacity history for this cluster but has not returned monthly used-capacity — Used (TB) column omitted.</div>' : '')
+                    + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Month</th>' + (hasAnyUsed ? '<th style="' + thStyle + '">Used (TB)</th>' : '') + '<th style="' + thStyle + '">Raw (TB)</th>' + (hasAnyUtil ? '<th style="' + thStyle + '">Utilization</th>' : '') + '</tr>'
+                    + meaningfulMonths.map((c, i) => {
+                        const usedStr = monthUsed[i] > 0 ? parseFloat(monthUsed[i]).toFixed(2) + ' TB' : emptyDash;
                         const utilStr = c.utilPct ? parseFloat(c.utilPct).toFixed(1) + '%' : emptyDash;
-                        return '<tr><td style="' + tdStyle + '">' + valOrDash(c.month) + '</td><td style="' + tdStyle + '">' + usedStr + '</td><td style="' + tdStyle + '">' + _fmtTB(c.rawTB) + '</td>' + (hasAnyUtil ? '<td style="' + tdStyle + '">' + utilStr + '</td>' : '') + '</tr>';
+                        return '<tr><td style="' + tdStyle + '">' + valOrDash(c.month) + '</td>' + (hasAnyUsed ? '<td style="' + tdStyle + '">' + usedStr + '</td>' : '') + '<td style="' + tdStyle + '">' + _fmtTB(c.rawTB) + '</td>' + (hasAnyUtil ? '<td style="' + tdStyle + '">' + utilStr + '</td>' : '') + '</tr>';
                     }).join('')
                     + '</table>';
             }
@@ -21449,11 +21483,11 @@ function _renderAsBuiltSection(systems) {
                     <div style="display:flex; gap:32px; flex-wrap:wrap;">
                         <div style="flex:1; min-width:250px;">
                             <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Security Bulletins (${secBulls.length})</div>
-                            ${secBulls.length > 0 ? secBulls.slice(0, 10).map(b => '<div style="font-size:0.82rem; margin-bottom:4px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03);">[' + (b.severity || 'N/A') + '] ' + (b.id || '') + ': ' + (b.title || '') + '</div>').join('') : '<div style="font-size:0.82rem; color:var(--text-muted);">None reported</div>'}
+                            ${secBulls.length > 0 ? secBulls.slice(0, 10).map(b => '<div style="font-size:0.82rem; margin-bottom:6px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03);"><span style="' + getBadgeStyle(b.severity) + '">' + (b.severity || 'N/A') + '</span> <strong>' + (b.id || '') + '</strong>: ' + (b.title || 'No title reported') + '</div>').join('') : '<div style="font-size:0.82rem; color:var(--text-muted);">None reported</div>'}
                         </div>
                         <div style="flex:1; min-width:250px;">
                             <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Security-Related Risks (${secRisks.length})</div>
-                            ${secRisks.length > 0 ? secRisks.slice(0, 10).map(r => '<div style="font-size:0.82rem; margin-bottom:4px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03);">[' + (r.severity || 'N/A') + '] ' + (r.title || '') + '</div>').join('') : '<div style="font-size:0.82rem; color:var(--text-muted);">None reported</div>'}
+                            ${secRisks.length > 0 ? secRisks.slice(0, 10).map(r => '<div style="font-size:0.82rem; margin-bottom:6px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03);"><span style="' + getBadgeStyle(r.severity) + '">' + (r.severity || 'N/A') + '</span> ' + (r.description || 'No description reported') + '</div>').join('') : '<div style="font-size:0.82rem; color:var(--text-muted);">None reported</div>'}
                         </div>
                     </div>
                 </div>
@@ -21859,17 +21893,19 @@ function _renderAsBuiltSection(systems) {
                 + '</table></div>';
         }
 
+        const opHealthEmpty = !s.monthlyAutoResolvedCases && !dtHtml && !uptimeHtml;
         html += `
             <details open style="border:1px solid rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
                 <summary style="padding:10px 16px; background:rgba(255,255,255,0.025); font-weight:600; cursor:pointer; font-size:0.9rem;">Operational Health & Uptime</summary>
                 <div style="padding:16px;">
+                    ${opHealthEmpty ? '<div style="font-size:0.8rem; color:var(--text-muted);">Not reported by Active IQ for this system — no auto-resolved case, downtime, or uptime telemetry available.</div>' : `
                     <table style="${tblStyle}">
                         <tr>
                             <th style="${thStyle}">Auto-Resolved Cases</th><td style="${tdStyle}">${valOrDash(s.monthlyAutoResolvedCases)}</td>
                         </tr>
                     </table>
                     ${dtHtml}
-                    ${uptimeHtml}
+                    ${uptimeHtml}`}
                 </div>
             </details>
         `;
@@ -21895,7 +21931,7 @@ function _renderAsBuiltSection(systems) {
             <details open style="border:1px solid rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
                 <summary style="padding:10px 16px; background:rgba(255,255,255,0.025); font-weight:600; cursor:pointer; font-size:0.9rem;">Sustainability & Carbon</summary>
                 <div style="padding:16px;">
-                    ${!sustScoresHtml && !carbonHtml ? '<div style="font-size:0.8rem; color:var(--text-muted);">No sustainability data available</div>' : ''}
+                    ${!sustScoresHtml && !carbonHtml ? '<div style="font-size:0.8rem; color:var(--text-muted);">Not reported by Active IQ for this system — sustainability/carbon telemetry requires Data Infrastructure Insights or a NetApp Sustainability workbook integration.</div>' : ''}
                     ${sustScoresHtml}
                     ${carbonHtml}
                 </div>
@@ -21907,18 +21943,25 @@ function _renderAsBuiltSection(systems) {
         if (allRisksLocal.length > 0) {
             let riskCounts = { 'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0 };
             allRisksLocal.forEach(r => {
-                const sev = r.severity || 'Unknown';
-                if (riskCounts[sev] !== undefined) riskCounts[sev]++;
-                else riskCounts['Unknown']++;
+                // r.severity is normalized to lowercase in normRisk() — match case-insensitively
+                // rather than against the capitalized keys, else every risk falls into 'Unknown'.
+                const sevRaw = (r.severity || 'unknown').toLowerCase();
+                const sevKey = Object.keys(riskCounts).find(k => k.toLowerCase() === sevRaw);
+                riskCounts[sevKey || 'Unknown']++;
             });
-            
+
             const countSummary = Object.entries(riskCounts).filter(([k,v]) => v > 0).map(([k,v]) => k + ': ' + v).join(' | ');
-            
-            const displayRisks = allRisksLocal.slice(0, 20);
-            
+
+            // Sort highest-severity first so the truncated top-20 view surfaces what matters most.
+            const _sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
+            const sortedRisks = [...allRisksLocal].sort((a, b) =>
+                (_sevRank[(a.severity || '').toLowerCase()] ?? 9) - (_sevRank[(b.severity || '').toLowerCase()] ?? 9));
+            const displayRisks = sortedRisks.slice(0, 20);
+
+            // normRisk() has no `title` field — the free-text summary lives in `description`.
             allRisksHtml = '<div style="margin-bottom:12px; font-size:0.8rem;"><strong>Risk Summary:</strong> ' + countSummary + '</div>'
-                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Severity</th><th style="' + thStyle + '">Category</th><th style="' + thStyle + '">Title</th></tr>'
-                + displayRisks.map(r => '<tr><td style="' + tdStyle + '"><span style="' + getBadgeStyle(r.severity) + '">' + valOrDash(r.severity) + '</span></td><td style="' + tdStyle + '">' + valOrDash(r.category) + '</td><td style="' + tdStyle + '">' + valOrDash(r.title) + '</td></tr>').join('');
+                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Severity</th><th style="' + thStyle + '">Category</th><th style="' + thStyle + '">Description</th></tr>'
+                + displayRisks.map(r => '<tr><td style="' + tdStyle + '"><span style="' + getBadgeStyle(r.severity) + '">' + valOrDash(r.severity) + '</span></td><td style="' + tdStyle + '">' + valOrDash(r.category) + '</td><td style="' + tdStyle + '">' + valOrDash(r.description) + '</td></tr>').join('');
             
             if (allRisksLocal.length > 20) {
                 allRisksHtml += '<tr><td colspan="3" style="' + tdStyle + ' text-align:center; color:var(--text-muted);">...and ' + (allRisksLocal.length - 20) + ' more</td></tr>';
