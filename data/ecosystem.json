@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "_lastUpdated": "2026-08-06",
+  "_lastUpdated": "2026-08-10",
   "sources": {
     "github_netapp": {
       "totalRepos": 12,
-      "lastChecked": "2026-08-06",
+      "lastChecked": "2026-08-10",
       "repos": [
         {
           "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
@@ -45,7 +45,7 @@
       ]
     },
     "pypi": {
-      "lastChecked": "2026-08-06",
+      "lastChecked": "2026-08-10",
       "packages": {
         "netapp-ontap": {
           "version": "9.18.1.0",
@@ -58,7 +58,7 @@
       }
     },
     "ansible_galaxy": {
-      "lastChecked": "2026-08-06",
+      "lastChecked": "2026-08-10",
       "collections": {
         "netapp.ontap": {
           "version": "23.6.0",
@@ -79,7 +79,7 @@
       }
     },
     "terraform": {
-      "lastChecked": "2026-08-06",
+      "lastChecked": "2026-08-10",
       "providers": {
         "NetApp/netapp-ontap": {
           "version": "2.7.1",
@@ -92,7 +92,7 @@
       }
     },
     "cloud_providers": {
-      "lastChecked": "2026-08-06",
+      "lastChecked": "2026-08-10",
       "providers": {
         "aws_fsx_ontap": {
           "name": "Amazon FSx for NetApp ONTAP",
