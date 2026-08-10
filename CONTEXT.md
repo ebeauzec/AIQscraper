@@ -126,7 +126,7 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 | `README.md` | Comprehensive user & developer manual (790+ lines) |
 | `CHANGELOG.md` | Full release history (v1.0.0 through v4.0.2) |
 | `LEGAL.md` | IP ownership declaration |
-| `LICENSE` | Proprietary license (Eugene Beauzec, non-commercial free, commercial requires consent) |
+| `LICENSE` | Proprietary license (Obi1 - FZCO, non-commercial free, commercial requires consent) |
 
 ### Development / Debug Tools (~30 files)
 

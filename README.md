@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.5.1-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.5.2-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -9,6 +9,8 @@
 > **ARIA** (**A**ctive IQ **R**isk **I**ntelligence **A**dvisor) — One tool. Your entire fleet. Customer-ready deliverables. In under two minutes.
 >
 > Built for NetApp Technical Account Managers, Sales Engineers, and Managed Service Providers who need to walk into every customer meeting fully prepared — with real data, real risks, and ready-to-share reports.
+>
+> Equally built for **large enterprise end-customers** running NetApp storage at scale — internal storage/infrastructure teams who need a single fleet-wide operational view across hundreds of clusters, business units, or sites, without living inside Active IQ's per-system UI or maintaining a separate spreadsheet of contracts, EOA/EOS dates, and CVE exposure.
 
 ---
 
@@ -31,7 +33,12 @@
 
 ## 1. Why This Tool — vs. Active IQ Directly
 
-Active IQ is excellent for monitoring a single customer. This tool is built for TAMs, SEs, and MSPs who manage **multiple customers and large mixed portfolios** — where Active IQ's UI quickly becomes a bottleneck.
+Active IQ is excellent for monitoring a single customer. This tool is built for two overlapping audiences where Active IQ's per-customer, per-system UI quickly becomes a bottleneck:
+
+- **TAMs, SEs, and MSPs** who manage **multiple customers and large mixed portfolios** across many separate Active IQ accounts
+- **Large enterprise end-customers** who manage their **own** fleet directly — hundreds or thousands of NetApp systems across data centers, business units, or regions, all under one account, where the bottleneck isn't "too many customers" but "too many systems to review one at a time"
+
+Everything below applies to both: a TAM scoping a report to one customer and an enterprise storage architect scoping the same dashboard to one business unit or site are doing the same operation against the same data model.
 
 ### What Active IQ gives you
 
@@ -66,6 +73,10 @@ Active IQ is excellent for monitoring a single customer. This tool is built for 
 3. **Contract and renewal pipeline management** — surfacing all expiring contracts across the entire portfolio in one view, ranked by urgency
 4. **MSP monthly reporting at scale** — generating per-customer service reports across 20+ customers in minutes rather than hours
 5. **Change management readiness** — producing ITIL-formatted CLI runbooks for CAB submission, not just a list of risks
+6. **Enterprise fleet-wide governance** — a storage architecture, infrastructure, or platform-engineering team running its own multi-thousand-system NetApp estate can scope the same dashboard by data center, business unit, or environment tag instead of by customer, and get the same cross-fleet CVE, capacity, licensing, and lifecycle visibility a TAM gets across customers
+7. **Internal audit and compliance evidence** — the Security Posture Executive Brief, License Compliance report, and Feature Adoption matrix double as ready-made evidence for internal security reviews, license true-ups, and ITAM/CMDB reconciliation at enterprise scale — without a separate BI or reporting layer
+
+> **A note on scale:** every fleet-wide view — capacity projection, CVE cross-reference, ARP/adoption audit, contract pipeline — runs the same aggregation logic whether it's scoped to one customer's 50 systems or an enterprise's 5,000. The dashboard, SQLite cache, and deliverable generators were built and tested against multi-hundred-system portfolios; there is no per-customer ceiling baked into the data model.
 
 ---
 
@@ -227,6 +238,24 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 ---
 
+### Enterprise Fleet Operations (Large End-Customer Environments)
+
+**Goal:** For an enterprise running its own NetApp estate — not a TAM/MSP managing someone else's — get a single operational view across the entire fleet without navigating Active IQ system-by-system, and produce the internal reporting (security posture, license compliance, capacity runway, feature adoption) that storage operations, security, and IT leadership actually need.
+
+**Typical scope:** hundreds to thousands of ONTAP/StorageGRID/E-Series systems across multiple data centers, business units, or regions, all under a single Active IQ account (or a small number of accounts/watchlists).
+
+**Workflow:**
+1. Sync once — the entire estate is harvested in a single pass, no per-site or per-cluster setup
+2. Use the **Customer Filter** / account-group scoping to slice the fleet by data center, business unit, or environment (prod/DR/dev) instead of by external customer
+3. Use **Technical Audit** for fleet-wide CVE and risk triage across the whole estate — the same per-system CVE cross-referencing a TAM uses across customers works identically across your own business units
+4. Use **Action Planner → Tab 17** (Feature Adoption) and the **Licensed Feature Adoption** table in the License Compliance deliverable to see which security/data-protection features (ARP, SnapMirror, FabricPool) are licensed but not actually enabled fleet-wide — a common gap in large estates where licensing and configuration drift apart over time
+5. Generate the **Security Posture Executive Brief** and **Sustainability & ESG Report** for internal security/compliance and ESG reporting cadences — these don't require a "customer" in the TAM sense, just a scope
+6. Use the **Contract Compliance** and **Contracts & Lifecycle** tabs for internal hardware refresh budgeting across the full estate, ranked by urgency, instead of tracking EOA/EOS dates in a separate spreadsheet
+
+**Output:** The same fleet-wide capacity, security, licensing, and lifecycle intelligence a TAM produces per customer, applied instead to an enterprise's own multi-site, multi-business-unit NetApp footprint — plus deliverables (Security Posture Brief, License Compliance Report, Sustainability Report) that map directly onto internal audit, compliance, and budgeting cycles rather than customer-facing QBRs.
+
+---
+
 ## 4. Getting Started
 
 ### Prerequisites
@@ -359,22 +388,24 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 > **SVM/LIF Inventory:** All 13 deliverables now include **SVM/LIF inventory sections** when vserver data is available.
 
+> **Enterprise end-customers:** the "Audience" column below reflects the TAM/MSP naming used throughout the tool, but every deliverable is scope-agnostic — it renders from whatever systems are in scope, whether that's one external customer or one internal business unit. In an enterprise deployment, map TAM → storage/infrastructure lead, Sales/MSP → internal IT leadership or procurement, and CISO/Security stays CISO/Security. **H** (Security Posture), **I** (Sustainability & ESG), and **L**'s SLA/capacity structure (renamed internally to an Ops Report) are the most directly reusable as-is for internal enterprise reporting.
+
 | ID | Deliverable | Audience | Contents |
 |---|---|---|---|
-| **A** | **Executive Risk Assessment** | TAM | Fleet health summary, key risks, operational health scorecard, prioritized corrective actions, account team context |
-| **B** | **ITIL Change Control & Dispatch Tickets** | TAM / Change Mgmt | Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands |
-| **C** | **CLI Runbooks & Upgrade Execution Plans** | Implementation Eng | Copy-paste ONTAP CLI commands, multi-hop upgrade paths, platform-specific checks |
+| **A** | **Executive Risk Assessment** | TAM / Enterprise IT Leadership | Fleet health summary, key risks, operational health scorecard, prioritized corrective actions, account team context |
+| **B** | **ITIL Change Control & Dispatch Tickets** | TAM / Change Mgmt / Enterprise Change Advisory Board | Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands |
+| **C** | **CLI Runbooks & Upgrade Execution Plans** | Implementation Eng / Enterprise Storage Ops | Copy-paste ONTAP CLI commands, multi-hop upgrade paths, platform-specific checks |
 | **D** | **Customer Advisory & QBR Communications** | TAM | Advisory email template with health snapshot, sustainability score, lifecycle milestones, QBR executive summary |
-| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions | Solution design with prioritized corrections, OS upgrade targets, phased implementation timeline |
+| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions / Enterprise Architecture | Solution design with prioritized corrections, OS upgrade targets, phased implementation timeline |
 | **F** | **Sales Refresh & Renewal Proposals** | Sales Rep | Contract renewals, lifecycle refresh candidates, security/compliance upsell opportunities |
 | **G** | **MEDDPICC Deal Intelligence Brief** | Sales | Account health score, feature adoption, cost of inaction, champion mapping, competitive positioning |
 | **H** | **Security Posture Executive Brief** | CISO / Security | CVE remediation matrix, ARP/encryption coverage, NIST CSF 2.0 alignment, feature gap analysis |
 | **I** | **Sustainability & ESG Report** | Exec / ESG | Fleet sustainability score, carbon/energy metrics, data reduction impact, optimization roadmap |
 | **J** | **TAM Success & Posture Optimization Plan** | TAM | Phased TAM roadmap, ITIL governance guidelines, full KB enrichment by category |
 | **K** | **TAM Quarterly Business Review (QBR) Pack** | TAM / Exec | KPI scorecard, risk trend, resolved cases, open action items, upgrade roadmap, sustainability metrics |
-| **L** | **MSP Service Delivery Report** | MSP | SLA compliance matrix, incident management, contract portfolio, capacity efficiency analysis |
-| **M** | **Account Handover & Transition Brief** | TAM Transitions | Environment inventory, personnel, risk posture, contract status, recent activity, talking points |
-| — | **Fleet Inventory CSV** | Data Export | Complete system inventory with all enriched fields, exportable to Excel |
+| **L** | **MSP Service Delivery Report** | MSP / Enterprise Storage Ops Reporting | SLA compliance matrix, incident management, contract portfolio, capacity efficiency analysis |
+| **M** | **Account Handover & Transition Brief** | TAM Transitions / Enterprise Onboarding | Environment inventory, personnel, risk posture, contract status, recent activity, talking points |
+| — | **Fleet Inventory CSV** | Data Export / ITAM / CMDB Reconciliation | Complete system inventory with all enriched fields, exportable to Excel |
 | — | **Config State JSON** | Backup | Full application configuration state for import/export across environments |
 
 ---
@@ -554,8 +585,8 @@ The tool maintains a **live security advisory database** in [`security_bulletins
 
 | Metric | Value |
 |--------|-------|
-| **Current advisory entries** | **69** (grows with each daily scan) |
-| **CISA KEV confirmed** | **2** (actively exploited in the wild) |
+| **Current advisory entries** | **70+** (grows with each daily scan) |
+| **CISA KEV confirmed** | **3** (actively exploited in the wild) |
 | **Coverage period** | 2024 – 2026 |
 | **Products covered** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, SAN Host Utilities, Active IQ Unified Manager |
 | **Database file** | `data/security_bulletins.json` — single source of truth |
@@ -738,7 +769,7 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 | **Sources** | NetApp PSIRT (NTAP advisories), MITRE CVE, NVD/NIST, CISA KEV, GitHub Security Advisories, NetApp KB, threat intelligence feeds |
 | **Severity range** | Critical through Low; CISA KEV-confirmed entries flagged 🚨 |
 | **Matching** | Per-system version-range matching — each advisory specifies affected and fixed version ranges; only systems in-range are flagged |
-| **Volume** | 80+ advisory entries across 90+ unique CVEs at last sync, growing with each Reference Library update. E-Series/SANtricity advisories now included alongside ONTAP and StorageGRID. |
+| **Volume** | 70+ advisory entries across 75+ unique CVEs at last sync, growing with each Reference Library update. E-Series/SANtricity advisories now included alongside ONTAP and StorageGRID. |
 
 ### Reference Library — Firmware Baselines
 
@@ -791,12 +822,12 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ### Ownership
 
-This Software is the **sole and exclusive intellectual property of Eugene Beauzec**.
-Copyright © 2025–2026 Eugene Beauzec. All Rights Reserved.
+This Software is the **sole and exclusive intellectual property of Obi1 - FZCO**.
+Copyright © 2025–2026 Obi1 - FZCO. All Rights Reserved.
 
 ### Independent Development
 
-This tool was developed **entirely independently** — on personal time, with personal resources, and without the involvement, direction, or funding of any employer or client, including NetApp, Inc. It does not contain or derive from any proprietary, confidential, or internal NetApp information, customer data, or trade secrets.
+This tool was developed **entirely independently** — on independent time, with independent resources, and without the involvement, direction, or funding of any employer or client, including NetApp, Inc. It does not contain or derive from any proprietary, confidential, or internal NetApp information, customer data, or trade secrets.
 
 NetApp is not affiliated with, sponsoring, or endorsing this Software. Product names referenced (NetApp®, ONTAP®, Active IQ®, etc.) are trademarks of their respective owners, used solely for interoperability documentation.
 
@@ -815,13 +846,13 @@ This is **not** an open-source or MIT-licensed project. All rights not expressly
 ### Attribution
 
 All permitted uses must retain this notice:
-> *Copyright © 2025–2026 Eugene Beauzec. All Rights Reserved.*
+> *Copyright © 2025–2026 Obi1 - FZCO. All Rights Reserved.*
 > *[LICENSE](LICENSE) · [LEGAL.md](LEGAL.md)*
 
 ---
 
 <p align="center">
   <strong>NetApp Active IQ Advisor Dashboard</strong><br>
-  Copyright &copy; 2025&ndash;2026 <strong>Eugene Beauzec</strong>. All Rights Reserved.<br>
+  Copyright &copy; 2025&ndash;2026 <strong>Obi1 - FZCO</strong>. All Rights Reserved.<br>
   <a href="LICENSE">Proprietary License</a> &middot; <a href="LEGAL.md">Legal &amp; IP</a> &middot; <a href="CHANGELOG.md">Changelog</a>
 </p>
