@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.0] - 2026-08-10
+
+### Fixed
+- **ARP (Anti-Ransomware Protection) and 8 other fields always "Unknown"/blank** — `isARPEnabled`, `systemState`, `lastRebootTime`, `originalShipDate`, `marketingType`, `storageConfiguration`, `autoUpdateSettings`, `sustainabilityScores`, and `vcenters` were only ever requested in the full ("TAM") GraphQL query tier. Accounts whose full query fails with a `Float cannot represent non numeric value: null` error (an unrelated percentage-field quirk) fall back to the reduced "Efficiency" tier, which never asked for these fields at all — so they were permanently blank for those accounts regardless of whether Active IQ actually had the data. Added them to the fallback tier. Confirmed live: 31 of 167 systems on the test account now correctly show ARP enabled, where the entire fleet previously showed "Unknown".
+- **Sustainability Scores panel built for the wrong data shape** — code expected a flat metric-name → score map; the live API actually returns a dated score-history array (`{scorePercentage, percentageChange, changeFactors, generatedDate}[]`). Now renders an actual timeline instead of never matching any data.
+- **Downtime Events shape mismatch** — `downtimeEvents` is an object (`{totalCount, events}`), not a bare array; code checked `.length` directly on the object, which is always `undefined`, so the line never rendered even when downtime events existed.
+
+### Investigated, deferred
+- The same audit found `licenses`, `pvrs`, `monthlyCarbonStats`, `monthlyAutoResolvedCases`, and per-event downtime detail also missing from both query tiers. Adding all of them in the same pass pushed the query over Active IQ's GraphQL field-count/depth limit, causing both the full and fallback tiers to fail and the harvester to drop all the way to the bare-minimum tier — a regression worse than the original bug. Reverted that portion; these fields need to go in as a smaller, separate change with field-count headroom budgeted.
+
+---
+
 ## [4.4.2] - 2026-08-10
 
 ### Fixed
