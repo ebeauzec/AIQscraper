@@ -1820,12 +1820,27 @@ def _do_full_harvest(watchlist_ids=None):
                 # When rcf == fw (or rcf is blank) the API has no upgrade recommendation
                 target_fw = rcf if (rcf and rcf != fw) else ""
 
+                # ── RCF (Reference Configuration File) compliance ──────────────
+                # rcfVersion is harvested and already used to compute target_fw
+                # above, but was never surfaced as its own explicit signal — a
+                # switch running the wrong RCF is a real compliance gap distinct
+                # from "firmware is outdated". True = current fw matches the RCF
+                # NetApp has on file; False = a mismatch was detected; None =
+                # Active IQ hasn't reported an RCF version for this switch at all
+                # (can't assess compliance, not the same as "non-compliant").
+                if not rcf:
+                    rcf_compliant = None
+                else:
+                    rcf_compliant = (rcf == fw)
+
                 switches.append({
                     "type":              sw_role,
                     "model":             sw_model,
                     "serialNumber":      sw_serial if sw_serial else "Not available",
                     "firmware":          fw  if fw  else "Not reported",
                     "targetFirmware":    target_fw,   # "" → UI shows "N/A"
+                    "rcfVersion":        rcf if rcf else "",
+                    "rcfCompliant":      rcf_compliant,
                     "status":            status,
                     "ipAddress":         sw_ip,
                     "validationDetails": validation,

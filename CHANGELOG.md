@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.7.2] - 2026-08-10
+
+### Added
+- **RCF (Reference Configuration File) compliance signal** — `server.py` now derives an explicit `rcfCompliant` (true/false/unknown) field from Active IQ's already-harvested `rcfVersion`, previously only used indirectly to compute a firmware upgrade target. Switch Validation tab shows an explicit RCF Compliant / RCF Mismatch badge, distinct from firmware currency — a switch can be current on firmware while still running the wrong RCF.
+
+### Fixed / Confirmed
+- **FAS8300/FAS8700** get their own confirmed 7-PCIe-slot-per-controller backplate layout — previously guessed into the 5-slot A400 bucket alongside C400 and FAS9000.
+- **C400** confirmed to genuinely match A400's 5-slot layout. **FAS9000** confirmed at 10 slots/controller (matching A900), sourced from a NetApp datasheet PDF rather than a live key-specs page since FAS9000 predates the current documentation format — labeled as a lower-confidence confirmation in the UI.
+- **MetroCluster ISL max-distance figures refined** — IP (700km) and the blanket FC figure (300km) are confirmed by primary sources (NetApp's own ISL requirements page + TR-4705). The FC-Brocade-vs-FC-Other 200km split could not be found in any current NetApp primary source (only a forum thread and an older FAQ PDF) and is now explicitly flagged unconfirmed in-code rather than silently presented as fact.
+- **E-Series per-port telemetry empty state clarified** — Active IQ's `networkPorts` field only exists on the `ONTAPSystem` GraphQL type; E-Series/SANtricity systems genuinely never have per-port Ethernet data available. The Cabling Audit Table now explains this explicitly instead of showing a generic "not reported" message.
+
+---
+
 ## [4.7.1] - 2026-08-10
 
 ### Fixed
