@@ -1,8 +1,8 @@
 {
-  "version": "4.4.1",
+  "version": "4.4.2",
   "major": 4,
   "minor": 4,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-10",
-  "notes": "Fixed Risk & Advisory Register severity counts: normRisk() lowercases severity (\"high\"/\"medium\") but the As-Built count table compared against capitalized keys, so every risk was miscounted as 'Unknown' despite each row showing the correct badge -- now matches case-insensitively. Fixed the As-Built Risk Register and Security Posture panels rendering blank risk titles: normRisk() has no `title` field, only `description` -- both panels now show the real description text instead of empty brackets like '[medium]'. Investigated the blank Monthly Capacity 'Used (TB)' column down to the live Active IQ API: confirmed this account's systems query falls back to a reduced field set (full query errors with 'Float cannot represent non numeric value: null'), and even the separate cluster-level monthlyCapacity query returns usedKiB=null for every month while rawMarketingKiB is populated -- Active IQ genuinely does not return historical used-capacity for this account. Added a per-month cluster-level fallback in server.py for cases where it does exist, and the UI now states explicitly when the column is unavailable instead of rendering a wall of dashes. Added tooltips explaining Active IQ's proprietary Propensity score (CRITICAL/HIGH/MEDIUM/LOW) is computed entirely inside Active IQ, not by this tool."
+  "notes": "As-Built section (system detail view): dates that come from the API as full ISO-8601 timestamps (e.g. End of Full/Ltd Support, End of Self-Service) were rendered with the raw time-of-day and timezone suffix ('2027-07-31T00:00:00.000Z') instead of just the date. Fixed at the shared valOrDash() formatter used throughout the As-Built section so every date field there now shows day/month/year only."
 }

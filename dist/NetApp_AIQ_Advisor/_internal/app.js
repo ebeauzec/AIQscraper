@@ -18,9 +18,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.4.1";
+const APP_VERSION = "4.4.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.4.2",
+    date: "10 August 2026",
+    title: "As-Built Dates: Strip Raw Timestamps",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Timestamps Shown Instead of Dates",
+        color: "#f87171",
+        items: [
+          "End of Full Support, End of Ltd Support, End of Self-Service and other As-Built date fields showed the raw API timestamp (\"2027-07-31T00:00:00.000Z\") instead of just the date",
+          "Fixed at the shared date formatter for the As-Built section — every date field there now shows day/month/year only, no time-of-day or timezone suffix"
+        ]
+      }
+    ]
+  },
   {
     version: "4.4.1",
     date: "10 August 2026",
@@ -21011,7 +21027,11 @@ function _renderAsBuiltSection(systems) {
     };
 
     const emptyDash = '<span style="color:var(--text-muted)">\u2014</span>';
-    const valOrDash = (val) => (val !== undefined && val !== null && val !== '') ? val : emptyDash;
+    // Strip the time-of-day portion from any ISO-8601 timestamp (e.g. "2027-07-31T00:00:00.000Z"
+    // -> "2027-07-31") \u2014 this tool only ever cares about the date, and the raw timestamp (always
+    // midnight UTC from the API anyway) just adds visual noise.
+    const _stripTime = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) ? v.substring(0, 10) : v;
+    const valOrDash = (val) => (val !== undefined && val !== null && val !== '') ? _stripTime(val) : emptyDash;
     const emailLink = (name, email) => {
         let out = valOrDash(name);
         if (email) out += ' (<a href="mailto:' + email + '" style="color:var(--accent-cyan);">' + email + '</a>)';

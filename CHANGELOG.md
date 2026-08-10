@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.4.2] - 2026-08-10
+
+### Fixed
+- **As-Built section raw timestamps** — date fields sourced as full ISO-8601 strings from the API (`End of Full Support`, `End of Ltd Support`, `End of Self-Service`, etc.) rendered with the raw time-of-day and timezone suffix (`2027-07-31T00:00:00.000Z`) instead of just the date. Fixed at the shared `valOrDash()` formatter used throughout the As-Built section, so every date there now shows day/month/year only.
+
+---
+
 ## [4.4.1] - 2026-08-10
 
 ### Fixed
