@@ -18,9 +18,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.3.2";
+const APP_VERSION = "4.4.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.4.0",
+    date: "10 August 2026",
+    title: "Auto-Discovery Enrichment + Fixed Fabricated Integration Data",
+    sections: [
+      {
+        icon: "🔭",
+        label: "New: Intelligent Auto-Discovery",
+        color: "#2dd4bf",
+        items: [
+          "New enrichment scanner uses docs.netapp.com's real sitemap.xml to automatically discover new NetApp product/integration documentation every scheduled cycle — no code changes needed as NetApp adds new products",
+          "13 new verified integration sources added: JetStream DR, Splunk, Datadog, Microsoft Sentinel/SOAR, ServiceNow, IBM Db2, Red Hat OpenShift, and more"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Fabricated 3rd-Party Integration Data",
+        color: "#f87171",
+        items: [
+          "getSystemIntegrations() previously invented an entire fake technology stack (VMware/Oracle/Commvault, OpenStack/NVIDIA AI/Hadoop, etc.) from a hash of the serial number and presented it as real Active IQ telemetry on every live system",
+          "Active IQ has no field exposing this data — now honestly shows 'Not Reported by Active IQ' instead of fabricating vendor claims, which also correctly stops all the downstream fake recommendations from appearing"
+        ]
+      }
+    ]
+  },
   {
     version: "4.3.2",
     date: "10 August 2026",
@@ -9792,139 +9817,23 @@ function getSystemSwitches(sys) {
 }
 
 function getSystemIntegrations(sys) {
+  // sys.integrations is never actually populated by the harvester — Active IQ's
+  // GraphQL API has no field exposing which hypervisor/database/backup software
+  // is attached to a system. This function previously derived a fake technology
+  // stack from `parseInt(serialNumber) % 5` — a deterministic hash with zero
+  // connection to reality — and presented it (VMware/Oracle/Commvault, OpenStack/
+  // NVIDIA AI BasePOD/etc.) as if detected from real telemetry, for every real
+  // customer system. Kept the passthrough in case a future API version adds
+  // this data; everywhere else, honestly report it as not available rather
+  // than fabricate a vendor stack.
   if (sys.integrations) return sys.integrations;
-  
-  const seed = parseInt(sys.serialNumber) || 0;
-  
-  let virtualization = { type: "None", version: "", status: "Not Configured", plugin: "None", multipathing: "None" };
-  let database = { type: "None", version: "", status: "Not Configured", details: "None" };
-  let backup = { type: "None", version: "", status: "Not Configured", details: "None" };
-  
-  const modVal = seed % 5;
-  
-  if ((sys.platformType || '').includes("StorageGRID") || (sys.platformType || '').includes("SG")) {
-    virtualization = {
-      type: "OpenStack Swift Object",
-      version: "Bobcat (v28.0)",
-      status: "Optimal",
-      plugin: "StorageGRID Keystone integration",
-      multipathing: "N/A (HTTPS Object)"
-    };
-    database = {
-      type: "Apache Spark / Hadoop S3A",
-      version: "v3.5.0",
-      status: "Configured",
-      details: "S3A connector configured for high-concurrency object access"
-    };
-    backup = {
-      type: "Commvault Metallic SaaS",
-      version: "SaaS Enterprise",
-      status: "Optimal",
-      details: "S3 Object lock enabled for WORM compliance storage tier"
-    };
-  } else if (modVal === 0) {
-    virtualization = {
-      type: "VMware vSphere",
-      version: "8.0 Update 2",
-      status: "Optimal",
-      plugin: "ONTAP Tools for VMware (VASA v10.1)",
-      multipathing: "VMW_PSP_RR (Round Robin)"
-    };
-    database = {
-      type: "Oracle Database (RAC)",
-      version: "19c (19.21)",
-      status: "Configured (dNFS)",
-      details: "Direct NFS client active on 25GbE network channels"
-    };
-    backup = {
-      type: "Commvault IntelliSnap",
-      version: "v11.32 SP3",
-      status: "Optimal",
-      details: "IntelliSnap NetApp engine configured with hardware snapshots"
-    };
-  } else if (modVal === 1) {
-    virtualization = {
-      type: "Microsoft Hyper-V",
-      version: "Windows Server 2022",
-      status: "Optimal",
-      plugin: "ONTAP VSS Provider for Hyper-V",
-      multipathing: "Microsoft MPIO (Round Robin)"
-    };
-    database = {
-      type: "MS SQL Server",
-      version: "2022 Enterprise",
-      status: "Optimal",
-      details: "SnapCenter MSSQL Plug-in v5.0 active with dynamic restores"
-    };
-    backup = {
-      type: "Veritas NetBackup",
-      version: "v10.3",
-      status: "Configured",
-      details: "NetBackup snapshot manager agent deployed on array"
-    };
-  } else if (modVal === 2) {
-    virtualization = {
-      type: "Kubernetes (EKS / OpenShift)",
-      version: "v1.29",
-      status: "Optimal",
-      plugin: "NetApp Astra Trident CSI v24.02",
-      multipathing: "N/A (CSI Managed)"
-    };
-    database = {
-      type: "SAP HANA",
-      version: "2.0 SPS07",
-      status: "Configured",
-      details: "NFSv4.1 partitions configured with HANA System Replication (HSR)"
-    };
-    backup = {
-      type: "Veeam Backup & Replication",
-      version: "v12.1",
-      status: "Configured",
-      details: "ONTAP hardware snapshot and SnapMirror replication orchestration"
-    };
-  } else if (modVal === 3) {
-    virtualization = {
-      type: "OpenStack Cinder",
-      version: "Antelope (v2023.2)",
-      status: "Optimal",
-      plugin: "ONTAP Cinder Unified Driver",
-      multipathing: "Multipathd (iSCSI ALUA)"
-    };
-    database = {
-      type: "Apache Spark / PostgreSQL",
-      version: "v15.4",
-      status: "Configured",
-      details: "Spark streaming analytics using ONTAP S3 object storage buckets"
-    };
-    backup = {
-      type: "NetApp SnapCenter",
-      version: "v5.0",
-      status: "Optimal",
-      details: "Native application-consistent snapshot & clone orchestrator"
-    };
-  } else {
-    virtualization = {
-      type: "NVIDIA AI BasePOD",
-      version: "Kubeflow / Slurm v23.02",
-      status: "Optimal",
-      plugin: "Astra Trident CSI + GPUDirect Storage (GDS)",
-      multipathing: "NFS over RDMA (RoCEv2)"
-    };
-    database = {
-      type: "AI/ML Training Pipeline",
-      version: "PyTorch / TensorFlow",
-      status: "Configured",
-      details: "Massive scale parallel read dataset streaming on local NFS mount points"
-    };
-    backup = {
-      type: "Commvault Metallic SaaS",
-      version: "SaaS Enterprise",
-      status: "Optimal",
-      details: "Active backup targeting ONTAP S3 compliance bucket"
-    };
-  }
-  
-  return { virtualization, database, backup };
+
+  const notReported = { type: "Not Reported by Active IQ", version: "", status: "Unknown", plugin: "N/A", multipathing: "N/A", details: "N/A" };
+  return {
+    virtualization: { ...notReported },
+    database: { ...notReported },
+    backup: { ...notReported }
+  };
 }
 
 function getSystemWorkloadRecommendations(sys) {
@@ -10133,12 +10042,23 @@ function renderSAMTab() {
       backupAgg[ints.backup.type] = (backupAgg[ints.backup.type] || 0) + 1;
     });
     
+    // Active IQ's API doesn't expose per-system hypervisor/database/backup-software
+    // detection (see getSystemIntegrations()) — render an honest notice instead of
+    // a breakdown table when every system aggregates to "Not Reported by Active IQ".
+    const _aggFmt = (agg, label) => {
+      const keys = Object.keys(agg);
+      if (keys.length === 1 && keys[0] === 'Not Reported by Active IQ') {
+        return `<div style="color: var(--text-muted); font-style: italic;">Not reported by Active IQ API for these systems — verify on-cluster via CLI.</div>`;
+      }
+      return Object.entries(agg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} system${v !== 1 ? 's' : ''}</div>`).join("");
+    };
+
     document.getElementById("samWorkloadVirtualization").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Orchestration & Hypervisors</h5>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-        ${Object.entries(hypervisorAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} systems</div>`).join("")}
+        ${_aggFmt(hypervisorAgg)}
       </div>
     `;
 
@@ -10147,7 +10067,7 @@ function renderSAMTab() {
         <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Database & Workload</h5>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-        ${Object.entries(databaseAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} systems</div>`).join("")}
+        ${_aggFmt(databaseAgg)}
       </div>
     `;
 
@@ -10156,7 +10076,7 @@ function renderSAMTab() {
         <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Data Protection & Backup</h5>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-        ${Object.entries(backupAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} systems</div>`).join("")}
+        ${_aggFmt(backupAgg)}
       </div>
     `;
 
