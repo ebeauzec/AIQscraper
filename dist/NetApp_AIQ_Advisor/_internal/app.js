@@ -18,9 +18,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.1";
+const APP_VERSION = "4.2.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.2.2",
+    date: "10 August 2026",
+    title: "Fixed: NVD API Key Sent via Wrong Transport",
+    sections: [
+      {
+        icon: "🔧",
+        label: "Server-Side Enrichment",
+        color: "#818cf8",
+        items: [
+          "fetch_cve_nvd() and _scan_nvd_netapp() appended apiKey as a URL query parameter — NVD API 2.0 only accepts it as an HTTP header, silently 404ing every call regardless of key validity",
+          "_enrich_fetch() now accepts extra_headers; confirmed live: NVD scan went from 'HTTP Error 404: Not Found' to a successful query"
+        ]
+      }
+    ]
+  },
   {
     version: "4.2.1",
     date: "10 August 2026",
