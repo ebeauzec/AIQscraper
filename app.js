@@ -12598,7 +12598,12 @@ function enrichSystemTelemetry(s) {
     || !!(s.nagpId);
 
   // 1. Dynamic Upgrade Recommendations
-  let upgrades = s.upgrades;
+  // For live data, always recompute fresh rather than trusting a pre-existing
+  // s.upgrades — a stale cached object (e.g. from an older harvest before this
+  // system's real osVersion/recommendedOSVersion were available) could silently
+  // report "Up to Date" forever since the !upgrades guard would skip recompute.
+  // Mock/non-live systems still respect their intentionally pre-set upgrades.
+  let upgrades = isLiveData ? null : s.upgrades;
   if (!upgrades && isLiveData && s.recommendedOSVersion) {
     // Live API path: use real recommended version from Active IQ
     const isUpToDate = s.recommendedOSVersion === osVer;
