@@ -1,8 +1,8 @@
 {
-  "version": "4.3.1",
+  "version": "4.3.2",
   "major": 4,
   "minor": 3,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-10",
-  "notes": "Improved the Operational Guidelines & Proceeding Steps section (Action Planner, Section 8): added an at-a-glance urgency banner, priority (P1-P4) badges on each action item sorted by urgency, and clickable jump-to-section links replacing plain 'see Section N' text references."
+  "notes": "Fixed a harvest crash ('NoneType' object has no attribute 'get') in the contract-renewals fetch, discovered by testing with a second Active IQ account that has zero accessible systems and no watchlists. Found and fixed 5 more instances of the same .get(key, default)-doesn't-apply-to-explicit-None bug across customers/sites/sustainability/osVersions parsing. Also documented (via live schema introspection) that the GraphQL 'watchlists' query field does not exist in the current API — the fallback code is harmless dead weight, not a functional path; REST discovery is the only channel that has ever worked."
 }
