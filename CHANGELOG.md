@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.3.0] - 2026-08-10
+
+### Added
+- **CISA KEV vs. acknowledged-risk cross-reference** — `riskInstances` query now requests `riskAcknowledgementInfo`; new `_check_acknowledged_risks_vs_kev()` flags every case where a TAM-acknowledged (accepted/deferred) risk's CVE has since appeared in CISA's Known Exploited Vulnerabilities catalog, meaning it's now under confirmed active exploitation rather than a theoretical rating. Surfaced as a dedicated alert block at the top of the Security Posture Executive Brief
+- **Precise CPE-based NVD matching** — `_search_nvd_for_version()` now queries NVD's `virtualMatchString` (Common Platform Enumeration) using NetApp's real, verified NVD Dictionary product names (`clustered_data_ontap`, `storagegrid`, `e-series_santricity_os_controller` — confirmed via live introspection, not guessed) as the primary match, supplementing the existing keyword search rather than replacing it, deduplicated by CVE ID
+- **NVD API key now used everywhere** — `scan_and_persist_advisories()`'s CVSS lookup and `_search_nvd_for_version()` previously ran unauthenticated (5 req/30s) even when a key was configured; both now read the key from `aiq_config.json` and pass it via the (correct, header-based) transport fixed in 4.2.2
+
+### Fixed
+- **Capacity enrichment gap: "Physical Used"/"Logical" permanently 0.00 TB** — the system-level API can populate `rawMarketingKiB`/`usablePerformanceTierKiB` while independently leaving `usedKiB` (and logical `usedKiB`) null. The existing cluster-level fallback was gated only on `_raw_kib == 0`, so this case — raw/usable present, used genuinely missing — fell through with a hardcoded 0 that no fallback logic ever touched. Added an independent per-field fallback to cluster-level capacity data for `usedKiB`/logical `usedKiB` specifically. Confirmed live on a real system: `clusterPhysicalUsedTB` went from a hardcoded `0` to a real recovered `0.003`
+- **Confirmed not a bug**: a separate report of blank "System Identity & Hardware" fields (Model Revision, Marketing Type, Storage Config, Service Processor IP, Propensity, Next Best Action) for an older FAS8200 system was traced directly to the raw harvest data — Active IQ's own API returns empty strings/null for these fields for this system. The GraphQL query correctly requests them; this is a genuine upstream telemetry gap for older hardware, not a code defect, and the UI's `valOrDash()` already displays it honestly as "—" rather than fabricating a value
+
+### Known limitation (not fixed — documented)
+- A handful of third-party IMT integration-doc seed URLs (Veritas support portal, Red Hat/OpenStack docs) now return `403` to all automated traffic — a site-wide bot wall, not a dead link. No URL substitution fixes this; working around it would mean deliberately defeating another company's access controls, which this project won't do. One genuinely dead Veeam URL was fixed since it was an ordinary broken link, not a bot wall
+
+---
+
 ## [4.2.2] - 2026-08-10
 
 ### Fixed

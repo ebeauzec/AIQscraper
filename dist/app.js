@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.2";
+const APP_VERSION = "4.3.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.3.0",
+    date: "10 August 2026",
+    title: "Enrichment Expansion + Capacity Enrichment Fix",
+    sections: [
+      {
+        icon: "🛡️",
+        label: "New: Acknowledged-Risk vs. Active Exploitation Alert",
+        color: "#fbbf24",
+        items: [
+          "New CISA KEV cross-reference flags any TAM-acknowledged risk whose CVE has since been added to the actively-exploited catalog — surfaced as a dedicated alert at the top of the Security Posture Executive Brief",
+          "Precise CPE-based NVD matching added alongside keyword search, using verified real NetApp product names from NVD's own dictionary",
+          "NVD API key now used everywhere it's configured, not just the primary scan"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Capacity Enrichment Gap",
+        color: "#f87171",
+        items: [
+          "'Physical Used'/'Logical' capacity could show a hardcoded 0.00 TB even when Raw/Usable capacity was correctly populated — the API can leave usedKiB null independently of rawMarketingKiB, and the existing cluster-level fallback only fired when raw capacity was ALSO zero",
+          "Confirmed a separate report of blank System Identity fields (Model Revision, Propensity, etc.) on an older FAS8200 is a genuine Active IQ data gap for that hardware, not a code defect — verified directly against raw harvest data"
+        ]
+      }
+    ]
+  },
   {
     version: "4.2.2",
     date: "10 August 2026",
@@ -17836,6 +17862,30 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   if (tamName === 'Not Assigned' && window.currentUser) tamName = window.currentUser.name;
   const dr = computeFleetDRSummary(targetSystems);
 
+  // Acknowledged risks now under active exploitation (CISA KEV) — a risk a TAM
+  // previously accepted/deferred that has since been confirmed exploited in the
+  // wild. This is a real escalation signal, not a routine finding.
+  const _scopeSerials = new Set(targetSystems.map(s => s.serialNumber));
+  const _kevAckHits = (state.acknowledgedRisksNowExploited || []).filter(h => _scopeSerials.has(h.serialNumber));
+  let kevAckBlock = '';
+  if (_kevAckHits.length > 0) {
+    const _kevAckLines = _kevAckHits.map((h, i) => {
+      const sys = targetSystems.find(s => s.serialNumber === h.serialNumber);
+      return `    ${i + 1}. ${h.cveId} on ${sys ? sys.systemName : h.serialNumber} — "${h.riskTitle}"
+       Acknowledged by ${h.acknowledgedBy || 'Unknown'} on ${(h.acknowledgementDate || '').substring(0, 10)} (${h.justification || 'no justification recorded'})
+       Added to CISA KEV: ${h.kevDateAdded || 'Unknown'}  |  Federal remediation due: ${h.kevDueDate || 'N/A'}`;
+    }).join('\n');
+    kevAckBlock = `
+  ⚠ ACKNOWLEDGED RISKS NOW UNDER ACTIVE EXPLOITATION (CISA KEV)
+  ────────────────────────────────────────────────────────────────────────────
+    ${_kevAckHits.length} previously-acknowledged risk(s) in scope now appear in
+    CISA's Known Exploited Vulnerabilities catalog — confirmed active
+    real-world exploitation, not a theoretical rating. Recommend re-review.
+
+${_kevAckLines}
+`;
+  }
+
   let critical = 0, high = 0, medium = 0, low = 0;
   let securityRisks = [];
   let cveExposures = new Set();
@@ -17947,7 +17997,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
 ================================================================================
   Account: ${cleanScope}  |  Date: ${today}
   Systems: ${count}  |  TAM: ${tamName}
-
+${kevAckBlock}
   1. SECURITY HEALTH SUMMARY
   ────────────────────────────────────────────────────────────────────────────
     Total Risks:              ${totalRisks} (Critical: ${critical}, High: ${high}, Medium: ${medium}, Low: ${low})
@@ -25851,6 +25901,10 @@ async function loadProductionData(forceRefresh = false) {
     state.tamSustainability = result.tamSustainability || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
+    // Risks a TAM acknowledged (accepted/deferred) that have since appeared in
+    // CISA's Known Exploited Vulnerabilities catalog — active real-world
+    // exploitation, not just a theoretical CVE. Surfaced in the Security Brief.
+    state.acknowledgedRisksNowExploited = result.acknowledgedRisksNowExploited || [];
     state.firmwareBaselines = result.firmwareBaselines || {};
 
     // ── Load dynamic reference data (EOA, IMT) from server ──
