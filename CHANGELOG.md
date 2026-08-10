@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.2] - 2026-08-10
+
+### Added
+- **Enterprise end-customer positioning** — README.md now documents large-enterprise end-customers running their own multi-thousand-system NetApp fleet as a first-class audience alongside TAMs/SEs/MSPs: updated tagline, expanded Section 1 audience framing, a new dedicated "Enterprise Fleet Operations" use case in Section 3, and an enterprise-mapping note plus secondary audience column on the deliverables table in Section 7.
+- **In-app reflection** — the Deliverables Suite panel header now explicitly notes it's equally usable by enterprise end-customers scoping to a business unit or data center instead of an external customer.
+
+### Changed
+- **Legal/licensing entity update** — replaced all references to the individual author (Eugene Beauzec) with the company name (Obi1 - FZCO) across `LICENSE`, `LEGAL.md`, `README.md`, and `CONTEXT.md`, adjusting pronouns and grammar for a corporate entity.
+- **Documentation accuracy pass** — audited README.md against the current codebase: confirmed the 13-deliverable and 18-Action-Planner-section counts are accurate; corrected stale numbers (security advisory count 69→70+, CISA KEV-confirmed count 2→3, unique CVE count 90+→75+) to match the current `data/security_bulletins.json` and `data/cisa_kev.json`.
+
+---
+
 ## [4.5.1] - 2026-08-10
 
 ### Added
