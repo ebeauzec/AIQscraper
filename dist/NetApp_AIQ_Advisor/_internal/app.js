@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.3.1";
+const APP_VERSION = "4.3.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.3.2",
+    date: "10 August 2026",
+    title: "Fixed: Harvest Crash on Low-Data Accounts",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Server-Side Harvest",
+        color: "#f87171",
+        items: [
+          "Fixed a crash in the contract-renewals fetch that occurred when an Active IQ account has zero accessible systems — found by testing with a second account and no watchlists configured",
+          "Found and fixed 5 more instances of the same null-handling bug pattern across customers/sites/sustainability/OS-version parsing",
+          "Confirmed via live schema introspection that the GraphQL 'watchlists' query field doesn't exist in the current API — documented as known dead code rather than a bug to chase"
+        ]
+      }
+    ]
+  },
   {
     version: "4.3.1",
     date: "10 August 2026",

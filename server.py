@@ -891,6 +891,12 @@ def _do_full_harvest(watchlist_ids=None):
             print(f"  [HARVEST] Watchlist REST pre-discovery skipped: {_wl_disc_err}", flush=True)
 
         # 2. Fallback: try GraphQL watchlists query
+        # NOTE: verified via live schema introspection (2026-08-10) that "watchlists"
+        # does not exist as a Query field in the current GraphQL schema — this call
+        # always returns a GRAPHQL_VALIDATION_FAILED error and falls through to the
+        # except block below. Left in place (harmless, caught) in case NetApp adds
+        # this field in a future API version; REST discovery above is the only
+        # channel that has ever actually worked.
         if not _early_watchlists:
             try:
                 _, wl_gql_resp = _gql(token, "{ watchlists { id name } }")
@@ -1248,7 +1254,7 @@ def _do_full_harvest(watchlist_ids=None):
             id cmatId name
             sustainabilityScorePercentage { overall }
         } } }""")
-        customers = ((cust_resp.get("data") or {}).get("customers", {}).get("customers")) or [] if isinstance(cust_resp, dict) else []
+        customers = (((cust_resp.get("data") or {}).get("customers") or {}).get("customers")) or [] if isinstance(cust_resp, dict) else []
 
         # ── TAM: Recommendations ──
         tam_recommendations = []
@@ -1271,7 +1277,7 @@ def _do_full_harvest(watchlist_ids=None):
                 vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
                 operationalDate ageInYears
             } } }""")
-            tam_sites = ((sites_resp.get("data") or {}).get("sites", {}).get("sites")) or []
+            tam_sites = (((sites_resp.get("data") or {}).get("sites") or {}).get("sites")) or []
             print(f"  [HARVEST] Sites: {len(tam_sites)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sites failed: {e}", flush=True)
@@ -1283,7 +1289,7 @@ def _do_full_harvest(watchlist_ids=None):
             _, sust_resp = _gql(token, """{ sustainabilityScore { sustainabilityScores {
                 scorePercentage percentageChange generatedDate changeFactors
             } } }""")
-            tam_sustainability = ((sust_resp.get("data") or {}).get("sustainabilityScore", {}).get("sustainabilityScores")) or [] if isinstance(sust_resp, dict) else []
+            tam_sustainability = (((sust_resp.get("data") or {}).get("sustainabilityScore") or {}).get("sustainabilityScores")) or [] if isinstance(sust_resp, dict) else []
             print(f"  [HARVEST] Sustainability scores: {len(tam_sustainability)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
@@ -1345,7 +1351,11 @@ def _do_full_harvest(watchlist_ids=None):
                 hardwareModel { name endOfAvailability endOfSupport }
                 endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
             } } }""")
-            tam_renewals = ((ren_resp.get("data") or {}).get("systemContractRenewals", {}).get("systems")) or [] if isinstance(ren_resp, dict) else []
+            # .get("systemContractRenewals", {}) only applies its default when the key
+            # is MISSING — GraphQL can return {"data": {"systemContractRenewals": null}}
+            # (e.g. no privilege/no systems in scope), where the key exists with value
+            # None, crashing the chained .get("systems") call. Use "or {}" instead.
+            tam_renewals = (((ren_resp.get("data") or {}).get("systemContractRenewals") or {}).get("systems")) or [] if isinstance(ren_resp, dict) else []
             print(f"  [HARVEST] Renewals with lifecycle events: {len(tam_renewals)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Contract renewals failed: {e}", flush=True)
@@ -2206,6 +2216,8 @@ def _do_full_harvest(watchlist_ids=None):
             print(f"  [HARVEST] Watchlist fetch skipped: {e}", flush=True)
 
         # 14a. Fallback: try GQL watchlists query if REST returned nothing
+        # (see the matching NOTE above — this field does not exist in the current
+        # schema, confirmed via live introspection; kept for forward-compatibility)
         if not watchlists_out:
             try:
                 _, wl_gql_resp = _gql(token, "{ watchlists { id name } }")
