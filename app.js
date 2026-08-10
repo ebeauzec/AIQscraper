@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.5.0";
+const APP_VERSION = "4.5.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.5.1",
+    date: "10 August 2026",
+    title: "Real License Data: Licensed vs Enabled Feature Tracking",
+    sections: [
+      {
+        icon: "🔑",
+        label: "New: Licensed Feature Adoption",
+        color: "#2dd4bf",
+        items: [
+          "Wired Active IQ's real per-system license inventory into the tool — added carefully as its own change after last version's query field-count regression",
+          "As-Built 'Lifecycle & Licenses' panel now shows deduplicated licensed packages with descriptions, and cross-checks Anti-Ransomware Protection and SnapMirror licenses against actual harvested enabled/active telemetry to flag licensed-but-not-confirmed-active gaps",
+          "New 'Licensed Feature Adoption' table in the License Compliance deliverable — fleet-wide package counts plus the same licensed-vs-active cross-check (e.g. \"28 systems licensed for Anti-Ransomware Protection\")"
+        ]
+      }
+    ]
+  },
   {
     version: "4.5.0",
     date: "10 August 2026",
@@ -20192,8 +20209,10 @@ function _renderAccountIntelligenceSection(systems) {
 }
 
 function _renderLicenseComplianceSection(systems) {
-  // Since per-system 'licenses' field is not available in the GraphQL schema,
-  // we derive compliance from contract status, service tiers, and lifecycle events
+  // Contract compliance (below) is derived from contract status/service tiers/lifecycle
+  // events. Feature-license data (per-system licenses[]) is real Active IQ telemetry —
+  // see "Licensed Feature Adoption" further down, which is a separate concept from
+  // contract/support compliance.
   // Filter renewals to selected scope
   const allRenewals = state.tamRenewals || [];
   const scopeHostNames = new Set(systems.map(s => (s.systemName || '').toLowerCase()));
@@ -20292,6 +20311,55 @@ function _renderLicenseComplianceSection(systems) {
       </tr>`;
     });
     html += `</tbody></table></div>`;
+  }
+
+  // ── Licensed Feature Adoption (real Active IQ license data) ──────────────────
+  // Aggregate every distinct licensed package fleet-wide, and where we have a direct
+  // telemetry signal (ARP, SnapMirror), flag packages that are licensed but not
+  // confirmed active — a concrete upsell/adoption-gap talking point for the TAM/SAM.
+  const pkgMap = {}; // package -> {description, systems: Set, enabledCount, unknownEnabled}
+  systems.forEach(s => {
+    (s.licenses || []).forEach(l => {
+      if (!l || !l.package) return;
+      if (!pkgMap[l.package]) pkgMap[l.package] = { description: l.description || l.package, systems: new Set(), enabledCount: 0, checkable: false };
+      const entry = pkgMap[l.package];
+      entry.systems.add(s.serialNumber || s.systemName);
+      const p = l.package.toLowerCase();
+      if (p.includes('ransomware')) {
+        entry.checkable = true;
+        if (s.isARPEnabled === true) entry.enabledCount++;
+      } else if (p.includes('snapmirror') && !p.includes('sync')) {
+        entry.checkable = true;
+        if ((s.snapMirrorCount || 0) > 0) entry.enabledCount++;
+      }
+    });
+  });
+  const pkgRows = Object.entries(pkgMap).sort((a, b) => b[1].systems.size - a[1].systems.size);
+  if (pkgRows.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">Licensed Feature Adoption (${pkgRows.length} distinct packages)</h4>
+    <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px;">Sourced from Active IQ's per-system license inventory. "Adoption" is only cross-checked against telemetry for Anti-Ransomware Protection and SnapMirror today — other packages show license count only, not usage.</div>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Package')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Description')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Systems Licensed')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Confirmed Active')}
+      </tr></thead><tbody>`;
+    pkgRows.forEach(([pkg, d]) => {
+      const gap = d.checkable ? d.systems.size - d.enabledCount : null;
+      const activeCell = d.checkable
+        ? `${d.enabledCount} / ${d.systems.size}` + (gap > 0 ? ` <span style="color:#f59e0b;font-weight:600;">(${gap} licensed, not confirmed active)</span>` : '')
+        : '<span style="color:var(--text-muted);">Not tracked</span>';
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${pkg}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${d.description}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${d.systems.size}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${activeCell}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  } else {
+    html += `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:16px;">No per-system license data returned by Active IQ for this scope.</div>`;
   }
 
   return html;
@@ -21062,6 +21130,27 @@ function _renderAsBuiltSection(systems) {
         let out = valOrDash(name);
         if (email) out += ' (<a href="mailto:' + email + '" style="color:var(--accent-cyan);">' + email + '</a>)';
         return out;
+    };
+    // Dedup Active IQ's raw per-key license list (one row per license serial × package —
+    // a system with 2 legacy keys + 1 ONTAP ONE key repeats every package 2-3x) down to
+    // one row per distinct package, keeping the richest (capacity-key) description/name.
+    const _licSummary = (lics) => {
+        const byPkg = {};
+        (lics || []).forEach(l => {
+            if (!l || !l.package) return;
+            const prev = byPkg[l.package];
+            if (!prev || (l.type === 'capacity' && prev.type !== 'capacity')) byPkg[l.package] = l;
+        });
+        return Object.values(byPkg).sort((a, b) => (a.package || '').localeCompare(b.package || ''));
+    };
+    // Cross-reference a licensed package against telemetry we can actually confirm is
+    // active — only ARP and SnapMirror have a direct enabled/count signal today; every
+    // other package returns null (unknown) rather than a false "not enabled" claim.
+    const _licFeatureEnabled = (pkg, sysObj) => {
+        const p = (pkg || '').toLowerCase();
+        if (p.includes('ransomware')) return sysObj.isARPEnabled === true ? true : (sysObj.isARPEnabled === false ? false : null);
+        if (p.includes('snapmirror') && !p.includes('sync')) return (sysObj.snapMirrorCount || 0) > 0;
+        return null;
     };
     const _fmtTB = (v) => (v !== undefined && v !== null && v !== '') ? parseFloat(v).toFixed(2) + ' TB' : emptyDash;
     const _fmtKBTB = (v) => (v !== undefined && v !== null && v !== '') ? (parseFloat(v) / (1024**3)).toFixed(2) + ' TB' : emptyDash;
@@ -21860,8 +21949,13 @@ function _renderAsBuiltSection(systems) {
                         ${pvrsHtml}
                     </div>
                     <div style="flex:1; min-width:280px;">
-                        <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Licenses (${lics.length})</div>
-                        ${lics.length > 0 ? '<div style="max-height:200px; overflow-y:auto; border:1px solid rgba(255,255,255,0.05); border-radius:4px;"><table style="' + tblStyle + '">' + lics.map(l => '<tr><td style="' + tdStyle + '">' + valOrDash(l.name || l.feature || l) + '</td></tr>').join('') + '</table></div>' : '<div style="font-size:0.82rem; color:var(--text-muted);">No license data</div>'}
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Licensed Packages (${_licSummary(lics).length})</div>
+                        ${_licSummary(lics).length > 0 ? '<div style="max-height:260px; overflow-y:auto; border:1px solid rgba(255,255,255,0.05); border-radius:4px;"><table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Package</th><th style="' + thStyle + '">Description</th><th style="' + thStyle + '">Key</th><th style="' + thStyle + '">Enabled?</th></tr>' + _licSummary(lics).map(l => {
+                            const enabled = _licFeatureEnabled(l.package, s);
+                            const enabledCell = enabled === null ? emptyDash : (enabled ? '<span style="' + badgeGreen + '">Yes</span>' : '<span style="' + badgeAmber + '">Not detected</span>');
+                            return '<tr><td style="' + tdStyle + '">' + valOrDash(l.package) + '</td><td style="' + tdStyle + '">' + valOrDash(l.description) + '</td><td style="' + tdStyle + '">' + valOrDash(l.name) + '</td><td style="' + tdStyle + '">' + enabledCell + '</td></tr>';
+                        }).join('') + '</table></div>' : '<div style="font-size:0.82rem; color:var(--text-muted);">No license data</div>'}
+                        ${_licSummary(lics).some(l => _licFeatureEnabled(l.package, s) === false) ? '<div style="margin-top:8px; font-size:0.72rem; color:var(--text-muted);">"Not detected" means the license is present but the corresponding feature is not confirmed active from harvested telemetry — verify on-cluster before treating as unused (only ARP and SnapMirror are cross-checked here).</div>' : ''}
                     </div>
                 </div>
             </details>
