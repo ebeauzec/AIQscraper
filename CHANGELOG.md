@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.7.0] - 2026-08-10
+
+### Added
+- **licenses, pvrs, downtimeEvents** added to the fallback GraphQL query tier — added one field at a time with live field-count-limit testing after the previous release's regression, confirmed no accounts pushed to a worse tier.
+- **`mcContext` flag on harvested switches** (`server.py`) — sourced from the confirmed-real per-system `isMetroCluster` field, flags which switches sit on a MetroCluster ISL. Wired into the Switch Validation tab to surface real MC ISL requirement context (packet loss/jitter/MTU limits) instead of validating MC switches identically to plain cluster-interconnect switches. Confirmed live against 8 real MetroCluster systems (NVIDIA Cumulus ISL switches correctly flagged).
+
+### Fixed
+- **AFX backplate layout** — AFX (a disaggregated compute/storage architecture) previously shared the dual-controller 11-slot chassis layout with A70/A90/A1K, implying numbered PCIe I/O slots it doesn't have. Now renders honestly grouped by port role.
+- **Missing entry-2U platform coverage** — widened detection to include AFF/ASA A20/A30/A50, C20/C30/C60, and FAS500, which previously fell to the bare generic backplate layout.
+- **Two disconnected switch-firmware-baseline data stores** — `tools/reference_harvester.py` now propagates its live-harvested Cisco/Brocade/Broadcom version numbers from `data/imt_interop.json` into `data/firmware_baselines.json`'s `switches` section on every enrichment run, instead of the latter being a second, manually-maintained copy that could silently drift stale.
+- **`fleet_signals['metrocluster']` permanently `False`** — checked a field name (`isMetroClusterConfigured`) that was never set anywhere in the codebase; the real harvested field is `isMetroCluster`. This silently suppressed the MetroCluster vendor-guideline articles from ever being recommended, even for genuine MetroCluster fleets.
+- **Stale TR-4517 citations** — replaced two hardcoded links to a specific NetApp Technical Report number with a version-agnostic search link, since MetroCluster TRs get renumbered/superseded across ONTAP releases and this tool has no way to verify a specific TR number is still current.
+
+---
+
 ## [4.6.0] - 2026-08-10
 
 ### Fixed
