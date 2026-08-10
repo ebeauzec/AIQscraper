@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.6.0] - 2026-08-10
+
+### Fixed
+- **Rear-panel backplate fabricated every port** — `getSystemPortMappings()` (the function feeding every hardware backplate diagram and the Cabling Audit Table) previously invented every port name, IP address, WWPN, link status, and cabling-partner switch/port identity from a hash of `sys.serialNumber`, for every platform branch. Rewired to build the port list from Active IQ's real, already-harvested `networkPorts` telemetry (role, link, speed, MTU, MAC, broadcast domain). Fields with no real data source in that API field — FC/SAS role, cabling-partner identity, IP address — are now honestly shown as unavailable instead of invented. Link-state coloring now has a genuine gray "unknown" state instead of forcing every port to green or red.
+- **Switch Validation invented specific CVE numbers** — `getSystemSwitches()` fabricated 1–3 entire fake switches (invented models, serials, IPs, and firmware versions) whenever Active IQ hadn't discovered/monitored a switch for a system, including specific fabricated vulnerability claims like `CVE-2023-20092` presented as real findings against actual customer equipment. Now honestly returns nothing; the existing "not discovered/monitored" empty-state handling in every caller takes over correctly.
+- **`versionLt()` Cisco firmware format bug** — the version parser silently dropped the parenthetical build number from Cisco NX-OS/MDS version strings (`9.3(12)`), which could misjudge two different Cisco releases (e.g. `9.3(8)` vs `9.3(12)`) as equal. Added explicit parsing for the Cisco format.
+- **README switch firmware baseline table drift** — corrected against the live `data/firmware_baselines.json`: Cisco NX-OS baseline moved to 10.4.2 (9.3(12) is now labeled legacy/EOA for the Nexus 9336C-FX2 specifically), Broadcom EFOS moved to 3.12.0.1, and AFX-specific switch models (Nexus 9332D-GX2B/9364D-GX2A/9808) were undocumented.
+
+---
+
 ## [4.5.2] - 2026-08-10
 
 ### Added

@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.5.2-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.6.0-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -773,15 +773,21 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 
 ### Reference Library — Firmware Baselines
 
+> **These are stored in [`data/firmware_baselines.json`](data/firmware_baselines.json), differentiated by switch model/generation (not a single flat value per vendor), and are the authoritative live values — the table below is a snapshot and will drift as NetApp ships new qualified releases. Check the dashboard's Switch Validation tab (Action Planner → Tab 6) for the current value.**
+
 | Component | Recommended Min |
 |---|---|
 | NSM100 Shelf | 0220 |
 | IOM12 SAS | 0260 |
 | IOM3 SAS | 0200 |
-| Cisco NX-OS | 9.3(12) |
-| Cisco MDS | 9.2(2) |
+| Cisco NX-OS (Nexus 9000, cluster/MC-IP/AFX) | 10.4.2 |
+| Cisco NX-OS Legacy (Nexus 9336C-FX2, EOA) | 9.3(12) |
+| Cisco MDS 9000 (FC SAN) | 9.2(2) |
 | Brocade FOS | 9.2.1 |
-| Broadcom EFOS | 3.8.0.2 |
+| Broadcom EFOS (BES-53248, EOA) | 3.12.0.1 |
+| NVIDIA Cumulus (SN2100, EOA) | 5.11.0 |
+| Cisco Nexus 9332D-GX2B / 9364D-GX2A (AFX 1K) | 10.4.2 |
+| Cisco Nexus 9808 (AFX 2K) | 10.6 |
 
 ### Reference Library — MetroCluster ISL Requirements
 
