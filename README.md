@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-4.1.0-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.2.0-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -540,7 +540,7 @@ New API fields harvested to support v4.0.3 capabilities:
 | **Zero AI/ML** | No generative AI, no ML models, no LLM services — anywhere in the stack. All outputs are fully deterministic |
 | **No Telemetry** | The tool does not phone home, collect analytics, or transmit metadata of any kind |
 | **Official NetApp APIs Only** | Network traffic is exclusively to `gql.aiq.netapp.com` and `api.activeiq.netapp.com` over TLS 1.2+ |
-| **Read-Only** | Only reads telemetry via the Active IQ API. Never executes commands against production systems |
+| **Read-Only by Default** | Almost every feature only reads telemetry via the Active IQ API. The three exceptions (risk acknowledge/mitigate, CQV update — v4.2.0+) write back to the customer's live Active IQ account, are clearly labeled "Writes to Active IQ" in the UI, and always require an explicit confirmation/justification prompt before firing. Never executes commands against production storage systems |
 | **Human-Reviewed Remediation** | All CLI outputs go into change tickets for human review and CAB approval — nothing is auto-executed |
 | **Offline After Sync** | Once synced, the dashboard operates fully offline from the local cache |
 | **Minimal Footprint** | No install, no persistent services, no registry modifications, no external shares |

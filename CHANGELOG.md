@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.0] - 2026-08-10
+
+### Added
+- **Native CVE data (`Risk.cves`)** — `riskInstances` GraphQL query now requests `cves { id cvssScore description summary lastUpdated }`; exposed as `normRisk.cveDetails` in `app.js`. Advisory-URL synthesis and `computeCostOfInaction()`'s CVE count now use this authoritative per-risk data instead of relying solely on regex-matching risk description text
+- **Active IQ write-back actions** — `acknowledgeRiskInAIQ()`, `mitigateRiskInAIQ()`, and `updateQualifiedVersionInAIQ()` call the real `riskAcknowledge`, `riskMitigation`, and `updateQualifiedVersion` GraphQL mutations, writing changes back to the customer's live Active IQ account. Every previous ARIA action was read-only; these are clearly labeled "⚠ Writes to Active IQ" in the UI (Technical Risks tab and OS Upgrades tab) and require an explicit confirmation/justification prompt before firing
+- **Case MTTR SLA metric** — MSP Service Delivery Report now includes a "Case MTTR" row in its SLA Compliance Matrix, computed via a fixed `computeMTTR()` (see Fixed)
+- **Enrichment scheduler staleness checks and split timers** — fast security scanners (CISA KEV, PSIRT, NVD, EPSS) now skip re-scanning when their target file is already fresher than the configured interval; the slow KB/doc crawl and reference-library harvest (previously blocking the fast scanners for 5+ minutes) now run on their own independent, much longer interval. Fast-group runtime measured at 8.5s, down from 325.8s
+- **What's New dismiss checkbox** — release-notes modal now has an explicit "Don't show this again until the next update" checkbox instead of a single ambiguous button
+
+### Fixed
+- **What's New modal silently broken dismiss buttons** — a changelog entry containing literal `<script>/<style>/<noscript>` text, injected unescaped via `innerHTML`, switched the browser's HTML parser into script-data mode and silently swallowed the modal's own footer buttons as inert text. They were never real, clickable DOM elements. All changelog text is now HTML-escaped before rendering
+- **`computeMTTR()` always returned `null`** — read a field name (`openedDate`) that is never actually set anywhere in the codebase; the real field is `createdDate`. Function was silently broken and unused; now fixed and wired into the MSP report
+- **MEDDPICC Brief blank Economic Buyer / Champion sections** — `propCategory`, `nextBestAction`, `primContact`, `email`, `phone` were hardcoded to `'—'` despite the underlying data (`propensityCategory`, `nextBestAction`, `sys.contacts`) being available and used correctly elsewhere in the file
+- **Security Brief CVE detection** — switched from `r.title.includes('cve')` string-matching to native `cveDetails`; removed hardcoded `daysSinceOldestCVE = 30` in favor of a real exposure window computed from actual CVE dates; fixed duplicate "7." section numbering (Security Roadmap vs. NIST CSF 2.0)
+- **MSP Report fabricated columns** — "Backup" column always showed `'OK'` and "Cloud(TB)" always showed `'TBD'`/`'0.0'` regardless of real data; both removed. "Avail(TB)" derived from the always-zero `physicalAvailTB` field; now computed from `usableCapacityTB - physicalUsedTB`
+- **Literal `\n` and stray-quote rendering bugs** — QBR Pack's prior-quarter-actions fallback text had an escaped `\\n` (literal backslash-n) instead of a real newline; Sales Refresh Proposal had a stray literal `"` character before "Service Level" in every contract-renewal line item. Both reached the actual downloaded TXT files
+- **`domesticParent` vs `domesticParentName` inconsistency** — `compileCustomerSuccessPlanText` and `compileMSPServiceReport` read the non-canonical `domesticParent` (always undefined); standardized on `domesticParentName`
+- **Fabricated numeric defaults presented as real telemetry** — a hardcoded "7.5/10" satisfaction score, "120 days" capacity runway, and "100 GB/day" growth rate would silently appear in place of missing data across the Site Logistics report, CSV export, and TAM Success Plan. Replaced with either a real computed value (case-health score) or explicit "No Data" indicators; fixed a CSV export bug where `null` would have literally rendered the string `"null"`
+- **Three different health-grade formulas** — QBR Pack and Extended Deliverables each computed their own local health score/grade with different thresholds than the canonical `computeAccountHealthScore()`/`getHealthGrade()` used by the MEDDPICC Brief, meaning the same account could receive a different letter grade depending on which deliverable a TAM handed the customer. Unified on the canonical functions
+- **Sustainability Report unsourced ESG figures** — power/CO2 "avoided" figures used unreferenced 0.5 kW/TB and 0.5 kg CO2/kWh conversion constants with no methodology disclosure; added an explicit estimate-methodology footnote. "Physical Footprint Avoided" was a duplicate restatement of the "Space Saved" figure; merged into one line. Systems with a genuine 0 sustainability score were previously indistinguishable from "no data" and silently excluded from optimization recommendations; now correctly included
+- **As-Built TXT export missing sections** — the downloadable As-Built Configuration Document was missing Account & Success Team, Capacity Growth & Projections, and Risk & Advisory Register sections present in the in-app HTML view; added
+- **Stale deliverable counts** — "Deliverables Suite (10)" tab label and "Download all 10 deliverables" comment both corrected to the actual count of 13
+
+---
+
 ## [4.1.0] - 2026-08-06
 
 ### Fixed
