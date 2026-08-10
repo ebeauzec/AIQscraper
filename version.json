@@ -1,8 +1,8 @@
 {
-  "version": "4.2.1",
+  "version": "4.2.2",
   "major": 4,
   "minor": 2,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-10",
-  "notes": "Fixed a stale-cache bug in enrichSystemTelemetry() that silently misreported most of the fleet as fully upgraded ('Systems Up to Date') regardless of actual OS version, because a pre-existing s.upgrades value skipped recomputation. Live-data systems now always recompute fresh upgrade recommendations."
+  "notes": "Fixed NVD API key transport: NVD API 2.0 only accepts apiKey as an HTTP header, not a query string parameter. Every NVD-backed enrichment call was silently 404ing whenever a key was configured (aiq_config.json's nvdApiKey), regardless of whether the key was valid. Confirmed live: NVD scan went from 'HTTP Error 404: Not Found' to a successful 0-result query after the fix."
 }
