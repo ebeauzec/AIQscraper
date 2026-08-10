@@ -742,6 +742,7 @@ def _do_full_harvest(watchlist_ids=None):
                   type platformType productType ageInYears serviceTier
                   techRefreshStatus incumbentResellerCompany
                   isFabricPool hasPvr
+                  systemState lastRebootTime originalShipDate marketingType storageConfiguration
                   customer { id name }
                   site { id name city countryCode postalCode state }
                   nagp { id name }
@@ -784,6 +785,9 @@ def _do_full_harvest(watchlist_ids=None):
                     storageAggregates { totalCount }
                     storageVolumes { totalCount }
                     luns { totalCount }
+                    autoUpdateSettings { storageFirmware spbmc systemFile securityFile }
+                    sustainabilityScores { scorePercentage percentageChange changeFactors generatedDate }
+                    vcenters { id name version }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB qoqUtilizationPercentage yoyUtilizationPercentage utilizationPercentage }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -816,6 +820,7 @@ def _do_full_harvest(watchlist_ids=None):
                   type platformType productType ageInYears serviceTier
                   techRefreshStatus incumbentResellerCompany
                   isFabricPool hasPvr
+                  systemState lastRebootTime originalShipDate marketingType storageConfiguration
                   customer { id name }
                   site { id name city countryCode postalCode state }
                   nagp { id name }
@@ -843,6 +848,18 @@ def _do_full_harvest(watchlist_ids=None):
                   autoSupports { asupId generatedDate receivedDate subject type isManual }
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
+                    propensityCategory serviceProcessorIPAddress
+                    isARPEnabled autoUpdateEnabled nextBestAction
+                    lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
+                    systemFirmware { type currentVersion recommendedVersion }
+                    motherboardFirmware { currentVersion recommendedVersion }
+                    diskQualificationPackage { currentVersion recommendedVersion autoUpdateEligible }
+                    shelves {
+                      serialNumber shelfId
+                      hardwareModel { name endOfAvailability endOfHwSupport }
+                      moduleHardwareModel { name }
+                      drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                    }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB }
                       logical { usedKiB usedWithoutSnapshotsClonesKiB }
@@ -855,6 +872,9 @@ def _do_full_harvest(watchlist_ids=None):
                     storageAggregates { totalCount }
                     storageVolumes { totalCount }
                     luns { totalCount }
+                    autoUpdateSettings { storageFirmware spbmc systemFile securityFile }
+                    sustainabilityScores { scorePercentage percentageChange changeFactors generatedDate }
+                    vcenters { id name version }
                     networkPorts {
                       totalCount
                       networkPorts { port role link type broadcastDomain ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes interfaceGroupOwner }
@@ -1668,6 +1688,19 @@ def _do_full_harvest(watchlist_ids=None):
             contact = s.get("contactPerson") or {}
             contract = s.get("contract") or {}
             asup = s.get("latestAsup") or {}
+            # Active IQ's `latestAsup` frequently has subject/type/isManual as null even
+            # when receivedDate/asupId are populated — the same data (correctly filled in)
+            # is present in the `autoSupports` history list. Fall back to the most recent
+            # history entry (matched by asupId when possible) for those specific fields.
+            if not asup.get("subject") or not asup.get("type") or asup.get("isManual") is None:
+                _asup_hist = s.get("autoSupports") or []
+                _asup_match = next((a for a in _asup_hist if a.get("asupId") == asup.get("asupId")), None) \
+                    or (_asup_hist[0] if _asup_hist else None)
+                if _asup_match:
+                    asup = dict(asup)
+                    for _k in ("subject", "type", "isManual"):
+                        if asup.get(_k) is None or asup.get(_k) == "":
+                            asup[_k] = _asup_match.get(_k)
             nagp = s.get("nagp") or {}
             sr = s.get("salesRepresentative") or {}
             csm_d = s.get("csm") or {}

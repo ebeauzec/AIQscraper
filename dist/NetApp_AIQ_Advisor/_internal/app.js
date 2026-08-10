@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.4.2";
+const APP_VERSION = "4.5.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.5.0",
+    date: "10 August 2026",
+    title: "ARP + 8 Fields Fixed: Wrong Query Tier Was Dropping Them",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: ARP and 8 Other Fields Always Blank/Unknown",
+        color: "#f87171",
+        items: [
+          "isARPEnabled, systemState, lastRebootTime, originalShipDate, marketingType, storageConfiguration, autoUpdateSettings, sustainabilityScores, and vcenters were only ever requested in the full ('TAM') GraphQL query — accounts whose full query fails and falls back to the reduced 'Efficiency' tier (an unrelated API quirk) never got these fields at all",
+          "Added them to the fallback tier — confirmed live: 31 of 167 systems now correctly show ARP enabled, where the entire fleet previously showed 'Unknown'",
+          "Sustainability Scores panel was built for the wrong data shape (expected a flat metric map, the API actually returns a dated score-history array) — now renders a real timeline with actual score/change/contributing-factors data",
+          "Downtime Events used the wrong shape too (checked .length on an object instead of on its nested events array) — silently showed nothing even when events existed"
+        ]
+      },
+      {
+        icon: "🔍",
+        label: "Found, Deferred to Follow-Up",
+        color: "#2dd4bf",
+        items: [
+          "licenses, pvrs, monthlyCarbonStats, monthlyAutoResolvedCases, and downtime event details were found missing by the same audit, but adding all of them at once exceeded Active IQ's GraphQL query field-count limit and pushed the fallback tier down to bare-minimum — worse than the original bug. Deferred to a smaller follow-up change"
+        ]
+      }
+    ]
+  },
   {
     version: "4.4.2",
     date: "10 August 2026",
@@ -21901,8 +21927,14 @@ function _renderAsBuiltSection(systems) {
 
         // ── 14. Operational Health & Uptime (NEW) ───────────────────────────────
         let dtHtml = '';
-        if (s.downtimeEvents && s.downtimeEvents.length > 0) {
-            dtHtml = '<div style="margin-top:12px; font-size:0.8rem;"><strong>Downtime Events:</strong> ' + s.downtimeEvents.length + ' reported</div>';
+        // server.py sets downtimeEvents as the raw API shape {totalCount, events: [...]},
+        // not a bare array — check totalCount/events.length rather than .length on the object.
+        const _dtEvents = (s.downtimeEvents && s.downtimeEvents.events) || [];
+        if (_dtEvents.length > 0) {
+            dtHtml = '<div style="margin-top:12px; font-size:0.8rem;"><strong>Downtime Events:</strong> ' + (s.downtimeEvents.totalCount || _dtEvents.length) + ' reported</div>'
+                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Date</th><th style="' + thStyle + '">Category</th><th style="' + thStyle + '">Summary</th><th style="' + thStyle + '">Outage</th></tr>'
+                + _dtEvents.slice(0, 10).map(e => '<tr><td style="' + tdStyle + '">' + valOrDash((e.emsDate || '')) + '</td><td style="' + tdStyle + '">' + valOrDash(e.category) + '</td><td style="' + tdStyle + '">' + valOrDash(e.summary) + '</td><td style="' + tdStyle + '">' + (e.outageSeconds != null ? Math.round(e.outageSeconds / 60) + ' min' : emptyDash) + '</td></tr>').join('')
+                + '</table>';
         }
         
         let uptimeHtml = '';
@@ -21931,11 +21963,14 @@ function _renderAsBuiltSection(systems) {
         `;
 
         // ── 15. Sustainability & Carbon (NEW) ───────────────────────────────────
+        // Active IQ returns sustainabilityScores as a dated history array
+        // ({scorePercentage, percentageChange, changeFactors, generatedDate}[]),
+        // not a flat metric map — render the most recent entries as a timeline.
         let sustScoresHtml = '';
-        if (s.sustainabilityScores && Object.keys(s.sustainabilityScores).length > 0) {
+        if (Array.isArray(s.sustainabilityScores) && s.sustainabilityScores.length > 0) {
             sustScoresHtml = '<div style="margin-top:16px;"><div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Sustainability Scores</div>'
-                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Metric</th><th style="' + thStyle + '">Score</th></tr>'
-                + Object.entries(s.sustainabilityScores).map(([k,v]) => '<tr><td style="' + tdStyle + '">' + k + '</td><td style="' + tdStyle + '">' + valOrDash(v) + '</td></tr>').join('')
+                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Date</th><th style="' + thStyle + '">Score</th><th style="' + thStyle + '">Change</th><th style="' + thStyle + '">Factors</th></tr>'
+                + s.sustainabilityScores.slice(0, 8).map(v => '<tr><td style="' + tdStyle + '">' + valOrDash(v.generatedDate) + '</td><td style="' + tdStyle + '">' + (v.scorePercentage != null ? v.scorePercentage + '%' : emptyDash) + '</td><td style="' + tdStyle + '">' + (v.percentageChange != null ? (v.percentageChange > 0 ? '+' : '') + v.percentageChange + '%' : emptyDash) + '</td><td style="' + tdStyle + '">' + valOrDash((v.changeFactors || []).join('; ')) + '</td></tr>').join('')
                 + '</table></div>';
         }
         
