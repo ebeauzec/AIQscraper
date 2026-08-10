@@ -18,9 +18,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.7.0";
+const APP_VERSION = "4.7.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.7.1",
+    date: "10 August 2026",
+    title: "Backplate Slot Counts Corrected Against NetApp's Own Specs",
+    sections: [
+      {
+        icon: "✅",
+        label: "Corrected: Real PCIe Slot Counts, Confirmed by NetApp Docs",
+        color: "#2dd4bf",
+        items: [
+          "AFF/ASA A70, A90, A1K actually have 9 PCIe slots per controller, not 11 as previously rendered",
+          "AFF A900 (10 slots/controller, 8U) was incorrectly rendered identically to AFF A400 (5 slots/controller, 4U) — now two distinct, correctly-sized layouts",
+          "AFX does have a confirmed fixed slot map after all (slot 1 = HA, slot 7 = cluster, slots 10-11 = storage) per NetApp's own AFX hardware documentation — restored with the now-confirmed real assignments"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: A900 Misclassified Due to Substring Match",
+        color: "#f87171",
+        items: [
+          "AFF A900 systems were silently misclassified into the A70/A90/A1K layout because 'a90' is a substring of 'a900' — caught via live testing while implementing the corrected slot counts above, fixed for both a90/a900 and fas90/fas9000"
+        ]
+      }
+    ]
+  },
   {
     version: "4.7.0",
     date: "10 August 2026",
@@ -6975,13 +7000,21 @@ function _getImtInterop() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MetroCluster ISL Requirements
-// Source: NetApp MetroCluster Deep Dive TR-4510, docs.netapp.com/us-en/ontap-metrocluster
-// ─────────────────────────────────────────────────────────────────────────────
+// Source: NetApp MetroCluster Deep Dive, docs.netapp.com/us-en/ontap-metrocluster.
+// Packet-loss/jitter figures independently reconfirmed 2026-08-10 by direct
+// fetch of NetApp's own current ISL requirements page:
+// docs.netapp.com/us-en/ontap-metrocluster/install-ip/concept-requirements-isls.html
+// (≤0.01% packet loss, ≤3ms round-trip / ≤1.5ms one-way jitter, ~1ms/100km
+// latency rule of thumb) — matches the values below verbatim, no changes
+// needed. maxDistance figures (FC-Brocade/FC-Other/IP) are not yet
+// independently reconfirmed against that page and should be treated as
+// carried-forward from the original TR-4510-era source pending a dedicated
+// distance-limits check.
 const REFERENCE_LIBRARY_MC_REQUIREMENTS = {
-  maxDistance: { fc_brocade: 300, fc_other: 200, ip: 700 },  // km
+  maxDistance: { fc_brocade: 300, fc_other: 200, ip: 700 },  // km — not yet reconfirmed, see note above
   isl: {
-    maxPacketLoss: 0.01,       // percent
-    maxJitter: 3,              // ms round-trip
+    maxPacketLoss: 0.01,       // percent — reconfirmed 2026-08-10
+    maxJitter: 3,              // ms round-trip — reconfirmed 2026-08-10 (1.5ms one-way)
     maxFabricAsymmetry: 0.2,   // ms (20km equivalent)
     requiredMTU: 9216          // bytes (IP backend)
   },
@@ -26958,14 +26991,32 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   // slot-number semantics (SLOT 1/7/8/9-11) that don't apply to AFX's hardware.
   const isAFXPlat = _plat.includes('afx');
 
-  const isNextGen11Slot = !isAFXPlat && (_plat.includes('a70') || _plat.includes('a90') || _plat.includes('a1k') ||
-    _plat.includes('fas70') || _plat.includes('fas90') ||
+  // "a90" substring-matches "a900" (AFF A900 is a different, 10-slot-per-
+  // controller platform — see isA900Family below), so it must be explicitly
+  // excluded here or A900 systems get misclassified into the 9-slot A70/A90/
+  // A1K layout. Same guard for "fas90" vs "fas9000".
+  const isNextGen11Slot = !isAFXPlat && (_plat.includes('a70') ||
+    (_plat.includes('a90') && !_plat.includes('a900')) || _plat.includes('a1k') ||
+    _plat.includes('fas70') || (_plat.includes('fas90') && !_plat.includes('fas9000')) ||
     _plat.includes('asa a') || (platformStr.includes('ASA') && /r2/i.test(platformStr)));
 
-  const is10Slot = _plat.includes('a400') || _plat.includes('a900') || _plat.includes('c400') ||
+  // A400 (5 PCIe slots/controller, 10 HA-pair total) vs A900 (10/controller, 20
+  // total) are NOT the same chassis despite both being called "mid-range" —
+  // confirmed via NetApp's own key-specifications pages (2026-08-10 direct fetch,
+  // see NetApp Reference Library/Platforms-Hardware/README.md). FAS8300/8700/9000
+  // and C400 remain grouped with A400 since their exact slot counts are still
+  // unconfirmed by this refresh — flagged, not verified.
+  const isA400Family = _plat.includes('a400') || _plat.includes('c400') ||
     _plat.includes('fas8300') || _plat.includes('fas8700') || _plat.includes('fas9000') ||
     _plat.includes('8300') || _plat.includes('8700');
+  // Deliberately just "a900" (confirmed) — a broader bare "9000" match would
+  // also catch FAS9000, which is already (unconfirmed) bucketed with A400 in
+  // isA400Family below; don't let the two buckets silently fight over it.
+  const isA900Family = _plat.includes('a900');
 
+  // A800/C800 confirmed at 5 PCIe slots/controller (10 HA-pair total) — same as
+  // A400, but kept as a separate bucket since it has internal drive slots (48)
+  // where A400 does not (external-shelf only).
   const is5Slot = _plat.includes('a800') || _plat.includes('c800');
 
   const isEntry2U = _plat.includes('a250') || _plat.includes('a150') || _plat.includes('c250') ||
@@ -26974,19 +27025,47 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     _plat.includes('c20') || _plat.includes('c30') || _plat.includes('c60') ||
     _plat.includes('fas500');
 
-  // ── AFX — disaggregated compute/storage architecture ──────────────────────
-  // Rendered honestly: grouped by port role (mgmt/cluster/data/storage) from
-  // real harvested ports, with no invented slot numbers — AFX's physical
-  // layout (separate compute nodes + NSM storage pool modules) doesn't match
-  // the numbered-PCIe-slot model the other ONTAP layouts below assume, and
-  // this tool has no confirmed source for AFX's exact physical slot map.
+  // ── AFX — confirmed fixed slot assignments ─────────────────────────────────
+  // AFX 1K controller nodes are based on AFF A1K hardware (2U each, no on-board
+  // disk) but AFX's own hardware-details documentation states FIXED slot
+  // assignments distinct from standard A1K: slot 1 = HA replication, slot 7 =
+  // cluster replication, slots 10-11 = storage-shelf (NX224/NSM140) communication.
+  // Source: docs.netapp.com AFX hardware-details page (re-confirmed 2026-07-13),
+  // cross-checked in NetApp Reference Library/Platforms-Hardware/README.md
+  // 2026-08-10. This is AFX-specific — do NOT reuse for plain A1K (see the
+  // 9-slot-per-controller branch below, which is what A1K running standard
+  // Unified ONTAP actually has).
   if (isAFXPlat) {
     const clusterPorts = ports.filter(p => p.type === 'cluster');
     const dataPorts = ports.filter(p => p.type === 'data');
     const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
-    const clusterContent = clusterPorts.length ? clusterPorts.map(p => _portBlock(p, 34)).join('') : _emptySlot('—');
-    const dataContent = dataPorts.length ? dataPorts.map(p => _portBlock(p, 34)).join('') : _emptySlot('—');
-    const storageContent = storagePorts.length ? storagePorts.map(p => _portBlock(p, 34)).join('') : '';
+
+    let afxSlotsHtml = '';
+    const slot1Port = clusterPorts[0];
+    afxSlotsHtml += slot1Port ? _section('SLOT 1<br>HA REPL', _portBlock(slot1Port, 32), '#3b82f6', { minWidth: '48px' })
+      : _section('SLOT 1<br>HA REPL', _emptySlot(1), '#374151', { minWidth: '40px' });
+
+    for (let s = 2; s <= 6; s++) {
+      const dp = dataPorts[s - 2];
+      afxSlotsHtml += dp ? _section(`SLOT ${s}`, _portBlock(dp, 32), _portTypeColor(dp.type), { minWidth: '48px' })
+        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
+    }
+
+    const slot7Port = clusterPorts[1];
+    afxSlotsHtml += slot7Port ? _section('SLOT 7<br>CLUS REPL', _portBlock(slot7Port, 32), '#3b82f6', { minWidth: '48px' })
+      : _section('SLOT 7<br>CLUS REPL', _emptySlot(7), '#374151', { minWidth: '40px' });
+
+    afxSlotsHtml += _section('SLOT 8<br>SYS MGMT', _mgmtSection(), '#10b981', { minWidth: '85px' });
+
+    const s9Data = dataPorts[5];
+    afxSlotsHtml += s9Data ? _section('SLOT 9', _portBlock(s9Data, 32), _portTypeColor(s9Data.type), { minWidth: '48px' })
+      : _section('SLOT 9', _emptySlot(9), '#374151', { minWidth: '40px' });
+
+    for (let s = 10; s <= 11; s++) {
+      const sp = storagePorts[s - 10];
+      afxSlotsHtml += sp ? _section(`SLOT ${s}<br>STORE`, _portBlock(sp, 32), '#a855f7', { minWidth: '48px' })
+        : _section(`SLOT ${s}<br>STORE`, _emptySlot(s), '#374151', { minWidth: '40px' });
+    }
 
     return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -26994,33 +27073,42 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
           <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
           <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
         </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">Disaggregated Compute/Storage — grouped by role, ports reported by Active IQ only</span>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">AFX Compute Node (A1K-based, 2U) · Fixed Slot Map</span>
       </div>
-      <div style="display:flex;gap:6px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_mgmtSection ? _section('MGMT', _mgmtSection(), '#10b981', { minWidth: '80px' }) : ''}
-        ${_section('CLUSTER/HA', clusterContent, '#3b82f6', { minWidth: '70px' })}
-        ${_section('DATA', dataContent, '#f59e0b', { flex: '1 1 auto', minWidth: '90px' })}
-        ${storagePorts.length > 0 ? _section('STORAGE FABRIC', storageContent, '#a855f7', { minWidth: '70px' }) : ''}
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${afxSlotsHtml}
         ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>HA/Cluster Replication</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage-Shelf Fabric (NX224/NSM140)</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
       </div>
     </div>`;
   }
 
-  // ── Next-Gen Modular 11-Slot (A70/A90/A1K/FAS70/FAS90) ───────────────────
+  // ── A70/A90/A1K — 9 PCIe slots per controller (confirmed) ────────────────
+  // Confirmed via NetApp's own key-specifications pages (2026-08-10 direct
+  // fetch): A70/A90/A1K are each 18 PCIe slots per HA pair = 9 per controller.
+  // A1K is a dual-chassis HA pair (2U per controller, no on-board drives);
+  // A70/A90 are single-chassis 4U HA pairs with 48 internal drive slots.
+  // Previously this layout rendered 11 numbered positions (1-11, including a
+  // non-PCIe mgmt module at "slot 8") — corrected to 9 real PCIe slots plus a
+  // separate (non-numbered) management module, matching the confirmed count.
   if (isNextGen11Slot) {
     const clusterPorts = ports.filter(p => p.type === 'cluster');
     const dataPorts = ports.filter(p => p.type === 'data');
     const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
     const fcPorts = ports.filter(p => p.type === 'fc');
 
-    // Build slot strip: Slots 1-7 (I/O), Slot 8 (Sys Mgmt), Slots 9-11 (I/O)
+    // Slots 1-9: slot 1 = HA/cluster, slots 2-6 = data/FC, slot 7 = cluster,
+    // slots 8-9 = storage/overflow I/O. Management is a separate onboard
+    // module, not one of the 9 numbered PCIe slots.
     let slotsHtml = '';
-    // Slot 1 — typically HA/Cluster (e1a)
     const slot1Port = clusterPorts[0];
     slotsHtml += slot1Port ? _section('SLOT 1<br>HA/CLUS', _portBlock(slot1Port, 32), '#3b82f6', { minWidth: '48px' })
       : _section('SLOT 1', _emptySlot(1), '#374151', { minWidth: '40px' });
 
-    // Slots 2-6 — data / FC
     for (let s = 2; s <= 6; s++) {
       const portIdx = s - 2;
       const dp = dataPorts[portIdx] || fcPorts[portIdx - dataPorts.length];
@@ -27028,28 +27116,26 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
         : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
     }
 
-    // Slot 7 — typically Cluster (e7a)
     const slot7Port = clusterPorts[1];
     slotsHtml += slot7Port ? _section('SLOT 7<br>CLUS', _portBlock(slot7Port, 32), '#3b82f6', { minWidth: '48px' })
       : _section('SLOT 7', _emptySlot(7), '#374151', { minWidth: '40px' });
 
-    // Slot 8 — System Management Module (e0M, console, USB)
-    slotsHtml += _section('SLOT 8<br>SYS MGMT', _mgmtSection(), '#10b981', { minWidth: '85px' });
-
-    // Slots 9-11 — storage / additional I/O
-    for (let s = 9; s <= 11; s++) {
-      const stIdx = s - 9;
+    for (let s = 8; s <= 9; s++) {
+      const stIdx = s - 8;
       const sp = storagePorts[stIdx];
       if (sp) {
         slotsHtml += _section(`SLOT ${s}<br>STORE`, _portBlock(sp, 32), '#a855f7', { minWidth: '48px' });
       } else {
-        const extraData = dataPorts[s - 9 + 2]; // overflow data ports
+        const extraData = dataPorts[s - 8 + 2];
         slotsHtml += extraData ? _section(`SLOT ${s}<br>I/O`, _portBlock(extraData, 32), '#f59e0b', { minWidth: '48px' })
           : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
       }
     }
 
-    const chassisLabel = _plat.includes('a1k') ? '4U Enterprise' : '4U Modular';
+    // Management module — separate from the 9 numbered PCIe slots
+    slotsHtml += _section('SYS MGMT', _mgmtSection(), '#10b981', { minWidth: '85px' });
+
+    const chassisLabel = _plat.includes('a1k') ? '2U/Controller · Dual-Chassis HA' : '4U · Single-Chassis HA';
     return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;">
@@ -27057,7 +27143,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
           <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisLabel} Chassis · 11 I/O Slots</span>
+          <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisLabel} · 9 PCIe Slots (Confirmed)</span>
         </div>
       </div>
       <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
@@ -27074,38 +27160,81 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     </div>`;
   }
 
-  // ── Mid-Range 10-Slot (A400/A900/FAS8300/8700/C400) ───────────────────────
-  if (is10Slot) {
+  // ── A900 — 10 PCIe slots per controller (confirmed) ───────────────────────
+  // Confirmed via NetApp key-specs (2026-08-10): A900 is 20 PCIe slots per HA
+  // pair = 10 per controller, 8U single-chassis HA pair, no internal drives.
+  // Previously bucketed with A400 under a single "10-slot" layout — A400 is
+  // actually 5 slots/controller (see below), a real discrepancy this corrects.
+  if (isA900Family) {
     const clusterPorts = ports.filter(p => p.type === 'cluster');
     const dataPorts = ports.filter(p => p.type === 'data');
     const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
     const fcPorts = ports.filter(p => p.type === 'fc');
 
-    // Onboard section: e0M, e0a/b (25GbE HA), e0c/d (100GbE Cluster)
     const onboardHtml = _mgmtSection() +
       ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
       ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
 
-    // PCIe slots 1-10
     const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
     let pcieSlotsHtml = '';
     for (let s = 1; s <= 10; s++) {
       const rp = remainingPorts[s-1];
-      if (rp) {
-        pcieSlotsHtml += _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' });
-      } else {
-        pcieSlotsHtml += _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
-      }
+      pcieSlotsHtml += rp ? _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' })
+        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
     }
 
-    const chassisSize = _plat.includes('a900') || _plat.includes('9000') ? '8U Enterprise' : '4U';
     return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
           <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
         </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisSize} Chassis · 10 PCIe Slots</span>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">8U Single-Chassis HA · 10 PCIe Slots (Confirmed)</span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
+        ${pcieSlotsHtml}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      </div>
+    </div>`;
+  }
+
+  // ── A400 family — 5 PCIe slots per controller (A400 confirmed; FAS8300/
+  // FAS8700/FAS9000/C400 grouped here unverified by this refresh) ──────────
+  // Confirmed via NetApp key-specs (2026-08-10): A400 is 10 PCIe slots per HA
+  // pair = 5 per controller, 4U single-chassis HA pair, no internal drives.
+  if (isA400Family) {
+    const clusterPorts = ports.filter(p => p.type === 'cluster');
+    const dataPorts = ports.filter(p => p.type === 'data');
+    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
+    const fcPorts = ports.filter(p => p.type === 'fc');
+
+    const onboardHtml = _mgmtSection() +
+      ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
+      ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
+
+    const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
+    let pcieSlotsHtml = '';
+    for (let s = 1; s <= 5; s++) {
+      const rp = remainingPorts[s-1];
+      pcieSlotsHtml += rp ? _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' })
+        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
+    }
+
+    const isConfirmedA400 = _plat.includes('a400');
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U Single-Chassis HA · 5 PCIe Slots ${isConfirmedA400 ? '(Confirmed)' : '(unverified for this exact model)'}</span>
       </div>
       <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
         ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
@@ -27144,7 +27273,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
           <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
           <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
         </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U NVMe Chassis · 5 PCIe Slots</span>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U Single-Chassis HA · 48 Internal Drives · 5 PCIe Slots (Confirmed)</span>
       </div>
       <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
         ${_section('MGMT + BMC', mgmtHtml, '#10b981', { minWidth: '100px' })}

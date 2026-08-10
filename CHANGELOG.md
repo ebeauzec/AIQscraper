@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.7.1] - 2026-08-10
+
+### Fixed
+- **Backplate PCIe slot counts corrected against NetApp's own "Key specifications" pages** (direct-fetched 2026-08-10): AFF/ASA A70, A90, and A1K actually have 9 PCIe expansion slots per controller (18 per HA pair), not 11 as previously rendered. AFF A900 (10 slots/controller, 8U chassis) was previously rendered identically to AFF A400 (5 slots/controller, 4U chassis) under one shared "10-slot" layout — now two distinct, correctly-sized layouts.
+- **AFX slot map restored, now confirmed** — a prior release replaced AFX's specific slot-numbered layout with a generic role-grouped one on the grounds that no confirmed source existed for AFX's exact physical layout. NetApp's own AFX hardware-details documentation does specify fixed slot assignments (slot 1 = HA replication, slot 7 = cluster replication, slots 10–11 = storage-shelf fabric) — restored with the now-confirmed real assignments, kept distinct from the corrected A70/A90/A1K 9-slot layout since AFX is a different personality even when it reuses similar controller hardware.
+- **A900 misclassified due to a substring match** — `"a900".includes("a90")` is true, so AFF A900 systems were silently rendered with the wrong (A70/A90/A1K) layout. Caught via live testing while implementing the slot-count corrections above; fixed the same class of bug for `fas90`/`fas9000`.
+- **MetroCluster ISL requirements independently reconfirmed** against NetApp's current ISL requirements documentation — packet loss ≤0.01%, jitter ≤3ms round-trip — no changes needed, the values already in the tool were correct.
+
+---
+
 ## [4.7.0] - 2026-08-10
 
 ### Added
