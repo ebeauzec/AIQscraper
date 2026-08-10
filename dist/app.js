@@ -18,9 +18,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.5.1";
+const APP_VERSION = "4.5.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.5.2",
+    date: "10 August 2026",
+    title: "Documentation Accuracy Pass + Enterprise Fleet-Management Positioning",
+    sections: [
+      {
+        icon: "🏢",
+        label: "Enterprise End-Customer Use Cases Added",
+        color: "#2dd4bf",
+        items: [
+          "README expanded to document large-enterprise end-customers managing their own multi-thousand-system NetApp fleet as a first-class audience, alongside TAMs/SEs/MSPs — new dedicated 'Enterprise Fleet Operations' use case, audience mapping on the deliverables table, and updated tagline",
+          "Deliverables Suite panel header now notes it's equally usable scoped to a business unit or data center instead of an external customer"
+        ]
+      },
+      {
+        icon: "📝",
+        label: "Documentation Accuracy + Licensing Update",
+        color: "#f59e0b",
+        items: [
+          "Audited README against the actual codebase — confirmed the 13-deliverable and 18-section counts are accurate, corrected a few stale advisory/CVE/KEV counts to match current data",
+          "Replaced individual-author references (Eugene Beauzec) with the company name (Obi1 - FZCO) across LICENSE, LEGAL.md, README.md, and CONTEXT.md"
+        ]
+      }
+    ]
+  },
   {
     version: "4.5.1",
     date: "10 August 2026",
@@ -23125,6 +23150,9 @@ function generateActionPlan() {
             </div>
             <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; max-width: 700px;">
               Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT file for distribution to stakeholders.
+            </p>
+            <p style="font-size: 0.72rem; color: var(--text-muted); margin: 6px 0 0; line-height: 1.5; max-width: 700px;">
+              Equally usable by enterprise end-customers managing their own fleet: scope to a business unit, data center, or environment instead of an external customer to get the same security, licensing, capacity, and lifecycle deliverables for internal reporting and audit.
             </p>
           </div>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 13 deliverables as individual TXT files">⬇ Download All</button>

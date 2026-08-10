@@ -1,8 +1,8 @@
 {
-  "version": "4.5.1",
+  "version": "4.5.2",
   "major": 4,
   "minor": 5,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-10",
-  "notes": "Wired real per-system license data into the tool (server.py queries `licenses { licenseSerialNumber package type description name }` in both the full and fallback GraphQL tiers -- added carefully, on its own, after the previous field-count-limit regression). As-Built 'Lifecycle & Licenses' panel now shows deduplicated licensed packages with descriptions and cross-checks Anti-Ransomware Protection and SnapMirror licenses against actual harvested enabled/active telemetry, flagging licensed-but-not-confirmed-active gaps. Added a new 'Licensed Feature Adoption' table to the License Compliance deliverable showing fleet-wide package counts and the same licensed-vs-active cross-check -- confirmed live: 28 systems licensed for Anti-Ransomware Protection fleet-wide, 21 distinct license packages total. Fixed a broken escaped-apostrophe in a new template string that crashed all of app.js on load -- caught and fixed before this was pushed."
+  "notes": "Documentation and licensing update. Replaced all references to the individual author (Eugene Beauzec) with the company name (Obi1 - FZCO) across LICENSE, LEGAL.md, README.md, and CONTEXT.md, adjusting pronouns/grammar for a corporate entity. Audited README.md against the actual codebase: confirmed the 13-deliverable and 18-Action-Planner-section counts are accurate, corrected two stale numbers (security advisory count 69->70+, CISA KEV count 2->3, unique CVE count 90+->75+) to match the current data files. Expanded the tool's documented positioning beyond TAM/MSP: added large-enterprise end-customer fleet management as a first-class audience throughout README.md (tagline, Section 1 audience framing, a new dedicated 'Enterprise Fleet Operations' use case in Section 3, and an enterprise-mapping note + secondary audience column on the deliverables table in Section 7). Reflected the same framing in the interface -- the Deliverables Suite panel header now explicitly notes it is equally usable by enterprise end-customers scoping to a business unit/data center instead of an external customer."
 }

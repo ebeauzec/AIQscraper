@@ -14,17 +14,17 @@ code, documentation, technical specifications, architecture, designs, workflows,
 configurations, prompts, scripts, build materials, databases, user interfaces,
 and all related materials, content and developments, whether existing now or
 created in the future, is the sole and exclusive intellectual property of
-**Eugene Beauzec**.
+**Obi1 - FZCO**.
 
 All rights, title and interest in and to the software, including all copyright,
 economic rights, moral rights to the extent applicable, neighbouring rights,
 database rights, know-how, trade secrets, inventions, improvements, derivative
 works, updates, enhancements and all other intellectual property rights, are and
-shall remain exclusively vested in **Eugene Beauzec**, unless expressly
-transferred by him under a separate written agreement signed by him.
+shall remain exclusively vested in **Obi1 - FZCO**, unless expressly
+transferred by it under a separate written agreement signed by it.
 
 The software was independently conceived, authored, developed, tested and
-assembled by **Eugene Beauzec** on his own time and using independent tools,
+assembled by **Obi1 - FZCO** on its own time and using independent tools,
 resources and development environments. The software was not created as a
 work-for-hire, commissioned work, employment deliverable, client assignment,
 internal project, sponsored project, or contractual obligation for any employer,
@@ -34,8 +34,8 @@ party.
 No employer, former employer, client, sponsor, platform provider, user,
 contributor or third party shall acquire any ownership interest, licence,
 royalty, profit-share, assignment right, benefit, claim, control, or other right
-in or to the software by reason of Eugene Beauzec's past or present employment,
-sponsorship, administrative status, visa status, immigration status, professional
+in or to the software by reason of Obi1 - FZCO's past or present engagements,
+sponsorship, administrative status, professional
 relationship, access to the software, use of the software, feedback,
 contribution, or use of independent development tools.
 
@@ -47,31 +47,31 @@ non-public information belonging to any employer, former employer, client,
 sponsor, platform provider, user, contributor or third party.
 
 Any use of third-party tools, including generative-AI assisted development tools,
-was carried out solely as an independent development aid under Eugene Beauzec's
-personal direction, review, testing, selection and control. No confidential,
+was carried out solely as an independent development aid under Obi1 - FZCO's
+direction, review, testing, selection and control. No confidential,
 proprietary, customer, internal, employer-owned, client-owned, or trade-secret
 information of any employer, former employer, client, sponsor, platform provider,
 user, contributor or third party was submitted to, uploaded into, disclosed to,
 or used with such tools in connection with the development of the software.
 
-All rights not expressly granted in writing by Eugene Beauzec are strictly
+All rights not expressly granted in writing by Obi1 - FZCO are strictly
 reserved. No person or entity may copy, reproduce, modify, adapt, translate,
 publish, distribute, commercialise, sublicense, sell, assign, transfer, pledge,
 reverse engineer, remove attribution from, or claim authorship or ownership of
 the software, in whole or in part, except as expressly authorised in writing by
-Eugene Beauzec.
+Obi1 - FZCO.
 
 Any permitted use of the software is subject to the licence terms expressly
-stated by Eugene Beauzec. Nothing in this notice shall be interpreted as
+stated by Obi1 - FZCO. Nothing in this notice shall be interpreted as
 granting any implied licence, ownership right, commercial right, assignment,
 waiver, consent, or permission beyond what is expressly granted in writing.
 
 If any third-party proprietary material is credibly identified as having been
-inadvertently included in the software, Eugene Beauzec reserves the right to
+inadvertently included in the software, Obi1 - FZCO reserves the right to
 remove, replace or remediate such material promptly, without admission of
-liability and without prejudice to his ownership of the remaining software.
+liability and without prejudice to its ownership of the remaining software.
 
-Copyright © 2026 Eugene Beauzec. All Rights Reserved.
+Copyright © 2026 Obi1 - FZCO. All Rights Reserved.
 
 ---
 
@@ -141,7 +141,7 @@ Any permitted use, deployment, or sharing of this Software must retain:
 
 1. This `LEGAL.md` file, intact and unmodified;
 2. The `LICENSE` file, intact and unmodified;
-3. The copyright notice `Copyright © 2026 Eugene Beauzec` wherever the
+3. The copyright notice `Copyright © 2026 Obi1 - FZCO` wherever the
    Software or its output is displayed or distributed.
 
 Removing, obscuring, or modifying attribution is a breach of the License and
@@ -195,5 +195,5 @@ output.
 
 ---
 
-*Last updated: 2026-08-01*
-*Copyright © 2026 Eugene Beauzec. All Rights Reserved.*
+*Last updated: 2026-08-10*
+*Copyright © 2026 Obi1 - FZCO. All Rights Reserved.*
