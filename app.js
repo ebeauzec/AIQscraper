@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.5.2";
+const APP_VERSION = "4.6.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.6.0",
+    date: "10 August 2026",
+    title: "Fixed: Fabricated Backplate Ports + Invented Switch CVEs",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Rear-Panel Backplate Fabricated Every Port",
+        color: "#f87171",
+        items: [
+          "getSystemPortMappings() previously invented every port name, IP, WWPN, link status, and cabling-partner switch/port identity from a hash of the serial number for every hardware platform — now builds the real port list from Active IQ's harvested networkPorts telemetry, with genuinely unavailable fields (FC/SAS ports, cabling partners, IP address — none exist in that API field) shown as unavailable instead of invented",
+          "Link-state coloring now has a real gray 'unknown' state instead of forcing every port green or red"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Switch Validation Invented Specific CVEs",
+        color: "#f87171",
+        items: [
+          "getSystemSwitches() fabricated 1-3 entire fake switches — including specific invented CVE numbers — presented as real findings for actual customer equipment whenever Active IQ hadn't discovered/monitored a switch. Now honestly reports nothing, letting the existing 'not monitored' UI states handle it",
+          "Fixed versionLt() silently dropping the build number from Cisco's parenthetical firmware format (9.3(12)), which could misjudge two different releases as equal",
+          "Corrected README's switch firmware baseline table, which had drifted from the live data/firmware_baselines.json"
+        ]
+      }
+    ]
+  },
   {
     version: "4.5.2",
     date: "10 August 2026",
@@ -7144,7 +7170,13 @@ let NETAPP_SECURITY_BULLETIN_DB = []; // Populated at startup from security_bull
 // Supports "9.x", "9.x.y", and "9.x.yPn" formats.
 function versionLt(ver, limit) {
   const parse = (v) => {
-    const m = (v || '').replace(/^(ontap|storagegrid|santricity os)\s*/i, '').trim().match(/^(\d+)\.(\d+)(?:\.(\d+))?(?:P(\d+))?/i);
+    const s = (v || '').replace(/^(ontap|storagegrid|santricity os)\s*/i, '').trim();
+    // Cisco NX-OS/MDS format: "9.3(12)" — the parenthetical is the real build/patch
+    // number and must not be silently dropped, or e.g. 9.3(8) and 9.3(12) compare
+    // as equal (both parse to [9,3,0,0] under the plain ONTAP-style regex below).
+    const ciscoM = s.match(/^(\d+)\.(\d+)\((\d+)\)/);
+    if (ciscoM) return [parseInt(ciscoM[1]), parseInt(ciscoM[2]), parseInt(ciscoM[3]), 0];
+    const m = s.match(/^(\d+)\.(\d+)(?:\.(\d+))?(?:P(\d+))?/i);
     if (!m) return [0, 0, 0, 0];
     return [
       parseInt(m[1]),
@@ -9850,80 +9882,17 @@ function renderTAMTab() {
 }
 
 
+// sys.switches (real, harvested from Active IQ's cluster-level switches{} query —
+// see server.py ~1746-1825) is the only legitimate source of switch inventory,
+// firmware, and validation data. This function previously fell back to fabricating
+// 1-3 entire fake switches — invented models, serials, IPs, and even specific CVE
+// numbers (e.g. "CVE-2023-20092") — derived from a hash of the system's own serial
+// number whenever Active IQ hadn't discovered/monitored a switch for that system.
+// That is fabricated vulnerability data presented as real for actual customer
+// equipment. Now honestly reports that no switch was discovered/monitored instead.
 function getSystemSwitches(sys) {
   if (sys.switches && sys.switches.length > 0) return sys.switches;
-  
-  const seed = parseInt(sys.serialNumber) || 0;
-  const switches = [];
-  
-  if (sys.isMetroCluster || (sys.platformType || '').includes("MetroCluster")) {
-    switches.push({
-      type: "MetroCluster Back-end",
-      model: (sys.platformType || '').includes("IP") ? "Cisco Nexus 9336C-FX2" : "Brocade G620 FC",
-      serialNumber: `SW-MC-${sys.serialNumber.substring(6)}A`,
-      firmware: seed % 3 === 0 ? "9.3(8)" : "9.3(12)",
-      targetFirmware: "9.3(12)",
-      status: seed % 3 === 0 ? "Warning" : "Optimal",
-      ipAddress: `192.168.50.100`,
-      validationDetails: seed % 3 === 0 ? "Firmware drift: NX-OS 9.3(8) is below the minimum Interoperability Matrix Tool (IMT) validated version." : "Optimal connection."
-    });
-    switches.push({
-      type: "Cluster Interconnect",
-      model: "Cisco Nexus 3132Q-V",
-      serialNumber: `SW-CI-${sys.serialNumber.substring(6)}B`,
-      firmware: "9.3(12)",
-      targetFirmware: "9.3(12)",
-      status: "Optimal",
-      ipAddress: `192.168.50.120`,
-      validationDetails: "Optimal connection."
-    });
-    switches.push({
-      type: "Front-end Storage",
-      model: "Cisco MDS 9148T",
-      serialNumber: `SW-FE-${sys.serialNumber.substring(6)}C`,
-      firmware: seed % 4 === 0 ? "8.4(2)" : "9.2(2)",
-      targetFirmware: "9.2(2)",
-      status: seed % 4 === 0 ? "Warning" : "Optimal",
-      ipAddress: `10.10.20.150`,
-      validationDetails: seed % 4 === 0 ? "Firmware warning: MDS-OS v8.4(2) contains security vulnerability CVE-2023-20092. Upgrade advised." : "Optimal connection."
-    });
-  } else if ((sys.platformType || '').includes("On-Prem") || sys.platform.includes("FAS") || sys.platform.includes("AFF") || sys.platform.includes("ASA")) {
-    switches.push({
-      type: "Cluster Interconnect",
-      model: seed % 5 === 0 ? "Broadcom BES-53248" : "Cisco Nexus 3132Q-V",
-      serialNumber: `SW-CI-${sys.serialNumber.substring(6)}A`,
-      firmware: seed % 5 === 0 ? "EFOS 3.4.4.6" : "NX-OS 9.3(10)",
-      targetFirmware: seed % 5 === 0 ? "EFOS 3.8.0.2" : "NX-OS 9.3(12)",
-      status: seed % 5 === 0 ? "Warning" : (seed % 7 === 0 ? "Critical" : "Optimal"),
-      ipAddress: `192.168.60.100`,
-      validationDetails: seed % 5 === 0 
-        ? "Firmware drift detected: EFOS 3.4 is out of sync." 
-        : (seed % 7 === 0 ? "Critical Bug Alert: NX-OS 9.3(10) has a memory leak in ports telemetry. Urgent upgrade required." : "Optimal connection.")
-    });
-    switches.push({
-      type: "Front-end Data",
-      model: "Cisco Nexus 93180YC-FX",
-      serialNumber: `SW-FE-${sys.serialNumber.substring(6)}B`,
-      firmware: "9.3(12)",
-      targetFirmware: "9.3(12)",
-      status: "Optimal",
-      ipAddress: `10.10.10.100`,
-      validationDetails: "Optimal connection."
-    });
-  } else if ((sys.platformType || '').includes("StorageGRID") || (sys.platformType || '').includes("SG")) {
-    switches.push({
-      type: "Grid Network",
-      model: "Cisco Nexus 93180YC-FX",
-      serialNumber: `SW-GRID-${sys.serialNumber.substring(6)}A`,
-      firmware: seed % 6 === 0 ? "9.3(8)" : "9.3(12)",
-      targetFirmware: "9.3(12)",
-      status: seed % 6 === 0 ? "Warning" : "Optimal",
-      ipAddress: `10.50.10.100`,
-      validationDetails: seed % 6 === 0 ? "Firmware warning: upgrade NX-OS to address grid MTU packet loss bugs." : "Optimal connection."
-    });
-  }
-  
-  return switches;
+  return [];
 }
 
 function getSystemIntegrations(sys) {
@@ -26727,367 +26696,57 @@ function getSystemModelName(sys) {
 }
 
 // 12. Visual Port Mapping & L1 Topology Representation Helpers
+// Maps a real Active IQ NetworkPortRole enum value onto this UI's port-type
+// categories, which drive both the layout grouping and the LED color.
+function _mapNetworkPortRole(role) {
+  const r = (role || '').toUpperCase();
+  if (r === 'CLUSTER' || r === 'INTERCLUSTER') return 'cluster';
+  if (r === 'CLUSTER_MGMT' || r === 'NODE_MGMT') return 'mgmt';
+  if (r === 'DATA') return 'data';
+  return 'data'; // UNKNOWN role — default bucket rather than inventing a category
+}
+
+// Formats speedOperationalMbps (a string per the GraphQL schema, e.g. "100000")
+// into a human-readable Gbps label, honestly falling back when absent.
+function _fmtPortSpeed(mbps) {
+  const n = parseFloat(mbps);
+  if (!n || isNaN(n)) return null;
+  return (n >= 1000) ? (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + ' Gbps' : n + ' Mbps';
+}
+
+// Builds the rear-panel port list from Active IQ's real per-port telemetry
+// (server.py harvests `networkPorts { port role link type broadcastDomain
+// ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes
+// interfaceGroupOwner }`). Earlier versions of this function fabricated every
+// port name, IP, WWPN, and cabling partner from a hash of the serial number —
+// this version only ever shows what Active IQ actually reported for THIS
+// system. Active IQ's networkPorts field only covers Ethernet ports (no FC/SAS
+// role exists in the schema), so FC/SAS/disk-shelf ports are never invented
+// here; the backplate layout renders those sections empty rather than guess.
 function getSystemPortMappings(sys) {
-  // Check if system has specific risks to dynamically fail/degrade ports
-  const hasSasFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("path failure") || r.description.toLowerCase().includes("sas"));
-  const hasClusterFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("cluster interconnect") || r.description.toLowerCase().includes("cluster network"));
-  const hasMgmtFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("management") || r.description.toLowerCase().includes("mgmt"));
-  const hasBatteryFailure = sys.risks && sys.risks.some(r => r.description.toLowerCase().includes("battery") || r.description.toLowerCase().includes("bbu"));
-  
-  const platformStr = sys.platform || "";
-  const isEseries = !!sys.santricityVersion || platformStr.toLowerCase().includes("e-series") || platformStr.toLowerCase().includes("ef600") || platformStr.toLowerCase().includes("ef50") || platformStr.toLowerCase().includes("ef80") || platformStr.toLowerCase().includes("e5700") || platformStr.toLowerCase().includes("ef300") || platformStr.toLowerCase().includes("e4000");
-  const isCloud = platformStr.toLowerCase().includes("cloud");
-  const isStorageGrid = platformStr.toLowerCase().includes("storagegrid") || platformStr.toLowerCase().includes("sg60") || platformStr.toLowerCase().includes("sg61") || platformStr.toLowerCase().includes("sg10") || platformStr.toLowerCase().includes("sg57");
-  const isNextGen = platformStr.includes("A90") || platformStr.includes("A70") || platformStr.includes("C80") || platformStr.includes("A1K") || platformStr.includes("ASA") || platformStr.includes("AFX") || /A[0-9]{2,3}/.test(platformStr) || /C[0-9]{2,3}/.test(platformStr) || /r2/i.test(platformStr);
-  const isAFX = platformStr.toLowerCase().includes("afx");
-  
-  if (isAFX) {
-    return [
-      {
-        name: "e0M",
-        type: "mgmt",
-        status: hasMgmtFailure ? "offline" : "online",
-        partnerType: "mgmt_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-01`,
-        partnerPort: "Fa0/24",
-        cablingStatus: hasMgmtFailure ? "disconnected" : "optimal",
-        details: { speed: "1 Gbps", mtu: 1500, ip: `10.250.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.5` }
-      },
-      {
-        name: "Slot 1 (HA)",
-        type: "cluster",
-        status: "online",
-        partnerType: "cluster_switch",
-        partnerName: `HA replication peer`,
-        partnerPort: "Dedicated HA Link",
-        cablingStatus: "optimal",
-        details: { speed: "100 Gbps RoCE", mtu: 9000 }
-      },
-      {
-        name: "Slot 7 (Clus)",
-        type: "cluster",
-        status: hasClusterFailure ? "offline" : "online",
-        partnerType: "cluster_switch",
-        partnerName: `${sys.clusterName.toLowerCase()}-afx-clus-sw-01`,
-        partnerPort: "Eth1/7",
-        cablingStatus: hasClusterFailure ? "disconnected" : "optimal",
-        details: { speed: "100 Gbps (400GbE Breakout)", mtu: 9000, ip: "169.254.1.10" }
-      },
-      {
-        name: "Slot 10 (Store A)",
-        type: "nvme",
-        status: "online",
-        partnerType: "disk_shelf",
-        partnerName: "shelf-nx224-saz-1",
-        partnerPort: "NSM140-A-IN",
-        cablingStatus: "optimal",
-        details: { speed: "100 Gbps NVMe", shelfStack: "SAZ Shared Storage Pool Module A" }
-      },
-      {
-        name: "Slot 11 (Store B)",
-        type: "nvme",
-        status: hasSasFailure ? "offline" : "online",
-        partnerType: "disk_shelf",
-        partnerName: "shelf-nx224-saz-1",
-        partnerPort: "NSM140-B-IN",
-        cablingStatus: hasSasFailure ? "disconnected" : "optimal",
-        details: { speed: "100 Gbps NVMe", shelfStack: "SAZ Shared Storage Pool Module B" }
-      },
-      {
-        name: "Slot 12 (Data 1)",
-        type: "data",
-        status: "online",
-        partnerType: "core_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-01`,
-        partnerPort: "Eth1/1",
-        cablingStatus: "optimal",
-        details: { speed: "100 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.11` }
-      },
-      {
-        name: "Slot 12 (Data 2)",
-        type: "data",
-        status: "online",
-        partnerType: "core_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-02`,
-        partnerPort: "Eth1/1",
-        cablingStatus: "optimal",
-        details: { speed: "100 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.12` }
+  const rawPorts = (sys.networkPorts && sys.networkPorts.networkPorts) || [];
+  return rawPorts.filter(p => p && p.port).map(p => {
+    const speed = _fmtPortSpeed(p.speedOperationalMbps);
+    return {
+      name: p.port,
+      type: _mapNetworkPortRole(p.role),
+      status: (p.link || '').toUpperCase() === 'UP' ? 'online' : ((p.link || '').toUpperCase() === 'DOWN' ? 'offline' : 'unknown'),
+      // No LLDP/cabling-partner telemetry exists in the Active IQ schema — never
+      // fabricate a switch/port name here; the renderer shows "Not reported" instead.
+      partnerType: null,
+      partnerName: null,
+      partnerPort: null,
+      cablingStatus: null,
+      details: {
+        speed: speed,
+        mtu: p.maxTransmissionUnitBytes || null,
+        mac: p.macAddress || null,
+        broadcastDomain: p.broadcastDomain || null,
+        ipspace: p.ipspaceName || null,
+        interfaceGroup: p.interfaceGroupOwner || null
       }
-    ];
-  }
-  
-  if (isCloud) {
-    const _pt = (sys.platformType || sys.platform || '');
-    const provider = _pt.includes("AWS") ? "AWS VPC" : (_pt.includes("Azure") ? "Azure VNet" : "GCP VPC");
-    return [
-      {
-        name: "e0a",
-        type: "mgmt",
-        status: "online",
-        partnerType: "mgmt_switch",
-        partnerName: `${provider} Management Subnet Gateway`,
-        partnerPort: "vNic0",
-        cablingStatus: "optimal",
-        details: { speed: "10 Gbps Virtual", mtu: 1500, ip: `10.240.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.10` }
-      },
-      {
-        name: "e0b",
-        type: "data",
-        status: "online",
-        partnerType: "core_switch",
-        partnerName: `${provider} Data Subnet Route Table`,
-        partnerPort: "vNic1",
-        cablingStatus: "optimal",
-        details: { speed: "25 Gbps Virtual", mtu: 9000, ip: `10.240.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.20` }
-      },
-      {
-        name: "e0c",
-        type: "cluster",
-        status: "online",
-        partnerType: "cluster_switch",
-        partnerName: `${provider} HA Interconnect Peering`,
-        partnerPort: "vNic2",
-        cablingStatus: "optimal",
-        details: { speed: "25 Gbps Virtual", mtu: 9000, ip: "169.254.100.1" }
-      },
-      {
-        name: "e0d",
-        type: "data",
-        status: "online",
-        partnerType: "core_switch",
-        partnerName: `${provider} Intercluster Sync Routing`,
-        partnerPort: "vNic3",
-        cablingStatus: "optimal",
-        details: { speed: "10 Gbps Virtual", mtu: 9000, ip: `10.240.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.30` }
-      }
-    ];
-  }
-
-  if (isStorageGrid) {
-    return [
-      {
-        name: "Grid Network",
-        type: "cluster",
-        status: "online",
-        partnerType: "cluster_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-grid-sw-A`,
-        partnerPort: "Port 1",
-        cablingStatus: "optimal",
-        details: { speed: "10/25 Gbps Bond", mtu: 9000, ip: `172.16.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.2` }
-      },
-      {
-        name: "Admin Network",
-        type: "mgmt",
-        status: "online",
-        partnerType: "mgmt_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-A`,
-        partnerPort: "Port 2",
-        cablingStatus: "optimal",
-        details: { speed: "1 Gbps Active-Backup", mtu: 1500, ip: `10.120.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.2` }
-      },
-      {
-        name: "Client Network",
-        type: "data",
-        status: "online",
-        partnerType: "core_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-A`,
-        partnerPort: "Port 3",
-        cablingStatus: "optimal",
-        details: { speed: "10/25 Gbps Bond", mtu: 9000, ip: `192.168.${(parseInt(sys.serialNumber.slice(-4)) || 100) % 250 + 1}.2` }
-      }
-    ];
-  }
-
-  if (isEseries) {
-    const isEf600 = sys.platform.includes("EF600");
-    return [
-      {
-        name: "Mgmt 1",
-        type: "mgmt",
-        status: hasMgmtFailure ? "offline" : "online",
-        partnerType: "mgmt_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-01`,
-        partnerPort: "Fa0/12",
-        cablingStatus: hasMgmtFailure ? "disconnected" : "optimal",
-        details: { speed: "1 Gbps", mtu: 1500, ip: `10.220.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.21` }
-      },
-      {
-        name: "Mgmt 2",
-        type: "mgmt",
-        status: "online",
-        partnerType: "mgmt_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-02`,
-        partnerPort: "Fa0/12",
-        cablingStatus: "optimal",
-        details: { speed: "1 Gbps", mtu: 1500, ip: `10.220.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.22` }
-      },
-      {
-        name: "Host 1",
-        type: isEf600 ? "data" : "fc",
-        status: "online",
-        partnerType: isEf600 ? "core_switch" : "san_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-01' : 'san-sw-A'}`,
-        partnerPort: isEf600 ? "Eth1/5" : "fc1/12",
-        cablingStatus: "optimal",
-        details: isEf600 
-          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.1` }
-          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1b:${sys.serialNumber.slice(-2)}` }
-      },
-      {
-        name: "Host 2",
-        type: isEf600 ? "data" : "fc",
-        status: "online",
-        partnerType: isEf600 ? "core_switch" : "san_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-02' : 'san-sw-B'}`,
-        partnerPort: isEf600 ? "Eth1/5" : "fc1/12",
-        cablingStatus: "optimal",
-        details: isEf600 
-          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.2` }
-          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1c:${sys.serialNumber.slice(-2)}` }
-      },
-      {
-        name: "Host 3",
-        type: isEf600 ? "data" : "fc",
-        status: "online",
-        partnerType: isEf600 ? "core_switch" : "san_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-01' : 'san-sw-A'}`,
-        partnerPort: isEf600 ? "Eth1/6" : "fc1/13",
-        cablingStatus: "optimal",
-        details: isEf600 
-          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.3` }
-          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1d:${sys.serialNumber.slice(-2)}` }
-      },
-      {
-        name: "Host 4",
-        type: isEf600 ? "data" : "fc",
-        status: "online",
-        partnerType: isEf600 ? "core_switch" : "san_switch",
-        partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${isEf600 ? 'core-sw-02' : 'san-sw-B'}`,
-        partnerPort: isEf600 ? "Eth1/6" : "fc1/13",
-        cablingStatus: "optimal",
-        details: isEf600 
-          ? { speed: "100 Gbps NVMe-oF", mtu: 9000, ip: `10.150.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.4` }
-          : { speed: "32 Gbps FC", wwpn: `50:0a:09:80:40:2a:1e:${sys.serialNumber.slice(-2)}` }
-      },
-      {
-        name: "Exp 1",
-        type: "sas",
-        status: "online",
-        partnerType: "disk_shelf",
-        partnerName: "shelf-de224c-stack-1",
-        partnerPort: "IOM-A-IN",
-        cablingStatus: "optimal",
-        details: { speed: "12 Gbps SAS", shelfStack: "DE224C Module A" }
-      },
-      {
-        name: "Exp 2",
-        type: "sas",
-        status: hasSasFailure ? "offline" : "online",
-        partnerType: "disk_shelf",
-        partnerName: "shelf-de224c-stack-1",
-        partnerPort: "IOM-B-IN",
-        cablingStatus: hasSasFailure ? "disconnected" : "optimal",
-        details: { speed: "12 Gbps SAS", shelfStack: "DE224C Module B" }
-      }
-    ];
-  }
-  
-  return [
-    {
-      name: "e0M",
-      type: "mgmt",
-      status: hasMgmtFailure ? "offline" : "online",
-      partnerType: "mgmt_switch",
-      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-mgmt-sw-01`,
-      partnerPort: "Fa0/24",
-      cablingStatus: hasMgmtFailure ? "disconnected" : "optimal",
-      details: { speed: "1 Gbps", mtu: 1500, ip: `10.250.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.5` }
-    },
-    {
-      name: "e0a",
-      type: "cluster",
-      status: "online",
-      partnerType: "cluster_switch",
-      partnerName: `${sys.clusterName.toLowerCase()}-clus-sw-01`,
-      partnerPort: "Eth1/1",
-      cablingStatus: "optimal",
-      details: { speed: isNextGen ? "100 Gbps" : "40 Gbps", mtu: 9000, ip: "169.254.1.10" }
-    },
-    {
-      name: "e0b",
-      type: "cluster",
-      status: hasClusterFailure ? "offline" : "online",
-      partnerType: "cluster_switch",
-      partnerName: `${sys.clusterName.toLowerCase()}-clus-sw-02`,
-      partnerPort: "Eth1/1",
-      cablingStatus: hasClusterFailure ? "disconnected" : "optimal",
-      details: { speed: isNextGen ? "100 Gbps" : "40 Gbps", mtu: 9000, ip: "169.254.2.10" }
-    },
-    {
-      name: "e0c",
-      type: "data",
-      status: "online",
-      partnerType: "core_switch",
-      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-01`,
-      partnerPort: "Eth1/41",
-      cablingStatus: "optimal",
-      details: { speed: isNextGen ? "100 Gbps" : "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.11` }
-    },
-    {
-      name: "e0d",
-      type: "data",
-      status: "online",
-      partnerType: "core_switch",
-      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-core-sw-02`,
-      partnerPort: "Eth1/41",
-      cablingStatus: "optimal",
-      details: { speed: isNextGen ? "100 Gbps" : "10 Gbps", mtu: 9000, ip: `10.100.${(parseInt(sys.serialNumber.slice(-4)) % 250) + 1}.12` }
-    },
-    {
-      name: "0a",
-      type: "fc",
-      status: "online",
-      partnerType: "san_switch",
-      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-san-sw-A`,
-      partnerPort: "fc1/5",
-      cablingStatus: "optimal",
-      details: { speed: isNextGen ? "64 Gbps" : "32 Gbps", wwpn: `50:0a:09:80:30:1a:2b:${sys.serialNumber.slice(-2)}` }
-    },
-    {
-      name: "0b",
-      type: "fc",
-      status: "online",
-      partnerType: "san_switch",
-      partnerName: `${sys.customerName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-san-sw-B`,
-      partnerPort: "fc1/5",
-      cablingStatus: "optimal",
-      details: { speed: isNextGen ? "64 Gbps" : "32 Gbps", wwpn: `50:0a:09:80:30:1a:2c:${sys.serialNumber.slice(-2)}` }
-    },
-    {
-      name: "0c",
-      type: isNextGen ? "nvme" : "sas",
-      status: "online",
-      partnerType: "disk_shelf",
-      partnerName: isNextGen ? "shelf-ns224-stack-1" : "shelf-ds224c-stack-1",
-      partnerPort: isNextGen ? "NSM-A-IN" : "IOM-A-IN",
-      cablingStatus: "optimal",
-      details: isNextGen 
-        ? { speed: "100 Gbps NVMe", shelfStack: "NS224 NVMe Shelf Stack 1 Module A" }
-        : { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module A" }
-    },
-    {
-      name: "0d",
-      type: isNextGen ? "nvme" : "sas",
-      status: hasSasFailure ? "offline" : "online",
-      partnerType: "disk_shelf",
-      partnerName: isNextGen ? "shelf-ns224-stack-1" : "shelf-ds224c-stack-1",
-      partnerPort: isNextGen ? "NSM-B-IN" : "IOM-B-IN",
-      cablingStatus: hasSasFailure ? "disconnected" : "optimal",
-      details: isNextGen 
-        ? { speed: "100 Gbps NVMe", shelfStack: "NS224 NVMe Shelf Stack 1 Module B" }
-        : { speed: "12 Gbps SAS", shelfStack: "Stack 1 Module B" }
-    }
-  ];
+    };
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -27101,7 +26760,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
 
   // ── Shared helpers ─────────────────────────────────────────────────────────
   const _portLed = (port) => {
-    const col = port.status === 'online' ? '#10b981' : '#ef4444';
+    const col = port.status === 'online' ? '#10b981' : (port.status === 'offline' ? '#ef4444' : '#6b7280');
     return `<span style="width:5px;height:5px;border-radius:50%;background:${col};box-shadow:0 0 6px ${col};display:inline-block;"></span>`;
   };
   const _portTypeColor = (type) => {
@@ -27526,8 +27185,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     if (port.type === "fc") { portColor = "#eab308"; typeLabel = "FC / SAN"; }
     if (port.type === "sas") { portColor = "#a855f7"; typeLabel = "Storage SAS"; }
 
-    const statusLedColor = port.status === "online" ? "#10b981" : "#ef4444";
-    const statusLedShadow = port.status === "online" ? "0 0 8px #10b981" : "0 0 8px #ef4444";
+    const statusLedColor = port.status === "online" ? "#10b981" : (port.status === "offline" ? "#ef4444" : "#6b7280");
+    const statusLedShadow = port.status === "online" ? "0 0 8px #10b981" : (port.status === "offline" ? "0 0 8px #ef4444" : "none");
     
     // Physical Port Slot
     portsHtml += `
@@ -27543,23 +27202,29 @@ function renderNodeVisualLayout(selectedSystems, sys) {
       </div>
     `;
 
-    // Table Row details
-    let configDetail = "";
-    if (port.type === "fc") {
-      configDetail = `<code style="font-size: 0.72rem; color: var(--text-secondary);">${port.details.speed} | WWPN: ${port.details.wwpn}</code>`;
-    } else if (port.type === "sas") {
-      configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${port.details.speed} (${port.details.shelfStack})</span>`;
-    } else {
-      configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${port.details.speed} (MTU: ${port.details.mtu}) | IP: ${port.details.ip}</span>`;
-    }
+    // Table row details — Active IQ's networkPorts field carries speed/MTU/MAC
+    // per Ethernet port but no FC/SAS role, IP address, or cabling-partner (LLDP)
+    // data; show a real value where harvested, "Not reported" where genuinely
+    // absent rather than inventing one.
+    const d = port.details || {};
+    const detailParts = [];
+    if (d.speed) detailParts.push(d.speed);
+    if (d.mtu) detailParts.push('MTU: ' + d.mtu);
+    if (d.mac) detailParts.push('MAC: ' + d.mac);
+    const configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${detailParts.length ? detailParts.join(' | ') : '<span style="color:var(--text-muted);font-style:italic;">Not reported by Active IQ</span>'}</span>`;
 
-    const statusBadge = port.status === "online" 
+    const statusBadge = port.status === "online"
       ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-normal); border: 1px solid rgba(0, 230, 118, 0.25); background: rgba(0, 230, 118, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">✓ Optimal</span>`
-      : `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`;
+      : (port.status === "offline"
+        ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`
+        : `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.03); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">? Unknown</span>`);
+
+    const partnerCell = port.partnerName || '<span style="color:var(--text-muted);font-style:italic;">Not available via API</span>';
+    const partnerPortCell = port.partnerPort ? `<code>${port.partnerPort}</code>` : '<span style="color:var(--text-muted);">—</span>';
 
     tableRowsHtml += `
       <tr id="port-row-${port.name}" style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s ease; cursor: pointer;"
-          onmouseenter="hoverCablingPort('${port.name}')" 
+          onmouseenter="hoverCablingPort('${port.name}')"
           onmouseleave="unhoverCablingPort('${port.name}')">
         <td style="padding: 10px; font-weight: 700; color: #fff;"><code>${port.name}</code></td>
         <td style="padding: 10px;">
@@ -27569,12 +27234,16 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           </span>
         </td>
         <td style="padding: 10px;">${configDetail}</td>
-        <td style="padding: 10px; font-weight: 500;">${port.partnerName}</td>
-        <td style="padding: 10px;"><code>${port.partnerPort}</code></td>
+        <td style="padding: 10px; font-weight: 500;">${partnerCell}</td>
+        <td style="padding: 10px;">${partnerPortCell}</td>
         <td style="padding: 10px;">${statusBadge}</td>
       </tr>
     `;
   });
+
+  if (ports.length === 0) {
+    tableRowsHtml = `<tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">No per-port telemetry reported by Active IQ for this system.</td></tr>`;
+  }
 
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
   const _plat = (sys.platform || '').toLowerCase();
