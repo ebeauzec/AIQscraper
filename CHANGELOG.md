@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.1] - 2026-08-10
+
+### Fixed
+- **Fleet silently reported as fully upgraded** — `enrichSystemTelemetry()`'s upgrade-recommendation logic used `let upgrades = s.upgrades;` — the same stale-cache pattern already fixed for `contracts` in 4.2.0. A pre-existing cached `upgrades` object (e.g. from before real Active IQ recommendation data was available for that system) permanently skipped recomputation regardless of the system's actual current OS version. Confirmed live: a system running ONTAP 9.12.1 showed "Systems Up to Date" / "No upgrades required" in the Technical Audit tab. After the fix, 163 of 167 systems in the test fleet were correctly reclassified as needing an upgrade. Live-data systems now always recompute upgrade recommendations fresh; mock/non-live systems still respect their intentionally pre-set `upgrades` field
+
+---
+
 ## [4.2.0] - 2026-08-10
 
 ### Added
