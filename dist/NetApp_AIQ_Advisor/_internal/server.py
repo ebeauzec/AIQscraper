@@ -577,6 +577,49 @@ def _gql(token, query, variables=None):
         return status, {"errors": [{"message": f"Non-JSON response (HTTP {status}): {snippet}"}]}
 
 
+def _check_acknowledged_risks_vs_kev(risks_by_serial):
+    """Cross-reference every acknowledged risk's CVE(s) against the CISA KEV
+    (Known Exploited Vulnerabilities) catalog. Returns a list of
+    {serialNumber, riskId, riskTitle, cveId, acknowledgedBy, acknowledgementDate,
+     justification, kevDateAdded, kevDueDate, kevRequiredAction} for every match
+    — i.e. every case where a TAM accepted/deferred a risk that has since been
+    confirmed under active real-world exploitation. Returns [] if the KEV
+    catalog hasn't been fetched yet or contains no entries."""
+    flagged = []
+    try:
+        if not KEV_PATH.exists():
+            return flagged
+        kev_data = json.loads(KEV_PATH.read_text(encoding='utf-8'))
+        kev_by_cve = {v.get('cveID'): v for v in kev_data.get('vulnerabilities', []) if v.get('cveID')}
+        if not kev_by_cve:
+            return flagged
+
+        for serial, risks in risks_by_serial.items():
+            for r in risks:
+                ack = r.get('acknowledgement')
+                if not ack:
+                    continue
+                for cve in (r.get('cves') or []):
+                    cve_id = cve.get('id') if isinstance(cve, dict) else None
+                    if cve_id and cve_id in kev_by_cve:
+                        kev_entry = kev_by_cve[cve_id]
+                        flagged.append({
+                            'serialNumber': serial,
+                            'riskId': r.get('riskId', ''),
+                            'riskTitle': r.get('shortName') or r.get('riskDetail', ''),
+                            'cveId': cve_id,
+                            'acknowledgedBy': ack.get('acknowledgedBy', ''),
+                            'acknowledgementDate': ack.get('acknowledgementDate', ''),
+                            'justification': ack.get('justification', ''),
+                            'kevDateAdded': kev_entry.get('dateAdded', ''),
+                            'kevDueDate': kev_entry.get('dueDate', ''),
+                            'kevRequiredAction': kev_entry.get('requiredAction', ''),
+                        })
+    except Exception as e:
+        print(f'  [KEV-ACK] Cross-reference failed: {e}', flush=True)
+    return flagged
+
+
 def _do_full_harvest(watchlist_ids=None):
     """Execute the full AIQ GraphQL harvest. Returns the result dict.
     This is the core logic extracted from handle_harvest, now reusable
@@ -1131,6 +1174,7 @@ def _do_full_harvest(watchlist_ids=None):
                     }
                     system { serialNumber hostName }
                     systemRiskDetail
+                    riskAcknowledgementInfo { acknowledgedBy acknowledgementDate justification comments acknowledgementExpiryDate }
                   }
                 }
               }""")
@@ -1314,7 +1358,15 @@ def _do_full_harvest(watchlist_ids=None):
             if serial:
                 risk_entry = dict(ri.get("risk") or {})
                 risk_entry["systemRiskDetail"] = ri.get("systemRiskDetail", "")
+                risk_entry["acknowledgement"] = ri.get("riskAcknowledgementInfo")
                 risks_by_serial.setdefault(serial, []).append(risk_entry)
+
+        # 9b. Cross-reference acknowledged risks against the CISA KEV catalog —
+        # flags cases where a TAM acknowledged (accepted/deferred) a risk that
+        # has since been added to CISA's Known Exploited Vulnerabilities list,
+        # meaning it's now under active real-world exploitation. This is a
+        # meaningful escalation signal no other view in the tool surfaces.
+        acknowledged_risks_now_exploited = _check_acknowledged_risks_vs_kev(risks_by_serial)
 
         # 10. Build casesBySerial lookup from cases
         cases_by_serial = {}
@@ -1807,6 +1859,19 @@ def _do_full_harvest(watchlist_ids=None):
                 _usbl_kib = cl_cap.get("usableCapacityTB", 0) * (1024**3)
                 _qoq      = cl_cap.get("qoqUtilizationPct", 0)
                 _yoy      = cl_cap.get("yoyUtilizationPct", 0)
+            # Independent per-field fallback: the API can populate rawMarketingKiB/
+            # usablePerformanceTierKiB at the system level while leaving usedKiB (and
+            # logical usedKiB) null — the block above only fires when _raw_kib is ALSO
+            # zero, so this case (raw/usable present, used genuinely missing) fell
+            # through with a permanently-0.00 TB "Physical Used"/"Logical" display.
+            if _used_kib == 0:
+                _cl_used = cl_cap.get("physicalUsedTB", 0) * (1024**3)
+                if _cl_used > 0:
+                    _used_kib = _cl_used
+            if _log_kib == 0:
+                _cl_log = cl_cap.get("logicalUsedTB", 0) * (1024**3)
+                if _cl_log > 0:
+                    _log_kib = _cl_log
 
             # ── Derive firmware from osVersions catalog if per-system GQL returned null ──
             _raw_sfw = s.get("systemFirmware") or {}
@@ -2235,6 +2300,7 @@ def _do_full_harvest(watchlist_ids=None):
             "tamSites": tam_sites,
             "tamSustainability": tam_sustainability,
             "tamOsVersions": tam_os_versions,
+            "acknowledgedRisksNowExploited": acknowledged_risks_now_exploited,
             "tamRenewals": tam_renewals,
             # ── External firmware baselines (ground-truth) ──
             "firmwareBaselines": _ext_baselines,
@@ -2634,7 +2700,7 @@ def fetch_netapp_psirt(advisory_id):
         return {'id': advisory_id, 'error': str(e)}
 
 
-def scan_and_persist_advisories():
+def scan_and_persist_advisories(nvd_api_key=None):
     """
     Full advisory scan pipeline:
     1. Fetch the NTAP advisory index from security.netapp.com
@@ -2643,10 +2709,22 @@ def scan_and_persist_advisories():
     4. For each NEW advisory: fetch detail page + NVD CVSS data
     5. Upsert into data/security_bulletins.json (atomic write)
     Returns dict: {added, updated, total, scanned, errors, newIds}
+
+    nvd_api_key: optional NVD API key for the CVSS lookup (50 req/30s instead
+    of 5/30s). If not passed explicitly, read directly from aiq_config.json —
+    lets callers that don't already have the key cached (HTTP handler, startup
+    scan) still benefit without threading it through every call site.
     """
     import time
     added = updated = errors = 0
     new_ids = []
+
+    if nvd_api_key is None:
+        try:
+            if CONFIG_PATH.exists():
+                nvd_api_key = json.loads(CONFIG_PATH.read_text(encoding='utf-8')).get('nvdApiKey') or None
+        except Exception:
+            nvd_api_key = None
 
     # ── 1. Fetch PSIRT advisory index ──────────────────────────────────────────
     print('  [SCAN] Fetching NetApp PSIRT advisory index...', flush=True)
@@ -2709,7 +2787,8 @@ def scan_and_persist_advisories():
             cves = detail.get('cve', [])
             if cves:
                 nvd_url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cves[0]}'
-                nvd_text, nvd_err = _enrich_fetch(nvd_url, timeout=15)
+                nvd_text, nvd_err = _enrich_fetch(nvd_url, timeout=15,
+                    extra_headers={'apiKey': nvd_api_key} if nvd_api_key else None)
                 if not nvd_err and nvd_text:
                     try:
                         nvd_data = json.loads(nvd_text)
@@ -3124,7 +3203,7 @@ class EnrichmentScheduler:
         """Run the existing NetApp PSIRT advisory scanner."""
         print('  [ENRICH] [2/7] Scanning NetApp PSIRT advisories...', flush=True)
         try:
-            result = scan_and_persist_advisories()
+            result = scan_and_persist_advisories(nvd_api_key=self._nvd_api_key)
             print(f'  [ENRICH]   PSIRT: +{result.get("added", 0)} new, {result.get("total", 0)} total', flush=True)
             return result
         except Exception as e:
@@ -5202,49 +5281,100 @@ def _search_netapp_psirt_for_version(version, product_keyword):
     return results[:5]
 
 
-def _search_nvd_for_version(version, cpe_product_keyword):
+# Real NVD CPE Dictionary product names for NetApp platforms — verified via a
+# live query against services.nvd.nist.gov/rest/json/cpes/2.0 (2026-08-10), not
+# guessed. Wrong names here would silently return zero CPE-matched results:
+#   ONTAP        -> clustered_data_ontap (modern cluster-mode, matches 9.x)
+#   StorageGRID  -> storagegrid
+#   SANtricity   -> e-series_santricity_os_controller (232 CVEs confirmed live)
+_NVD_CPE_PRODUCT = {
+    'ONTAP': 'clustered_data_ontap',
+    'StorageGRID': 'storagegrid',
+    'SANtricity': 'e-series_santricity_os_controller',
+}
+
+
+def _parse_nvd_vulnerabilities(vulnerabilities):
+    """Shared parser: NVD vulnerabilities[] -> [{id, description, cvss, severity, publishedDate}]."""
+    parsed = []
+    for item in vulnerabilities:
+        vuln = item.get('cve', {})
+        cve_id = vuln.get('id', '')
+        if not cve_id:
+            continue
+        descs = vuln.get('descriptions', [])
+        desc = next((d['value'] for d in descs if d.get('lang') == 'en'), '')
+        metrics = vuln.get('metrics', {})
+        cvss_score = None
+        severity = 'UNKNOWN'
+        for key in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
+            if key in metrics and metrics[key]:
+                m = metrics[key][0].get('cvssData', {})
+                cvss_score = m.get('baseScore')
+                severity = (m.get('baseSeverity') or 'UNKNOWN').upper()
+                break
+        parsed.append({
+            'id': cve_id,
+            'description': desc[:400],
+            'cvss': cvss_score,
+            'severity': severity,
+            'publishedDate': vuln.get('published', '')[:10],
+        })
+    return parsed
+
+
+def _search_nvd_for_version(version, cpe_product_keyword, nvd_api_key=None):
     """
-    Query NVD CVE API v2 by keyword+version to find CVEs affecting this version.
+    Find CVEs affecting this platform/version. Tries a precise CPE
+    (Common Platform Enumeration) match first — using NetApp's real, verified
+    NVD Dictionary product names — since keywordSearch alone is a blunt
+    instrument that also surfaces loosely-related historical CVEs matching
+    the product name in unrelated contexts. Falls back to / supplements with
+    keyword search for broader recall, deduplicated by CVE ID.
     Returns list of {id, description, cvss, severity, publishedDate} dicts.
+
+    nvd_api_key: if not passed explicitly, read directly from aiq_config.json
+    (same pattern as scan_and_persist_advisories) so existing callers benefit
+    from the configured key without needing to thread it through.
     """
-    results = []
+    if nvd_api_key is None:
+        try:
+            if CONFIG_PATH.exists():
+                nvd_api_key = json.loads(CONFIG_PATH.read_text(encoding='utf-8')).get('nvdApiKey') or None
+        except Exception:
+            nvd_api_key = None
+    headers = {'apiKey': nvd_api_key} if nvd_api_key else None
+    by_id = {}
+
+    # ── 1. Precise CPE match (versionless prefix — catches all versions of
+    #      this product; NVD's virtualMatchString does prefix matching) ──────
+    cpe_product = _NVD_CPE_PRODUCT.get(cpe_product_keyword)
+    if cpe_product:
+        try:
+            cpe_str = urllib.parse.quote(f'cpe:2.3:*:netapp:{cpe_product}:*', safe=':*')
+            url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?virtualMatchString={cpe_str}&resultsPerPage=10'
+            text, err = _enrich_fetch(url, timeout=20, extra_headers=headers)
+            if not err and text:
+                data = json.loads(text)
+                for r in _parse_nvd_vulnerabilities(data.get('vulnerabilities', [])):
+                    by_id[r['id']] = r
+        except Exception:
+            pass
+
+    # ── 2. Keyword search (product + version) — supplements CPE match with
+    #      version-specific text hits the CPE prefix match wouldn't isolate ──
     try:
-        # NVD keyword search: product + version
         q = urllib.parse.quote(f'{cpe_product_keyword} {version}')
         url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={q}&resultsPerPage=10'
-        text, err = _enrich_fetch(url, timeout=20)
-        if err or not text:
-            return results
-        data = json.loads(text)
-        for item in data.get('vulnerabilities', []):
-            vuln = item.get('cve', {})
-            cve_id = vuln.get('id', '')
-            descs = vuln.get('descriptions', [])
-            desc  = next((d['value'] for d in descs if d.get('lang') == 'en'), '')
-            if not desc or version[:4] not in desc and version.split('.')[0] not in desc:
-                # Skip CVEs that don't actually mention this version family
-                pass  # still include — keyword search already filtered
-            metrics = vuln.get('metrics', {})
-            cvss_score = None
-            severity   = 'UNKNOWN'
-            for key in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
-                if key in metrics and metrics[key]:
-                    m = metrics[key][0].get('cvssData', {})
-                    cvss_score = m.get('baseScore')
-                    severity   = (m.get('baseSeverity') or 'UNKNOWN').upper()
-                    break
-            published = vuln.get('published', '')[:10]
-            if cve_id:
-                results.append({
-                    'id':            cve_id,
-                    'description':   desc[:400],
-                    'cvss':          cvss_score,
-                    'severity':      severity,
-                    'publishedDate': published,
-                })
+        text, err = _enrich_fetch(url, timeout=20, extra_headers=headers)
+        if not err and text:
+            data = json.loads(text)
+            for r in _parse_nvd_vulnerabilities(data.get('vulnerabilities', [])):
+                by_id.setdefault(r['id'], r)
     except Exception:
         pass
-    return results[:8]
+
+    return list(by_id.values())[:8]
 
 
 def _search_netapp_bugs_online(version, product_keyword):

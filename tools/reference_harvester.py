@@ -440,10 +440,13 @@ def harvest_imt_versions(existing_imt):
             logger.warning(f"Vendor scrape failed for {scrape['key']}: {e}")
 
     # ---- Veeam (their own support matrix) ----
+    # Both original URLs are dead: kb2930 -> 404, and the "_12_3_release_notes"
+    # article now 302-redirects to veeam.com/404.html (misleadingly HTTP 200
+    # via urllib since it follows the redirect) — verified live 2026-08-10.
+    # Replaced with Veeam's stable VBR user-guide docs domain.
     try:
         veeam_urls = [
-            'https://www.veeam.com/kb2930',
-            'https://www.veeam.com/veeam_backup_12_3_release_notes_rn.html',
+            'https://helpcenter.veeam.com/docs/backup/vsphere/overview.html',
         ]
         for vurl in veeam_urls:
             html = _fetch_url(vurl, timeout=10)
