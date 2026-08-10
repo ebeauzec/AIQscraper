@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.3.0";
+const APP_VERSION = "4.3.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.3.1",
+    date: "10 August 2026",
+    title: "Operational Guidelines Usability Improvements",
+    sections: [
+      {
+        icon: "✨",
+        label: "Section 8: Operational Guidelines",
+        color: "#2dd4bf",
+        items: [
+          "Added an at-a-glance urgency banner at the top — see blocking-item count before reading the full checklist",
+          "Priority Action Items now carry P1-P4 badges and sort by urgency instead of a flat list",
+          "'see Section N' text references are now clickable links that jump directly there"
+        ]
+      }
+    ]
+  },
   {
     version: "4.3.0",
     date: "10 August 2026",
@@ -22889,7 +22906,14 @@ function generateActionPlan() {
         const hasK8s    = allHypervisors.some(h => /kubernetes|trident|k8s/i.test(h.type || h.hypervisorType || ''));
         const showHyper = hasVMware || hasK8s;
 
-        let secA = '<div style="margin-bottom:18px;">';
+        // At-a-glance urgency banner \u2014 lets a TAM triage before reading the full checklist
+        const _urgentCount = critHighRisks.length + cveIds.length + switchAlerts.length;
+        const _bannerColor = critHighRisks.some(r => r.severity === 'critical') ? 'var(--status-critical)' : (_urgentCount > 0 ? 'var(--status-warning)' : 'var(--status-normal)');
+        const _bannerText = _urgentCount > 0
+          ? '\u26a0 ' + _urgentCount + ' item' + (_urgentCount !== 1 ? 's' : '') + ' require attention before scheduling maintenance'
+          : '\u2713 No blocking items \u2014 safe to schedule routine maintenance';
+        let secA = '<div style="padding:8px 14px;margin-bottom:14px;border-left:3px solid ' + _bannerColor + ';background:rgba(255,255,255,0.02);border-radius:4px;font-size:0.85rem;font-weight:600;color:' + _bannerColor + ';">' + _bannerText + '</div>';
+        secA += '<div style="margin-bottom:18px;">';
         secA += '<h4 style="font-size:0.95rem;color:var(--accent-cyan);margin-bottom:6px;">A. Pre-Change Assessment \u2014 ' + custLabel + '</h4>';
         secA += '<p style="font-size:0.85rem;line-height:1.4;color:var(--text-secondary);margin-bottom:10px;"><strong>' + sysCount + ' system' + (sysCount !== 1 ? 's' : '') + ' in scope:</strong> ' + sysNames.map(n => '<code style="font-size:0.78rem;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;">' + n + '</code>').join(' ') + '</p>';
         secA += '<ul style="margin-left:20px;font-size:0.85rem;color:var(--text-secondary);line-height:1.5;margin-top:6px;">';
@@ -22897,7 +22921,7 @@ function generateActionPlan() {
           secA += '<li><strong>OS Upgrade Pre-checks</strong>: Before upgrading, run <code>system health alert show</code> and confirm zero HA takeover blocks on:<ul style="margin-top:4px;margin-left:16px;">' + upgradeList.map(u => '<li><code>' + u.systemName + '</code> \u2014 ' + (u.currentVersion || 'current') + ' \u2192 <strong>' + u.targetVersion + '</strong>' + (u.upgradeHops && u.upgradeHops.length > 1 ? ' (via ' + u.upgradeHops.join(' \u2192 ') + ')' : '') + '</li>').join('') + '</ul></li>';
         }
         if (critHighRisks.length > 0) {
-          secA += '<li><strong>Outstanding Critical/High Risks (' + critHighRisks.length + ' total)</strong>: Resolve before scheduling maintenance:<ul style="margin-top:4px;margin-left:16px;">' + uniqueRiskDescs.map(r => '<li><code>' + r.systemName + '</code> \u2014 ' + (r.description || r.shortName || r.category) + '</li>').join('') + (critHighRisks.length > 4 ? '<li style="color:var(--text-muted);">\u2026and ' + (critHighRisks.length - 4) + ' more (see Section 2)</li>' : '') + '</ul></li>';
+          secA += '<li><strong>Outstanding Critical/High Risks (' + critHighRisks.length + ' total)</strong>: Resolve before scheduling maintenance:<ul style="margin-top:4px;margin-left:16px;">' + uniqueRiskDescs.map(r => '<li><code>' + r.systemName + '</code> \u2014 ' + (r.description || r.shortName || r.category) + '</li>').join('') + (critHighRisks.length > 4 ? '<li style="color:var(--text-muted);">\u2026and ' + (critHighRisks.length - 4) + ' more (<a href="javascript:void(0)" onclick="switchPlanTab(2)" style="color:var(--accent-cyan);">see Section 2 \u2192</a>)</li>' : '') + '</ul></li>';
         }
         if (hasMC) {
           secA += '<li><strong>MetroCluster Change Protocol</strong>: For MC systems (' + (mcSystems.length > 0 ? mcSystems.join(', ') : 'in scope') + '), upgrade one site at a time. Validate <code>metrocluster check run</code> and <code>storage failover show</code> before proceeding to partner site. Confirm Mediator/Tiebreaker reachability post-change.</li>';
@@ -22920,6 +22944,8 @@ function generateActionPlan() {
           secB += '</ul></div>';
         }
 
+        // Each action carries a priority so the list can be badge-coded and
+        // sorted by urgency instead of a flat, unordered checklist.
         const actions = [];
         const label = showHyper ? 'C' : 'B';
         if (critHighRisks.length > 0) {
@@ -22927,32 +22953,34 @@ function generateActionPlan() {
           const highCount = critHighRisks.filter(r => r.severity === 'high').length;
           const affected  = [...new Set(critHighRisks.map(r => r.systemName))];
           const sevStr = (critCount > 0 ? critCount + ' critical' : '') + (critCount > 0 && highCount > 0 ? ' and ' : '') + (highCount > 0 ? highCount + ' high' : '');
-          actions.push('<strong>Remediate ' + sevStr + ' risk' + (critHighRisks.length !== 1 ? 's' : '') + '</strong> on ' + affected.map(n => '<code>' + n + '</code>').join(', ') + ' \u2014 raise internal change tickets referencing Section 2 remediation plans.');
+          actions.push({ priority: critCount > 0 ? 'P1' : 'P2', text: '<strong>Remediate ' + sevStr + ' risk' + (critHighRisks.length !== 1 ? 's' : '') + '</strong> on ' + affected.map(n => '<code>' + n + '</code>').join(', ') + ' \u2014 raise internal change tickets referencing Section 2 remediation plans.' });
         }
         if (cveIds.length > 0) {
-          actions.push('<strong>Apply security patches</strong> for ' + cveIds.length + ' CVE' + (cveIds.length !== 1 ? 's' : '') + ' (' + cveIds.join(', ') + ') \u2014 review Section 3 for NetApp advisory links and fix version targets.');
+          actions.push({ priority: 'P1', text: '<strong>Apply security patches</strong> for ' + cveIds.length + ' CVE' + (cveIds.length !== 1 ? 's' : '') + ' (' + cveIds.join(', ') + ') \u2014 review <a href="javascript:void(0)" onclick="switchPlanTab(3)" style="color:var(--accent-cyan);">Section 3 \u2192</a> for NetApp advisory links and fix version targets.' });
         } else if (allSecurityAdvisories.length > 0) {
-          actions.push('<strong>Review ' + allSecurityAdvisories.length + ' security bulletin' + (allSecurityAdvisories.length !== 1 ? 's' : '') + '</strong> in Section 3 and schedule micro-patches or workaround mitigations.');
+          actions.push({ priority: 'P2', text: '<strong>Review ' + allSecurityAdvisories.length + ' security bulletin' + (allSecurityAdvisories.length !== 1 ? 's' : '') + '</strong> in Section 3 and schedule micro-patches or workaround mitigations.' });
         }
         if (upgradeList.length > 0) {
           const osTargets = [...new Set(upgradeList.map(u => u.targetVersion).filter(Boolean))];
-          actions.push('<strong>Schedule OS upgrades</strong> for ' + upgradeList.length + ' system' + (upgradeList.length !== 1 ? 's' : '') + ' to ' + osTargets.join(' / ') + ' \u2014 complete pre-change checks above before booking windows with ' + custLabel + '.');
+          actions.push({ priority: 'P2', text: '<strong>Schedule OS upgrades</strong> for ' + upgradeList.length + ' system' + (upgradeList.length !== 1 ? 's' : '') + ' to ' + osTargets.join(' / ') + ' \u2014 complete pre-change checks above before booking windows with ' + custLabel + '.' });
         }
         if (expiringItems.length > 0) {
           const soonest = expiringItems.slice().sort((a, b) => (a.daysRemaining || 0) - (b.daysRemaining || 0))[0];
-          actions.push('<strong>Renew support contracts</strong> for ' + expiringItems.length + ' system' + (expiringItems.length !== 1 ? 's' : '') + ' \u2014 soonest: <code>' + soonest.systemName + '</code> in ' + soonest.daysRemaining + ' day' + (soonest.daysRemaining !== 1 ? 's' : '') + '. Coordinate with ' + custLabel + ' procurement contacts.');
+          actions.push({ priority: soonest.daysRemaining <= 30 ? 'P1' : 'P3', text: '<strong>Renew support contracts</strong> for ' + expiringItems.length + ' system' + (expiringItems.length !== 1 ? 's' : '') + ' \u2014 soonest: <code>' + soonest.systemName + '</code> in ' + soonest.daysRemaining + ' day' + (soonest.daysRemaining !== 1 ? 's' : '') + '. Coordinate with ' + custLabel + ' procurement contacts.' });
         }
         if (allSupportCases.length > 0) {
           const openCases = allSupportCases.filter(c => (c.status || '').toLowerCase() !== 'closed');
-          if (openCases.length > 0) actions.push('<strong>Follow up on ' + openCases.length + ' open support case' + (openCases.length !== 1 ? 's' : '') + '</strong> \u2014 verify resolution progress and confirm site access or part delivery with ' + custLabel + ' contacts (see Section 4).');
+          if (openCases.length > 0) actions.push({ priority: 'P3', text: '<strong>Follow up on ' + openCases.length + ' open support case' + (openCases.length !== 1 ? 's' : '') + '</strong> \u2014 verify resolution progress and confirm site access or part delivery with ' + custLabel + ' contacts (<a href="javascript:void(0)" onclick="switchPlanTab(4)" style="color:var(--accent-cyan);">see Section 4 \u2192</a>).' });
         }
         if (switchAlerts.length > 0) {
           const swn = [...new Set(switchAlerts.map(sw => sw.systemName))];
-          actions.push('<strong>Resolve switch alerts</strong> on ' + swn.map(n => '<code>' + n + '</code>').join(', ') + ' \u2014 details in Section 6. Schedule ISSU firmware update during agreed maintenance window.');
+          actions.push({ priority: 'P2', text: '<strong>Resolve switch alerts</strong> on ' + swn.map(n => '<code>' + n + '</code>').join(', ') + ' \u2014 details in <a href="javascript:void(0)" onclick="switchPlanTab(6)" style="color:var(--accent-cyan);">Section 6 \u2192</a>. Schedule ISSU firmware update during agreed maintenance window.' });
         }
-        if (actions.length === 0) actions.push('<strong>Continue routine monitoring</strong> \u2014 no critical actions outstanding. Schedule a follow-up Active IQ review in 30 days.');
+        if (actions.length === 0) actions.push({ priority: 'P4', text: '<strong>Continue routine monitoring</strong> \u2014 no critical actions outstanding. Schedule a follow-up Active IQ review in 30 days.' });
 
-        const secC = '<div><h4 style="font-size:0.95rem;color:var(--accent-cyan);margin-bottom:6px;">' + label + '. Priority Action Items for ' + custLabel + '</h4><ol style="margin-left:20px;font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-top:6px;">' + actions.map(a => '<li>' + a + '</li>').join('') + '</ol></div>';
+        const _prioStyle = { P1: 'background:rgba(248,113,113,0.18);color:#f87171;border:1px solid rgba(248,113,113,0.35);', P2: 'background:rgba(251,146,60,0.18);color:#fb923c;border:1px solid rgba(251,146,60,0.35);', P3: 'background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);', P4: 'background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);' };
+        const sortedActions = actions.slice().sort((a, b) => a.priority.localeCompare(b.priority));
+        const secC = '<div><h4 style="font-size:0.95rem;color:var(--accent-cyan);margin-bottom:6px;">' + label + '. Priority Action Items for ' + custLabel + '</h4><ol style="margin-left:20px;font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-top:6px;">' + sortedActions.map(a => '<li><span style="display:inline-block;' + _prioStyle[a.priority] + 'border-radius:8px;padding:0px 7px;font-size:0.65rem;font-weight:700;margin-right:6px;vertical-align:2px;">' + a.priority + '</span>' + a.text + '</li>').join('') + '</ol></div>';
         return secA + secB + secC;
       })()}
     </div>
