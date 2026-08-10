@@ -1848,6 +1848,16 @@ def _do_full_harvest(watchlist_ids=None):
                     "effRatio": mep.get("efficiencyRatio"),
                     "logUsedTB": round((ml.get("usedKiB") or 0) / (1024**3), 3),
                 })
+            # Per-month fallback: the API can populate rawMarketingKiB for a month
+            # while leaving that month's usedKiB (and utilizationPercentage) null at
+            # the system level even though the cluster-level monthlyCapacity has a
+            # real usedTB for the same month — merge it in rather than showing "—".
+            _cl_monthly_by_month = {m.get("month"): m for m in (cl_cap.get("monthlyCapacity") or []) if m.get("month")}
+            for _sm in _sys_monthly:
+                if not _sm.get("usedTB"):
+                    _cl_m = _cl_monthly_by_month.get(_sm.get("month"))
+                    if _cl_m and _cl_m.get("usedTB"):
+                        _sm["usedTB"] = _cl_m["usedTB"]
             _raw_kib  = _sys_phys.get("rawMarketingKiB") or 0
             _used_kib = _sys_phys.get("usedKiB") or 0
             _used_no_snap_kib = _sys_phys.get("usedWithoutSnapshotsKiB") or 0
