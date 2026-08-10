@@ -3950,7 +3950,7 @@ function safeSetItem(key, value) {
 // 3. Storage & Groups Helpers
 function loadConfig() {
   const mockModeVal = safeGetItem("aiq_mock_mode");
-  state.mockMode = mockModeVal === null ? true : mockModeVal === "true";
+  state.mockMode = mockModeVal === "true";
   
   const refresh = safeGetItem("aiq_refresh_token") || "";
   const access = safeGetItem("aiq_access_token") || "";
@@ -5464,11 +5464,12 @@ function renderOverviewTable() {
     else if (sys.status === "warning") statusBadge = `<span class="badge warning">Warning</span>`;
 
     const endDateShort = sys.contracts.endDate ? new Date(sys.contracts.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A';
-    let contractText = `${endDateShort} (${sys.contracts.daysRemaining}d)`;
-    if (sys.contracts.daysRemaining < 0) {
-      contractText = `<span style="color: var(--status-critical); font-weight: 600;">Expired (${Math.abs(sys.contracts.daysRemaining)}d ago)</span>`;
-    } else if (sys.contracts.daysRemaining <= 90) {
-      contractText = `<span style="color: var(--status-warning); font-weight: 600;">${endDateShort} (${sys.contracts.daysRemaining}d)</span>`;
+    const dr = sys.contracts.daysRemaining;
+    let contractText = dr != null ? `${endDateShort} (${dr}d)` : endDateShort;
+    if (dr != null && dr < 0) {
+      contractText = `<span style="color: var(--status-critical); font-weight: 600;">Expired (${Math.abs(dr)}d ago)</span>`;
+    } else if (dr != null && dr <= 90) {
+      contractText = `<span style="color: var(--status-warning); font-weight: 600;">${endDateShort} (${dr}d)</span>`;
     }
 
     let nameHtml = sys.systemName;
@@ -10136,7 +10137,7 @@ function renderSAMTab() {
       Expires: <strong>${sys.contracts.endDate ? new Date(sys.contracts.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}</strong>
     </div>
     <div style="font-size: 0.8rem; color: var(--text-muted);">
-      ${sys.contracts.daysRemaining < 0 ? `Support ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`}
+      ${sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining < 0 ? `Support ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`) : 'Days remaining unknown.'}
     </div>
   `;
 
@@ -11317,7 +11318,7 @@ function renderCSMTab() {
       name: 'Support Contract Active (\u003e 90 days remaining)',
       ok: !!(sys.contracts && sys.contracts.daysRemaining > 90),
       detail: sys.contracts
-        ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`)
+        ? (sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`) : `Support Level: ${sys.contracts.supportLevel || 'N/A'}`)
         : 'No contract data available'
     },
     { name: 'Contract Co-Term Alignment',
@@ -12490,7 +12491,7 @@ function enrichSystemTelemetry(s) {
 
   // 2. Dynamic Contracts
   let contracts = s.contracts;
-  if (!contracts && isLiveData) {
+  if ((!contracts || contracts.daysRemaining == null) && isLiveData) {
     // Live API path: build from real contract fields
     const endDate = s.contractEndDate || s.contractHWEndDate || '';
     const daysRem = endDate ? Math.max(0, Math.floor((new Date(endDate) - new Date()) / 86400000)) : 0;
@@ -16199,7 +16200,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const contractsText = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName) || {};
     const model = sys.platform || sys.model || '';
-    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate ? new Date(e.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'} (${e.daysRemaining} days)`;
+    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate ? new Date(e.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}${e.daysRemaining != null ? ` (${e.daysRemaining} days)` : ''}`;
   }).join("\n");
 
   const risksText = fixGroups.map((g, i) => {
@@ -16617,7 +16618,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const contractLines = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-    return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  (${e.daysRemaining} days)`;
+    return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  ${e.daysRemaining != null ? `(${e.daysRemaining} days)` : ''}`;
   }).join('\n') ||  '  No expiring contracts within scope.';
 
   // ── Recommendations (fleet-wide; scoped count provided as context) ──
@@ -18385,7 +18386,7 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
       const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      problemStatements += `${i + 1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)\n`;    });
+      problemStatements += `${i + 1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}\n`;    });
     problemStatements += '\n';
   }
 
@@ -18442,7 +18443,7 @@ ${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map
 ${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-    return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)`;
+    return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
   }).join('\n') : ''}
 ${sustLatest.overallScore ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score: ${sustLatest.overallScore}%` : ''}
 
@@ -18913,7 +18914,7 @@ OPPORTUNITY INTELLIGENCE:
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
       const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n"     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]} (${e.daysRemaining}d)
+      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n"     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}
 `;
     });
     salesProposals += `  Portal: https://mysupport.netapp.com/\n\n`;
@@ -25119,10 +25120,14 @@ function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
   const { refresh } = loadConfig();
+  const hasLiveData = state.systems?.some(s => s._source === 'graphql');
 
   indicators.forEach(ind => {
     ind.className = "indicator";
-    if (state.mockMode) {
+    if (hasLiveData) {
+      ind.classList.add("connected");
+      if (textLabel) textLabel.innerText = "API Connected";
+    } else if (state.mockMode) {
       ind.classList.add("mock");
       if (textLabel) textLabel.innerText = "Mock Server Mode";
     } else if (refresh) {
