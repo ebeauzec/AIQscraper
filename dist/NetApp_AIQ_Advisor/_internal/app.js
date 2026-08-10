@@ -18,9 +18,57 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.1.0";
+const APP_VERSION = "4.2.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.2.0",
+    date: "10 August 2026",
+    title: "Deliverables Audit + Active IQ Write-Back Actions",
+    sections: [
+      {
+        icon: "✍️",
+        label: "New: Write-Back to Active IQ",
+        color: "#fbbf24",
+        items: [
+          "acknowledgeRiskInAIQ() / mitigateRiskInAIQ() — Technical Risks tab now has Acknowledge/Mark Mitigated buttons that call the real riskAcknowledge/riskMitigation GraphQL mutations, writing back to the customer's live Active IQ account",
+          "updateQualifiedVersionInAIQ() — OS Upgrades tab can now set a Customer Qualified Version directly in Active IQ",
+          "Every write-back action is clearly labeled 'Writes to Active IQ' in the UI and requires an explicit confirmation/justification prompt before firing — everywhere else ARIA remains fully read-only"
+        ]
+      },
+      {
+        icon: "🐞",
+        label: "Deliverables Suite Fixes",
+        color: "#2dd4bf",
+        items: [
+          "MEDDPICC Brief: Economic Buyer and Champion sections were hardcoded blank ('—') despite the real data being available and used correctly elsewhere",
+          "Security Brief: switched CVE detection from title-text matching to native Risk.cves data; removed hardcoded 30-day exposure window estimate",
+          "MSP Report: removed fabricated 'Backup' (always 'OK') and 'Cloud(TB)' (always 'TBD') columns; fixed computeMTTR() reading a field name that was never actually set",
+          "Fixed three different health-grade formulas (QBR Pack, MSP Report, Extended Deliverables) that could give the same account a different letter grade depending on which document a TAM opened",
+          "Fixed a literal backslash-n and a stray quote character that were reaching the actual downloaded TXT files",
+          "As-Built export: added Account & Success Team, Capacity Projections, and Risk Register sections that were present in the in-app view but missing from the download"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "What's New Modal — Self-Inflicted Bug",
+        color: "#f87171",
+        items: [
+          "A previous changelog entry's own literal <script>/<style>/<noscript> text broke this modal's HTML parsing when injected via innerHTML, silently turning its own dismiss buttons into inert, unclickable text — the actual reason this modal kept reappearing regardless of what was clicked",
+          "All changelog text is now HTML-escaped before rendering; added an explicit 'Don't show again' checkbox"
+        ]
+      },
+      {
+        icon: "⚡",
+        label: "Enrichment Scheduler Performance",
+        color: "#818cf8",
+        items: [
+          "Split the 7-scanner enrichment cycle into a fast group (CISA KEV/PSIRT/NVD/EPSS) and a slow group (KB crawl + reference library) on independent timers — fast-group runtime measured at 8.5s, down from 325.8s",
+          "Added per-scanner staleness checks to skip redundant re-scans across short desktop sessions"
+        ]
+      }
+    ]
+  },
   {
     version: "4.1.0",
     date: "05 August 2026",
@@ -4160,6 +4208,136 @@ async function getValidAccessToken() {
   const newExpiry  = (Date.now() / 1000) + 3600;
   saveConfig(newRefresh, newAccess, newExpiry.toString());
   return newAccess;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚠ WRITE-BACK MUTATIONS — these send real, permanent changes to the customer's
+// live NetApp Active IQ account (risk acknowledgement/mitigation status, CQV).
+// Everywhere ARIA is otherwise 100% read-only (reports on Active IQ data), these
+// three functions are the exception. Always gated behind an explicit user
+// confirmation dialog before firing — never call these from a render/init path.
+// ─────────────────────────────────────────────────────────────────────────────
+async function _callAIQMutation(mutationQuery, variables) {
+  if (state.mockMode) {
+    throw new Error("Write-back actions are disabled in Mock Server Mode — connect a real Active IQ refresh token first.");
+  }
+  const token = await getValidAccessToken();
+  const gqlUrl = state.isRunningViaProxy
+    ? `${window.location.protocol}//${window.location.host}/graphql`
+    : "https://gql.aiq.netapp.com/graphql";
+  const response = await fetch(gqlUrl, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ query: mutationQuery, variables })
+  });
+  if (!response.ok) {
+    throw new Error(`Active IQ returned HTTP ${response.status}`);
+  }
+  const result = await response.json();
+  if (result.errors && result.errors.length > 0) {
+    throw new Error(result.errors.map(e => e.message).join("; "));
+  }
+  return result.data;
+}
+
+// Marks a risk as acknowledged in Active IQ — writes back to the real customer
+// account, visible in the actual Active IQ portal, not just inside ARIA.
+async function acknowledgeRiskInAIQ(riskId, serialNumber, riskTitle) {
+  const justification = window.prompt(
+    `⚠ This will WRITE BACK to the customer's live Active IQ account.\n\n` +
+    `Acknowledge risk "${riskTitle}" on system ${serialNumber}?\n\n` +
+    `Enter a justification/comment (required by Active IQ):`
+  );
+  if (justification === null) return; // user cancelled
+  if (!justification.trim()) { alert("Justification is required — acknowledgement cancelled."); return; }
+
+  const mutation = `mutation AckRisk($riskId: String!, $systemKeys: [SystemKey!]!, $ackBy: String!, $justification: JustificationType!, $comments: String) {
+    riskAcknowledge(riskId: $riskId, systemKeys: $systemKeys, acknowledgedBy: $ackBy, riskAcknowledgementFlag: true, justification: $justification, comments: $comments) {
+      riskId
+    }
+  }`;
+  const variables = {
+    riskId,
+    systemKeys: [{ serialNumber }],
+    ackBy: (window.currentUser && window.currentUser.name) || "ARIA User",
+    justification: "OTHER",
+    comments: justification.trim()
+  };
+  try {
+    await _callAIQMutation(mutation, variables);
+    alert("✓ Risk acknowledged in Active IQ.");
+  } catch (e) {
+    alert("✗ Failed to acknowledge risk in Active IQ: " + e.message);
+    console.error("[AIQ Mutation] riskAcknowledge failed:", e);
+  }
+}
+
+// Marks a risk as mitigated in Active IQ — writes back to the real customer
+// account, visible in the actual Active IQ portal, not just inside ARIA.
+async function mitigateRiskInAIQ(riskId, serialNumber, riskTitle) {
+  if (!confirm(
+    `⚠ This will WRITE BACK to the customer's live Active IQ account.\n\n` +
+    `Mark risk "${riskTitle}" on system ${serialNumber} as MITIGATED?\n\n` +
+    `This should only be done after the corrective action has actually been applied.`
+  )) return;
+
+  const mutation = `mutation MitigateRisk($riskId: String!, $systemKeys: [SystemKey!]!, $mitigationDate: DateTime!, $status: RiskMitigationStatus!, $tool: RiskMitigationTool!, $toolUser: String!) {
+    riskMitigation(riskId: $riskId, systemKeys: $systemKeys, mitigationDate: $mitigationDate, status: $status, mitigationTool: $tool, mitigationToolUser: $toolUser) {
+      riskId
+    }
+  }`;
+  // RiskMitigationStatus only has SUCCESS/FAILURE in the schema (no "COMPLETED"),
+  // and RiskMitigationTool only accepts CLOUD_MANAGER — verified against a live
+  // GraphQL introspection query, not guessed.
+  const variables = {
+    riskId,
+    systemKeys: [{ serialNumber }],
+    mitigationDate: new Date().toISOString(),
+    status: "SUCCESS",
+    tool: "CLOUD_MANAGER",
+    toolUser: (window.currentUser && window.currentUser.name) || "ARIA User"
+  };
+  try {
+    await _callAIQMutation(mutation, variables);
+    alert("✓ Risk marked as mitigated in Active IQ.");
+  } catch (e) {
+    alert("✗ Failed to mark risk mitigated in Active IQ: " + e.message);
+    console.error("[AIQ Mutation] riskMitigation failed:", e);
+  }
+}
+
+// Sets the Customer Qualified Version (CQV) for a system in Active IQ — writes
+// back to the real customer account. Used after a TAM has validated an OS
+// version is safe for this environment (see OS Upgrades tab, section 5).
+async function updateQualifiedVersionInAIQ(serialNumber, qualifiedVersion, systemName) {
+  const justification = window.prompt(
+    `⚠ This will WRITE BACK to the customer's live Active IQ account.\n\n` +
+    `Set Customer Qualified Version to "${qualifiedVersion}" for ${systemName} (${serialNumber})?\n\n` +
+    `Enter a justification (required by Active IQ, e.g. "validated in staging on 2026-08-10"):`
+  );
+  if (justification === null) return; // user cancelled
+  if (!justification.trim()) { alert("Justification is required — CQV update cancelled."); return; }
+
+  const mutation = `mutation UpdateCQV($systemKeys: [SystemKey!]!, $qualifiedVersion: String, $justification: String!) {
+    updateQualifiedVersion(systemKeys: $systemKeys, qualifiedVersion: $qualifiedVersion, justification: $justification) {
+      qualifiedVersion
+    }
+  }`;
+  const variables = {
+    systemKeys: [{ serialNumber }],
+    qualifiedVersion,
+    justification: justification.trim()
+  };
+  try {
+    await _callAIQMutation(mutation, variables);
+    alert("✓ Customer Qualified Version updated in Active IQ.");
+  } catch (e) {
+    alert("✗ Failed to update Qualified Version in Active IQ: " + e.message);
+    console.error("[AIQ Mutation] updateQualifiedVersion failed:", e);
+  }
 }
 
 // Global API Fetch wrapper — logs every call in detail to the console
@@ -12048,11 +12226,12 @@ function computeSoftwareCurrencyIndex(targetSystems) {
 }
 
 function computeMTTR(allSupportCases) {
-  // Mean Time to Resolve in days (from closed cases)
-  const closed = (allSupportCases || []).filter(c => c.closedDate && c.openedDate);
+  // Mean Time to Resolve in days (from closed cases). Field is createdDate
+  // (normalized from GraphQL Case.created) — not openedDate, which is never set.
+  const closed = (allSupportCases || []).filter(c => c.closedDate && c.createdDate);
   if (closed.length === 0) return null;
   const totalDays = closed.reduce((sum, c) => {
-    const opened = new Date(c.openedDate);
+    const opened = new Date(c.createdDate);
     const closedD = new Date(c.closedDate);
     return sum + Math.max(0, (closedD - opened) / 86400000);
   }, 0);
@@ -12237,13 +12416,22 @@ function computeCostOfInaction(targetSystems) {
   let score = 0;
   const critRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'critical').length, 0);
   const highRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'high').length, 0);
-  // Count unique CVE IDs across fleet (not raw advisory pool size)
+  // Count unique CVE IDs across fleet (not raw advisory pool size).
+  // Union of two sources: the broader OS-version-matched securityBulletins
+  // enrichment, and the native per-system Risk.cves linkage straight from
+  // Active IQ (authoritative for CVEs tied to an actually-detected risk instance
+  // on that exact system, catches cases the version-matched bulletins miss).
   const _cveSet = new Set();
   const _cveSystems = new Set();
   targetSystems.forEach(sys => {
     (sys.securityBulletins || []).forEach(b => {
       const id = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
       if (id) { _cveSet.add(id); _cveSystems.add(sys.systemName || sys.serialNumber); }
+    });
+    (sys.risks || []).forEach(r => {
+      (r.cveDetails || []).forEach(c => {
+        if (c && c.id) { _cveSet.add(c.id); _cveSystems.add(sys.systemName || sys.serialNumber); }
+      });
     });
   });
   const cves = _cveSet.size;
@@ -12880,7 +13068,10 @@ function enrichSystemTelemetry(s) {
     // The AIQ API often returns CVE risks without a correctiveAction URL. We build
     // a direct NetApp PSIRT link from the CVE ID so every CVE row has a link.
     if (!normRisk.advisoryUrl) {
-      const cveInDesc = (normRisk.description || '').match(/CVE-(\d{4})-(\d+)/i);
+      // Prefer the native CVE id from Active IQ's own Risk.cves — more reliable
+      // than regex-scraping free-text description, and always correct when present.
+      const nativeCveId = normRisk.cveDetails[0] && normRisk.cveDetails[0].id;
+      const cveInDesc = nativeCveId ? [nativeCveId] : (normRisk.description || '').match(/CVE-(\d{4})-(\d+)/i);
       if (cveInDesc) {
         // NetApp PSIRT advisory search by CVE ID
         normRisk.advisoryUrl = `https://security.netapp.com/advisory/?q=${cveInDesc[0]}`;
@@ -16022,7 +16213,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   let activeContactEmail = "Not Set";
   let csatScoreSum = 0;
   let systemCount = targetSystems.length;
-  let domesticParent = targetSystems[0]?.domesticParent || targetSystems[0]?.customerName || 'Unknown';
+  let domesticParent = targetSystems[0]?.domesticParentName || targetSystems[0]?.customerName || 'Unknown';
   let totalRunwayDays = 0;
   let runwayDaysCount = 0;
 
@@ -16036,13 +16227,23 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       totalRunwayDays += sys.projections.runwayDays;
       runwayDaysCount++;
     }
+    // sentimentScore || 7.5 would silently replace a real 0 (a genuinely poor
+    // score) with a fake 7.5 — use != null and fall back to the real computed
+    // case-health score rather than a fabricated constant.
+    const _sentiment = sys.salesHealth && sys.salesHealth.sentimentScore != null
+      ? sys.salesHealth.sentimentScore
+      : computeSupportCaseHealth(sys).score;
+    csatScoreSum += _sentiment;
     if (sys.salesHealth) {
-      csatScoreSum += sys.salesHealth.sentimentScore || 7.5;
       activeTAMOwner = sys.salesHealth.supportTam || activeTAMOwner;
       activeAMOwner = sys.salesHealth.accountManager || activeAMOwner;
       activeSalesRep = sys.salesHealth.salesRep || activeSalesRep;
-      activeContactName = sys.salesHealth.primaryContact || activeContactName;
-      activeContactEmail = sys.salesHealth.primaryContactEmail || activeContactEmail;
+    }
+    // salesHealth.primaryContact/primaryContactEmail are never actually set anywhere —
+    // the real, populated field is sys.contacts (from Active IQ's contactPerson).
+    if (sys.contacts && sys.contacts.name && sys.contacts.name !== 'N/A') {
+      activeContactName = sys.contacts.name;
+      activeContactEmail = sys.contacts.email || activeContactEmail;
     }
   });
 
@@ -16565,8 +16766,12 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const contractPct = total > 0 ? ((contractActive / total) * 100).toFixed(0) : 0;
 
   // ── Health Grade ──
-  const avgPct = (parseFloat(asupPct) + parseFloat(arpPct) + parseFloat(fwPct) + parseFloat(contractPct)) / 4;
-  const grade = avgPct > 90 ? 'A' : avgPct > 75 ? 'B' : avgPct > 60 ? 'C' : avgPct > 40 ? 'D' : 'F';
+  // Use the canonical computeAccountHealthScore()/getHealthGrade() (same formula as
+  // the MEDDPICC Brief and Extended Deliverables) instead of a separate local 4-factor
+  // average — otherwise the same account can get a different letter grade depending on
+  // which of the 13 deliverables a TAM hands to the customer.
+  const avgPct = computeAccountHealthScore(targetSystems);
+  const grade = getHealthGrade(avgPct);
 
   // ── Risks ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -16672,8 +16877,8 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const priorActionsKey = `aria_qbr_actions_${scopeTitle.replace(/\\s+/g, '_')}`;
   const priorActions = JSON.parse(localStorage.getItem(priorActionsKey) || '[]');
   const priorActionsText = priorActions.length > 0
-    ? priorActions.map((a, i) => `  ${i+1}. ${a.action} [Status: ${a.status}]`).join('\\n')
-    : '  No prior quarter actions recorded. Actions from this QBR\\n  will be tracked for the next review.';
+    ? priorActions.map((a, i) => `  ${i+1}. ${a.action} [Status: ${a.status}]`).join('\n')
+    : '  No prior quarter actions recorded. Actions from this QBR\n  will be tracked for the next review.';
 
   return `================================================================================
 QUARTERLY BUSINESS REVIEW (QBR) — ACCOUNT INTELLIGENCE PACK
@@ -16790,7 +16995,7 @@ ${priorActionsText}
 
 function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
-  const slaDefaults = { asup: 100, arp: 100, fw: 100, contract: 100, critRisks: 0 };
+  const slaDefaults = { asup: 100, arp: 100, fw: 100, contract: 100, critRisks: 0, mttrDays: 5 };
   const slaThresholds = JSON.parse(localStorage.getItem('aria_msp_sla_thresholds') || JSON.stringify(slaDefaults));
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -16806,7 +17011,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Per-Customer Grouping ──
   const mspCustomers = {};
   targetSystems.forEach(s => {
-    const cName = s.domesticParent || s.customerName || 'Unknown';
+    const cName = s.domesticParentName || s.customerName || 'Unknown';
     if (!mspCustomers[cName]) {
       mspCustomers[cName] = { 
         systems: [], 
@@ -16821,7 +17026,9 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
       c.phys += s.efficiency.physicalUsedTB || 0;
       c.log += s.efficiency.logicalUsedTB || 0;
       c.saved += s.efficiency.spaceSavedTB || 0;
-      c.avail += s.efficiency.physicalAvailTB || 0; // fallback if needed
+      // physicalAvailTB is never populated by the harvester — derive real
+      // available capacity from usableCapacityTB - physicalUsedTB instead.
+      c.avail += Math.max(0, (s.efficiency.usableCapacityTB || 0) - (s.efficiency.physicalUsedTB || 0));
     }
     if (s.projections && typeof s.projections.runwayDays === 'number') {
       c.runwaySum += s.projections.runwayDays;
@@ -16836,7 +17043,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   allRisks.forEach(r => {
     const s = targetSystems.find(sys => sys.systemName === r.systemName);
     if (s) {
-      const cName = s.domesticParent || s.customerName || 'Unknown';
+      const cName = s.domesticParentName || s.customerName || 'Unknown';
       if (mspCustomers[cName]) mspCustomers[cName].risks++;
     }
   });
@@ -16847,7 +17054,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     const asupP = tot > 0 ? Math.round(data.asup / tot * 100) : 0;
     const contractP = tot > 0 ? Math.round(data.contract / tot * 100) : 0;
     const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
-    return `  ${name.substring(0,18).padEnd(18)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${'OK'.padEnd(8)} ${String(asupP)+'%'.padEnd(7)} ${String(contractP)+'%'.padEnd(7)} ${drr}:1`;
+    return `  ${name.substring(0,18).padEnd(18)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${String(asupP)+'%'.padEnd(7)} ${String(contractP)+'%'.padEnd(7)} ${drr}:1`;
   }).sort().join('\n');
 
   let totalPhys = 0, totalAvail = 0, totalRunway = 0, rCount = 0;
@@ -16858,7 +17065,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     totalAvail += data.avail;
     totalRunway += rw;
     rCount++;
-    return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${'TBD'.padEnd(12)} ${drr.padEnd(10)} ${rw}d`;
+    return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${drr.padEnd(10)} ${rw}d`;
   }).join('\n');
   const avgRunway = rCount > 0 ? Math.round(totalRunway / rCount) : 120;
 
@@ -16883,6 +17090,10 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   // ── Critical risk count ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
+
+  // ── Mean Time to Resolve (support case resolution SLA) ──
+  const mttrDays = computeMTTR(allSupportCases);
+  const mttrTarget = slaThresholds.mttrDays || slaDefaults.mttrDays;
 
   // ── Average System Age ──
   const ages = targetSystems.map(s => {
@@ -16968,8 +17179,8 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
 --------------------------------------------------------------------------------
 2. PER-CUSTOMER HEALTH DASHBOARD [MEDDPICC: M]
 --------------------------------------------------------------------------------
-  Customer           Health  Risks  Backup  ASUP   Supp   DRR
-  ────────────────── ─────── ────── ─────── ────── ────── ──────
+  Customer           Health  Risks  ASUP   Supp   DRR
+  ────────────────── ─────── ────── ────── ────── ──────
 ${dashboardLines}
 
 --------------------------------------------------------------------------------
@@ -16982,15 +17193,16 @@ ${dashboardLines}
   Firmware Currency         ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
   Contract Coverage         ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
+  Case MTTR (<=${mttrTarget}d)        ${String(mttrTarget).padEnd(3)}d      ${mttrDays != null ? String(mttrDays).padStart(3) + 'd' : ' N/A'}      ${mttrDays != null ? (parseFloat(mttrDays) <= mttrTarget ? 'MET' : 'MISSED') : 'NO DATA'}
 
 --------------------------------------------------------------------------------
 4. CAPACITY CONSUMPTION & RUNWAY REPORT [MEDDPICC: M]
 --------------------------------------------------------------------------------
-  Customer           Phys(TB) Avail(TB)  Cloud(TB)    DRR        Runway
-  ────────────────── ──────── ──────────── ──────────── ────────── ──────
+  Customer           Phys(TB) Avail(TB)    DRR        Runway
+  ────────────────── ──────── ──────────── ────────── ──────
 ${capacityLines}
-  ────────────────── ──────── ──────────── ──────────── ────────── ──────
-  PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${'0.0'.padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway}d
+  ────────────────── ──────── ──────────── ────────── ──────
+  PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway}d
 
 --------------------------------------------------------------------------------
 5. INCIDENT & CASE MANAGEMENT [MEDDPICC: I]
@@ -17129,8 +17341,14 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const contractPct = total > 0 ? Math.round((activeContracts / total) * 100) : 0;
 
   const domesticParent = (targetSystems.find(s => s.domesticParentName) || {}).domesticParentName || '—';
-  const propCategory = '—';
-  const nextBestAction = '—';
+  // Economic Buyer signal: surface the highest-severity propensity flag in scope
+  // (CRITICAL > HIGH > MEDIUM), with its paired next-best-action recommendation.
+  const _propRank = { CRITICAL: 3, HIGH: 2, MEDIUM: 1 };
+  const _propSystems = targetSystems.filter(s => s.propensityCategory);
+  const _topPropSys = _propSystems.sort((a, b) =>
+    (_propRank[b.propensityCategory] || 0) - (_propRank[a.propensityCategory] || 0))[0];
+  const propCategory = _topPropSys ? _topPropSys.propensityCategory : '—';
+  const nextBestAction = _topPropSys && _topPropSys.nextBestAction ? _topPropSys.nextBestAction : '—';
 
   const featureScores = targetSystems.map(s => computeFeatureAdoptionScore(s));
   const avgFeaturePassed = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.passed,0)/featureScores.length) : 0;
@@ -17164,7 +17382,9 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const tierLines = Object.keys(tierMap).map(t => `    ${t}: ${tierMap[t]} system${tierMap[t] > 1 ? 's' : ''}`).join('\n') || '    No tier data available.';
 
   const coi = computeCostOfInaction(targetSystems);
-  const openP1P2 = allSupportCases.filter(c => c.severity && ['1','2','S1','S2','P1','P2'].includes(String(c.severity).replace(/[^0-9]/g, '') ? 'P' + String(c.severity).replace(/[^0-9]/g, '') : c.severity)).length;
+  // Severity 1/2 regardless of vendor prefix (P1, S1, "1", etc.) — same digit-extraction
+  // idiom as computeSupportCaseHealth's _sevNum(), kept in sync for consistency.
+  const openP1P2 = allSupportCases.filter(c => ['1', '2'].includes(String(c.severity || '').replace(/[^0-9]/g, ''))).length;
   
   const coiBullets = [];
   if (coi.critRisks > 0) coiBullets.push(`    • ${coi.critRisks} Critical Risks threatening availability/performance`);
@@ -17175,9 +17395,12 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   if (coi.noArp > 0) coiBullets.push(`    • ${coi.noArp} Systems missing Autonomous Ransomware Protection`);
   const coiText = coiBullets.length > 0 ? coiBullets.join('\n') : '    • No major actionable risks identified at this time.';
 
-  const primContact = '—';
-  const email = '—';
-  const phone = '—';
+  // Champion signal: first system with a real, non-placeholder technical contact
+  // on file (sys.contacts, populated from Active IQ's contactPerson for live systems).
+  const _championSys = targetSystems.find(s => s.contacts && s.contacts.name && s.contacts.name !== 'N/A');
+  const primContact = _championSys ? _championSys.contacts.name : '—';
+  const email = _championSys ? _championSys.contacts.email : '—';
+  const phone = _championSys ? _championSys.contacts.phone : '—';
   const avgCsat = targetSystems.reduce((sum, s) => sum + computeSupportCaseHealth(s).score, 0) / (total || 1);
 
   const refreshFlagged = targetSystems.filter(s => s.lifecycle && s.lifecycle.isTechRefresh).length;
@@ -17582,6 +17805,8 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
   let arpEnabled = 0, fwCurrent = 0, kevExposures = 0;
   let arpKnown = 0;
 
+  let oldestCveDate = null;
+
   targetSystems.forEach(s => {
     if (s.isARPEnabled != null) { arpKnown++; if (s.isARPEnabled) arpEnabled++; }
     if (s.firmwareStatus === 'Current' || s.firmwareStatus === 'Recommended') fwCurrent++;
@@ -17592,16 +17817,34 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
       else if (_sev === 'high') high++;
       else if (_sev === 'medium') medium++;
       else if (_sev === 'low') low++;
-      
-      if (r.category === 'Security' || (r.title && r.title.toLowerCase().includes('cve')) || (r.title && r.title.toLowerCase().includes('security'))) {
+
+      const _hasNativeCve = Array.isArray(r.cveDetails) && r.cveDetails.length > 0;
+      // Native Risk.cves (structured, per-risk, straight from Active IQ) is the
+      // authoritative source; fall back to title-string matching only for older
+      // risk objects that don't carry a formal CVE link.
+      const _isSecurityRisk = _hasNativeCve || r.category === 'Security' ||
+        (r.title && r.title.toLowerCase().includes('cve')) ||
+        (r.title && r.title.toLowerCase().includes('security'));
+      if (_isSecurityRisk) {
         securityRisks.push({ system: s.systemName, ...r });
       }
-      
-      if (r.title && r.title.toLowerCase().includes('cve')) {
+
+      if (_hasNativeCve) {
+        r.cveDetails.forEach(c => {
+          if (c && c.id) {
+            cveExposures.add(c.id);
+            systemsWithCve.add(s.systemName);
+            if (c.lastUpdated) {
+              const d = new Date(c.lastUpdated);
+              if (!isNaN(d) && (!oldestCveDate || d < oldestCveDate)) oldestCveDate = d;
+            }
+          }
+        });
+      } else if (r.title && r.title.toLowerCase().includes('cve')) {
         cveExposures.add(r.title);
         systemsWithCve.add(s.systemName);
       }
-      
+
       if (r.knownExploited) {
         kevExposures++;
       }
@@ -17610,18 +17853,27 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
 
   const totalRisks = critical + high + medium + low;
   const arpPct = count > 0 ? Math.round((arpEnabled / count) * 100) : 0;
-  const daysSinceOldestCVE = 30; // Default estimate
+  // Real exposure window computed from the oldest native CVE's lastUpdated date;
+  // falls back to a labeled estimate only when no native CVE dates are available.
+  const daysSinceOldestCVE = oldestCveDate
+    ? Math.max(0, Math.round((Date.now() - oldestCveDate.getTime()) / 86400000))
+    : null;
+  const exposureWindowText = daysSinceOldestCVE != null ? `${daysSinceOldestCVE} days` : 'Unknown (no CVE date data)';
 
   const cveMap = new Map();
   securityRisks.forEach(r => {
-    if (r.title && r.title.toLowerCase().includes('cve')) {
-      if (!cveMap.has(r.title)) {
-        cveMap.set(r.title, { severity: r.severity, count: 0, systems: new Set(), advisory: r.url || 'N/A', recommended: r.remediation || 'Upgrade firmware' });
+    const _entries = Array.isArray(r.cveDetails) && r.cveDetails.length > 0
+      ? r.cveDetails.map(c => ({ key: c.id, cvss: c.cvssScore }))
+      : (r.title && r.title.toLowerCase().includes('cve') ? [{ key: r.title, cvss: null }] : []);
+    _entries.forEach(({ key, cvss }) => {
+      if (!key) return;
+      if (!cveMap.has(key)) {
+        cveMap.set(key, { severity: r.severity, cvss, count: 0, systems: new Set(), advisory: r.url || 'N/A', recommended: r.remediation || 'Upgrade firmware' });
       }
-      let c = cveMap.get(r.title);
+      let c = cveMap.get(key);
       c.count++;
       c.systems.add(r.system);
-    }
+    });
   });
 
   let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
@@ -17633,7 +17885,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
     return b.count - a.count;
   });
 
-  let matrixLines = cveArray.map((c, i) => `    Priority ${i + 1}: ${c.title}
+  let matrixLines = cveArray.map((c, i) => `    Priority ${i + 1}: ${c.title}${c.cvss != null ? ` (CVSS ${c.cvss})` : ''}
       Severity:     ${c.severity}
       Affected:     ${c.count} system(s)
       Systems:      ${Array.from(c.systems).join(', ')}
@@ -17676,7 +17928,7 @@ function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSup
     ║  ${cveExposures.size} CVEs expose ${systemsWithCve.size} systems to known exploit vectors              ║
     ║  ${count - arpEnabled} systems lack ARP → vulnerable to ransomware                   ║
     ║  ${count - fwCurrent} systems on unsupported firmware → no security patches          ║
-    ║  Estimated exposure window: ${daysSinceOldestCVE} days  ║
+    ║  Exposure window (oldest tracked CVE): ${exposureWindowText}  ║
     ╚══════════════════════════════════════════════════════════════════════╝
 
   3. CVE REMEDIATION PRIORITY MATRIX
@@ -17699,7 +17951,7 @@ ${compileSvmLifInventoryText(targetSystems)}
     Phase 2 (Week 2-4): ${dr.unprotected.length > 0 ? 'Establish SnapMirror DR' : 'Review Security Baseline'}
     Phase 3 (Month 2):  Security review, penetration test, compliance audit
 
-  7. NIST CSF 2.0 ALIGNMENT
+  8. NIST CSF 2.0 ALIGNMENT
   ────────────────────────────────────────────────────────────────────────────
     Function        ONTAP Technical Control
     ─────────────── ──────────────────────────────────────────────────────
@@ -17729,8 +17981,15 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   let optimizationRecs = [];
   let fabricPoolCount = 0;
 
+  let noScoreDataCount = 0;
   targetSystems.forEach(s => {
-    let score = s.sustainability ? s.sustainability.overallScore || 0 : 0;
+    // Distinguish "genuinely scored 0" from "no sustainability data at all" —
+    // both used to collapse to 0 via `|| 0`, which silently excluded systems
+    // with a real 0 score from optimization recommendations (the `score > 0`
+    // guard below) even though a true 0 is the case that most needs one.
+    const hasScoreData = !!(s.sustainability && s.sustainability.overallScore != null);
+    if (!hasScoreData) noScoreDataCount++;
+    let score = hasScoreData ? s.sustainability.overallScore : 0;
     let trend = s.sustainability ? s.sustainability.weekOverWeekChange || 0 : 0;
     let logical = s.efficiency ? (s.efficiency.logicalUsedTB || s.efficiency.logicalData || 0) : 0;
     let physical = s.efficiency ? (s.efficiency.physicalUsedTB || s.efficiency.physicalCapacity || 0) : 0;
@@ -17738,20 +17997,23 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     let drRatio = s.efficiency ? (parseFloat(String(s.efficiency.dataReductionRatio || s.efficiency.drRatio || '1').split(':')[0]) || 1) : 1;
     let isFP = s.isFabricPool || false;
 
-    if (score > 0) {
+    if (hasScoreData) {
       overallScoreSum += score;
       weekOverWeekChangeSum += trend;
       systemsWithScore++;
     }
-    
+
     totalLogical += logical;
     totalPhysical += physical;
     spaceSaved += saved;
     if (isFP) fabricPoolCount++;
 
-    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${score.toString().padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)} ${isFP ? 'Yes' : 'No'}\n`;
+    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${hasScoreData ? score.toString().padEnd(6) : 'N/A'.padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)} ${isFP ? 'Yes' : 'No'}\n`;
 
-    if (score < 50 && score > 0) {
+    // Real 0 scores (hasScoreData true, score genuinely 0) now correctly still
+    // get a recommendation — previously indistinguishable from "no data" and
+    // silently skipped, even though a true 0 is the case needing it most.
+    if (hasScoreData && score < 50) {
       if (!isFP) optimizationRecs.push(`    • ${s.systemName}: Enable FabricPool to tier cold data → est. 15% improvement`);
       if (drRatio < 2) optimizationRecs.push(`    • ${s.systemName}: Data reduction ${drRatio}:1 below fleet avg → review compaction`);
     }
@@ -17777,18 +18039,25 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   ────────────────────────────────────────────────────────────────────────────
     Overall Sustainability Score:  ${avgScore}/100
     Week-over-Week Trend:          ${avgTrend > 0 ? '+'+avgTrend : avgTrend}%
-    Systems Assessed:              ${systemsWithScore}/${count}
+    Systems Assessed:              ${systemsWithScore}/${count}${noScoreDataCount > 0 ? ` (${noScoreDataCount} system${noScoreDataCount > 1 ? 's' : ''} have no sustainability score reported by Active IQ)` : ''}
 
   2. EFFICIENCY & DATA REDUCTION IMPACT
   ────────────────────────────────────────────────────────────────────────────
     Total Physical Capacity:       ${totalPhysical.toFixed(1)} TB
     Total Logical Data:            ${totalLogical.toFixed(1)} TB
     Data Reduction Ratio:          ${totalDrRatio}:1 (dedupe + compression)
-    Space Saved:                   ${spaceSaved.toFixed(1)} TB
-    Physical Footprint Avoided:    ${spaceSaved.toFixed(1)} TB (equivalent shelves/racks not needed)
-    Estimated Power Avoided:       ${powerAvoided} kW (at 0.5 kW/TB)
-    Estimated CO2 Avoided:         ${co2Avoided} kg/year (at 0.5 kg CO2/kWh)
+    Space Saved:                   ${spaceSaved.toFixed(1)} TB (equivalent shelves/racks not needed)
+    Estimated Power Avoided:       ${powerAvoided} kW *
+    Estimated CO2 Avoided:         ${co2Avoided} kg/year *
     Hardware Firmware Health:      ${(fw || {}).overallFwScore || 'N/A'}% — current firmware extends hardware operational lifespan
+
+    * ESTIMATE METHODOLOGY: Power/CO2 figures use generic planning-level factors
+      (0.5 kW/TB storage power draw, 0.5 kg CO2/kWh grid carbon intensity) — NOT
+      measured telemetry or region-specific grid data. These are directional
+      estimates for internal planning conversations only; do not cite externally
+      or in formal ESG/compliance reporting without validating against your
+      actual PUE, regional grid carbon intensity (e.g. EPA eGRID), and rack
+      power metering.
 
   3. PER-SYSTEM SUSTAINABILITY SCORES
   ────────────────────────────────────────────────────────────────────────────
@@ -17806,7 +18075,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
     Systems in RED zone (>85%): ${cap.redCount}/${count}
     <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
     Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}
-    Environmental Impact: ${cap.totalGrowthTBMo > 0 ? Math.round(cap.totalGrowthTBMo * 12 * 0.5) + ' kW additional power if not tiered' : 'Minimal'}
+    Environmental Impact: ${cap.totalGrowthTBMo > 0 ? Math.round(cap.totalGrowthTBMo * 12 * 0.5) + ' kW additional power if not tiered *' : 'Minimal'}
     → FabricPool tiering can offset ${fabricPoolCount < count ? (count - fabricPoolCount) + ' remaining systems' : 'already deployed fleet-wide'}`; })()}
 
   6. CARBON REDUCTION ROADMAP
@@ -18214,7 +18483,10 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const warranty = computeFleetWarrantyStatus(targetSystems);
   const fw = computeFleetFirmwareSummary(targetSystems);
   const healthScore = computeAccountHealthScore(targetSystems);
-  const healthGrade = healthScore >= 90 ? 'A' : healthScore >= 75 ? 'B' : healthScore >= 60 ? 'C' : healthScore >= 40 ? 'D' : 'F';
+  // Use the canonical getHealthGrade() thresholds (>=90/80/65/50) — this local
+  // variant (>=90/75/60/40) let the same score earn a different letter grade
+  // than the MEDDPICC Brief and QBR Pack for the same account.
+  const healthGrade = getHealthGrade(healthScore);
   const coi = computeCostOfInaction(targetSystems);
   const coiLabel = coi.score >= 50 ? 'CRITICAL' : coi.score >= 25 ? 'MATERIAL' : coi.score >= 10 ? 'MODERATE' : 'LOW';
 
@@ -18918,7 +19190,7 @@ OPPORTUNITY INTELLIGENCE:
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
       const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n"     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}
+      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}
 `;
     });
     salesProposals += `  Portal: https://mysupport.netapp.com/\n\n`;
@@ -21708,10 +21980,10 @@ function generateActionPlan() {
 
   targetSystems.forEach(sys => {
     if (sys.risks) {
-      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...r }));
     }
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
@@ -22091,6 +22363,17 @@ function generateActionPlan() {
               ${r.remediationPlan ? r.remediationPlan.options.map(o => `<li>${o}</li>`).join("") : "<li>Contact NetApp Support.</li>"}
             </ul>
           </div>
+          ${typeof r.id === 'string' && r.serialNumber ? (() => {
+            const _rid = r.id.replace(/'/g, "\\'");
+            const _sn  = r.serialNumber.replace(/'/g, "\\'");
+            const _title = (r.description || r.category || 'Risk').replace(/'/g, "\\'");
+            return `
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-color); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">⚠ Writes to Active IQ:</span>
+            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="acknowledgeRiskInAIQ('${_rid}','${_sn}','${_title}')" data-tooltip="Acknowledges this risk directly in the customer's live Active IQ account — visible in the real Active IQ portal, not just here.">Acknowledge in AIQ</button>
+            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="mitigateRiskInAIQ('${_rid}','${_sn}','${_title}')" data-tooltip="Marks this risk as mitigated directly in the customer's live Active IQ account — only use after the fix has actually been applied.">Mark Mitigated in AIQ</button>
+          </div>`;
+          })() : ''}
         </div>
       `;
     });
@@ -22343,6 +22626,16 @@ function generateActionPlan() {
           <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">
             <strong>Expected Upgrade Benefits:</strong> ${u.benefits}
           </div>
+          ${u.serialNumber && minVer && minVer !== 'N/A' ? (() => {
+            const _sn = u.serialNumber.replace(/'/g, "\\'");
+            const _ver = minVer.replace(/'/g, "\\'");
+            const _name = (u.systemName || '').replace(/'/g, "\\'");
+            return `
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-color); display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">⚠ Writes to Active IQ:</span>
+            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="updateQualifiedVersionInAIQ('${_sn}','${_ver}','${_name}')" data-tooltip="Sets ${minVer} as the Customer Qualified Version for this system directly in the customer's live Active IQ account — only after validating the upgrade.">Set as Qualified Version (CQV) in AIQ</button>
+          </div>`;
+          })() : ''}
         </div>
       `;
     });
@@ -22440,9 +22733,11 @@ function generateActionPlan() {
   targetSystems.forEach(sys => {
     const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
     const c = { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set", ...sys.contacts };
-    const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review", ...sys.salesHealth };
-    const p = { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", ...sys.projections };
-    
+    // sentimentScore falls back to the real computed case-health score (not a
+    // fabricated constant) so this section never shows a plausible-looking fake number.
+    const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: computeSupportCaseHealth(sys).score, healthStatus: "Stable", upsellPotential: "None", refreshWindow: "Under Review", ...sys.salesHealth };
+    const p = { growthRateGBPerDay: null, daysToLimit: null, limitDate: "No Data", ...sys.projections };
+
     const logisticsDiffs = getLogisticsUpdateTicketsAndDiffs(sys);
     
     html += `
@@ -22453,7 +22748,7 @@ function generateActionPlan() {
             <div><strong>Delivery Address:</strong><br><span style="color: var(--text-secondary); font-style: italic;">${l.deliveryAddress}</span></div>
             <div style="margin-top: 8px;"><strong>Access Rules:</strong><br><span style="color: var(--text-secondary);">${l.accessRestrictions}</span></div>
             <div style="margin-top: 8px;"><strong>Logistics Alerts:</strong><br><span style="color: ${l.shippingAlert.toLowerCase() !== 'none' ? 'var(--status-critical)' : 'var(--status-normal)'}; font-weight: 500;">${l.shippingAlert}</span></div>
-            <div style="margin-top: 8px;"><strong>Storage Growth Runway:</strong><br><span style="color: ${p.daysToLimit < 90 ? 'var(--status-critical)' : 'var(--status-normal)'}; font-weight: 600;">${p.daysToLimit} Days remaining</span> (Est. limit date: ${p.limitDate})</div>
+            <div style="margin-top: 8px;"><strong>Storage Growth Runway:</strong><br><span style="color: ${p.daysToLimit != null && p.daysToLimit < 90 ? 'var(--status-critical)' : 'var(--status-normal)'}; font-weight: 600;">${p.daysToLimit != null ? p.daysToLimit + ' Days remaining' : 'No Data'}</span> (Est. limit date: ${p.limitDate})</div>
           </div>
           <div>
             <div><strong>Primary Site Contact:</strong><br><span style="color: var(--text-secondary);">${c.name} (${c.phone} / ${c.email} / NSS: ${c.nssUsername})</span></div>
@@ -22865,7 +23160,7 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">7. Logistics &amp; Health</button>
       <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">8. Guidelines</button>
       <span class="plan-tab-divider"></span>
-      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">★ 9. Deliverables Suite (10)</button>
+      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">★ 9. Deliverables Suite (13)</button>
       <span class="plan-tab-divider"></span>
       <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">10. Contracts &amp; Lifecycle</button>
       <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">11. Sustainability</button>
@@ -22970,10 +23265,10 @@ function downloadPlanSection(index) {
   
   targetSystems.forEach(sys => {
     if (sys.risks) {
-      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...r }));
     }
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
@@ -23115,18 +23410,18 @@ Date Generated: ${new Date().toISOString().split('T')[0]}
     targetSystems.forEach(sys => {
       const l = { deliveryAddress: "Not Set", accessRestrictions: "Not Set", shippingAlert: "None", ...sys.logistics };
       const c = { name: "Not Set", phone: "Not Set", email: "Not Set", nssUsername: "Not Set", ...sys.contacts };
-      const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: 7.0, healthStatus: "Stable", ...sys.salesHealth };
-      const p = { growthRateGBPerDay: 100, daysToLimit: 120, limitDate: "Under Review", ...sys.projections };
-      
+      const h = { accountManager: "Not Set", supportTam: "Not Set", sentimentScore: computeSupportCaseHealth(sys).score, healthStatus: "Stable", ...sys.salesHealth };
+      const p = { growthRateGBPerDay: null, daysToLimit: null, limitDate: "No Data", ...sys.projections };
+
       const logisticsDiffs = getLogisticsUpdateTicketsAndDiffs(sys);
-      
+
       text += `================================================================================
 SYSTEM: ${sys.systemName} (S/N: ${sys.serialNumber})
 ================================================================================
 - Delivery Address: ${l.deliveryAddress}
 - Access Restrictions: ${l.accessRestrictions}
 - Logistics Alerts: ${l.shippingAlert}
-- Storage Growth Runway: ${p.daysToLimit} Days remaining (Est. limit date: ${p.limitDate})
+- Storage Growth Runway: ${p.daysToLimit != null ? p.daysToLimit + ' Days remaining' : 'No Data'} (Est. limit date: ${p.limitDate})
 - Primary Contact: ${c.name} (${c.phone} / ${c.email} / NSS: ${c.nssUsername})
 - Sales Rep: AM: ${h.accountManager} | TAM: ${h.supportTam}
 - Case Health: ${h.sentimentScore.toFixed(1)}/10 [Status: ${h.healthStatus}]
@@ -23298,6 +23593,48 @@ ${sepThin}\n`;
         body += '\n';
       }
 
+      // Account & Success Team — present in the in-app HTML view but was
+      // missing from this downloadable export.
+      body += `9. ACCOUNT & SUCCESS TEAM
+${sepThin}
+  Sales Representative: ${_v(sys.salesRepName)}${sys.salesRepEmail ? ' <' + sys.salesRepEmail + '>' : ''}
+  Customer Success Mgr: ${_v(sys.csmName)}${sys.csmEmail ? ' <' + sys.csmEmail + '>' : ''}
+  Support Account Mgr:  ${_v(sys.samName)}${sys.samEmail ? ' <' + sys.samEmail + '>' : ''}
+  Domestic Parent:      ${_v(sys.domesticParentName)}
+  NAGP:                 ${_v(sys.nagpName)}
+  Reseller Company:     ${_v(sys.resellerCompany)}
+  GARD:                 ${typeof sys.gard === 'object' && sys.gard ? ([sys.gard.worldwide, sys.gard.geo, sys.gard.area, sys.gard.region, sys.gard.district, sys.gard.territory].filter(Boolean).join(' > ') || '—') : _v(sys.gard)}
+  ASP Name / End Date:  ${_v(sys.aspName)} / ${_v((sys.aspEndDate || '').substring(0, 10))}
+
+`;
+
+      // Capacity Growth & Projections — present in the in-app HTML view but was
+      // missing from this downloadable export.
+      const _proj = sys.projections || {};
+      body += `10. CAPACITY GROWTH & PROJECTIONS
+${sepThin}
+  Growth Rate (GB/day): ${_v(_proj.growthRateGBPerDay)}
+  Growth Source:        ${_v(_proj.growthSource)}
+  Days to Limit:        ${_v(_proj.daysToLimit)}
+  Projected Limit Date: ${_v(_proj.limitDate)}
+${_proj.historicalCapacityMonths ? '  Historical Capacity:  ' + JSON.stringify(_proj.historicalCapacityMonths) + '\n' : ''}${_proj.projectedCapacityMonths ? '  Projected Capacity:   ' + JSON.stringify(_proj.projectedCapacityMonths) + '\n' : ''}
+`;
+
+      // Risk & Advisory Register — present in the in-app HTML view but was
+      // missing from this downloadable export.
+      const _sysRisks = sys.risks || [];
+      body += `11. RISK & ADVISORY REGISTER (${_sysRisks.length})
+${sepThin}\n`;
+      if (_sysRisks.length === 0) {
+        body += '  No risks reported.\n';
+      } else {
+        _sysRisks.slice(0, 20).forEach(r => {
+          body += `  [${_v(r.severity).toUpperCase()}] ${_v(r.category)} — ${_v(r.title)}\n`;
+        });
+        if (_sysRisks.length > 20) body += `  ...and ${_sysRisks.length - 20} more\n`;
+      }
+      body += '\n';
+
       body += '\n';
     });
 
@@ -23309,7 +23646,7 @@ ${sepThin}\n`;
   }
 }
 
-// Download all 10 deliverables at once (staggered to avoid browser popup blockers)
+// Download all 13 deliverables at once (staggered to avoid browser popup blockers)
 function downloadAllDeliverables() {
   const types = [
     'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
@@ -23368,10 +23705,10 @@ function downloadDeliverable(type) {
 
   targetSystems.forEach(sys => {
     if (sys.risks) {
-      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, ...r }));
+      sys.risks.forEach(r => allRisks.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...r }));
     }
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
-      allUpgrades.push({ systemName: sys.systemName, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
+      allUpgrades.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
     if (sys.contracts && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
@@ -25666,7 +26003,7 @@ function exportCSV() {
     const l = s.logistics || { deliveryAddress: "Not Set" };
     const c = s.contacts || { name: "Not Set" };
     const h = s.salesHealth || { sentimentScore: computeSupportCaseHealth(s).score };
-    const p = s.projections || { growthRateGBPerDay: 100, daysToLimit: 120 };
+    const p = s.projections || { growthRateGBPerDay: null, daysToLimit: null };
     
     const row = [
       s.systemName,
@@ -25685,7 +26022,7 @@ function exportCSV() {
       h.sentimentScore,
       p.growthRateGBPerDay,
       p.daysToLimit
-    ].map(v => `"${v}"`).join(",");
+    ].map(v => `"${v != null ? v : ''}"`).join(",");
     csvContent += row + "\n";
   });
 
@@ -27467,9 +27804,19 @@ function showWhatsNewModal() {
   var latest = APP_CHANGELOG[0];
   if (!latest) return;
 
+  // Changelog entries are technical release notes and can legitimately contain
+  // literal < > characters (e.g. "<script>", "config <value>"). Injected raw via
+  // innerHTML, a literal "<script>" silently switches the HTML parser into script-
+  // data mode and swallows everything after it as inert text — including this
+  // modal's own dismiss buttons, which is why they stopped being real, clickable
+  // DOM elements. Escape all changelog item text before interpolating.
+  function _wnEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   var sectionsHtml = latest.sections.map(function(sec) {
     var items = sec.items.map(function(item) {
-      return '<li style="padding:3px 0;color:var(--text-secondary);font-size:0.8rem;line-height:1.55;">' + item + '</li>';
+      return '<li style="padding:3px 0;color:var(--text-secondary);font-size:0.8rem;line-height:1.55;">' + _wnEsc(item) + '</li>';
     }).join('');
     return '<div style="margin-bottom:18px;">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
@@ -27485,7 +27832,7 @@ function showWhatsNewModal() {
       return '<div style="margin-bottom:10px;">' +
         '<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:' + s.color + ';margin-bottom:4px;">' + s.icon + ' ' + s.label + '</div>' +
         '<ul style="margin:0;padding-left:16px;list-style:disc;">' +
-          s.items.map(function(i){ return '<li style="font-size:0.76rem;color:var(--text-muted);padding:2px 0;">' + i + '</li>'; }).join('') +
+          s.items.map(function(i){ return '<li style="font-size:0.76rem;color:var(--text-muted);padding:2px 0;">' + _wnEsc(i) + '</li>'; }).join('') +
         '</ul></div>';
     }).join('');
     return '<div style="padding:8px 12px;border-radius:6px;background:rgba(255,255,255,0.03);margin-bottom:6px;cursor:pointer;border:1px solid rgba(255,255,255,0.06);" onclick="var b=this.querySelector(\'.prev-body\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';">' +
@@ -27535,30 +27882,40 @@ function showWhatsNewModal() {
               '<span style="font-size:0.72rem;color:var(--text-muted);">' + latest.date + '</span>' +
             '</div>' +
           '</div>' +
-          '<button class="wn-x" onclick="document.getElementById(\'whatsNewModal\').remove();" style="background:none;border:none;color:var(--text-muted);font-size:1.25rem;cursor:pointer;padding:4px;line-height:1;margin-top:-2px;transition:color 0.15s;" title="Dismiss">\u2715</button>' +
+          '<button class="wn-x" onclick="_wnDismiss();" style="background:none;border:none;color:var(--text-muted);font-size:1.25rem;cursor:pointer;padding:4px;line-height:1;margin-top:-2px;transition:color 0.15s;" title="Dismiss">\u2715</button>' +
         '</div>' +
       '</div>' +
       '<div style="padding:20px 24px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent;">' +
         sectionsHtml +
         prevBlock +
       '</div>' +
-      '<div style="padding:16px 24px 20px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;">' +
-        '<button class="wn-dismiss" onclick="document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 16px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:var(--text-secondary);font-size:0.8rem;cursor:pointer;transition:background 0.15s;" title="Close \u2014 will show again on next launch">Remind me later</button>' +
-        '<button class="wn-got-it" onclick="safeSetItem(\'aiq_seen_version\',\'' + APP_VERSION + '\');document.getElementById(\'whatsNewModal\').remove();" style="padding:8px 20px;background:linear-gradient(135deg,#2dd4bf,#818cf8);border:none;border-radius:8px;color:#0f1629;font-size:0.8rem;font-weight:700;cursor:pointer;transition:filter 0.15s;">Don\'t show until next update \u2713</button>' +
+      '<div style="padding:16px 24px 20px;border-top:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;">' +
+        '<label style="display:flex;align-items:center;gap:7px;font-size:0.78rem;color:var(--text-secondary);cursor:pointer;user-select:none;">' +
+          '<input type="checkbox" id="wnDontShowAgain" checked style="width:15px;height:15px;accent-color:#2dd4bf;cursor:pointer;">' +
+          'Don\'t show this again until the next update' +
+        '</label>' +
+        '<button class="wn-got-it" onclick="_wnDismiss();" style="padding:8px 20px;background:linear-gradient(135deg,#2dd4bf,#818cf8);border:none;border-radius:8px;color:#0f1629;font-size:0.8rem;font-weight:700;cursor:pointer;transition:filter 0.15s;">Close</button>' +
       '</div>' +
     '</div>';
 
   document.body.appendChild(overlay);
 
+  // All dismiss paths (X, Close, backdrop click, Escape) share this handler so
+  // the checkbox state is respected consistently regardless of how the user closes it.
+  window._wnDismiss = function() {
+    var cb = document.getElementById('wnDontShowAgain');
+    if (cb && cb.checked) safeSetItem('aiq_seen_version', APP_VERSION);
+    overlay.remove();
+    document.removeEventListener('keydown', escHandler);
+    delete window._wnDismiss;
+  };
+
   overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) window._wnDismiss();
   });
 
   function escHandler(e) {
-    if (e.key === 'Escape') {
-      overlay.remove();
-      document.removeEventListener('keydown', escHandler);
-    }
+    if (e.key === 'Escape') window._wnDismiss();
   }
   document.addEventListener('keydown', escHandler);
 }
