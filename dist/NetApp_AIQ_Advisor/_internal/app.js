@@ -18,9 +18,43 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.6.0";
+const APP_VERSION = "4.7.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.7.0",
+    date: "10 August 2026",
+    title: "Backplate/Switch/MetroCluster Follow-Up Work Completed",
+    sections: [
+      {
+        icon: "🔧",
+        label: "Backplate: AFX + More Platforms",
+        color: "#2dd4bf",
+        items: [
+          "AFX no longer shares the dual-controller 11-slot chassis layout — it's a disaggregated architecture and now renders honestly grouped by port role instead of implying numbered PCIe slots it doesn't have",
+          "Widened entry-2U platform detection to cover AFF/ASA A20/A30/A50, C20/C30/C60, and FAS500 — previously fell to the bare generic layout"
+        ]
+      },
+      {
+        icon: "🔗",
+        label: "Switch Baselines: Two Data Stores Reconciled",
+        color: "#2dd4bf",
+        items: [
+          "The live-harvested switch firmware baseline (data/imt_interop.json) now automatically syncs into the manually-maintained one (data/firmware_baselines.json) on every enrichment run, instead of the two silently drifting apart",
+          "Added licenses, pvrs, and downtimeEvents to the fallback query tier — added incrementally with live testing after last release's field-count regression"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: MetroCluster Signal Was Permanently Off",
+        color: "#f87171",
+        items: [
+          "fleet_signals['metrocluster'] checked a field name that was never set anywhere (isMetroClusterConfigured vs. the real isMetroCluster) — silently suppressed MetroCluster vendor-guideline articles for every genuine MetroCluster fleet",
+          "Added real MC-context flagging to Switch Validation: switches on a MetroCluster ISL are now flagged from the confirmed-real isMetroCluster field and show real ISL requirement context (packet loss/jitter/MTU) — confirmed live against 8 real MetroCluster systems"
+        ]
+      }
+    ]
+  },
   {
     version: "4.6.0",
     date: "10 August 2026",
@@ -9128,7 +9162,11 @@ function openRemediationModal(riskId) {
     // MetroCluster
     if (desc.includes('metrocluster') || desc.includes('mcc') || desc.includes('isl')) {
       links.push({ label: '📖 MetroCluster Docs', url: 'https://docs.netapp.com/us-en/ontap-metrocluster/' });
-      links.push({ label: '📄 MetroCluster Deep Dive TR-4517', url: 'https://www.netapp.com/search/#q=TR-4517&t=Resources' });
+      // TR number kept generic (not a specific TR-45xx citation) — MetroCluster
+      // technical reports get superseded/renumbered across ONTAP releases and this
+      // tool cannot verify which TR is current without live web access; the search
+      // link always resolves to whatever NetApp currently publishes for the topic.
+      links.push({ label: '📄 MetroCluster Technical Reports', url: 'https://www.netapp.com/search/#q=MetroCluster%20Technical%20Report&t=Resources' });
     }
 
     // StorageGRID
@@ -9675,6 +9713,14 @@ function renderTAMTab() {
           <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">✅ IMT ↗</a>`;
       }
 
+      // mcContext: real harvested isMetroCluster flag on this switch's parent system
+      // (server.py) — surfaces MC-specific ISL requirement context (real reference
+      // numbers, not a live measurement — Active IQ exposes no live ISL telemetry)
+      // instead of validating an MC ISL switch identically to a plain cluster switch.
+      const mcNote = sw.mcContext
+        ? `<div style="margin-top:4px;font-size:0.68rem;color:#a78bfa;" title="This switch sits on a MetroCluster ISL — a mirrored-plex synchronous replication path with its own distance/packet-loss/jitter/MTU requirements distinct from a plain cluster-interconnect switch.">⬡ MetroCluster ISL — max packet loss ${REFERENCE_LIBRARY_MC_REQUIREMENTS.isl.maxPacketLoss}%, max jitter ${REFERENCE_LIBRARY_MC_REQUIREMENTS.isl.maxJitter}ms, MTU ${REFERENCE_LIBRARY_MC_REQUIREMENTS.isl.requiredMTU}</div>`
+        : '';
+
       switchRows += `
         <tr>
           <td><strong style="color: var(--text-primary); font-size: 0.85rem;">${sw.systemName}</strong></td>
@@ -9682,7 +9728,7 @@ function renderTAMTab() {
             <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${sw.model}</div>
             <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">S/N: ${sw.serialNumber}</div>
           </td>
-          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span></td>
+          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}</td>
           <td>
             <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware}</code></div>
             <div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>
@@ -14448,13 +14494,13 @@ function generateDynamicRemediationPlan(risk, sys) {
         "4. For Cisco MDS ISL: 'show interface fc <port> counters' — check for CRC errors, link resets.",
         "5. For IP-MCC: verify MTU 9216 on all backend switches: Cisco 'show interface <int> | grep MTU' | Brocade 'portcfgshow'",
         "6. Contact WAN/dark-fiber provider if packet loss is on a long-haul ISL — provide interface counters as evidence.",
-        "7. Ref TR-4517: https://www.netapp.com/search/#q=TR-4517&t=Resources"
+        "7. Ref: https://www.netapp.com/search/#q=MetroCluster%20Technical%20Report&t=Resources"
       ];
       options = [
         "Option A: Resolve physical ISL path issue (cable replacement, transceiver swap, or WAN provider escalation).",
         "Option B: If ISL degradation is persistent, proactively perform negotiated switchover to DR site while primary site ISL is repaired."
       ];
-      thirdParty = "IP-MCC requires dedicated Ethernet path with MTU 9216. Shared WAN circuits MUST meet NetApp ISL requirements documented in TR-4517.";
+      thirdParty = "IP-MCC requires dedicated Ethernet path with MTU 9216. Shared WAN circuits MUST meet NetApp's published MetroCluster ISL requirements (see docs.netapp.com/us-en/ontap-metrocluster/).";
     } else {
       cause  = "MetroCluster configuration health issue detected.";
       impact = "MetroCluster health issues can block automatic switchover/switchback operations, leaving the cluster unable to survive a site-level failure.";
@@ -26906,9 +26952,15 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const platformStr = sys.platform || '';
 
   // Detect platform family
-  const isNextGen11Slot = _plat.includes('a70') || _plat.includes('a90') || _plat.includes('a1k') ||
-    _plat.includes('fas70') || _plat.includes('fas90') || _plat.includes('afx') ||
-    _plat.includes('asa a') || (platformStr.includes('ASA') && /r2/i.test(platformStr));
+  // AFX is a disaggregated architecture (separate compute nodes + storage pool
+  // modules, not a traditional dual-controller chassis with numbered PCIe I/O
+  // slots) — it must NOT share the 11-slot layout below, which asserts specific
+  // slot-number semantics (SLOT 1/7/8/9-11) that don't apply to AFX's hardware.
+  const isAFXPlat = _plat.includes('afx');
+
+  const isNextGen11Slot = !isAFXPlat && (_plat.includes('a70') || _plat.includes('a90') || _plat.includes('a1k') ||
+    _plat.includes('fas70') || _plat.includes('fas90') ||
+    _plat.includes('asa a') || (platformStr.includes('ASA') && /r2/i.test(platformStr)));
 
   const is10Slot = _plat.includes('a400') || _plat.includes('a900') || _plat.includes('c400') ||
     _plat.includes('fas8300') || _plat.includes('fas8700') || _plat.includes('fas9000') ||
@@ -26917,9 +26969,44 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const is5Slot = _plat.includes('a800') || _plat.includes('c800');
 
   const isEntry2U = _plat.includes('a250') || _plat.includes('a150') || _plat.includes('c250') ||
-    _plat.includes('fas2') || _plat.includes('2820') || _plat.includes('a220');
+    _plat.includes('fas2') || _plat.includes('2820') || _plat.includes('a220') ||
+    _plat.includes('a20') || _plat.includes('a30') || _plat.includes('a50') ||
+    _plat.includes('c20') || _plat.includes('c30') || _plat.includes('c60') ||
+    _plat.includes('fas500');
 
-  // ── Next-Gen Modular 11-Slot (A70/A90/A1K/FAS70/FAS90/AFX) ───────────────
+  // ── AFX — disaggregated compute/storage architecture ──────────────────────
+  // Rendered honestly: grouped by port role (mgmt/cluster/data/storage) from
+  // real harvested ports, with no invented slot numbers — AFX's physical
+  // layout (separate compute nodes + NSM storage pool modules) doesn't match
+  // the numbered-PCIe-slot model the other ONTAP layouts below assume, and
+  // this tool has no confirmed source for AFX's exact physical slot map.
+  if (isAFXPlat) {
+    const clusterPorts = ports.filter(p => p.type === 'cluster');
+    const dataPorts = ports.filter(p => p.type === 'data');
+    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
+    const clusterContent = clusterPorts.length ? clusterPorts.map(p => _portBlock(p, 34)).join('') : _emptySlot('—');
+    const dataContent = dataPorts.length ? dataPorts.map(p => _portBlock(p, 34)).join('') : _emptySlot('—');
+    const storageContent = storagePorts.length ? storagePorts.map(p => _portBlock(p, 34)).join('') : '';
+
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">Disaggregated Compute/Storage — grouped by role, ports reported by Active IQ only</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_mgmtSection ? _section('MGMT', _mgmtSection(), '#10b981', { minWidth: '80px' }) : ''}
+        ${_section('CLUSTER/HA', clusterContent, '#3b82f6', { minWidth: '70px' })}
+        ${_section('DATA', dataContent, '#f59e0b', { flex: '1 1 auto', minWidth: '90px' })}
+        ${storagePorts.length > 0 ? _section('STORAGE FABRIC', storageContent, '#a855f7', { minWidth: '70px' }) : ''}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+    </div>`;
+  }
+
+  // ── Next-Gen Modular 11-Slot (A70/A90/A1K/FAS70/FAS90) ───────────────────
   if (isNextGen11Slot) {
     const clusterPorts = ports.filter(p => p.type === 'cluster');
     const dataPorts = ports.filter(p => p.type === 'data');

@@ -1157,6 +1157,36 @@ def run_reference_harvest(data_dir=None, dry_run=False,
             imt_db['_lastUpdated'] = date.today().isoformat()
             save_json('imt_interop.json', imt_db)
 
+        # ── Sync switch firmware baselines from the live-harvested IMT data ──
+        # data/firmware_baselines.json["switches"] used to be a second, manually
+        # maintained copy of the same Cisco/Brocade/Broadcom version numbers --
+        # nothing kept the two in sync, so firmware_baselines.json (the one that
+        # actually drives Switch Validation tab remediation text) could silently
+        # drift stale relative to imt_interop.json (the one this harvester
+        # actually updates). Propagate the harvested currentRecommended values
+        # into the matching firmware_baselines.json switch entries every run so
+        # there is one live source of truth instead of two.
+        _imt_to_baseline_key = {
+            'cisco_nxos': 'Cisco NX-OS',
+            'cisco_mds': 'Cisco MDS',
+            'brocade_fos': 'Brocade FOS',
+            'broadcom_efos': 'Broadcom EFOS',
+        }
+        fw_db = load_json('firmware_baselines.json')
+        fw_switches = fw_db.get('switches') if isinstance(fw_db, dict) else None
+        if isinstance(fw_switches, dict):
+            fw_switch_changed = False
+            for imt_key, baseline_key in _imt_to_baseline_key.items():
+                rec = (imt_db.get(imt_key) or {}).get('currentRecommended')
+                entry = fw_switches.get(baseline_key)
+                if rec and isinstance(entry, dict) and entry.get('recommended') != rec:
+                    entry['recommended'] = rec
+                    fw_switch_changed = True
+            if fw_switch_changed:
+                changes.setdefault('firmware_baselines_switches_synced', True)
+                fw_db['_lastUpdated'] = date.today().isoformat()
+                save_json('firmware_baselines.json', fw_db)
+
     # ── Advisories ──
     if run_all or advisory_only:
         sec_db = load_json('security_bulletins.json')

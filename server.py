@@ -877,6 +877,8 @@ def _do_full_harvest(watchlist_ids=None):
                     sustainabilityScores { scorePercentage percentageChange changeFactors generatedDate }
                     vcenters { id name version }
                     licenses { licenseSerialNumber package type description name }
+                    pvrs { id info validFrom validTo }
+                    downtimeEvents { totalCount events { category code emsDate summary outageSeconds } }
                     networkPorts {
                       totalCount
                       networkPorts { port role link type broadcastDomain ipspaceName speedOperationalMbps macAddress maxTransmissionUnitBytes interfaceGroupOwner }
@@ -1729,6 +1731,14 @@ def _do_full_harvest(watchlist_ids=None):
             cl_cap = serial_to_cluster_cap.get(serial, {})
 
             # Extract switches from port connectivity (device names + port types)
+            # _sys_is_mcc: real harvested isMetroCluster flag for the parent system —
+            # used to flag which of this system's switches sit on a MetroCluster ISL
+            # so the Switch Validation UI can apply MC-specific ISL requirement
+            # context (TR-published distance/packet-loss/jitter/MTU limits) instead
+            # of generic cluster-interconnect validation. This is NOT derived from a
+            # guessed switch "role" enum value (unconfirmed against live Active IQ
+            # data) — it only uses the confirmed-real per-system isMetroCluster field.
+            _sys_is_mcc = bool(s.get("isMetroCluster"))
             switches = []
             seen_devs = set()
             pi = s.get("portInterface") or {}
@@ -1749,6 +1759,7 @@ def _do_full_harvest(watchlist_ids=None):
                         "portSpeed": p.get("portSpeed", ""),
                         "portState": p.get("portState", ""),
                         "sourcePort": p.get("portName", ""),
+                        "mcContext": _sys_is_mcc,
                     })
 
             # Merge cluster-level switches (with model, firmware, validation data)
@@ -1822,6 +1833,7 @@ def _do_full_harvest(watchlist_ids=None):
                     "vendor":            sw_vendor,
                     "isMonitored":       is_monitored,
                     "isDiscovered":      is_discovered,
+                    "mcContext":         _sys_is_mcc,
                 })
 
             # Merge cluster-level shelves
@@ -4238,7 +4250,12 @@ class EnrichmentScheduler:
                     fleet_signals['fabricpool'] = True
                 if sys_item.get('snapmirror') and sys_item.get('snapmirror', {}).get('enabled'):
                     fleet_signals['snapmirror'] = True
-                if sys_item.get('haConfigured') and sys_item.get('isMetroClusterConfigured'):
+                # Fixed field-name mismatch: the harvested field is "isMetroCluster"
+                # (server.py systems_out), not "isMetroClusterConfigured" -- the old
+                # key was never set anywhere, so this signal was permanently False
+                # even for genuine MetroCluster fleets, silently suppressing the
+                # MetroCluster vendor-guidelines articles from ever being recommended.
+                if sys_item.get('isMetroCluster'):
                     fleet_signals['metrocluster'] = True
 
                 # Switch detection from switch data
