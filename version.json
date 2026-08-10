@@ -1,8 +1,8 @@
 {
-  "version": "4.4.0",
+  "version": "4.4.1",
   "major": 4,
   "minor": 4,
-  "patch": 0,
+  "patch": 1,
   "date": "2026-08-10",
-  "notes": "Added intelligent sitemap-based product/integration auto-discovery (new Scanner 8) that automatically finds new NetApp documentation sections every scheduled enrichment cycle using docs.netapp.com's real, sanctioned sitemap.xml -- no code changes needed as NetApp adds new products. Added 13 new verified third-party integration seeds (JetStream DR, Splunk x2, Datadog, Sentinel/SOAR, ServiceNow x2, IBM Db2 x2, Red Hat OpenShift x3). Also found and fixed a serious bug: getSystemIntegrations() fabricated an entire fake technology stack (VMware/Oracle/Commvault, OpenStack/NVIDIA AI BasePOD/etc.) from a hash of the serial number and presented it as real Active IQ telemetry for every live customer system -- now honestly reports 'Not Reported by Active IQ' since no such field exists in the real API."
+  "notes": "Fixed Risk & Advisory Register severity counts: normRisk() lowercases severity (\"high\"/\"medium\") but the As-Built count table compared against capitalized keys, so every risk was miscounted as 'Unknown' despite each row showing the correct badge -- now matches case-insensitively. Fixed the As-Built Risk Register and Security Posture panels rendering blank risk titles: normRisk() has no `title` field, only `description` -- both panels now show the real description text instead of empty brackets like '[medium]'. Investigated the blank Monthly Capacity 'Used (TB)' column down to the live Active IQ API: confirmed this account's systems query falls back to a reduced field set (full query errors with 'Float cannot represent non numeric value: null'), and even the separate cluster-level monthlyCapacity query returns usedKiB=null for every month while rawMarketingKiB is populated -- Active IQ genuinely does not return historical used-capacity for this account. Added a per-month cluster-level fallback in server.py for cases where it does exist, and the UI now states explicitly when the column is unavailable instead of rendering a wall of dashes. Added tooltips explaining Active IQ's proprietary Propensity score (CRITICAL/HIGH/MEDIUM/LOW) is computed entirely inside Active IQ, not by this tool."
 }

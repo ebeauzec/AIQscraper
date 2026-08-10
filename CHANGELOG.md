@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.4.1] - 2026-08-10
+
+### Fixed
+- **Risk & Advisory Register severity counts** — `normRisk()` lowercases severity (`"high"`, `"medium"`) but the As-Built count summary compared against capitalized keys (`'High'`, `'Medium'`), so every risk miscounted as `Unknown` even though each table row showed the correct badge. Now matches case-insensitively.
+- **Blank risk titles in As-Built Risk Register and Security Posture panels** — both rendered `r.title`, a field `normRisk()` never sets (only `description` exists), producing bare `[medium]`/`[high]` rows with no text. Now render `r.description`, which always has a value (falls back through several API field variants, then a generic message).
+
+### Investigated
+- **Monthly Capacity "Used (TB)" column showing all dashes** — traced live against the Active IQ API: this account's full systems GraphQL query errors (`Float cannot represent non numeric value: null`) and falls back to a reduced field set that drops `monthlyCapacity` entirely; the separately-queried cluster-level `monthlyCapacity` also returns `usedKiB: null` for every month while `rawMarketingKiB` is fully populated. Confirmed this is a genuine Active IQ data gap for this account (raw/marketing capacity has full monthly history, used capacity does not), not a bug. Added a per-month cluster-level merge fallback in `server.py` for accounts where the data does exist elsewhere in the response; when it's genuinely absent, the UI now says so explicitly instead of rendering a column of dashes.
+- **Propensity score tooltips** — added explanatory tooltips clarifying that Active IQ's Propensity classification (CRITICAL/HIGH/MEDIUM/LOW) is NetApp's own proprietary churn/expansion model computed inside Active IQ; this tool only displays the value AIQ assigns and has no visibility into the underlying scoring logic.
+
+---
+
 ## [4.4.0] - 2026-08-10
 
 ### Added
