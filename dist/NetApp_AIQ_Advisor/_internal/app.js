@@ -18,9 +18,42 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.7.1";
+const APP_VERSION = "4.7.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.7.2",
+    date: "10 August 2026",
+    title: "FAS8300/8700/9000 Slot Counts + RCF Compliance + E-Series Clarity",
+    sections: [
+      {
+        icon: "✅",
+        label: "More Platforms Confirmed",
+        color: "#2dd4bf",
+        items: [
+          "FAS8300/FAS8700 get their own confirmed 7-slot-per-controller layout (was guessed into the 5-slot A400 bucket)",
+          "C400 confirmed to genuinely match A400's 5-slot layout; FAS9000 confirmed at 10 slots/controller matching A900 (lower-confidence source: a datasheet PDF, not a live key-specs page)",
+          "MetroCluster ISL max-distance: IP (700km) and the blanket FC figure (300km) now marked confirmed by primary sources; the FC-Brocade-vs-Other 200km split could not be found in any current NetApp primary source and is now flagged unconfirmed instead of stated as fact"
+        ]
+      },
+      {
+        icon: "🔑",
+        label: "New: RCF Compliance Badge",
+        color: "#2dd4bf",
+        items: [
+          "Switch Validation now shows an explicit RCF Compliant / RCF Mismatch badge, sourced from Active IQ's own rcfVersion field — a switch can be on current firmware but still running the wrong reference config, a distinct compliance signal from firmware currency"
+        ]
+      },
+      {
+        icon: "💬",
+        label: "Clarified: E-Series Port Telemetry",
+        color: "#f59e0b",
+        items: [
+          "Active IQ's per-port Ethernet telemetry field only exists on the ONTAPSystem GraphQL type — E-Series/SANtricity systems genuinely never have it. The empty cabling table now says so explicitly instead of a generic 'not reported' message"
+        ]
+      }
+    ]
+  },
   {
     version: "4.7.1",
     date: "10 August 2026",
@@ -7006,12 +7039,21 @@ function _getImtInterop() {
 // docs.netapp.com/us-en/ontap-metrocluster/install-ip/concept-requirements-isls.html
 // (≤0.01% packet loss, ≤3ms round-trip / ≤1.5ms one-way jitter, ~1ms/100km
 // latency rule of thumb) — matches the values below verbatim, no changes
-// needed. maxDistance figures (FC-Brocade/FC-Other/IP) are not yet
-// independently reconfirmed against that page and should be treated as
-// carried-forward from the original TR-4510-era source pending a dedicated
-// distance-limits check.
+// needed.
+//
+// maxDistance — reconfirmed 2026-08-10 (follow-up pass) with mixed confidence:
+//   ip: 700km — solidly confirmed by TWO primary sources (NetApp's own ISL
+//     requirements page above, and TR-4705).
+//   fc_brocade (blanket FC figure): 300km — confirmed by TR-4705, but only as
+//     a single blanket FC figure, NOT split by switch vendor.
+//   fc_other: 200km — COULD NOT be reconfirmed against any current NetApp
+//     primary source. The only hits were a community forum thread and an
+//     older FC FAQ PDF. NetApp's current guidance is to check the exact
+//     distance limit per switch model via the IMT/Hardware Universe rather
+//     than rely on a blanket "non-Brocade" figure — treat fc_other as
+//     UNCONFIRMED, not as a verified NetApp-stated number.
 const REFERENCE_LIBRARY_MC_REQUIREMENTS = {
-  maxDistance: { fc_brocade: 300, fc_other: 200, ip: 700 },  // km — not yet reconfirmed, see note above
+  maxDistance: { fc_brocade: 300, fc_other: 200, ip: 700 },  // km — ip and fc_brocade confirmed 2026-08-10; fc_other NOT independently confirmed, see note above — verify per switch model via Hardware Universe/IMT before quoting to a customer
   isl: {
     maxPacketLoss: 0.01,       // percent — reconfirmed 2026-08-10
     maxJitter: 3,              // ms round-trip — reconfirmed 2026-08-10 (1.5ms one-way)
@@ -9754,6 +9796,17 @@ function renderTAMTab() {
         ? `<div style="margin-top:4px;font-size:0.68rem;color:#a78bfa;" title="This switch sits on a MetroCluster ISL — a mirrored-plex synchronous replication path with its own distance/packet-loss/jitter/MTU requirements distinct from a plain cluster-interconnect switch.">⬡ MetroCluster ISL — max packet loss ${REFERENCE_LIBRARY_MC_REQUIREMENTS.isl.maxPacketLoss}%, max jitter ${REFERENCE_LIBRARY_MC_REQUIREMENTS.isl.maxJitter}ms, MTU ${REFERENCE_LIBRARY_MC_REQUIREMENTS.isl.requiredMTU}</div>`
         : '';
 
+      // RCF (Reference Configuration File) compliance — real signal from
+      // server.py, sourced from Active IQ's harvested rcfVersion field, distinct
+      // from firmware currency (a switch can be on current firmware but still
+      // running a stale/wrong RCF, or vice versa).
+      let rcfBadge = '';
+      if (sw.rcfCompliant === true) {
+        rcfBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--status-normal);" title="Current RCF version: ${sw.rcfVersion}">✓ RCF Compliant</span></div>`;
+      } else if (sw.rcfCompliant === false) {
+        rcfBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--status-warning);" title="Active IQ recommends RCF ${sw.rcfVersion}; running firmware ${sw.firmware}">⚠ RCF Mismatch — recommended: ${sw.rcfVersion}</span></div>`;
+      }
+
       switchRows += `
         <tr>
           <td><strong style="color: var(--text-primary); font-size: 0.85rem;">${sw.systemName}</strong></td>
@@ -9770,6 +9823,7 @@ function renderTAMTab() {
                  style="font-size:0.68rem;color:var(--accent-cyan);text-decoration:underline;"
                  onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label}</a>
             </div>
+            ${rcfBadge}
           </td>
           <td>${statusBadge}</td>
           <td>
@@ -27000,19 +27054,20 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     _plat.includes('fas70') || (_plat.includes('fas90') && !_plat.includes('fas9000')) ||
     _plat.includes('asa a') || (platformStr.includes('ASA') && /r2/i.test(platformStr)));
 
-  // A400 (5 PCIe slots/controller, 10 HA-pair total) vs A900 (10/controller, 20
-  // total) are NOT the same chassis despite both being called "mid-range" —
-  // confirmed via NetApp's own key-specifications pages (2026-08-10 direct fetch,
-  // see NetApp Reference Library/Platforms-Hardware/README.md). FAS8300/8700/9000
-  // and C400 remain grouped with A400 since their exact slot counts are still
-  // unconfirmed by this refresh — flagged, not verified.
-  const isA400Family = _plat.includes('a400') || _plat.includes('c400') ||
-    _plat.includes('fas8300') || _plat.includes('fas8700') || _plat.includes('fas9000') ||
+  // Mid-range chassis families, confirmed distinct via NetApp's own key-
+  // specifications pages (2026-08-10) plus a follow-up confirmation pass
+  // (2026-08-10, second round) that resolved FAS8300/FAS8700/FAS9000/C400
+  // from "grouped with A400 by unverified guess" to individually confirmed:
+  //   A400 = 5 slots/ctrl (10 total, 4U)   C400 = 5 slots/ctrl (10 total) — confirmed match to A400
+  //   A900 = 10 slots/ctrl (20 total, 8U)  FAS9000 = 10 slots/ctrl (20 total) — sourced from a
+  //     NetApp datasheet PDF rather than a live key-specs page (FAS9000 predates
+  //     the current doc format), so treated as lower-confidence but still a real
+  //     confirmation rather than a guess.
+  //   FAS8300 = 7 slots/ctrl (14 total)    FAS8700 = 7 slots/ctrl (14 total) — own bucket, see isA87Family below
+  const isA400Family = _plat.includes('a400') || _plat.includes('c400');
+  const isA900Family = _plat.includes('a900') || _plat.includes('fas9000');
+  const isA87Family = _plat.includes('fas8300') || _plat.includes('fas8700') ||
     _plat.includes('8300') || _plat.includes('8700');
-  // Deliberately just "a900" (confirmed) — a broader bare "9000" match would
-  // also catch FAS9000, which is already (unconfirmed) bucketed with A400 in
-  // isA400Family below; don't let the two buckets silently fight over it.
-  const isA900Family = _plat.includes('a900');
 
   // A800/C800 confirmed at 5 PCIe slots/controller (10 HA-pair total) — same as
   // A400, but kept as a separate bucket since it has internal drive slots (48)
@@ -27160,9 +27215,13 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     </div>`;
   }
 
-  // ── A900 — 10 PCIe slots per controller (confirmed) ───────────────────────
-  // Confirmed via NetApp key-specs (2026-08-10): A900 is 20 PCIe slots per HA
-  // pair = 10 per controller, 8U single-chassis HA pair, no internal drives.
+  // ── A900/FAS9000 — 10 PCIe slots per controller ───────────────────────────
+  // A900 confirmed via NetApp's live key-specs page (2026-08-10): 20 PCIe
+  // slots per HA pair = 10 per controller, 8U single-chassis HA pair, no
+  // internal drives. FAS9000 confirmed to the same 10/controller figure in a
+  // follow-up pass, but sourced from a NetApp datasheet PDF rather than a live
+  // key-specs page (FAS9000 predates the current doc format) — real
+  // confirmation, just lower-confidence than A900's, labeled accordingly.
   // Previously bucketed with A400 under a single "10-slot" layout — A400 is
   // actually 5 slots/controller (see below), a real discrepancy this corrects.
   if (isA900Family) {
@@ -27189,7 +27248,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
           <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
           <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
         </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">8U Single-Chassis HA · 10 PCIe Slots (Confirmed)</span>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${_plat.includes('a900') ? '8U ' : ''}Single-Chassis HA · 10 PCIe Slots ${_plat.includes('a900') ? '(Confirmed)' : '(Confirmed, lower-confidence source)'}</span>
       </div>
       <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
         ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
@@ -27205,10 +27264,10 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     </div>`;
   }
 
-  // ── A400 family — 5 PCIe slots per controller (A400 confirmed; FAS8300/
-  // FAS8700/FAS9000/C400 grouped here unverified by this refresh) ──────────
-  // Confirmed via NetApp key-specs (2026-08-10): A400 is 10 PCIe slots per HA
-  // pair = 5 per controller, 4U single-chassis HA pair, no internal drives.
+  // ── A400 family — 5 PCIe slots per controller (A400 and C400 both confirmed) ──
+  // Confirmed via NetApp key-specs (2026-08-10, C400 confirmation added in a
+  // follow-up pass same day): A400/C400 are each 10 PCIe slots per HA pair =
+  // 5 per controller, 4U single-chassis HA pair, no internal drives.
   if (isA400Family) {
     const clusterPorts = ports.filter(p => p.type === 'cluster');
     const dataPorts = ports.filter(p => p.type === 'data');
@@ -27227,14 +27286,53 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
         : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
     }
 
-    const isConfirmedA400 = _plat.includes('a400');
     return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
           <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
         </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U Single-Chassis HA · 5 PCIe Slots ${isConfirmedA400 ? '(Confirmed)' : '(unverified for this exact model)'}</span>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U Single-Chassis HA · 5 PCIe Slots (Confirmed)</span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
+        ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
+        ${pcieSlotsHtml}
+        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      </div>
+    </div>`;
+  }
+
+  // ── FAS8300/FAS8700 — 7 PCIe slots per controller (confirmed) ────────────
+  // Confirmed via NetApp key-specs (2026-08-10 follow-up pass): FAS8300 and
+  // FAS8700 are each 14 PCIe slots per HA pair = 7 per controller — distinct
+  // from both the A400 family (5/ctrl) and A900 family (10/ctrl) they were
+  // previously (unverified) grouped with.
+  if (isA87Family) {
+    const onboardHtml = _mgmtSection() +
+      ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
+      ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
+
+    const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
+    let pcieSlotsHtml = '';
+    for (let s = 1; s <= 7; s++) {
+      const rp = remainingPorts[s-1];
+      pcieSlotsHtml += rp ? _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' })
+        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
+    }
+
+    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
+        </div>
+        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">Single-Chassis HA · 7 PCIe Slots (Confirmed)</span>
       </div>
       <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
         ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
@@ -27458,7 +27556,14 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   });
 
   if (ports.length === 0) {
-    tableRowsHtml = `<tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">No per-port telemetry reported by Active IQ for this system.</td></tr>`;
+    // Active IQ's `networkPorts` field only exists on the ONTAPSystem GraphQL
+    // type — E-Series/SANtricity systems are a different type and were never
+    // going to have this field populated, not a harvest failure for this system.
+    const _isEseriesSys = !!(sys && (sys.santricityVersion || (sys.platform || '').toLowerCase().match(/e-series|ef\d{3}|e\d{4}/)));
+    const _emptyMsg = _isEseriesSys
+      ? 'Active IQ does not expose per-port Ethernet telemetry for E-Series/SANtricity systems (only available for ONTAP systems).'
+      : 'No per-port telemetry reported by Active IQ for this system.';
+    tableRowsHtml = `<tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">${_emptyMsg}</td></tr>`;
   }
 
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
