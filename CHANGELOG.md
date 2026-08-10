@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.2.2] - 2026-08-10
+
+### Fixed
+- **NVD API key sent via the wrong transport** — `fetch_cve_nvd()` and `_scan_nvd_netapp()` both appended `apiKey` as a URL query string parameter (`&apiKey=...`); NVD API 2.0 only accepts it as an HTTP header and silently returns `404 Not Found` for the query-string form regardless of whether the key is valid. Every NVD-backed enrichment call was failing whenever `nvdApiKey` was configured in `aiq_config.json` — worse than having no key at all, since an unauthenticated call would at least have succeeded (just at the slower 5-req/30s rate limit instead of 50/30s). `_enrich_fetch()` now accepts an `extra_headers` parameter; confirmed live: NVD scan went from `HTTP Error 404: Not Found` to a successful query after the fix
+
+---
+
 ## [4.2.1] - 2026-08-10
 
 ### Fixed

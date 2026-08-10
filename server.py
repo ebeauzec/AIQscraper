@@ -2455,14 +2455,20 @@ from html.parser import HTMLParser
 _ENRICH_UA = 'AIQ-Advisor/1.0 (enrichment; public data only)'
 
 
-def _enrich_fetch(url, timeout=12):
+def _enrich_fetch(url, timeout=12, extra_headers=None):
     """Fetch URL, return (text, error). Uses the shared proxy-aware opener so that
     on corporate networks (Zscaler/WPAD) the request is correctly routed through
     the system HTTP proxy — docs.netapp.com, nvd.nist.gov, security.netapp.com
     are all proxied on corporate networks and fail silently without this.
-    Falls back to a cert-store refresh + opener rebuild on any TLS error."""
+    Falls back to a cert-store refresh + opener rebuild on any TLS error.
+    extra_headers: optional dict merged into the request (e.g. NVD's apiKey,
+    which NVD API 2.0 only accepts as a header — passing it as a query string
+    parameter silently 404s regardless of whether the key is valid)."""
     global _opener_cache
-    req = urllib.request.Request(url, headers={'User-Agent': _ENRICH_UA})
+    headers = {'User-Agent': _ENRICH_UA}
+    if extra_headers:
+        headers.update(extra_headers)
+    req = urllib.request.Request(url, headers=headers)
     try:
         with _get_opener().open(req, timeout=timeout) as r:
             return r.read().decode('utf-8', errors='replace'), None
@@ -2537,9 +2543,9 @@ def fetch_cve_nvd(cve_id, api_key=None):
     fetch_cve_nvd._timestamps.append(time.time())
 
     url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={urllib.parse.quote(cve_id)}'
-    if api_key:
-        url += f'&apiKey={api_key}'
-    text, err = _enrich_fetch(url)
+    # NVD API 2.0 only accepts apiKey as an HTTP header — passing it as a query
+    # string parameter silently 404s regardless of whether the key is valid.
+    text, err = _enrich_fetch(url, extra_headers={'apiKey': api_key} if api_key else None)
     if err or not text:
         return None
     try:
@@ -3130,16 +3136,19 @@ class EnrichmentScheduler:
         """Query NVD API 2.0 for new NetApp-related CVEs."""
         print('  [ENRICH] [3/7] Scanning NVD for NetApp CVEs...', flush=True)
         base_url = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
-        headers_extra = ''
-        if self._nvd_api_key:
-            headers_extra = f'&apiKey={self._nvd_api_key}'
 
         # Get CVEs published in the last 30 days for NetApp
         from_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%dT00:00:00.000')
         to_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT23:59:59.999')
-        url = f'{base_url}?keywordSearch=netapp&pubStartDate={from_date}&pubEndDate={to_date}{headers_extra}'
+        url = f'{base_url}?keywordSearch=netapp&pubStartDate={from_date}&pubEndDate={to_date}'
 
-        text, err = _enrich_fetch(url, timeout=30)
+        # NVD API 2.0 only accepts apiKey as an HTTP header — passing it as a
+        # query string parameter silently 404s regardless of whether the key
+        # is valid, which was previously breaking every scan when a key was
+        # configured (silently falling back to no results, not to the slower
+        # unauthenticated tier).
+        extra_headers = {'apiKey': self._nvd_api_key} if self._nvd_api_key else None
+        text, err = _enrich_fetch(url, timeout=30, extra_headers=extra_headers)
         if err or not text:
             print(f'  [ENRICH]   NVD fetch failed: {err}', flush=True)
             return {'error': str(err), 'new': 0}
