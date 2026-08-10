@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.3.2] - 2026-08-10
+
+### Fixed
+- **Harvest crash on accounts with zero accessible systems** — tested the server against a second Active IQ account (different tenant, no watchlists configured, all 3 system-query tiers returned 0 systems). Discovered `_do_full_harvest()`'s contract-renewals fetch crashed with `'NoneType' object has no attribute 'get'`: `.get("systemContractRenewals", {})` only applies its default when the key is *missing* — GraphQL can return `{"data": {"systemContractRenewals": null}}` (key present, value `None`) for an account with no privilege/data in scope, and the chained `.get("systems")` call then crashes. Same bug pattern already fixed twice before in this codebase (NVD apiKey, risk-mutation enum values). Fixed here and found + fixed **5 more instances** of the identical pattern in `customers`, `sites`, `sustainabilityScore`, and both `osVersions` calls
+- The harvest itself degrades gracefully otherwise: a 0-system result does not overwrite the existing cache, so the dashboard continues serving the last known-good data rather than going blank — confirmed this is intentional, working behavior, not a bug
+
+### Documented (not a bug — confirmed via live introspection)
+- The GraphQL `watchlists` query field referenced in two fallback code paths (`{ watchlists { id name } }`) **does not exist** in the current Active IQ GraphQL schema — verified via a fresh introspection query and a live test call that returned `GRAPHQL_VALIDATION_FAILED`. This fallback has therefore never worked for any account; REST-based watchlist discovery (`/v1/watchlists/list` etc.) is the only channel that has ever functioned, and even that returns `404`/`401` for several endpoint variants depending on account entitlements. Left the dead GraphQL fallback in place (harmless — already caught) with a comment explaining why, in case NetApp adds the field in a future API version
+
+---
+
 ## [4.3.1] - 2026-08-10
 
 ### Improved
