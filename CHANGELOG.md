@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.3.1] - 2026-08-10
+
+### Improved
+- **Operational Guidelines & Proceeding Steps (Action Planner, Section 8)** — a TAM had to read the full checklist top-to-bottom with no way to triage at a glance:
+  - Added an at-a-glance urgency banner at the top ("⚠ N items require attention" / "✓ No blocking items"), color-coded by whether any critical risk is present
+  - Priority Action Items now carry a P1-P4 badge and are sorted by urgency, instead of a flat unordered list
+  - Plain "see Section 2" / "Section 3" / "Section 4" / "Section 6" text references replaced with clickable links that jump directly to that section via `switchPlanTab()`, verified live to actually navigate
+
+---
+
 ## [4.3.0] - 2026-08-10
 
 ### Added

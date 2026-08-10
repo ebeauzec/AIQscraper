@@ -1,8 +1,8 @@
 {
-  "version": "4.3.0",
+  "version": "4.3.1",
   "major": 4,
   "minor": 3,
-  "patch": 0,
+  "patch": 1,
   "date": "2026-08-10",
-  "notes": "Enrichment expansion: NVD key now passed to all call sites via HTTP header, precise CPE-based NVD matching alongside keyword search, refreshed dead Veeam IMT seed URL, and new CISA KEV vs. acknowledged-risk cross-reference (flags when a TAM-accepted risk later appears in the actively-exploited catalog) surfaced in the Security Brief. Also fixed a capacity-enrichment gap where system-level usedKiB being null (while rawMarketingKiB/usablePerformanceTierKiB were populated) permanently zeroed 'Physical Used'/'Logical' capacity display, since the cluster-level fallback was gated only on raw capacity being zero."
+  "notes": "Improved the Operational Guidelines & Proceeding Steps section (Action Planner, Section 8): added an at-a-glance urgency banner, priority (P1-P4) badges on each action item sorted by urgency, and clickable jump-to-section links replacing plain 'see Section N' text references."
 }
