@@ -1,8 +1,8 @@
 {
-  "version": "4.2.2",
+  "version": "4.3.0",
   "major": 4,
-  "minor": 2,
-  "patch": 2,
+  "minor": 3,
+  "patch": 0,
   "date": "2026-08-10",
-  "notes": "Fixed NVD API key transport: NVD API 2.0 only accepts apiKey as an HTTP header, not a query string parameter. Every NVD-backed enrichment call was silently 404ing whenever a key was configured (aiq_config.json's nvdApiKey), regardless of whether the key was valid. Confirmed live: NVD scan went from 'HTTP Error 404: Not Found' to a successful 0-result query after the fix."
+  "notes": "Enrichment expansion: NVD key now passed to all call sites via HTTP header, precise CPE-based NVD matching alongside keyword search, refreshed dead Veeam IMT seed URL, and new CISA KEV vs. acknowledged-risk cross-reference (flags when a TAM-accepted risk later appears in the actively-exploited catalog) surfaced in the Security Brief. Also fixed a capacity-enrichment gap where system-level usedKiB being null (while rawMarketingKiB/usablePerformanceTierKiB were populated) permanently zeroed 'Physical Used'/'Logical' capacity display, since the cluster-level fallback was gated only on raw capacity being zero."
 }
