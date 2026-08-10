@@ -1,8 +1,8 @@
 {
-  "version": "4.4.2",
+  "version": "4.5.0",
   "major": 4,
-  "minor": 4,
-  "patch": 2,
+  "minor": 5,
+  "patch": 0,
   "date": "2026-08-10",
-  "notes": "As-Built section (system detail view): dates that come from the API as full ISO-8601 timestamps (e.g. End of Full/Ltd Support, End of Self-Service) were rendered with the raw time-of-day and timezone suffix ('2027-07-31T00:00:00.000Z') instead of just the date. Fixed at the shared valOrDash() formatter used throughout the As-Built section so every date field there now shows day/month/year only."
+  "notes": "Fixed ARP (Anti-Ransomware Protection) and 8 other fields always showing 'Unknown'/blank for accounts whose full ('TAM') systems query fails and falls back to the reduced 'Efficiency' query tier: isARPEnabled, systemState, lastRebootTime, originalShipDate, marketingType, storageConfiguration, autoUpdateSettings, sustainabilityScores, and vcenters were only ever requested in the full tier, so any account using the fallback tier (a Float-null API quirk unrelated to these fields) never got them at all. Added them to the fallback tier too -- confirmed live: 31 of 167 systems now correctly show ARP enabled where the entire fleet previously showed 'Unknown'. Also fixed the Sustainability Scores panel, which was written for the wrong data shape (expected a flat metric map, API actually returns a dated score-history array) -- now renders a real timeline with actual score/change/factors. Fixed a downtimeEvents shape mismatch (object with totalCount/events, not a bare array) that silently no-opped the Downtime Events line. Note: licenses, pvrs, monthlyCarbonStats, monthlyAutoResolvedCases, and downtimeEvents' event details were found in the same audit but had to be left out of this pass -- adding everything at once exceeded Active IQ's GraphQL query field-count limit and pushed accounts using the fallback tier all the way down to the bare-minimum tier, which is worse. They need to go in as a smaller, separate follow-up."
 }
