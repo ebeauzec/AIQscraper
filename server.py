@@ -35,6 +35,7 @@ import json
 import ssl
 import sqlite3
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import subprocess
 import os
@@ -72,6 +73,11 @@ _current_token = None  # Last-used access token for debug probes
 
 # Enrichment scanner state
 _enrichment_scheduler = None  # Set during server startup
+# Guards concurrent read-modify-write access to BULLETINS_PATH — scanners 1-4
+# (CISA KEV, PSIRT, NVD, EPSS) all upsert into the same security_bulletins.json
+# and now run concurrently via a thread pool, so each must hold this lock for
+# its own load→modify→write span to avoid clobbering another scanner's update.
+_bulletins_lock = threading.Lock()
 KEV_PATH = SCRIPT_DIR / "data" / "cisa_kev.json"
 KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
 VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
@@ -1121,6 +1127,7 @@ def _do_full_harvest(watchlist_ids=None):
                       potentialImpact
                       impactArea
                       correctiveAction { url displayName }
+                      cves { id cvssScore description summary lastUpdated }
                     }
                     system { serialNumber hostName }
                     systemRiskDetail
@@ -2786,49 +2793,90 @@ def scan_and_persist_advisories():
 class EnrichmentScheduler:
     """Background scheduler that periodically scans external sources for enrichment data."""
 
-    def __init__(self, interval_hours=12, nvd_api_key=None):
+    # Files scanner 6 (KB crawl) reads/writes — kept separate from the main
+    # bulletins.json/version_catalog.json group so its own staleness check
+    # doesn't accidentally gate the fast scanners.
+    _KB_STALENESS_FILE = KNOWLEDGE_PATH
+
+    def __init__(self, interval_hours=12, nvd_api_key=None, kb_interval_hours=168):
         self._interval = max(1, interval_hours) * 3600
+        # Scanner 6 (KB/doc crawl) is the long pole of the old 7-scanner cycle —
+        # potentially 80-150+ sequential HTTP requests. Running it on the same
+        # cadence as the fast security scanners means a closed desktop app can
+        # lose an entire cycle's results for every scanner queued after it, and
+        # forces the fast scanners to wait behind it needlessly. It now runs on
+        # its own, much longer timer (default 7 days) — configurable separately.
+        self._kb_interval = max(1, kb_interval_hours) * 3600
         self._nvd_api_key = nvd_api_key
         self._timer = None
+        self._kb_timer = None
         self._running = False
+        self._kb_running = False
         self._last_scan = None
+        self._last_kb_scan = None
         self._last_results = {}
+        self._last_kb_results = {}
         self._lock = threading.Lock()
+        self._kb_lock = threading.Lock()
 
     def start(self):
-        """Start the recurring timer. First scan after 60s delay."""
+        """Start both recurring timers. First scan of each after a short delay
+        (staggered so they don't both hit the network in the same instant)."""
         self._timer = threading.Timer(60, self._do_scan)
         self._timer.daemon = True
         self._timer.start()
-        print(f'  [ENRICH] Scheduler started (interval: {self._interval // 3600}h)', flush=True)
+        self._kb_timer = threading.Timer(90, self._do_kb_scan)
+        self._kb_timer.daemon = True
+        self._kb_timer.start()
+        print(f'  [ENRICH] Scheduler started (fast scanners: {self._interval // 3600}h, '
+              f'KB crawl: {self._kb_interval // 3600}h)', flush=True)
 
     def stop(self):
-        """Cancel pending timer."""
+        """Cancel pending timers."""
         if self._timer:
             self._timer.cancel()
             self._timer = None
+        if self._kb_timer:
+            self._kb_timer.cancel()
+            self._kb_timer = None
 
-    def update_config(self, interval_hours=None, nvd_api_key=None):
-        """Update scheduler configuration. Restarts timer if interval changed."""
+    def update_config(self, interval_hours=None, nvd_api_key=None, kb_interval_hours=None):
+        """Update scheduler configuration. Restarts the relevant timer if its interval changed."""
         if nvd_api_key is not None:
             self._nvd_api_key = nvd_api_key
         if interval_hours is not None:
             new_interval = max(1, interval_hours) * 3600
             if new_interval != self._interval:
                 self._interval = new_interval
-                self.stop()
+                if self._timer:
+                    self._timer.cancel()
                 self._schedule_next()
-                print(f'  [ENRICH] Interval updated to {interval_hours}h', flush=True)
+                print(f'  [ENRICH] Fast-scanner interval updated to {interval_hours}h', flush=True)
+        if kb_interval_hours is not None:
+            new_kb_interval = max(1, kb_interval_hours) * 3600
+            if new_kb_interval != self._kb_interval:
+                self._kb_interval = new_kb_interval
+                if self._kb_timer:
+                    self._kb_timer.cancel()
+                self._schedule_next_kb()
+                print(f'  [ENRICH] KB-crawl interval updated to {kb_interval_hours}h', flush=True)
 
     def run_now(self):
-        """Manual trigger (from /api/enrich/scan POST)."""
+        """Manual trigger (from /api/enrich/scan POST) — runs the fast scanner group only."""
         if self._running:
             return {'status': 'already_running'}
         threading.Thread(target=self._do_scan, daemon=True, name='enrich-manual').start()
         return {'status': 'started'}
 
+    def run_kb_now(self):
+        """Manual trigger for the slow KB crawl specifically."""
+        if self._kb_running:
+            return {'status': 'already_running'}
+        threading.Thread(target=self._do_kb_scan, daemon=True, name='enrich-kb-manual').start()
+        return {'status': 'started'}
+
     def status(self):
-        """Return current scheduler status."""
+        """Return current scheduler status for both timers."""
         return {
             'enabled': True,
             'intervalHours': self._interval // 3600,
@@ -2836,6 +2884,10 @@ class EnrichmentScheduler:
             'isRunning': self._running,
             'results': self._last_results,
             'hasNvdKey': bool(self._nvd_api_key),
+            'kbIntervalHours': self._kb_interval // 3600,
+            'lastKbScan': self._last_kb_scan,
+            'isKbRunning': self._kb_running,
+            'kbResults': self._last_kb_results,
         }
 
     def _schedule_next(self):
@@ -2843,8 +2895,46 @@ class EnrichmentScheduler:
         self._timer.daemon = True
         self._timer.start()
 
+    def _schedule_next_kb(self):
+        self._kb_timer = threading.Timer(self._kb_interval, self._do_kb_scan)
+        self._kb_timer.daemon = True
+        self._kb_timer.start()
+
+    @staticmethod
+    def _file_age_hours(path):
+        """Return hours since path's lastUpdated field (or mtime as fallback),
+        or None if the file doesn't exist / can't be read."""
+        try:
+            if not path.exists():
+                return None
+            mtime = path.stat().st_mtime
+            try:
+                data = json.loads(path.read_text(encoding='utf-8'))
+                last_updated = data.get('lastUpdated') or data.get('_lastUpdated')
+                if last_updated:
+                    parsed = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return (datetime.now(timezone.utc) - parsed).total_seconds() / 3600
+            except Exception:
+                pass
+            return (time.time() - mtime) / 3600
+        except Exception:
+            return None
+
     def _do_scan(self):
-        """Run all enrichment scanners sequentially."""
+        """Run the fast scanner group (1-4). Each scanner is skipped if its
+        target file was already refreshed more recently than the configured
+        interval — avoids redundant re-scanning when the desktop app is
+        opened/closed frequently within a single interval window.
+        Scanner 5 (version catalog, writes only version_catalog.json) runs
+        concurrently with the bulletins.json-writing group (1,2,3,4) since
+        they touch disjoint files. Scanner 7 (reference library) turned out to
+        be its own multi-minute crawl (docs.netapp.com/GitHub/PyPI harvesting
+        inside reference_harvester.py) — moved to run alongside scanner 6 on
+        the long KB-crawl timer instead of blocking this fast group.
+        Each bulletin-touching scanner call is wrapped in _bulletins_lock so
+        it can't race with scanner 7 running concurrently on the other timer."""
         with self._lock:
             if self._running:
                 return
@@ -2852,31 +2942,111 @@ class EnrichmentScheduler:
 
         scan_start = time.time()
         print(f'  [ENRICH] ══════════════════════════════════════════════════════', flush=True)
-        print(f'  [ENRICH] Starting scheduled enrichment scan...', flush=True)
+        print(f'  [ENRICH] Starting scheduled enrichment scan (fast group)...', flush=True)
         results = {}
         try:
-            results['cisa_kev'] = self._scan_cisa_kev()
-            results['netapp_psirt'] = self._scan_netapp_psirt()
-            results['nvd_netapp'] = self._scan_nvd_netapp()
-            results['epss'] = self._scan_epss()
-            results['version_catalog'] = self._scan_version_catalog()
-            results['knowledge_base'] = self._scan_knowledge_base()
-            results['reference_library'] = self._scan_reference_library()
+            interval_h = self._interval / 3600
+
+            def _bulletins_group():
+                out = {}
+                age = self._file_age_hours(BULLETINS_PATH)
+                if age is not None and age < interval_h:
+                    print(f'  [ENRICH] [1-4] security_bulletins.json is {age:.1f}h old '
+                          f'(< {interval_h:.0f}h interval) — skipping bulletin scanners', flush=True)
+                    out['cisa_kev'] = {'skipped': 'fresh'}
+                    out['netapp_psirt'] = {'skipped': 'fresh'}
+                    out['nvd_netapp'] = {'skipped': 'fresh'}
+                    out['epss'] = {'skipped': 'fresh'}
+                    return out
+                with _bulletins_lock:
+                    out['cisa_kev'] = self._scan_cisa_kev()
+                    out['netapp_psirt'] = self._scan_netapp_psirt()
+                    out['nvd_netapp'] = self._scan_nvd_netapp()
+                    out['epss'] = self._scan_epss()
+                return out
+
+            def _version_catalog_group():
+                age = self._file_age_hours(VERSION_CATALOG_PATH)
+                if age is not None and age < interval_h:
+                    print(f'  [ENRICH] [5] version_catalog.json is {age:.1f}h old '
+                          f'(< {interval_h:.0f}h interval) — skipping', flush=True)
+                    return {'skipped': 'fresh'}
+                return self._scan_version_catalog()
+
+            with ThreadPoolExecutor(max_workers=2, thread_name_prefix='enrich-fast') as pool:
+                fut_bulletins = pool.submit(_bulletins_group)
+                fut_version = pool.submit(_version_catalog_group)
+                bulletins_results = fut_bulletins.result()
+                results['version_catalog'] = fut_version.result()
+            results.update(bulletins_results)
+
             elapsed = round(time.time() - scan_start, 1)
             results['_elapsed'] = elapsed
             self._last_scan = datetime.now(timezone.utc).isoformat()[:19] + 'Z'
             self._last_results = results
-            print(f'  [ENRICH] Scan complete in {elapsed}s', flush=True)
+            print(f'  [ENRICH] Fast scan complete in {elapsed}s', flush=True)
             print(f'  [ENRICH] ══════════════════════════════════════════════════════', flush=True)
         except Exception as e:
             import traceback
             traceback.print_exc()
             results['_error'] = str(e)
             self._last_results = results
-            print(f'  [ENRICH] Scan failed: {e}', flush=True)
+            print(f'  [ENRICH] Fast scan failed: {e}', flush=True)
         finally:
             self._running = False
             self._schedule_next()
+
+    def _do_kb_scan(self):
+        """Run the two slow, long-running crawls (scanner 6: KB/doc crawl, and
+        scanner 7: reference library — EOA/IMT/firmware, also touches
+        security_bulletins.json) on their own long interval, independent of
+        the fast scanner group above. Each is independently skipped if its
+        own target file is already fresher than the configured interval.
+        Scanner 7's bulletins.json access is wrapped in _bulletins_lock since
+        the fast group can run concurrently on its own (much shorter) timer."""
+        with self._kb_lock:
+            if self._kb_running:
+                return
+            self._kb_running = True
+
+        scan_start = time.time()
+        results = {}
+        try:
+            interval_h = self._kb_interval / 3600
+
+            kb_age = self._file_age_hours(self._KB_STALENESS_FILE)
+            if kb_age is not None and kb_age < interval_h:
+                print(f'  [ENRICH] [KB] knowledge_base.json is {kb_age:.1f}h old '
+                      f'(< {interval_h:.0f}h interval) — skipping crawl', flush=True)
+                results['knowledge_base'] = {'skipped': 'fresh'}
+            else:
+                print('  [ENRICH] Starting knowledge-base crawl (long-running)...', flush=True)
+                results['knowledge_base'] = self._scan_knowledge_base()
+
+            ref_age = self._file_age_hours(BULLETINS_PATH)
+            if ref_age is not None and ref_age < interval_h:
+                print(f'  [ENRICH] [7] security_bulletins.json is {ref_age:.1f}h old '
+                      f'(< {interval_h:.0f}h interval) — skipping reference library scan', flush=True)
+                results['reference_library'] = {'skipped': 'fresh'}
+            else:
+                print('  [ENRICH] Starting reference library scan (long-running)...', flush=True)
+                with _bulletins_lock:
+                    results['reference_library'] = self._scan_reference_library()
+
+            elapsed = round(time.time() - scan_start, 1)
+            results['_elapsed'] = elapsed
+            self._last_kb_results = results
+            print(f'  [ENRICH] Slow-crawl cycle complete in {elapsed}s', flush=True)
+            self._last_kb_scan = datetime.now(timezone.utc).isoformat()[:19] + 'Z'
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            results['_error'] = str(e)
+            self._last_kb_results = results
+            print(f'  [ENRICH] Slow-crawl cycle failed: {e}', flush=True)
+        finally:
+            self._kb_running = False
+            self._schedule_next_kb()
 
     # ── Scanner 1: CISA KEV ──────────────────────────────────────────
     def _scan_cisa_kev(self):

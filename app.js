@@ -12237,13 +12237,22 @@ function computeCostOfInaction(targetSystems) {
   let score = 0;
   const critRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'critical').length, 0);
   const highRisks = targetSystems.reduce((s, sys) => s + (sys.risks || []).filter(r => r.severity === 'high').length, 0);
-  // Count unique CVE IDs across fleet (not raw advisory pool size)
+  // Count unique CVE IDs across fleet (not raw advisory pool size).
+  // Union of two sources: the broader OS-version-matched securityBulletins
+  // enrichment, and the native per-system Risk.cves linkage straight from
+  // Active IQ (authoritative for CVEs tied to an actually-detected risk instance
+  // on that exact system, catches cases the version-matched bulletins miss).
   const _cveSet = new Set();
   const _cveSystems = new Set();
   targetSystems.forEach(sys => {
     (sys.securityBulletins || []).forEach(b => {
       const id = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
       if (id) { _cveSet.add(id); _cveSystems.add(sys.systemName || sys.serialNumber); }
+    });
+    (sys.risks || []).forEach(r => {
+      (r.cveDetails || []).forEach(c => {
+        if (c && c.id) { _cveSet.add(c.id); _cveSystems.add(sys.systemName || sys.serialNumber); }
+      });
     });
   });
   const cves = _cveSet.size;
