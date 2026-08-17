@@ -707,6 +707,32 @@
           </div>
         </div>
 
+        <!-- CARD: Multiple Customer Accounts (multi-tenant support) -->
+        <div class="card settings-card" style="border-top: 2px solid #34d399; margin-bottom: 16px;">
+          <div class="settings-card-header" style="justify-content: space-between;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="settings-card-icon" style="background: rgba(52,211,153,0.12);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <div>
+                <div class="settings-card-title" style="color: #34d399;">Multiple Customer Accounts</div>
+                <div class="settings-card-desc">Sync several separate Active IQ credentials — merged into one unified fleet view, tagged by account.</div>
+              </div>
+            </div>
+            <button class="action-btn secondary" style="font-size: 0.76rem; padding: 7px 12px;" onclick="addAccountRow()">+ Add Account</button>
+          </div>
+
+          <div id="accountsListContainer" style="display:flex; flex-direction:column; gap:10px; margin: 12px 0;">
+            <!-- Populated by loadAccountsUI() -->
+          </div>
+
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="action-btn" style="font-size: 0.78rem; padding: 8px 14px;" onclick="saveAccountsUI()">💾 Save Accounts</button>
+            <span id="accountsSaveStatus" style="font-size: 0.72rem; color: var(--text-secondary);"></span>
+          </div>
+          <div class="form-helper" style="margin-top:8px;">The single Refresh Token field above still works for one account. Accounts added here are additional, separate customers — each syncs with its own credential.</div>
+        </div>
+
         <!-- CARD: Enrichment Scanner -->
         <div class="card settings-card" style="border-top: 2px solid #34d399; margin-bottom: 16px;">
           <div class="settings-card-header">

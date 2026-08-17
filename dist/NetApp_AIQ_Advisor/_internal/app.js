@@ -18,9 +18,37 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.7.3";
+const APP_VERSION = "5.0.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.0.0",
+    date: "17 August 2026",
+    title: "Major: Multi-Customer / Multi-Account Support",
+    sections: [
+      {
+        icon: "🏢",
+        label: "New: Sync Multiple Separate Active IQ Accounts",
+        color: "#34d399",
+        items: [
+          "The tool previously supported exactly one Active IQ credential at a time. It now supports any number of separate accounts — different customers, different logins — synced independently and merged into one unified cross-customer fleet view",
+          "New 'Multiple Customer Accounts' card in Settings & Config to add/label/enable/disable/remove accounts. Tokens never round-trip to the browser once saved — the UI only ever sees whether a token is present, never its value",
+          "Every system/cluster/risk/case is tagged with which account it came from, so the merged view can still tell customers apart",
+          "Backward compatible: existing single-token setups are auto-migrated with zero action required and zero behavior change if you never add a second account"
+        ]
+      },
+      {
+        icon: "🔧",
+        label: "Under the Hood",
+        color: "#2dd4bf",
+        items: [
+          "Accounts sync sequentially, not in parallel — deliberately, to stay polite to NetApp's API and so one account's expired token can't block everyone else's sync",
+          "Removing an account from Settings now correctly drops it from the merged view instead of leaving orphaned cached data behind forever — caught and fixed during live testing",
+          "Live-tested end-to-end with a genuine 3-account merge (501 systems across 3 tagged accounts, correctly deduplicated and aggregated) before reverting to the real single-account config"
+        ]
+      }
+    ]
+  },
   {
     version: "4.7.3",
     date: "12 August 2026",
@@ -25333,6 +25361,105 @@ function showDiagnosticsModal(results) {
 
 // 10. Global active status visual indicators & Settings Saves
 
+// ── Multiple Customer Accounts (multi-tenant) manager ──────────────────────
+// Lets a TAM/MSP add several separate Active IQ credentials (different
+// customers, different logins). Each account syncs independently server-side
+// (server.py's _sync_all_accounts) and is merged into one fleet view tagged
+// by accountId/accountLabel. Tokens are never round-tripped to the browser —
+// GET /api/config only ever returns hasToken:true/false, never the token
+// itself; a blank token field on save means "keep the existing one".
+state._accountsUI = state._accountsUI || [];
+
+async function loadAccountsUI() {
+  if (!state.isRunningViaProxy) {
+    const c = document.getElementById("accountsListContainer");
+    if (c) c.innerHTML = '<div style="font-size:0.78rem; color:var(--text-secondary); padding:8px;">Multiple accounts require the local server (not available in static/offline mode).</div>';
+    return;
+  }
+  try {
+    const res = await fetch("/api/config");
+    const cfg = await res.json();
+    state._accountsUI = (cfg.accounts || []).map(a => ({ ...a, _tokenInput: "" }));
+    renderAccountsRows();
+  } catch (err) {
+    console.warn("[ACCOUNTS] Failed to load accounts:", err);
+  }
+}
+
+function renderAccountsRows() {
+  const container = document.getElementById("accountsListContainer");
+  if (!container) return;
+  if (state._accountsUI.length === 0) {
+    container.innerHTML = '<div style="font-size:0.78rem; color:var(--text-secondary); padding:8px 2px;">No additional accounts yet. Click "+ Add Account" to sync a second (or third, or tenth) customer\'s Active IQ credentials alongside the one above.</div>';
+    return;
+  }
+  container.innerHTML = state._accountsUI.map((acct, i) => `
+    <div style="display:flex; gap:8px; align-items:flex-start; padding:10px; border:1px solid var(--border-color); border-radius:var(--radius-sm); background:rgba(52,211,153,0.03); flex-wrap:wrap;">
+      <div style="flex:1; min-width:140px;">
+        <div class="form-helper" style="margin:0 0 3px;">Label</div>
+        <input type="text" class="form-input" style="font-size:0.78rem; padding:6px 8px;" placeholder="Customer name" value="${(acct.label || '').replace(/"/g, '&quot;')}" oninput="state._accountsUI[${i}].label = this.value">
+      </div>
+      <div style="flex:1; min-width:200px;">
+        <div class="form-helper" style="margin:0 0 3px;">Refresh Token ${acct.hasToken ? '<span style="color:#34d399;">(saved — leave blank to keep)</span>' : '<span style="color:#f59e0b;">(required)</span>'}</div>
+        <input type="password" class="form-input" style="font-size:0.78rem; padding:6px 8px; font-family:var(--font-mono);" placeholder="${acct.hasToken ? '•••••••• (unchanged)' : 'Paste refresh token...'}" oninput="state._accountsUI[${i}]._tokenInput = this.value">
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <div class="form-helper" style="margin:0 0 3px;">Watchlist ID (optional)</div>
+        <input type="text" class="form-input" style="font-size:0.78rem; padding:6px 8px;" placeholder="Scope to a watchlist" value="${(acct.watchlistId || '').replace(/"/g, '&quot;')}" oninput="state._accountsUI[${i}].watchlistId = this.value">
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; padding-top:20px;">
+        <label class="switch" style="transform:scale(0.8);">
+          <input type="checkbox" ${acct.enabled !== false ? 'checked' : ''} onchange="state._accountsUI[${i}].enabled = this.checked">
+          <span class="slider"></span>
+        </label>
+        <button class="action-btn secondary" style="font-size:0.7rem; padding:5px 9px; color:var(--status-critical); border-color:rgba(255,51,102,0.3);" onclick="removeAccountRow(${i})" title="Remove this account">✕</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function addAccountRow() {
+  state._accountsUI.push({ id: "", label: "", watchlistId: "", enabled: true, hasToken: false, _tokenInput: "" });
+  renderAccountsRows();
+}
+
+function removeAccountRow(i) {
+  state._accountsUI.splice(i, 1);
+  renderAccountsRows();
+}
+
+async function saveAccountsUI() {
+  const statusEl = document.getElementById("accountsSaveStatus");
+  const missing = state._accountsUI.filter(a => !a.hasToken && !a._tokenInput.trim() && (a.label || "").trim());
+  if (missing.length > 0) {
+    if (statusEl) { statusEl.textContent = `⚠ "${missing[0].label}" needs a refresh token before saving.`; statusEl.style.color = "var(--status-critical)"; }
+    return;
+  }
+  const payload = state._accountsUI
+    .filter(a => (a.label || "").trim() || a._tokenInput.trim())
+    .map(a => ({
+      id: a.id || "",
+      label: a.label || "",
+      refreshToken: a._tokenInput || "",
+      watchlistId: a.watchlistId || "",
+      enabled: a.enabled !== false,
+    }));
+  try {
+    if (statusEl) { statusEl.textContent = "Saving…"; statusEl.style.color = "var(--text-secondary)"; }
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accounts: payload }),
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    if (statusEl) { statusEl.textContent = `✓ Saved ${payload.length} account(s). Sync to pull their fleets in.`; statusEl.style.color = "var(--status-normal)"; }
+    await loadAccountsUI(); // reload so hasToken flags reflect what's actually stored
+  } catch (err) {
+    console.warn("[ACCOUNTS] Save failed:", err);
+    if (statusEl) { statusEl.textContent = `⚠ Save failed: ${err.message}`; statusEl.style.color = "var(--status-critical)"; }
+  }
+}
+
 async function saveSettings() {
   const mockToggle = document.getElementById("settingsMockModeToggle").checked;
   const refresh = document.getElementById("settingsRefreshToken").value.trim();
@@ -26373,6 +26500,9 @@ function switchTab(tabId) {
       document.getElementById("settingsSerialNumbers").value = state.serialNumbers || "";
     }
     updateScheduledSyncInfo();
+
+    // Multiple Customer Accounts (multi-tenant) manager
+    loadAccountsUI();
 
     // Load and display enrichment scanner status
     refreshEnrichmentStatus();

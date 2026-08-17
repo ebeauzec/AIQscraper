@@ -71,6 +71,68 @@ _is_syncing = False
 _last_sync_error = None
 _current_token = None  # Last-used access token for debug probes
 
+# ─────────────────────────────────────────────────────────────────────
+# Multi-account (multi-customer) support
+#
+# aiq_config.json historically held exactly one refresh token at the top
+# level ("refreshToken"). To support multiple customers each with their own
+# separate Active IQ credential, the config now ALSO supports an "accounts"
+# array: [{"id", "label", "refreshToken", "watchlistId", "enabled"}, ...].
+#
+# Backward compatibility: the legacy top-level "refreshToken"/"watchlistId"
+# fields are left untouched and still work everywhere they're read directly
+# (dozens of call sites across this file) — they're treated as account
+# id="default" whenever no "accounts" array is present. Every account's
+# harvest is cached separately (see harvest_cache_accounts table) and merged
+# at read time in handle_harvest(), so no existing single-account code path
+# needs to change to keep working.
+# ─────────────────────────────────────────────────────────────────────
+
+def _load_config():
+    """Read aiq_config.json, creating a blank template if it doesn't exist."""
+    if not CONFIG_PATH.exists():
+        blank = {"accounts": [], "refreshToken": "", "watchlistId": "", "tamName": "", "tamEmail": ""}
+        CONFIG_PATH.write_text(json.dumps(blank, indent=2), encoding="utf-8")
+        return blank
+    try:
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _get_accounts(cfg=None):
+    """Return the list of enabled accounts to harvest.
+
+    If cfg["accounts"] exists, use it (only entries with enabled != False).
+    Otherwise, synthesize a single "default" account from the legacy flat
+    refreshToken/watchlistId fields, so existing single-token configs work
+    unchanged.
+    """
+    cfg = cfg if cfg is not None else _load_config()
+    accounts = cfg.get("accounts")
+    if accounts:
+        return [
+            {
+                "id": a.get("id") or a.get("label") or f"account{i}",
+                "label": a.get("label") or a.get("id") or f"Account {i+1}",
+                "refreshToken": a.get("refreshToken") or a.get("refresh_token") or "",
+                "watchlistId": a.get("watchlistId", ""),
+                "enabled": a.get("enabled", True),
+            }
+            for i, a in enumerate(accounts)
+            if a.get("enabled", True) and (a.get("refreshToken") or a.get("refresh_token"))
+        ]
+    legacy_token = cfg.get("refreshToken") or cfg.get("refresh_token")
+    if legacy_token:
+        return [{
+            "id": "default",
+            "label": cfg.get("tamName") or "Default Account",
+            "refreshToken": legacy_token,
+            "watchlistId": cfg.get("watchlistId", ""),
+            "enabled": True,
+        }]
+    return []
+
 # Enrichment scanner state
 _enrichment_scheduler = None  # Set during server startup
 # Guards concurrent read-modify-write access to BULLETINS_PATH — scanners 1-4
@@ -351,6 +413,18 @@ def _init_db():
             case_count INTEGER DEFAULT 0,
             risk_instance_count INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS harvest_cache_accounts (
+            account_id TEXT PRIMARY KEY,
+            account_label TEXT DEFAULT '',
+            result_json TEXT NOT NULL,
+            harvested_at TEXT NOT NULL,
+            duration_ms INTEGER DEFAULT 0,
+            system_count INTEGER DEFAULT 0,
+            cluster_count INTEGER DEFAULT 0,
+            risk_count INTEGER DEFAULT 0,
+            case_count INTEGER DEFAULT 0,
+            risk_instance_count INTEGER DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS asup_imports (
             serial_number TEXT PRIMARY KEY,
             system_json   TEXT NOT NULL,
@@ -387,6 +461,29 @@ def _init_db():
             (source != 'nvd' AND fetched_at < datetime('now', '-7 days'))
     """)
     db.commit()
+    # One-time migration: copy the legacy singleton harvest (id=1) into the
+    # new per-account table under account_id="default", so existing users
+    # keep their cached fleet data after upgrading to multi-account support.
+    try:
+        has_default = db.execute(
+            "SELECT 1 FROM harvest_cache_accounts WHERE account_id = 'default'"
+        ).fetchone()
+        if not has_default:
+            legacy_row = db.execute(
+                "SELECT result_json, harvested_at, duration_ms, system_count, cluster_count, "
+                "risk_count, case_count, risk_instance_count FROM harvest_cache WHERE id = 1"
+            ).fetchone()
+            if legacy_row:
+                db.execute("""
+                    INSERT OR REPLACE INTO harvest_cache_accounts
+                    (account_id, account_label, result_json, harvested_at, duration_ms,
+                     system_count, cluster_count, risk_count, case_count, risk_instance_count)
+                    VALUES ('default', 'Default Account', ?, ?, ?, ?, ?, ?, ?, ?)
+                """, legacy_row)
+                db.commit()
+                print("  [DB] Migrated legacy singleton harvest cache into per-account table (account_id=default)", flush=True)
+    except Exception as _mig_err:
+        print(f"  [DB] Legacy harvest cache migration skipped: {_mig_err}", flush=True)
     return db
 
 
@@ -459,6 +556,134 @@ def _get_sync_meta(db):
         "isSyncing": _is_syncing,
         "lastError": _last_sync_error,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Multi-account cache layer
+# ─────────────────────────────────────────────────────────────────────
+
+def _save_harvest_account(db, account_id, account_label, result, duration_ms=0):
+    """Write one account's harvest result to its own cache row. Also mirrors
+    the 'default' account into the legacy singleton harvest_cache table so
+    every existing single-account code path (dozens of call sites reading
+    `WHERE id = 1` directly) keeps working unchanged."""
+    now = datetime.now(timezone.utc).isoformat()
+    result_json = json.dumps(result, default=str)
+    db.execute("""
+        INSERT OR REPLACE INTO harvest_cache_accounts
+        (account_id, account_label, result_json, harvested_at, duration_ms,
+         system_count, cluster_count, risk_count, case_count, risk_instance_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        account_id, account_label, result_json, now, duration_ms,
+        result.get("totalSystems", 0), result.get("totalClusters", 0),
+        result.get("totalRisks", 0), result.get("totalCases", 0),
+        result.get("totalRiskInstances", result.get("riskInstances", 0)),
+    ))
+    db.commit()
+    print(f"  [CACHE] Saved harvest for account '{account_id}' ({len(result_json)} bytes, {result.get('totalSystems', 0)} systems)", flush=True)
+    if account_id == "default":
+        _save_harvest(db, result, duration_ms)
+
+
+def _load_cached_account(db, account_id):
+    """Load one account's cached harvest result. Returns (result, meta) or (None, None)."""
+    row = db.execute(
+        "SELECT result_json, account_label, harvested_at, duration_ms, system_count, "
+        "cluster_count, risk_count, case_count, risk_instance_count "
+        "FROM harvest_cache_accounts WHERE account_id = ?", (account_id,)
+    ).fetchone()
+    if not row:
+        return None, None
+    result = json.loads(row[0])
+    meta = {
+        "accountId": account_id, "accountLabel": row[1], "harvested_at": row[2],
+        "duration_ms": row[3], "system_count": row[4], "cluster_count": row[5],
+        "risk_count": row[6], "case_count": row[7], "risk_instance_count": row[8],
+    }
+    return result, meta
+
+
+def _load_all_accounts_cached(db):
+    """Load every account's cached harvest. Returns list of (account_id, result, meta)."""
+    rows = db.execute(
+        "SELECT account_id, account_label, result_json, harvested_at, duration_ms, "
+        "system_count, cluster_count, risk_count, case_count, risk_instance_count "
+        "FROM harvest_cache_accounts"
+    ).fetchall()
+    out = []
+    for row in rows:
+        try:
+            result = json.loads(row[2])
+        except Exception:
+            continue
+        meta = {
+            "accountId": row[0], "accountLabel": row[1], "harvested_at": row[3],
+            "duration_ms": row[4], "system_count": row[5], "cluster_count": row[6],
+            "risk_count": row[7], "case_count": row[8], "risk_instance_count": row[9],
+        }
+        out.append((row[0], result, meta))
+    return out
+
+
+# List-valued fields concatenated across accounts when merging harvests.
+# NOTE: "riskInstances" is deliberately excluded — despite the name, the
+# harvest result stores it as an integer count (len(all_risk_instances)),
+# not the actual list; the real per-risk-instance data lives inside each
+# entry of "risks".
+_MERGE_LIST_FIELDS = [
+    "systems", "clusters", "risks", "cases",
+    "tamSites", "tamRenewals", "acknowledgedRisksNowExploited",
+]
+
+
+def _merge_account_results(account_results):
+    """Combine multiple accounts' harvest results into one unified fleet view.
+
+    Each account's systems/clusters/risks/etc. are already tagged with
+    accountId/accountLabel (see _do_full_harvest). List-valued fields are
+    concatenated; scalar/summary fields (firmwareBaselines, tamOsVersions,
+    etc.) are taken from the account with the most systems, since those are
+    account-agnostic reference data, not per-customer telemetry.
+    """
+    if not account_results:
+        return None
+    if len(account_results) == 1:
+        return account_results[0][1]
+
+    account_results = sorted(account_results, key=lambda ar: len(ar[1].get("systems") or []), reverse=True)
+    merged = dict(account_results[0][1])  # start from the largest account's result as the base
+
+    for field in _MERGE_LIST_FIELDS:
+        combined = []
+        seen_keys = set()
+        for _acct_id, result, _meta in account_results:
+            for item in (result.get(field) or []):
+                # Dedupe by serialNumber/id where present (NetApp serials are globally
+                # unique, so this only guards against the same account appearing twice,
+                # not against real cross-customer collisions).
+                key = item.get("serialNumber") if isinstance(item, dict) else None
+                key = key or (item.get("id") if isinstance(item, dict) else None)
+                dedupe_key = (item.get("accountId"), key) if isinstance(item, dict) and key else None
+                if dedupe_key and dedupe_key in seen_keys:
+                    continue
+                if dedupe_key:
+                    seen_keys.add(dedupe_key)
+                combined.append(item)
+        merged[field] = combined
+
+    merged["totalSystems"] = len(merged.get("systems") or [])
+    merged["totalClusters"] = len(merged.get("clusters") or [])
+    merged["totalRisks"] = len(merged.get("risks") or [])
+    merged["totalCases"] = len(merged.get("cases") or [])
+    merged["totalRiskInstances"] = sum((result.get("totalRiskInstances") or 0) for _acct_id, result, _meta in account_results)
+    merged["riskInstances"] = merged["totalRiskInstances"]
+    merged["accounts"] = [
+        {"id": acct_id, "label": (result.get("accountLabel") or acct_id),
+         "systemCount": len(result.get("systems") or [])}
+        for acct_id, result, _meta in account_results
+    ]
+    return merged
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -621,14 +846,21 @@ def _check_acknowledged_risks_vs_kev(risks_by_serial):
     return flagged
 
 
-def _do_full_harvest(watchlist_ids=None):
+def _do_full_harvest(watchlist_ids=None, account=None):
     """Execute the full AIQ GraphQL harvest. Returns the result dict.
     This is the core logic extracted from handle_harvest, now reusable
     for both synchronous and background calls.
-    
+
     If watchlist_ids is provided (list of ID strings), only systems in those
     watchlists are fetched and merged (deduplicated by serialNumber).
     For backward compatibility, a bare string is also accepted.
+
+    If `account` is provided (dict with id/label/refreshToken/watchlistId —
+    see _get_accounts()), that account's credential is used instead of the
+    top-level aiq_config.json fields, its watchlistId is merged into
+    watchlist_ids, and every system/cluster/risk/case in the result is
+    tagged with accountId/accountLabel before being cached under that
+    account's own cache row (see _sync_all_accounts).
     """
     global _is_syncing, _last_sync_error
 
@@ -641,21 +873,32 @@ def _do_full_harvest(watchlist_ids=None):
     # Normalise: accept a bare string or a list of strings
     if isinstance(watchlist_ids, str):
         watchlist_ids = [w.strip() for w in watchlist_ids.split(",") if w.strip()]
-    watchlist_ids = watchlist_ids or []  # empty list == no filter (all systems)
+    watchlist_ids = list(watchlist_ids or [])  # empty list == no filter (all systems)
+    if account and account.get("watchlistId"):
+        for _wl in str(account["watchlistId"]).split(","):
+            _wl = _wl.strip()
+            if _wl and _wl not in watchlist_ids:
+                watchlist_ids.append(_wl)
 
     start_time = time.time()
     try:
-        # 1. Read refresh token
-        if not CONFIG_PATH.exists():
-            # Auto-create a blank template so the user can fill it in via Settings
-            blank = {"refreshToken": "", "watchlistId": "", "tamName": "", "tamEmail": ""}
-            CONFIG_PATH.write_text(json.dumps(blank, indent=2), encoding="utf-8")
-            print("  [HARVEST] Created blank aiq_config.json template", flush=True)
-            raise Exception("setup_required: No Active IQ credentials configured")
-        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
-        if not refresh_token:
-            raise Exception("setup_required: No refresh token configured — open Settings & Config to add your Active IQ refresh token")
+        # 1. Read refresh token — from the account override if given, else the
+        # legacy top-level aiq_config.json fields (unchanged single-account path).
+        if account:
+            refresh_token = account.get("refreshToken")
+            if not refresh_token:
+                raise Exception(f"setup_required: Account '{account.get('id')}' has no refresh token configured")
+        else:
+            if not CONFIG_PATH.exists():
+                # Auto-create a blank template so the user can fill it in via Settings
+                blank = {"refreshToken": "", "watchlistId": "", "tamName": "", "tamEmail": ""}
+                CONFIG_PATH.write_text(json.dumps(blank, indent=2), encoding="utf-8")
+                print("  [HARVEST] Created blank aiq_config.json template", flush=True)
+                raise Exception("setup_required: No Active IQ credentials configured")
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
+            if not refresh_token:
+                raise Exception("setup_required: No refresh token configured — open Settings & Config to add your Active IQ refresh token")
 
         print("  [HARVEST] Getting access token...", flush=True)
 
@@ -2391,6 +2634,20 @@ def _do_full_harvest(watchlist_ids=None):
             "firmwareBaselines": _ext_baselines,
         }
 
+        # Tag every per-system/cluster/risk/case record with which account it
+        # came from, so a merged multi-account view can still tell customers
+        # apart (used by the sidebar Account filter and by _merge_account_results).
+        if account:
+            _acct_id = account.get("id") or "default"
+            _acct_label = account.get("label") or _acct_id
+            result["accountId"] = _acct_id
+            result["accountLabel"] = _acct_label
+            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals"):
+                for _item in (result.get(_field) or []):
+                    if isinstance(_item, dict):
+                        _item.setdefault("accountId", _acct_id)
+                        _item.setdefault("accountLabel", _acct_label)
+
         print(f"  [HARVEST] Done in {duration_ms}ms: {len(systems_out)} systems, {len(all_clusters)} clusters, {len(all_risks)} unique risks, {len(all_risk_instances)} risk instances, {len(all_cases)} cases", flush=True)
 
         # ── Merge-back guard: preserve previous data on transient API failures ──
@@ -2399,7 +2656,10 @@ def _do_full_harvest(watchlist_ids=None):
         # merge the previous harvest's systems/clusters back into the result.
         db = _init_db()
         try:
-            prev_result, _ = _load_cached(db)
+            if account:
+                prev_result, _ = _load_cached_account(db, account.get("id") or "default")
+            else:
+                prev_result, _ = _load_cached(db)
             if prev_result:
                 if len(systems_out) == 0 and len(prev_result.get("systems") or []) > 0:
                     prev_sys = prev_result["systems"]
@@ -2412,7 +2672,10 @@ def _do_full_harvest(watchlist_ids=None):
                     result["clusters"] = prev_cl
                     result["totalClusters"] = len(prev_cl)
 
-            _save_harvest(db, result, duration_ms)
+            if account:
+                _save_harvest_account(db, account.get("id") or "default", account.get("label") or account.get("id") or "default", result, duration_ms)
+            else:
+                _save_harvest(db, result, duration_ms)
         finally:
             db.close()
 
@@ -2437,6 +2700,65 @@ def _do_full_harvest(watchlist_ids=None):
     finally:
         with _sync_lock:
             _is_syncing = False
+
+
+def _sync_all_accounts(extra_watchlist_ids=None):
+    """Harvest every configured account, one at a time.
+
+    Sequential (not parallel/threaded) on purpose: each account is a separate
+    Active IQ credential/token exchange, and hammering NetApp's API with N
+    concurrent OAuth exchanges + GraphQL queries is both impolite and more
+    likely to trip rate limiting than doing them one after another. A failure
+    on one account is logged and does not stop the remaining accounts from
+    syncing — one customer's expired token shouldn't block everyone else's data.
+
+    Returns {"succeeded": [account_id, ...], "failed": {account_id: error_str}}.
+    """
+    accounts = _get_accounts()
+    if not accounts:
+        raise Exception("setup_required: No Active IQ accounts configured — open Settings & Config to add at least one")
+
+    succeeded, failed = [], {}
+    for acct in accounts:
+        acct_label = acct.get("label") or acct.get("id")
+        print(f"  [MULTI-ACCOUNT] Syncing account '{acct_label}' ({acct.get('id')})...", flush=True)
+        try:
+            _do_full_harvest(watchlist_ids=extra_watchlist_ids, account=acct)
+            succeeded.append(acct.get("id"))
+        except Exception as e:
+            print(f"  [MULTI-ACCOUNT] Account '{acct_label}' failed: {e}", flush=True)
+            failed[acct.get("id")] = str(e)
+    print(f"  [MULTI-ACCOUNT] Done: {len(succeeded)} succeeded, {len(failed)} failed", flush=True)
+    return {"succeeded": succeeded, "failed": failed}
+
+
+def _get_merged_harvest(db, account_id=None):
+    """Read cached harvest data for the dashboard. With no account_id, merges
+    every currently-configured account's cached result into one unified fleet
+    view (this is the default — the whole point of multi-account support is
+    not having to pick one). Pass account_id to scope to a single account
+    instead.
+
+    Cache rows are filtered down to accounts still present in aiq_config.json
+    ("default" is always allowed, for the legacy single-token path) — an
+    account removed from config stops appearing in the merged view instead of
+    haunting it forever as an orphaned cache row that can never be refreshed
+    or explained.
+    """
+    if account_id:
+        result, meta = _load_cached_account(db, account_id)
+        return result, [meta] if meta else []
+    all_cached = _load_all_accounts_cached(db)
+    configured_ids = {a["id"] for a in _get_accounts()} | {"default"}
+    all_cached = [(acct_id, result, meta) for acct_id, result, meta in all_cached if acct_id in configured_ids]
+    if not all_cached:
+        # No per-account cache yet (fresh install, never synced) — fall back
+        # to the legacy singleton table in case it has pre-migration data.
+        result, meta = _load_cached(db)
+        return result, [meta] if meta else []
+    merged = _merge_account_results([(acct_id, result, meta) for acct_id, result, meta in all_cached])
+    metas = [meta for _acct_id, _result, meta in all_cached]
+    return merged, metas
 
 
 def _enrich_all_versions(harvest_result):
@@ -2580,8 +2902,9 @@ def _background_sync():
         except Exception:
             pass
         scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
-        print(f"  [BACKGROUND] Starting background re-sync{scope_msg}...", flush=True)
-        _do_full_harvest(watchlist_ids=wl_ids)
+        accounts = _get_accounts()
+        print(f"  [BACKGROUND] Starting background re-sync{scope_msg} across {len(accounts)} account(s)...", flush=True)
+        _sync_all_accounts(extra_watchlist_ids=wl_ids)
         print("  [BACKGROUND] Background re-sync complete.", flush=True)
         # Trigger enrichment scan after harvest
         global _enrichment_scheduler
@@ -6499,10 +6822,35 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e), "systemSerials": []}).encode("utf-8"))
 
     def handle_sync_status(self):
-        """Return sync metadata as JSON."""
+        """Return sync metadata as JSON — aggregated across all configured
+        accounts, plus a per-account breakdown for the Settings/Account UI."""
         db = _init_db()
         try:
             meta = _get_sync_meta(db)
+            try:
+                all_cached = _load_all_accounts_cached(db)
+                configured_ids = {a["id"] for a in _get_accounts()} | {"default"}
+                all_cached = [(acct_id, result, m) for acct_id, result, m in all_cached if acct_id in configured_ids]
+                meta["accounts"] = [
+                    {
+                        "id": acct_id,
+                        "label": m.get("accountLabel"),
+                        "lastSync": m.get("harvested_at"),
+                        "systemCount": m.get("system_count", 0),
+                        "clusterCount": m.get("cluster_count", 0),
+                        "riskCount": m.get("risk_count", 0),
+                        "caseCount": m.get("case_count", 0),
+                    }
+                    for acct_id, _result, m in all_cached
+                ]
+                if all_cached:
+                    meta["systemCount"] = sum(a["systemCount"] for a in meta["accounts"])
+                    meta["clusterCount"] = sum(a["clusterCount"] for a in meta["accounts"])
+                    meta["riskCount"] = sum(a["riskCount"] for a in meta["accounts"])
+                    meta["caseCount"] = sum(a["caseCount"] for a in meta["accounts"])
+                    meta["lastSync"] = max((a["lastSync"] or "" for a in meta["accounts"]), default=meta.get("lastSync")) or meta.get("lastSync")
+            except Exception as _acct_meta_err:
+                print(f"  [SYNC-STATUS] Per-account breakdown skipped: {_acct_meta_err}", flush=True)
         finally:
             db.close()
         res_bytes = json.dumps(meta, default=str).encode("utf-8")
@@ -6522,6 +6870,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         force = params.get("force", ["0"])[0] == "1"
+        # Optional ?account=<id> scopes the response to one configured account
+        # instead of the default merged cross-customer fleet view.
+        account_id_param = params.get("account", [None])[0]
         # Support legacy single-ID query param or read all IDs from config
         param_id = params.get("watchlistId", [None])[0]
         try:
@@ -6564,24 +6915,27 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 }).encode("utf-8"))
                 return
 
-            # Check cache first
+            # Check cache first — merges every configured account by default;
+            # ?account=<id> scopes to just one.
             db = _init_db()
             try:
-                cached_result, meta = _load_cached(db)
+                cached_result, metas = _get_merged_harvest(db, account_id_param)
             finally:
                 db.close()
 
             if cached_result:
                 # Serve cached data immediately
-                last_sync = meta.get("harvested_at", "unknown")
-                sys_count = meta.get("system_count", 0)
-                print(f"  [CACHE] Serving cached data ({sys_count} systems, synced: {last_sync})", flush=True)
+                last_sync = max((m.get("harvested_at") or "" for m in metas), default="unknown") or "unknown"
+                sys_count = sum(m.get("system_count", 0) for m in metas)
+                print(f"  [CACHE] Serving cached data ({sys_count} systems across {len(metas)} account(s), synced: {last_sync})", flush=True)
 
                 # Inject cache metadata into response
                 cached_result["_cache"] = {
                     "hit": True,
                     "lastSync": last_sync,
-                    "durationMs": meta.get("duration_ms", 0),
+                    "durationMs": sum(m.get("duration_ms", 0) for m in metas),
+                    "accounts": [{"id": m.get("accountId"), "label": m.get("accountLabel"),
+                                  "lastSync": m.get("harvested_at"), "systemCount": m.get("system_count", 0)} for m in metas],
                 }
 
                 res_bytes = json.dumps(cached_result, default=str).encode("utf-8")
@@ -7216,6 +7570,18 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
                 "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
                 "hasGithubToken": bool(cfg.get("githubToken", "")),
+                # Multi-account (multi-customer) support — never return raw tokens,
+                # only enough for the Settings UI to list/edit accounts safely.
+                "accounts": [
+                    {
+                        "id": a.get("id", ""),
+                        "label": a.get("label", ""),
+                        "watchlistId": a.get("watchlistId", ""),
+                        "enabled": a.get("enabled", True),
+                        "hasToken": bool(a.get("refreshToken") or a.get("refresh_token")),
+                    }
+                    for a in (cfg.get("accounts") or [])
+                ],
             }
             res_bytes = json.dumps(safe_cfg).encode("utf-8")
             self.send_response(200)
@@ -7266,6 +7632,30 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 val = body["githubToken"].strip()
                 cfg["githubToken"] = val
                 print(f"  [CONFIG] GitHub token updated ({len(val)} chars)", flush=True)
+            # Multi-account (multi-customer) management — the client resends the
+            # full desired accounts list each time (add/edit/remove/reorder all
+            # look the same: "here is the list now"). GET /api/config never
+            # returns raw tokens, so an account entry with no refreshToken in
+            # the POST body means "keep whatever token is already stored for
+            # this id" rather than "clear the token" — only an explicit empty
+            # string with the id ALSO absent from cfg would ever drop a token,
+            # which can't happen via this merge path.
+            if "accounts" in body and isinstance(body["accounts"], list):
+                existing_by_id = {a.get("id"): a for a in (cfg.get("accounts") or []) if a.get("id")}
+                new_accounts = []
+                for i, acct in enumerate(body["accounts"]):
+                    acct_id = (acct.get("id") or "").strip() or f"account{i}_{int(time.time())}"
+                    prior = existing_by_id.get(acct_id, {})
+                    token = (acct.get("refreshToken") or "").strip() or prior.get("refreshToken", "")
+                    new_accounts.append({
+                        "id": acct_id,
+                        "label": (acct.get("label") or "").strip() or acct_id,
+                        "refreshToken": token,
+                        "watchlistId": (acct.get("watchlistId") or "").strip(),
+                        "enabled": acct.get("enabled", True),
+                    })
+                cfg["accounts"] = new_accounts
+                print(f"  [CONFIG] Accounts updated: {len(new_accounts)} account(s) ({sum(1 for a in new_accounts if a['enabled'])} enabled)", flush=True)
             # Update enrichment scheduler if running
             global _enrichment_scheduler
             if _enrichment_scheduler:

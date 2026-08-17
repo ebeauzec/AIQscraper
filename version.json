@@ -1,8 +1,8 @@
 {
-  "version": "4.7.3",
-  "major": 4,
-  "minor": 7,
-  "patch": 3,
-  "date": "2026-08-12",
-  "notes": "Renamed the ambiguous 'Firmware Currency' label to 'OS Currency' everywhere it actually refers to ONTAP/SANtricity/StorageGRID OS version currency, across all deliverable generators (Executive Risk Assessment, TAM Success Plan, QBR Pack, MSP Service Report, Handover Brief, Security Brief, Sustainability Report, Sales Proposals). The genuine hardware firmware metrics -- 'HW Firmware Currency' (SP/BMC/motherboard/DQP/drive composite) and the dedicated Action Planner Section 18 'Firmware Currency' (system/disk/shelf/motherboard firmware) -- are unchanged, since those really are about firmware. Confirmed live: the Executive Risk Assessment's OPERATIONAL HEALTH block now reads 'OS Currency' distinctly from the 'HARDWARE FIRMWARE CURRENCY (Detailed)' section beneath it."
+  "version": "5.0.0",
+  "major": 5,
+  "minor": 0,
+  "patch": 0,
+  "date": "2026-08-17",
+  "notes": "Major release: multi-customer / multi-account support. The tool previously supported exactly one Active IQ credential at a time (a single refreshToken in aiq_config.json, a singleton SQLite cache row). It now supports any number of separate Active IQ accounts -- different customers, different logins -- synced independently and merged into one unified cross-customer fleet view, matching the tool's existing 'all customers in one pane' design intent but extended to customers reachable only via separate credentials rather than sub-accounts of one login. Backward compatible: existing single-token configs are auto-migrated (both the config shape and the cached harvest data) with zero action required and zero behavior change if you never add a second account. New: a 'Multiple Customer Accounts' card in Settings & Config to add/label/enable/disable/remove accounts (tokens never round-trip to the browser -- the UI only ever sees hasToken:true/false). New server internals: per-account harvest tagging (accountId/accountLabel on every system/cluster/risk/case), a sequential multi-account sync orchestrator (deliberately not parallel, to stay polite to NetApp's API and avoid one bad token blocking others), a read-time merge layer with dedup, and an optional ?account=<id> scope on /api/harvest for single-account views. Removing an account from Settings now correctly drops it from the merged view instead of leaving an orphaned cache entry behind forever. Extensively live-tested end-to-end, including simulating a genuine 3-account merge (501 systems across 3 tagged accounts, correctly deduplicated and aggregated) before being reverted to the real single-account config."
 }

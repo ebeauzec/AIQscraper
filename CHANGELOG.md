@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.0.0] - 2026-08-17
+
+### Added — Major: Multi-Customer / Multi-Account Support
+The tool previously supported exactly one Active IQ credential at a time (a single `refreshToken` in `aiq_config.json`, a singleton SQLite cache row). It now supports any number of separate Active IQ accounts — different customers, different logins — synced independently and merged into one unified cross-customer fleet view.
+
+- **`aiq_config.json`** gains an optional `accounts: [{id, label, refreshToken, watchlistId, enabled}, ...]` array. The legacy top-level `refreshToken`/`watchlistId` fields are untouched and keep working everywhere they're read directly — they're synthesized into a `"default"` account when no `accounts[]` array is present, so existing single-token setups need zero changes.
+- **New `harvest_cache_accounts` SQLite table**, keyed by account id, replacing the old singleton `harvest_cache` row (`CHECK(id=1)`) as the primary cache. A one-time migration on first run after upgrading copies the existing cached harvest into it under `account_id="default"`.
+- **`_sync_all_accounts()`** orchestrates syncing every enabled account sequentially (deliberately not in parallel — polite to NetApp's API, and one account's expired token doesn't block the rest). Each system/cluster/risk/case is tagged with `accountId`/`accountLabel`.
+- **`_merge_account_results()`** combines every account's cached harvest into one fleet view at read time, deduplicating by `(accountId, serialNumber)`. `GET /api/harvest` now serves this merged view by default; `?account=<id>` scopes to a single account.
+- **`GET`/`POST /api/config`** extended to manage the `accounts[]` list. Tokens are never returned by `GET` — only `hasToken: true/false` — and a blank token on `POST` means "keep the existing one," matching the established single-token save semantics.
+- **New "Multiple Customer Accounts" card in Settings & Config** (`index.html`/`index_src.html` + `app.js`) — add, label, enable/disable, and remove accounts from the UI. No more hand-editing the config file to add a second customer.
+- **`GET /api/sync-status`** now includes a per-account breakdown alongside the aggregate totals.
+
+### Fixed (found during live multi-account testing)
+- `_MERGE_LIST_FIELDS` initially included `"riskInstances"`, which is actually stored as an integer count, not a list — crashed the merge. Removed it from the list-merge set and sum the per-account counts instead.
+- Removing an account from Settings didn't remove its cached data from the merged view — an orphaned cache row would haunt the fleet forever with no way to refresh or explain it. `_get_merged_harvest()` and the `/api/sync-status` breakdown now both filter cached accounts down to what's currently configured (plus `"default"` for backward compatibility).
+
+Verified end-to-end with a genuine 3-account simulation: 501 systems merged and correctly tagged across 3 accounts (167 each), `?account=<id>` scoping confirmed, account removal confirmed to drop from the merged view, then reverted to the real single-account config before release.
+
+---
+
 ## [4.7.3] - 2026-08-12
 
 ### Changed
