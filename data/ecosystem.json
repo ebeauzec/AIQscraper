@@ -63,7 +63,9 @@
       "providers": {
         "aws_fsx_ontap": {
           "name": "Amazon FSx for NetApp ONTAP",
-          "accessible": false
+          "url": "https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/",
+          "accessible": true,
+          "whatsnew_links": []
         },
         "azure_anf": {
           "name": "Azure NetApp Files",
