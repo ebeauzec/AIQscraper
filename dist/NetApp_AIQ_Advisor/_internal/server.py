@@ -2906,11 +2906,26 @@ def _background_sync():
         print(f"  [BACKGROUND] Starting background re-sync{scope_msg} across {len(accounts)} account(s)...", flush=True)
         _sync_all_accounts(extra_watchlist_ids=wl_ids)
         print("  [BACKGROUND] Background re-sync complete.", flush=True)
-        # Trigger enrichment scan after harvest
+        # Trigger enrichment scan after harvest — both groups. The fast group
+        # (CVE/KEV/PSIRT/EPSS + OS version catalog) already ran on every
+        # harvest; the slow-crawl group (firmware baselines, EOA/IMT, switch
+        # firmware, and new-platform/hardware discovery) previously ONLY ran
+        # on its own independent 7-day timer, so a fleet could go a full week
+        # without a harvest ever refreshing platform/switch/firmware/drive/
+        # card data even if the user was syncing constantly. Both calls are
+        # cheap to make often: each sub-scanner inside _do_kb_scan checks its
+        # own file's staleness first and no-ops in milliseconds if nothing is
+        # actually due, so this does not mean re-hitting docs.netapp.com/
+        # GitHub/PyPI on every single harvest — only when data has genuinely
+        # gone stale.
         global _enrichment_scheduler
-        if _enrichment_scheduler and not _enrichment_scheduler._running:
-            print('  [BACKGROUND] Triggering post-harvest enrichment scan...', flush=True)
-            _enrichment_scheduler.run_now()
+        if _enrichment_scheduler:
+            if not _enrichment_scheduler._running:
+                print('  [BACKGROUND] Triggering post-harvest fast enrichment scan...', flush=True)
+                _enrichment_scheduler.run_now()
+            if not _enrichment_scheduler._kb_running:
+                print('  [BACKGROUND] Checking platform/switch/firmware/hardware freshness (staleness-gated)...', flush=True)
+                _enrichment_scheduler.run_kb_now()
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -3488,6 +3503,14 @@ class EnrichmentScheduler:
         finally:
             self._running = False
             self._schedule_next()
+            # Every fast-scan completion also checks whether the slow-crawl
+            # group (platform/switch/firmware/drive/card/new-hardware data —
+            # scanners 6-8) has gone stale, instead of that only ever being
+            # driven by its own independent 7-day timer. _do_kb_scan's own
+            # per-sub-scanner staleness checks make this cheap to call often —
+            # it no-ops in milliseconds when nothing is actually due.
+            if not self._kb_running:
+                threading.Thread(target=self._do_kb_scan, daemon=True, name='enrich-kb-after-fast').start()
 
     def _do_kb_scan(self):
         """Run the two slow, long-running crawls (scanner 6: KB/doc crawl, and

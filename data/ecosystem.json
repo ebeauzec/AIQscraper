@@ -1,22 +1,22 @@
 {
   "version": 1,
-  "_lastUpdated": "2026-08-10",
+  "_lastUpdated": "2026-08-17",
   "sources": {
     "github_netapp": {
       "totalRepos": 12,
-      "lastChecked": "2026-08-10",
+      "lastChecked": "2026-08-17",
       "repos": [
         {
-          "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
+          "description": "NetApp's ONTAP model context protocol server"
         },
         {
-          "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
+          "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
         },
         {
           "description": "Storage orchestrator for containers"
         },
         {
-          "description": "NetApp's ONTAP model context protocol server"
+          "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
         },
         {
           "description": "Ansible collection that facilitates host related tasks for NetApp E-Series storage."
@@ -45,10 +45,10 @@
       ]
     },
     "pypi": {
-      "lastChecked": "2026-08-10",
+      "lastChecked": "2026-08-17",
       "packages": {
         "netapp-ontap": {
-          "version": "9.18.1.0",
+          "version": "9.19.1.0",
           "summary": "A library for working with ONTAP's REST APIs simply in Python"
         },
         "solidfire-sdk-python": {
@@ -58,7 +58,7 @@
       }
     },
     "ansible_galaxy": {
-      "lastChecked": "2026-08-10",
+      "lastChecked": "2026-08-17",
       "collections": {
         "netapp.ontap": {
           "version": "23.6.0",
@@ -79,7 +79,7 @@
       }
     },
     "terraform": {
-      "lastChecked": "2026-08-10",
+      "lastChecked": "2026-08-17",
       "providers": {
         "NetApp/netapp-ontap": {
           "version": "2.7.1",
@@ -92,7 +92,7 @@
       }
     },
     "cloud_providers": {
-      "lastChecked": "2026-08-10",
+      "lastChecked": "2026-08-17",
       "providers": {
         "aws_fsx_ontap": {
           "name": "Amazon FSx for NetApp ONTAP",

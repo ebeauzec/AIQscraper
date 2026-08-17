@@ -1,6 +1,6 @@
 {
   "_comment": "IMT Interoperability Matrix — 3rd party version compatibility data. Auto-updated by reference_harvester.py via EnrichmentScheduler Scanner 7. Source: imt.netapp.com, vendor support matrices, GitHub/PyPI APIs.",
-  "_lastUpdated": "2026-08-04",
+  "_lastUpdated": "2026-08-13",
   "_source": "imt.netapp.com + vendor documentation + GitHub/PyPI APIs",
   "vmware_otv": {
     "name": "ONTAP Tools for VMware vSphere (OTV)",
@@ -111,7 +111,7 @@
   "veeam": {
     "name": "Veeam Backup & Replication",
     "signal": "veeam",
-    "currentRecommended": "4.0",
+    "currentRecommended": "8.1",
     "versions": {
       "12.3": {
         "minOntap": "9.8",
@@ -138,7 +138,7 @@
     "imtProduct": null,
     "upgradeDoc": "https://www.veeam.com/kb2930",
     "notes": "Veeam not in NetApp IMT -- use Veeam's own support matrix. NetApp Plugin v2 for VBR 12.3+.",
-    "source": "https://www.veeam.com/veeam_backup_12_3_release_notes_rn.html"
+    "source": "https://helpcenter.veeam.com/docs/backup/vsphere/overview.html"
   },
   "commvault": {
     "name": "Commvault (IntelliSnap)",
@@ -693,7 +693,7 @@
     "notes": "Limited formal interop — Nutanix promotes own HCI storage. ONTAP used as secondary/backup tier."
   },
   "netapp-ontap": {
-    "currentRecommended": "9.18.1.0",
+    "currentRecommended": "9.19.1.0",
     "source": "pypi.org/netapp-ontap",
     "product": "ONTAP Python SDK"
   },

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "lastUpdated": "2026-08-10",
-  "articleCount": 603,
+  "lastUpdated": "2026-08-17",
+  "articleCount": 762,
   "articles": [
     {
       "url": "https://kb.netapp.com/Interactive_and_resolution_guides",
@@ -5923,6 +5923,1454 @@
       "_gapAnalysis": true,
       "_fleetRelevant": true,
       "_integrationKey": "imt_version_gap_cisco_san"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/doc-gen-ai-assistant-terms-of-use.html",
+      "title": "Doc Gen Ai Assistant Terms Of Use",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/doc-gen-ai-assistant.html",
+      "title": "Doc Gen Ai Assistant",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/docs-netapp-com.html",
+      "title": "Docs Netapp Com",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/index.html",
+      "title": "Index",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/lang-dropdown.html",
+      "title": "Lang Dropdown",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/legal-notices.html",
+      "title": "Legal Notices",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/pdf-entries.html",
+      "title": "Pdf Entries",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/about/sidebar.html",
+      "title": "Sidebar",
+      "source": "sitemap-discovery",
+      "category": "about",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/BlueXP_sustainability_dashboard_overview.html",
+      "title": "Bluexp_Sustainability_Dashboard_Overview",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_autosupport.html",
+      "title": "Concept_Autosupport",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_get_more_information.html",
+      "title": "Concept_Get_More_Information",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_get_started_with_health_check_dashboard.html",
+      "title": "Concept_Get_Started_With_Health_Check_Dashboard",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_getting_started_2.html",
+      "title": "Concept_Getting_Started_2",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_key_terms.html",
+      "title": "Concept_Key_Terms",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_overview_API_service.html",
+      "title": "Concept_Overview_Api_Service",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_overview_config_drift.html",
+      "title": "Concept_Overview_Config_Drift",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_overview_dashboard.html",
+      "title": "Concept_Overview_Dashboard",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_overview_planning.html",
+      "title": "Concept_Overview_Planning",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_overview_wellness.html",
+      "title": "Concept_Overview_Wellness",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_report_types.html",
+      "title": "Concept_Report_Types",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_understand_activeiq_features.html",
+      "title": "Concept_Understand_Activeiq_Features",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_understand_health_check_dashboard.html",
+      "title": "Concept_Understand_Health_Check_Dashboard",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq/concept_working_with_inventory_file.html",
+      "title": "Concept_Working_With_Inventory_File",
+      "source": "sitemap-discovery",
+      "category": "active-iq",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-910/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-910",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-911/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-911",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-912/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-912",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-913/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-913",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-914/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-914",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/storage-mgmt/concept_about_quotas.html",
+      "title": "Concept_About_Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/config/concept_active_iq_platform_events.html",
+      "title": "Concept_Active_Iq_Platform_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/storage-mgmt/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/config/concept_add_disk_space_to_um_database_directory.html",
+      "title": "Concept_Add_Disk_Space_To_Um_Database_Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/performance-checker/concept_add_disks_and_perform_aggregate_layout_reconstruction.html",
+      "title": "Concept_Add_Disks_And_Perform_Aggregate_Layout_Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/performance-checker/concept_add_disks_and_reallocate_data.html",
+      "title": "Concept_Add_Disks_And_Reallocate_Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/api-automation/concept_administration_apis.html",
+      "title": "Concept_Administration_Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/storage-mgmt/concept_all_workloads.html",
+      "title": "Concept_All_Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/performance-checker/concept_analyze_events_from_dynamic_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_Dynamic_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/performance-checker/concept_analyze_events_from_system_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_System_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/performance-checker/concept_analyze_events_from_user_defined_performance_thresholds.html",
+      "title": "Concept_Analyze_Events_From_User_Defined_Performance_Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/performance-checker/concept_analyze_performance_events.html",
+      "title": "Concept_Analyze_Performance_Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/config/concept_api_gateway.html",
+      "title": "Concept_Api_Gateway",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/api-automation/concept_api_logs.html",
+      "title": "Concept_Api_Logs",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-916/api-automation/concept_api_url_and_categories.html",
+      "title": "Concept_Api_Url_And_Categories",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-916",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-about-quotas.html",
+      "title": "Concept About Quotas",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-active-iq-platform-events.html",
+      "title": "Concept Active Iq Platform Events",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-add-disks-and-perform-aggregate-layout-reconstruction.html",
+      "title": "Concept Add Disks And Perform Aggregate Layout Reconstruction",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-add-disks-and-reallocate-data.html",
+      "title": "Concept Add Disks And Reallocate Data",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-adding-disk-space-to-the-unified-manager-database-directory.html",
+      "title": "Concept Adding Disk Space To The Unified Manager Database Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/config/concept-adding-disk-space-to-the-unified-manager-database-directory.html",
+      "title": "Concept Adding Disk Space To The Unified Manager Database Directory",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/api-automation/concept-administration-apis.html",
+      "title": "Concept Administration Apis",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-aggregate-performance-explorer-page.html",
+      "title": "Concept Aggregate Performance Explorer Page",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-all-workloads.html",
+      "title": "Concept All Workloads",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-analyzing-events-from-dynamic-performance-thresholds.html",
+      "title": "Concept Analyzing Events From Dynamic Performance Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/performance-checker/concept-analyzing-events-from-dynamic-performance-thresholds.html",
+      "title": "Concept Analyzing Events From Dynamic Performance Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-analyzing-events-from-system-defined-performance-thresholds.html",
+      "title": "Concept Analyzing Events From System Defined Performance Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/performance-checker/concept-analyzing-events-from-system-defined-performance-thresholds.html",
+      "title": "Concept Analyzing Events From System Defined Performance Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/online-help/concept-analyzing-events-from-user-defined-performance-thresholds.html",
+      "title": "Concept Analyzing Events From User Defined Performance Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/active-iq-unified-manager-97/performance-checker/concept-analyzing-events-from-user-defined-performance-thresholds.html",
+      "title": "Concept Analyzing Events From User Defined Performance Thresholds",
+      "source": "sitemap-discovery",
+      "category": "active-iq-unified-manager-97",
+      "discoveredAt": "2026-08-10"
+    },
+    {
+      "url": "https://kb.netapp.com/hybrid/SGRID",
+      "title": "StorageGRID",
+      "source": "kb.netapp.com",
+      "category": "knowledge_base",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions-cloud/vmware/vmw-azure-avs-dr-jetstream.html",
+      "title": "JetStream DR for VMware on Azure NetApp Files (NetApp acquisition, Aug 2026)",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "Fleet-relevant data_protection documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/storagegrid-enable/technical-reports/monitor-storagegrid-app-splunk.html",
+      "title": "Splunk Add-on for StorageGRID",
+      "source": "docs.netapp.com",
+      "category": "monitoring",
+      "relevance": "Fleet-relevant monitoring documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions-ai/data-analytics/stgr-splunkss-introduction.html",
+      "title": "Splunk SmartStore on StorageGRID S3",
+      "source": "docs.netapp.com",
+      "category": "monitoring",
+      "relevance": "Fleet-relevant monitoring documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/storagegrid-enable/tools-apps-guides/use-datadog-snmp.html",
+      "title": "Datadog SNMP Monitoring for StorageGRID",
+      "source": "docs.netapp.com",
+      "category": "monitoring",
+      "relevance": "Fleet-relevant monitoring documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-infrastructure-insights/task_dc_na_cdot.html",
+      "title": "Data Infrastructure Insights ONTAP Collector",
+      "source": "docs.netapp.com",
+      "category": "monitoring",
+      "relevance": "Fleet-relevant monitoring documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/data-services-ransomware-resilience/reference-soar.html",
+      "title": "Ransomware Resilience SOAR Integration (Sentinel/Splunk)",
+      "source": "docs.netapp.com",
+      "category": "security",
+      "relevance": "Fleet-relevant security documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/oncommand-insight/howto/servicenow-integration-set-up-user.html",
+      "title": "ServiceNow CMDB Integration for OnCommand Insight",
+      "source": "docs.netapp.com",
+      "category": "automation",
+      "relevance": "Fleet-relevant automation documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/oncommand-insight/howto/servicenow-integration-install-update-set.html",
+      "title": "ServiceNow Update Set Installation",
+      "source": "docs.netapp.com",
+      "category": "automation",
+      "relevance": "Fleet-relevant automation documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions/containers/rh-os-n_solution_overview.html",
+      "title": "Red Hat OpenShift on NetApp (NVA-1160)",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions-virtualization/openshift/osv-vm-dr-using-tp.html",
+      "title": "OpenShift Virtualization DR with Trident Protect",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "Fleet-relevant data_protection documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions/rhhc/rhhc-op-data-protection.html",
+      "title": "OpenShift Container Data Protection (Astra/Trident Protect)",
+      "source": "docs.netapp.com",
+      "category": "data_protection",
+      "relevance": "Fleet-relevant data_protection documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/snapcenter/protect-db2/snapcenter-plug-in-for-ibm-db2-overview.html",
+      "title": "SnapCenter Plug-in for IBM Db2",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/netapp-solutions-sap/backup/snapcenter-ibm-db2.html",
+      "title": "SnapCenter for IBM Db2 on SAP",
+      "source": "docs.netapp.com",
+      "category": "integration",
+      "relevance": "Fleet-relevant integration documentation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-all-family/index.html",
+      "title": "NetApp Console",
+      "source": "docs.netapp.com",
+      "category": "reference",
+      "discoveredAt": "2026-08-17",
+      "_autoDiscovered": true
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/imt_version_gap_cisco_san-gap",
+      "title": "⚠ Gap Detected: Cisco NX-OS (cluster/SAN switch) vNX-OS 10.4.2 requires minimum ONTAP 9.8 — syst",
+      "source": "gap-analysis",
+      "category": "gap_analysis",
+      "alignment": "Upgrade ONTAP to 9.8+ or verify compatibility of an older Cisco NX-OS (cluster/SAN switch) version in the NetApp IMT (imt.netapp.com)",
+      "relevance": "Fleet gap analysis",
+      "discoveredAt": "2026-08-17",
+      "_vendorGuideline": true,
+      "_gapAnalysis": true,
+      "_fleetRelevant": true,
+      "_integrationKey": "imt_version_gap_cisco_san"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-all-family/intro-family.html",
+      "title": "Intro Family",
+      "source": "sitemap-discovery",
+      "category": "console-all-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-all-family/lang-dropdown.html",
+      "title": "Lang Dropdown",
+      "source": "sitemap-discovery",
+      "category": "console-all-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-all-family/pdf-entries.html",
+      "title": "Pdf Entries",
+      "source": "sitemap-discovery",
+      "category": "console-all-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-all-family/sidebar.html",
+      "title": "Sidebar",
+      "source": "sitemap-discovery",
+      "category": "console-all-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-administer-netapp-console-local.html",
+      "title": "Concept Administer Netapp Console Local",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-connectors.html",
+      "title": "Concept Connectors",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-console-alerts.html",
+      "title": "Concept Console Alerts",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-custom-dashboards.html",
+      "title": "Concept Custom Dashboards",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-data-services.html",
+      "title": "Concept Data Services",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-deploy-netapp-console-local.html",
+      "title": "Concept Deploy Netapp Console Local",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-folders-fleets-overview.html",
+      "title": "Concept Folders Fleets Overview",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-iam-rbac.html",
+      "title": "Concept Iam Rbac",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-identity-and-access-management.html",
+      "title": "Concept Identity And Access Management",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-install-options-aws.html",
+      "title": "Concept Install Options Aws",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-install-options-azure.html",
+      "title": "Concept Install Options Azure",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-install-options-google.html",
+      "title": "Concept Install Options Google",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-llm-integration.html",
+      "title": "Concept Llm Integration",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-manage-storage-workflow.html",
+      "title": "Concept Manage Storage Workflow",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local/concept-manage-storage.html",
+      "title": "Concept Manage Storage",
+      "source": "sitemap-discovery",
+      "category": "console-local",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/platform/api-reference.html",
+      "title": "Api Reference",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/platform/authentication.html",
+      "title": "Authentication",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/platform/create-service-token.html",
+      "title": "Create Service Token",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/platform/create-user-token.html",
+      "title": "Create User Token",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/agentic/delete-configs-.html",
+      "title": "Delete Configs ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-fleets-.html",
+      "title": "Delete Fleets ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-.html",
+      "title": "Delete Folders ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-fleets-.html",
+      "title": "Delete Folders Fleets ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-folders-.html",
+      "title": "Delete Folders Folders ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-projects-.html",
+      "title": "Delete Folders Projects ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-resourcegroups-.html",
+      "title": "Delete Folders Resourcegroups ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-resources-.html",
+      "title": "Delete Folders Resources ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-roles-usergroups-.html",
+      "title": "Delete Folders Roles Usergroups ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-roles-users-.html",
+      "title": "Delete Folders Roles Users ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-automation/tenancyv4/delete-folders-usergroups-.html",
+      "title": "Delete Folders Usergroups ",
+      "source": "sitemap-discovery",
+      "category": "console-local-automation",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-family/index.html",
+      "title": "Index",
+      "source": "sitemap-discovery",
+      "category": "console-local-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-family/lang-dropdown.html",
+      "title": "Lang Dropdown",
+      "source": "sitemap-discovery",
+      "category": "console-local-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-family/pdf-entries.html",
+      "title": "Pdf Entries",
+      "source": "sitemap-discovery",
+      "category": "console-local-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-family/sidebar.html",
+      "title": "Sidebar",
+      "source": "sitemap-discovery",
+      "category": "console-local-family",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/index.html",
+      "title": "Index",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/lang-dropdown.html",
+      "title": "Lang Dropdown",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/legal-notices.html",
+      "title": "Legal Notices",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/pdf-entries.html",
+      "title": "Pdf Entries",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/release-notes-index.html",
+      "title": "Release Notes Index",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/sidebar.html",
+      "title": "Sidebar",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-local-relnotes/whats-new.html",
+      "title": "Whats New",
+      "source": "sitemap-discovery",
+      "category": "console-local-relnotes",
+      "discoveredAt": "2026-08-17"
     }
   ]
 }

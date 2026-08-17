@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.1.1] - 2026-08-17
+
+### Fixed — Enrichment freshness wiring + two live JS crashes
+- **Post-harvest / post-fast-scan now reliably trigger a slow-crawl staleness check.** The slow-crawl enrichment group (firmware baselines, EOA/IMT interop matrix, switch firmware, new-platform/hardware discovery — scanners 6-8) previously only ran on its own independent 7-day timer. A fleet syncing constantly (or with a `syncInterval` shorter than 7 days) could go a full week without platform/switch/firmware data ever being checked for freshness, even though harvests were happening regularly. `_background_sync()` and `EnrichmentScheduler._do_scan()` now both call `run_kb_now()` on completion. Each sub-scanner inside `_do_kb_scan()` still checks its own file's staleness first and no-ops in milliseconds if nothing is due — this changes how *reliably* freshness gets checked, not how often external sites get hit.
+- **Fixed `fpTiered is not defined` crash in the CSM tab.** The variable was declared with `const` inside an `if (isSG||isES) {...} else { const fpTiered = ... }` block in `renderCSMTab()`, then referenced ~250 lines later outside that block when building the Data Protection & Lifecycle checklist — a `ReferenceError` on every non-SG/ES system. Hoisted the declaration to function scope.
+- **Fixed `csvContent is not defined` crash in Clear Watchlists.** `clearImportedWatchlists()` had a stray line appending CSV header text to an undefined `csvContent` variable — leftover from an unrelated CSV-export function, doing nothing useful and crashing the button. Removed.
+
+---
+
 ## [5.1.0] - 2026-08-17
 
 ### Added — Practices adopted from NetAppModeler (sibling project) after a comparative review

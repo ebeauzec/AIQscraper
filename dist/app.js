@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.1.0";
+const APP_VERSION = "5.1.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.1.1",
+    date: "17 August 2026",
+    title: "Reliable Freshness Wiring + Two Live-Bug Fixes",
+    sections: [
+      {
+        icon: "🔄",
+        label: "Freshness Wiring: Platform/Switch/Firmware Never Goes Stale",
+        color: "#2dd4bf",
+        items: [
+          "Every completed harvest, and every completed fast enrichment scan, now also triggers a staleness check of the slow-crawl group (firmware baselines, EOA/IMT, switch firmware, new-platform/hardware discovery)",
+          "Previously the slow-crawl group only ran on its own independent 7-day timer — a fleet syncing constantly could go a full week without platform/switch/firmware data ever being checked for freshness",
+          "Each sub-scanner still checks its own file's staleness first and no-ops in milliseconds if nothing is due, so this does not mean re-hitting external sites more often — only checking more reliably"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Two Live JavaScript Crashes",
+        color: "#f87171",
+        items: [
+          "'fpTiered is not defined' was crashing the CSM tab's Data Protection checklist — the variable was block-scoped to an if/else branch it was later referenced outside of",
+          "'csvContent is not defined' was crashing Clear Watchlists — a stray leftover line from an unrelated CSV-export function"
+        ]
+      }
+    ]
+  },
   {
     version: "5.1.0",
     date: "17 August 2026",
@@ -11486,6 +11512,7 @@ function renderCSMTab() {
   `;
 
   const isASA = (sys.platform || "").includes("ASA");
+  let fpTiered = 0;
   // ── StorageGRID / E-Series: capacity not available via Active IQ API ──────
   // When _capacityUnavailable is true the efficiency object is all-zeros.
   // Render a platform-appropriate informational note instead of the standard
@@ -11547,7 +11574,7 @@ function renderCSMTab() {
   `;
 
 
-  const fpTiered = (sys.efficiency || {}).fabricPoolTieredTB || 0;
+  fpTiered = (sys.efficiency || {}).fabricPoolTieredTB || 0;
   let fpAdoptionBadge = "";
   let fpStatusText = "";
   
@@ -25797,7 +25824,6 @@ function clearImportedWatchlists() {
   const status = document.getElementById("watchlistScopeStatus");
   if (textarea) textarea.value = "";
   if (status) status.innerHTML = 'Watchlists cleared. Showing all systems.';
-  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\\n";
   renderSidebarGroups();
 }
 
