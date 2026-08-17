@@ -757,34 +757,6 @@
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <!-- ROW 1B — Multiple Customer Accounts (multi-tenant support)     -->
-        <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div class="card" style="border-top: 3px solid #34d399; margin-bottom: 20px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(52,211,153,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              </div>
-              <div>
-                <div class="section-title" style="margin-bottom: 2px; font-size: 1rem;">Multiple Customer Accounts</div>
-                <div style="font-size: 0.72rem; color: var(--text-secondary);">Sync several separate Active IQ credentials — every account's fleet is merged into one unified dashboard view, tagged by account.</div>
-              </div>
-            </div>
-            <button class="action-btn secondary" style="font-size: 0.76rem; padding: 7px 12px;" onclick="addAccountRow()">+ Add Account</button>
-          </div>
-
-          <div id="accountsListContainer" style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px;">
-            <!-- Populated by loadAccountsUI() -->
-          </div>
-
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="action-btn" style="font-size: 0.78rem; padding: 8px 14px;" onclick="saveAccountsUI()">💾 Save Accounts</button>
-            <span id="accountsSaveStatus" style="font-size: 0.72rem; color: var(--text-secondary);"></span>
-          </div>
-          <div class="form-helper" style="margin-top:8px;">The single "Active IQ Refresh Token" field above still works as before for a single account. Accounts added here are additional, separate customers — each syncs with its own credential and appears tagged in the fleet.</div>
-        </div>
-
-        <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 2 — SECONDARY: Serial Numbers + Setup Guide + Groups       -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start;">
