@@ -18,9 +18,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.3.1";
+const APP_VERSION = "5.3.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.3.2",
+    date: "17 August 2026",
+    title: "QBR Trend Section: Added 30-Day View Alongside 90-Day",
+    sections: [
+      {
+        icon: "📈",
+        label: "QBR Historical Trend Now Shows Both 30-Day and 90-Day Windows",
+        color: "#2dd4bf",
+        items: [
+          "The QBR Pack's historical trend section previously only compared against ~90 days ago — it now shows a 30-day view and a 90-day view side by side",
+          "Each window (risk delta, case delta, efficiency delta, adoption score delta, ONTAP upgrades) is computed independently against that system's closest snapshot for that window, so a fleet with only a month of sync history still gets a useful 30-day comparison even before 90 days of data exists"
+        ]
+      }
+    ]
+  },
   {
     version: "5.3.1",
     date: "17 August 2026",
@@ -17574,54 +17590,66 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     if (withHistory.length === 0) {
       return '  No historical snapshot data available yet for this account. Trend data\n' +
              '  builds up automatically as the fleet syncs (one snapshot per system per\n' +
-             '  day) — this section will populate once ~90 days of sync history exists.\n';
+             '  day) — this section will populate once enough sync history exists.\n';
     }
-    let riskThenTotal = 0, riskNowTotal = 0, caseThenTotal = 0, caseNowTotal = 0;
-    let effThenSum = 0, effNowSum = 0, effN = 0;
-    let adoptThenSum = 0, adoptNowSum = 0, adoptN = 0;
-    let matched = 0;
-    const versionChanges = [];
-    withHistory.forEach(s => {
-      const hist = _csmHistoryCache[s.serialNumber].history;
-      const then = _findNearestSnapshot(hist, 90);
-      if (!then) return;
-      matched++;
-      riskThenTotal += (then.riskCounts ? (then.riskCounts.critical || 0) + (then.riskCounts.high || 0) : 0);
-      riskNowTotal  += (allRisks.filter(r => r.systemName === s.systemName && ['critical', 'high'].includes(r.severity)).length);
-      caseThenTotal += then.caseCount || 0;
-      caseNowTotal  += (s.supportCases || []).length || (allSupportCases.filter(c => c.systemName === s.systemName).length);
-      const effThen = parseFloat((then.efficiencyRatio || '0').toString().split(':')[0]) || 0;
-      const effNow  = parseFloat((s.efficiencyRatio || '0').toString().split(':')[0]) || 0;
-      if (effThen > 0 && effNow > 0) { effThenSum += effThen; effNowSum += effNow; effN++; }
-      if (then.adoptionScorePct != null && typeof computeFeatureAdoptionScore === 'function') {
-        const nowScore = computeFeatureAdoptionScore(s);
-        if (nowScore && nowScore.total > 0) { adoptThenSum += then.adoptionScorePct; adoptNowSum += nowScore.pct; adoptN++; }
-      }
-      if (then.osVersion && s.osVersion && then.osVersion !== s.osVersion) {
-        versionChanges.push(`${s.systemName}: ${then.osVersion} → ${s.osVersion}`);
-      }
-    });
-    if (matched === 0) {
-      return '  Historical data exists but none of it reaches back ~90 days yet for this\n' +
-             '  account. Check back once the fleet has been syncing for a full quarter.\n';
-    }
-    const riskDelta = riskNowTotal - riskThenTotal;
-    const caseDelta = caseNowTotal - caseThenTotal;
-    const effDelta = effN > 0 ? (effNowSum / effN) - (effThenSum / effN) : null;
     const fmt = (n, invert) => {
       if (n === 0) return 'no change';
       const good = invert ? n < 0 : n > 0;
       return `${n > 0 ? '+' : ''}${n} (${good ? 'improved' : 'worsened'})`;
     };
-    let out = `  Comparing ${matched}/${total} system(s) against their nearest snapshot from ~90 days ago:\n`;
-    out += `    Critical/High Risks:  ${riskThenTotal} → ${riskNowTotal}  [${fmt(riskDelta, true)}]\n`;
-    out += `    Open Support Cases:   ${caseThenTotal} → ${caseNowTotal}  [${fmt(caseDelta, true)}]\n`;
-    if (effDelta !== null) out += `    Avg Efficiency Ratio: ${(effThenSum / effN).toFixed(2)}:1 → ${(effNowSum / effN).toFixed(2)}:1  [${fmt(Math.round(effDelta * 100) / 100, false)}]\n`;
-    if (adoptN > 0) {
-      const adoptThenAvg = adoptThenSum / adoptN, adoptNowAvg = adoptNowSum / adoptN;
-      out += `    Avg Feature Adoption: ${adoptThenAvg.toFixed(0)}% → ${adoptNowAvg.toFixed(0)}%  [${fmt(Math.round(adoptNowAvg - adoptThenAvg), false)}]\n`;
+    // Computes one window's summary (e.g. 30 or 90 days back). Returns null
+    // if no system in scope has a snapshot reaching back that far yet.
+    function computeWindow(daysAgo) {
+      let riskThenTotal = 0, riskNowTotal = 0, caseThenTotal = 0, caseNowTotal = 0;
+      let effThenSum = 0, effNowSum = 0, effN = 0;
+      let adoptThenSum = 0, adoptNowSum = 0, adoptN = 0;
+      let matched = 0;
+      const versionChanges = [];
+      withHistory.forEach(s => {
+        const hist = _csmHistoryCache[s.serialNumber].history;
+        const then = _findNearestSnapshot(hist, daysAgo);
+        if (!then) return;
+        matched++;
+        riskThenTotal += (then.riskCounts ? (then.riskCounts.critical || 0) + (then.riskCounts.high || 0) : 0);
+        riskNowTotal  += (allRisks.filter(r => r.systemName === s.systemName && ['critical', 'high'].includes(r.severity)).length);
+        caseThenTotal += then.caseCount || 0;
+        caseNowTotal  += (s.supportCases || []).length || (allSupportCases.filter(c => c.systemName === s.systemName).length);
+        const effThen = parseFloat((then.efficiencyRatio || '0').toString().split(':')[0]) || 0;
+        const effNow  = parseFloat((s.efficiencyRatio || '0').toString().split(':')[0]) || 0;
+        if (effThen > 0 && effNow > 0) { effThenSum += effThen; effNowSum += effNow; effN++; }
+        if (then.adoptionScorePct != null && typeof computeFeatureAdoptionScore === 'function') {
+          const nowScore = computeFeatureAdoptionScore(s);
+          if (nowScore && nowScore.total > 0) { adoptThenSum += then.adoptionScorePct; adoptNowSum += nowScore.pct; adoptN++; }
+        }
+        if (then.osVersion && s.osVersion && then.osVersion !== s.osVersion) {
+          versionChanges.push(`${s.systemName}: ${then.osVersion} → ${s.osVersion}`);
+        }
+      });
+      if (matched === 0) return null;
+      const riskDelta = riskNowTotal - riskThenTotal;
+      const caseDelta = caseNowTotal - caseThenTotal;
+      const effDelta = effN > 0 ? (effNowSum / effN) - (effThenSum / effN) : null;
+      let out = `  Comparing ${matched}/${total} system(s) against their nearest snapshot from ~${daysAgo} days ago:\n`;
+      out += `    Critical/High Risks:  ${riskThenTotal} → ${riskNowTotal}  [${fmt(riskDelta, true)}]\n`;
+      out += `    Open Support Cases:   ${caseThenTotal} → ${caseNowTotal}  [${fmt(caseDelta, true)}]\n`;
+      if (effDelta !== null) out += `    Avg Efficiency Ratio: ${(effThenSum / effN).toFixed(2)}:1 → ${(effNowSum / effN).toFixed(2)}:1  [${fmt(Math.round(effDelta * 100) / 100, false)}]\n`;
+      if (adoptN > 0) {
+        const adoptThenAvg = adoptThenSum / adoptN, adoptNowAvg = adoptNowSum / adoptN;
+        out += `    Avg Feature Adoption: ${adoptThenAvg.toFixed(0)}% → ${adoptNowAvg.toFixed(0)}%  [${fmt(Math.round(adoptNowAvg - adoptThenAvg), false)}]\n`;
+      }
+      if (versionChanges.length > 0) out += `    ONTAP Upgrades in Window:\n${versionChanges.slice(0, 10).map(v => `      • ${v}`).join('\n')}${versionChanges.length > 10 ? `\n      +${versionChanges.length - 10} more` : ''}\n`;
+      return out;
     }
-    if (versionChanges.length > 0) out += `    ONTAP Upgrades Since Last Quarter:\n${versionChanges.slice(0, 10).map(v => `      • ${v}`).join('\n')}${versionChanges.length > 10 ? `\n      +${versionChanges.length - 10} more` : ''}\n`;
+
+    const win30 = computeWindow(30);
+    const win90 = computeWindow(90);
+    if (!win30 && !win90) {
+      return '  Historical data exists but none of it reaches back 30 days yet for this\n' +
+             '  account. Check back once the fleet has been syncing for a month or more.\n';
+    }
+    let out = '';
+    out += `  30-DAY VIEW\n  -----------\n${win30 || '  No snapshot from ~30 days ago yet for any system in scope.\n'}\n`;
+    out += `  90-DAY VIEW (LAST QUARTER)\n  --------------------------\n${win90 || '  No snapshot from ~90 days ago yet for any system in scope.\n'}`;
     return out;
   })();
 
@@ -17657,7 +17685,7 @@ Prepared: ${salesRep}
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
 
 --------------------------------------------------------------------------------
-2b. TREND VS. LAST QUARTER (~90 DAYS AGO)
+2b. HISTORICAL TREND (30-DAY AND 90-DAY VIEWS)
 --------------------------------------------------------------------------------
 ${trendSection}
 --------------------------------------------------------------------------------

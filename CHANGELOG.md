@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.3.2] - 2026-08-17
+
+### Changed
+- **QBR Pack historical trend section now shows both a 30-day and a 90-day view**, instead of only comparing against ~90 days ago. Each window (critical/high risk delta, open case delta, efficiency ratio delta, Feature Adoption Score delta, ONTAP upgrades) is computed independently against that system's closest snapshot for that specific window — a fleet with only a month of sync history gets a useful 30-day comparison without waiting for a full quarter of data.
+
+---
+
 ## [5.3.1] - 2026-08-17
 
 ### Fixed

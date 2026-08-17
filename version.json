@@ -1,8 +1,8 @@
 {
-  "version": "5.3.1",
+  "version": "5.3.2",
   "major": 5,
   "minor": 3,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-17",
-  "notes": "Fixed three data bugs found by a follow-up audit of the deliverable generators. (1) The QBR Pack's 'Sustainability Score' was an unscoped fleet-wide (all-tenant) figure shown right next to account-scoped TB totals with no label distinguishing the two -- same 'unlabeled fleet-wide value' bug class fixed earlier this version, just missed in this one spot. Now labeled 'Fleet Sustainability Score (all tenants)'. (2) The new QBR trend section's case-count delta read from a stale debug/rematch buffer field (sys.cases) instead of the canonical sys.supportCases field used everywhere else in the app, which could make the trend line disagree with the case count shown elsewhere in the same document. (3) compileExtendedDeliverables() checked sustLatest.overallScore, a field that never exists on that data source (the real field is scorePercentage) -- the SUSTAINABILITY section was silently never rendering in that deliverable even when valid data existed. Fixed the field name and added the same fleet-wide label."
+  "notes": "QBR Pack's historical trend section now shows both a 30-day and a 90-day view side by side (previously only 90 days) -- critical/high risk delta, open case delta, efficiency ratio delta, Feature Adoption Score delta, and ONTAP upgrades, each computed independently per window against that system's closest snapshot. Either window renders its own 'not enough history yet' message if snapshot data doesn't reach back that far, rather than only gating on the longer 90-day window."
 }
