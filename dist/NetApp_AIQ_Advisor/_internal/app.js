@@ -18,9 +18,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "4.7.2";
+const APP_VERSION = "4.7.3";
 
 const APP_CHANGELOG = [
+  {
+    version: "4.7.3",
+    date: "12 August 2026",
+    title: "Clarified: \"Firmware Currency\" → \"OS Currency\" in Deliverables",
+    sections: [
+      {
+        icon: "💬",
+        label: "Nitpick Fixed: Ambiguous Label",
+        color: "#f59e0b",
+        items: [
+          "The OPERATIONAL HEALTH block in every deliverable (Executive Risk Assessment, TAM Success Plan, QBR Pack, MSP Report, Handover Brief, Security Brief, Sustainability Report, Sales Proposals) labeled OS-version currency as \"Firmware Currency\" — easily confused with disk/shelf/motherboard/SP-BMC firmware. Renamed to \"OS Currency\" everywhere it means OS version",
+          "The genuine hardware firmware metrics (\"HW Firmware Currency\" and Action Planner Section 18) are unchanged — those really are about firmware"
+        ]
+      }
+    ]
+  },
   {
     version: "4.7.2",
     date: "10 August 2026",
@@ -16713,7 +16729,7 @@ ${platformLines}
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
   - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < systemCount ? ' *' : ''}
-  - Firmware Currency:       ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
+  - OS Currency:             ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
 
@@ -17135,7 +17151,7 @@ Prepared: ${salesRep}
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < total ? ' *' : ''}
-  Firmware Currency:        ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
+  OS Currency:              ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
 
@@ -17420,7 +17436,7 @@ ${dashboardLines}
   ─────────────────────────────────────────────────────
   ASUP Compliance           ${String(slaThresholds.asup).padEnd(3)}%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, slaThresholds.asup)}
   ARP Enablement            ${String(slaThresholds.arp).padEnd(3)}%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, slaThresholds.arp)}
-  Firmware Currency         ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
+  OS Currency               ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
   Contract Coverage         ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
   Case MTTR (<=${mttrTarget}d)        ${String(mttrTarget).padEnd(3)}d      ${mttrDays != null ? String(mttrDays).padStart(3) + 'd' : ' N/A'}      ${mttrDays != null ? (parseFloat(mttrDays) <= mttrTarget ? 'MET' : 'MISSED') : 'NO DATA'}
@@ -18170,7 +18186,7 @@ ${kevAckBlock}
     Security-Specific Risks:  ${securityRisks.length}
     CVE Exposure:             ${cveExposures.size} unique advisories across ${systemsWithCve.size} systems
     ARP Coverage:             ${arpEnabled}/${count} (${arpPct}%) — Anti-Ransomware Protection
-    Firmware Currency:        ${fwCurrent}/${count} on recommended version
+    OS Currency:              ${fwCurrent}/${count} on recommended version
     HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
       SP Firmware: ${(fw || {}).spPct || 0}% current | MB Firmware: ${(fw || {}).mbPct || 0}% current
       DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current
@@ -18829,7 +18845,7 @@ RISK SUMMARY
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
   ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
-  Firmware Currency:  ${fwCurrentCount}/${sysCount} (${pctFw}%)
+  OS Currency:        ${fwCurrentCount}/${sysCount} (${pctFw}%)
   Contract Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%)
 
 HARDWARE FIRMWARE CURRENCY (Detailed)
@@ -18953,7 +18969,7 @@ Our Active IQ posture audit identified ${totalDeduped} finding${totalDeduped !==
 OPERATIONAL HEALTH SNAPSHOT:
   ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
   ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
-  Firmware Currency:  ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
+  OS Currency:        ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
   HW Firmware Score:  ${fw.overallFwScore}% (SP: ${fw.spPct}%, MB: ${fw.mbPct}%, DQP: ${fw.dqpPct}%, Drives: ${fw.drivePct}%)
   Contract Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
 
@@ -18995,7 +19011,7 @@ HEALTH METRICS:
   Account Health:     ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel}
   ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
   ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
-  Firmware Currency:  ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
+  OS Currency:        ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
   HW Firmware:        ${fw.overallFwScore}% ${fw.overallFwScore < 80 ? '⚠' : '✓'} (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
   Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
   Feature Adoption:   ${fm.fleetAvgScore}% fleet average
@@ -19166,7 +19182,7 @@ Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCoun
 OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
   ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
-  Firmware Currency:      ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
+  OS Currency:            ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
   HW Firmware Score:      ${fw.overallFwScore}% (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
   Contract Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems)
 
@@ -19497,7 +19513,7 @@ OPPORTUNITY INTELLIGENCE:
 --------------------------------------------------------------------------------
 `;
     if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} system(s) without Anti-Ransomware Protection\n    → ONTAP ARP licensing or upgrade engagement\n`;
-    if (fwGap > 0) salesProposals += `  • Firmware Currency: ${fwGap} system(s) behind recommended OS version\n    → Professional Services upgrade engagement\n`;
+    if (fwGap > 0) salesProposals += `  • OS Currency: ${fwGap} system(s) behind recommended OS version\n    → Professional Services upgrade engagement\n`;
   }
 
   // DR protection upsell
