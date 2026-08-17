@@ -1,8 +1,8 @@
 {
-  "version": "5.2.1",
+  "version": "5.2.2",
   "major": 5,
   "minor": 2,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-17",
-  "notes": "Fixed a crash in the new snapshot-capture code (5.2.0): a case's priority field can be an int, not a string, and calling .upper() on it silently killed every snapshot capture ('int' object has no attribute 'upper', caught and logged but never actually saving data). Also fixed the same 'unlabeled fleet-wide finding' bug class as the IMT interop message fix in two more places: the EOL-imminent tool warning in runIMTInteropCheck() now names the affected system(s) instead of zero attribution, and the MetroCluster Infrastructure Health tiles (Mediator/MAUSO/Known Bugs) now show which specific system triggered each flag instead of one merged fleet-wide tile. Also cleared a stale 'wl_prod' placeholder watchlist ID left over from before multi-account setup that was showing up as a phantom entry in the sidebar."
+  "notes": "Fixed fabricated version numbers in deliverables: StorageGRID and E-Series/SANtricity systems have their own version schemes, but were being lumped into the fleet's ONTAP version aggregate and recommendation text, producing nonsense like 'ONTAP 12.0.0' or 'ONTAP 11.7.0' (neither is a real ONTAP release -- 12.0.0 was a StorageGRID version, 11.7.0/11.90R1 were SANtricity firmware versions). The Fleet Profile line now reports ONTAP, StorageGRID, and E-Series systems in separate labeled clauses, and per-system upgrade recommendations now name the correct product (ONTAP/StorageGRID/SANtricity) instead of always saying ONTAP. Also renamed the last few visible 'Customer Success Mgr'/'CSM' labels to 'TAM' -- NetApp no longer uses the CSM role, only TAM. (Internal variable/function names like renderCSMTab still say CSM; renaming those is a large blind mechanical refactor with no user-visible benefit, so only user-facing text was changed.)"
 }

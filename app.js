@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.2.1";
+const APP_VERSION = "5.2.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.2.2",
+    date: "17 August 2026",
+    title: "Fixed Fabricated Version Numbers + CSM → TAM Terminology",
+    sections: [
+      {
+        icon: "🔢",
+        label: "Fixed: Nonsense Version Numbers in Deliverables",
+        color: "#f87171",
+        items: [
+          "StorageGRID and E-Series/SANtricity systems have their own version schemes, but were being folded into the fleet's ONTAP version list and upgrade recommendations — producing fabricated versions like 'ONTAP 12.0.0' or 'ONTAP 11.7.0' that don't exist as real ONTAP releases",
+          "Fleet Profile now reports ONTAP, StorageGRID, and E-Series systems as separate labeled clauses instead of one merged (and wrong) ONTAP version list",
+          "Per-system upgrade recommendations now say 'Upgrade to StorageGRID X' or 'Upgrade to SANtricity X' when that's the actual product, instead of always saying ONTAP"
+        ]
+      },
+      {
+        icon: "🏷️",
+        label: "Terminology: CSM → TAM",
+        color: "#2dd4bf",
+        items: [
+          "NetApp no longer uses the CSM (Customer Success Manager) role — renamed the remaining visible 'Customer Success Mgr' labels to 'TAM' across the Account Intelligence document and Solution Proposal deliverable",
+          "The app's internal tab/function names (e.g. renderCSMTab) still say CSM — nothing user-visible reads that way anymore, and renaming internal identifiers across the codebase has no user-facing benefit"
+        ]
+      }
+    ]
+  },
   {
     version: "5.2.1",
     date: "17 August 2026",
@@ -13599,7 +13625,13 @@ function enrichSystemTelemetry(s) {
       const recOsVer = s.recommendedOSVersion || '';
       const cveMatch = (normRisk.description || '').match(/CVE-[0-9]{4}-[0-9]+/);
       if (recOsVer) {
-        normRisk.recommendation = `Upgrade to ONTAP ${recOsVer} which includes the patch for this vulnerability.`;
+        const _isSG = _isPlatformStorageGRID(s);
+        const _isES = !_isSG && (!!s.santricityVersion || (s.platform || '').toLowerCase().includes('e-series') ||
+          (s.platform || '').toLowerCase().includes('ef6') || (s.platform || '').toLowerCase().includes('ef3') ||
+          (s.platform || '').toLowerCase().includes('ef5') || (s.platform || '').toLowerCase().includes('ef8') ||
+          /^(28|29|57|40)\d{2}$/.test((s.platform || '').trim()));
+        const _productLabel = _isSG ? 'StorageGRID' : _isES ? 'SANtricity' : 'ONTAP';
+        normRisk.recommendation = `Upgrade to ${_productLabel} ${recOsVer} which includes the patch for this vulnerability.`;
       } else if ((normRisk.description || '').toLowerCase().includes('vulnerability')) {
         normRisk.recommendation = `Upgrade to the latest recommended OS version that resolves this vulnerability.`;
       } else {
@@ -15459,7 +15491,16 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
       // Group all findings on the same cluster/version together
       const clusterKey = sys.clusterName || sys.systemName || '';
       fixKey = `upgrade:${clusterKey}:${targetVer}`;
-      fixLabel = `Upgrade to ONTAP ${targetVer}`;
+      // StorageGRID and E-Series/SANtricity have their own version schemes —
+      // labeling their recommended upgrade as "ONTAP" produces version
+      // numbers (e.g. StorageGRID 12.0.0) that don't exist as ONTAP releases.
+      const _isSG = _isPlatformStorageGRID(sys);
+      const _isES = !_isSG && (!!sys.santricityVersion || (sys.platform || '').toLowerCase().includes('e-series') ||
+        (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3') ||
+        (sys.platform || '').toLowerCase().includes('ef5') || (sys.platform || '').toLowerCase().includes('ef8') ||
+        /^(28|29|57|40)\d{2}$/.test((sys.platform || '').trim()));
+      const _productLabel = _isSG ? 'StorageGRID' : _isES ? 'SANtricity' : 'ONTAP';
+      fixLabel = `Upgrade to ${_productLabel} ${targetVer}`;
     } else if (r.advisoryUrl) {
       fixKey = `advisory:${r.advisoryUrl}`;
       fixLabel = r.recommendation || `Apply corrective action per advisory`;
@@ -15821,14 +15862,39 @@ function getFleetEnrichmentSections(targetSystems) {
   const sections = {};
 
   // ── Build fleet profile for contextual intelligence ──────────────────────
+  // StorageGRID and E-Series/SANtricity systems carry their own version
+  // schemes (e.g. StorageGRID "12.0.0", SANtricity "11.90R1") — lumping
+  // those into a single "running ONTAP <versions>" line produces nonsense
+  // like "ONTAP 12.0.0" or "ONTAP 11.7.0", neither of which is a real
+  // ONTAP release. Only genuine ONTAP systems feed the ONTAP version/model
+  // aggregate; other product families get their own labeled clause.
   const fleetVersions = new Set();
   const fleetPlatforms = new Set();
   const fleetModels = new Set();
+  const sgVersions = new Set();
+  const esVersions = new Set();
+  let ontapCount = 0, sgCount = 0, esCount = 0;
   let arpDisabled = 0, mcCount = 0, sanCount = 0, nasCount = 0;
   let totalSystems = targetSystems.length;
 
   targetSystems.forEach(s => {
+    const isSG = _isPlatformStorageGRID(s);
+    const isES = !isSG && (!!s.santricityVersion || (s.platform || '').toLowerCase().includes('e-series') ||
+      (s.platform || '').toLowerCase().includes('ef6') || (s.platform || '').toLowerCase().includes('ef3') ||
+      (s.platform || '').toLowerCase().includes('ef5') || (s.platform || '').toLowerCase().includes('ef8') ||
+      /^(28|29|57|40)\d{2}$/.test((s.platform || '').trim()));
     const ver = s.osVersion || s.ontapVersion || '';
+    if (isSG) {
+      sgCount++;
+      if (ver) sgVersions.add(ver.split('P')[0]);
+      return;
+    }
+    if (isES) {
+      esCount++;
+      if (s.santricityVersion || ver) esVersions.add(s.santricityVersion || ver);
+      return;
+    }
+    ontapCount++;
     if (ver) fleetVersions.add(ver.split('P')[0]); // strip patch
     const plat = (s.platform || s.platformType || '').toUpperCase();
     if (plat) fleetPlatforms.add(plat.split(' ')[0]); // AFF, FAS, ASA
@@ -15843,7 +15909,12 @@ function getFleetEnrichmentSections(targetSystems) {
   const versStr = [...fleetVersions].sort().join(', ') || 'N/A';
   const platStr = [...fleetPlatforms].join(', ') || 'N/A';
   const modelStr = [...fleetModels].slice(0, 5).join(', ') || 'N/A';
-  const fleetCtx = `${totalSystems} system${totalSystems !== 1 ? 's' : ''} running ONTAP ${versStr} on ${platStr} (${modelStr})`;
+  const ontapClause = ontapCount > 0
+    ? `${ontapCount} system${ontapCount !== 1 ? 's' : ''} running ONTAP ${versStr} on ${platStr} (${modelStr})`
+    : '';
+  const sgClause = sgCount > 0 ? `${sgCount} StorageGRID system${sgCount !== 1 ? 's' : ''} (${[...sgVersions].join(', ') || 'version unknown'})` : '';
+  const esClause = esCount > 0 ? `${esCount} E-Series/SANtricity system${esCount !== 1 ? 's' : ''} (${[...esVersions].join(', ') || 'version unknown'})` : '';
+  const fleetCtx = [ontapClause, sgClause, esClause].filter(Boolean).join('; ') || `${totalSystems} system${totalSystems !== 1 ? 's' : ''}`;
 
   // Store fleet profile for UI display
   sections._fleetProfile = fleetCtx;
@@ -22349,7 +22420,7 @@ function _renderAsBuiltSection(systems) {
                             <th style="${thStyle}">Domestic Parent</th><td style="${tdStyle}">${valOrDash(s.domesticParentName)}</td>
                         </tr>
                         <tr>
-                            <th style="${thStyle}">Customer Success Mgr</th><td style="${tdStyle}">${emailLink(s.csmName, s.csmEmail)}</td>
+                            <th style="${thStyle}">TAM</th><td style="${tdStyle}">${emailLink(s.csmName, s.csmEmail)}</td>
                             <th style="${thStyle}">NAGP</th><td style="${tdStyle}">${valOrDash(s.nagpName)}</td>
                         </tr>
                         <tr>
@@ -23800,7 +23871,7 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">10. Contracts &amp; Lifecycle</button>
       <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">11. Sustainability</button>
       <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Prioritised recommendations for capacity planning, performance optimisation, security hardening, and tech refresh across the fleet.">12. Recommendations</button>
-      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account-level intelligence — sales rep, CSM, SAM contacts, parent account hierarchy, reseller details, and engagement history.">13. Account Intelligence</button>
+      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account-level intelligence — sales rep, TAM, SAM contacts, parent account hierarchy, reseller details, and engagement history.">13. Account Intelligence</button>
       <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract compliance audit — validates service levels, NRD coverage, hardware vs. software contract alignment, and renewal gaps.">14. Contract Compliance</button>
       <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational health dashboard — uptime statistics, downtime events, AutoSupport health, reboot history, and system availability trends.">15. Operational Health</button>
       <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationships, replication status, HA pair configuration, and MetroCluster health per system.">🔄 16. DR &amp; Replication Health</button>
@@ -24233,7 +24304,7 @@ ${sepThin}\n`;
       body += `9. ACCOUNT & SUCCESS TEAM
 ${sepThin}
   Sales Representative: ${_v(sys.salesRepName)}${sys.salesRepEmail ? ' <' + sys.salesRepEmail + '>' : ''}
-  Customer Success Mgr: ${_v(sys.csmName)}${sys.csmEmail ? ' <' + sys.csmEmail + '>' : ''}
+  Technical Account Mgr: ${_v(sys.csmName)}${sys.csmEmail ? ' <' + sys.csmEmail + '>' : ''}
   Support Account Mgr:  ${_v(sys.samName)}${sys.samEmail ? ' <' + sys.samEmail + '>' : ''}
   Domestic Parent:      ${_v(sys.domesticParentName)}
   NAGP:                 ${_v(sys.nagpName)}

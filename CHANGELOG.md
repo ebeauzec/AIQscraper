@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.2.2] - 2026-08-17
+
+### Fixed
+- **Fabricated version numbers in deliverables.** StorageGRID and E-Series/SANtricity systems have their own version schemes (StorageGRID e.g. `12.0.0`, SANtricity e.g. `11.90R1`), but `getFleetEnrichmentSections()` folded every system's version into a single "running ONTAP `<versions>`" fleet-profile line and `_filterAndDeduplicateRisks()` / the CVE-recommendation cleanup labeled every recommended upgrade as "ONTAP" regardless of platform — producing fabricated, nonexistent version strings like "ONTAP 12.0.0" and "ONTAP 11.7.0" in customer-facing reports. Fleet Profile now reports ONTAP, StorageGRID, and E-Series systems as separate labeled clauses; upgrade recommendations now name the correct product.
+
+### Changed
+- **CSM → TAM terminology.** NetApp no longer uses the CSM (Customer Success Manager) role. Renamed the remaining visible "Customer Success Mgr" labels to "TAM" in the Account Intelligence document and Solution Proposal deliverable. (Internal identifiers like `renderCSMTab` are unchanged — nothing user-visible reads "CSM" anymore, and a codebase-wide identifier rename has no user-facing benefit.)
+
+---
+
 ## [5.2.1] - 2026-08-17
 
 ### Fixed
