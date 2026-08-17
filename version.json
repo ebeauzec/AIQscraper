@@ -1,8 +1,8 @@
 {
-  "version": "5.3.0",
+  "version": "5.3.1",
   "major": 5,
   "minor": 3,
-  "patch": 0,
+  "patch": 1,
   "date": "2026-08-17",
-  "notes": "New: QBR Pack now includes a 'Trend vs. Last Quarter (~90 days ago)' section built from the system_snapshots historical data added in 5.2.0 -- critical/high risk delta, open case delta, efficiency ratio delta, Feature Adoption Score delta, and any ONTAP version upgrades, all compared against each system's closest snapshot from ~90 days back. Contract renewal lines in the QBR now also show a risk-trend note (WORSENING/IMPROVING) so renewal conversations start with current context, not stale numbers. New /api/history/annotate endpoint lets the client append its own Feature Adoption Score computation onto today's snapshot -- deliberately not re-derived in Python, to avoid repeating an earlier bug where three different health-grade formulas gave the same account different letter grades. All of this gracefully says 'not enough history yet' rather than fabricating a comparison when a fleet hasn't synced for 90+ days."
+  "notes": "Fixed three data bugs found by a follow-up audit of the deliverable generators. (1) The QBR Pack's 'Sustainability Score' was an unscoped fleet-wide (all-tenant) figure shown right next to account-scoped TB totals with no label distinguishing the two -- same 'unlabeled fleet-wide value' bug class fixed earlier this version, just missed in this one spot. Now labeled 'Fleet Sustainability Score (all tenants)'. (2) The new QBR trend section's case-count delta read from a stale debug/rematch buffer field (sys.cases) instead of the canonical sys.supportCases field used everywhere else in the app, which could make the trend line disagree with the case count shown elsewhere in the same document. (3) compileExtendedDeliverables() checked sustLatest.overallScore, a field that never exists on that data source (the real field is scorePercentage) -- the SUSTAINABILITY section was silently never rendering in that deliverable even when valid data existed. Fixed the field name and added the same fleet-wide label."
 }

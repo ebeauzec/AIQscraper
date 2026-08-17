@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.3.0";
+const APP_VERSION = "5.3.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.3.1",
+    date: "17 August 2026",
+    title: "Fixed 3 Data Bugs From Follow-Up Deliverable Audit",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Unlabeled Fleet-Wide Sustainability Score + Field Name Bugs",
+        color: "#f87171",
+        items: [
+          "QBR Pack's 'Sustainability Score' was an unscoped fleet-wide (all-tenant) figure shown unlabeled next to account-scoped TB totals — now reads 'Fleet Sustainability Score (all tenants)'",
+          "QBR trend section's case-count delta read from a stale debug field instead of the canonical supportCases field, which could disagree with the case count shown elsewhere in the same document",
+          "compileExtendedDeliverables() checked a field name (overallScore) that never exists on that data source — the SUSTAINABILITY section was silently never rendering even when valid data existed. Fixed to the real field name (scorePercentage)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.3.0",
     date: "17 August 2026",
@@ -17459,7 +17476,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       }
     });
     const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '—';
-    sustainSection = `  Sustainability Score:   ${latest.scorePercentage}%
+    sustainSection = `  Fleet Sustainability Score (all tenants): ${latest.scorePercentage}%
   Week-over-Week Change:  ${wowChange}%
 
   Storage Efficiency:
@@ -17572,7 +17589,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       riskThenTotal += (then.riskCounts ? (then.riskCounts.critical || 0) + (then.riskCounts.high || 0) : 0);
       riskNowTotal  += (allRisks.filter(r => r.systemName === s.systemName && ['critical', 'high'].includes(r.severity)).length);
       caseThenTotal += then.caseCount || 0;
-      caseNowTotal  += (s.cases || []).length || (allSupportCases.filter(c => c.systemName === s.systemName).length);
+      caseNowTotal  += (s.supportCases || []).length || (allSupportCases.filter(c => c.systemName === s.systemName).length);
       const effThen = parseFloat((then.efficiencyRatio || '0').toString().split(':')[0]) || 0;
       const effNow  = parseFloat((s.efficiencyRatio || '0').toString().split(':')[0]) || 0;
       if (effThen > 0 && effNow > 0) { effThenSum += effThen; effNowSum += effNow; effN++; }
@@ -19477,7 +19494,7 @@ ${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
   }).join('\n') : ''}
-${sustLatest.overallScore ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score: ${sustLatest.overallScore}%` : ''}
+${sustLatest.scorePercentage ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score (all tenants): ${sustLatest.scorePercentage}%` : ''}
 
 Please advise on your preferred CAB window for remediation. Detailed runbooks are attached.
 
@@ -19508,7 +19525,7 @@ HEALTH METRICS:
 RISK POSTURE:
   Findings: ${totalDeduped} (${critCount}C / ${highCount}H / ${medCount}M)
   Security: ${secRisksCount}  |  Cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
-${sustLatest.overallScore ? `\nSUSTAINABILITY: ${sustLatest.overallScore}%` : ''}
+${sustLatest.scorePercentage ? `\nSUSTAINABILITY (fleet, all tenants): ${sustLatest.scorePercentage}%` : ''}
 
 PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}

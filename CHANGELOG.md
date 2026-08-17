@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.3.1] - 2026-08-17
+
+### Fixed
+- **Unlabeled fleet-wide sustainability score in the QBR Pack.** `latest.scorePercentage` (from `state.tamSustainability`, an unscoped all-tenant figure) was shown under a bare "Sustainability Score:" header directly next to account-scoped TB totals — for any account that isn't the whole tenant, the two numbers don't relate to each other but read as if they do. Same bug class fixed elsewhere this version; missed in this one spot. Now labeled "Fleet Sustainability Score (all tenants)".
+- **QBR trend section read the wrong case-count field.** `sys.cases` is a stale client-side debug/rematch buffer, not the canonical field — switched to `sys.supportCases`, matching every other case count in the app. Previously the trend line's "Open Support Cases" delta could silently disagree with the case count shown elsewhere in the same document.
+- **`compileExtendedDeliverables()` checked a field name that never exists.** `sustLatest.overallScore` isn't a real property on `state.tamSustainability` entries (the real field is `scorePercentage`) — the SUSTAINABILITY section silently never rendered in that deliverable even when valid fleet data existed. Fixed the field name and added the same fleet-wide label.
+
+---
+
 ## [5.3.0] - 2026-08-17
 
 ### Added
