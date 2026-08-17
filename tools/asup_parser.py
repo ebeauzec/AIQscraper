@@ -26,6 +26,23 @@ _SYSCONFIG_STEMS      = {"sysconfig-a", "sysconfig"}
 _SNAPMIRROR_STEMS     = {"snapmirror-get-status", "snapmirror_get_status", "snapmirror"}
 _AUTOSUPPORT_STEMS    = {"autosupport", "autosupport-history"}
 _HA_STEMS             = {"storage-failover", "ha-config"}
+# ── Added from NetAppModeler's parser.js (ported, not copied — same source
+# formats, translated to Python), see CHANGELOG "ASUP parser enhancements
+# ported from NetAppModeler" ──────────────────────────────────────────────
+_LICENSES_STEMS       = {"licenses", "license-show", "license_show", "cluster-licenses-v2-asup"}
+_AGGR_INFO_STEMS      = {"aggr-info", "aggr_info"}
+_SHELF_XML_STEMS      = {"storage-shelf", "storage_shelf"}
+_SHELF_TXT_STEMS      = {"storage-shelf", "storage_shelf"}  # same file can carry both the XML ROWs and the text blocks
+
+# Structured licenses.xml <package> name -> the canonical label ARIA/AIQ use
+# elsewhere for the same feature (matches Active IQ's licenses.package values
+# where they overlap, so the UI doesn't need two naming schemes).
+_LICENSE_PACKAGE_NAMES = {
+    "Base": "Cluster", "NFS": "NFS", "CIFS": "CIFS", "FCP": "FCP", "iSCSI": "iSCSI",
+    "SnapMirror": "SnapMirror", "FlexClone": "FlexClone", "FabricPool": "FabricPool",
+    "MetroCluster": "MetroCluster", "NVMe": "NVMe", "NVMe_tcp": "NVMe",
+}
+_KNOWN_SHELF_MODELS = {"DS2246", "DS4246", "DS4486", "DS224C", "DS460C", "DS212C", "DS212", "NS224", "NS212"}
 
 def _try_7z(data_bytes, extract_dir):
     # ── Attempt 1: py7zr (pure-Python, no external binary needed) ──────────
@@ -270,6 +287,146 @@ def _parse_ha(b):
     if re.search(r"partner.*(?:ready|connected)", text): return True
     return None
 
+def _parse_licenses_xml(b):
+    """Structured cluster_licenses_v2_asup export (licenses.xml). Ported from
+    NetAppModeler's parser.js: some real ASUP bundles carry NO plain-text
+    "license show" CLI output at all, only this XML — a bundle with only that
+    format previously left every license unreported. Returns a list of
+    {"package": <canonical name>, "status": "active"|"expired", "details": str}
+    or None if no recognized <asup:ROW> license entries are found.
+    """
+    text = _safe_text(b)
+    if not text:
+        return None
+    licenses = []
+    for row in re.finditer(r"<asup:ROW\b[^>]*>(.*?)</asup:ROW>", text, re.DOTALL | re.IGNORECASE):
+        row_text = row.group(1)
+        pkg_m = re.search(r"<package>([^<]+)</package>", row_text)
+        type_m = re.search(r"<type>([^<]+)</type>", row_text)
+        if not pkg_m or not type_m:
+            continue
+        canonical = _LICENSE_PACKAGE_NAMES.get(pkg_m.group(1).strip())
+        if not canonical:
+            continue  # not a package this system's UI tracks (e.g. SnapRestore)
+        status, details = "active", ""
+        if type_m.group(1).strip() == "demo":
+            # Demo/eval entitlements carry an "expires" date inside an escaped-JSON
+            # entitlement-info blob rather than a real permanent grant.
+            exp_m = re.search(r'&quot;expires&quot;\s*:\s*&quot;([^&]+)&quot;', row_text)
+            if exp_m:
+                try:
+                    exp_date = datetime.fromisoformat(exp_m.group(1).strip().replace("Z", "+00:00"))
+                    if exp_date.tzinfo is None:
+                        exp_date = exp_date.replace(tzinfo=timezone.utc)
+                    if exp_date < datetime.now(timezone.utc):
+                        status, details = "expired", f"Expired: {exp_m.group(1).strip()}"
+                except Exception:
+                    pass
+        existing = next((l for l in licenses if l["package"].upper() == canonical.upper()), None)
+        if existing:
+            existing["status"], existing["details"] = status, details
+        else:
+            licenses.append({"package": canonical, "status": status, "details": details})
+    return licenses or None
+
+def _parse_aggr_info_xml(b):
+    """Structured aggr-info.xml export. Ported from NetAppModeler's parser.js:
+    "aggr status -r" (the primary aggregate parse in _parse_aggr_status) only
+    ever carries RAID/disk membership, never capacity numbers, on some real
+    bundles — this file has authoritative <name>/<size>/<available_size>/
+    <usedsize> fields in bytes per <asup:ROW> (size == available_size +
+    usedsize, verified byte-for-byte against real data). Returns
+    {aggr_name: {"totalKiB", "usedKiB", "availKiB"}} or None.
+    """
+    text = _safe_text(b)
+    if not text:
+        return None
+    out = {}
+    for row in re.finditer(r"<asup:ROW\b[^>]*>(.*?)</asup:ROW>", text, re.DOTALL | re.IGNORECASE):
+        row_text = row.group(1)
+        name_m = re.search(r"<name>([^<]+)</name>", row_text)
+        size_m = re.search(r"<size>(\d+)</size>", row_text)
+        avail_m = re.search(r"<available_size>(\d+)</available_size>", row_text)
+        used_m = re.search(r"<usedsize>(\d+)</usedsize>", row_text)
+        if name_m and size_m and avail_m and used_m:
+            out[name_m.group(1).strip()] = {
+                "totalKiB": int(size_m.group(1)) / 1024,
+                "usedKiB": int(used_m.group(1)) / 1024,
+                "availKiB": int(avail_m.group(1)) / 1024,
+            }
+    return out or None
+
+def _parse_sas_host_adapters(b):
+    """Onboard SAS storage ports from a `sysconfig -a`-style dump. Ported from
+    NetAppModeler's parser.js: lines like "slot 0: SAS Host Adapter 0a
+    (PMC-Sierra PM8001 rev. C, SAS, <UP>)" are a different line shape than
+    Ethernet "port <name> <up|down> ..." lines, so a generic port parser never
+    catches them — confirmed against a real customer bundle where a platform's
+    static port-count catalog entry (2 ports) was wrong versus the real ASUP
+    (4 real SAS Host Adapters). Returns a list of {"name", "status"} ("up"/
+    "down") or None. This does not attempt per-node attribution (AIQscraper's
+    schema is cluster/system-level, not the multi-node text-block model
+    NetAppModeler's UI needs) -- every adapter found in the dump is returned.
+    """
+    text = _safe_text(b)
+    if not text:
+        return None
+    ports = []
+    seen = set()
+    for m in re.finditer(r"SAS Host Adapter\s+(\S+)\s*\([^)]*<(UP|DOWN)>[^)]*\)", text, re.IGNORECASE):
+        name = m.group(1).strip()
+        if name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        ports.append({"name": name, "status": m.group(2).strip().lower()})
+    return ports or None
+
+def _parse_shelves(shelf_xml_bytes, shelf_txt_bytes):
+    """Disk shelf inventory. Ported from NetAppModeler's parser.js Pass 6:
+    STORAGE-SHELF.txt's "Shelf name:/Shelf id:/Shelf S/N:" key-value format is,
+    on some real bundles, the ONLY shelf-listing format present (no SES
+    Configuration blocks). That format alone has no model field; storage-
+    shelf.xml's <product_id>/<serial_number> pairs (adjacent per its own field
+    order) cross-reference by serial number to recover the model. Both files
+    are commonly the same underlying ASUP file under different stems, so both
+    byte blobs are passed in and treated as one combined text. Returns a list
+    of {"id", "model", "serialNumber"} or None.
+    """
+    combined = (_safe_text(shelf_xml_bytes) or "") + "\n" + (_safe_text(shelf_txt_bytes) or "")
+    if not combined.strip():
+        return None
+
+    product_id_by_serial = {}
+    for m in re.finditer(r"<product_id>([^<]*)</product_id>\s*<serial_number>([^<]*)</serial_number>",
+                          combined, re.IGNORECASE):
+        pid, serial = m.group(1).strip(), m.group(2).strip()
+        if pid and serial:
+            product_id_by_serial[serial] = pid
+
+    def _resolve_model(product_id):
+        if not product_id:
+            return None
+        stripped = re.sub(r"-\d+$", "", product_id).upper()
+        if stripped in _KNOWN_SHELF_MODELS:
+            return stripped
+        if (stripped + "C") in _KNOWN_SHELF_MODELS:
+            return stripped + "C"
+        return stripped
+
+    shelves = []
+    seen_serials = set()
+    for m in re.finditer(
+        r"Shelf name:\s*(\S+)\s*[\r\n]+\s*Shelf id:\s*(\d+)[\s\S]{0,200}?Shelf S/N:\s*(\S+)",
+        combined, re.IGNORECASE,
+    ):
+        shelf_id, serial = m.group(2).strip(), m.group(3).strip()
+        if serial in seen_serials:
+            continue  # same physical shelf reported again via the other IOM module
+        seen_serials.add(serial)
+        model = _resolve_model(product_id_by_serial.get(serial))
+        shelves.append({"id": shelf_id, "model": model or "Unknown", "serialNumber": serial})
+    return shelves or None
+
 def _parse_storagegrid_bundle(extract_dir):
     r = {}
     for fp in Path(extract_dir).rglob("*.json"):
@@ -313,7 +470,8 @@ def _parse_eseries_bundle(extract_dir):
 
 def _build_system_dict(cluster, sysconfig, aggrs, df_info, snapmirrors,
                         asup_info, ha_config, customer_name, product_hint,
-                        sg_info, eseries_info, version_str):
+                        sg_info, eseries_info, version_str,
+                        licenses=None, aggr_info_capacity=None, shelves=None, sas_ports=None):
     now = datetime.now(timezone.utc).isoformat()
     if product_hint == "storagegrid" and sg_info:
         sys_name=sg_info.get("clusterName") or "StorageGRID"; serial=sg_info.get("serialNumber") or f"SG-{now[:10]}"
@@ -328,6 +486,16 @@ def _build_system_dict(cluster, sysconfig, aggrs, df_info, snapmirrors,
         sys_name=c.get("clusterName") or ""; serial=c.get("serialNumber") or f"ASUP-{now[:10]}"
         os_version=version_str or c.get("ontapVersion") or ""; platform=sc.get("platform") or c.get("platform") or ""
         node_count=c.get("nodeCount") or 1
+        # aggr-info.xml (structured, byte-accurate) overrides "aggr status -r" text-parsed
+        # capacity per aggregate by name — some real bundles carry only the RAID/disk-
+        # membership text dump (no capacity numbers at all), which aggr-info.xml alone has.
+        if aggr_info_capacity and aggrs:
+            for a in aggrs:
+                override = aggr_info_capacity.get(a.get("name"))
+                if override:
+                    a.update(override)
+        elif aggr_info_capacity and not aggrs:
+            aggrs = [{"name": name, **caps} for name, caps in aggr_info_capacity.items()]
         raw_kib=sum(a.get("totalKiB",0) for a in (aggrs or [])); used_kib=sum(a.get("usedKiB",0) for a in (aggrs or []))
         if not raw_kib and df_info:
             used_kib=df_info.get("totalUsedKiB",0); avail_kib=df_info.get("totalAvailKiB",0); raw_kib=used_kib+avail_kib
@@ -352,16 +520,23 @@ def _build_system_dict(cluster, sysconfig, aggrs, df_info, snapmirrors,
         "contractActive":None,"contractEndDate":None,"contractHWEndDate":None,"contractSWEndDate":None,
         "warrantyEndDate":None,"serviceLevel":None,"hwEndOfAvailability":None,"hwEndOfSupport":None,"eosEarliest":None,
         "swRecMin":None,"swRecLatest":None,"swEndOfFullSupport":None,"swEndOfLimitedSupport":None,"swEndOfSelfService":None,
-        "risks":[],"cases":[],"securityBulletins":[],"lifecycleEvents":[],"pvrs":[],"licenses":[],
+        "risks":[],"cases":[],"securityBulletins":[],"lifecycleEvents":[],"pvrs":[],"licenses":licenses or [],
         "efficiencyRatio":None,"dataReductionRatioSys":None,"savedKiB":None,"dedupSavedKiB":None,"compactionSavedKiB":None,
-        "shelves":[],"switches":[],"systemFirmware":[],"portInterface":{},"networkPorts":{},"vcenters":[],
+        "shelves":shelves or [],"switches":[],"systemFirmware":[],"portInterface":{},"networkPorts":{},"vcenters":[],
+        # SAS Host Adapter ports parsed directly from sysconfig -a text (see
+        # _parse_sas_host_adapters) -- deliberately a separate honest field, not
+        # shoehorned into "networkPorts" (that field's real-API shape is Ethernet-
+        # only: CLUSTER/DATA/etc. roles) or "portInterface" (ONTAP's onboard-port/
+        # adapter-card schema, which this text format doesn't map onto cleanly).
+        "storagePorts":sas_ports or [],
         "sustainabilityScores":[],"monthlyUptimeStats":[],"monthlyCarbonStats":[],"monthlyResolvedRisksStats":[],
         "monthlyArpStats":[],"monthlyAutoResolvedCases":[],"downtimeEvents":{},"sazTotalRawKiB":0,"sazUsedKiB":0,"sazAvailableKiB":0,
         "_source":"asup_import","_importedAt":now,"_asupFilename":"",
     }
 
 def _build_coverage(cluster, sysconfig, aggrs, df_info, snapmirrors,
-                    asup_info, ha_config, sg_info, eseries_info, version_str, manifest_info, warnings):
+                    asup_info, ha_config, sg_info, eseries_info, version_str, manifest_info, warnings,
+                    licenses=None, shelves=None, sas_ports=None):
     c=cluster or {}; sc=sysconfig or {}
     sections=[
         {"label":"System Identity (name, serial)","found":bool(c.get("clusterName") or (sg_info or {}).get("clusterName") or (eseries_info or {}).get("clusterName"))},
@@ -371,6 +546,9 @@ def _build_coverage(cluster, sysconfig, aggrs, df_info, snapmirrors,
         {"label":"HA Configuration","found":ha_config is not None,"note":"N/A for StorageGRID/E-Series" if (sg_info or eseries_info) else ""},
         {"label":"SnapMirror Relationships","found":bool(snapmirrors)},
         {"label":"AutoSupport Config","found":bool(asup_info)},
+        {"label":"Software Licenses","found":bool(licenses),"note":"N/A for StorageGRID/E-Series" if (sg_info or eseries_info) else ""},
+        {"label":"Disk Shelf Inventory","found":bool(shelves),"note":"N/A for StorageGRID/E-Series" if (sg_info or eseries_info) else ""},
+        {"label":"SAS Storage Ports","found":bool(sas_ports),"note":"N/A for StorageGRID/E-Series" if (sg_info or eseries_info) else ""},
     ]
     unavailable=[
         {"label":"Support Cases","reason":"Requires Active IQ API"},
@@ -418,8 +596,26 @@ def parse_bundle(filename, data_bytes, customer_name=""):
             df_info     = _tp(_DF_STEMS,            _parse_df,             "DF")
             snapmirrors = _tp(_SNAPMIRROR_STEMS,    _parse_snapmirror,     "SNAPMIRROR")
             asup_info   = _tp(_AUTOSUPPORT_STEMS,   _parse_autosupport_xml,"AUTOSUPPORT")
+            licenses    = _tp(_LICENSES_STEMS,      _parse_licenses_xml,   "LICENSES")
+            aggr_info_capacity = _tp(_AGGR_INFO_STEMS, _parse_aggr_info_xml, "AGGR-INFO")
             ha_raw=_find_file(index,_HA_STEMS); ha_config=_parse_ha(ha_raw) if ha_raw else None
             ver_raw=_find_file(index,_VERSION_STEMS); version_str=_parse_version_txt(ver_raw) if ver_raw else None
+            # Same file commonly carries both the shelf XML <product_id>/<serial_number>
+            # rows and the "Shelf name:/id:/S/N:" text blocks under one stem.
+            shelf_raw = _find_file(index, _SHELF_XML_STEMS)
+            try:
+                shelves = _parse_shelves(shelf_raw, shelf_raw)
+                if shelf_raw is not None and shelves is None:
+                    warnings.append("STORAGE-SHELF: found but unparseable")
+            except Exception as e:
+                warnings.append(f"STORAGE-SHELF: {e}"); shelves = None
+            # SAS Host Adapter ports need the raw sysconfig text (the already-parsed
+            # `sysconfig` dict above only keeps platform/disk-count, not port lines).
+            sysconfig_raw = _find_file(index, _SYSCONFIG_STEMS)
+            try:
+                sas_ports = _parse_sas_host_adapters(sysconfig_raw) if sysconfig_raw else None
+            except Exception as e:
+                warnings.append(f"SAS-ADAPTERS: {e}"); sas_ports = None
             if not cluster and not sysconfig and not aggrs:
                 sg_test=_parse_storagegrid_bundle(extract_dir)
                 if sg_test: sg_info=sg_test; product_hint="storagegrid"
@@ -428,11 +624,15 @@ def parse_bundle(filename, data_bytes, customer_name=""):
                     if es_test: eseries_info=es_test; product_hint="eseries"
                     else: warnings.append("No recognisable ONTAP/StorageGRID/E-Series data. Bundle may be incomplete.")
         system=_build_system_dict(cluster,sysconfig,aggrs,df_info,snapmirrors,asup_info,ha_config,
-                                   customer_name,product_hint,sg_info,eseries_info,version_str)
+                                   customer_name,product_hint,sg_info,eseries_info,version_str,
+                                   licenses=locals().get("licenses"), aggr_info_capacity=locals().get("aggr_info_capacity"),
+                                   shelves=locals().get("shelves"), sas_ports=locals().get("sas_ports"))
         system["_asupFilename"]=filename
         if not customer_name: system["customerName"]=system.get("clusterName") or Path(filename).stem
         coverage=_build_coverage(cluster,sysconfig,aggrs,df_info,snapmirrors,asup_info,ha_config,
-                                  sg_info,eseries_info,version_str,manifest_info,warnings)
+                                  sg_info,eseries_info,version_str,manifest_info,warnings,
+                                  licenses=locals().get("licenses"), shelves=locals().get("shelves"),
+                                  sas_ports=locals().get("sas_ports"))
         return {"ok":True,"system":system,"coverage":coverage,"warnings":warnings,"error":None}
     finally:
         shutil.rmtree(extract_dir, ignore_errors=True)

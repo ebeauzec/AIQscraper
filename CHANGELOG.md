@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.1.0] - 2026-08-17
+
+### Added — Practices adopted from NetAppModeler (sibling project) after a comparative review
+- **ASUP parser strengthened** (`tools/asup_parser.py`) — added four parsing enhancements confirmed present in real customer ASUP bundles per the sibling NetAppModeler project's own changelog, translated from its JS parser to Python:
+  - `licenses.xml` — structured license entitlement export (some real bundles carry no plain-text `license show` output at all), including demo-license expiry detection.
+  - `aggr-info.xml` — byte-accurate aggregate capacity (`size`/`available_size`/`usedsize`), overriding `aggr status -r` text dumps that on some real bundles carry zero capacity numbers (RAID/disk membership only).
+  - SAS Host Adapter port lines (`slot 0: SAS Host Adapter 0a (..., <UP>)`) from `sysconfig -a` dumps — a different line shape than Ethernet port lines, previously unparsed entirely.
+  - `storage-shelf.xml`/`STORAGE-SHELF.txt` shelf inventory via `<product_id>`/`<serial_number>` cross-reference against the "Shelf name:/id:/S/N:" text format.
+- **First automated test suite** (`tests/`, stdlib `unittest` only, no new dependencies) — 36 tests covering the new ASUP parser functions and the 5.0.0 multi-account merge/config logic, including two tests that pin the exact real bugs (`riskInstances` merge crash, orphaned-account cache leak) found during that feature's live testing. Run via `python tests/run_tests.py`.
+- **`PLATFORM_COVERAGE.md`** — new traceability document consolidating every confirmed-vs-unconfirmed hardware/switch/MetroCluster data point established this session, matching NetAppModeler's own sourcing-discipline practice.
+- **MTU/jumbo-frame check** — data-role network ports below the 9000-byte jumbo-frame threshold now show an informational flag in the As-Built cabling table, using already-harvested `maxTransmissionUnitBytes`. Deliberately non-scoring (doesn't touch the Feature Adoption Score) to avoid destabilizing existing deliverables.
+
+### Deliberately not adopted (reviewed, scoped out)
+NetAppModeler's interactive sizing/greenfield capacity modeler and single-file offline distribution model don't fit this tool's live-fleet-reporting architecture — see the in-conversation comparative analysis for the full reasoning.
+
+---
+
 ## [5.0.0] - 2026-08-17
 
 ### Added — Major: Multi-Customer / Multi-Account Support

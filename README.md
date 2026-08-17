@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.0.0-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.1.0-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -814,6 +814,9 @@ bash build/build_mac.sh
 
 # Bump version (from any directory)
 powershell build\bump_version.ps1 patch "Fix description"
+
+# Run the regression test suite (stdlib unittest, no dependencies)
+python tests/run_tests.py
 ```
 
 ---

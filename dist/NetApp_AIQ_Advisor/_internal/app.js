@@ -18,9 +18,43 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.0";
+const APP_VERSION = "5.1.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.1.0",
+    date: "17 August 2026",
+    title: "Adopted 4 Practices from NetAppModeler + First Test Suite",
+    sections: [
+      {
+        icon: "📄",
+        label: "ASUP Parser Strengthened",
+        color: "#2dd4bf",
+        items: [
+          "tools/asup_parser.py now parses licenses.xml (structured license entitlements, including demo/expired detection), aggr-info.xml (byte-accurate aggregate capacity, overriding text dumps that carry no capacity numbers at all), SAS Host Adapter port lines from sysconfig dumps, and storage-shelf.xml/STORAGE-SHELF.txt shelf inventory",
+          "All four are real formats confirmed present in real customer ASUP bundles (via the sibling NetAppModeler project's own changelog), translated to Python — not guessed at"
+        ]
+      },
+      {
+        icon: "✅",
+        label: "New: Automated Test Suite",
+        color: "#2dd4bf",
+        items: [
+          "First automated regression tests in this codebase's history — 36 tests (stdlib unittest only) covering the new ASUP parser functions and the multi-account merge/config logic from 5.0.0",
+          "Two tests specifically pin the exact real bugs found during 5.0.0's live testing, so they can't silently regress"
+        ]
+      },
+      {
+        icon: "📋",
+        label: "New: Platform Data Traceability Doc + MTU Check",
+        color: "#34d399",
+        items: [
+          "New PLATFORM_COVERAGE.md tracks every confirmed-vs-unconfirmed hardware/switch/MetroCluster data point established this session",
+          "Added a non-scoring MTU/jumbo-frame flag on data-role network ports, using already-harvested telemetry — informational only, doesn't affect the Feature Adoption Score"
+        ]
+      }
+    ]
+  },
   {
     version: "5.0.0",
     date: "17 August 2026",
@@ -27669,7 +27703,17 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     const d = port.details || {};
     const detailParts = [];
     if (d.speed) detailParts.push(d.speed);
-    if (d.mtu) detailParts.push('MTU: ' + d.mtu);
+    if (d.mtu) {
+      // Jumbo-frame check (ported concept from NetAppModeler's Rule 22 "Front-end
+      // port MTU sizing") — informational only, does not affect any scored metric.
+      // Cluster/HA/intercluster ports legitimately run standard 1500 MTU on some
+      // platforms, so this only flags DATA-role ports below the 9000 jumbo-frame
+      // threshold, using real harvested maxTransmissionUnitBytes.
+      const mtuFlag = (port.type === 'data' && d.mtu < 9000)
+        ? ` <span style="color:#f59e0b;" title="Data port below the 9000-byte jumbo-frame threshold — verify this is intentional for this network segment, not a misconfiguration.">⚠ non-jumbo</span>`
+        : '';
+      detailParts.push('MTU: ' + d.mtu + mtuFlag);
+    }
     if (d.mac) detailParts.push('MAC: ' + d.mac);
     const configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${detailParts.length ? detailParts.join(' | ') : '<span style="color:var(--text-muted);font-style:italic;">Not reported by Active IQ</span>'}</span>`;
 
