@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.2.3";
+const APP_VERSION = "5.3.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.3.0",
+    date: "17 August 2026",
+    title: "New: QBR Trend Section (vs. Last Quarter)",
+    sections: [
+      {
+        icon: "📊",
+        label: "New: QBR Pack Trend vs. Last Quarter",
+        color: "#2dd4bf",
+        items: [
+          "The QBR Pack now includes a 'Trend vs. Last Quarter (~90 days ago)' section: critical/high risk delta, open case delta, efficiency ratio delta, Feature Adoption Score delta, and any ONTAP upgrades — all built from the historical snapshot data added in 5.2.0",
+          "Contract renewal lines now show a risk-trend note (WORSENING/IMPROVING) so renewal conversations start with current context",
+          "Says 'not enough history yet' rather than faking a comparison when a fleet hasn't synced for 90+ days — this builds up automatically over time"
+        ]
+      }
+    ]
+  },
   {
     version: "5.2.3",
     date: "17 August 2026",
@@ -11064,6 +11081,71 @@ function renderSAMTab() {
 
 const _csmHistoryCache = {}; // serialNumber -> {history, fetchedAt}
 
+// Deliverable generation (QBR Pack, renewal-risk trending, etc.) runs
+// synchronously and can't await a fetch per system. This fires off history
+// fetches for every system in scope ahead of time and populates
+// _csmHistoryCache, so by the time the user opens/regenerates a deliverable
+// the trend data is already there. Safe to call often — already-cached,
+// still-fresh entries are skipped, and requests run with limited
+// concurrency so a 300-system fleet doesn't fire 300 simultaneous fetches.
+let _historyPrefetchInFlight = false;
+async function prefetchSystemHistory(systems) {
+  if (_historyPrefetchInFlight || !systems || !systems.length) return;
+  const stale = systems.filter(s => {
+    const c = s.serialNumber && _csmHistoryCache[s.serialNumber];
+    return s.serialNumber && (!c || (Date.now() - c.fetchedAt) >= 300000);
+  });
+  if (!stale.length) return;
+  _historyPrefetchInFlight = true;
+  try {
+    const CONCURRENCY = 6;
+    let idx = 0;
+    async function worker() {
+      while (idx < stale.length) {
+        const sys = stale[idx++];
+        try {
+          const resp = await fetch(`/api/history/${encodeURIComponent(sys.serialNumber)}?days=400`, { cache: "no-store" });
+          const data = await resp.json();
+          _csmHistoryCache[sys.serialNumber] = { history: (data && data.ok) ? (data.history || []) : [], fetchedAt: Date.now() };
+        } catch (e) {
+          _csmHistoryCache[sys.serialNumber] = { history: [], fetchedAt: Date.now() };
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, stale.length) }, worker));
+  } finally {
+    _historyPrefetchInFlight = false;
+  }
+}
+
+// Annotates today's already-captured snapshot rows with each system's
+// current Feature Adoption Score, computed via the same canonical
+// computeFeatureAdoptionScore() used everywhere else in the UI — never a
+// separate formula, to avoid a repeat of the three-different-health-grade
+// bug fixed earlier this project. Fire-and-forget; failures are silent
+// since this is a best-effort trend-data annotation, not a user action.
+let _adoptionAnnotateInFlight = false;
+async function annotateAdoptionScores(systems) {
+  if (_adoptionAnnotateInFlight || !systems || !systems.length || typeof computeFeatureAdoptionScore !== 'function') return;
+  _adoptionAnnotateInFlight = true;
+  try {
+    const entries = systems.filter(s => s.serialNumber).map(s => {
+      const score = computeFeatureAdoptionScore(s);
+      return (score && score.total > 0) ? { serialNumber: s.serialNumber, adoptionScorePct: score.pct } : null;
+    }).filter(Boolean);
+    if (!entries.length) return;
+    await fetch('/api/history/annotate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries })
+    });
+  } catch (e) {
+    // best-effort — trend data will just be missing today's adoption score
+  } finally {
+    _adoptionAnnotateInFlight = false;
+  }
+}
+
 function _findNearestSnapshot(history, daysAgo) {
   // history is ascending by date. Find the entry whose date is closest to
   // "today - daysAgo", preferring the closest match on-or-before that target
@@ -17394,7 +17476,22 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const contractLines = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-    return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  ${e.daysRemaining != null ? `(${e.daysRemaining} days)` : ''}`;
+    // Renewal-risk trending: a system up for renewal whose risk posture has
+    // been worsening is a weaker renewal conversation than one that's stable
+    // or improving — surface that context inline rather than leaving the TAM
+    // to cross-reference it manually.
+    let trendNote = '';
+    const hist = sys && sys.serialNumber && _csmHistoryCache[sys.serialNumber] && _csmHistoryCache[sys.serialNumber].history;
+    if (hist && hist.length > 0) {
+      const then = _findNearestSnapshot(hist, 90);
+      if (then) {
+        const riskThen = (then.riskCounts ? (then.riskCounts.critical || 0) + (then.riskCounts.high || 0) : 0);
+        const riskNow = (allRisks.filter(r => r.systemName === e.systemName && ['critical', 'high'].includes(r.severity)).length);
+        if (riskNow > riskThen) trendNote = `  [RISK TREND: WORSENING, ${riskThen}→${riskNow} crit/high over ~90d — address before renewal conversation]`;
+        else if (riskNow < riskThen) trendNote = `  [RISK TREND: IMPROVING, ${riskThen}→${riskNow} crit/high over ~90d]`;
+      }
+    }
+    return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  ${e.daysRemaining != null ? `(${e.daysRemaining} days)` : ''}${trendNote}`;
   }).join('\n') ||  '  No expiring contracts within scope.';
 
   // ── Recommendations (fleet-wide; scoped count provided as context) ──
@@ -17447,6 +17544,70 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     ? priorActions.map((a, i) => `  ${i+1}. ${a.action} [Status: ${a.status}]`).join('\n')
     : '  No prior quarter actions recorded. Actions from this QBR\n  will be tracked for the next review.';
 
+  // ── Trend vs. Last Quarter (~90 days ago) ───────────────────────────────
+  // Built from the daily per-system snapshots this tool has been capturing
+  // since v5.2.0 (system_snapshots table, via prefetchSystemHistory()).
+  // A fresh install or a fleet syncing for the first time won't have
+  // 90-day-old data yet — that's stated plainly rather than faked.
+  const trendSection = (() => {
+    const withHistory = targetSystems.filter(s => {
+      const c = s.serialNumber && _csmHistoryCache[s.serialNumber];
+      return c && c.history && c.history.length > 0;
+    });
+    if (withHistory.length === 0) {
+      return '  No historical snapshot data available yet for this account. Trend data\n' +
+             '  builds up automatically as the fleet syncs (one snapshot per system per\n' +
+             '  day) — this section will populate once ~90 days of sync history exists.\n';
+    }
+    let riskThenTotal = 0, riskNowTotal = 0, caseThenTotal = 0, caseNowTotal = 0;
+    let effThenSum = 0, effNowSum = 0, effN = 0;
+    let adoptThenSum = 0, adoptNowSum = 0, adoptN = 0;
+    let matched = 0;
+    const versionChanges = [];
+    withHistory.forEach(s => {
+      const hist = _csmHistoryCache[s.serialNumber].history;
+      const then = _findNearestSnapshot(hist, 90);
+      if (!then) return;
+      matched++;
+      riskThenTotal += (then.riskCounts ? (then.riskCounts.critical || 0) + (then.riskCounts.high || 0) : 0);
+      riskNowTotal  += (allRisks.filter(r => r.systemName === s.systemName && ['critical', 'high'].includes(r.severity)).length);
+      caseThenTotal += then.caseCount || 0;
+      caseNowTotal  += (s.cases || []).length || (allSupportCases.filter(c => c.systemName === s.systemName).length);
+      const effThen = parseFloat((then.efficiencyRatio || '0').toString().split(':')[0]) || 0;
+      const effNow  = parseFloat((s.efficiencyRatio || '0').toString().split(':')[0]) || 0;
+      if (effThen > 0 && effNow > 0) { effThenSum += effThen; effNowSum += effNow; effN++; }
+      if (then.adoptionScorePct != null && typeof computeFeatureAdoptionScore === 'function') {
+        const nowScore = computeFeatureAdoptionScore(s);
+        if (nowScore && nowScore.total > 0) { adoptThenSum += then.adoptionScorePct; adoptNowSum += nowScore.pct; adoptN++; }
+      }
+      if (then.osVersion && s.osVersion && then.osVersion !== s.osVersion) {
+        versionChanges.push(`${s.systemName}: ${then.osVersion} → ${s.osVersion}`);
+      }
+    });
+    if (matched === 0) {
+      return '  Historical data exists but none of it reaches back ~90 days yet for this\n' +
+             '  account. Check back once the fleet has been syncing for a full quarter.\n';
+    }
+    const riskDelta = riskNowTotal - riskThenTotal;
+    const caseDelta = caseNowTotal - caseThenTotal;
+    const effDelta = effN > 0 ? (effNowSum / effN) - (effThenSum / effN) : null;
+    const fmt = (n, invert) => {
+      if (n === 0) return 'no change';
+      const good = invert ? n < 0 : n > 0;
+      return `${n > 0 ? '+' : ''}${n} (${good ? 'improved' : 'worsened'})`;
+    };
+    let out = `  Comparing ${matched}/${total} system(s) against their nearest snapshot from ~90 days ago:\n`;
+    out += `    Critical/High Risks:  ${riskThenTotal} → ${riskNowTotal}  [${fmt(riskDelta, true)}]\n`;
+    out += `    Open Support Cases:   ${caseThenTotal} → ${caseNowTotal}  [${fmt(caseDelta, true)}]\n`;
+    if (effDelta !== null) out += `    Avg Efficiency Ratio: ${(effThenSum / effN).toFixed(2)}:1 → ${(effNowSum / effN).toFixed(2)}:1  [${fmt(Math.round(effDelta * 100) / 100, false)}]\n`;
+    if (adoptN > 0) {
+      const adoptThenAvg = adoptThenSum / adoptN, adoptNowAvg = adoptNowSum / adoptN;
+      out += `    Avg Feature Adoption: ${adoptThenAvg.toFixed(0)}% → ${adoptNowAvg.toFixed(0)}%  [${fmt(Math.round(adoptNowAvg - adoptThenAvg), false)}]\n`;
+    }
+    if (versionChanges.length > 0) out += `    ONTAP Upgrades Since Last Quarter:\n${versionChanges.slice(0, 10).map(v => `      • ${v}`).join('\n')}${versionChanges.length > 10 ? `\n      +${versionChanges.length - 10} more` : ''}\n`;
+    return out;
+  })();
+
   return `================================================================================
 QUARTERLY BUSINESS REVIEW (QBR) — ACCOUNT INTELLIGENCE PACK
 ================================================================================
@@ -17478,6 +17639,10 @@ Prepared: ${salesRep}
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
 
+--------------------------------------------------------------------------------
+2b. TREND VS. LAST QUARTER (~90 DAYS AGO)
+--------------------------------------------------------------------------------
+${trendSection}
 --------------------------------------------------------------------------------
 3. RISK POSTURE [MEDDPICC: I]
 --------------------------------------------------------------------------------
@@ -22802,6 +22967,14 @@ function generateActionPlan() {
     `;
     return html;
   }
+
+  // Fire off historical trend snapshot fetches for the systems in scope —
+  // deliverable text generation below is synchronous and can't await this,
+  // so the first render of a fleet's trend sections may say "not enough
+  // history yet fetched" while this runs in the background; regenerating
+  // the plan after it completes (cached, so near-instant) picks it up.
+  prefetchSystemHistory(targetSystems);
+  annotateAdoptionScores(targetSystems);
 
   // 8. Compile Executable Deliverables (Draft Email, Upgrade Proposal, and Internal Dispatch Ticket)
   const docs = compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle);

@@ -1,8 +1,8 @@
 {
-  "version": "5.2.3",
+  "version": "5.3.0",
   "major": 5,
-  "minor": 2,
-  "patch": 3,
+  "minor": 3,
+  "patch": 0,
   "date": "2026-08-17",
-  "notes": "Added explanatory tooltips to all 24 fleet-wide adoption checklist items on the Value & ROI tab (e.g. what 'Contract Co-Term Alignment' means, why AutoSupport currency matters, what Adaptive QoS is). Hover any checklist item name to see a plain-English explanation of what it measures and why it matters."
+  "notes": "New: QBR Pack now includes a 'Trend vs. Last Quarter (~90 days ago)' section built from the system_snapshots historical data added in 5.2.0 -- critical/high risk delta, open case delta, efficiency ratio delta, Feature Adoption Score delta, and any ONTAP version upgrades, all compared against each system's closest snapshot from ~90 days back. Contract renewal lines in the QBR now also show a risk-trend note (WORSENING/IMPROVING) so renewal conversations start with current context, not stale numbers. New /api/history/annotate endpoint lets the client append its own Feature Adoption Score computation onto today's snapshot -- deliberately not re-derived in Python, to avoid repeating an earlier bug where three different health-grade formulas gave the same account different letter grades. All of this gracefully says 'not enough history yet' rather than fabricating a comparison when a fleet hasn't synced for 90+ days."
 }

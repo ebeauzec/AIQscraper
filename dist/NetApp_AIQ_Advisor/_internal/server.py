@@ -7183,6 +7183,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_import()
         elif self.path == '/api/asup/associate':
             self.handle_asup_associate()
+        elif self.path == '/api/history/annotate':
+            self.handle_history_annotate()
         elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
@@ -7361,6 +7363,59 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"  [HISTORY] Error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e), "history": []})
+
+    def handle_history_annotate(self):
+        """POST /api/history/annotate
+        Body: { entries: [{ serialNumber, adoptionScorePct }, ...] }
+
+        Adoption score is a derived value computed by a checklist formula
+        that lives client-side (computeFeatureAdoptionScore() in app.js) --
+        deliberately NOT duplicated in Python, since this codebase already
+        had a real bug once (three different health-grade formulas giving
+        the same account different letter grades depending on which
+        deliverable was opened). Rather than re-derive the score here from
+        raw fields and risk a second divergent formula, the client computes
+        it once and annotates it onto TODAY's already-captured snapshot row.
+        Only updates a row that already exists (created by the day's
+        harvest) -- never creates a new snapshot from this endpoint, so a
+        client bug here can't fabricate history that didn't happen.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            entries = body.get("entries") or []
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            db = _init_db()
+            updated = 0
+            try:
+                for e in entries:
+                    serial = (e.get("serialNumber") or "").strip()
+                    pct = e.get("adoptionScorePct")
+                    if not serial or pct is None:
+                        continue
+                    row = db.execute(
+                        "SELECT snapshot_json FROM system_snapshots WHERE serial_number = ? AND snapshot_date = ?",
+                        (serial, today)
+                    ).fetchone()
+                    if not row:
+                        continue
+                    try:
+                        snap = json.loads(row[0])
+                    except Exception:
+                        continue
+                    snap["adoptionScorePct"] = pct
+                    db.execute(
+                        "UPDATE system_snapshots SET snapshot_json = ? WHERE serial_number = ? AND snapshot_date = ?",
+                        (json.dumps(snap), serial, today)
+                    )
+                    updated += 1
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "updated": updated})
+        except Exception as e:
+            print(f"  [HISTORY] Annotate error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
 
     def handle_asup_list(self):
         """GET /api/asup/imports — return list of all imported ASUP systems."""

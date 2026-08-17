@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.3.0] - 2026-08-17
+
+### Added
+- **QBR Pack "Trend vs. Last Quarter (~90 days ago)" section** — built from the `system_snapshots` historical data added in 5.2.0: critical/high risk delta, open support case delta, efficiency ratio delta, Feature Adoption Score delta, and any ONTAP version upgrades since the closest available snapshot from ~90 days back.
+- **Renewal-risk trend notes** in the QBR's contract renewal lines — each expiring contract now shows `[RISK TREND: WORSENING/IMPROVING, X→Y crit/high over ~90d]` when history is available, so renewal conversations start with current context instead of a stale snapshot.
+- **New `POST /api/history/annotate`** endpoint — lets the client append its own `computeFeatureAdoptionScore()` result onto today's already-captured snapshot row. Deliberately not re-derived in Python: this codebase already fixed one bug where three different health-grade formulas gave the same account different letter grades depending on which deliverable was opened, and duplicating the adoption-score formula server-side risked repeating that.
+- `prefetchSystemHistory()` / `annotateAdoptionScores()` fire automatically whenever the Action Planner is opened, populating the trend cache in the background with limited concurrency (6 concurrent requests) so a large fleet doesn't fire hundreds of simultaneous fetches.
+- All of the above says "not enough history yet" rather than fabricating a comparison when a fleet hasn't synced for 90+ days — this builds up automatically as sync history accumulates.
+
+---
+
 ## [5.2.3] - 2026-08-17
 
 ### Added
