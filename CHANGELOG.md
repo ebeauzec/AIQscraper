@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.2.3] - 2026-08-17
+
+### Added
+- **Tooltips on all 24 fleet-wide adoption checklist items** (Value & ROI tab) — hovering any item name (e.g. "Contract Co-Term Alignment", "Adaptive QoS Coverage", "MTTR Posture") now shows a plain-English explanation of what it measures and why it matters.
+
+---
+
 ## [5.2.2] - 2026-08-17
 
 ### Fixed
