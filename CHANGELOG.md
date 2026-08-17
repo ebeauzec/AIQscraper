@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.7.3] - 2026-08-12
+
+### Changed
+- **Renamed "Firmware Currency" → "OS Currency"** wherever it actually refers to ONTAP/SANtricity/StorageGRID OS version currency, across all deliverable generators (Executive Risk Assessment, TAM Success Plan, QBR Pack, MSP Service Report, Handover Brief, Security Brief, Sustainability Report, Sales Proposals) — the label was easily confused with disk/shelf/motherboard/SP-BMC firmware currency, which is tracked separately as "HW Firmware Currency" and in Action Planner Section 18. Those hardware-firmware labels are unchanged, since they really are about firmware.
+
+---
+
 ## [4.7.2] - 2026-08-10
 
 ### Added

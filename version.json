@@ -1,8 +1,8 @@
 {
-  "version": "4.7.2",
+  "version": "4.7.3",
   "major": 4,
   "minor": 7,
-  "patch": 2,
-  "date": "2026-08-10",
-  "notes": "Incorporated a follow-up verification pass on the platform slot/MetroCluster data. FAS8300 and FAS8700 get their own confirmed 7-PCIe-slot-per-controller backplate layout (was previously guessed into the 5-slot A400 bucket). C400 confirmed to genuinely match A400's 5-slot layout. FAS9000 confirmed at 10 slots/controller matching A900, sourced from a NetApp datasheet PDF rather than a live key-specs page since that platform predates the current doc format -- labeled as a lower-confidence confirmation, not a guess. MetroCluster ISL max-distance figures refined: IP (700km) and the blanket FC figure (300km) are now marked confirmed by primary sources (NetApp's own ISL page + TR-4705); the FC-Brocade-vs-FC-Other 200km split could not be found in any current NetApp primary source and is now explicitly flagged unconfirmed rather than silently stated as fact. Added a real RCF (Reference Configuration File) compliance signal to harvested switches, sourced from Active IQ's own rcfVersion field (already harvested, previously only used indirectly to compute a firmware target) -- Switch Validation now shows an explicit RCF Compliant / RCF Mismatch badge distinct from firmware currency. Clarified the per-port telemetry empty-state message for E-Series/SANtricity systems: Active IQ's networkPorts field only exists on the ONTAPSystem GraphQL type, so E-Series systems genuinely never have per-port Ethernet data -- confirmed live and reworded from a generic 'not reported' to an explicit explanation of why."
+  "patch": 3,
+  "date": "2026-08-12",
+  "notes": "Renamed the ambiguous 'Firmware Currency' label to 'OS Currency' everywhere it actually refers to ONTAP/SANtricity/StorageGRID OS version currency, across all deliverable generators (Executive Risk Assessment, TAM Success Plan, QBR Pack, MSP Service Report, Handover Brief, Security Brief, Sustainability Report, Sales Proposals). The genuine hardware firmware metrics -- 'HW Firmware Currency' (SP/BMC/motherboard/DQP/drive composite) and the dedicated Action Planner Section 18 'Firmware Currency' (system/disk/shelf/motherboard firmware) -- are unchanged, since those really are about firmware. Confirmed live: the Executive Risk Assessment's OPERATIONAL HEALTH block now reads 'OS Currency' distinctly from the 'HARDWARE FIRMWARE CURRENCY (Detailed)' section beneath it."
 }
