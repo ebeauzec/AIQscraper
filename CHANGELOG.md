@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.2.1] - 2026-08-17
+
+### Fixed
+- **Historical trend snapshots weren't actually saving.** A case's `priority`/`highestPriority` field can be an `int`, not a string; `_capture_snapshots()` called `.upper()` on it unconditionally, throwing on every harvest. The exception was caught and logged (`[SNAPSHOT] Capture failed (non-fatal): 'int' object has no attribute 'upper'`) rather than crashing the harvest, but it meant zero snapshots were ever saved in 5.2.0. Fixed with `str()` casts.
+- **Two more unlabeled fleet-wide findings**, same bug class as the IMT interop fix above: the EOL-imminent tool warning in `runIMTInteropCheck()` now names the affected system(s) instead of carrying zero system attribution at all, and the MetroCluster Infrastructure Health tiles (Mediator/MAUSO/Known Bugs) now show which specific system triggered each flag instead of rendering as one merged fleet-wide status with no way to tell which MetroCluster pair it's about.
+- **Stale `wl_prod` placeholder watchlist ID** cleared from `aiq_config.json` — a leftover from before multi-account support was added, it was showing up as a phantom "Watchlist wl_prod" entry in the sidebar even though it was never a real Active IQ watchlist ID.
+
+---
+
+## [5.2.0] - 2026-08-17
+
+### Added — Historical trend tracking
+- **New `system_snapshots` table.** Every completed harvest now writes a dated per-system metrics snapshot (risk counts by severity, case counts, open-critical-case count, efficiency ratio, FabricPool tiered TB, ONTAP version, HA/ARP/SnapMirror status, contract status). One row per system per UTC calendar day — re-syncing multiple times in a day overwrites that day's row rather than accumulating noise. Retained 400 days, purged automatically.
+- **New `GET /api/history/<serialNumber>` endpoint** returns a system's dated snapshot history for trend comparison.
+- **New "Historical Trend" panel on the CSM tab.** When a single system is selected, shows deltas vs. the closest available snapshot from 1 week, 1 month, 1 quarter, and 1 year ago: critical/high risk count, open case count, efficiency ratio, and ONTAP version upgrades. Green = improved, amber = worsened. Not shown for multi-system/fleet-wide selections (per-system only).
+- History builds up automatically going forward — there is no way to backfill snapshots from before this version, since nothing was captured until now. A fleet will have a full week/month/quarter/year of comparisons available once it's synced regularly for that long.
+- This is the foundation for further MSP/SAM/TAM-facing trend reporting (e.g. a "vs. last QBR" section in the QBR Pack deliverable) — more surfaces will build on the same `system_snapshots` data as they're added.
+
+### Fixed — Unlabeled IMT interoperability finding caused apparent contradictions
+- `runIMTInteropCheck()` reports the *worst* (oldest) ONTAP version across the whole fleet for each integration compatibility finding, but the message text never named which system it was about. In a multi-system deliverable this reads as directly contradicting a nearby "Upgrade to ONTAP X" line for a different, newer system — it wasn't wrong data, just an unlabeled finding about an unrelated (often older/idle) system. The message now leads with the system's hostname/serial.
+
+---
+
 ## [5.1.1] - 2026-08-17
 
 ### Fixed — Enrichment freshness wiring + two live JS crashes

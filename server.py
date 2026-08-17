@@ -425,6 +425,16 @@ def _init_db():
             case_count INTEGER DEFAULT 0,
             risk_instance_count INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS system_snapshots (
+            serial_number   TEXT NOT NULL,
+            snapshot_date   TEXT NOT NULL,
+            customer_name   TEXT DEFAULT '',
+            system_name     TEXT DEFAULT '',
+            snapshot_json   TEXT NOT NULL,
+            captured_at     TEXT NOT NULL,
+            PRIMARY KEY (serial_number, snapshot_date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_snapshots_serial ON system_snapshots(serial_number);
         CREATE TABLE IF NOT EXISTS asup_imports (
             serial_number TEXT PRIMARY KEY,
             system_json   TEXT NOT NULL,
@@ -623,6 +633,98 @@ def _load_all_accounts_cached(db):
             "risk_count": row[7], "case_count": row[8], "risk_instance_count": row[9],
         }
         out.append((row[0], result, meta))
+    return out
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Historical trend snapshots
+# ─────────────────────────────────────────────────────────────────────
+# One row per (system, calendar day). Re-syncing multiple times in the same
+# UTC day overwrites that day's row rather than accumulating noise — the
+# point is week/month/quarter/year-over-year comparison, not intraday
+# tracking. Retention is capped (see _SNAPSHOT_RETENTION_DAYS) so the table
+# doesn't grow unbounded on a fleet that syncs daily for years.
+_SNAPSHOT_RETENTION_DAYS = 400
+
+
+def _capture_snapshots(db, result):
+    """Extract a small per-system metrics record from a completed harvest and
+    store it as today's dated snapshot, for later trend comparison (vs last
+    week/month/quarter/year). Cheap and best-effort: never raises, since a
+    snapshot-capture failure must not take down the harvest it's attached to.
+    """
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        now_iso = datetime.now(timezone.utc).isoformat()
+        systems = result.get("systems") or []
+        rows = []
+        for s in systems:
+            serial = s.get("serialNumber")
+            if not serial:
+                continue
+            risks = s.get("risks") or []
+            cases = s.get("cases") or []
+            risk_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            for r in risks:
+                sev = str(r.get("severity") or "").lower()
+                if sev in risk_counts:
+                    risk_counts[sev] += 1
+            open_critical_cases = sum(
+                1 for c in cases
+                if str(c.get("status") or "").upper() not in ("CLOSED", "CANCELLED")
+                and str(c.get("highestPriority") or c.get("priority") or "").upper().startswith(("S1", "P1", "S2", "P2", "CRITICAL", "HIGH"))
+            )
+            snap = {
+                "systemName": s.get("systemName", ""),
+                "customerName": s.get("customerName", ""),
+                "platform": s.get("platform", ""),
+                "osVersion": s.get("osVersion", ""),
+                "efficiencyRatio": s.get("efficiencyRatio"),
+                "fabricPoolTieredTB": (s.get("efficiency") or {}).get("fabricPoolTieredTB") if isinstance(s.get("efficiency"), dict) else None,
+                "riskCounts": risk_counts,
+                "caseCount": len(cases),
+                "openCriticalCases": open_critical_cases,
+                "isHAConfigured": s.get("isHAConfigured"),
+                "isARPEnabled": s.get("isARPEnabled"),
+                "snapMirrorCount": s.get("snapMirrorCount"),
+                "contractEndDate": s.get("contractEndDate", ""),
+                "contractActive": s.get("contractActive"),
+            }
+            rows.append((serial, today, s.get("customerName", ""), s.get("systemName", ""), json.dumps(snap), now_iso))
+        if not rows:
+            return
+        db.executemany("""
+            INSERT OR REPLACE INTO system_snapshots
+            (serial_number, snapshot_date, customer_name, system_name, snapshot_json, captured_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, rows)
+        db.execute(
+            "DELETE FROM system_snapshots WHERE snapshot_date < date('now', ?)",
+            (f"-{_SNAPSHOT_RETENTION_DAYS} days",)
+        )
+        db.commit()
+        print(f"  [SNAPSHOT] Captured {len(rows)} system snapshot(s) for {today}", flush=True)
+    except Exception as e:
+        print(f"  [SNAPSHOT] Capture failed (non-fatal): {e}", flush=True)
+
+
+def _get_system_history(db, serial_number, days=400):
+    """Return this system's dated snapshots, oldest first, each as
+    {date, ...snapshot fields}. Used for week/month/quarter/year trend
+    comparisons in the UI and in deliverables."""
+    rows = db.execute("""
+        SELECT snapshot_date, snapshot_json FROM system_snapshots
+        WHERE serial_number = ? AND snapshot_date >= date('now', ?)
+        ORDER BY snapshot_date ASC
+    """, (serial_number, f"-{days} days")).fetchall()
+    out = []
+    for date_str, snap_json in rows:
+        try:
+            rec = json.loads(snap_json)
+        except Exception:
+            continue
+        rec["date"] = date_str
+        out.append(rec)
     return out
 
 
@@ -2676,6 +2778,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 _save_harvest_account(db, account.get("id") or "default", account.get("label") or account.get("id") or "default", result, duration_ms)
             else:
                 _save_harvest(db, result, duration_ms)
+            _capture_snapshots(db, result)
         finally:
             db.close()
 
@@ -6760,6 +6863,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_scan()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_get()
+        elif self.path.startswith('/api/history/'):
+            self.handle_system_history()
         elif self.path.startswith('/api/asup/imports'):
             self.handle_asup_list()
         elif self.path == '/api/asup/import':
@@ -7234,6 +7339,28 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             print(f"  [ASUP] Import error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e), "system": None,
                                       "coverage": {}, "warnings": [], "matchInfo": {}})
+
+    def handle_system_history(self):
+        """GET /api/history/<serialNumber>[?days=400] — dated trend snapshots
+        for one system (week/month/quarter/year-over-year comparison)."""
+        try:
+            from urllib.parse import urlparse, parse_qs, unquote
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            serial = unquote(parsed.path[len('/api/history/'):].strip('/'))
+            days = int((params.get('days') or ['400'])[0])
+            if not serial:
+                self._json_response(400, {"ok": False, "error": "serial number required"})
+                return
+            db = _init_db()
+            try:
+                history = _get_system_history(db, serial, days=days)
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "serialNumber": serial, "history": history, "count": len(history)})
+        except Exception as e:
+            print(f"  [HISTORY] Error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e), "history": []})
 
     def handle_asup_list(self):
         """GET /api/asup/imports — return list of all imported ASUP systems."""

@@ -1,8 +1,8 @@
 {
-  "version": "5.1.1",
+  "version": "5.2.1",
   "major": 5,
-  "minor": 1,
+  "minor": 2,
   "patch": 1,
   "date": "2026-08-17",
-  "notes": "Post-harvest and post-fast-scan now reliably trigger a staleness check of the slow-crawl enrichment group (firmware baselines, EOA/IMT, switch firmware, new-platform/hardware discovery), which previously only ran on its own independent 7-day timer -- a fleet syncing constantly could otherwise go a full week without platform/switch/firmware data ever being checked for freshness. Also fixed two live JS bugs: 'fpTiered is not defined' crashing the CSM tab's Data Protection checklist (variable was block-scoped to an if/else branch it was used outside of) and 'csvContent is not defined' crashing Clear Watchlists (stray leftover line from an unrelated CSV-export function).",
+  "notes": "Fixed a crash in the new snapshot-capture code (5.2.0): a case's priority field can be an int, not a string, and calling .upper() on it silently killed every snapshot capture ('int' object has no attribute 'upper', caught and logged but never actually saving data). Also fixed the same 'unlabeled fleet-wide finding' bug class as the IMT interop message fix in two more places: the EOL-imminent tool warning in runIMTInteropCheck() now names the affected system(s) instead of zero attribution, and the MetroCluster Infrastructure Health tiles (Mediator/MAUSO/Known Bugs) now show which specific system triggered each flag instead of one merged fleet-wide tile. Also cleared a stale 'wl_prod' placeholder watchlist ID left over from before multi-account setup that was showing up as a phantom entry in the sidebar."
 }

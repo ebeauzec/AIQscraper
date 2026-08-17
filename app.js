@@ -18,9 +18,51 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.1.1";
+const APP_VERSION = "5.2.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.2.1",
+    date: "17 August 2026",
+    title: "Fixed Snapshot Capture Crash + More Unlabeled-Finding Fixes",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Historical Trend Snapshots Weren't Actually Saving",
+        color: "#f87171",
+        items: [
+          "A case's priority field can be an integer, not a string — calling .upper() on it crashed the new 5.2.0 snapshot capture on every harvest, silently (the error was logged but no data was ever saved)",
+          "Every system's daily snapshot should now save correctly"
+        ]
+      },
+      {
+        icon: "🏷️",
+        label: "Fixed: More Unlabeled Fleet-Wide Findings",
+        color: "#f87171",
+        items: [
+          "Same bug class as the fpTiered/csvContent fixes' sibling — the EOL-imminent tool warning and MetroCluster health tiles (Mediator/MAUSO/Known Bugs) now name which specific system triggered each finding, instead of reading as fleet-wide statements that could look contradictory next to a different system's data elsewhere in the same report",
+          "Cleared a stale 'wl_prod' placeholder watchlist ID that was showing up as a phantom sidebar entry"
+        ]
+      }
+    ]
+  },
+  {
+    version: "5.2.0",
+    date: "17 August 2026",
+    title: "New: Historical Trend Tracking",
+    sections: [
+      {
+        icon: "📈",
+        label: "New: Point-in-Time Snapshots Every Harvest",
+        color: "#2dd4bf",
+        items: [
+          "Every completed harvest now captures a dated per-system snapshot — risk counts by severity, case counts, efficiency ratio, ONTAP version, HA/ARP/SnapMirror status, contract status — one row per system per day",
+          "New CSM tab panel compares the selected system's current posture against its closest snapshot from 1 week, 1 month, 1 quarter, and 1 year ago",
+          "Builds up automatically as the fleet syncs — no backfill of history from before this version is possible, since nothing was captured until now"
+        ]
+      }
+    ]
+  },
   {
     version: "5.1.1",
     date: "17 August 2026",
@@ -8770,7 +8812,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
           currentRecommended: integration.currentRecommended,
           minOntap: recommended.minOntap,
           maxOntap: recommended.maxOntap,
-          message: `ONTAP ${ontapVer} is below minimum ONTAP ${recommended.minOntap} required for ${integration.name} ${integration.currentRecommended}`,
+          message: `${sys.hostname || sys.serialNumber || 'System'}: ONTAP ${ontapVer} is below minimum ONTAP ${recommended.minOntap} required for ${integration.name} ${integration.currentRecommended}`,
           recommendation: `Upgrade ONTAP to ${recommended.minOntap}+ to use ${integration.name} ${integration.currentRecommended}, or verify an older compatible version in IMT`,
           imtUrl: buildIMTUrl(integration.imtProduct, ontapVer),
           upgradeDoc: integration.upgradeDoc,
@@ -8788,12 +8830,15 @@ function runIMTInteropCheck(systems, detectedSignals) {
       if (compat.status !== 'eol-imminent') continue;
       // System is in range if: ontapVer >= minOntap AND ontapVer <= maxOntap
       // i.e., NOT below min AND NOT above max
-      const affected = systems.some(s => {
+      const affectedSystems = systems.filter(s => {
         const v = s.ontapVersion;
         if (!v) return false;
         return !versionLt(v, compat.minOntap) && !versionLt(compat.maxOntap, v);
       });
-      if (affected) {
+      if (affectedSystems.length > 0) {
+        const affectedLabel = affectedSystems.length <= 3
+          ? affectedSystems.map(s => s.hostname || s.serialNumber || 'Unknown').join(', ')
+          : `${affectedSystems.length} systems`;
         findings.push({
           type: 'tool_eol_warning',
           severity: 'info',
@@ -8801,7 +8846,8 @@ function runIMTInteropCheck(systems, detectedSignals) {
           integrationKey: key,
           toolVersion: toolVer,
           currentRecommended: integration.currentRecommended,
-          message: `${integration.name} ${toolVer} is approaching end-of-life — upgrade to ${integration.currentRecommended}`,
+          affectedSystems: affectedSystems.map(s => s.hostname || s.serialNumber || 'Unknown'),
+          message: `${affectedLabel}: ${integration.name} ${toolVer} is approaching end-of-life — upgrade to ${integration.currentRecommended}`,
           recommendation: `Upgrade ${integration.name} to ${integration.currentRecommended} (current). Check vendor support matrix.`,
           upgradeDoc: integration.upgradeDoc,
           notes: compat.notes || '',
@@ -10974,6 +11020,103 @@ function renderSAMTab() {
 }
 
 
+const _csmHistoryCache = {}; // serialNumber -> {history, fetchedAt}
+
+function _findNearestSnapshot(history, daysAgo) {
+  // history is ascending by date. Find the entry whose date is closest to
+  // "today - daysAgo", preferring the closest match on-or-before that target
+  // so a "30 days ago" comparison never accidentally uses tomorrow's data.
+  if (!history || history.length === 0) return null;
+  const target = new Date();
+  target.setUTCDate(target.getUTCDate() - daysAgo);
+  const targetMs = target.getTime();
+  let best = null, bestDiff = Infinity;
+  for (const rec of history) {
+    const ms = new Date(rec.date + "T00:00:00Z").getTime();
+    const diff = Math.abs(ms - targetMs);
+    if (diff < bestDiff) { bestDiff = diff; best = rec; }
+  }
+  // Require the match to be at least reasonably close (within ~40% of the
+  // requested window) so a fleet with only 3 days of history doesn't render
+  // a misleading "1 year ago" comparison using day-3 data.
+  const maxDiffMs = Math.max(daysAgo * 0.4, 3) * 86400000;
+  return bestDiff <= maxDiffMs ? best : null;
+}
+
+async function renderCSMHistoryPanel(sys) {
+  const card = document.getElementById("csmHistoryCard");
+  if (!card) return;
+  if (!sys || !sys.serialNumber) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  card.innerHTML = `<div style="font-size:0.85rem; color:var(--text-muted);">Loading historical trend…</div>`;
+  let history = [];
+  try {
+    const cached = _csmHistoryCache[sys.serialNumber];
+    if (cached && (Date.now() - cached.fetchedAt) < 60000) {
+      history = cached.history;
+    } else {
+      const resp = await fetch(`/api/history/${encodeURIComponent(sys.serialNumber)}?days=400`, { cache: "no-store" });
+      const data = await resp.json();
+      history = (data && data.ok) ? (data.history || []) : [];
+      _csmHistoryCache[sys.serialNumber] = { history, fetchedAt: Date.now() };
+    }
+  } catch (e) {
+    card.innerHTML = `<div style="font-size:0.85rem; color:var(--text-muted);">Historical trend unavailable.</div>`;
+    return;
+  }
+  if (history.length < 2) {
+    card.innerHTML = `
+      <div class="section-title" style="color: var(--accent-cyan); font-weight: 700; margin-bottom: 8px;">Historical Trend</div>
+      <div style="font-size:0.85rem; color:var(--text-muted);">Not enough sync history yet to show a trend — this builds up automatically as the fleet syncs over time (one data point per day). Check back after a week or two of regular syncing.</div>
+    `;
+    return;
+  }
+  const windows = [
+    { label: "1 Week Ago", days: 7 },
+    { label: "1 Month Ago", days: 30 },
+    { label: "1 Quarter Ago", days: 90 },
+    { label: "1 Year Ago", days: 365 },
+  ];
+  const rowsHtml = windows.map(w => {
+    const rec = _findNearestSnapshot(history, w.days);
+    if (!rec) return `<tr><td style="padding:8px 10px; color:var(--text-secondary);">${w.label}</td><td colspan="4" style="padding:8px 10px; color:var(--text-muted); font-style:italic;">No data from this far back yet</td></tr>`;
+    const critHighNow = (sys.risks || []).filter(r => ["critical","high"].includes((r.severity||"").toLowerCase())).length;
+    const critHighThen = (rec.riskCounts ? (rec.riskCounts.critical||0) + (rec.riskCounts.high||0) : 0);
+    const riskDelta = critHighNow - critHighThen;
+    const caseDelta = (sys.cases || []).length - (rec.caseCount || 0);
+    const effNow = parseFloat((sys.efficiencyRatio || "0").toString().split(":")[0]) || 0;
+    const effThen = parseFloat((rec.efficiencyRatio || "0").toString().split(":")[0]) || 0;
+    const effDelta = effNow - effThen;
+    const osChanged = rec.osVersion && sys.osVersion && rec.osVersion !== sys.osVersion;
+    const fmtDelta = (d, invertColor) => {
+      if (d === 0) return `<span style="color:var(--text-muted);">no change</span>`;
+      const good = invertColor ? d < 0 : d > 0;
+      const color = good ? "var(--status-normal)" : "var(--status-warning)";
+      const sign = d > 0 ? "+" : "";
+      return `<span style="color:${color}; font-weight:600;">${sign}${d.toFixed(d % 1 === 0 ? 0 : 1)}</span>`;
+    };
+    return `<tr>
+      <td style="padding:8px 10px; color:var(--text-secondary); white-space:nowrap;">${w.label} <span style="color:var(--text-muted); font-size:0.72rem;">(${rec.date})</span></td>
+      <td style="padding:8px 10px;">Crit/High Risks: ${fmtDelta(riskDelta, true)}</td>
+      <td style="padding:8px 10px;">Open Cases: ${fmtDelta(caseDelta, true)}</td>
+      <td style="padding:8px 10px;">Efficiency: ${fmtDelta(effDelta, false)}</td>
+      <td style="padding:8px 10px;">${osChanged ? `<span style="color:var(--accent-cyan);">Upgraded ${rec.osVersion} → ${sys.osVersion}</span>` : ""}</td>
+    </tr>`;
+  }).join("");
+  card.innerHTML = `
+    <div class="section-title" style="color: var(--accent-cyan); font-weight: 700; margin-bottom: 12px;">Historical Trend — ${sys.systemName || sys.serialNumber}</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:10px;">Deltas are vs. the closest available daily snapshot to each window. Green = improved, amber = worsened. One snapshot is captured per system per day the fleet syncs.</div>
+  `;
+}
+
 function renderCSMTab() {
   populateSystemSelectors();
   
@@ -11004,10 +11147,12 @@ function renderCSMTab() {
     document.getElementById("csmLimitDateText").innerText = "-";
     document.getElementById("csmPeakIopsText").innerText = "-";
     document.getElementById("csmAvgLatencyText").innerText = "-";
+    const _histCard0 = document.getElementById("csmHistoryCard"); if (_histCard0) _histCard0.style.display = "none";
     return;
   }
 
   const isMulti = targetCSMSystems.length > 1;
+  renderCSMHistoryPanel(isMulti ? null : targetCSMSystems[0]);
 
     // ── Account Health Score Gauge ──
     const healthScore = computeAccountHealthScore(targetCSMSystems);
@@ -22489,9 +22634,16 @@ function generateActionPlan() {
   const mcSystems = [...new Set(mcRisks.map(r => r.systemName))];
   const mcCritical = mcRisks.filter(r => r.severity === 'critical' || r.severity === 'high');
   const mcBestPractice = mcRisks.filter(r => r.severity === 'best_practice' || (r.description || '').includes('Mediator or Tiebreaker'));
-  const hasMediatorIssue = mcRisks.some(r => (r.description || '').toLowerCase().includes('mediator unreachable'));
-  const hasMausoDisabled = mcRisks.some(r => (r.description || '').toLowerCase().includes('mauso disabled'));
-  const hasMcBug = mcRisks.some(r => (r.description || '').toLowerCase().includes('contap-') || (r.description || '').toLowerCase().includes('bug'));
+  // For each MC health flag, keep the specific system(s) that triggered it —
+  // a fleet can have multiple MetroCluster pairs, and collapsing these into
+  // one true/false tile with no system attribution reads as one cluster's
+  // state when the three flags could each come from a different pair.
+  const mcMediatorSystems = [...new Set(mcRisks.filter(r => (r.description || '').toLowerCase().includes('mediator unreachable')).map(r => r.systemName).filter(Boolean))];
+  const mcMausoSystems = [...new Set(mcRisks.filter(r => (r.description || '').toLowerCase().includes('mauso disabled')).map(r => r.systemName).filter(Boolean))];
+  const mcBugSystems = [...new Set(mcRisks.filter(r => (r.description || '').toLowerCase().includes('contap-') || (r.description || '').toLowerCase().includes('bug')).map(r => r.systemName).filter(Boolean))];
+  const hasMediatorIssue = mcMediatorSystems.length > 0;
+  const hasMausoDisabled = mcMausoSystems.length > 0;
+  const hasMcBug = mcBugSystems.length > 0;
 
   // Sort all cases: active first, then processing, then closed — each group by severity
   filterActiveCases(allSupportCases);
@@ -22684,19 +22836,22 @@ function generateActionPlan() {
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
             <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${mcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'}">
               <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">MC Findings</div>
-              <div style="font-size: 1.2rem; font-weight: 700; color: #ff9800;">${mcRisks.length}</div>
+              <div style="font-size: 1.2rem; font-weight: 700; color: #ff9800;">${mcRisks.length}${mcSystems.length > 1 ? ` <span style="font-size:0.6rem; font-weight:400; color:var(--text-muted);">(${mcSystems.length} pairs)</span>` : ''}</div>
             </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'}">
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'}" title="${hasMediatorIssue ? _esc(mcMediatorSystems.join(', ')) : ''}">
               <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Mediator</div>
               <div style="font-size: 0.85rem; font-weight: 700; color: ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'};">${hasMediatorIssue ? '⚠ UNREACHABLE' : '✓ OK'}</div>
+              ${hasMediatorIssue ? `<div style="font-size:0.62rem; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${_esc(mcMediatorSystems.join(', '))}</div>` : ''}
             </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMausoDisabled ? 'var(--status-critical)' : 'var(--status-normal)'}">
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMausoDisabled ? 'var(--status-critical)' : 'var(--status-normal)'}" title="${hasMausoDisabled ? _esc(mcMausoSystems.join(', ')) : ''}">
               <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">MAUSO</div>
               <div style="font-size: 0.85rem; font-weight: 700; color: ${hasMausoDisabled ? 'var(--status-critical)' : 'var(--status-normal)'};">${hasMausoDisabled ? '⚠ DISABLED' : '✓ ENABLED'}</div>
+              ${hasMausoDisabled ? `<div style="font-size:0.62rem; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${_esc(mcMausoSystems.join(', '))}</div>` : ''}
             </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMcBug ? 'var(--status-warning)' : 'var(--status-normal)'}">
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMcBug ? 'var(--status-warning)' : 'var(--status-normal)'}" title="${hasMcBug ? _esc(mcBugSystems.join(', ')) : ''}">
               <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Known Bugs</div>
               <div style="font-size: 0.85rem; font-weight: 700; color: ${hasMcBug ? 'var(--status-warning)' : 'var(--status-normal)'};">${hasMcBug ? '⚠ ACTIVE' : '✓ CLEAR'}</div>
+              ${hasMcBug ? `<div style="font-size:0.62rem; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${_esc(mcBugSystems.join(', '))}</div>` : ''}
             </div>
           </div>
           <div style="font-size: 0.78rem; color: var(--text-muted);">
