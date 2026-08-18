@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.4.3] - 2026-08-17
+
+### Removed
+- **50-system hard render cap on the TAM tab.** Added during earlier browser-performance troubleshooting (`TAM_RENDER_CAP = 50`), this silently rendered only the first 50 systems of a larger selection — selecting "All Systems" on a 140-system fleet showed "50 of 140" with the rest dropped from the risk/upgrade/switch tables. Removed at the user's request; the underlying rendering-weight concern that motivated it (large HTML payloads for the risk/upgrade/switch tables) is a separate, still-open browser-side performance question, not something this revert fixes or reintroduces beyond where it stood before the cap existed.
+
+### Fixed
+- **System Metadata & Logistics Editor lost all manually-entered data on the next fleet sync.** Site address, access restrictions, tech contact, CSAT score, and capacity projections — data Active IQ's API has no equivalent for — were saved onto `state.systems[i]` but `loadProductionData()` replaces `state.systems` wholesale from the fresh API response on every sync, which has none of these fields. Unlike ASUP import associations (which already had a merge-back step via `loadPersistedAsupImports()`), there was no equivalent for this editor, so any manually-entered logistics/contact/CSAT/projection data was silently discarded on the very next Refresh. These four fields are now persisted independently in `localStorage` (keyed by serial, renamed/deleted alongside the system) and automatically re-applied to `state.systems` after every real sync. `securityBulletins`/`supportCases` edits are deliberately excluded from this persistence — for a real system those fields should reflect live API data, and silently overwriting freshly-synced case/bulletin data with a stale manual JSON blob would make the data worse, not better.
+
+---
+
 ## [5.4.2] - 2026-08-17
 
 ### Fixed

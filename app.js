@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.4.2";
+const APP_VERSION = "5.4.3";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.4.3",
+    date: "17 August 2026",
+    title: "Removed 50-System Render Cap + Fixed Metadata Editor Data Loss",
+    sections: [
+      {
+        icon: "🔢",
+        label: "Removed: TAM Tab's 50-System Render Cap",
+        color: "#2dd4bf",
+        items: [
+          "A hard cap added during earlier browser-performance troubleshooting was silently rendering only the first 50 of a larger selection — 'All Systems' on a 140-system fleet showed '50 of 140' with the rest dropped",
+          "Removed — the TAM tab now renders every selected system again"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: System Metadata Editor Losing Data on Every Sync",
+        color: "#f87171",
+        items: [
+          "Site address, tech contact, CSAT score, and capacity projections entered via the System Metadata & Logistics Editor were silently discarded on the next fleet sync — loadProductionData() replaces the system list wholesale from the API response, which has none of these fields, and nothing re-applied them afterward",
+          "These fields are now persisted independently and automatically re-applied after every sync — matching the pattern already used for ASUP import associations",
+          "Support case / security bulletin edits are deliberately NOT persisted this way — those should reflect live API data for real systems, not a stale manual override"
+        ]
+      }
+    ]
+  },
   {
     version: "5.4.2",
     date: "17 August 2026",
@@ -4783,6 +4809,72 @@ function saveSystems() {
     }
   }
   updateSearchSuggestions();
+}
+
+// ── Manually-entered system metadata (logistics/contacts/CSAT/projections) ──
+// Active IQ's API has no concept of a physical site address, an on-site tech
+// contact, a manually-tracked CSAT score, or capacity growth projections --
+// these are genuinely supplementary data a TAM enters by hand via the
+// "System Metadata & Logistics Editor". The problem: every real fleet sync
+// replaces state.systems wholesale from the fresh API response
+// (loadProductionData), which has none of these fields, silently discarding
+// anything entered here. Fix: persist these four fields independently, keyed
+// by serial, and re-merge them onto state.systems after every real sync --
+// the same pattern already used for ASUP import associations
+// (loadPersistedAsupImports). securityBulletins/supportCases are NOT
+// included here on purpose: for a real (non-mock) system those fields are
+// meant to come from the live API, and re-applying a stale manually-entered
+// JSON blob over freshly-synced real case/bulletin data would silently
+// overwrite it with worse information -- the opposite of the fix.
+const SYSTEM_METADATA_OVERRIDE_KEY = "aiq_system_metadata_overrides";
+
+function loadSystemMetadataOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem(SYSTEM_METADATA_OVERRIDE_KEY) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveSystemMetadataOverride(serial, fields) {
+  const store = loadSystemMetadataOverrides();
+  store[serial] = fields;
+  safeSetItem(SYSTEM_METADATA_OVERRIDE_KEY, JSON.stringify(store));
+}
+
+function renameSystemMetadataOverride(oldSerial, newSerial) {
+  if (oldSerial === newSerial) return;
+  const store = loadSystemMetadataOverrides();
+  if (store[oldSerial]) {
+    store[newSerial] = store[oldSerial];
+    delete store[oldSerial];
+    safeSetItem(SYSTEM_METADATA_OVERRIDE_KEY, JSON.stringify(store));
+  }
+}
+
+function deleteSystemMetadataOverride(serial) {
+  const store = loadSystemMetadataOverrides();
+  if (store[serial]) {
+    delete store[serial];
+    safeSetItem(SYSTEM_METADATA_OVERRIDE_KEY, JSON.stringify(store));
+  }
+}
+
+function applySystemMetadataOverrides() {
+  const store = loadSystemMetadataOverrides();
+  const serials = Object.keys(store);
+  if (!serials.length) return;
+  let applied = 0;
+  for (const s of state.systems) {
+    const override = store[s.serialNumber];
+    if (!override) continue;
+    if (override.logistics) s.logistics = override.logistics;
+    if (override.contacts) s.contacts = override.contacts;
+    if (override.salesHealth) s.salesHealth = override.salesHealth;
+    if (override.projections) s.projections = override.projections;
+    applied++;
+  }
+  if (applied > 0) console.log(`[METADATA-OVERRIDE] Re-applied manually-entered logistics/contacts/CSAT/projections to ${applied} system(s) after sync`);
 }
 
 function saveGroups() {
@@ -9651,12 +9743,6 @@ function renderTAMTab() {
   }
   
   let selectedSystems = state.systems.filter(s => activeSerials.includes(s.serialNumber));
-  // ── Hard render cap: even with staggered rendering, 50+ systems generates megabytes
-  // of risk/upgrade/switch HTML that freezes the browser.  Cap the render list;
-  // the selector dropdown still shows the true count.
-  const TAM_RENDER_CAP = 50;
-  const _tamWasCapped = selectedSystems.length > TAM_RENDER_CAP;
-  if (_tamWasCapped) selectedSystems = selectedSystems.slice(0, TAM_RENDER_CAP);
   
   // Render active systems list description and physical cabling node layout
   const visualCard = document.getElementById("tamNodeVisualCard");
@@ -9717,11 +9803,8 @@ function renderTAMTab() {
     `;
   } else if (selectedSystems.length > 1) {
     const names = selectedSystems.map(s => s.systemName).join(", ");
-    const capNote = _tamWasCapped
-      ? ` <span style="font-size:0.72rem;color:var(--status-warning);margin-left:8px;">⚠ Rendering first ${TAM_RENDER_CAP} of ${activeSerials.length} — use filters to narrow scope</span>`
-      : '';
     document.getElementById("tamActiveSystem").innerHTML = `
-      <strong>Selected Systems (${selectedSystems.length}${_tamWasCapped ? ' of ' + activeSerials.length : ''})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>${capNote}
+      <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
     `;
   }
 
@@ -25372,11 +25455,12 @@ function deleteCurrentSystem() {
   state.groups.forEach(g => {
     g.systemSerials = g.systemSerials.filter(sn => sn !== serial);
   });
-  
+  deleteSystemMetadataOverride(serial);
+
   saveSystems();
   populateSystemSelectors();
   updateSearchSuggestions();
-  
+
   if (state.systems.length > 0) {
     state.selectedSystem = state.systems[0];
     select.value = state.selectedSystem.serialNumber;
@@ -25624,6 +25708,7 @@ function saveSystemMetadata() {
     state.groups.forEach(g => {
       g.systemSerials = g.systemSerials.map(sn => sn === serial ? newSerial : sn);
     });
+    renameSystemMetadataOverride(serial, newSerial);
   }
 
   // Store original telemetry parameters to generate difference mapping if modified
@@ -25694,6 +25779,13 @@ function saveSystemMetadata() {
     alert("Invalid Support Cases JSON format. Please verify syntax.");
     return;
   }
+
+  saveSystemMetadataOverride(newSerial, {
+    logistics: state.systems[idx].logistics,
+    contacts: state.systems[idx].contacts,
+    salesHealth: state.systems[idx].salesHealth,
+    projections: state.systems[idx].projections
+  });
 
   saveSystems();
   populateSystemSelectors();
@@ -26867,6 +26959,10 @@ async function loadProductionData(forceRefresh = false) {
     }
 
     state.systems = systemsList.map(s => enrichSystemTelemetry(s));
+    // Re-apply manually-entered logistics/contacts/CSAT/projections (see
+    // saveSystemMetadataOverride) -- the fresh API response above has none
+    // of these fields, so without this they'd be silently lost on every sync.
+    applySystemMetadataOverrides();
     // ── Populate side-channel vserver cache ──────────────────────────────────
     // state.systems objects may lose their vservers array when saveSystems()
     // triggers a localStorage slim-save.  Stash a copy in _vserverCache keyed
