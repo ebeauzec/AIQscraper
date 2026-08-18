@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.4.0";
+const APP_VERSION = "5.4.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.4.1",
+    date: "17 August 2026",
+    title: "Server: Upgraded to Multithreaded HTTP Server",
+    sections: [
+      {
+        icon: "⚡",
+        label: "Fixed: Server No Longer Blocks During Harvests/Slow Operations",
+        color: "#2dd4bf",
+        items: [
+          "server.py now uses ThreadingHTTPServer instead of a single-threaded HTTPServer — previously any slow operation (a harvest, an external enrichment fetch) blocked every other client until it finished, sometimes causing outright connection failures",
+          "Verified live: 5 concurrent requests fired during an active harvest all completed successfully instead of hanging",
+          "Safe drop-in swap, not a rewrite — request handlers already open/close their own SQLite connection per call, and shared state was already guarded with locks"
+        ]
+      }
+    ]
+  },
   {
     version: "5.4.0",
     date: "17 August 2026",

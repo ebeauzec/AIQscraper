@@ -1,8 +1,8 @@
 {
-  "version": "5.4.0",
+  "version": "5.4.1",
   "major": 5,
   "minor": 4,
-  "patch": 0,
+  "patch": 1,
   "date": "2026-08-17",
-  "notes": "New: normalized SQL reporting tables (reporting_systems, reporting_risks, reporting_cases) in aiq_cache.db, for querying the tool's data directly with plain SQL instead of json_extract() over the harvest_cache blob. Every field shown in the live UI was already persisted to SQLite (the full harvest result -- systems, risks, cases, clusters, TAM recommendations/sites/sustainability/renewals -- is stored as JSON in harvest_cache_accounts), but as one blob per account it was impractical for direct reporting. These new tables mirror the same harvest data into real columns (one row per system/risk/case), refreshed on every harvest, so tools like DB Browser for SQLite, the sqlite3 CLI, or a Python script can run normal SELECT/JOIN/GROUP BY queries against current fleet, risk, and case data. aiq_config.json (credentials/settings) intentionally remains outside the database."
+  "notes": "Upgraded server.py from a single-threaded http.server.HTTPServer to ThreadingHTTPServer. Previously, any slow operation (a harvest, an external enrichment fetch, a large deliverable render) blocked every other client -- including simple polling requests like /api/sync-status -- until it finished, sometimes causing outright connection failures. Request handlers were already safe for this: each opens and closes its own short-lived SQLite connection per call rather than sharing one across requests, and the few pieces of shared mutable state (the sync-in-progress flag, the enrichment scheduler's running flags) were already guarded with threading.Lock -- so this was a safe drop-in swap, not a rewrite. Verified live: 5 concurrent requests fired during an active harvest all completed successfully instead of hanging or erroring."
 }

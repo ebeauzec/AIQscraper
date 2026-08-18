@@ -8686,7 +8686,20 @@ if __name__ == '__main__':
         print(f"  [CACHE] No cached data — first harvest will be from API")
     print(f"Access the dashboard at http://localhost:{PORT}")
 
-    server = http.server.HTTPServer(('127.0.0.1', PORT), ProxyHTTPRequestHandler)
+    # ThreadingHTTPServer instead of plain HTTPServer: the single-threaded
+    # server could only handle one request at a time, so a slow request
+    # (an external enrichment fetch, a large deliverable render, a
+    # long-running report query) blocked every other client -- including
+    # /api/sync-status polls -- until it finished. Request handlers already
+    # open/close their own short-lived SQLite connection per call (see
+    # _init_db()) rather than sharing one across requests, and the module's
+    # few pieces of shared mutable state (_is_syncing, the enrichment
+    # scheduler's _running/_kb_running flags) are already guarded by
+    # threading.Lock, so this is a safe drop-in swap, not a rewrite.
+    # daemon_threads=True so in-flight request threads don't block process
+    # shutdown on Ctrl+C.
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), ProxyHTTPRequestHandler)
+    server.daemon_threads = True
     try:
         server.serve_forever()
     except KeyboardInterrupt:

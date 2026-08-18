@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.4.1] - 2026-08-17
+
+### Changed
+- **Upgraded `server.py` from `http.server.HTTPServer` to `http.server.ThreadingHTTPServer`.** Previously, any slow operation running in a request handler — a harvest, an external enrichment fetch, a large deliverable render — blocked every other client (including simple `/api/sync-status` polls) until it finished, sometimes producing outright connection failures during a sync. Request handlers were already safe for this: each opens and closes its own short-lived SQLite connection per call rather than sharing one across requests, and the module's shared mutable state (`_is_syncing`, the enrichment scheduler's running flags) was already guarded with `threading.Lock` — so this was a safe drop-in swap, not a rewrite. `daemon_threads = True` so in-flight request threads don't block process shutdown. Verified live: 5 concurrent requests fired during an active harvest all completed successfully instead of hanging or erroring.
+
+---
+
 ## [5.4.0] - 2026-08-17
 
 ### Added
