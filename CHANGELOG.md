@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.7] - 2026-08-18
+
+### Fixed
+- **Audited every health/score calculation site after 5.6.6.** `computeAccountHealthScore()`, `computeSupportCaseHealth()`, `computeFeatureAdoptionScore()`, and the other canonical scoring functions are self-computed from real fleet data and were unaffected. Found one more site using Active IQ's ambiguous raw recommendation `score` directly: the **QBR Pack** deliverable (`compileQBRPack`) printed the uncorrected raw score. Switched it to the shared `_resolveRecommendationScore()` helper, so the on-screen tab, the Section 12 TXT export, and the QBR Pack deliverable now all agree.
+
+---
+
 ## [5.6.6] - 2026-08-18
 
 ### Fixed

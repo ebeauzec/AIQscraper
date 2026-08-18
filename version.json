@@ -1,8 +1,8 @@
 {
-  "version": "5.6.6",
+  "version": "5.6.7",
   "major": 5,
   "minor": 6,
-  "patch": 6,
+  "patch": 7,
   "date": "2026-08-18",
-  "notes": "Fixed wrong score shown in the new Section 12 TAM Recommendations TXT export (added in 5.6.4). Active IQ's recommendation `score` field is ambiguous: usually a health percentage, but for some recommendation types (ACTIVE_SUPPORT_CONTRACTS_6M, EOS_6M) it's actually the raw problem percentage quoted in the text itself -- e.g. score=27 with text '27% of entitled systems are expiring' means 73% health, not 27%. The on-screen Recommendations tab already detected and inverted this correctly via CASE A/B/C logic, but the TXT export printed the raw score verbatim. Extracted that logic into a shared _resolveRecommendationScore() function used by both the HTML render and the TXT export so they always agree."
+  "notes": "Audited every health/score calculation and reporting site in the app after the 5.6.6 fix. computeAccountHealthScore(), computeSupportCaseHealth(), computeFeatureAdoptionScore(), and the other canonical scoring functions are self-computed from real fleet data (ASUP compliance, ARP status, firmware currency, case aging, etc.) with no ambiguous upstream field, so they were not affected. Grepped every use of a raw '.score' field across app.js and found exactly one more site using Active IQ's ambiguous recommendation `score` directly without correction: the QBR Pack deliverable (compileQBRPack) printed '[Score 27%]' instead of the corrected 73% health value. Switched it to the shared _resolveRecommendationScore() helper introduced in 5.6.6, so the on-screen Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable now all report the same corrected score."
 }

@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.6";
+const APP_VERSION = "5.6.7";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.7",
+    date: "18 August 2026",
+    title: "Audit: QBR Pack Had the Same Recommendation-Score Bug",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: QBR Pack Also Printed the Raw Uncorrected Score",
+        color: "#f87171",
+        items: [
+          "Audited every place the app calculates or reports a health/score value. computeAccountHealthScore(), computeSupportCaseHealth(), and the other canonical scoring functions are all self-computed from fleet data and unaffected -- the 5.6.6 bug was specific to Active IQ's raw recommendation `score` field",
+          "Found one more site using that raw field directly: the QBR Pack deliverable's Recommendations section (compileQBRPack) printed '[Score 27%]' instead of the corrected 73% health value, same as the now-fixed Section 12 TXT export",
+          "Switched it to the shared _resolveRecommendationScore() helper so all three surfaces (on-screen tab, Section 12 TXT export, QBR Pack deliverable) now agree"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.6",
     date: "18 August 2026",
@@ -18018,7 +18035,9 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       // Strip global "N of your systems" counts from the truncated text to avoid confusion
       const lines = items.slice(0, 5).map(r => {
         const clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `[see scoped count]`);
-        return `    • [Score ${r.score || 0}%] ${_truncate(clean)}`;
+        const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
+        const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' corrected' : ''}`;
+        return `    • [Score ${scoreLabel}] ${_truncate(clean)}`;
       }).join('\n');
       return `  ${cat.replace(/_/g, ' ')} (${items.length}):\n${lines}`;
     }).join('\n\n') + '\n';
