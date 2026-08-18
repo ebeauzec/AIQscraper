@@ -18,9 +18,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.4";
+const APP_VERSION = "5.6.5";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.5",
+    date: "18 August 2026",
+    title: "What's New Modal: Trimmed Previous Releases List",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: Previous Releases Now Shows Only the Last 2 Entries",
+        color: "#2dd4bf",
+        items: [
+          "The What's New modal's collapsible 'Previous Releases' list showed the entire changelog history, making the popup unnecessarily long -- now shows only the 2 most recent prior releases"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.4",
     date: "18 August 2026",
@@ -29276,7 +29291,7 @@ function showWhatsNewModal() {
       '</div>';
   }).join('');
 
-  var prevVersionsHtml = APP_CHANGELOG.slice(1).map(function(entry) {
+  var prevVersionsHtml = APP_CHANGELOG.slice(1, 3).map(function(entry) {
     var entrySecs = entry.sections.map(function(s) {
       return '<div style="margin-bottom:10px;">' +
         '<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:' + s.color + ';margin-bottom:4px;">' + s.icon + ' ' + s.label + '</div>' +

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.5] - 2026-08-18
+
+### Changed
+- **What's New modal's "Previous Releases" list trimmed to the 2 most recent entries.** It previously listed every changelog entry ever added, growing unbounded over time.
+
+---
+
 ## [5.6.4] - 2026-08-18
 
 ### Fixed
