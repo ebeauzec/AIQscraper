@@ -396,11 +396,62 @@ def _tls_probe_and_refresh(host="api.activeiq.netapp.com", port=443):
 # SQLite Cache Layer
 # ─────────────────────────────────────────────────────────────────────
 
+_db_schema_ready = False
+_db_init_lock = threading.Lock()
+_last_enrich_purge_at = 0.0
+_enrich_purge_lock = threading.Lock()
+
+
 def _init_db():
-    """Create the SQLite database and tables if they don't exist."""
+    """Open a SQLite connection for this call/thread.
+
+    The one-time schema setup (CREATE TABLE, column migrations, the
+    enrich_cache purge, the legacy-harvest-cache migration) used to run on
+    EVERY call to this function -- and this function is called on nearly
+    every request. Under ThreadingHTTPServer that meant every concurrent
+    request re-ran the full setup script and contended for the same
+    write lock, which is exactly the ~3s-per-request slowdown observed
+    during an active harvest. It only ever needs to run once per process,
+    so it's now guarded by a flag + lock (double-checked, so the common
+    case after startup is a single cheap boolean check, not a lock
+    acquisition on every request).
+    """
+    global _db_schema_ready
     db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     db.execute("PRAGMA journal_mode=WAL")  # Better concurrent read/write
     db.execute("PRAGMA synchronous=NORMAL")
+    if not _db_schema_ready:
+        with _db_init_lock:
+            if not _db_schema_ready:
+                _run_db_schema_setup(db)
+                _db_schema_ready = True
+    _maybe_purge_enrich_cache(db)
+    return db
+
+
+def _maybe_purge_enrich_cache(db):
+    """Delete stale enrich_cache rows, but at most once per hour -- this
+    used to run on every _init_db() call (i.e. nearly every request), which
+    was needless write-lock contention. A cache with day-scale TTLs doesn't
+    need sub-second purge granularity."""
+    global _last_enrich_purge_at
+    now = time.time()
+    if now - _last_enrich_purge_at < 3600:
+        return
+    with _enrich_purge_lock:
+        if now - _last_enrich_purge_at < 3600:
+            return
+        db.execute("""
+            DELETE FROM enrich_cache WHERE
+                (source = 'nvd' AND fetched_at < datetime('now', '-1 day')) OR
+                (source != 'nvd' AND fetched_at < datetime('now', '-7 days'))
+        """)
+        db.commit()
+        _last_enrich_purge_at = now
+
+
+def _run_db_schema_setup(db):
+    """One-time schema creation + migrations. See _init_db()."""
     db.executescript("""
         CREATE TABLE IF NOT EXISTS harvest_cache (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -547,13 +598,8 @@ def _init_db():
             source      TEXT DEFAULT ''
         );
     """)
-    # Purge: 24h for NVD CVEs, 7 days for everything else
-    db.execute("""
-        DELETE FROM enrich_cache WHERE
-            (source = 'nvd' AND fetched_at < datetime('now', '-1 day')) OR
-            (source != 'nvd' AND fetched_at < datetime('now', '-7 days'))
-    """)
-    db.commit()
+    # enrich_cache purge now happens in _maybe_purge_enrich_cache(), rate-
+    # limited to once/hour rather than on every _init_db() call -- see there.
     # One-time migration: copy the legacy singleton harvest (id=1) into the
     # new per-account table under account_id="default", so existing users
     # keep their cached fleet data after upgrading to multi-account support.
@@ -577,7 +623,6 @@ def _init_db():
                 print("  [DB] Migrated legacy singleton harvest cache into per-account table (account_id=default)", flush=True)
     except Exception as _mig_err:
         print(f"  [DB] Legacy harvest cache migration skipped: {_mig_err}", flush=True)
-    return db
 
 
 def _save_harvest(db, result, duration_ms=0):
@@ -695,6 +740,32 @@ def _load_cached_account(db, account_id):
         "risk_count": row[6], "case_count": row[7], "risk_instance_count": row[8],
     }
     return result, meta
+
+
+def _load_all_accounts_meta(db):
+    """Load every account's harvest METADATA only -- no result_json, no
+    JSON parsing. Use this instead of _load_all_accounts_cached() whenever
+    the caller only needs counts/timestamps (e.g. /api/sync-status), not
+    the actual systems/risks/cases. The full result_json blob can be tens
+    of megabytes across two accounts; parsing it just to read
+    system_count off the metadata columns (which are already stored
+    separately) was the dominant cost of every /api/sync-status poll.
+    Returns list of (account_id, meta) -- no result payload.
+    """
+    rows = db.execute(
+        "SELECT account_id, account_label, harvested_at, duration_ms, "
+        "system_count, cluster_count, risk_count, case_count, risk_instance_count "
+        "FROM harvest_cache_accounts"
+    ).fetchall()
+    out = []
+    for row in rows:
+        meta = {
+            "accountId": row[0], "accountLabel": row[1], "harvested_at": row[2],
+            "duration_ms": row[3], "system_count": row[4], "cluster_count": row[5],
+            "risk_count": row[6], "case_count": row[7], "risk_instance_count": row[8],
+        }
+        out.append((row[0], meta))
+    return out
 
 
 def _load_all_accounts_cached(db):
@@ -7144,9 +7215,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         try:
             meta = _get_sync_meta(db)
             try:
-                all_cached = _load_all_accounts_cached(db)
+                all_cached = _load_all_accounts_meta(db)
                 configured_ids = {a["id"] for a in _get_accounts()} | {"default"}
-                all_cached = [(acct_id, result, m) for acct_id, result, m in all_cached if acct_id in configured_ids]
+                all_cached = [(acct_id, m) for acct_id, m in all_cached if acct_id in configured_ids]
                 meta["accounts"] = [
                     {
                         "id": acct_id,
@@ -7157,7 +7228,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "riskCount": m.get("risk_count", 0),
                         "caseCount": m.get("case_count", 0),
                     }
-                    for acct_id, _result, m in all_cached
+                    for acct_id, m in all_cached
                 ]
                 if all_cached:
                     meta["systemCount"] = sum(a["systemCount"] for a in meta["accounts"])

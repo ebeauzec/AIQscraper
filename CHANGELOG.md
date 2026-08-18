@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.4.2] - 2026-08-17
+
+### Fixed
+- **`_init_db()` ran its full schema-creation/migration script on every single call** (i.e. nearly every request) instead of once at startup. Split into `_init_db()` (connection open + pragma setup, cheap) and `_run_db_schema_setup()` (the one-time work), guarded by a flag + lock. The `enrich_cache` purge query is now rate-limited to once/hour instead of running on every call.
+- **`/api/sync-status` parsed the entire multi-megabyte `result_json` blob for every configured account** just to read a handful of metadata columns (system count, cluster count, last-sync timestamp) that are already stored as separate columns. New `_load_all_accounts_meta()` reads only those columns — no JSON parsing of the full harvest payload.
+
+### Found (not fixed — flagged for a decision)
+- After both fixes above, the same DB query still took ~1.6s against the live `aiq_cache.db` but only ~0.02s (80x faster) against an identical copy on local (non-synced) disk. This project's folder is Google Drive-synced, and SQLite's WAL-mode small reads/writes/fsyncs are intercepted by the Drive sync client on every database operation — this affects all DB access app-wide, not just `/api/sync-status`, and isn't fixable at the query level. Moving `aiq_cache.db` to a local, non-synced path (e.g. `%LOCALAPPDATA%`) would resolve it, but changes where the cached fleet data lives — left as a decision for the user rather than made silently.
+
+---
+
 ## [5.4.1] - 2026-08-17
 
 ### Changed

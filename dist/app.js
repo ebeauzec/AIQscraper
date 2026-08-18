@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.4.1";
+const APP_VERSION = "5.4.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.4.2",
+    date: "17 August 2026",
+    title: "DB Performance Fixes + Found the Real Bottleneck",
+    sections: [
+      {
+        icon: "⚡",
+        label: "Fixed: Two Real DB Inefficiencies",
+        color: "#2dd4bf",
+        items: [
+          "_init_db() ran its full schema-creation/migration script on every single request instead of once at startup — now runs exactly once per process",
+          "/api/sync-status parsed the full multi-megabyte harvest result for every account just to read a few metadata columns already stored separately — now reads only those columns"
+        ]
+      },
+      {
+        icon: "🔍",
+        label: "Found: The Actual Remaining Bottleneck Is the Google Drive Sync Path",
+        color: "#f59e0b",
+        items: [
+          "After both fixes, the same DB query still took ~1.6s against the live file but ~0.02s (80x faster) against an identical copy on local disk",
+          "This project's folder is Google Drive-synced — SQLite's frequent small reads/writes/fsyncs are intercepted by the Drive sync client on every single database operation",
+          "This affects all database access app-wide, not just one endpoint — it's a filesystem-location issue, not something a query fix can solve. Flagged for a decision on whether to move aiq_cache.db off the synced path"
+        ]
+      }
+    ]
+  },
   {
     version: "5.4.1",
     date: "17 August 2026",

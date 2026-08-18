@@ -1,8 +1,8 @@
 {
-  "version": "5.4.1",
+  "version": "5.4.2",
   "major": 5,
   "minor": 4,
-  "patch": 1,
+  "patch": 2,
   "date": "2026-08-17",
-  "notes": "Upgraded server.py from a single-threaded http.server.HTTPServer to ThreadingHTTPServer. Previously, any slow operation (a harvest, an external enrichment fetch, a large deliverable render) blocked every other client -- including simple polling requests like /api/sync-status -- until it finished, sometimes causing outright connection failures. Request handlers were already safe for this: each opens and closes its own short-lived SQLite connection per call rather than sharing one across requests, and the few pieces of shared mutable state (the sync-in-progress flag, the enrichment scheduler's running flags) were already guarded with threading.Lock -- so this was a safe drop-in swap, not a rewrite. Verified live: 5 concurrent requests fired during an active harvest all completed successfully instead of hanging or erroring."
+  "notes": "Two DB performance fixes following the ThreadingHTTPServer upgrade. (1) _init_db() ran its full CREATE TABLE/migration/legacy-migration script on every single call -- effectively every request -- instead of once at startup; now guarded by a flag so it runs exactly once per process, and the enrich_cache purge is rate-limited to once/hour instead of every call. (2) /api/sync-status parsed the FULL multi-megabyte result_json blob for every configured account just to read metadata columns that were already stored separately; new _load_all_accounts_meta() reads only those columns, no JSON parsing. IMPORTANT FINDING: after both fixes, a direct comparison showed the same query still takes ~1.6s against the live DB file but ~0.02s (80x faster) against an identical copy on local disk -- because this project's folder is Google Drive-synced, and SQLite's WAL-mode small reads/writes/fsyncs are intercepted by the Drive sync client on every operation. This affects all database access, not just sync-status, and is a filesystem-location issue rather than something fixable in the query layer -- flagged for the user to decide whether to move aiq_cache.db off the synced path."
 }
