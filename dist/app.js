@@ -18,9 +18,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.1";
+const APP_VERSION = "5.6.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.2",
+    date: "17 August 2026",
+    title: "Critical Fix: Found the Real Root Cause of the Header Bug",
+    sections: [
+      {
+        icon: "🎯",
+        label: "Fixed: Longstanding Duplicate </div> in index_src.html",
+        color: "#f87171",
+        items: [
+          "A genuine duplicate closing </div> inside the Action Planner tab's HTML skeleton caused a one-level-too-early cascade — every tab after it (including Settings) rendered as a stray sibling of .app-container instead of nested inside .main-content",
+          "That broke .main-content's flex width (measured 0px) and, downstream, the sticky top header's width and its button group's right-alignment — exactly the 'button behind a tile' symptom reported",
+          "Confirmed via a custom HTML balance-checker that this bug predates this entire session — not something introduced by the UX audit",
+          "Verified live with real resolved computed styles: .main-content now correctly measures ~1140px, the header button group's margin-left resolves to a real positive pixel value, and .app-container has exactly its intended 2 children with all 6 tabs correctly nested"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.1",
     date: "17 August 2026",

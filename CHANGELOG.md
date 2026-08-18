@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.2] - 2026-08-17
+
+### Fixed (critical, root cause)
+- **Found and fixed the actual, longstanding cause of the header-alignment bug** — the `margin-left: auto` fix in 5.6.1 was correct in principle but couldn't work because `.header-status`'s parent, `.top-header`, had genuinely collapsed to a ~40px width due to a separate, pre-existing structural bug in `index_src.html`: a duplicate closing `</div>` inside the Action Planner tab's HTML skeleton (right after `#generatedPlanBody`). That extra tag caused a one-level-too-early cascade — `#planTab` closed one line early, and the *next* closing tag, which should have closed `#planTab`, instead closed `.main-content` itself. Every tab after Action Planner (including Settings) rendered as a stray direct child of `.app-container` instead of properly nested inside `.main-content`, which broke `.main-content`'s flex width (it measured 0px) and, downstream, the sticky header's width and its button group's alignment.
+- Confirmed via a custom Python HTML balance-checker script that this exact bug was present in `index_src.html` **before any change made during this session's UX audit** — it is not something introduced by the recent work, just something the audit's changes happened to land near and expose more visibly.
+- Fixed by removing the duplicate `</div>` and adding `.main-content`'s and `.app-container`'s own previously-absent closing tags at the true end of the document (both were relying on the browser's end-of-document auto-recovery to implicitly close them, one level later than intended).
+- Verified live with real resolved computed styles (not just HTML attribute strings, which was an earlier, insufficient verification method): `.main-content` now correctly measures ~1140px at a 1400px viewport, `.header-status`'s `margin-left` resolves to a real positive pixel value that pushes it fully right, and `.app-container` now has exactly its intended 2 children (`sidebar`, `main-content`) with all 6 tab views correctly nested inside `main-content`.
+- `index.html` (the separately-maintained compiled build for the packaged desktop app) was checked with the same balance-checker and does not have this bug.
+
+---
+
 ## [5.6.1] - 2026-08-17
 
 ### Fixed (critical)
