@@ -18,9 +18,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.5.0";
+const APP_VERSION = "5.5.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.5.1",
+    date: "17 August 2026",
+    title: "UX Audit Round 2: Deliverables Grouping + Needs Attention",
+    sections: [
+      {
+        icon: "🏷️",
+        label: "Grouped: Action Planner's 19-Tab Row",
+        color: "#2dd4bf",
+        items: [
+          "Added FLEET ANALYSIS / CUSTOMER DELIVERABLES / AS-BUILT DOCUMENT group labels to the Action Planner tab row — the 13 customer-ready deliverables were previously buried as sub-tab 9 of an unbroken 19-button list",
+          "Purely visual — no tab renumbering, nothing about how deliverables are generated changed"
+        ]
+      },
+      {
+        icon: "🎯",
+        label: "New: 'Needs Attention' Card on Overview",
+        color: "#2dd4bf",
+        items: [
+          "Ranks and surfaces the top 5 highest-risk systems in current scope (by critical/high risk count, then soonest-expiring contract) — click any one to jump straight to Technical Audit for that system",
+          "Previously Overview had 4 equally-weighted KPI counters and no ranked starting point for a returning TAM"
+        ]
+      }
+    ]
+  },
   {
     version: "5.5.0",
     date: "17 August 2026",
@@ -5650,6 +5675,57 @@ function updateOverviewKpis() {
   document.getElementById("kpiCriticalRisks").style.color = criticalRisksCount > 0 ? "var(--status-critical)" : "var(--status-normal)";
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
+}
+
+// ── Needs Attention (Overview) ──────────────────────────────────────────────
+// A returning TAM previously had 4 equally-weighted KPI counters and no
+// ranked "start here" — they had to already know what the numbers meant and
+// manually sort/filter the table to find the systems actually worth looking
+// at first. This surfaces the worst few systems directly, each one click
+// away from Technical Audit via focusOnSystem().
+function renderNeedsAttention() {
+  const card = document.getElementById("overviewNeedsAttentionCard");
+  if (!card) return;
+  const filtered = getFilteredSystems(true);
+
+  const ranked = filtered.map(sys => {
+    const critCount = (sys.risks || []).filter(r => r.severity === 'critical').length;
+    const highCount = (sys.risks || []).filter(r => r.severity === 'high').length;
+    const daysRemaining = sys.contracts ? sys.contracts.daysRemaining : null;
+    const contractExpiringSoon = daysRemaining != null && daysRemaining <= 30;
+    return { sys, critCount, highCount, contractExpiringSoon, daysRemaining };
+  }).filter(r => r.critCount > 0 || r.highCount > 0 || r.contractExpiringSoon)
+    .sort((a, b) => (b.critCount - a.critCount) || (b.highCount - a.highCount) || ((a.daysRemaining ?? 999) - (b.daysRemaining ?? 999)))
+    .slice(0, 5);
+
+  if (ranked.length === 0) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "block";
+  card.innerHTML = `
+    <div class="table-header-row" style="margin-bottom: 12px;">
+      <div class="section-title" style="color: var(--status-critical);">⚠ Needs Attention</div>
+      <div style="font-size: 0.72rem; color: var(--text-muted);">Highest-risk systems in current scope — click to open in Technical Audit</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      ${ranked.map(r => {
+        const parts = [];
+        if (r.critCount > 0) parts.push(`<span style="color: var(--status-critical); font-weight: 600;">${r.critCount} critical</span>`);
+        if (r.highCount > 0) parts.push(`<span style="color: var(--status-warning); font-weight: 600;">${r.highCount} high</span>`);
+        if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">contract expires in ${r.daysRemaining}d</span>`);
+        return `
+          <div onclick="focusOnSystem('${r.sys.serialNumber}'); switchTab('tam');" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+            <div>
+              <span style="font-weight: 600;">${r.sys.systemName}</span>
+              <span style="color: var(--text-muted); font-size: 0.78rem; margin-left: 8px;">${r.sys.customerName || ''}</span>
+            </div>
+            <div style="font-size: 0.78rem; display: flex; gap: 10px;">${parts.join(' · ')}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
 }
 
 function setKpiFilter(filterType) {
@@ -24300,6 +24376,7 @@ function generateActionPlan() {
   if (planTabsHeader) {
     planTabsHeader.style.display = "flex";
     planTabsHeader.innerHTML = `
+      <span class="plan-tab-group-label" style="margin-left:0;">FLEET ANALYSIS</span>
       <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
       <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
@@ -24308,9 +24385,9 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">7. Logistics &amp; Health</button>
       <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">8. Guidelines</button>
-      <span class="plan-tab-divider"></span>
-      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">★ 9. Deliverables Suite (13)</button>
-      <span class="plan-tab-divider"></span>
+      <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before and after this point is fleet analysis, not exportable deliverables.">★ CUSTOMER DELIVERABLES</span>
+      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">9. Deliverables Suite (13)</button>
+      <span class="plan-tab-group-label">FLEET ANALYSIS (CONT'D)</span>
       <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">10. Contracts &amp; Lifecycle</button>
       <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">11. Sustainability</button>
       <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Prioritised recommendations for capacity planning, performance optimisation, security hardening, and tech refresh across the fleet.">12. Recommendations</button>
@@ -24320,8 +24397,8 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationships, replication status, HA pair configuration, and MetroCluster health per system.">🔄 16. DR &amp; Replication Health</button>
       <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, FabricPool, encryption, etc.) are enabled or missing per system.">✅ 17. Feature Adoption</button>
       <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 18. Firmware Currency</button>
-      <span class="plan-tab-divider"></span>
-      <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">📋 19. As-Built Document</button>
+      <span class="plan-tab-group-label" title="Another customer-facing document — kept separate from the Deliverables Suite since it's typically generated on its own, not part of the standard 13-doc set.">★ AS-BUILT DOCUMENT</span>
+      <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
     `;
 
   }
@@ -27217,6 +27294,7 @@ function switchTab(tabId) {
   // Render specific tab scopes
   if (tabId === "overview") {
     updateOverviewKpis();
+    renderNeedsAttention();
     renderOverviewTable();
     renderCharts();
   } else if (tabId === "tam") {

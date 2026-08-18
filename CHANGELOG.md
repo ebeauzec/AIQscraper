@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.5.1] - 2026-08-17
+
+### Added
+- **Group labels on the Action Planner tab row** (`FLEET ANALYSIS` / `★ CUSTOMER DELIVERABLES` / `FLEET ANALYSIS (CONT'D)` / `★ AS-BUILT DOCUMENT`) — the 13 customer-ready deliverables were previously buried as sub-tab 9 of an unbroken 19-button horizontal list with only a thin 1px divider marking the boundary. Purely additive markup (new `.plan-tab-group-label` CSS class); no tab renumbering or `switchPlanTab()` logic changed.
+- **"Needs Attention" card on the Overview dashboard.** Ranks the top 5 highest-risk systems in current scope (critical risk count, then high risk count, then soonest-expiring contract within 30 days) and surfaces them directly below the KPI row — click any row to jump straight to Technical Audit for that system via `focusOnSystem()`. Previously Overview had 4 equally-weighted KPI counters with no ranked starting point for a returning TAM. Verified live: clicking a row correctly focuses that system and switches tabs.
+
+This is round 2 of the UX audit started in 5.5.0 — more findings queued (search scope, Settings sub-nav, import/export consolidation).
+
+---
+
 ## [5.5.0] - 2026-08-17
 
 ### Added
