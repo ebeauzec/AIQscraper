@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.2";
+const APP_VERSION = "5.6.3";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.3",
+    date: "17 August 2026",
+    title: "Fixed: TAM Recommendations Disappearing in Multi-Account Setups",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Recommendations Silently Discarded for Non-Largest Accounts",
+        color: "#f87171",
+        items: [
+          "Multi-account merge only kept TAM recommendations from the single largest configured account by system count, discarding every other account's real recommendations entirely",
+          "Confirmed live: one account had 23 real recommendations; a newly-added, larger account had 0 (not yet fetched) — because it was now the largest, the merged view showed 'No recommendations available' even though real data existed elsewhere",
+          "Recommendations now combine across all configured accounts, same as systems/risks/cases already do, tagged with their source account for attribution"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.2",
     date: "17 August 2026",

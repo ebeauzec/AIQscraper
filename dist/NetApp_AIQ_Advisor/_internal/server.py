@@ -992,6 +992,14 @@ def _populate_reporting_tables(db, account_id, account_label, result):
 _MERGE_LIST_FIELDS = [
     "systems", "clusters", "risks", "cases",
     "tamSites", "tamRenewals", "acknowledgedRisksNowExploited",
+    # tamRecommendations was previously left out of this list and treated as
+    # a "scalar/summary" field taken only from the largest account -- but
+    # recommendations are per-account TAM insights, not account-agnostic
+    # reference data (unlike firmwareBaselines/tamOsVersions). That meant a
+    # 2nd/3rd configured account's real recommendations were silently
+    # discarded whenever it wasn't the single largest account by system
+    # count, even though it had genuine (non-empty) recommendation data.
+    "tamRecommendations",
 ]
 
 
@@ -3000,7 +3008,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _acct_label = account.get("label") or _acct_id
             result["accountId"] = _acct_id
             result["accountLabel"] = _acct_label
-            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals"):
+            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations"):
                 for _item in (result.get(_field) or []):
                     if isinstance(_item, dict):
                         _item.setdefault("accountId", _acct_id)

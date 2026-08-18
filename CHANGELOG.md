@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.3] - 2026-08-17
+
+### Fixed
+- **TAM Recommendations silently disappearing in multi-account setups.** `_merge_account_results()` treated `tamRecommendations` as "scalar/summary reference data" (like `firmwareBaselines`) and took it only from the single largest configured account by system count — discarding every other account's real recommendations entirely. Confirmed live: one account had 23 real recommendations; a newly-added account with more systems had 0 (not yet successfully fetched for that account), and because it was now the largest, the merged Action Planner view showed "No recommendations available" even though real data existed for a smaller account. Recommendations are per-account TAM insights, not account-agnostic reference data — `tamRecommendations` now combines across all configured accounts (same as `systems`/`risks`/`cases` already do), and each recommendation is tagged with its source `accountId`/`accountLabel`. Verified against real cached data: merged recommendation count went from 0 to 46 after the fix.
+
+---
+
 ## [5.6.2] - 2026-08-17
 
 ### Fixed (critical, root cause)
