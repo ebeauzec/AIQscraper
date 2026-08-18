@@ -18,9 +18,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.3";
+const APP_VERSION = "5.6.4";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.4",
+    date: "18 August 2026",
+    title: "Fixed: Duplicate TAM Recommendations + Added TXT Export",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Same Recommendation Listed Twice in Multi-Account Merge",
+        color: "#f87171",
+        items: [
+          "The v5.6.3 multi-account merge fix combined recommendations across accounts but had no way to detect true duplicates, since recommendation items carry no serialNumber/id -- when two configured accounts point at overlapping Active IQ orgs, the same generic recommendation (e.g. ACTIVE_SUPPORT_CONTRACTS) came back verbatim from both and showed up as duplicate cards with identical scores",
+          "Recommendations are now deduplicated by content (recommendation text + category + subCategory + rank + score) instead of by account, so a true content match collapses to one entry"
+        ]
+      },
+      {
+        icon: "✨",
+        label: "New: Download TAM Recommendations as TXT",
+        color: "#2dd4bf",
+        items: [
+          "Added a Download Recommendations (TXT) button to Section 12, matching the export available on every other Fleet Analysis section"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.3",
     date: "17 August 2026",
@@ -24408,6 +24432,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="12" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">12. TAM Recommendations</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(12)" data-tooltip="Download Section 12 TAM recommendations report as a TXT file.">Download Recommendations (TXT)</button>
       </div>
       ${_renderRecommendationsSection(targetSystems)}
     </div>
@@ -24822,6 +24847,28 @@ A. CHANGE CONTROL PROCEDURES
 B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
 - VMware Multipathing: Confirm ESXi hosts utilize round robin policies with IOPS limit=1.
 - Astra Trident: Coordinate Trident upgrades alongside Kubernetes API migrations to avoid CSI mount failures.`;
+  } else if (index === 12) {
+    filename = `tam_recommendations_${cleanScope}.txt`;
+    const recs = state.tamRecommendations || [];
+    const byCategory = {};
+    recs.forEach(r => {
+      const cat = r.category || 'OTHER';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(r);
+    });
+    const stripTags = (s) => String(s || '').replace(/<[^>]*>/g, '');
+    text = `NETAPP TAM RECOMMENDATIONS REPORT
+Scope: ${scopeTitle}
+Date Generated: ${new Date().toISOString().split('T')[0]}
+Total Recommendations: ${recs.length}
+
+${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to load TAM recommendations." :
+  Object.keys(byCategory).map(cat => {
+    const items = byCategory[cat];
+    return `${cat.replace(/_/g, ' ')} (${items.length})\n${'-'.repeat(cat.length + 6)}\n` +
+      items.map((r, idx) => `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}Score: ${r.score != null ? r.score + '%' : 'N/A'}
+   ${stripTags(r.recommendation)}`).join('\n\n');
+  }).join('\n\n\n')}`;
   } else if (index === 19) {
     // As-Built Configuration Document — comprehensive per-system TXT export
     filename = `as_built_config_${cleanScope}.txt`;

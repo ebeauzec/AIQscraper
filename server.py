@@ -1025,12 +1025,30 @@ def _merge_account_results(account_results):
         seen_keys = set()
         for _acct_id, result, _meta in account_results:
             for item in (result.get(field) or []):
-                # Dedupe by serialNumber/id where present (NetApp serials are globally
-                # unique, so this only guards against the same account appearing twice,
-                # not against real cross-customer collisions).
-                key = item.get("serialNumber") if isinstance(item, dict) else None
-                key = key or (item.get("id") if isinstance(item, dict) else None)
-                dedupe_key = (item.get("accountId"), key) if isinstance(item, dict) and key else None
+                if not isinstance(item, dict):
+                    combined.append(item)
+                    continue
+                if field == "tamRecommendations":
+                    # Recommendation items carry no serialNumber/id -- they're
+                    # identified by their content (recommendation/category/
+                    # subCategory/rank/score). When two configured accounts
+                    # point at overlapping Active IQ orgs, the same generic
+                    # recommendation comes back verbatim from both, which
+                    # showed up as literal duplicate cards in the Action
+                    # Planner (e.g. "ACTIVE_SUPPORT_CONTRACTS" listed twice
+                    # with identical scores). Dedupe by content instead of
+                    # by account, since a true content match means it's the
+                    # same underlying advisory, not two distinct issues.
+                    dedupe_key = (
+                        item.get("recommendation"), item.get("category"),
+                        item.get("subCategory"), item.get("rank"), item.get("score"),
+                    )
+                else:
+                    # Dedupe by serialNumber/id where present (NetApp serials are
+                    # globally unique, so this only guards against the same account
+                    # appearing twice, not against real cross-customer collisions).
+                    key = item.get("serialNumber") or item.get("id")
+                    dedupe_key = (item.get("accountId"), key) if key else None
                 if dedupe_key and dedupe_key in seen_keys:
                     continue
                 if dedupe_key:

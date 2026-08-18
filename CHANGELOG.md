@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.4] - 2026-08-18
+
+### Fixed
+- **TAM recommendations appearing as duplicate cards in multi-account setups** (follow-up to 5.6.3). Recommendation items carry no `serialNumber`/`id`, so when two configured accounts point at overlapping Active IQ orgs, the exact same generic recommendation (e.g. `ACTIVE_SUPPORT_CONTRACTS`) came back from both accounts and was merged in as two separate entries with identical text and scores. `_merge_account_results()` now dedupes `tamRecommendations` by content (recommendation text + category + subCategory + rank + score) instead of by account+id like the other list fields.
+
+### Added
+- **Download Recommendations (TXT)** button on Section 12 of the Action Planner, matching the export already available on every other Fleet Analysis section.
+
+---
+
 ## [5.6.3] - 2026-08-17
 
 ### Fixed

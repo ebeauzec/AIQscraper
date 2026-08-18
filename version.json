@@ -1,8 +1,8 @@
 {
-  "version": "5.6.3",
+  "version": "5.6.4",
   "major": 5,
   "minor": 6,
-  "patch": 3,
-  "date": "2026-08-17",
-  "notes": "Fixed TAM Recommendations silently disappearing in multi-account setups. _merge_account_results() treated tamRecommendations as 'scalar/summary reference data' and took it only from the single largest configured account by system count, discarding every other account's real recommendations entirely -- confirmed live: one account had 23 real recommendations, a newly-added larger account had 0 (recommendations hadn't been fetched successfully for it yet), and because it was now the largest account, the merged view showed 'No recommendations available' even though real data existed. Recommendations are per-account TAM insights, not account-agnostic reference data like firmwareBaselines -- added tamRecommendations to the list of fields that get concatenated across all configured accounts (like systems/risks/cases already do), and tagged each recommendation with its source accountId/accountLabel so a multi-account merged view can still attribute them. Verified against real cached data: merged recommendation count went from 0 to 46 (23 real + 23 real, from the two accounts with actual data) after the fix."
+  "patch": 4,
+  "date": "2026-08-18",
+  "notes": "Fixed TAM recommendations showing as duplicate cards in multi-account setups (follow-up to 5.6.3). Recommendation items have no serialNumber/id, so when two configured accounts point at overlapping Active IQ orgs, the exact same generic recommendation (e.g. ACTIVE_SUPPORT_CONTRACTS) came back from both accounts and was merged in as two separate entries with identical text and scores. _merge_account_results() now dedupes tamRecommendations by content (recommendation text + category + subCategory + rank + score) instead of by account+id like the other list fields. Also added a Download Recommendations (TXT) button to Section 12 of the Action Planner, matching the export already available on every other Fleet Analysis section."
 }
