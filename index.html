@@ -99,23 +99,45 @@
         
         <div class="header-status" style="margin-left: auto;">
 
-          <!-- Import ASUP Bundle Button -->
-          <button
-            id="importAsupBtn"
-            onclick="openAsupImportModal()"
-            class="action-btn"
-            style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(245,158,11,0.45); color: #fbbf24; background: rgba(245,158,11,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
-            onmouseover="this.style.background='rgba(245,158,11,0.18)'; this.style.borderColor='rgba(245,158,11,0.7)';"
-            onmouseout="this.style.background='rgba(245,158,11,0.08)'; this.style.borderColor='rgba(245,158,11,0.45)';"
-            onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
-            data-tooltip="Import an offline ASUP bundle (.zip or .7z) for a system that is not connected to Active IQ. The imported data will be added to your customer list.">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            <span>Import ASUP</span>
-          </button>
+          <!-- Import/Export menu — consolidates what used to be 4 separate
+               buttons split across two different header zones (Import ASUP
+               up here; Import Config/Export Config/Export CSV down in the
+               Overview table header), which made it unclear where to look
+               for any given import/export action. -->
+          <div style="position: relative;" id="importExportMenuWrapper">
+            <button
+              id="importExportMenuBtn"
+              onclick="toggleImportExportMenu(event)"
+              class="action-btn"
+              style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(245,158,11,0.45); color: #fbbf24; background: rgba(245,158,11,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
+              onmouseover="this.style.background='rgba(245,158,11,0.18)'; this.style.borderColor='rgba(245,158,11,0.7)';"
+              onmouseout="this.style.background='rgba(245,158,11,0.08)'; this.style.borderColor='rgba(245,158,11,0.45)';"
+              onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
+              data-tooltip="Import an ASUP bundle or app config, or export your config/account report. All import and export actions live here.">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>Import / Export</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div id="importExportMenu" style="display: none; position: absolute; top: calc(100% + 6px); right: 0; z-index: 1000; min-width: 260px; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,0.6); padding: 6px; backdrop-filter: blur(10px);">
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); openAsupImportModal();" data-tooltip="Import an offline ASUP bundle (.zip or .7z) for a system that is not connected to Active IQ. The imported data will be added to your customer list.">
+                <span>📦 Import ASUP Bundle</span>
+              </button>
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); triggerImportFileInput();" data-tooltip="Import local database, systems metadata, custom subgroups, and star filters from a JSON file.">
+                <span>⬆ Import Config (JSON)</span>
+              </button>
+              <div style="height: 1px; background: var(--border-color); margin: 4px 6px;"></div>
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); exportConfigJSON();" data-tooltip="Export all systems metadata, custom subgroups, and star filters to a JSON file to share or back up.">
+                <span>⬇ Export Config (JSON)</span>
+              </button>
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); exportCSV();" data-tooltip="Export the current filtered systems list, risk counts, and support statuses to a spreadsheet-compatible CSV file.">
+                <span>⬇ Export Account Report (CSV)</span>
+              </button>
+            </div>
+          </div>
 
           <!-- Manual Refresh Button -->
           <button
@@ -201,11 +223,9 @@
         <!-- Systems Table Card -->
         <div class="card table-card">
           <div class="table-header-row">
-            <div class="section-title">Monitored Systems & Clusters</div>
+            <div class="section-title">Monitored Systems &amp; Clusters</div>
             <div style="display: flex; gap: 8px;">
-              <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database, systems metadata, custom subgroups, and star filters from a JSON file.">Import Config (JSON)</button>
-              <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export all systems metadata, custom subgroups, and star filters to a JSON file to share or back up.">Export Config (JSON)</button>
-              <button class="action-btn" onclick="exportCSV()" data-tooltip="Export the current filtered systems list, risk counts, and support statuses to a spreadsheet-compatible CSV file.">Export Account Report (CSV)</button>
+              <span style="font-size: 0.72rem; color: var(--text-muted); align-self: center;" data-tooltip="Import/export actions moved here from the top-right menu to reduce duplicate controls scattered across the page.">Import/export: see ⬆ top-right menu</span>
             </div>
           </div>
           <div class="data-table-container">
@@ -604,12 +624,22 @@
       </div>
       <div id="settingsTab" class="tab-content">
         <h2 style="font-weight: 700; font-size: 1.5rem; margin-bottom: 8px;">Settings &amp; Configuration</h2>
-        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 32px;">Connect your Active IQ API, configure watchlists, and manage your fleet metadata below.</p>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">Connect your Active IQ API, configure watchlists, and manage your fleet metadata below.</p>
+
+        <!-- Settings sub-nav — jumps to each section instead of requiring the
+             user to scroll/scan one long unsectioned page to find a setting. -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; position: sticky; top: 0; z-index: 5; background-color: var(--bg-primary); padding: 8px 0;">
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionApi').scrollIntoView({behavior:'smooth'})">🔑 API &amp; Watchlists</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionAccounts').scrollIntoView({behavior:'smooth'})">👥 Customer Accounts</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionGroups').scrollIntoView({behavior:'smooth'})">🗂️ Serial Numbers &amp; Groups</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionMetadata').scrollIntoView({behavior:'smooth'})">📝 Metadata Editor</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionAdvanced').scrollIntoView({behavior:'smooth'})">⚙️ Advanced / GraphQL</button>
+        </div>
 
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 1 — HERO: API Key + Watchlists + Quick Actions (3-column) -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr 320px; gap: 20px; margin-bottom: 20px; align-items: start;">
+        <div id="settingsSectionApi" style="display: grid; grid-template-columns: 1fr 1fr 320px; gap: 20px; margin-bottom: 20px; align-items: start; scroll-margin-top: 90px;">
 
           <!-- CARD 1A: API Authentication (most prominent) -->
           <div class="card" style="border-top: 3px solid var(--accent-cyan); position: relative;">
@@ -767,7 +797,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 1B — Multiple Customer Accounts (multi-tenant support)     -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div class="card" style="border-top: 3px solid #34d399; margin-bottom: 20px;">
+        <div id="settingsSectionAccounts" class="card" style="border-top: 3px solid #34d399; margin-bottom: 20px; scroll-margin-top: 90px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(52,211,153,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -795,7 +825,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 2 — SECONDARY: Serial Numbers + Setup Guide + Groups       -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start;">
+        <div id="settingsSectionGroups" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start; scroll-margin-top: 90px;">
 
           <!-- Serial Numbers -->
           <div class="card">
@@ -871,7 +901,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 3 — SYSTEM METADATA EDITOR (full width collapsible)        -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div class="card" style="margin-bottom: 20px;">
+        <div id="settingsSectionMetadata" class="card" style="margin-bottom: 20px; scroll-margin-top: 90px;">
           <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; margin-bottom: 0;" onclick="const b=document.getElementById('metadataEditorBody'); const a=document.getElementById('metadataEditorArrow'); b.style.display=b.style.display==='none'?'block':'none'; a.style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(90deg)';">
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,229,255,0.1); display: flex; align-items: center; justify-content: center;">
@@ -969,7 +999,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 4 — SUBGROUP CREATOR + GRAPHQL SANDBOX                     -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div style="display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start;">
+        <div id="settingsSectionAdvanced" style="display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; scroll-margin-top: 90px;">
 
           <!-- Custom Subgroups Creator -->
           <div class="card">

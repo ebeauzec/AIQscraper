@@ -52,23 +52,23 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
           Overview Dashboard
         </div>
-        <div class="nav-item" data-tab="tam" onclick="switchTab('tam')">
+        <div class="nav-item" data-tab="tam" onclick="switchTab('tam')" data-tooltip="Per-system technical detail: risks, OS/firmware upgrade paths, security bulletins, switch health, and physical cabling layout.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
           Technical Audit
         </div>
-        <div class="nav-item" data-tab="sam" onclick="switchTab('sam')">
+        <div class="nav-item" data-tab="sam" onclick="switchTab('sam')" data-tooltip="Support case tracking, capacity forecasting/growth projections, and performance (IOPS/latency) trends.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
           Support & Ops
         </div>
-        <div class="nav-item" data-tab="csm" onclick="switchTab('csm')">
+        <div class="nav-item" data-tab="csm" onclick="switchTab('csm')" data-tooltip="Adoption scorecard, efficiency/FabricPool savings, SnapMirror protection status, and historical trend vs. last week/month/quarter.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           Value & ROI
         </div>
-        <div class="nav-item" data-tab="plan" onclick="switchTab('plan')">
+        <div class="nav-item" data-tab="plan" onclick="switchTab('plan')" data-tooltip="Generate customer-ready deliverables (QBR pack, security brief, MEDDPICC, sustainability report, and more) plus fleet-wide contract/recommendation/lifecycle views.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           Action Planner
         </div>
-        <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+        <div class="nav-item" data-tab="settings" onclick="switchTab('settings')" data-tooltip="API credentials, watchlist scope, enrichment sources, and manually-tracked system metadata (site logistics, contacts, CSAT).">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           Settings & Config
         </div>
@@ -78,7 +78,7 @@
       <div class="sidebar-groups-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
           <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">Account Filters</span>
-          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()" data-tooltip="Clear all active customer, subgroup, watchlist filters, search terms, and KPI card drill-downs.">Reset</button>
+          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()" data-tooltip="Clear filters/search/KPI drill-down without leaving the current tab. (The logo and Overview Dashboard also reset filters, but additionally navigate you back to Overview.)">Clear Filters</button>
         </div>
         <div id="sidebarGroupsList" class="tree-menu">
           <!-- JS dynamic groups list -->
@@ -100,7 +100,7 @@
         <div class="search-box">
           <div style="position: relative; flex: 1; display: flex; align-items: center;">
             <svg class="search-icon" style="position: absolute; left: 14px; top: 12px; color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" id="searchInput" class="search-input" style="padding-left: 40px; width: 100%;" placeholder="Search by Name, S/N(s), Cluster, or Customer...">
+            <input type="text" id="searchInput" class="search-input" style="padding-left: 40px; width: 100%;" placeholder="Search by Name, S/N, Cluster, Customer, CVE ID, case ID, or risk description..." data-tooltip="Matches system identity fields plus risk descriptions, CVE IDs, and support case IDs/symptoms — comma-separate multiple terms.">
             <div id="searchSuggestionsContainer" class="custom-autocomplete-dropdown" style="display: none;"></div>
           </div>
           <button id="starSearchBtn" class="action-btn" style="padding: 10px 14px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; flex-shrink: 0;" onclick="starCurrentSearch()" data-tooltip="Save the current search query as a starred shortcut in the sidebar for easy access.">
@@ -109,7 +109,7 @@
           </button>
         </div>
         
-        <div class="header-status">
+        <div class="header-status" style="margin-left: auto;">
 
           <!-- Manual Refresh Button -->
           <button
@@ -129,23 +129,45 @@
             <span id="refreshBtnText">Refresh</span>
           </button>
 
-          <!-- Import ASUP Bundle Button -->
-          <button
-            id="asupImportToolbarBtn"
-            onclick="openAsupImportModal()"
-            class="action-btn"
-            style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
-            onmouseover="this.style.background='rgba(168,85,247,0.18)'; this.style.borderColor='rgba(168,85,247,0.7)';"
-            onmouseout="this.style.background='rgba(168,85,247,0.08)'; this.style.borderColor='rgba(168,85,247,0.45)';"
-            onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
-            data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable. Parsed data is persisted to the local database and added to the dashboard.">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <span>Import ASUP</span>
-          </button>
+          <!-- Import/Export menu — consolidates what used to be 4 separate
+               buttons split across two different header zones (Import ASUP
+               up here; Import Config/Export Config/Export CSV down in the
+               Overview table header), which made it unclear where to look
+               for any given import/export action. -->
+          <div style="position: relative;" id="importExportMenuWrapper">
+            <button
+              id="importExportMenuBtn"
+              onclick="toggleImportExportMenu(event)"
+              class="action-btn"
+              style="padding: 7px 13px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; border-color: rgba(168,85,247,0.45); color: #c084fc; background: rgba(168,85,247,0.08); transition: background 0.2s, border-color 0.2s, transform 0.1s;"
+              onmouseover="this.style.background='rgba(168,85,247,0.18)'; this.style.borderColor='rgba(168,85,247,0.7)';"
+              onmouseout="this.style.background='rgba(168,85,247,0.08)'; this.style.borderColor='rgba(168,85,247,0.45)';"
+              onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform=''"
+              data-tooltip="Import an ASUP bundle or app config, or export your config/account report. All import and export actions live here.">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span>Import / Export</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div id="importExportMenu" style="display: none; position: absolute; top: calc(100% + 6px); right: 0; z-index: 1000; min-width: 260px; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,0.6); padding: 6px; backdrop-filter: blur(10px);">
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); openAsupImportModal();" data-tooltip="Import an offline AutoSupport (.7z / .tgz / .zip / .xml) bundle when Active IQ is unreachable. Parsed data is persisted to the local database and added to the dashboard.">
+                <span>📦 Import ASUP Bundle</span>
+              </button>
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); triggerImportFileInput();" data-tooltip="Import local database, systems metadata, custom subgroups, and star filters from a JSON file.">
+                <span>⬆ Import Config (JSON)</span>
+              </button>
+              <div style="height: 1px; background: var(--border-color); margin: 4px 6px;"></div>
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); exportConfigJSON();" data-tooltip="Export all systems metadata, custom subgroups, and star filters to a JSON file to share or back up.">
+                <span>⬇ Export Config (JSON)</span>
+              </button>
+              <button class="import-export-menu-item" onclick="closeImportExportMenu(); exportCSV();" data-tooltip="Export the current filtered systems list, risk counts, and support statuses to a spreadsheet-compatible CSV file.">
+                <span>⬇ Export Account Report (CSV)</span>
+              </button>
+            </div>
+          </div>
 
           <div class="status-badge-header">
             <span class="indicator disconnected"></span>
@@ -188,7 +210,11 @@
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           </div>
         </div>
-        
+
+        <!-- Needs Attention — a concrete "start here" for a returning TAM, instead
+             of just KPI counts with no ranking of what to actually look at first -->
+        <div class="card" id="overviewNeedsAttentionCard" style="margin-bottom: 20px; display: none;"></div>
+
         <!-- Charts Grid Row -->
         <div class="charts-grid">
           <div class="card chart-card">
@@ -208,11 +234,9 @@
         <!-- Systems Table Card -->
         <div class="card table-card">
           <div class="table-header-row">
-            <div class="section-title">Monitored Systems & Clusters</div>
+            <div class="section-title">Monitored Systems &amp; Clusters</div>
             <div style="display: flex; gap: 8px;">
-              <button class="action-btn secondary" onclick="triggerImportFileInput()" data-tooltip="Import local database, systems metadata, custom subgroups, and star filters from a JSON file.">Import Config (JSON)</button>
-              <button class="action-btn secondary" onclick="exportConfigJSON()" data-tooltip="Export all systems metadata, custom subgroups, and star filters to a JSON file to share or back up.">Export Config (JSON)</button>
-              <button class="action-btn" onclick="exportCSV()" data-tooltip="Export the current filtered systems list, risk counts, and support statuses to a spreadsheet-compatible CSV file.">Export Account Report (CSV)</button>
+              <span style="font-size: 0.72rem; color: var(--text-muted); align-self: center;" data-tooltip="Import/export actions moved here from the top-right menu to reduce duplicate controls scattered across the page.">Import/export: see ⬆ top-right menu</span>
             </div>
           </div>
           <div class="data-table-container">
@@ -630,8 +654,16 @@
           </div>
         </div>
 
+        <!-- Settings sub-nav — jumps to each section instead of requiring the
+             user to scroll/scan one long page to find a setting. -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; position: sticky; top: 0; z-index: 5; background-color: var(--bg-primary); padding: 8px 0;">
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionConnection').scrollIntoView({behavior:'smooth'})">🔑 Connection &amp; Sync</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionFleet').scrollIntoView({behavior:'smooth'})">🗂️ Fleet Configuration</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionAdvanced').scrollIntoView({behavior:'smooth'})">⚙️ Advanced</button>
+        </div>
+
         <!-- ── Section: Connection & Sync ───────────────────── -->
-        <div class="settings-section-label">Connection &amp; Sync</div>
+        <div id="settingsSectionConnection" class="settings-section-label" style="scroll-margin-top: 90px;">Connection &amp; Sync</div>
 
         <!-- Primary 2-col: API Auth | Watchlist -->
         <div class="settings-2col" style="margin-bottom: 12px;">
@@ -832,7 +864,7 @@
         </div>
 
         <!-- ── Section: Fleet Configuration ─────────────────── -->
-        <div class="settings-section-label" style="margin-top: 24px;">Fleet Configuration</div>
+        <div id="settingsSectionFleet" class="settings-section-label" style="margin-top: 24px; scroll-margin-top: 90px;">Fleet Configuration</div>
 
         <div class="settings-2col">
 
@@ -867,7 +899,7 @@
         </div>
 
         <!-- ── Section: Advanced ─────────────────────────────── -->
-        <div class="settings-section-label" style="margin-top: 24px;">Advanced</div>
+        <div id="settingsSectionAdvanced" class="settings-section-label" style="margin-top: 24px; scroll-margin-top: 90px;">Advanced</div>
 
         <!-- Accordion: Metadata Editor -->
         <div class="card settings-accordion" style="margin-bottom: 10px;">

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.1] - 2026-08-17
+
+### Fixed (critical)
+- **Every HTML-only change from the entire UX audit (5.5.0 through 5.6.0) was applied to the wrong file and had zero effect on the locally-running app.** `server.py`'s `do_GET()` has a deliberate, documented redirect: `if self.path in ('/', '/index.html', '/index.html?'): self.path = '/index_src.html'` — "Serve the development HTML (external app.js) instead of the compiled single-file index.html, so code changes take effect without recompiling." `index.html` is a separately-maintained compiled/inlined build used only for the packaged desktop distribution (PyInstaller `dist/`); `index_src.html` is the real file served to anyone running `server.py` locally, which is what every screenshot and bug report in this session came from.
+- All of the following have been re-applied directly to `index_src.html` and verified against a real, non-cache-busted request to `/` (the exact request a real browser makes): the 5 nav item tooltips, the sidebar Reset→Clear Filters rename, the Needs Attention card on Overview, the consolidated Import/Export dropdown menu (replacing 4 buttons across 2 header zones), the `.header-status` `margin-left: auto` alignment fix, and the expanded search placeholder/tooltip.
+- The Settings sub-nav was rebuilt to match `index_src.html`'s actual structure — it already had a cleaner 3-section layout (Connection & Sync / Fleet Configuration / Advanced) than the 5-row scheme built for `index.html`, so the sub-nav there jumps to the real sections rather than a mismatched one.
+- `app.js` changes (cross-tab system focus, Action Planner tab grouping, expanded search matching, Contracts & Lifecycle count badge) were never affected by this bug — `app.js` is a single shared file loaded by both `index.html` and `index_src.html`, so those fixes were live the whole time.
+- `index.html` (the compiled build) was left as-is — it already has equivalent fixes from the original edits; it just wasn't being served to anyone during local dev testing in the meantime.
+
+---
+
+## [5.6.0] - 2026-08-17
+
+### Added
+- **Settings sub-nav.** Settings & Configuration now has a sticky row of jump links (API & Watchlists / Customer Accounts / Serial Numbers & Groups / Metadata Editor / Advanced-GraphQL) that scroll directly to each section, instead of the page being one long scroll a user has to scan to find a setting.
+- **Import/Export menu.** Import ASUP Bundle, Import Config (JSON), Export Config (JSON), and Export Account Report (CSV) — previously split across two different header zones (top header vs. Overview table header) — are now a single dropdown menu in the top header. Verified live: opens/closes correctly, closes on outside click, and each item correctly invokes its handler (confirmed "Import ASUP Bundle" opens the real import modal).
+- **Contracts & Lifecycle tab count badge**, using the already-reliable `expiringContracts` count computed earlier in the same function.
+
+### Checked, no changes needed
+- Audited for internal CSM/SAM/TAM naming leaking into exported filenames or print headers — found none; the 5.2.2 sweep was already thorough.
+- Did not add count badges to the other 8 uncounted Action Planner tabs (Sustainability, Recommendations, Account Intelligence, Contract Compliance, Operational Health, DR & Replication, Feature Adoption, Firmware Currency) — each would require duplicating that section's internal count logic outside the section itself, risking a badge that disagrees with what the tab actually shows once opened (the same "three different formulas" bug class already fixed once this session).
+
+This closes the UX audit requested by the user, spanning 5.5.0 through 5.6.0.
+
+---
+
 ## [5.5.3] - 2026-08-17
 
 ### Fixed

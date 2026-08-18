@@ -18,9 +18,60 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.5.3";
+const APP_VERSION = "5.6.1";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.1",
+    date: "17 August 2026",
+    title: "Critical Fix: UX Audit Changes Were Editing the Wrong File",
+    sections: [
+      {
+        icon: "🚨",
+        label: "Fixed: Every HTML Fix From 5.5.0–5.6.0 Was Invisible Locally",
+        color: "#f87171",
+        items: [
+          "server.py deliberately serves index_src.html (the real dev source) instead of index.html (a compiled build for the packaged desktop app) for requests to '/' — a documented redirect that got missed",
+          "Every nav tooltip, the Reset→Clear Filters rename, the Needs Attention card, the Import/Export menu, the Settings sub-nav, the header alignment fix, and the search scope update have now been re-applied directly to index_src.html and verified against a real request to '/'",
+          "index_src.html's Settings page already had a cleaner 3-section structure than what was built for index.html, so the sub-nav there targets the real sections instead of a mismatched scheme"
+        ]
+      }
+    ]
+  },
+  {
+    version: "5.6.0",
+    date: "17 August 2026",
+    title: "UX Audit Round 4 (Final): Settings Sub-Nav + Import/Export Menu",
+    sections: [
+      {
+        icon: "🧭",
+        label: "New: Settings Sub-Nav",
+        color: "#2dd4bf",
+        items: [
+          "Settings & Configuration now has a sticky sub-nav (API & Watchlists / Customer Accounts / Serial Numbers & Groups / Metadata Editor / Advanced-GraphQL) that jumps straight to each section instead of one long page you have to scroll and scan"
+        ]
+      },
+      {
+        icon: "📥",
+        label: "Consolidated: Import/Export Menu",
+        color: "#2dd4bf",
+        items: [
+          "Import ASUP / Import Config (JSON) / Export Config (JSON) / Export Account Report (CSV) — previously split across two different header zones — are now one Import/Export dropdown menu in the top header",
+          "Verified live: opens/closes correctly, closes on outside click, each item invokes its handler correctly"
+        ]
+      },
+      {
+        icon: "🏁",
+        label: "Closing Out the UX Audit",
+        color: "#94a3b8",
+        items: [
+          "Added an expiring-contracts count badge to the Contracts & Lifecycle tab using an already-reliable count — deliberately skipped fabricating counts for the other 8 uncounted tabs, since that would mean duplicating each section's internal logic and risking a mismatched number (the same bug class already fixed once this session)",
+          "Audited exported filenames/print headers for leftover internal CSM/SAM/TAM naming — found none, the earlier 5.2.2 sweep was already thorough",
+          "This closes the UX audit requested across 5.5.0–5.6.0"
+        ]
+      }
+    ]
+  },
   {
     version: "5.5.3",
     date: "17 August 2026",
@@ -24436,7 +24487,7 @@ function generateActionPlan() {
       <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before and after this point is fleet analysis, not exportable deliverables.">★ CUSTOMER DELIVERABLES</span>
       <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">9. Deliverables Suite (13)</button>
       <span class="plan-tab-group-label">FLEET ANALYSIS (CONT'D)</span>
-      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">10. Contracts &amp; Lifecycle</button>
+      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">10. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">11. Sustainability</button>
       <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Prioritised recommendations for capacity planning, performance optimisation, security hardening, and tech refresh across the fleet.">12. Recommendations</button>
       <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account-level intelligence — sales rep, TAM, SAM contacts, parent account hierarchy, reseller details, and engagement history.">13. Account Intelligence</button>
@@ -27426,6 +27477,31 @@ function exportCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// ── Import/Export menu (consolidates 4 actions previously scattered across
+// two different header zones — see UX audit round 4) ──────────────────────
+function toggleImportExportMenu(event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById("importExportMenu");
+  if (!menu) return;
+  const opening = menu.style.display === "none" || !menu.style.display;
+  menu.style.display = opening ? "block" : "none";
+  if (opening) {
+    // Close on next click anywhere outside the menu
+    setTimeout(() => document.addEventListener("click", _closeImportExportMenuOnOutsideClick), 0);
+  }
+}
+
+function closeImportExportMenu() {
+  const menu = document.getElementById("importExportMenu");
+  if (menu) menu.style.display = "none";
+  document.removeEventListener("click", _closeImportExportMenuOnOutsideClick);
+}
+
+function _closeImportExportMenuOnOutsideClick(e) {
+  const wrapper = document.getElementById("importExportMenuWrapper");
+  if (wrapper && !wrapper.contains(e.target)) closeImportExportMenu();
 }
 
 function exportConfigJSON() {

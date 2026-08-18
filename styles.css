@@ -1023,6 +1023,25 @@ input:checked + .slider:before {
   flex-shrink: 0;
 }
 
+/* Import/Export consolidated menu (top-right header) */
+.import-export-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.import-export-menu-item:hover {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-cyan);
+}
+
 /* Text label marking a group boundary in the Action Planner tab row — makes
    the 19-tab row scannable as named sections instead of one flat list the
    user has to read button-by-button to find "the deliverables". */

@@ -1,8 +1,8 @@
 {
-  "version": "5.5.3",
+  "version": "5.6.1",
   "major": 5,
-  "minor": 5,
-  "patch": 3,
+  "minor": 6,
+  "patch": 1,
   "date": "2026-08-17",
-  "notes": "Fixed the top header bar's Import ASUP/Refresh/status-badge group (.header-status) jumping to the far LEFT edge of the header whenever the search box is hidden -- which happens specifically on the Settings tab (switchTab() sets .search-box to display:none there). .top-header uses justify-content:space-between between exactly two flex children (.search-box and .header-status); with only one child visible, space-between collapses to flex-start, yanking .header-status (and the Refresh button inside it) to the left edge, where it could land under/behind the Settings page's first hero card. Fixed with margin-left:auto on .header-status, which pins it to the right regardless of how many sibling flex items are visible -- a spec-guaranteed flexbox behavior, not dependent on which tab is active."
+  "notes": "CRITICAL FIX: every HTML-only change made during the entire UX audit (5.5.0-5.6.0) was applied to index.html, but server.py's do_GET() deliberately serves index_src.html for requests to '/' or '/index.html' -- a documented dev-mode redirect ('Serve the development HTML... instead of the compiled single-file index.html, so code changes take effect without recompiling') that was missed. index.html is the compiled single-file build for the packaged desktop app; index_src.html is the real live-dev source. Every nav tooltip, the Reset->Clear Filters rename, the Needs Attention card, the Action Planner group labels (app.js, unaffected), the Import/Export menu consolidation, the Settings sub-nav, the header-status margin-left fix, and the search placeholder/scope update were invisible to anyone running the app locally via server.py this entire time. All of them have now been re-applied directly to index_src.html and verified against a real (no-cache-busting-query-string) request to '/', which is what a real browser actually does. index_src.html's Settings page already had a cleaner 3-section structure (Connection & Sync / Fleet Configuration / Advanced) than index.html's 5-row layout, so the sub-nav there targets those 3 real sections rather than blindly porting the index.html scheme. index.html (the compiled build) was left as-is; it already had equivalent fixes from the original edits, just serving no one in the meantime."
 }
