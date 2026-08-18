@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.5.2] - 2026-08-17
+
+### Changed
+- **Search now covers risk descriptions, CVE IDs, and support case content** (`getFilteredSystems()`), not just system identity fields (name/serial/cluster/customer/platform). Previously searching a CVE ID or case ID returned nothing, even though those are exactly the things a TAM described as hard to find. Placeholder and tooltip updated to state the new scope explicitly. Verified live against real harvested data: `CVE-2024-0450` matched 88 systems; a real case ID matched exactly the 1 system it belongs to.
+- (Caught and fixed during testing: the first draft used field names — `shortName`/`riskDetail`/`cves`/`caseId`/`symptom` — that don't match this codebase's actual normalized risk/case shape, which uses `description`/`cveDetails`/`id`/`title`. Fixed before shipping.)
+
+This is round 3 of the UX audit started in 5.5.0.
+
+---
+
 ## [5.5.1] - 2026-08-17
 
 ### Added

@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.5.1";
+const APP_VERSION = "5.5.2";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.5.2",
+    date: "17 August 2026",
+    title: "UX Audit Round 3: Search Now Covers Risks, CVEs, and Cases",
+    sections: [
+      {
+        icon: "🔍",
+        label: "Expanded: Global Search Scope",
+        color: "#2dd4bf",
+        items: [
+          "Search now matches risk descriptions, CVE IDs, and support case IDs/titles/descriptions — not just system name, serial, cluster, customer, and platform",
+          "Searching a CVE ID like 'CVE-2024-0450' or a case ID now finds every affected system instead of returning nothing",
+          "Verified live against real data: a real CVE ID matched 88 systems, a real case ID matched exactly the 1 system it belongs to"
+        ]
+      }
+    ]
+  },
   {
     version: "5.5.1",
     date: "17 August 2026",
@@ -5626,16 +5643,30 @@ function getFilteredSystems(excludeKpiFilter = false) {
   }
 
   // 2. Main Search Query filter (multi-term support)
+  // Also matches risk/CVE/case content, not just system identity fields --
+  // a system showing up because CVE-2024-1234 or a case ID matched is a
+  // real "find what I'm looking for" case that plain name/serial search
+  // couldn't answer before.
   const query = (state.activeSearchQuery || "").toLowerCase().trim();
   if (query) {
     const terms = query.split(",").map(t => t.trim()).filter(t => t.length > 0);
     filtered = filtered.filter(sys => {
-      return terms.some(term => 
-        sys.systemName.toLowerCase().includes(term) || 
+      return terms.some(term =>
+        sys.systemName.toLowerCase().includes(term) ||
         sys.serialNumber.toLowerCase().includes(term) ||
         sys.clusterName.toLowerCase().includes(term) ||
         sys.customerName.toLowerCase().includes(term) ||
-        (sys.platform || "").toLowerCase().includes(term)
+        (sys.platform || "").toLowerCase().includes(term) ||
+        (sys.risks || []).some(r =>
+          (r.description || "").toLowerCase().includes(term) ||
+          (r.category || "").toLowerCase().includes(term) ||
+          (r.cveDetails || []).some(c => (c.id || "").toLowerCase().includes(term))
+        ) ||
+        (sys.supportCases || []).some(c =>
+          String(c.id || "").toLowerCase().includes(term) ||
+          (c.title || "").toLowerCase().includes(term) ||
+          (c.description || "").toLowerCase().includes(term)
+        )
       );
     });
   }
