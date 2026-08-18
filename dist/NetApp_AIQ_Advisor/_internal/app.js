@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.5.2";
+const APP_VERSION = "5.5.3";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.5.3",
+    date: "17 August 2026",
+    title: "Fixed: Refresh Button Jumping Behind Settings Page Content",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Header Buttons Jumping to the Left Edge on Settings Tab",
+        color: "#f87171",
+        items: [
+          "The top header's Import ASUP/Refresh/status-badge group was jumping to the far left edge of the header specifically on the Settings tab, where it could land under/behind the page's first hero card",
+          "Root cause: the header uses justify-content:space-between between exactly two flex children, and the Settings tab hides the search box — with only one child left, space-between collapses to flex-start instead of keeping the buttons pinned right",
+          "Fixed with margin-left:auto on the button group, which keeps it right-aligned regardless of how many sibling elements are visible"
+        ]
+      }
+    ]
+  },
   {
     version: "5.5.2",
     date: "17 August 2026",

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.5.3] - 2026-08-17
+
+### Fixed
+- **Header buttons (Import ASUP / Refresh / status badge) jumping to the far left edge of the top header specifically on the Settings tab**, where they could land under/behind the page's first hero card. Root cause: `.top-header` uses `justify-content: space-between` between exactly two flex children — `.search-box` and `.header-status` — and `switchTab()` sets `.search-box` to `display:none` on the Settings tab (it's a fleet-view control, not applicable there). With only one visible flex child, `space-between` collapses to `flex-start`, yanking the entire button group to the left instead of keeping it right-aligned. Fixed with `margin-left: auto` on `.header-status`, which pins it to the right end of the flex row regardless of how many sibling items are visible — spec-guaranteed flexbox behavior, not dependent on tab state.
+
+---
+
 ## [5.5.2] - 2026-08-17
 
 ### Changed
