@@ -1,8 +1,8 @@
 {
-  "version": "5.6.5",
+  "version": "5.6.6",
   "major": 5,
   "minor": 6,
-  "patch": 5,
+  "patch": 6,
   "date": "2026-08-18",
-  "notes": "What's New modal's 'Previous Releases' collapsible list showed every changelog entry ever added, making the popup grow unbounded over time. Trimmed to show only the 2 most recent prior releases."
+  "notes": "Fixed wrong score shown in the new Section 12 TAM Recommendations TXT export (added in 5.6.4). Active IQ's recommendation `score` field is ambiguous: usually a health percentage, but for some recommendation types (ACTIVE_SUPPORT_CONTRACTS_6M, EOS_6M) it's actually the raw problem percentage quoted in the text itself -- e.g. score=27 with text '27% of entitled systems are expiring' means 73% health, not 27%. The on-screen Recommendations tab already detected and inverted this correctly via CASE A/B/C logic, but the TXT export printed the raw score verbatim. Extracted that logic into a shared _resolveRecommendationScore() function used by both the HTML render and the TXT export so they always agree."
 }

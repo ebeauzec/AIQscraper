@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.5";
+const APP_VERSION = "5.6.6";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.6",
+    date: "18 August 2026",
+    title: "Fixed: TAM Recommendation Score Wrong in TXT Export",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Raw Problem-Rate Shown Instead of Corrected Health Score",
+        color: "#f87171",
+        items: [
+          "Active IQ's recommendation `score` field is ambiguous: for most recommendations it's already a health percentage, but for some (e.g. ACTIVE_SUPPORT_CONTRACTS_6M, EOS_6M) it's actually the raw PROBLEM percentage from the text itself -- e.g. score=27 paired with '27% of entitled systems are expiring' means 73% health, not 27%",
+          "The on-screen Recommendations tab already detected and inverted this case correctly, but the new Section 12 TXT export (added in 5.6.4) printed the raw uncorrected score verbatim, showing '27%' as if that were a health score",
+          "Extracted the score-correction logic (problem-rate inversion + all-clear remap) into a shared function used by both the on-screen view and the TXT export, so they now always agree"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.5",
     date: "18 August 2026",
@@ -21052,6 +21069,46 @@ function _renderSustainabilitySection(systems) {
   return html;
 }
 
+// Resolve a TAM recommendation's raw `score` into an effective health %.
+// Active IQ uses `score` in THREE distinct ways:
+//  CASE A — Health percentage (use as-is): score=87, text "13% of systems are not using HTTPS"
+//  CASE B — Problem percentage (must INVERT): score=26, text starts "26% of entitled systems are expiring..."
+//  CASE C — All-clear zero (remap to 100%): score=0, text "No platforms or storage are End of Support"
+// Shared by the HTML render (_renderRecommendationsSection) and the TXT export
+// (downloadPlanSection index 12) so both surfaces show the same corrected score.
+function _resolveRecommendationScore(r) {
+  const rawScore = (r.score == null ? null : r.score);
+  const recText  = (r.recommendation || '');
+
+  const isProblemRate = rawScore > 0 && rawScore < 100 &&
+    new RegExp(`^${rawScore}%\\s+of`, 'i').test(recText.trim());
+
+  const allClearPatterns = [
+    /^no systems have/i, /^no systems are/i, /^no systems have been/i,
+    /\bno systems have stopped\b/i, /\bno systems have been set to decline\b/i,
+    /^all systems are fully/i, /^all applicable systems have sufficient/i,
+    /^all applicable systems/i, /\bfully aligned\b/i,
+    /\bsufficient spares\b.*\bno failed drives\b/i, /\bno failed drives\b/i,
+    /\ball systems.*up to date\b/i, /\ball.*systems.*compliant\b/i,
+    /^no platforms\b/i, /^no\s+\w+\s+or\s+\w+\s+components?\s+are\s+end\s+of\s+support/i,
+    /\bno platforms or storage components are end of support\b/i,
+    /^no\s+\w+.*\bend of support\b/i, /^all systems have valid entitlement/i,
+    /^all.*entitlements? are current/i,
+  ];
+  const isAllClear = rawScore === 0 && allClearPatterns.some(p => p.test(recText));
+
+  let effectiveScore, corrected = false;
+  if (isProblemRate) {
+    effectiveScore = 100 - rawScore;
+    corrected = true;
+  } else if (isAllClear) {
+    effectiveScore = 100;
+  } else {
+    effectiveScore = rawScore || 0;
+  }
+  return { effectiveScore, corrected, isAllClear };
+}
+
 function _renderRecommendationsSection(targetSystems) {
   const recs = state.tamRecommendations || [];
   const scopeCount = (targetSystems || []).length;
@@ -21119,74 +21176,9 @@ function _renderRecommendationsSection(targetSystems) {
     html += `<div style="margin-bottom:24px;">
       <h4 style="color:${color};margin:12px 0 10px;font-size:0.95rem;font-weight:700;letter-spacing:0.3px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:8px;">${icon} ${cat.replace(/_/g,' ')} (${items.length})</h4>`;
     items.forEach(r => {
-      // ── Resolve the effective health score ──────────────────────────────────
-      // Active IQ uses the `score` field in THREE distinct ways:
-      //
-      //  CASE A — Health percentage (use as-is)
-      //    score=87 while text says "13% of systems are not using HTTPS"
-      //    The score already represents the % of compliant systems.
-      //
-      //  CASE B — Problem percentage (must INVERT to get health %)
-      //    score=26 while text starts with "26% of entitled systems are expiring"
-      //    score=9  while text starts with "9% of systems will have EOS"
-      //    Detected when rawScore appears verbatim at the start of the text ("N% of...")
-      //
-      //  CASE C — All-clear zero (remap to 100%)
-      //    score=0  while text says "No platforms or storage are End of Support"
-      //    score=0  while text says "No systems have been set to Decline"
-      //    Detected by matching "all-clear" language patterns.
-      // ─────────────────────────────────────────────────────────────────────────
-      const rawScore = (r.score == null ? null : r.score);
-      const recText  = (r.recommendation || '');
-      const recLower = recText.toLowerCase();
-
-      // CASE B: Problem-rate detection — text starts with the same % as the score
-      // e.g. "26% of entitled systems are expiring within 6 months..."
-      // e.g. "9% of systems will have End of Support (EOS) within..."
-      const isProblemRate = rawScore > 0 && rawScore < 100 &&
-        new RegExp(`^${rawScore}%\\s+of`, 'i').test(recText.trim());
-
-      // CASE C: All-clear patterns — score=0 but zero systems have the problem
-      const allClearPatterns = [
-        // AutoSupport / signal
-        /^no systems have/i,
-        /^no systems are/i,
-        /^no systems have been/i,
-        /\bno systems have stopped\b/i,
-        /\bno systems have been set to decline\b/i,
-        // Compliance / alignment
-        /^all systems are fully/i,
-        /^all applicable systems have sufficient/i,
-        /^all applicable systems/i,
-        /\bfully aligned\b/i,
-        /\bsufficient spares\b.*\bno failed drives\b/i,
-        /\bno failed drives\b/i,
-        /\ball systems.*up to date\b/i,
-        /\ball.*systems.*compliant\b/i,
-        // EOS / entitlements
-        /^no platforms\b/i,
-        /^no\s+\w+\s+or\s+\w+\s+components?\s+are\s+end\s+of\s+support/i,
-        /\bno platforms or storage components are end of support\b/i,
-        /^no\s+\w+.*\bend of support\b/i,
-        /^all systems have valid entitlement/i,
-        /^all.*entitlements? are current/i,
-      ];
-      const isAllClear = rawScore === 0 && allClearPatterns.some(p => p.test(recText));
-
-      // Compute final effective health score
-      let effectiveScore;
-      let scoreNote = '';
-      if (isProblemRate) {
-        effectiveScore = 100 - rawScore;   // Invert: problem% → health%
-        scoreNote = ' ↑';                  // Visual hint that score was corrected
-      } else if (isAllClear) {
-        effectiveScore = 100;
-      } else {
-        effectiveScore = rawScore || 0;
-      }
-
+      const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
       const scoreColor = effectiveScore >= 80 ? '#10b981' : effectiveScore >= 50 ? '#f59e0b' : '#ef4444';
-      const scoreLabel = isAllClear ? '100% ✓' : `${effectiveScore}%${scoreNote}`;
+      const scoreLabel = isAllClear ? '100% ✓' : `${effectiveScore}%${corrected ? ' ↑' : ''}`;
       // ── Truncate on RAW text BEFORE HTML transforms ──────────────────────────
       // linkify() and rescopeText() inject HTML tags. If we truncate AFTER them
       // we can cut mid-tag (e.g. inside an <a href="...">), breaking the DOM and
@@ -24881,8 +24873,12 @@ ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to l
   Object.keys(byCategory).map(cat => {
     const items = byCategory[cat];
     return `${cat.replace(/_/g, ' ')} (${items.length})\n${'-'.repeat(cat.length + 6)}\n` +
-      items.map((r, idx) => `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}Score: ${r.score != null ? r.score + '%' : 'N/A'}
-   ${stripTags(r.recommendation)}`).join('\n\n');
+      items.map((r, idx) => {
+        const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
+        const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' (corrected from raw problem-rate)' : ''}`;
+        return `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}Score: ${scoreLabel}
+   ${stripTags(r.recommendation)}`;
+      }).join('\n\n');
   }).join('\n\n\n')}`;
   } else if (index === 19) {
     // As-Built Configuration Document — comprehensive per-system TXT export

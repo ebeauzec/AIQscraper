@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.6] - 2026-08-18
+
+### Fixed
+- **Wrong score shown in the Section 12 TAM Recommendations TXT export** (added in 5.6.4). Active IQ's recommendation `score` field is ambiguous: usually a health percentage, but for some recommendation types (`ACTIVE_SUPPORT_CONTRACTS_6M`, `EOS_6M`) it's actually the raw problem percentage quoted in the text itself — e.g. `score=27` with text "27% of entitled systems are expiring" means 73% health, not 27%. The on-screen Recommendations tab already detected and inverted this correctly; the TXT export printed the raw score verbatim. Extracted the correction logic into a shared `_resolveRecommendationScore()` used by both the HTML render and the TXT export.
+
+---
+
 ## [5.6.5] - 2026-08-18
 
 ### Changed
