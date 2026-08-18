@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.4.0] - 2026-08-17
+
+### Added
+- **Normalized SQL reporting tables** (`reporting_systems`, `reporting_risks`, `reporting_cases`) in `aiq_cache.db`. Every field shown in the live UI was already persisted to SQLite — the full harvest result (systems, risks, cases, clusters, TAM recommendations/sites/sustainability/renewals) is stored as JSON in `harvest_cache_accounts.result_json` — but as one JSON blob per account it required `json_extract()`/`json_each()` for any real query. These new tables mirror the same data into real columns, one row per system/risk/case, refreshed (DELETE+INSERT) on every completed harvest. Query fleet, risk, and case data directly with any SQLite tool — DB Browser for SQLite, the `sqlite3` CLI, a Python script — using ordinary `SELECT`/`JOIN`/`GROUP BY`, no JSON functions required.
+  - `reporting_systems`: one row per (serial_number, account_id) — identity, platform, OS version, HA/ARP/MetroCluster/FabricPool flags, efficiency ratio, capacity, contract status, risk counts by severity, open case count, account team contacts.
+  - `reporting_risks`: one row per risk finding — serial number, severity, category, CVE IDs, acknowledgement status.
+  - `reporting_cases`: one row per support case — serial number, status, priority, dates.
+  - For point-in-time history (trend queries), use the existing `system_snapshots` table instead — the reporting tables always reflect current state only.
+  - `aiq_config.json` (refresh tokens, API keys, account settings) intentionally remains outside the database.
+
+---
+
 ## [5.3.2] - 2026-08-17
 
 ### Changed

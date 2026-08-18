@@ -18,9 +18,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.3.2";
+const APP_VERSION = "5.4.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.4.0",
+    date: "17 August 2026",
+    title: "New: SQL Reporting Tables for Direct DB Queries",
+    sections: [
+      {
+        icon: "🗄️",
+        label: "New: Normalized reporting_* tables in aiq_cache.db",
+        color: "#2dd4bf",
+        items: [
+          "Every field shown in the live UI was already persisted to SQLite — the full harvest result is stored as JSON in harvest_cache_accounts — but as one blob per account it was impractical to query directly",
+          "New reporting_systems, reporting_risks, and reporting_cases tables mirror that same data into real columns (one row per system/risk/case), refreshed on every harvest",
+          "Query the fleet directly with any SQLite tool (DB Browser for SQLite, the sqlite3 CLI, Python) using normal SELECT/JOIN/GROUP BY — no json_extract() required",
+          "aiq_config.json (credentials/settings) intentionally stays outside the database"
+        ]
+      }
+    ]
+  },
   {
     version: "5.3.2",
     date: "17 August 2026",

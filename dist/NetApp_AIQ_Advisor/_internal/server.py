@@ -425,6 +425,89 @@ def _init_db():
             case_count INTEGER DEFAULT 0,
             risk_instance_count INTEGER DEFAULT 0
         );
+        -- ── Normalized reporting tables ──────────────────────────────────
+        -- The full harvest result is already stored as JSON in
+        -- harvest_cache_accounts.result_json (nothing shown in the tool is
+        -- browser-only), but a JSON blob is painful to query directly with
+        -- SQL. These tables mirror the same data into real columns for
+        -- direct reporting -- refreshed (DELETE+INSERT) on every harvest,
+        -- so they always reflect current state. For point-in-time history,
+        -- use system_snapshots instead (one dated row per system per day).
+        CREATE TABLE IF NOT EXISTS reporting_systems (
+            serial_number       TEXT NOT NULL,
+            account_id          TEXT NOT NULL DEFAULT '',
+            account_label       TEXT DEFAULT '',
+            system_name         TEXT DEFAULT '',
+            cluster_name        TEXT DEFAULT '',
+            customer_name       TEXT DEFAULT '',
+            site_name           TEXT DEFAULT '',
+            site_city           TEXT DEFAULT '',
+            site_country        TEXT DEFAULT '',
+            platform            TEXT DEFAULT '',
+            model               TEXT DEFAULT '',
+            os_version          TEXT DEFAULT '',
+            recommended_os_version TEXT DEFAULT '',
+            system_state        TEXT DEFAULT '',
+            is_ha_configured    INTEGER,
+            is_arp_enabled      INTEGER,
+            is_metrocluster     INTEGER,
+            is_fabricpool       INTEGER,
+            efficiency_ratio    TEXT DEFAULT '',
+            snapmirror_count    INTEGER DEFAULT 0,
+            capacity_used_kb    INTEGER,
+            capacity_allocated_kb INTEGER,
+            capacity_available_kb INTEGER,
+            contract_active     INTEGER,
+            contract_end_date   TEXT DEFAULT '',
+            warranty_end_date   TEXT DEFAULT '',
+            service_level       TEXT DEFAULT '',
+            latest_asup_date    TEXT DEFAULT '',
+            risk_critical       INTEGER DEFAULT 0,
+            risk_high           INTEGER DEFAULT 0,
+            risk_medium         INTEGER DEFAULT 0,
+            risk_low            INTEGER DEFAULT 0,
+            open_case_count     INTEGER DEFAULT 0,
+            sales_rep_name      TEXT DEFAULT '',
+            tam_name            TEXT DEFAULT '',
+            sam_name            TEXT DEFAULT '',
+            age_in_years        REAL,
+            original_ship_date  TEXT DEFAULT '',
+            updated_at          TEXT NOT NULL,
+            PRIMARY KEY (serial_number, account_id)
+        );
+        CREATE TABLE IF NOT EXISTS reporting_risks (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            serial_number   TEXT NOT NULL,
+            system_name     TEXT DEFAULT '',
+            account_id      TEXT DEFAULT '',
+            risk_id         TEXT DEFAULT '',
+            severity        TEXT DEFAULT '',
+            category        TEXT DEFAULT '',
+            short_name      TEXT DEFAULT '',
+            risk_detail     TEXT DEFAULT '',
+            cve_ids         TEXT DEFAULT '',
+            acknowledged    INTEGER DEFAULT 0,
+            updated_at      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_reporting_risks_serial ON reporting_risks(serial_number);
+        CREATE INDEX IF NOT EXISTS idx_reporting_risks_severity ON reporting_risks(severity);
+        CREATE TABLE IF NOT EXISTS reporting_cases (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            serial_number   TEXT NOT NULL,
+            system_name     TEXT DEFAULT '',
+            account_id      TEXT DEFAULT '',
+            case_id         TEXT DEFAULT '',
+            status          TEXT DEFAULT '',
+            priority        TEXT DEFAULT '',
+            highest_priority TEXT DEFAULT '',
+            created          TEXT DEFAULT '',
+            last_updated     TEXT DEFAULT '',
+            closed           TEXT DEFAULT '',
+            symptom          TEXT DEFAULT '',
+            updated_at       TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_reporting_cases_serial ON reporting_cases(serial_number);
+        CREATE INDEX IF NOT EXISTS idx_reporting_cases_status ON reporting_cases(status);
         CREATE TABLE IF NOT EXISTS system_snapshots (
             serial_number   TEXT NOT NULL,
             snapshot_date   TEXT NOT NULL,
@@ -726,6 +809,108 @@ def _get_system_history(db, serial_number, days=400):
         rec["date"] = date_str
         out.append(rec)
     return out
+
+
+def _populate_reporting_tables(db, account_id, account_label, result):
+    """Mirror one account's harvest result into the normalized reporting_*
+    tables, so the SQLite database can be queried directly with plain SQL
+    (SELECT/JOIN/GROUP BY) instead of requiring json_extract() on the
+    harvest_cache_accounts blob. This is a mirror, not a second source of
+    truth: result_json in harvest_cache_accounts remains authoritative,
+    and every column here is copied straight from the same harvest result
+    already used to render the live UI -- nothing computed differently.
+    Fully replaces this account's rows on every call (DELETE+INSERT), so
+    the tables always reflect current state; use system_snapshots for
+    point-in-time history instead.
+    """
+    try:
+        systems = result.get("systems") or []
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        db.execute("DELETE FROM reporting_systems WHERE account_id = ?", (account_id,))
+        db.execute("DELETE FROM reporting_risks WHERE account_id = ?", (account_id,))
+        db.execute("DELETE FROM reporting_cases WHERE account_id = ?", (account_id,))
+
+        sys_rows, risk_rows, case_rows = [], [], []
+        for s in systems:
+            serial = s.get("serialNumber")
+            if not serial:
+                continue
+            risks = s.get("risks") or []
+            cases = s.get("cases") or []
+            risk_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            for r in risks:
+                sev = str(r.get("severity") or "").lower()
+                if sev in risk_counts:
+                    risk_counts[sev] += 1
+                cve_ids = ",".join(
+                    c.get("id", "") for c in (r.get("cves") or []) if isinstance(c, dict) and c.get("id")
+                )
+                risk_rows.append((
+                    serial, s.get("systemName", ""), account_id,
+                    r.get("riskId", ""), sev, r.get("category", ""),
+                    r.get("shortName", ""), r.get("riskDetail", ""), cve_ids,
+                    1 if r.get("acknowledgement") else 0, now_iso,
+                ))
+            open_cases = 0
+            for c in cases:
+                status = str(c.get("status") or "")
+                if status.upper() not in ("CLOSED", "CANCELLED"):
+                    open_cases += 1
+                case_rows.append((
+                    serial, s.get("systemName", ""), account_id,
+                    c.get("caseId", ""), status, str(c.get("priority") or ""),
+                    str(c.get("highestPriority") or ""), c.get("created", ""),
+                    c.get("lastUpdated", ""), c.get("closed", ""), c.get("symptom", ""),
+                    now_iso,
+                ))
+            sys_rows.append((
+                serial, account_id, account_label,
+                s.get("systemName", ""), s.get("clusterName", ""), s.get("customerName", ""),
+                s.get("siteName", ""), s.get("siteCity", ""), s.get("siteCountry", ""),
+                s.get("platform", ""), s.get("model", ""), s.get("osVersion", ""),
+                s.get("recommendedOSVersion", ""), s.get("systemState", ""),
+                s.get("isHAConfigured"), s.get("isARPEnabled"), s.get("isMetroCluster"),
+                s.get("isFabricPool"), s.get("efficiencyRatio", ""), s.get("snapMirrorCount", 0),
+                s.get("capacityUsedKB"), s.get("capacityAllocatedKB"), s.get("capacityAvailableKB"),
+                s.get("contractActive"), s.get("contractEndDate", ""), s.get("warrantyEndDate", ""),
+                s.get("serviceLevel", ""), s.get("latestAsupDate", ""),
+                risk_counts["critical"], risk_counts["high"], risk_counts["medium"], risk_counts["low"],
+                open_cases, s.get("salesRepName", ""), s.get("csmName", ""), s.get("samName", ""),
+                s.get("ageInYears"), s.get("originalShipDate", ""), now_iso,
+            ))
+
+        if sys_rows:
+            db.executemany("""
+                INSERT INTO reporting_systems (
+                    serial_number, account_id, account_label, system_name, cluster_name, customer_name,
+                    site_name, site_city, site_country, platform, model, os_version, recommended_os_version,
+                    system_state, is_ha_configured, is_arp_enabled, is_metrocluster, is_fabricpool,
+                    efficiency_ratio, snapmirror_count, capacity_used_kb, capacity_allocated_kb,
+                    capacity_available_kb, contract_active, contract_end_date, warranty_end_date,
+                    service_level, latest_asup_date, risk_critical, risk_high, risk_medium, risk_low,
+                    open_case_count, sales_rep_name, tam_name, sam_name, age_in_years, original_ship_date,
+                    updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, sys_rows)
+        if risk_rows:
+            db.executemany("""
+                INSERT INTO reporting_risks (
+                    serial_number, system_name, account_id, risk_id, severity, category,
+                    short_name, risk_detail, cve_ids, acknowledged, updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """, risk_rows)
+        if case_rows:
+            db.executemany("""
+                INSERT INTO reporting_cases (
+                    serial_number, system_name, account_id, case_id, status, priority,
+                    highest_priority, created, last_updated, closed, symptom, updated_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, case_rows)
+        db.commit()
+        print(f"  [REPORTING] Mirrored {len(sys_rows)} systems, {len(risk_rows)} risks, {len(case_rows)} cases into reporting_* tables for account '{account_id}'", flush=True)
+    except Exception as e:
+        print(f"  [REPORTING] Mirror failed (non-fatal): {e}", flush=True)
 
 
 # List-valued fields concatenated across accounts when merging harvests.
@@ -2774,11 +2959,14 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     result["clusters"] = prev_cl
                     result["totalClusters"] = len(prev_cl)
 
+            _acct_id = account.get("id") if account else "default"
+            _acct_label = (account.get("label") or account.get("id")) if account else "Default Account"
             if account:
-                _save_harvest_account(db, account.get("id") or "default", account.get("label") or account.get("id") or "default", result, duration_ms)
+                _save_harvest_account(db, _acct_id or "default", _acct_label or "default", result, duration_ms)
             else:
                 _save_harvest(db, result, duration_ms)
             _capture_snapshots(db, result)
+            _populate_reporting_tables(db, _acct_id or "default", _acct_label or "default", result)
         finally:
             db.close()
 

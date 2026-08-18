@@ -1,8 +1,8 @@
 {
-  "version": "5.3.2",
+  "version": "5.4.0",
   "major": 5,
-  "minor": 3,
-  "patch": 2,
+  "minor": 4,
+  "patch": 0,
   "date": "2026-08-17",
-  "notes": "QBR Pack's historical trend section now shows both a 30-day and a 90-day view side by side (previously only 90 days) -- critical/high risk delta, open case delta, efficiency ratio delta, Feature Adoption Score delta, and ONTAP upgrades, each computed independently per window against that system's closest snapshot. Either window renders its own 'not enough history yet' message if snapshot data doesn't reach back that far, rather than only gating on the longer 90-day window."
+  "notes": "New: normalized SQL reporting tables (reporting_systems, reporting_risks, reporting_cases) in aiq_cache.db, for querying the tool's data directly with plain SQL instead of json_extract() over the harvest_cache blob. Every field shown in the live UI was already persisted to SQLite (the full harvest result -- systems, risks, cases, clusters, TAM recommendations/sites/sustainability/renewals -- is stored as JSON in harvest_cache_accounts), but as one blob per account it was impractical for direct reporting. These new tables mirror the same harvest data into real columns (one row per system/risk/case), refreshed on every harvest, so tools like DB Browser for SQLite, the sqlite3 CLI, or a Python script can run normal SELECT/JOIN/GROUP BY queries against current fleet, risk, and case data. aiq_config.json (credentials/settings) intentionally remains outside the database."
 }
