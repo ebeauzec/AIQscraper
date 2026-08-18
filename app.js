@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.4.3";
+const APP_VERSION = "5.5.0";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.5.0",
+    date: "17 August 2026",
+    title: "UX Audit Round 1: Cross-Tab System Focus + Nav Clarity",
+    sections: [
+      {
+        icon: "🔗",
+        label: "New: Picking a System Now Carries Across Tabs",
+        color: "#2dd4bf",
+        items: [
+          "Selecting a specific system in Technical Audit, Support & Ops, Value & ROI, or Action Planner now carries that focus to the other three tabs — previously each tab tracked its own selection independently, forcing repeated re-selection when moving between tabs to look at the same system",
+          "Selecting 'All Systems' or a cluster/group/watchlist scope stays tab-local, since that's a deliberate broader choice, not a specific-system focus"
+        ]
+      },
+      {
+        icon: "🧭",
+        label: "Improved: Sidebar Navigation Clarity",
+        color: "#2dd4bf",
+        items: [
+          "Added descriptive tooltips to all 5 main nav items — hover 'Value & ROI' or 'Support & Ops' to see what's actually inside before clicking in",
+          "Relabeled the sidebar 'Reset' button to 'Clear Filters' to distinguish it from the logo/Overview click, which also navigates to Overview — two similar-looking controls previously did overlapping-but-different things",
+          "First round of a broader UX audit — more findability/navigation improvements to follow"
+        ]
+      }
+    ]
+  },
   {
     version: "5.4.3",
     date: "17 August 2026",
@@ -6413,11 +6439,32 @@ function renderOverviewTable() {
   });
 }
 
+// ── Cross-tab system focus ──────────────────────────────────────────────────
+// Before this, picking a specific system in one tab's selector (Technical
+// Audit / Support & Ops / Value & ROI / Action Planner) did nothing for the
+// other three -- each tracked its own selection independently, so moving
+// between tabs to look at the same system meant re-selecting it up to 4
+// times. focusOnSystem() is the single place that sets ALL of them together,
+// so picking a system anywhere carries it everywhere. Selecting "All
+// Systems" or a cluster/group/watchlist scope in any one tab is left
+// tab-local on purpose -- only a specific single-system pick is global,
+// since that's the case where "I was just looking at this system" actually
+// applies across tabs.
+function focusOnSystem(serial) {
+  const found = state.systems.find(s => s.serialNumber === serial);
+  if (!found) return;
+  state.selectedSystem = found;
+  state.selectedSAMSystemSerial = `NODE:${serial}`;
+  state.selectedCSMSystemSerial = `NODE:${serial}`;
+  state.selectedTAMSerials = [serial];
+  const planSelect = document.getElementById("planTargetSelect");
+  if (planSelect) planSelect.value = `SYS:${serial}`;
+}
+
 function selectSystem(serial) {
   const found = state.systems.find(s => s.serialNumber === serial);
   if (found) {
-    state.selectedSystem = found;
-    state.selectedTAMSerials = [serial];
+    focusOnSystem(serial);
     switchTab("tam"); // Switch to Technical Audit details on system click
   }
 }
@@ -6511,11 +6558,11 @@ function populateSystemSelectors() {
     }
     samSelect.onchange = (e) => {
       const val = e.target.value;
-      state.selectedSAMSystemSerial = val;
       if (val !== "ALL" && !val.startsWith("CLUSTER:")) {
         const serial = val.startsWith("NODE:") ? val.substring(5) : val;
-        const found = state.systems.find(s => s.serialNumber === serial);
-        if (found) state.selectedSystem = found;
+        focusOnSystem(serial); // carries this system's focus to the other tabs too
+      } else {
+        state.selectedSAMSystemSerial = val;
       }
       switchTab("sam");
     };
@@ -6563,11 +6610,11 @@ function populateSystemSelectors() {
     }
     csmSelect.onchange = (e) => {
       const val = e.target.value;
-      state.selectedCSMSystemSerial = val;
       if (val !== "ALL" && !val.startsWith("CLUSTER:")) {
         const serial = val.startsWith("NODE:") ? val.substring(5) : val;
-        const found = state.systems.find(s => s.serialNumber === serial);
-        if (found) state.selectedSystem = found;
+        focusOnSystem(serial); // carries this system's focus to the other tabs too
+      } else {
+        state.selectedCSMSystemSerial = val;
       }
       switchTab("csm");
     };
@@ -6730,6 +6777,17 @@ function updateTAMSelectLabel() {
   } else if (activeInScope.length === 1) {
     const sys = currentFiltered.find(s => s.serialNumber === activeInScope[0]);
     label.innerText = sys ? sys.systemName : "1 System Selected";
+    // Narrowing the TAM multi-select down to exactly one system is an
+    // unambiguous "I'm focused on this node" signal — carry it to the other
+    // tabs too. (Checking a 2nd/3rd box is a genuine multi-select and stays
+    // TAM-local, since there's no single system to focus on in that case.)
+    if (sys) {
+      state.selectedSAMSystemSerial = `NODE:${sys.serialNumber}`;
+      state.selectedCSMSystemSerial = `NODE:${sys.serialNumber}`;
+      state.selectedSystem = sys;
+      const planSelect = document.getElementById("planTargetSelect");
+      if (planSelect) planSelect.value = `SYS:${sys.serialNumber}`;
+    }
   } else {
     label.innerText = `${activeInScope.length} Systems Selected`;
   }
@@ -12715,13 +12773,20 @@ function populateActionPlanSelector() {
     select.appendChild(opt);
   });
 
-  // Automatically align selected action planner target with active sidebar filter
+  // Automatically align selected action planner target with active sidebar filter.
+  // A specific system focused elsewhere (Technical Audit / Support & Ops /
+  // Value & ROI) takes priority over "ALL" so the deliverable target follows
+  // what the TAM was just looking at — but an explicit sidebar customer/
+  // group/watchlist filter still wins, since that's a deliberate broader scope.
   if (state.activeFilterType === "CUSTOMER") {
     select.value = `CUST:${state.activeFilterValue}`;
   } else if (state.activeFilterType === "GROUP") {
     select.value = `GRP:${state.activeFilterValue}`;
   } else if (state.activeFilterType === "WATCHLIST") {
     select.value = `WL:${state.activeFilterValue}`;
+  } else if (state.selectedSystem && state.selectedSystem.serialNumber &&
+             [...select.options].some(o => o.value === `SYS:${state.selectedSystem.serialNumber}`)) {
+    select.value = `SYS:${state.selectedSystem.serialNumber}`;
   } else {
     select.value = "ALL";
   }

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.5.0] - 2026-08-17
+
+### Added
+- **Cross-tab system focus.** New `focusOnSystem(serial)` — picking a specific system in Technical Audit, Support & Ops, Value & ROI, or Action Planner's selector now sets `state.selectedSAMSystemSerial`, `state.selectedCSMSystemSerial`, `state.selectedTAMSerials`, and the Action Planner target select together, instead of each tracking its own selection independently. Previously, moving from "I found this system in Technical Audit" to Support & Ops meant re-selecting the same system from scratch. Selecting "All Systems" or a cluster/group/watchlist scope in any tab stays tab-local, since that's a deliberately broader choice, not a specific-system focus. Narrowing the Technical Audit multi-select down to exactly one system is treated as an unambiguous focus signal and propagates too; checking a 2nd/3rd box does not (there's no single system to focus on in that case).
+- **Nav item tooltips.** All 5 main sidebar items (previously only Overview/Action Planner/Settings) now describe what's actually inside on hover.
+
+### Changed
+- **Sidebar "Reset" renamed to "Clear Filters"**, with a tooltip explaining the distinction from the logo/Overview Dashboard click (which resets filters AND navigates to Overview) — two visually similar controls previously did overlapping-but-different things with no way to tell them apart at a glance.
+
+This is round 1 of a UX audit covering navigation clarity, search discoverability, information density, and terminology consistency — more findings queued for follow-up passes.
+
+---
+
 ## [5.4.3] - 2026-08-17
 
 ### Removed

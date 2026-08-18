@@ -40,23 +40,23 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
           Overview Dashboard
         </div>
-        <div class="nav-item" data-tab="tam" onclick="switchTab('tam')">
+        <div class="nav-item" data-tab="tam" onclick="switchTab('tam')" data-tooltip="Per-system technical detail: risks, OS/firmware upgrade paths, security bulletins, switch health, and physical cabling layout.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
           Technical Audit
         </div>
-        <div class="nav-item" data-tab="sam" onclick="switchTab('sam')">
+        <div class="nav-item" data-tab="sam" onclick="switchTab('sam')" data-tooltip="Support case tracking, capacity forecasting/growth projections, and performance (IOPS/latency) trends.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
           Support & Ops
         </div>
-        <div class="nav-item" data-tab="csm" onclick="switchTab('csm')">
+        <div class="nav-item" data-tab="csm" onclick="switchTab('csm')" data-tooltip="Adoption scorecard, efficiency/FabricPool savings, SnapMirror protection status, and historical trend vs. last week/month/quarter.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           Value & ROI
         </div>
-        <div class="nav-item" data-tab="plan" onclick="switchTab('plan')">
+        <div class="nav-item" data-tab="plan" onclick="switchTab('plan')" data-tooltip="Generate customer-ready deliverables (QBR pack, security brief, MEDDPICC, sustainability report, and more) plus fleet-wide contract/recommendation/lifecycle views.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           Action Planner
         </div>
-        <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+        <div class="nav-item" data-tab="settings" onclick="switchTab('settings')" data-tooltip="API credentials, watchlist scope, enrichment sources, and manually-tracked system metadata (site logistics, contacts, CSAT).">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           Settings & Config
         </div>
@@ -66,7 +66,7 @@
       <div class="sidebar-groups-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 4px;">
           <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">Account Filters</span>
-          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()" data-tooltip="Clear all active customer, subgroup, watchlist filters, search terms, and KPI card drill-downs.">Reset</button>
+          <button class="action-btn secondary" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;" onclick="resetFilter()" data-tooltip="Clear filters/search/KPI drill-down without leaving the current tab. (The logo and Overview Dashboard also reset filters, but additionally navigate you back to Overview.)">Clear Filters</button>
         </div>
         <div id="sidebarGroupsList" class="tree-menu">
           <!-- JS dynamic groups list -->

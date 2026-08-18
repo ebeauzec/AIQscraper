@@ -1,8 +1,8 @@
 {
-  "version": "5.4.3",
+  "version": "5.5.0",
   "major": 5,
-  "minor": 4,
-  "patch": 3,
+  "minor": 5,
+  "patch": 0,
   "date": "2026-08-17",
-  "notes": "Two fixes. (1) Removed a hard 50-system render cap on the TAM tab that was added during earlier browser-performance troubleshooting -- selecting 'All Systems' on a large fleet now renders every selected system again instead of silently showing only the first 50. (2) Fixed the System Metadata & Logistics Editor (site address, tech contact, CSAT, capacity projections) silently losing all manually-entered data on the next fleet sync: loadProductionData() replaces state.systems wholesale from the fresh API response, which has none of these fields, and there was no merge-back step (unlike ASUP imports, which already had one). Manually-entered logistics/contacts/salesHealth/projections are now persisted independently in localStorage, keyed by serial, and re-applied to state.systems after every real sync. securityBulletins/supportCases edits are deliberately NOT included in this persistence, since those should come from live API data for real systems and re-applying a stale manual JSON blob over freshly-synced case data would silently make it worse, not better."
+  "notes": "First round of a UX audit: cross-tab system focus and navigation clarity. (1) New focusOnSystem() -- picking a specific system in any one of Technical Audit, Support & Ops, Value & ROI, or Action Planner's selectors now carries that same system to the other three, instead of each tab tracking its own selection independently and forcing you to re-pick the same system up to 4 times when moving between tabs. Selecting 'All Systems' or a cluster/group/watchlist scope stays tab-local on purpose. (2) Added descriptive tooltips to all 5 main sidebar nav items (previously only Overview/Action Planner/Settings had them) so it's clear what's actually inside 'Value & ROI' or 'Support & Ops' without having to click in and look. (3) Relabeled the sidebar 'Reset' button to 'Clear Filters' to distinguish it from the logo/Overview click, which resets filters AND navigates to Overview -- two visually similar controls previously did overlapping-but-different things."
 }
