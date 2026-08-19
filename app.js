@@ -18,9 +18,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.9";
+const APP_VERSION = "5.6.10";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.10",
+    date: "19 August 2026",
+    title: "Overview Table: Customer Account Moved to First Column",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: Customer Account Now the Leading Column",
+        color: "#2dd4bf",
+        items: [
+          "Monitored Systems & Clusters table on the Overview Dashboard now shows Customer Account first, before System Name and Serial Number, so it's the first thing you see when scanning a multi-customer fleet",
+          "All columns remain individually sortable, same as before -- just reordered"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.9",
     date: "19 August 2026",
@@ -6761,6 +6777,7 @@ function renderOverviewTable() {
     }
 
     tr.innerHTML = `
+      <td>${sys.customerName}</td>
       <td style="font-weight: 600; color: var(--accent-cyan);">${nameHtml}</td>
       <td>
         <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">
@@ -6769,7 +6786,6 @@ function renderOverviewTable() {
         </code>
       </td>
       <td>${sys.clusterName}</td>
-      <td>${sys.customerName}</td>
       <td>
         <div style="font-weight:500;">${sys.platform}</div>
         ${sys.platformType && sys.platformType !== sys.platform ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:1px;">${sys.platformType}</div>` : ''}

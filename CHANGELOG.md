@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.10] - 2026-08-19
+
+### Changed
+- **Overview Dashboard's Monitored Systems & Clusters table** now shows **Customer Account** as the first column, before System Name and Serial Number. All columns remain individually sortable — purely a reorder.
+
+---
+
 ## [5.6.9] - 2026-08-19
 
 ### Fixed
