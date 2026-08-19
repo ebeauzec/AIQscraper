@@ -1,8 +1,8 @@
 {
-  "version": "5.6.7",
+  "version": "5.6.8",
   "major": 5,
   "minor": 6,
-  "patch": 7,
-  "date": "2026-08-18",
-  "notes": "Audited every health/score calculation and reporting site in the app after the 5.6.6 fix. computeAccountHealthScore(), computeSupportCaseHealth(), computeFeatureAdoptionScore(), and the other canonical scoring functions are self-computed from real fleet data (ASUP compliance, ARP status, firmware currency, case aging, etc.) with no ambiguous upstream field, so they were not affected. Grepped every use of a raw '.score' field across app.js and found exactly one more site using Active IQ's ambiguous recommendation `score` directly without correction: the QBR Pack deliverable (compileQBRPack) printed '[Score 27%]' instead of the corrected 73% health value. Switched it to the shared _resolveRecommendationScore() helper introduced in 5.6.6, so the on-screen Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable now all report the same corrected score."
+  "patch": 8,
+  "date": "2026-08-19",
+  "notes": "Fixed a silent multi-account harvest failure: aiq_cache.db lives in a Google Drive sync folder by design, and Drive replaced the file underneath the already-running server process -- harvest_cache_accounts (the per-account table multi-account merging depends on) vanished, but the process's one-time schema-ready flag never noticed, so every harvest after that point failed with 'no such table: harvest_cache_accounts'. This is why a correctly-configured watchlist on a second Active IQ account (confirmed resolving 186 systems when queried directly against Active IQ with that account's own token) never appeared in the merged fleet view. _init_db() now does a cheap sqlite_master existence check on every call and self-heals by re-running the idempotent schema setup if the table is missing, without reintroducing the per-request slowdown the one-time flag was added to prevent. Also added a scope label to the Technical Health & Risk Mitigation (TAM) tab header showing the active customer/group/watchlist filter, so it's clear at a glance what the selected systems list is scoped to."
 }

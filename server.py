@@ -425,6 +425,32 @@ def _init_db():
             if not _db_schema_ready:
                 _run_db_schema_setup(db)
                 _db_schema_ready = True
+    else:
+        # aiq_cache.db lives in a Google Drive sync folder by design (dark-site
+        # dev setup) -- Drive can replace the file out from under this
+        # long-running process on a sync conflict (observed live: harvest_cache
+        # survived but harvest_cache_accounts and every reporting_* table
+        # vanished mid-session, silently breaking every multi-account harvest
+        # with "no such table" until the process was restarted). The full
+        # schema script is too expensive to re-run on every request (that's
+        # the whole reason for the _db_schema_ready flag -- see docstring),
+        # but this existence check is a single indexed lookup, cheap enough to
+        # run every call. If the file was swapped underneath us, re-run setup
+        # once (CREATE TABLE IF NOT EXISTS is idempotent) instead of failing
+        # every query against the table until someone notices and restarts.
+        _tbl = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='harvest_cache_accounts'"
+        ).fetchone()
+        if not _tbl:
+            with _db_init_lock:
+                _tbl = db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='harvest_cache_accounts'"
+                ).fetchone()
+                if not _tbl:
+                    print("  [DB] harvest_cache_accounts missing on a schema-ready connection "
+                          "-- aiq_cache.db was likely replaced underneath this process (Google "
+                          "Drive sync conflict). Re-running schema setup.", flush=True)
+                    _run_db_schema_setup(db)
     _maybe_purge_enrich_cache(db)
     return db
 

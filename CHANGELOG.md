@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.8] - 2026-08-19
+
+### Fixed
+- **Multi-account harvest silently broken by Google Drive sync.** `aiq_cache.db` lives in a Google Drive sync folder by design; Drive replaced the file underneath the already-running server process, wiping `harvest_cache_accounts` (the per-account table multi-account merging depends on) without the process noticing — its schema-ready flag only checked once at startup. Every harvest after that point failed with `no such table: harvest_cache_accounts`, which is why a correctly-configured watchlist on a second account (verified resolving 186 systems directly against Active IQ) never showed up in the merged fleet view. `_init_db()` now does a cheap existence check every call and self-heals if the table is missing, without reintroducing the per-request slowdown the one-time flag was added to prevent.
+
+### Added
+- **Scope label on the Technical Health & Risk Mitigation (TAM) tab header** showing the active customer/group/watchlist filter (e.g. "— Acme Corp"), so it's clear at a glance what the selected systems list is scoped to.
+
+---
+
 ## [5.6.7] - 2026-08-18
 
 ### Fixed

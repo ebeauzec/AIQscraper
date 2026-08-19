@@ -18,9 +18,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.7";
+const APP_VERSION = "5.6.8";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.8",
+    date: "19 August 2026",
+    title: "Fixed: Multi-Account Harvest Silently Broken by Google Drive Sync + Technical Audit Scope Label",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Google Drive Sync Could Silently Break Multi-Account Harvest",
+        color: "#f87171",
+        items: [
+          "aiq_cache.db lives in a Google Drive sync folder by design -- Drive replaced the file underneath the already-running server process, wiping the per-account harvest_cache_accounts table (harvest_cache survived) without the process noticing, since schema setup only ran once at startup",
+          "Every subsequent harvest for every account silently failed with 'no such table: harvest_cache_accounts' -- this is why a correctly-configured watchlist on a second account (verified resolving 186 systems against Active IQ directly) never appeared in the merged fleet view",
+          "_init_db() now does a cheap existence check every call and self-heals (re-runs the idempotent schema setup) if the file was swapped out from under the process, without reintroducing the per-request slowdown the one-time flag was added to prevent"
+        ]
+      },
+      {
+        icon: "✨",
+        label: "New: Selected Customer/Group/Watchlist Now Shown in Technical Audit Header",
+        color: "#2dd4bf",
+        items: [
+          "The Technical Health & Risk Mitigation tab header now shows the active customer/group/watchlist scope (e.g. \"— Acme Corp\") next to the title, so it's clear at a glance what the systems list below is scoped to"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.7",
     date: "18 August 2026",
@@ -10045,7 +10070,25 @@ function renderTAMTab() {
   // state reads (no DOM access), and bail out immediately if unchanged.
   const currentFiltered = getFilteredSystems(); // cached, ~0ms
   const allSerialsInScope = currentFiltered.map(s => s.serialNumber);
-  
+
+  // Reflect the active global scope (customer/group/watchlist filter) in the
+  // tab header so it's clear at a glance what "Selected Systems" is scoped to
+  // — cheap enough to run on every render, unlike the guarded work below.
+  const _scopeLabelEl = document.getElementById("tamScopeLabel");
+  if (_scopeLabelEl) {
+    let _scopeText = "";
+    if (state.activeFilterType === "CUSTOMER") {
+      _scopeText = state.activeFilterValue;
+    } else if (state.activeFilterType === "GROUP") {
+      const _grp = state.groups.find(g => g.id === state.activeFilterValue);
+      _scopeText = _grp ? _grp.name : "";
+    } else if (state.activeFilterType === "WATCHLIST") {
+      const _wl = state.watchlists.find(w => w.id === state.activeFilterValue);
+      _scopeText = _wl ? _wl.name : "";
+    }
+    _scopeLabelEl.textContent = _scopeText ? ` — ${_scopeText}` : "";
+  }
+
   // Prune/initialize selectedTAMSerials if scope changed
   if (!state.selectedTAMSerials) state.selectedTAMSerials = [];
   const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
