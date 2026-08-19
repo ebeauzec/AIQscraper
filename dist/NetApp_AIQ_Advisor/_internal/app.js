@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.18";
+const APP_VERSION = "5.6.19";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.19",
+    date: "19 August 2026",
+    title: "Fixed: OS Upgrade Advisor Could Recommend Downgrading",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: 'Upgrade' Target Could Be a Lower Version Than What's Already Installed",
+        color: "#f87171",
+        items: [
+          "The primary live-data upgrade check only compared Active IQ's recommendedOSVersion to the installed version with strict inequality (recommended !== current), flagging ANY difference as needing an upgrade -- including cases where the installed version was already NEWER than what Active IQ's baseline reported",
+          "Confirmed live: a system on 9.8P21 was shown 'RECOMMENDED: upgrade to 9.8P20' in Section 5 (Recommended OS Upgrade Roadmaps) -- backwards, since P21 is already ahead of P20",
+          "Switched to a real version comparison (versionLt) so 'up to date' means the installed version is not older than the recommendation, in either direction. Verified live: the exact 9.8P21/9.8P20 case now correctly reports Up to Date; a genuine older-version case (9.8P10 needing 9.8P20) still correctly flags as Recommended"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.18",
     date: "19 August 2026",
@@ -13986,8 +14003,18 @@ function enrichSystemTelemetry(s) {
   // Mock/non-live systems still respect their intentionally pre-set upgrades.
   let upgrades = isLiveData ? null : s.upgrades;
   if (!upgrades && isLiveData && s.recommendedOSVersion) {
-    // Live API path: use real recommended version from Active IQ
-    const isUpToDate = s.recommendedOSVersion === osVer;
+    // Live API path: use real recommended version from Active IQ.
+    // isUpToDate must be "current version is NOT older than recommended",
+    // not just "current !== recommended" -- Active IQ's recommendedOSVersion
+    // can differ from the installed version in EITHER direction (e.g. the
+    // system is already running a newer P-release than AIQ's baseline
+    // reflects). The old strict-equality check flagged ANY difference as
+    // needing an upgrade, including cases where the target was actually a
+    // LOWER version than what's already installed -- confirmed live: a
+    // system on 9.8P21 was shown "RECOMMENDED: upgrade to 9.8P20", which is
+    // backwards (P21 > P20). versionLt() correctly treats current >= target
+    // as already up to date, regardless of API-reported string mismatch.
+    const isUpToDate = !versionLt(osVer, s.recommendedOSVersion);
     upgrades = {
       targetVersion: isUpToDate ? 'Up to Date' : s.recommendedOSVersion,
       urgency: isUpToDate ? 'None' : 'Recommended',

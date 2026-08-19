@@ -1,8 +1,8 @@
 {
-  "version": "5.6.18",
+  "version": "5.6.19",
   "major": 5,
   "minor": 6,
-  "patch": 18,
+  "patch": 19,
   "date": "2026-08-19",
-  "notes": "Settings & Config's multi-account watchlist field only offered a single free-text input per account, even though the server has always supported comma-separated multiple watchlist IDs per account (_do_full_harvest splits account.watchlistId on ','). Each account row now has a proper '+ Add Watchlist' control to add/remove individual watchlist IDs, stored and loaded correctly, joined into the same comma-separated wire format the server already parses. Verified live against real account data: adding a second watchlist ID and saving produces the expected comma-separated payload."
+  "notes": "Fixed the OS Upgrade Advisor being able to recommend a downgrade. The primary live-data upgrade check compared Active IQ's recommendedOSVersion to the installed osVersion with strict inequality (recommended !== current), flagging ANY difference as needing an upgrade -- including when the installed version was already newer than Active IQ's reported baseline. Confirmed live: a system on 9.8P21 was shown 'RECOMMENDED: upgrade to 9.8P20' in Section 5, which is backwards. Switched to a real version comparison (versionLt) so 'up to date' means the installed version is not older than the recommendation in either direction. Verified live: the exact 9.8P21/9.8P20 case now correctly reports Up to Date; a genuine 9.8P10-needing-9.8P20 case still correctly flags as Recommended."
 }

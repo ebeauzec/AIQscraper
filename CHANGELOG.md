@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.19] - 2026-08-19
+
+### Fixed
+- **OS Upgrade Advisor could recommend a downgrade.** The primary live-data upgrade check flagged ANY difference between Active IQ's `recommendedOSVersion` and the installed version as needing an upgrade, including when the installed version was already newer. Confirmed live: a system on 9.8P21 was shown "RECOMMENDED: upgrade to 9.8P20" — backwards, since P21 is already ahead. Switched to a real version comparison so "up to date" means not older than the recommendation, in either direction.
+
+---
+
 ## [5.6.18] - 2026-08-19
 
 ### Added
