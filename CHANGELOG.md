@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.33] - 2026-08-19
+
+### Added
+- **DR failover test verification tracking.** DR health throughout this tool only ever showed whether DR is CONFIGURED (MetroCluster Mediator/AUSO status, SnapMirror relationship counts) — Active IQ has no field anywhere for whether a failover was ever actually tested. Rather than fabricate a "last tested" status the API can't provide, "Import Findings Into Tracker" now also creates a trackable action item per DR-configured cluster/system: one per MetroCluster pair (deduped by cluster) and one per SnapMirror-protected system, with the tracker's manual notes/status/due-date serving as the honest record of whether and when it was actually tested. Defaults to medium severity (90-day SLA cadence). Fourth of several planned operational additions.
+
+---
+
 ## [5.6.32] - 2026-08-19
 
 ### Added

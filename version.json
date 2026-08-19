@@ -1,8 +1,8 @@
 {
-  "version": "5.6.32",
+  "version": "5.6.33",
   "major": 5,
   "minor": 6,
-  "patch": 32,
+  "patch": 33,
   "date": "2026-08-19",
-  "notes": "Added a Customer Portfolio rollup on the Overview Dashboard for MSPs/partners managing multiple accounts. Nearly everything else in this tool is scoped to one customer/selection at a time -- there was no way to see which of many managed accounts needs attention right now without opening each one individually. New card: one row per customer (always the full loaded fleet, not the current filter), showing system count, critical/high risk counts, contracts expiring within 90 days, EOS system count, SLA compliance % (from the Remediation Tracker), and account health score, sorted by a risk score so the worst accounts surface first. Only shown when more than one customer is loaded. Click any row to filter the app to that customer, or export the table as CSV. Verified live against the real 41-customer fleet. Third of several planned operational additions."
+  "notes": "Added DR failover test verification tracking. DR health throughout this tool only ever showed whether DR is CONFIGURED (MetroCluster Mediator/AUSO status, SnapMirror relationship counts) -- Active IQ has no field anywhere for whether a failover was ever actually tested. Rather than fabricate a 'last tested' status the API can't provide, 'Import Findings Into Tracker' now also creates a trackable action item per DR-configured cluster/system: one per MetroCluster pair (deduped by cluster) and one per SnapMirror-protected system, with the tracker's manual notes/status/due-date serving as the honest record of whether and when it was actually tested. Defaults to medium severity (90-day SLA cadence). Verified live against the real 8-system MetroCluster fleet: correctly deduplicated to 4 cluster-level items. Fourth of several planned operational additions."
 }

@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.32";
+const APP_VERSION = "5.6.33";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.33",
+    date: "19 August 2026",
+    title: "Added: DR Failover Test Verification Tracking",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: DR/Failover Test Tracking in the Remediation Tracker",
+        color: "#22c55e",
+        items: [
+          "DR health throughout this tool (MetroCluster Mediator/AUSO status, SnapMirror relationship counts) only ever showed whether DR is CONFIGURED -- Active IQ has no field anywhere for whether a failover was ever actually tested. Configuration presence isn't the same as verified recovery capability, and that gap was invisible",
+          "Rather than fabricate a 'last tested' status Active IQ can't provide, 'Import Findings Into Tracker' now also creates a trackable action item per DR-configured cluster/system: one per MetroCluster pair (deduped by cluster, not per-node, so a 2-node MC pair doesn't generate two identical items) and one per SnapMirror-protected system. The tracker's manual notes/status/due-date become the honest record of whether and when it was actually tested, since only a human can know that",
+          "Defaults to medium severity (90-day SLA cadence from the 5.6.31 policy engine) -- a reasonable quarterly re-verification rhythm, editable like any other tracked item",
+          "Verified live against the real 8-system MetroCluster fleet: correctly deduplicated to 4 cluster-level test items (PRDSAN01-04), each showing the real customer, real cluster name, and an on-track SLA badge",
+          "Fourth of several planned operational additions (tracking, SLA policy, portfolio rollup, DR-test verification, then trend dashboards, notifications, and more)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.32",
     date: "19 August 2026",
@@ -28622,7 +28641,44 @@ async function importTrackerItemsFromScope() {
     return;
   }
   const items = [];
+  // DR/failover TEST verification -- Active IQ can only tell us DR is
+  // CONFIGURED (MetroCluster pair exists, SnapMirror relationships exist);
+  // it has no field anywhere for whether a failover was ever actually
+  // tested. Configuration presence is not the same as verified recovery
+  // capability, and that gap is invisible without a place to record it.
+  // Rather than fabricate a "last tested" status Active IQ can't provide,
+  // this creates a trackable action item per DR-configured cluster/system --
+  // the tracker's manual notes/status/due-date ARE the honest record of
+  // whether and when it was actually tested, since only a human can know
+  // that. Deduped by cluster (not per-node) for MetroCluster so a 2-node MC
+  // pair doesn't generate two identical test items.
+  const mcClustersSeen = new Set();
   systems.forEach(s => {
+    if (s.isMetroCluster) {
+      const clusterKey = s.clusterName || s.systemName || s.serialNumber;
+      if (mcClustersSeen.has(clusterKey)) return;
+      mcClustersSeen.add(clusterKey);
+      const title = `Verify MetroCluster failover test — ${clusterKey}`;
+      items.push({
+        itemKey: _trackerItemKey('dr_test', clusterKey, title),
+        accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
+        systemSerial: s.serialNumber || '', systemName: clusterKey,
+        sourceType: 'dr_test', severity: 'medium', title,
+        detail: 'MetroCluster is configured, but Active IQ has no record of whether a switchover/switchback was ever actually tested. Record the test date and outcome in notes, then mark resolved.'
+      });
+    } else {
+      const smCount = (s.snapmirror && s.snapmirror.totalCount) || s.snapMirrorCount || s.snapmirrorCount || 0;
+      if (smCount > 0) {
+        const title = `Verify SnapMirror DR failover test — ${s.systemName}`;
+        items.push({
+          itemKey: _trackerItemKey('dr_test', s.serialNumber, title),
+          accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
+          systemSerial: s.serialNumber || '', systemName: s.systemName || '',
+          sourceType: 'dr_test', severity: 'medium', title,
+          detail: `${smCount} SnapMirror relationship(s) configured, but Active IQ has no record of whether a DR failover was ever actually tested. Record the test date and outcome in notes, then mark resolved.`
+        });
+      }
+    }
     (s.risks || []).forEach(r => {
       const sev = (r.severity || '').toLowerCase();
       if (sev !== 'critical' && sev !== 'high') return;
@@ -28662,7 +28718,7 @@ async function importTrackerItemsFromScope() {
     }
   });
   if (!items.length) {
-    alert('No critical/high risks, near-term contract expirations, or EOS systems found in the current scope -- nothing to import.');
+    alert('No critical/high risks, near-term contract expirations, EOS systems, or DR-configured systems found in the current scope -- nothing to import.');
     return;
   }
   if (items.length > 500 && !confirm(`This will import ${items.length} findings from ${systems.length} system(s) into the tracker. That's a lot -- if you meant to track one customer, select them first. Import all ${items.length} anyway?`)) {
