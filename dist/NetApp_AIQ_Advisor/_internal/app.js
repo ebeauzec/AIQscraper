@@ -27,9 +27,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.36";
+const APP_VERSION = "5.6.37";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.37",
+    date: "19 August 2026",
+    title: "Fixed: Remediation Tracker Didn't Follow the Sidebar Customer Filter",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Tracker Ignored Sidebar Customer/Group/Watchlist Changes",
+        color: "#f87171",
+        items: [
+          "Every other tab (Technical Audit, Support & Ops, Value & ROI, Action Planner) automatically re-aligns its selection to the sidebar customer/group/watchlist filter when it changes. The Remediation Tracker, added this session, had its own independent customer dropdown that never synced to the sidebar -- switching customers while on that tab silently kept showing whatever was previously selected",
+          "Tracker's customer dropdown now re-syncs automatically whenever the sidebar filter changes (customer, group, watchlist, or cleared back to 'All'), without overwriting a manual dropdown pick made independently of the sidebar",
+          "Also fixed: the KPI row, SLA Compliance %, and Recent Activity digest were computed from ALL tracked items regardless of the customer dropdown -- only the table rows respected it. All of it (KPIs, activity digest, table) now consistently scopes to the selected customer",
+          "Audited every other tab for the same class of bug per user request -- confirmed Technical Audit, Support & Ops, Value & ROI, and Action Planner already correctly follow the sidebar filter via the established getFilteredSystems()/auto-align pattern; the Tracker was the only outlier",
+          "Verified live: seeded two customers' worth of tracked items, confirmed switching the sidebar customer filter between them correctly updated the dropdown, table rows, and KPIs each time, and confirmed clearing back to 'All Customers' correctly showed everything again",
+          "Also found and cleaned up ~100 stale test rows left in the live tracked_items table from an earlier verification pass this session that wasn't fully cleaned up -- removed before release"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.36",
     date: "19 August 2026",
@@ -29000,15 +29020,16 @@ function _trackerSlaBadge(item) {
   return `<span style="color:#22c55e;font-size:0.72rem;" title="Due in ${daysLeft} day(s)${suffix}">✓ On Track</span>`;
 }
 
-function renderTrackerRecentActivity() {
+function renderTrackerRecentActivity(scopedItems) {
   const card = document.getElementById('trackerActivityCard');
   if (!card) return;
+  const items = scopedItems || state.trackerItems;
   const cutoff = Date.now() - 7 * 86400000;
-  const newlyOpened = state.trackerItems.filter(i => new Date(i.createdAt).getTime() >= cutoff);
-  const resolvedRecently = state.trackerItems.filter(i => i.status === 'resolved' && new Date(i.updatedAt).getTime() >= cutoff);
-  const newlyBreached = state.trackerItems.filter(i => _trackerIsOverdue(i) && new Date(i.updatedAt).getTime() < cutoff);
+  const newlyOpened = items.filter(i => new Date(i.createdAt).getTime() >= cutoff);
+  const resolvedRecently = items.filter(i => i.status === 'resolved' && new Date(i.updatedAt).getTime() >= cutoff);
+  const newlyBreached = items.filter(i => _trackerIsOverdue(i) && new Date(i.updatedAt).getTime() < cutoff);
 
-  if (state.trackerItems.length === 0) {
+  if (items.length === 0) {
     card.style.display = 'none';
     return;
   }
@@ -29024,6 +29045,16 @@ function renderTrackerRecentActivity() {
   `;
 }
 
+// Every other tab (Technical Audit, Support & Ops, Action Planner) auto-
+// aligns its own selection to the sidebar customer/group/watchlist filter
+// when it changes -- the Tracker's independent customer dropdown didn't,
+// so switching customers in the sidebar while on this tab left the table
+// showing whatever customer (or "All") was previously selected, with no
+// visible change. Tracked here so a sidebar filter change re-syncs the
+// dropdown exactly once, without fighting a user's own manual dropdown
+// choice made without touching the sidebar.
+let _trackerLastSyncedFilter = null;
+
 function renderTrackerTab() {
   const body = document.getElementById('trackerTableBody');
   const kpiRow = document.getElementById('trackerKpiRow');
@@ -29031,7 +29062,6 @@ function renderTrackerTab() {
   if (!body) return;
 
   const statusFilter = (document.getElementById('trackerStatusFilter') || {}).value || '';
-  const customerFilter = (document.getElementById('trackerCustomerFilter') || {}).value || '';
 
   // Populate customer filter options from whatever's actually tracked
   const custSelect = document.getElementById('trackerCustomerFilter');
@@ -29041,7 +29071,20 @@ function renderTrackerTab() {
     custSelect.innerHTML = '<option value="">All Customers</option>' +
       customers.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
     custSelect.value = customers.includes(current) ? current : '';
+
+    // Re-align to the sidebar filter whenever IT changes (not on every
+    // render, which would clobber a manual dropdown pick).
+    const sidebarStamp = `${state.activeFilterType}|${state.activeFilterValue || ''}`;
+    if (sidebarStamp !== _trackerLastSyncedFilter) {
+      _trackerLastSyncedFilter = sidebarStamp;
+      if (state.activeFilterType === 'CUSTOMER' && state.activeFilterValue && customers.includes(state.activeFilterValue)) {
+        custSelect.value = state.activeFilterValue;
+      } else if (state.activeFilterType !== 'CUSTOMER') {
+        custSelect.value = '';
+      }
+    }
   }
+  const customerFilter = custSelect ? custSelect.value : '';
 
   let items = state.trackerItems.filter(i => {
     if (statusFilter && i.status !== statusFilter) return false;
@@ -29049,20 +29092,26 @@ function renderTrackerTab() {
     return true;
   });
 
+  // KPIs and Recent Activity respect the customer scope (so switching
+  // customers actually changes what's shown) but NOT the status filter --
+  // status breakdown wouldn't mean anything if it were itself filtered by
+  // status.
+  const scopedItems = customerFilter ? state.trackerItems.filter(i => i.customerName === customerFilter) : state.trackerItems;
+
   // ── Recent Activity (last 7 days) ──────────────────────────────────────
   // QBR's "Prior Quarter Action Review" already answers "did last quarter's
   // items get resolved," but only once a quarter. This is the always-on,
   // lightweight version of the same question -- "what actually changed
   // recently" -- built entirely from data already on each tracked item
   // (createdAt/updatedAt/status), no new backend needed.
-  renderTrackerRecentActivity();
+  renderTrackerRecentActivity(scopedItems);
 
   // KPI row
-  const openCount = state.trackerItems.filter(i => i.status === 'open').length;
-  const inProgCount = state.trackerItems.filter(i => i.status === 'in_progress').length;
-  const activeItems = state.trackerItems.filter(i => TRACKER_ACTIVE_STATUSES.includes(i.status));
+  const openCount = scopedItems.filter(i => i.status === 'open').length;
+  const inProgCount = scopedItems.filter(i => i.status === 'in_progress').length;
+  const activeItems = scopedItems.filter(i => TRACKER_ACTIVE_STATUSES.includes(i.status));
   const overdueCount = activeItems.filter(_trackerIsOverdue).length;
-  const resolvedCount = state.trackerItems.filter(i => i.status === 'resolved').length;
+  const resolvedCount = scopedItems.filter(i => i.status === 'resolved').length;
   const slaCompliancePct = activeItems.length > 0 ? Math.round((activeItems.length - overdueCount) / activeItems.length * 100) : 100;
   const slaColor = slaCompliancePct >= 90 ? '#22c55e' : slaCompliancePct >= 70 ? '#f59e0b' : '#ef4444';
   if (kpiRow) {
@@ -29072,7 +29121,7 @@ function renderTrackerTab() {
       <div class="card kpi-card" data-tooltip="Active items past their due date (manually set, or the SLA policy default for their severity if none was set)."><div class="card-title">SLA Breached</div><div class="card-value" style="color:#ef4444;">${overdueCount}</div></div>
       <div class="card kpi-card" data-tooltip="Percentage of open/in-progress items still within their due date or SLA policy default."><div class="card-title">SLA Compliance</div><div class="card-value" style="color:${slaColor};">${slaCompliancePct}%</div></div>
       <div class="card kpi-card"><div class="card-title">Resolved</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.resolved};">${resolvedCount}</div></div>
-      <div class="card kpi-card"><div class="card-title">Total Tracked</div><div class="card-value">${state.trackerItems.length}</div></div>
+      <div class="card kpi-card"><div class="card-title">Total Tracked</div><div class="card-value">${scopedItems.length}</div></div>
     `;
   }
 

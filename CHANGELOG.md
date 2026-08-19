@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.37] - 2026-08-19
+
+### Fixed
+- **Remediation Tracker didn't follow the sidebar customer filter.** Every other tab (Technical Audit, Support & Ops, Value & ROI, Action Planner) auto-aligns its selection to the sidebar customer/group/watchlist filter when it changes — the Tracker had its own independent customer dropdown that never synced, so switching customers while on that tab silently kept showing whatever was previously selected. The dropdown now re-syncs automatically on any sidebar filter change without overwriting a manual pick. Also fixed: the KPI row, SLA Compliance %, and Recent Activity digest were computed from ALL tracked items regardless of the customer dropdown — only the table respected it; all three now consistently scope together. Audited every other tab for the same bug class — confirmed the Tracker was the only outlier.
+
+---
+
 ## [5.6.36] - 2026-08-19
 
 ### Added

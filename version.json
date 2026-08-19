@@ -1,8 +1,8 @@
 {
-  "version": "5.6.36",
+  "version": "5.6.37",
   "major": 5,
   "minor": 6,
-  "patch": 36,
+  "patch": 37,
   "date": "2026-08-19",
-  "notes": "Added a Recent Activity digest to the Remediation Tracker. The QBR Pack's 'Prior Quarter Action Review' already answers 'did last quarter's flagged items get resolved' -- but only once a quarter. New 'Recent Activity - Last 7 Days' card shows how many items were resolved, how many newly tracked, and how many went stale and crossed into SLA-breached without anyone touching them in over a week. Built entirely from data already on each tracked item, no new backend needed. Verified live against real tracked items. Seventh and last of the planned operational additions from this session's audit."
+  "notes": "Fixed: the Remediation Tracker did not follow the sidebar customer filter. Every other tab (Technical Audit, Support & Ops, Value & ROI, Action Planner) auto-aligns its selection to the sidebar customer/group/watchlist filter when it changes -- the Tracker had its own independent customer dropdown that never synced, so switching customers while on that tab silently kept showing whatever was previously selected. The dropdown now re-syncs automatically on any sidebar filter change without overwriting a manual pick. Also fixed: the KPI row, SLA Compliance %, and Recent Activity digest were computed from ALL tracked items regardless of the customer dropdown -- only the table respected it; all three are now consistently scoped together. Audited every other tab for the same bug class; confirmed the Tracker was the only outlier. Verified live with two customers' worth of tracked items, switching between them and back to 'All'. Also cleaned up ~100 stale test rows left in the live database from an earlier verification pass this session."
 }
