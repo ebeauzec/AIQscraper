@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.27] - 2026-08-19
+
+### Fixed
+- **Fabricated per-customer counts in TAM Recommendations** (e.g. "1 of 6 systems" under Support and Entitlements). Active IQ scores each check per Active IQ account (the whole reseller/MSP tenant), not per customer — the app was multiplying that one account-wide percentage by each individual customer's system count to synthesize a fake per-customer figure, so every customer with the same system count showed the identical number regardless of their actual data. Confirmed live: 5 real customers all showing the same fabricated "1 of 6" for EOS_6M actually have 0, 0, 0, 0, and 2 systems truly reaching End of Support within 6 months. For the 4 checks with real per-system data (EOS within 6 months, already EOS, contract expiring within 6 months, no active support contract), the app now counts the actual scoped systems from `lifecycle.eosDate` / `contracts.daysRemaining` instead of extrapolating. Every other recommendation check has no real per-customer source in the API, so those counts are now explicitly labeled "(est.)" with a tooltip explaining they're extrapolated from the account-wide rate, not measured. Applied consistently to the on-screen tab, the Section 12 TXT export, and the QBR Pack deliverable.
+- **ASA r2 systems showing NetApp's marketed "4:1 efficiency SLA" as a measured ratio.** Live ASA r2 systems with no computable Storage Availability Zone usage data displayed "4.0:1" in the Efficiency Ratio field — visually indistinguishable from a real computed ratio like "3.2:1". Now shows "N/A" in that field; the SLA claim remains visible separately via the existing platform note.
+
+---
+
 ## [5.6.26] - 2026-08-19
 
 ### Fixed

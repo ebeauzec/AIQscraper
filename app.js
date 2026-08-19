@@ -27,9 +27,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.26";
+const APP_VERSION = "5.6.27";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.27",
+    date: "19 August 2026",
+    title: "Fixed: Fabricated Per-Customer Counts in TAM Recommendations (e.g. \"1 of 6 systems\")",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Extrapolated Fleet-Wide Rates Displayed as Real Per-Customer Measurements",
+        color: "#f87171",
+        items: [
+          "Active IQ's TAM Recommendations API scores each check per ACCOUNT (the whole reseller/MSP tenant), not per customer. The app was taking that one account-wide percentage (e.g. \"9% of systems are End of Support within 6 months\") and multiplying it by each individual customer's system count to synthesize a fake per-customer figure -- e.g. every customer with 6 systems showed the identical '1 of 6 systems' regardless of whether their systems were actually anywhere near EOS",
+          "Confirmed live: 5 real customers who all showed the same fabricated '1 of 6' for EOS_6M actually have 0, 0, 0, 0, and 2 systems truly reaching End of Support within 6 months when measured for real",
+          "For the 4 checks where real per-system data exists (EOS within 6 months, already End of Support, contract expiring within 6 months, no active support contract), the app now counts the actual scoped systems using lifecycle.eosDate / contracts.daysRemaining instead of extrapolating",
+          "For every other recommendation check (AutoSupport transport, firmware validation, HA config, etc. -- checks Active IQ never breaks down per-system), there is no real per-customer source to measure against. Those counts are now explicitly marked '(est.)' with a tooltip explaining they're extrapolated from the account-wide rate, not measured for the specific systems shown -- never displayed with the same confidence as a real measurement again",
+          "Applied consistently across all three places this number appears: the on-screen TAM Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable",
+          "Also fixed: live ASA r2 systems with no computable Storage Availability Zone usage data were showing NetApp's marketed '4:1 efficiency SLA' in the Efficiency Ratio field as if it were this system's measured ratio -- indistinguishable from a real computed ratio like '3.2:1'. Now shows 'N/A' in that field; the SLA claim remains visible separately via the existing platform note"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.26",
     date: "19 August 2026",
@@ -14414,7 +14434,13 @@ function enrichSystemTelemetry(s) {
     const _sgEseriesCapGap = (isStorageGrid || isEseries) && physTBfinal === 0 && rawTBfinal === 0;
 
     efficiency = {
-      ratio: ratioVal ? `${ratioVal}:1` : (isASAr2 ? '4.0:1' : (_sgEseriesCapGap ? 'N/A' : 'N/A')),
+      // When ratioVal can't be computed for a live ASA r2 system, do NOT show
+      // NetApp's marketed "4:1 efficiency SLA" as if it were this system's
+      // measured ratio -- that's a vendor guarantee, not a per-system
+      // measurement, and would be visually indistinguishable from a real
+      // computed ratio (e.g. "3.2:1") in the same field. The SLA claim is
+      // already surfaced separately via platformNote below.
+      ratio: ratioVal ? `${ratioVal}:1` : 'N/A',
       dataReductionRatio: parseFloat((ratioVal ? parseFloat(ratioVal) : 1).toFixed(2)),  // best available ratio (DR preferred, logical/physical fallback)
       logicalUsedTB: parseFloat((logTBfinal || physTBfinal).toFixed(1)),
       physicalUsedTB: physTBfinal,
@@ -18582,10 +18608,13 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       const lines = items.slice(0, 5).map(r => {
         const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
         const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' corrected' : ''}`;
-        const failCount = Math.round(((100 - effectiveScore) / 100) * total);
-        let clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `${failCount} of your ${total} selected systems`);
+        const realCount = _realRecommendationCount(r.subCategory, targetSystems);
+        const isReal = realCount != null;
+        const failCount = isReal ? realCount : Math.round(((100 - effectiveScore) / 100) * total);
+        const numTxt = isReal ? `${failCount}` : `~${failCount} (est.)`;
+        let clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `${numTxt} of your ${total} selected systems`);
         if (total > 0) {
-          clean = clean.replace(/(\d+)%\s+of\b/gi, (m, n) => `${Math.round((parseInt(n, 10) / 100) * total)} of ${total}`);
+          clean = clean.replace(/(\d+)%\s+of\b/gi, () => `${numTxt} of ${total}`);
         }
         const acctTag = qbrMultiAcct && r.accountId ? ` [${qbrAcctLabels[r.accountId] || r.accountId}]` : '';
         return `    • [Score ${scoreLabel}]${acctTag} ${_truncate(clean)}`;
@@ -21773,6 +21802,49 @@ function _resolveRecommendationScore(r) {
 // different percentages because BOTH accounts' full-fleet recommendations were
 // being shown, unfiltered, for every customer/scope regardless of which account
 // that customer's systems actually belong to.
+// Real, per-system counts for the handful of TAM Recommendation checks we
+// actually have per-system source data for. See _renderRecommendationsSection's
+// rescopeText comment for the full rationale: Active IQ scores these checks
+// per-ACCOUNT, not per-customer, so most checks can only be extrapolated from
+// that account-wide rate onto a customer's system count -- an estimate, not a
+// measurement. For EOS and contract-expiry checks specifically, real per-system
+// fields exist (lifecycle.eosDate, contracts.daysRemaining, both computed by
+// enrichSystemTelemetry from the live API), so count the actual scoped systems
+// instead. Shared by the on-screen tab, the Section 12 TXT export, and the QBR
+// Pack deliverable so all three always agree and none of them fabricate a count
+// this function can answer for real. Returns null (no real source) for every
+// other subCategory -- callers MUST treat a null return as "estimate only" and
+// label it accordingly, never display it with the confidence of a measurement.
+function _realRecommendationCount(subCategory, systems) {
+  systems = systems || [];
+  const now = Date.now();
+  if (subCategory === 'EOS_6M') {
+    return systems.filter(s => {
+      const eos = s.lifecycle && s.lifecycle.eosDate;
+      if (!eos || eos === 'N/A') return false;
+      const t = new Date(eos).getTime();
+      return !isNaN(t) && t > now && t <= now + 182 * 86400000;
+    }).length;
+  }
+  if (subCategory === 'EOS_AND_PLAT_AND_HW') {
+    return systems.filter(s => {
+      const eos = s.lifecycle && s.lifecycle.eosDate;
+      if (!eos || eos === 'N/A') return false;
+      const t = new Date(eos).getTime();
+      return !isNaN(t) && t <= now;
+    }).length;
+  }
+  if (subCategory === 'ACTIVE_SUPPORT_CONTRACTS_6M') {
+    return systems.filter(s => s.contracts && s.contracts.daysRemaining != null &&
+      s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 182).length;
+  }
+  if (subCategory === 'ACTIVE_SUPPORT_CONTRACTS') {
+    return systems.filter(s => s.contracts && (s.contracts.status === 'expired' ||
+      (s.contracts.daysRemaining != null && s.contracts.daysRemaining < 0))).length;
+  }
+  return null;
+}
+
 function _scopeRecommendationsToAccounts(recs, targetSystems) {
   const scopeAccountIds = new Set((targetSystems || []).map(s => s.accountId).filter(Boolean));
   if (scopeAccountIds.size === 0) return recs; // no accountId tagging (single-account setup) -- nothing to filter
@@ -21793,41 +21865,29 @@ function _renderRecommendationsSection(targetSystems) {
   if (recs.length === 0) return '<p style="color:var(--text-secondary);font-size:0.85rem;">No recommendations available. Run a data refresh to load TAM recommendations.</p>';
 
   // Helper: rewrite "N of your systems" AND "N% of <label> systems" in
-  // recommendation text to actual system counts for the selected scope —
-  // the raw Active IQ text states percentages ("8% of AutoSupport capable
-  // systems do not have..."), which don't say how many systems that actually
-  // is without doing the math yourself. Score badges stay as percentages
-  // (unaffected -- see _resolveRecommendationScore); this only rewrites the
-  // prose.
-  //
-  // effectiveScore is the ALREADY-NORMALIZED health % from
-  // _resolveRecommendationScore (same value shown on the badge) -- deriving
-  // the fail count as (100-effectiveScore)/100 * scopeCount from it, instead
-  // of the old scopedSubCatFailCounts/scopedCatFailCounts risk-based lookup.
-  // That lookup fell back to the CATEGORY-level count whenever a recommendation's
-  // subCategory (e.g. AVAILABILITY_PROTECTION, PERFORMANCE_EFFICIENCY, CAPACITY)
-  // didn't exactly match a risk subCategory string -- which was every Best
-  // Practices check -- so every card in that whole category showed the exact
-  // same category-wide count (e.g. "162 of your 171") regardless of that
-  // card's own, very different score (43%, 63%, 87%, 99%). The score-derived
-  // count is exact by construction and needs no string matching at all.
-  function rescopeText(text, effectiveScore) {
+  // recommendation text to actual system counts for the selected scope.
+  // Uses a real per-system count when one exists (_realRecommendationCount);
+  // otherwise falls back to extrapolating the account-wide score onto
+  // scopeCount, and marks the number "(est.)" so it is never displayed with
+  // the same confidence as a measured value.
+  function rescopeText(text, effectiveScore, subCategory) {
     if (!text) return '';
-    const failCount = effectiveScore != null
-      ? Math.round(((100 - effectiveScore) / 100) * scopeCount)
-      : 0;
+    const realCount = _realRecommendationCount(subCategory, targetSystems);
+    const isReal = realCount != null;
+    const failCount = isReal ? realCount
+      : (effectiveScore != null ? Math.round(((100 - effectiveScore) / 100) * scopeCount) : 0);
+    const numHtml = isReal
+      ? `<strong style="color:#f59e0b">${failCount}</strong>`
+      : `<strong style="color:#f59e0b" title="Active IQ reports this check per-account, not per-customer. This count is estimated by applying the account-wide rate to this customer's system count -- it is not a direct measurement of these specific systems.">≈${failCount} <span style="font-size:0.7em;opacity:0.75;">(est.)</span></strong>`;
     // Replace patterns like "98 of your systems", "27 of your systems are failing"
     let out = text.replace(/(\d+)\s+of\s+your\s+systems/gi, (match, n) => {
-      return `<strong style="color:#f59e0b">${failCount}</strong> of your <strong>${scopeCount}</strong> selected systems`;
+      return `${numHtml} of your <strong>${scopeCount}</strong> selected systems`;
     });
     // Replace "N% of <label> systems" (e.g. "8% of AutoSupport capable systems",
-    // "27% of entitled systems") with an actual count out of the selected
-    // scope -- the percentage is always stated against the currently-scoped
-    // system count, so converting it back to a count is just arithmetic.
+    // "27% of entitled systems") with a count out of the selected scope.
     if (scopeCount > 0) {
       out = out.replace(/(\d+)%\s+of\b/gi, (match, n) => {
-        const count = Math.round((parseInt(n, 10) / 100) * scopeCount);
-        return `<strong style="color:#f59e0b">${count}</strong> of <strong>${scopeCount}</strong>`;
+        return `${numHtml} of <strong>${scopeCount}</strong>`;
       });
     }
     return out;
@@ -21845,7 +21905,7 @@ function _renderRecommendationsSection(targetSystems) {
 
   let html = `<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Top ${recs.length} key recommendations from Active IQ — counts rescoped to <strong style="color:var(--accent-cyan)">${scopeCount} selected system${scopeCount !== 1 ? 's' : ''}</strong>.</p>
-    <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;">⚠ Counts shown reflect the selected customer scope, not the full fleet</span>
+    <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;">⚠ Active IQ scores these checks per-account, not per-customer. Counts marked (est.) are extrapolated from the account-wide rate, not measured for these specific systems.</span>
   </div>`;
 
   Object.keys(byCategory).forEach(cat => {
@@ -21877,7 +21937,7 @@ function _renderRecommendationsSection(targetSystems) {
         // Strip remaining tags (strong, span, br, etc.)
         .replace(/<[^>]+>/g, '');
       const truncated = rawRec.length > 500 ? rawRec.substring(0, 497) + '…' : rawRec;
-      const displayText = rescopeText(linkify(truncated), effectiveScore);
+      const displayText = rescopeText(linkify(truncated), effectiveScore, r.subCategory);
       // When the current scope spans multiple accounts, the same check can
       // legitimately report different scores per account (two real, separate
       // fleets) -- label which account each card belongs to instead of
@@ -25563,11 +25623,14 @@ B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
     // actual scope, same formula as the on-screen view and QBR Pack (derived
     // from the already-normalized effectiveScore, exact by construction).
     const recScopeCount = targetSystems.length;
-    const rescopeCount = (rawText, effectiveScore) => {
-      const failCount = Math.round(((100 - effectiveScore) / 100) * recScopeCount);
-      let out = stripTags(rawText).replace(/\d+\s+of\s+your\s+systems/gi, `${failCount} of your ${recScopeCount} selected systems`);
+    const rescopeCount = (rawText, effectiveScore, subCategory) => {
+      const realCount = _realRecommendationCount(subCategory, targetSystems);
+      const isReal = realCount != null;
+      const failCount = isReal ? realCount : Math.round(((100 - effectiveScore) / 100) * recScopeCount);
+      const numTxt = isReal ? `${failCount}` : `~${failCount} (est. from account-wide rate, not measured for these systems)`;
+      let out = stripTags(rawText).replace(/\d+\s+of\s+your\s+systems/gi, `${numTxt} of your ${recScopeCount} selected systems`);
       if (recScopeCount > 0) {
-        out = out.replace(/(\d+)%\s+of\b/gi, (m, n) => `${Math.round((parseInt(n, 10) / 100) * recScopeCount)} of ${recScopeCount}`);
+        out = out.replace(/(\d+)%\s+of\b/gi, () => `${numTxt} of ${recScopeCount}`);
       }
       return out;
     };
@@ -25586,7 +25649,7 @@ ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to l
         const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' (corrected from raw problem-rate)' : ''}`;
         const acctTag = multiAcct && r.accountId ? ` [${scopeAcctLabels[r.accountId] || r.accountId}]` : '';
         return `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}${acctTag}Score: ${scoreLabel}
-   ${rescopeCount(r.recommendation, effectiveScore)}`;
+   ${rescopeCount(r.recommendation, effectiveScore, r.subCategory)}`;
       }).join('\n\n');
   }).join('\n\n\n')}`;
   } else if (index === 19) {
