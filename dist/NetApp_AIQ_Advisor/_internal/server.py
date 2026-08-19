@@ -1834,46 +1834,74 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 print(f"  [HARVEST] Clusters (after watchlist retry): {len(all_clusters)}", flush=True)
 
         # 6. Fetch risk instances (paginated, 500 per page)
+        # Accounts without the `unfiltered_system_access` privilege (the same
+        # accounts that require a watchlistId to fetch `systems` at all -- see
+        # the systems fetch above) get "At least one input parameter is
+        # required" from an unscoped riskInstances query. Previously this was
+        # queried unconditionally unscoped, so those accounts silently got 0
+        # risk instances on every harvest despite systems fetching fine via
+        # their watchlist -- confirmed live against a real account (186
+        # systems, 0 risks) that only succeeds when watchlistId is passed.
+        # Scope per configured watchlist when present, same as systems/clusters.
         print("  [HARVEST] Fetching risk instances...", flush=True)
-        all_risk_instances = []
-        cursor = None
-        ri_page = 0
-        while True:
-            ri_page += 1
-            after_arg = f', after: "{cursor}"' if cursor else ""
-            _, ri_resp = _gql(token, """{
-                riskInstances(pageSize: 500""" + after_arg + """) {
-                  cursor
-                  riskInstances {
-                    risk {
-                      riskId
-                      severity
-                      category
-                      shortName
-                      riskDetail
-                      potentialImpact
-                      impactArea
-                      correctiveAction { url displayName }
-                      cves { id cvssScore description summary lastUpdated }
+
+        def _fetch_risk_instances_for_scope(scope_wl_id=None):
+            items = []
+            cursor = None
+            page = 0
+            while True:
+                page += 1
+                after_arg = f', after: "{cursor}"' if cursor else ""
+                wl_arg = f', watchlistId: "{scope_wl_id}"' if scope_wl_id else ""
+                _, ri_resp = _gql(token, """{
+                    riskInstances(pageSize: 500""" + after_arg + wl_arg + """) {
+                      cursor
+                      riskInstances {
+                        risk {
+                          riskId
+                          severity
+                          category
+                          shortName
+                          riskDetail
+                          potentialImpact
+                          impactArea
+                          correctiveAction { url displayName }
+                          cves { id cvssScore description summary lastUpdated }
+                        }
+                        system { serialNumber hostName }
+                        systemRiskDetail
+                        riskAcknowledgementInfo { acknowledgedBy acknowledgementDate justification comments acknowledgementExpiryDate }
+                      }
                     }
-                    system { serialNumber hostName }
-                    systemRiskDetail
-                    riskAcknowledgementInfo { acknowledgedBy acknowledgementDate justification comments acknowledgementExpiryDate }
-                  }
-                }
-              }""")
-            if not isinstance(ri_resp, dict) or ri_resp.get("errors"):
-                err_msg = (ri_resp["errors"][0].get("message", "")[:120] if isinstance(ri_resp, dict) else "non-dict response")
-                print(f"  [HARVEST] Risk instances GQL error (skipping): {err_msg}", flush=True)
-                break
-            ri_data = (ri_resp.get("data") or {}).get("riskInstances") or {}
-            ri_page_items = ri_data.get("riskInstances") or [] if isinstance(ri_data, dict) else []
-            all_risk_instances.extend(ri_page_items)
-            new_cursor = ri_data.get("cursor") if isinstance(ri_data, dict) else None
-            print(f"  [HARVEST] Risk instances page {ri_page}: {len(ri_page_items)} (total so far: {len(all_risk_instances)})", flush=True)
-            if not ri_page_items or not new_cursor or new_cursor == cursor:
-                break
-            cursor = new_cursor
+                  }""")
+                if not isinstance(ri_resp, dict) or ri_resp.get("errors"):
+                    err_msg = (ri_resp["errors"][0].get("message", "")[:120] if isinstance(ri_resp, dict) else "non-dict response")
+                    scope_label = scope_wl_id or "unfiltered"
+                    print(f"  [HARVEST] Risk instances GQL error (scope={scope_label}, skipping): {err_msg}", flush=True)
+                    break
+                ri_data = (ri_resp.get("data") or {}).get("riskInstances") or {}
+                ri_page_items = ri_data.get("riskInstances") or [] if isinstance(ri_data, dict) else []
+                items.extend(ri_page_items)
+                new_cursor = ri_data.get("cursor") if isinstance(ri_data, dict) else None
+                if not ri_page_items or not new_cursor or new_cursor == cursor:
+                    break
+                cursor = new_cursor
+            return items
+
+        all_risk_instances = []
+        if watchlist_ids:
+            _ri_seen = set()
+            for _wl_id in watchlist_ids:
+                _wl_items = _fetch_risk_instances_for_scope(_wl_id)
+                print(f"  [HARVEST] Risk instances (watchlist={_wl_id}): {len(_wl_items)}", flush=True)
+                for _ri in _wl_items:
+                    _sys = _ri.get("system") or {}
+                    _key = (_sys.get("serialNumber"), (_ri.get("risk") or {}).get("riskId"))
+                    if _key not in _ri_seen:
+                        _ri_seen.add(_key)
+                        all_risk_instances.append(_ri)
+        else:
+            all_risk_instances = _fetch_risk_instances_for_scope(None)
         print(f"  [HARVEST] Total risk instances: {len(all_risk_instances)}", flush=True)
 
         # 7. Fetch all support cases — paginated + fallback without productTypes if the
@@ -1881,7 +1909,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         print("  [HARVEST] Fetching support cases...", flush=True)
         all_cases = []
 
-        def _fetch_cases_pages(with_product_types=True):
+        def _fetch_cases_pages(with_product_types=True, scope_wl_id=None):
             """Paginate all cases. Returns list of case dicts, or None on GQL error."""
             cases_out = []
             c_cursor = None
@@ -1890,7 +1918,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 c_page += 1
                 c_after = f', after: "{c_cursor}"' if c_cursor else ""
                 c_pt    = ', productTypes: [FILER, SWApp]' if with_product_types else ''
-                _, cr = _gql(token, '{ cases(pageSize: 200' + c_after + c_pt + ''') {
+                c_wl    = f', watchlistId: "{scope_wl_id}"' if scope_wl_id else ''
+                _, cr = _gql(token, '{ cases(pageSize: 200' + c_after + c_pt + c_wl + ''') {
                     totalCount cursor
                     cases {
                       caseId symptom description status priority highestPriority
@@ -1919,28 +1948,62 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 c_cursor = new_cur
             return cases_out
 
-        # First attempt with productTypes filter; if corp proxy rejects enum, retry without
-        _cases_result = _fetch_cases_pages(with_product_types=True)
-        if _cases_result is None:
-            print("  [HARVEST] Cases: retrying without productTypes filter...", flush=True)
-            _cases_result = _fetch_cases_pages(with_product_types=False) or []
-        all_cases = _cases_result or []
+        # Accounts without `unfiltered_system_access` (the same accounts that
+        # require a watchlistId for `systems`) get "At least one mandatory
+        # argument is required..." from an unscoped cases query -- confirmed
+        # live against a real account (186 systems via watchlist, 0 cases
+        # from the unscoped query, 149 cases when scoped to the same
+        # watchlist). Scope per configured watchlist when present, same
+        # pattern as the risk instances and systems fetches.
+        if watchlist_ids:
+            all_cases = []
+            _case_seen = set()
+            for _wl_id in watchlist_ids:
+                _wl_cases = _fetch_cases_pages(with_product_types=True, scope_wl_id=_wl_id)
+                if _wl_cases is None:
+                    _wl_cases = _fetch_cases_pages(with_product_types=False, scope_wl_id=_wl_id) or []
+                print(f"  [HARVEST] Cases (watchlist={_wl_id}): {len(_wl_cases)}", flush=True)
+                for _c in _wl_cases:
+                    _cid = _c.get("caseId")
+                    if _cid and _cid not in _case_seen:
+                        _case_seen.add(_cid)
+                        all_cases.append(_c)
+        else:
+            # First attempt with productTypes filter; if corp proxy rejects enum, retry without
+            _cases_result = _fetch_cases_pages(with_product_types=True)
+            if _cases_result is None:
+                print("  [HARVEST] Cases: retrying without productTypes filter...", flush=True)
+                _cases_result = _fetch_cases_pages(with_product_types=False) or []
+            all_cases = _cases_result or []
         print(f"  [HARVEST] Cases total: {len(all_cases)}", flush=True)
 
+        # Accounts without `unfiltered_system_access` need a watchlistId on
+        # every account-scoped query below (customers/sites/sustainability/
+        # recommendations/contract renewals), same privilege restriction as
+        # systems/riskInstances/cases above -- confirmed live against a real
+        # such account: every one of these returned "At least one
+        # [mandatory argument/input parameter] is required..." when unscoped,
+        # and returned real data once watchlistId was added. Use the first
+        # configured watchlist (these are account-wide reference/summary
+        # data, not deeply per-watchlist like systems/risks/cases -- same
+        # "informational, first ID is enough" reasoning already used for the
+        # `summary` query above).
+        _wl_scope_arg = f', watchlistId: "{watchlist_ids[0]}"' if watchlist_ids else ''
+
         # 8. Fetch customers (with sustainability)
-        _, cust_resp = _gql(token, """{ customers(pageSize: 100) { customers {
+        _, cust_resp = _gql(token, '{ customers(pageSize: 100' + _wl_scope_arg + ''') { customers {
             id cmatId name
             sustainabilityScorePercentage { overall }
-        } } }""")
+        } } }''')
         customers = (((cust_resp.get("data") or {}).get("customers") or {}).get("customers")) or [] if isinstance(cust_resp, dict) else []
 
         # ── TAM: Recommendations ──
         tam_recommendations = []
         try:
             print("  [HARVEST] Fetching TAM recommendations...", flush=True)
-            _, rec_resp = _gql(token, """{ recommendations(isTopKeyRecommendation: true, limit: 50) {
+            _, rec_resp = _gql(token, '{ recommendations(isTopKeyRecommendation: true, limit: 50' + _wl_scope_arg + ''') {
                 recommendation rank category subCategory score
-            } }""")
+            } }''')
             tam_recommendations = (rec_resp.get("data") or {}).get("recommendations") or [] if isinstance(rec_resp, dict) else []
             print(f"  [HARVEST] Recommendations: {len(tam_recommendations)}", flush=True)
         except Exception as e:
@@ -1950,11 +2013,11 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_sites = []
         try:
             print("  [HARVEST] Fetching TAM sites...", flush=True)
-            _, sites_resp = _gql(token, """{ sites(pageSize: 100) { sites {
+            _, sites_resp = _gql(token, '{ sites(pageSize: 100' + _wl_scope_arg + ''') { sites {
                 id cmatId name countryCode postalCode city state streetAddress
                 vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
                 operationalDate ageInYears
-            } } }""")
+            } } }''')
             tam_sites = (((sites_resp.get("data") or {}).get("sites") or {}).get("sites")) or []
             print(f"  [HARVEST] Sites: {len(tam_sites)}", flush=True)
         except Exception as e:
@@ -1964,9 +2027,11 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_sustainability = []
         try:
             print("  [HARVEST] Fetching sustainability score...", flush=True)
-            _, sust_resp = _gql(token, """{ sustainabilityScore { sustainabilityScores {
+            _sust_args = f'watchlistId: "{watchlist_ids[0]}"' if watchlist_ids else ''
+            _sust_call = f'sustainabilityScore({_sust_args})' if _sust_args else 'sustainabilityScore'
+            _, sust_resp = _gql(token, '{ ' + _sust_call + ''' { sustainabilityScores {
                 scorePercentage percentageChange generatedDate changeFactors
-            } } }""")
+            } } }''')
             tam_sustainability = (((sust_resp.get("data") or {}).get("sustainabilityScore") or {}).get("sustainabilityScores")) or [] if isinstance(sust_resp, dict) else []
             print(f"  [HARVEST] Sustainability scores: {len(tam_sustainability)}", flush=True)
         except Exception as e:
@@ -2023,12 +2088,12 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_renewals = []
         try:
             print("  [HARVEST] Fetching contract renewals...", flush=True)
-            _, ren_resp = _gql(token, """{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31") { systems {
+            _, ren_resp = _gql(token, '{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31"' + _wl_scope_arg + ''') { systems {
                 serialNumber hostName platformType serviceTier techRefreshStatus
                 contract { expiryDate isContractActive hardwareServiceLevel hardwareContractEndDate softwareContractEndDate overallContractEndDate hardwareWarrantyEndDate }
                 hardwareModel { name endOfAvailability endOfSupport }
                 endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
-            } } }""")
+            } } }''')
             # .get("systemContractRenewals", {}) only applies its default when the key
             # is MISSING — GraphQL can return {"data": {"systemContractRenewals": null}}
             # (e.g. no privilege/no systems in scope), where the key exists with value
@@ -3301,18 +3366,29 @@ def _enrich_all_versions(harvest_result):
 def _background_sync():
     """Run a full harvest in the background. Errors are logged, not raised."""
     try:
-        # Read all watchlist IDs from config for background sync
+        # Read all watchlist IDs from config for background sync.
+        # These are the LEGACY top-level fields (see _get_accounts()'s docstring:
+        # "treated as account id=default whenever no accounts array is present").
+        # Only meaningful in single-account mode -- once an "accounts" array is
+        # configured, applying this as extra_watchlist_ids would scope EVERY
+        # account's harvest to whichever watchlist happens to be sitting in the
+        # stale top-level field (a leftover from before multi-account was set
+        # up), not just the account it actually belongs to. Confirmed live:
+        # this cross-contaminated a second account's risks/cases queries with
+        # the first account's watchlist ID, silently zeroing them out via a
+        # privilege error caught deep in the scoped-fetch retry logic.
         wl_ids = []
         try:
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-            # Support both new watchlistIds (comma-sep) and legacy watchlistId (single).
-            # Only use watchlistId (legacy) if watchlistIds is empty; ignore placeholder 'wl_prod'.
-            ids_str = cfg.get("watchlistIds") or cfg.get("watchlist_id") or ""
-            if not ids_str:
-                legacy = cfg.get("watchlistId") or ""
-                if legacy and legacy != "wl_prod" and not legacy.startswith("wl_"):
-                    ids_str = legacy
-            wl_ids = [w.strip() for w in ids_str.split(",") if w.strip()]
+            if not cfg.get("accounts"):
+                # Support both new watchlistIds (comma-sep) and legacy watchlistId (single).
+                # Only use watchlistId (legacy) if watchlistIds is empty; ignore placeholder 'wl_prod'.
+                ids_str = cfg.get("watchlistIds") or cfg.get("watchlist_id") or ""
+                if not ids_str:
+                    legacy = cfg.get("watchlistId") or ""
+                    if legacy and legacy != "wl_prod" and not legacy.startswith("wl_"):
+                        ids_str = legacy
+                wl_ids = [w.strip() for w in ids_str.split(",") if w.strip()]
         except Exception:
             pass
         scope_msg = f" ({len(wl_ids)} watchlist(s))" if wl_ids else " (all systems)"
@@ -7204,55 +7280,85 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
-            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-            refresh_token = cfg.get("refreshToken") or cfg.get("refresh_token")
-            if not refresh_token:
-                raise Exception("No refresh token configured")
+            # Try every configured account's token, not just the legacy
+            # top-level one -- in a multi-account setup a watchlist ID
+            # typically belongs to exactly one account's Active IQ org, and
+            # using the wrong account's token either 400s ("watchlist does
+            # not exist") or, for accounts whose org happens to reuse the
+            # numeric ID for something else, silently returns the wrong
+            # systems. Confirmed live: resolving a real watchlist against the
+            # wrong account's token failed with a GraphQL error whose
+            # resulting `data.systems` is null, which the old single-token
+            # version then crashed on ('NoneType' object has no attribute
+            # 'get') instead of reporting the real error.
+            accounts = _get_accounts()
+            if not accounts:
+                raise Exception("No Active IQ accounts configured")
 
-            # Get access token
-            status, raw = _http("POST", f"{REST_BASE}/v1/tokens/accessToken",
-                {"Content-Type": "application/json", "Accept": "application/json"},
-                {"refresh_token": refresh_token})
-            if status != 200:
-                raise Exception(f"Token exchange failed: HTTP {status}")
-            token_data = json.loads(raw.decode("utf-8", errors="replace"))
-            token = token_data.get("access_token")
-            if not token:
-                raw_s = raw.decode("utf-8", errors="replace").strip().strip('"')
-                token = raw_s if len(raw_s) > 30 else None
-            if not token:
-                raise Exception("No access token")
+            last_err = "No accounts could resolve this watchlist"
+            for acct in accounts:
+                refresh_token = acct.get("refreshToken")
+                if not refresh_token:
+                    continue
+                try:
+                    status, raw = _http("POST", f"{REST_BASE}/v1/tokens/accessToken",
+                        {"Content-Type": "application/json", "Accept": "application/json"},
+                        {"refresh_token": refresh_token})
+                    if status != 200:
+                        last_err = f"[{acct.get('label')}] Token exchange failed: HTTP {status}"
+                        continue
+                    token_data = json.loads(raw.decode("utf-8", errors="replace"))
+                    token = token_data.get("access_token") if isinstance(token_data, dict) else None
+                    if not token:
+                        last_err = f"[{acct.get('label')}] No access token"
+                        continue
 
-            # Query systems for this watchlist
-            serials = []
-            cursor = None
-            for page in range(50):  # Max 5000 systems per watchlist
-                after_arg = f', after: "{cursor}"' if cursor else ""
-                _, sys_resp = _gql(token, """{
-                  systems(pageSize: 100, watchlistId: \"""" + watchlist_id + """\" """ + after_arg + """) {
-                    totalCount cursor
-                    systems { serialNumber }
-                  }
-                }""")
-                sys_data = (sys_resp.get("data") or {}).get("systems", {})
-                systems_page = sys_data.get("systems") or []
-                for s in systems_page:
-                    sn = s.get("serialNumber") or ""
-                    if sn:
-                        serials.append(sn)
-                new_cursor = sys_data.get("cursor")
-                total = sys_data.get("totalCount", 0)
-                if not systems_page or not new_cursor or new_cursor == cursor:
-                    break
-                cursor = new_cursor
+                    serials = []
+                    cursor = None
+                    total = 0
+                    gql_err = None
+                    for page in range(50):  # Max 5000 systems per watchlist
+                        after_arg = f', after: "{cursor}"' if cursor else ""
+                        _, sys_resp = _gql(token, """{
+                          systems(pageSize: 100, watchlistId: \"""" + watchlist_id + """\" """ + after_arg + """) {
+                            totalCount cursor
+                            systems { serialNumber }
+                          }
+                        }""")
+                        if not isinstance(sys_resp, dict) or sys_resp.get("errors"):
+                            gql_err = (sys_resp["errors"][0].get("message", "") if isinstance(sys_resp, dict) and sys_resp.get("errors") else "non-dict response")
+                            break
+                        sys_data = (sys_resp.get("data") or {}).get("systems") or {}
+                        systems_page = sys_data.get("systems") or [] if isinstance(sys_data, dict) else []
+                        for s in systems_page:
+                            sn = s.get("serialNumber") or ""
+                            if sn:
+                                serials.append(sn)
+                        new_cursor = sys_data.get("cursor") if isinstance(sys_data, dict) else None
+                        total = sys_data.get("totalCount", 0) if isinstance(sys_data, dict) else 0
+                        if not systems_page or not new_cursor or new_cursor == cursor:
+                            break
+                        cursor = new_cursor
 
-            print(f"  [RESOLVE] Watchlist {watchlist_id}: {len(serials)} systems (totalCount: {total})", flush=True)
+                    if gql_err:
+                        last_err = f"[{acct.get('label')}] {gql_err}"
+                        continue
 
-            res_bytes = json.dumps({"watchlistId": watchlist_id, "systemSerials": serials, "totalCount": total}).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(res_bytes)
+                    print(f"  [RESOLVE] Watchlist {watchlist_id}: {len(serials)} systems via account '{acct.get('label')}' (totalCount: {total})", flush=True)
+                    res_bytes = json.dumps({
+                        "watchlistId": watchlist_id, "systemSerials": serials, "totalCount": total,
+                        "accountId": acct.get("id"), "accountLabel": acct.get("label"),
+                    }).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(res_bytes)
+                    return
+                except Exception as _acct_err:
+                    last_err = f"[{acct.get('label')}] {_acct_err}"
+                    continue
+
+            raise Exception(last_err)
         except Exception as e:
             print(f"  [RESOLVE] Error: {e}", flush=True)
             self.send_response(500)

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.9] - 2026-08-19
+
+### Fixed
+- **Privilege-restricted accounts silently missing risks, cases, sites, recommendations, sustainability, and contract renewals.** An Active IQ account without `unfiltered_system_access` must pass `watchlistId` on every account-scoped query, not just `systems` — `riskInstances`, `cases`, `customers`, `sites`, `sustainabilityScore`, `systemContractRenewals`, and `recommendations` were all still querying unscoped, silently returning empty. Confirmed live: 0→298 risks, 0→149 cases, 0→23 recommendations, 0→8 sites, 0→31 sustainability scores after adding `watchlistId` to each.
+- **Leftover legacy watchlist setting cross-contaminated every account.** A stale top-level `watchlistId` left over from before multi-account was configured was applied as a blanket filter across every account's harvest — the risk/case scoping fix above accidentally scoped a second account's queries to the *first* account's watchlist. Now gated to single-account mode only.
+- **Settings watchlist resolver always used the wrong account** and crashed with an unhelpful error instead of the real cause. It now tries every configured account and reports which one resolved the watchlist.
+
+---
+
 ## [5.6.8] - 2026-08-19
 
 ### Fixed

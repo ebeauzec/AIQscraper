@@ -18,9 +18,43 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.8";
+const APP_VERSION = "5.6.9";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.9",
+    date: "19 August 2026",
+    title: "Fixed: Privilege-Restricted Accounts Silently Missing Risks, Cases, Sites, Recommendations & More",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: 7 More Queries Broken for Watchlist-Restricted Accounts",
+        color: "#f87171",
+        items: [
+          "An account without the unfiltered_system_access Active IQ privilege must pass watchlistId on EVERY account-scoped query, not just systems -- riskInstances, cases, customers, sites, sustainabilityScore, systemContractRenewals, and recommendations were all still querying unscoped, silently returning empty (or erroring, caught and swallowed) for that account's entire fleet",
+          "Confirmed live: this is why a correctly-synced account (186 systems) showed 0 risks, 0 cases, 0 sites, 0 recommendations, and 0 sustainability data everywhere in the GUI -- fixed, verified directly against the real API: risks 0->298, cases 0->149, recommendations 0->23, sites 0->8, sustainability 0->31"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Leftover Legacy Watchlist Setting Cross-Contaminated Every Account",
+        color: "#f87171",
+        items: [
+          "A stale top-level watchlistId left over from before multi-account was configured was being applied as a blanket filter across EVERY configured account's harvest -- once risks/cases gained watchlist scoping above, this accidentally scoped a second account's queries to the FIRST account's watchlist ID, silently zeroing its risks and cases out too",
+          "The legacy top-level watchlist field now only applies in true single-account mode (no accounts array configured), matching its original documented intent"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Settings Watchlist Resolver Always Used the Wrong Account",
+        color: "#f87171",
+        items: [
+          "The 'resolve watchlist ID' tool in Settings always authenticated with the first/legacy configured account regardless of which account's watchlist you were checking, and crashed with an unhelpful NoneType error instead of reporting the real cause when it queried the wrong org",
+          "It now tries every configured account in turn and reports which one the watchlist actually resolved against"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.8",
     date: "19 August 2026",
