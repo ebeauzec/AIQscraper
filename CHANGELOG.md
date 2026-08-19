@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.20] - 2026-08-19
+
+### Changed
+- **Corrected the top-of-file "read-only" design comment**, which claimed no mutating actions occur "under no circumstances" — untrue since v4.2.0 added the CQV write-back. Now documents that one deliberate, explicitly-confirmed exception, matching what README.md's Read-Only by Default row already said. No behavior changed.
+
+---
+
 ## [5.6.19] - 2026-08-19
 
 ### Fixed

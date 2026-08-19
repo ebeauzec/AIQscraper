@@ -1,11 +1,20 @@
 // Active IQ Web Client - Core Application Logic
 //
 // NOTE ON READ-ONLY DESIGN SAFETY:
-// This tool is designed to be strictly READ-ONLY. Under no circumstances should
-// this application perform mutating actions (POST, PUT, PATCH, DELETE) against 
-// any Active IQ data configurations, customer assets, or cluster parameters.
-// The single POST request made in this app is strictly for token authentication
-// exchange (refreshing NSS tokens) and does not perform any data modifications.
+// This tool is designed to be READ-ONLY by default. With one deliberate
+// exception, it does not perform mutating actions (POST, PUT, PATCH, DELETE)
+// against any Active IQ data configurations, customer assets, or cluster
+// parameters. The token-authentication POST (refreshing NSS tokens) is not a
+// data modification.
+//
+// THE ONE EXCEPTION: updateQualifiedVersionInAIQ() (Section 5, "Set as
+// Qualified Version (CQV) in AIQ") performs a real GraphQL mutation that
+// writes the Customer Qualified Version back to the customer's live Active
+// IQ account. This is intentional -- CQV is a TAM workflow action, not
+// telemetry -- and is gated behind an explicit confirmation dialog plus a
+// mandatory justification (required by Active IQ itself), never fired
+// automatically. Any other write-shaped action added to this codebase should
+// get the same explicit-confirmation treatment and be called out here.
 //
 
 // Determine API base dynamically to support zero-config CORS proxying when served locally
@@ -18,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.19";
+const APP_VERSION = "5.6.20";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.20",
+    date: "19 August 2026",
+    title: "Docs: Corrected the Read-Only Design Claim",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: Top-of-File Comment No Longer Contradicts Reality",
+        color: "#2dd4bf",
+        items: [
+          "The file header claimed this tool performs no mutating actions 'under no circumstances' -- untrue since v4.2.0, when the CQV (Customer Qualified Version) write-back was added. The comment now documents that one deliberate, explicitly-confirmed exception instead of a blanket claim the code doesn't actually follow",
+          "No behavior changed -- the CQV button already required confirmation + justification and was already labeled 'Writes to Active IQ' in the UI. This just fixes the documentation to match what the code has always done"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.19",
     date: "19 August 2026",

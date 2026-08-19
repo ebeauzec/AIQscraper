@@ -1,8 +1,8 @@
 {
-  "version": "5.6.19",
+  "version": "5.6.20",
   "major": 5,
   "minor": 6,
-  "patch": 19,
+  "patch": 20,
   "date": "2026-08-19",
-  "notes": "Fixed the OS Upgrade Advisor being able to recommend a downgrade. The primary live-data upgrade check compared Active IQ's recommendedOSVersion to the installed osVersion with strict inequality (recommended !== current), flagging ANY difference as needing an upgrade -- including when the installed version was already newer than Active IQ's reported baseline. Confirmed live: a system on 9.8P21 was shown 'RECOMMENDED: upgrade to 9.8P20' in Section 5, which is backwards. Switched to a real version comparison (versionLt) so 'up to date' means the installed version is not older than the recommendation in either direction. Verified live: the exact 9.8P21/9.8P20 case now correctly reports Up to Date; a genuine 9.8P10-needing-9.8P20 case still correctly flags as Recommended."
+  "notes": "Documentation-only fix: the top-of-file comment claimed this tool performs no mutating actions 'under no circumstances,' which hasn't been true since v4.2.0 added the CQV (Customer Qualified Version) write-back. Updated the comment to document that one deliberate, explicitly-confirmed exception (matching what README.md's Read-Only by Default row already correctly says) instead of a blanket claim the code doesn't follow. No behavior changed -- the CQV button already required confirmation + justification and was already labeled 'Writes to Active IQ' in the UI."
 }
