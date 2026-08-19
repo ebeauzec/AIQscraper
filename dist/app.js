@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.10";
+const APP_VERSION = "5.6.11";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.11",
+    date: "19 August 2026",
+    title: "TAM Recommendations: Actual System Counts Instead of Percentages",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: Recommendation Text Now Shows Real Counts, Not Just Percentages",
+        color: "#2dd4bf",
+        items: [
+          "Active IQ's recommendation text states percentages (\"8% of AutoSupport capable systems do not have AutoSupport enabled\"), which don't say how many systems that actually is without doing the math yourself",
+          "The description under each recommendation now shows the actual count out of the selected scope (e.g. \"15 of 186 AutoSupport capable systems...\") instead of the raw percentage",
+          "Score badges are unaffected and continue to show percentages as before -- only the prose changed"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.10",
     date: "19 August 2026",
@@ -21253,7 +21270,13 @@ function _renderRecommendationsSection(targetSystems) {
     'SLA_AND_ENTITLEMENTS': 'SUPPORT_AND_ENTITLEMENTS'
   };
 
-  // Helper: rewrite "N of your systems" in recommendation text to the scoped count
+  // Helper: rewrite "N of your systems" AND "N% of <label> systems" in
+  // recommendation text to actual system counts for the selected scope —
+  // the raw Active IQ text states percentages ("8% of AutoSupport capable
+  // systems do not have..."), which don't say how many systems that actually
+  // is without doing the math yourself. Score badges stay as percentages
+  // (unaffected -- see _resolveRecommendationScore); this only rewrites the
+  // prose.
   function rescopeText(text, cat, subCat) {
     if (!text) return '';
     // Try to get the scoped failing count for this specific category
@@ -21261,9 +21284,20 @@ function _renderRecommendationsSection(targetSystems) {
     const normCat = (cat || '').toUpperCase().replace(/[\s-]+/g, '_');
     const failCount = scopedSubCatFailCounts[normSub] || scopedCatFailCounts[normCat] || 0;
     // Replace patterns like "98 of your systems", "27 of your systems are failing"
-    return text.replace(/(\d+)\s+of\s+your\s+systems/gi, (match, n) => {
+    let out = text.replace(/(\d+)\s+of\s+your\s+systems/gi, (match, n) => {
       return `<strong style="color:#f59e0b">${failCount}</strong> of your <strong>${scopeCount}</strong> selected systems`;
     });
+    // Replace "N% of <label> systems" (e.g. "8% of AutoSupport capable systems",
+    // "27% of entitled systems") with an actual count out of the selected
+    // scope -- the percentage is always stated against the currently-scoped
+    // system count, so converting it back to a count is just arithmetic.
+    if (scopeCount > 0) {
+      out = out.replace(/(\d+)%\s+of\b/gi, (match, n) => {
+        const count = Math.round((parseInt(n, 10) / 100) * scopeCount);
+        return `<strong style="color:#f59e0b">${count}</strong> of <strong>${scopeCount}</strong>`;
+      });
+    }
+    return out;
   }
 
   const byCategory = {};

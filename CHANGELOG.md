@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.11] - 2026-08-19
+
+### Changed
+- **TAM Recommendations section now shows actual system counts instead of raw percentages** in the description text (e.g. "15 of 186 AutoSupport capable systems..." instead of "8% of AutoSupport capable systems..."). Score badges are unaffected and continue to show percentages — only the prose changed.
+
+---
+
 ## [5.6.10] - 2026-08-19
 
 ### Changed

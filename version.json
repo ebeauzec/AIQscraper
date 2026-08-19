@@ -1,8 +1,8 @@
 {
-  "version": "5.6.10",
+  "version": "5.6.11",
   "major": 5,
   "minor": 6,
-  "patch": 10,
+  "patch": 11,
   "date": "2026-08-19",
-  "notes": "Overview Dashboard's Monitored Systems & Clusters table now shows Customer Account as the first column, before System Name and Serial Number, so it's the first thing visible when scanning a multi-customer fleet. All columns remain individually sortable, unchanged from before -- purely a reorder."
+  "notes": "TAM Recommendations section: Active IQ's recommendation text states percentages ('8% of AutoSupport capable systems do not have AutoSupport enabled'), which don't say how many systems that actually is without doing the math. rescopeText() now also converts the 'N% of <label> systems' pattern into an actual count out of the selected scope (e.g. '15 of 186 AutoSupport capable systems...'), alongside the existing 'N of your systems' rewrite. Score badges are unaffected and continue to show percentages -- verified live: 8% of 186 -> 15 of 186, 1% of 186 -> 2 of 186, score badges unchanged at 92%/99%."
 }
