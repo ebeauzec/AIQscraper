@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.16] - 2026-08-19
+
+### Fixed
+- **The recommendations account-scoping fix (5.6.12) was silently no-op'ing this whole time.** Root cause: `enrichSystemTelemetry()`, which runs on every system the instant it's loaded into `state.systems` (the real production load path), rebuilds an entirely new object field-by-field and never carried `accountId`/`accountLabel` through — every system was silently untagged the moment it loaded, so `_scopeRecommendationsToAccounts()` had nothing to filter on. This is one layer deeper than the 5.6.12 fix reached, and manual verification kept passing because each prior test assigned raw harvest JSON directly to `state.systems`, bypassing `enrichSystemTelemetry` and leaving `accountId` intact by accident — the bug only showed up going through the app's actual load path, exactly what generating a live report does. `accountId`/`accountLabel` are now explicitly carried through. Verified via the real load path this time: the same customer report that kept showing 37 recommendations with duplicates across three prior releases now correctly shows 23, zero duplicates.
+
+---
+
 ## [5.6.15] - 2026-08-19
 
 ### Fixed

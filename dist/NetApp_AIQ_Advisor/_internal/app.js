@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.15";
+const APP_VERSION = "5.6.16";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.16",
+    date: "19 August 2026",
+    title: "Fixed: Recommendations Account-Scoping Fix Was Silently No-Op'ing the Whole Time",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: enrichSystemTelemetry() Was Dropping accountId on Every Single System",
+        color: "#f87171",
+        items: [
+          "Found the real cause after a user reported the 5.6.12 duplicate-recommendation fix still not working on a fresh, correctly-versioned export: enrichSystemTelemetry() -- which runs on every system the moment it's loaded into state.systems, the actual production load path -- rebuilds an entirely new object field-by-field instead of spreading the original, and never carried accountId/accountLabel through. Every system in the running app was silently untagged the instant it loaded, so _scopeRecommendationsToAccounts() had nothing to filter on and let every account's recommendations through unfiltered -- exactly the original bug, just hiding one layer deeper than the 5.6.12 fix reached",
+          "This is why manual verification during 5.6.12-5.6.15 kept passing: each test assigned raw harvest JSON straight to state.systems, bypassing enrichSystemTelemetry entirely, so accountId was still present in every prior check -- the bug only showed up going through the app's real load path, which is exactly what a live customer report does",
+          "accountId/accountLabel are now explicitly carried through enrichSystemTelemetry's rebuilt object. Verified this time via the actual load path (state.systems = systems.map(enrichSystemTelemetry), not a direct assignment): the same stc customer report that kept showing 37 recommendations with duplicates across three prior releases now correctly shows 23, zero duplicates, confirmed against real live data end to end"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.15",
     date: "19 August 2026",
@@ -15013,6 +15030,19 @@ function enrichSystemTelemetry(s) {
 
   return {
     _source:           s._source || (isLiveData ? 'graphql' : undefined),
+    // Which configured Active IQ account this system's harvest came from (see
+    // _do_full_harvest's per-item tagging). MUST be carried through here --
+    // this function rebuilds an explicit new object rather than spreading
+    // ...s, so any field not listed below is silently dropped. Recommendation
+    // account-scoping (_scopeRecommendationsToAccounts) reads this field off
+    // targetSystems to decide which account(s) a report belongs to; without
+    // it every system looks untagged and the scoping filter no-ops, letting
+    // an unrelated account's fleet-wide recommendations bleed into every
+    // customer's report -- confirmed live as the actual cause of a real
+    // customer report still showing duplicate/contradictory checks after the
+    // account-scoping fix shipped.
+    accountId:         s.accountId || null,
+    accountLabel:      s.accountLabel || null,
     serialNumber:      serial,
     systemName:        name,
     clusterName:       cluster,
