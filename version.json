@@ -1,8 +1,8 @@
 {
-  "version": "5.6.22",
+  "version": "5.6.23",
   "major": 5,
   "minor": 6,
-  "patch": 22,
+  "patch": 23,
   "date": "2026-08-19",
-  "notes": "Moved the Overview Dashboard's Needs Attention card to below the charts grid (Storage Savings + Storage Capacity by System), instead of between the KPI row and the charts. The compiled build (index.html) already had it in this position -- only the dev-served file (index_src.html) needed the fix, so this only affects local development, not the packaged app."
+  "notes": "MetroCluster systems were previously indistinguishable from normal clusters anywhere in Technical Audit -- isMetroCluster is a real, reliably-populated field, but nothing surfaced it. Added an amber METROCLUSTER badge to the system header, multi-select dropdown, and selected-systems summary. Added a dedicated MetroCluster Configuration & DR Health card (MC node count, Mediator status, AUSO status, MC-specific findings) that always renders for MC systems -- previously this info only existed in the Action Planner's executive summary and only appeared when there were active findings, so a healthy MC pair showed nothing. Verified live against 8 real MetroCluster systems in the current fleet."
 }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.23] - 2026-08-19
+
+### Added
+- **MetroCluster systems now visually distinguished throughout Technical Audit.** Added an amber ⬡ METROCLUSTER badge to the system header, multi-select dropdown (cluster and node labels), and selected-systems summary.
+- **Dedicated MetroCluster Configuration & DR Health card** in Technical Audit — MC node count, Mediator status, Auto Switchover (AUSO) status, and MC-specific findings. Always renders for MC systems, including a clean all-clear state, instead of only appearing when there are active findings.
+
+---
+
 ## [5.6.22] - 2026-08-19
 
 ### Changed

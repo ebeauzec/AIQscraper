@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.22";
+const APP_VERSION = "5.6.23";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.23",
+    date: "19 August 2026",
+    title: "MetroCluster Systems Now Visually Distinguished + Dedicated Health Card",
+    sections: [
+      {
+        icon: "✨",
+        label: "New: MetroCluster Badges and a Real Status Card in Technical Audit",
+        color: "#2dd4bf",
+        items: [
+          "MetroCluster systems were previously indistinguishable from normal clusters anywhere in Technical Audit -- isMetroCluster is a real, reliably-populated field, but nothing surfaced it",
+          "Added an amber ⬡ METROCLUSTER badge to the system header, the multi-select dropdown's cluster and node labels, and the selected-systems summary line",
+          "Added a dedicated MetroCluster Configuration & DR Health card showing MC node count, Mediator status, Auto Switchover (AUSO) status, and any MC-specific findings -- previously this information only existed in the Action Planner's executive summary, and only appeared when there were active findings, so a perfectly healthy MC pair showed nothing MC-specific at all. The new card always renders for MC systems and shows a clean all-clear state when there's nothing wrong",
+          "Verified live against 8 real MetroCluster systems in the current fleet: badge appears in the header and dropdown, card renders with correct Mediator/AUSO status, and correctly stays hidden when a non-MetroCluster system is selected"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.22",
     date: "19 August 2026",
@@ -7303,11 +7321,12 @@ function populateSystemSelectors() {
         
         const nodeSerials = nodes.map(n => n.serialNumber);
         const allClusterNodesChecked = nodeSerials.every(ser => state.selectedTAMSerials.includes(ser));
-        
+        const clusterHasMC = nodes.some(n => n.isMetroCluster);
+
         clusterDiv.innerHTML = `
           <input type="checkbox" id="chk_cluster_${clusterName}" ${allClusterNodesChecked ? 'checked' : ''} style="cursor: pointer;">
           <label for="chk_cluster_${clusterName}" style="cursor: pointer; font-weight: 600; font-size: 0.8rem; color: var(--accent-cyan); flex: 1;">
-            Cluster: ${clusterName}
+            Cluster: ${clusterName}${clusterHasMC ? ' <span style="color:#ff9800;font-size:0.68rem;font-weight:700;">⬡ MC</span>' : ''}
           </label>
         `;
         clusterDiv.onclick = (e) => e.stopPropagation();
@@ -7340,7 +7359,7 @@ function populateSystemSelectors() {
           
           itemDiv.innerHTML = `
             <input type="checkbox" value="${sys.serialNumber}" id="chk_tam_${sys.serialNumber}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
-            <label for="chk_tam_${sys.serialNumber}" style="cursor: pointer; font-size: 0.8rem; flex: 1;">Node: ${sys.systemName} (${sys.platform})</label>
+            <label for="chk_tam_${sys.serialNumber}" style="cursor: pointer; font-size: 0.8rem; flex: 1;">Node: ${sys.systemName} (${sys.platform})${sys.isMetroCluster ? ' <span style="color:#ff9800;font-size:0.68rem;font-weight:700;">⬡ MC</span>' : ''}</label>
           `;
           itemDiv.onclick = (e) => e.stopPropagation();
           
@@ -10434,7 +10453,25 @@ function renderTAMTab() {
   const visualCard = document.getElementById("tamNodeVisualCard");
   const eseriesCard = document.getElementById("tamEseriesVisualCard");
   const svmCard = document.getElementById("tamSvmCard");
-  
+  const mcCard = document.getElementById("tamMetroClusterCard");
+
+  // MetroCluster card: shown whenever ANY selected system is MC-configured,
+  // not gated on the "active visualizer node" (a MC audit is naturally about
+  // the whole pair/selection, not one node) and not gated on having active
+  // findings -- previously the only MC health info anywhere in the app lived
+  // in the Action Planner's executive summary, and only appeared when
+  // mcRisks.length > 0, so a healthy MC pair showed nothing MC-specific at
+  // all. This always renders for MC systems, showing "no issues" cleanly.
+  const mcSelectedSystems = selectedSystems.filter(s => s.isMetroCluster);
+  if (mcCard) {
+    if (mcSelectedSystems.length > 0) {
+      mcCard.style.display = "block";
+      renderMetroClusterStatus(mcSelectedSystems);
+    } else {
+      mcCard.style.display = "none";
+    }
+  }
+
   if (selectedSystems.length > 0) {
     if (visualCard) {
       visualCard.style.display = "block";
@@ -10477,20 +10514,27 @@ function renderTAMTab() {
     if (svmCard) svmCard.style.display = "none";
   }
 
+  // MetroCluster badge -- there was previously no visual cue anywhere in
+  // Technical Audit distinguishing a MetroCluster system from a normal
+  // cluster; isMetroCluster is a real, reliably-populated field but nothing
+  // surfaced it here.
+  const _mcBadge = ' <span style="background:rgba(255,152,0,0.12);color:#ff9800;border:1px solid rgba(255,152,0,0.35);border-radius:10px;padding:1px 8px;font-size:0.68rem;font-weight:700;letter-spacing:0.3px;vertical-align:middle;">⬡ METROCLUSTER</span>';
+
   // Update header text
   if (selectedSystems.length === 1) {
     const sys = selectedSystems[0];
     const _isSGSys = _isPlatformStorageGRID(sys);
     const osLabel = sys.santricityVersion ? "SANtricity OS" : _isSGSys ? "StorageGRID" : "ONTAP";
     const osVer = sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion;
-    
+
     document.getElementById("tamActiveSystem").innerHTML = `
-      <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>${osLabel}</strong>: ${osVer}
+      <strong>System</strong>: ${sys.systemName} (S/N: <code class="copyable-code" onclick="copyToClipboard('${sys.serialNumber}', event)" title="Click to copy Serial Number">${sys.serialNumber} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></code>) | <strong>${osLabel}</strong>: ${osVer}${sys.isMetroCluster ? _mcBadge : ''}
     `;
   } else if (selectedSystems.length > 1) {
     const names = selectedSystems.map(s => s.systemName).join(", ");
+    const _mcCountInSel = selectedSystems.filter(s => s.isMetroCluster).length;
     document.getElementById("tamActiveSystem").innerHTML = `
-      <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>
+      <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>${_mcCountInSel > 0 ? ` <span style="font-size:0.68rem;color:#ff9800;">(${_mcCountInSel} MetroCluster)</span>` : ''}
     `;
   }
 
@@ -29574,6 +29618,75 @@ function unhoverCablingPort(portName) {
     row.style.background = "";
     row.style.borderLeft = "";
   }
+}
+
+// MetroCluster Configuration & DR Health card for the Technical Audit tab.
+// Renders for any selection containing at least one MC-configured system,
+// regardless of whether there are active findings -- reuses the same
+// risk-classification logic as the Action Planner's executive-summary MC
+// widget (category/description matching for "metrocluster"/"mediator"/
+// "mauso"), but always shows a status card instead of only appearing when
+// mcRisks.length > 0.
+function renderMetroClusterStatus(mcSystems) {
+  const container = document.getElementById("tamMetroClusterContainer");
+  if (!container) return;
+
+  const allMcRisks = [];
+  mcSystems.forEach(sys => {
+    (sys.risks || []).forEach(r => {
+      const cat = (r.category || '').toLowerCase();
+      const desc = (r.description || r.shortName || '').toLowerCase();
+      if (cat === 'metrocluster' || cat.includes('metrocluster') ||
+          desc.includes('mc-med') || desc.includes('mauso') ||
+          desc.includes('metrocluster') || desc.includes('mediator')) {
+        allMcRisks.push({ ...r, systemName: sys.systemName });
+      }
+    });
+  });
+
+  const hasMediatorIssue = allMcRisks.some(r => (r.description || '').toLowerCase().includes('mediator unreachable'));
+  const hasMausoDisabled = allMcRisks.some(r => (r.description || '').toLowerCase().includes('mauso disabled'));
+  const clusterNames = [...new Set(mcSystems.map(s => s.clusterName).filter(Boolean))];
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid #ff9800;">
+      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">MC Nodes Selected</div>
+      <div style="font-size:1.2rem;font-weight:700;color:#ff9800;">${mcSystems.length}</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'};">
+      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Mediator</div>
+      <div style="font-size:0.85rem;font-weight:700;color:${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'};">${hasMediatorIssue ? '⚠ UNREACHABLE' : '✓ OK'}</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)'};">
+      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Auto Switchover (AUSO)</div>
+      <div style="font-size:0.85rem;font-weight:700;color:${hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)'};">${hasMausoDisabled ? '⚠ DISABLED' : '✓ ENABLED'}</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'};">
+      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">MC Findings</div>
+      <div style="font-size:1.2rem;font-weight:700;color:${allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'};">${allMcRisks.length}</div>
+    </div>
+  </div>`;
+
+  html += `<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:14px;">
+    <strong>Cluster${clusterNames.length !== 1 ? 's' : ''}:</strong> ${clusterNames.length > 0 ? clusterNames.join(', ') : 'Unknown'}
+    &nbsp;|&nbsp; MetroCluster provides zero-RPO disaster recovery through synchronous replication across two sites.
+  </div>`;
+
+  if (allMcRisks.length > 0) {
+    html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+    allMcRisks.forEach(r => {
+      const sevColor = { critical: 'var(--status-critical)', high: '#ff9800', medium: 'var(--status-warning)' }[r.severity] || 'var(--text-muted)';
+      html += `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-left:3px solid ${sevColor};border-radius:var(--radius-sm);padding:10px 12px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#fff;">${r.systemName}: ${r.description || r.shortName || 'MetroCluster finding'}</div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;text-transform:uppercase;">${r.severity || ''}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<div style="font-size:0.82rem;color:var(--status-normal);">✓ No MetroCluster-specific findings for the selected node(s). Best practice: periodically verify with <code>metrocluster check run</code> / <code>metrocluster check show</code> that both sites remain fully operational.</div>`;
+  }
+
+  container.innerHTML = html;
 }
 
 function renderEseriesHardwareAudit(sys) {
