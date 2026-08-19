@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.22] - 2026-08-19
+
+### Changed
+- **Overview Dashboard's Needs Attention card moved below the charts grid** (Storage Savings + Storage Capacity by System), instead of between the KPI row and the charts. Only the dev-served file needed this — the compiled build already had it in this position.
+
+---
+
 ## [5.6.21] - 2026-08-19
 
 ### Fixed

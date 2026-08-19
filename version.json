@@ -1,8 +1,8 @@
 {
-  "version": "5.6.21",
+  "version": "5.6.22",
   "major": 5,
   "minor": 6,
-  "patch": 21,
+  "patch": 22,
   "date": "2026-08-19",
-  "notes": "Two real, pre-existing data-fidelity bugs found via a reported screenshot. (1) Systems with no contract data from Active IQ had daysRemaining default to 0 instead of null -- 0 means a genuine same-day expiry, so every no-data system was indistinguishable from one actually expiring today. This cascaded into 'Invalid Date (0d)' in the Overview table, false CRITICAL 'contract expires in 0d' alerts in the Needs Attention widget, and silent miscounts in several other daysRemaining comparisons across the app. Fixed to use null with explicit null-exclusion at every comparison site. This bug traces back via git history to at least v3.8.0 (28 July 2026), predating this session's work. (2) Case Health (salesHealth.sentimentScore, shown in Account Intelligence and the CSM tab) always read 10/Excellent regardless of real open cases -- computeSupportCaseHealth() was being called against the raw harvest object, whose case field is named 'cases' not 'supportCases', so it always hit the empty-case fallback. Fixed to run after cases are normalized into supportCases. Verified live: a system with one genuine open case now correctly scores 9.9; a system with no contract data now shows 'N/A' with no false alarms."
+  "notes": "Moved the Overview Dashboard's Needs Attention card to below the charts grid (Storage Savings + Storage Capacity by System), instead of between the KPI row and the charts. The compiled build (index.html) already had it in this position -- only the dev-served file (index_src.html) needed the fix, so this only affects local development, not the packaged app."
 }

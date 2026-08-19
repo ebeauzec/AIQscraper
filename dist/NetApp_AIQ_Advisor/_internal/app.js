@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.21";
+const APP_VERSION = "5.6.22";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.22",
+    date: "19 August 2026",
+    title: "Overview Dashboard: Needs Attention Moved Below the Charts",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: Needs Attention Card Now Sits Below the Capacity/Efficiency Charts",
+        color: "#2dd4bf",
+        items: [
+          "Moved the Needs Attention card to after the charts grid (Storage Savings + Storage Capacity by System), instead of between the KPI row and the charts",
+          "The compiled build (index.html) already had it in this position -- only the dev-served file (index_src.html) needed the fix, so this only affects local development, not the packaged app"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.21",
     date: "19 August 2026",
