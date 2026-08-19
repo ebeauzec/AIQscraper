@@ -18,9 +18,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.17";
+const APP_VERSION = "5.6.18";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.18",
+    date: "19 August 2026",
+    title: "Multiple Watchlists Per Account",
+    sections: [
+      {
+        icon: "✨",
+        label: "New: Add Several Watchlist IDs to a Single Account",
+        color: "#2dd4bf",
+        items: [
+          "The server already supported scoping one account to multiple watchlists (comma-separated), but the Settings UI only offered a single free-text field with no indication multiple values were possible",
+          "Each account row in Settings & Config now has a proper '+ Add Watchlist' control -- add or remove individual watchlist IDs, saved and loaded correctly alongside existing single-watchlist accounts",
+          "Verified live against real account data: adding a second watchlist ID and saving produces the same comma-separated format the harvest already parses"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.17",
     date: "19 August 2026",
@@ -26822,7 +26839,13 @@ async function loadAccountsUI() {
   try {
     const res = await fetch("/api/config");
     const cfg = await res.json();
-    state._accountsUI = (cfg.accounts || []).map(a => ({ ...a, _tokenInput: "" }));
+    state._accountsUI = (cfg.accounts || []).map(a => ({
+      ...a,
+      _tokenInput: "",
+      _watchlistIds: (a.watchlistId || '').split(',').map(w => w.trim()).filter(Boolean).concat(
+        (a.watchlistId || '').trim() === '' ? [''] : []
+      ),
+    }));
     renderAccountsRows();
   } catch (err) {
     console.warn("[ACCOUNTS] Failed to load accounts:", err);
@@ -26836,6 +26859,10 @@ function renderAccountsRows() {
     container.innerHTML = '<div style="font-size:0.78rem; color:var(--text-secondary); padding:8px 2px;">No additional accounts yet. Click "+ Add Account" to sync a second (or third, or tenth) customer\'s Active IQ credentials alongside the one above.</div>';
     return;
   }
+  // Ensure every account has at least one (possibly empty) watchlist input row visible.
+  state._accountsUI.forEach(acct => {
+    if (!acct._watchlistIds || acct._watchlistIds.length === 0) acct._watchlistIds = [''];
+  });
   container.innerHTML = state._accountsUI.map((acct, i) => `
     <div style="display:flex; gap:8px; align-items:flex-start; padding:10px; border:1px solid var(--border-color); border-radius:var(--radius-sm); background:rgba(52,211,153,0.03); flex-wrap:wrap;">
       <div style="flex:1; min-width:140px;">
@@ -26846,9 +26873,17 @@ function renderAccountsRows() {
         <div class="form-helper" style="margin:0 0 3px;">Refresh Token ${acct.hasToken ? '<span style="color:#34d399;">(saved — leave blank to keep)</span>' : '<span style="color:#f59e0b;">(required)</span>'}</div>
         <input type="password" class="form-input" style="font-size:0.78rem; padding:6px 8px; font-family:var(--font-mono);" placeholder="${acct.hasToken ? '•••••••• (unchanged)' : 'Paste refresh token...'}" oninput="state._accountsUI[${i}]._tokenInput = this.value">
       </div>
-      <div style="flex:1; min-width:140px;">
-        <div class="form-helper" style="margin:0 0 3px;">Watchlist ID (optional)</div>
-        <input type="text" class="form-input" style="font-size:0.78rem; padding:6px 8px;" placeholder="Scope to a watchlist" value="${(acct.watchlistId || '').replace(/"/g, '&quot;')}" oninput="state._accountsUI[${i}].watchlistId = this.value">
+      <div style="flex:1; min-width:180px;">
+        <div class="form-helper" style="margin:0 0 3px;">Watchlist ID(s) (optional)</div>
+        <div style="display:flex; flex-direction:column; gap:5px;">
+          ${acct._watchlistIds.map((w, wi) => `
+            <div style="display:flex; gap:5px; align-items:center;">
+              <input type="text" class="form-input" style="font-size:0.78rem; padding:6px 8px; flex:1;" placeholder="Scope to a watchlist" value="${(w || '').replace(/"/g, '&quot;')}" oninput="state._accountsUI[${i}]._watchlistIds[${wi}] = this.value">
+              <button class="action-btn secondary" style="font-size:0.7rem; padding:5px 8px; color:var(--status-critical); border-color:rgba(255,51,102,0.3);" onclick="_removeAccountWatchlistId(${i}, ${wi})" title="Remove this watchlist">✕</button>
+            </div>
+          `).join('')}
+          <button class="action-btn secondary" style="font-size:0.7rem; padding:4px 8px; align-self:flex-start;" onclick="_addAccountWatchlistId(${i})">+ Add Watchlist</button>
+        </div>
       </div>
       <div style="display:flex; align-items:center; gap:6px; padding-top:20px;">
         <label class="switch" style="transform:scale(0.8);">
@@ -26862,7 +26897,22 @@ function renderAccountsRows() {
 }
 
 function addAccountRow() {
-  state._accountsUI.push({ id: "", label: "", watchlistId: "", enabled: true, hasToken: false, _tokenInput: "" });
+  state._accountsUI.push({ id: "", label: "", watchlistId: "", _watchlistIds: [''], enabled: true, hasToken: false, _tokenInput: "" });
+  renderAccountsRows();
+}
+
+// Multiple watchlists per account: _watchlistIds is the editable array shown
+// in the UI; watchlistId (comma-joined) stays the wire format the server
+// already parses (_do_full_harvest splits account.watchlistId on ",") --
+// only the editing surface changes, not the storage format.
+function _addAccountWatchlistId(i) {
+  state._accountsUI[i]._watchlistIds.push('');
+  renderAccountsRows();
+}
+
+function _removeAccountWatchlistId(i, wi) {
+  state._accountsUI[i]._watchlistIds.splice(wi, 1);
+  if (state._accountsUI[i]._watchlistIds.length === 0) state._accountsUI[i]._watchlistIds.push('');
   renderAccountsRows();
 }
 
@@ -26884,7 +26934,7 @@ async function saveAccountsUI() {
       id: a.id || "",
       label: a.label || "",
       refreshToken: a._tokenInput || "",
-      watchlistId: a.watchlistId || "",
+      watchlistId: (a._watchlistIds || []).map(w => (w || '').trim()).filter(Boolean).join(','),
       enabled: a.enabled !== false,
     }));
   try {

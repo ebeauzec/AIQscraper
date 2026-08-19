@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.18] - 2026-08-19
+
+### Added
+- **Multiple watchlists per account.** The server already supported comma-separated watchlist IDs per account, but Settings only offered a single free-text field. Each account row now has a "+ Add Watchlist" control to add/remove individual watchlist IDs.
+
+---
+
 ## [5.6.17] - 2026-08-19
 
 ### Fixed

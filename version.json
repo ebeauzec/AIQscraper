@@ -1,8 +1,8 @@
 {
-  "version": "5.6.17",
+  "version": "5.6.18",
   "major": 5,
   "minor": 6,
-  "patch": 17,
+  "patch": 18,
   "date": "2026-08-19",
-  "notes": "Systematic audit of every field read off system objects across all deliverables, following the accountId bug in 5.6.16, to check for other silently-dropped or non-existent fields. Found two more real, always-wrong values. (1) isEOA/isEOS/hardwareAgeMonths/eoaDate/eosDate/maintenanceCostEst are not real fields anywhere in the harvest -- the Tech Refresh Roadmap (TAM Success Plan + QBR Pack) always showed 'No immediate tech refresh candidates identified' and 'Avg Age: 0 years' for every platform regardless of actual fleet age or EOS exposure. Switched to lifecycle.isNearEos/eoaDate/eosDate (the real fields used correctly in 10+ other places) and originalShipDate for age. (2) firmwareStatus is not a real field either -- OS Currency in the Security Posture Brief always read 0/N, which meant the new data-driven Security Actions list (5.6.14) would falsely claim every system needed a firmware update even on a fully current fleet. Switched to the swRecMin/osVersion + versionLt() check used correctly everywhere else. Both verified live: an EOS system now correctly surfaces with real dates instead of being silently excluded; two fully current systems now correctly read 2/2 instead of 0/2 with no false firmware-update action."
+  "notes": "Settings & Config's multi-account watchlist field only offered a single free-text input per account, even though the server has always supported comma-separated multiple watchlist IDs per account (_do_full_harvest splits account.watchlistId on ','). Each account row now has a proper '+ Add Watchlist' control to add/remove individual watchlist IDs, stored and loaded correctly, joined into the same comma-separated wire format the server already parses. Verified live against real account data: adding a second watchlist ID and saving produces the expected comma-separated payload."
 }
