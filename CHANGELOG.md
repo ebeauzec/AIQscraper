@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.14] - 2026-08-19
+
+### Changed
+- **SVM & LIF section (6 deliverables) is now a per-system summary, not an exhaustive LIF dump.** Replaced the full per-LIF listing (home/current node, port, status for every LIF on every system) with one row per system: SVM/LIF counts, protocol mix, and a clear health flag, plus an explicit ACTION REQUIRED list for systems with real down/degraded or non-homed LIFs and the actual remediation command.
+
+### Fixed
+- **Security Brief's "NIST CSF 2.0 Alignment" table was 100% generic boilerplate**, identical for every account with zero customer-specific data — removed.
+- **Security Roadmap's generic "Phase 1/2/3" template** replaced with a real, data-driven action list gated on actual findings in scope (critical risks, ARP gaps, firmware currency, DR coverage, tracked CVEs) — states explicitly when there's nothing outstanding.
+- **"Key Security Actions" CLI cheat-sheet** (duplicated in the TAM Success Plan and QBR Pack) is now labeled as generic hardening reference rather than implied per-customer findings, since Active IQ doesn't expose per-SVM SMBv1/MAV/TLS/audit-log settings. The one item reliably known (ARP status) now shows as a real finding ahead of the reference block.
+- **MSP report's "Admin Time Saved" figure** is now labeled as an estimate, matching the disclosure pattern already used for the sustainability report's power/CO2 figures.
+
+---
+
 ## [5.6.13] - 2026-08-19
 
 ### Fixed

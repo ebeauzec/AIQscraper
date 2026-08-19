@@ -18,9 +18,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.13";
+const APP_VERSION = "5.6.14";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.14",
+    date: "19 August 2026",
+    title: "Deliverables Cleanup: Real Findings Instead of Generic Boilerplate",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: SVM/LIF Section Is Now a Per-System Summary, Not an Exhaustive LIF Dump",
+        color: "#2dd4bf",
+        items: [
+          "The SVM & Logical Interface section in 6 deliverables listed every single LIF on every system (home/current node, port, status) regardless of whether anything was wrong with it -- replaced with one row per system showing SVM/LIF counts, protocol mix, and a clear health flag",
+          "Systems with real issues (down/degraded LIFs, non-homed/migrated LIFs) are now called out in an explicit ACTION REQUIRED list with the actual remediation command, instead of being buried in a wall of per-LIF rows"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Security Brief's 'NIST CSF Alignment' Table Was 100% Generic Boilerplate",
+        color: "#f87171",
+        items: [
+          "Full audit of every deliverable, as requested. Found the Security Posture Brief's NIST CSF 2.0 compliance-framework table was identical for every account with zero customer-specific data, presented inside a report as if it reflected this customer's actual controls -- removed",
+          "The Security Roadmap section's generic 'Phase 1/2/3' template text (same wording regardless of what was actually wrong) was replaced with a real, data-driven action list -- only shows an action when a genuine gap exists in this scope's actual data (critical risks, ARP gaps, firmware currency, DR coverage, tracked CVEs), and says so explicitly when there's nothing outstanding",
+          "The 'Key Security Actions' / 'Security Quick Wins' CLI cheat-sheet (duplicated verbatim in the TAM Success Plan and QBR Pack) is now clearly labeled as generic hardening reference material rather than implied per-customer findings -- Active IQ does not expose per-SVM SMBv1/MAV/TLS/audit-log settings, so those items can't honestly be presented as verified findings. The one item that IS reliably known (ARP status) is now shown as a real finding ahead of the reference block",
+          "The MSP report's 'Admin Time Saved: ~N hours/month' figure is a rough estimate (2 hrs/system/month), not a measured value -- now labeled as such, matching the disclosure already used for the sustainability report's power/CO2 estimates"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.13",
     date: "19 August 2026",
@@ -17444,82 +17471,85 @@ function getFleetEnrichmentSections(targetSystems) {
   return sections;
 }
 
+// SVM & LIF network summary — one row per system, not an exhaustive per-LIF
+// listing. A TAM handing this to a customer needs to know which systems have
+// a real network-interface problem and what to do about it, not a dump of
+// every single LIF's home/current node and port on every system regardless
+// of whether anything is wrong with it.
 function compileSvmLifInventoryText(targetSystems) {
-  let totalSvms = 0;
-  let totalLifs = 0;
-  let totalMigratedLifs = 0;
-  let protoCounts = { NFS: 0, CIFS: 0, FCP: 0, iSCSI: 0 };
+  let totalSvms = 0, totalLifs = 0, totalMigratedLifs = 0, totalDownLifs = 0;
+  let protoCounts = {};
   let hasData = false;
-  
-  let detailsText = "";
+  const perSystemRows = [];
 
   for (const sys of targetSystems) {
     if (!sys) continue;
     const svms = getSystemSvms(sys);
     if (!svms || svms.length === 0) continue;
-    
     hasData = true;
+
+    let sysLifs = 0, sysMigrated = 0, sysDown = 0;
+    const sysProtocols = new Set();
+
     for (const svm of svms) {
       totalSvms++;
+      sysLifs += (svm.lifsCount || 0);
       totalLifs += (svm.lifsCount || 0);
+      sysMigrated += (svm.migratedLifs || 0);
       totalMigratedLifs += (svm.migratedLifs || 0);
-      
-      const pStr = svm.protocols && svm.protocols.length > 0 ? svm.protocols.join(", ") : "None";
-      detailsText += `  SVM: ${svm.name} (${svm.svmType || 'DATA'}) — Protocols: ${pStr} — ${svm.lifsCount || 0} LIFs (${svm.migratedLifs || 0} migrated)\n`;
-      
-      if (svm.lifs && svm.lifs.length > 0) {
-        for (const lif of svm.lifs) {
-          let addr = "N/A";
-          if (lif.ipAddress && lif.ipAddress !== '-' && lif.ipAddress !== 'null') {
-            addr = `IP: ${lif.ipAddress}`;
-          } else if (lif.wwpn && lif.wwpn !== '-' && lif.wwpn !== 'null') {
-            addr = `WWPN: ${lif.wwpn}`;
-          }
-          const migratedStr = lif.isHomed ? "Homed" : "!! MIGRATED";
-          detailsText += `    - ${lif.name.padEnd(22)} ${addr.padEnd(17)} Home: ${lif.homeNode}/${lif.homePort} -> Current: ${lif.currentNode}/${lif.currentPort}  Status: ${lif.operStatus}  ${migratedStr}\n`;
-          
-          if (lif.dataProtocols) {
-             for (const dp of lif.dataProtocols) {
-                const p = dp.toUpperCase();
-                if (p === 'NFS' || p === 'CIFS' || p === 'ISCSI') {
-                  protoCounts[p] = (protoCounts[p] || 0) + 1;
-                } else if (p === 'FCP' || p === 'FC') {
-                  protoCounts['FCP'] = (protoCounts['FCP'] || 0) + 1;
-                } else {
-                  protoCounts[p] = (protoCounts[p] || 0) + 1;
-                }
-             }
-          }
-        }
-      }
-      detailsText += "\n";
+      (svm.protocols || []).forEach(p => sysProtocols.add(p));
+      (svm.lifs || []).forEach(lif => {
+        if ((lif.operStatus || 'UP').toUpperCase() !== 'UP') { sysDown++; totalDownLifs++; }
+        (lif.dataProtocols || []).forEach(dp => {
+          const p = dp.toUpperCase() === 'ISCSI' ? 'iSCSI' : dp.toUpperCase();
+          protoCounts[p] = (protoCounts[p] || 0) + 1;
+        });
+      });
     }
+
+    perSystemRows.push({
+      name: sys.systemName || sys.serialNumber, svmCount: svms.length, lifCount: sysLifs,
+      down: sysDown, migrated: sysMigrated,
+      protocols: sysProtocols.size > 0 ? [...sysProtocols].join(", ") : "None",
+    });
   }
 
   if (!hasData) {
     return `* SVM & LOGICAL INTERFACE INVENTORY:\n  No ONTAP SVM/LIF data available for this scope.\n`;
   }
 
-  let summaryText = `* SVM & LOGICAL INTERFACE (LIF) NETWORK INVENTORY:\n`;
-  let remStr = totalMigratedLifs > 0 ? ` — requires 'network interface revert'` : ``;
-  summaryText += `  Fleet Total: ${totalSvms} SVMs, ${totalLifs} LIFs (${totalMigratedLifs} migrated${remStr})\n\n`;
-  
   let pDistArr = [];
   for (const [k, v] of Object.entries(protoCounts)) {
     if (v > 0) pDistArr.push(`${k} (${v})`);
   }
-  let pDistStr = pDistArr.length > 0 ? pDistArr.join(", ") : "None";
+  const pDistStr = pDistArr.length > 0 ? pDistArr.join(", ") : "None";
 
-  let healthText = `  NETWORK HEALTH SUMMARY:\n`;
-  healthText += `    - Total SVMs: ${totalSvms}  |  Total LIFs: ${totalLifs}\n`;
-  if (totalMigratedLifs > 0) {
-    healthText += `    - Migrated (non-homed) LIFs: ${totalMigratedLifs} — run 'network interface revert -vserver <svm> -lif <lif>' to remediate\n`;
+  let out = `* SVM & LOGICAL INTERFACE (LIF) NETWORK SUMMARY:\n`;
+  out += `  Fleet Total: ${totalSvms} SVMs across ${perSystemRows.length} system${perSystemRows.length !== 1 ? 's' : ''}, ${totalLifs} LIFs — Protocol Distribution: ${pDistStr}\n`;
+  out += `  Network Health: ${totalDownLifs} LIF${totalDownLifs !== 1 ? 's' : ''} down/degraded, ${totalMigratedLifs} non-homed (migrated)\n\n`;
+
+  out += `  PER-SYSTEM SUMMARY:\n`;
+  perSystemRows.forEach(r => {
+    const healthLabel = (r.down > 0 || r.migrated > 0)
+      ? `⚠ ${[r.down > 0 ? `${r.down} down/degraded` : null, r.migrated > 0 ? `${r.migrated} non-homed` : null].filter(Boolean).join(', ')}`
+      : `✓ Healthy`;
+    out += `    ${r.name.padEnd(24)} SVMs: ${String(r.svmCount).padStart(2)}  LIFs: ${String(r.lifCount).padStart(3)}  Protocols: ${r.protocols.padEnd(20)} ${healthLabel}\n`;
+  });
+
+  const systemsWithIssues = perSystemRows.filter(r => r.down > 0 || r.migrated > 0);
+  if (systemsWithIssues.length > 0) {
+    out += `\n  ACTION REQUIRED (${systemsWithIssues.length} system${systemsWithIssues.length !== 1 ? 's' : ''}):\n`;
+    systemsWithIssues.forEach(r => {
+      const actions = [];
+      if (r.down > 0) actions.push(`${r.down} LIF(s) down/degraded — investigate immediately`);
+      if (r.migrated > 0) actions.push(`${r.migrated} LIF(s) not on home node — run 'network interface revert -vserver <svm> -lif <lif>'`);
+      out += `    - ${r.name}: ${actions.join('; ')}\n`;
+    });
   } else {
-    healthText += `    - Migrated (non-homed) LIFs: 0\n`;
+    out += `\n  ✓ No LIF health issues detected — all logical interfaces are homed and operational.\n`;
   }
-  healthText += `    - Protocol Distribution: ${pDistStr}\n`;
 
-  return summaryText + detailsText + healthText;
+  return out;
 }
 
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases, fw) {
@@ -17884,14 +17914,31 @@ ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — $
 ${secBulletins.length > 0 ? `ACTIVE SECURITY ADVISORIES (Critical/High — ${secBulletins.length} total):
 ${secBulletins.map((b, i) => `  ${i+1}. [${(b.severity||'').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     System: ${b.systemName}\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n')}` : "✓ No critical or high-severity security advisories active."}
 
-KEY SECURITY ACTIONS:
+${(() => {
+    // ARP status IS reliably known from Active IQ (s.isARPEnabled) -- show it
+    // as a real finding when there's a real gap. SMBv1/NFS-squash/Kerberos/
+    // MAV/TLS/audit-log status are NOT exposed by the Active IQ API (see
+    // getSystemSvms: smb1Enabled is hardcoded false / "assume compliant",
+    // not a real read), so those stay labeled as generic reference commands
+    // rather than implied per-customer findings.
+    const _arpKnown = targetSystems.filter(s => s.isARPEnabled != null);
+    const _arpOff = _arpKnown.filter(s => s.isARPEnabled === false).length;
+    const arpLine = _arpKnown.length > 0
+      ? (_arpOff > 0
+          ? `ARP GAP: ${_arpOff} of ${_arpKnown.length} system(s) with known ARP status do NOT have Anti-Ransomware Protection enabled.\n\n`
+          : `✓ Anti-Ransomware Protection (ARP) is enabled on all ${_arpKnown.length} system(s) with known status.\n\n`)
+      : '';
+    return `${arpLine}GENERIC ONTAP HARDENING REFERENCE (not a per-customer finding -- Active IQ
+does not expose per-SVM protocol/MAV/TLS/audit settings; verify current
+status directly on-cluster before applying):
   - Disable SMBv1: 'vserver cifs options modify -vserver <svm> -smb1-enabled false'
   - Enforce NFS root squash: 'vserver export-policy rule modify -policyname default -ruleindex 1 -superuser none'
   - AES Kerberos (KB5073381): 'vserver cifs security modify -vserver <svm> -advertised-enc-types aes-128,aes-256'
   - Enable MAV (ONTAP 9.11.1+): 'security multi-admin-verify enable'
   - Disable TLS 1.0/1.1: 'security config modify -supported-protocols TLSv1.2,TLSv1.3'
   - Enable audit logging: 'vserver audit create -vserver <svm> -destination /audit_log -format json'
-  Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
+  Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)`;
+  })()}
 
 ${formatCostOfInactionText(targetSystems)}
 
@@ -18352,13 +18399,31 @@ ${trendSection}
   TOP CORRECTIVE ACTIONS (with root cause context):
 ${topActions || '  No critical or high-severity corrective actions identified.'}
 
-  SECURITY QUICK WINS:
+${(() => {
+    // ARP status IS reliably known from Active IQ (s.isARPEnabled) -- show it
+    // as a real finding when there's a real gap. SMBv1/MAV/TLS/audit-log
+    // status are NOT exposed by the Active IQ API (see getSystemSvms:
+    // smb1Enabled is hardcoded false / "assume compliant", not a real read),
+    // so those stay labeled as generic reference commands rather than
+    // implied per-customer findings.
+    const _arpKnown = targetSystems.filter(s => s.isARPEnabled != null);
+    const _arpOff = _arpKnown.filter(s => s.isARPEnabled === false).length;
+    const arpLine = _arpKnown.length > 0
+      ? (_arpOff > 0
+          ? `  ARP GAP: ${_arpOff} of ${_arpKnown.length} system(s) with known ARP status do NOT have Anti-Ransomware Protection enabled.\n`
+          : `  ✓ Anti-Ransomware Protection (ARP) is enabled on all ${_arpKnown.length} system(s) with known status.\n`)
+      : '';
+    return `${arpLine}
+  GENERIC ONTAP HARDENING REFERENCE (not a per-customer finding -- Active IQ
+  does not expose per-SVM protocol/MAV/TLS/audit settings; verify current
+  status directly on-cluster before applying):
   • Disable SMBv1:    vserver cifs options modify -vserver <svm> -smb1-enabled false
   • Enable ARP:       security anti-ransomware volume enable -volume <vol> -vserver <svm>
   • Enable MAV:       security multi-admin-verify enable  (ONTAP 9.11.1+)
   • Disable TLS 1.0:  security config modify -supported-protocols TLSv1.2,TLSv1.3
   • Enable Auditing:  vserver audit create -vserver <svm> -destination /audit_log -format json
-  Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)
+  Reference: security.netapp.com | TR-4569 (ONTAP Security Hardening)`;
+  })()}
 
 ${formatCostOfInactionText(targetSystems)}
 
@@ -18701,6 +18766,7 @@ ${backlogLines}
   Storage Cost Avoidance:   $${(savedTotal * 50).toLocaleString()} / month (at $50/TB)
   Risk Incidents Prevented: ${critCount} critical issues identified proactively
   Admin Time Saved:         ~${total * 2} hours/month via automated telemetry and monitoring
+                            (ESTIMATE: 2 hrs/system/month manual-monitoring offset, not a measured value — do not cite externally)
   Next Quarter Focus:       Expand ARP coverage to 100% and initiate tech refresh for ${ages.filter(a=>a>5).length} aged systems.
 ================================================================================`;
 }
@@ -19400,22 +19466,21 @@ ${compileSvmLifInventoryText(targetSystems)}
     Unprotected:       ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems protected'}
     RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}
 
-  7. SECURITY ROADMAP
+  7. SECURITY ACTIONS
   ────────────────────────────────────────────────────────────────────────────
-    Phase 1 (Week 1):   Patch critical CVEs, enable ARP on production volumes
-    Phase 2 (Week 2-4): ${dr.unprotected.length > 0 ? 'Establish SnapMirror DR' : 'Review Security Baseline'}
-    Phase 3 (Month 2):  Security review, penetration test, compliance audit
-
-  8. NIST CSF 2.0 ALIGNMENT
-  ────────────────────────────────────────────────────────────────────────────
-    Function        ONTAP Technical Control
-    ─────────────── ──────────────────────────────────────────────────────
-    GOVERN          RBAC least privilege, MAV, audit logging, TR-4569
-    IDENTIFY        Active IQ risk assessment, ARP workload profiling
-    PROTECT         NVE/NAE at-rest encryption, TLS 1.3 in-flight, SnapLock WORM
-    DETECT          ARP/AI real-time anomaly detection, FPolicy event engine
-    RESPOND         Immutable recovery Snapshots, MAV blocking
-    RECOVER         SnapMirror Active Sync (RPO=0), MetroCluster failover
+${(() => {
+    // Every line here is gated on a real gap found in THIS scope's actual
+    // data (already computed above) -- no generic "Phase 1/2/3" template
+    // text that would print identically regardless of what's actually wrong.
+    const actions = [];
+    if (critical > 0) actions.push(`Patch ${critical} critical risk${critical !== 1 ? 's' : ''} immediately — see CVE Remediation Priority Matrix above`);
+    if (count - arpEnabled > 0 && arpKnown > 0) actions.push(`Enable Anti-Ransomware Protection (ARP) on ${count - arpEnabled} of ${count} system${count !== 1 ? 's' : ''} currently unprotected`);
+    if (count - fwCurrent > 0) actions.push(`Update firmware on ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} running non-current versions`);
+    if (dr.unprotected.length > 0) actions.push(`Establish DR/SnapMirror protection for ${dr.unprotected.length} unprotected system${dr.unprotected.length !== 1 ? 's' : ''}: ${dr.unprotected.join(', ')}`);
+    if (cveExposures.size > 0) actions.push(`Remediate ${cveExposures.size} tracked CVE${cveExposures.size !== 1 ? 's' : ''} affecting ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''}`);
+    if (actions.length === 0) return '    ✓ No outstanding security actions identified for this scope.\n';
+    return actions.map((a, i) => `    ${i + 1}. ${a}`).join('\n') + '\n';
+  })()}
 ================================================================================`;
 }
 
