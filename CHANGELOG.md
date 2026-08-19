@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.32] - 2026-08-19
+
+### Added
+- **Customer Portfolio rollup on the Overview Dashboard**, for MSPs/partners managing multiple accounts. Nearly everything else in this tool is scoped to one customer/selection at a time — there was no way to see which of many managed accounts needs attention right now without opening each one individually. New card: one row per customer (always the full loaded fleet, not the current filter), showing system count, critical/high risk counts, contracts expiring within 90 days, EOS system count, SLA compliance % (from the Remediation Tracker), and account health score, sorted by a risk score so the worst accounts surface first. Only shown when more than one customer is loaded. Click any row to filter the app to that customer, or export the table as CSV. Third of several planned operational additions.
+
+---
+
 ## [5.6.31] - 2026-08-19
 
 ### Added

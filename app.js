@@ -27,9 +27,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.31";
+const APP_VERSION = "5.6.32";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.32",
+    date: "19 August 2026",
+    title: "Added: Customer Portfolio — Cross-Account Rollup for MSPs & Partners",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Customer Portfolio View on the Overview Dashboard",
+        color: "#22c55e",
+        items: [
+          "Nearly everything in this tool is scoped to one customer/selection at a time. An MSP or partner managing many accounts had no way to see 'which of my accounts needs attention right now' without opening each one individually",
+          "New 'Customer Portfolio' card on the Overview Dashboard: one row per customer (always the full loaded fleet, not the current filter/selection), with system count, critical/high risk counts, contracts expiring within 90 days, EOS system count, SLA compliance % (from the Remediation Tracker), and account health score. Sorted by a risk score so the worst accounts surface first",
+          "Only shown when more than one customer is actually loaded -- a single-customer deployment gets no benefit from a portfolio view of one row",
+          "Click any row to instantly filter the whole app down to that customer (reuses the existing sidebar customer filter), or export the full portfolio table as CSV",
+          "Verified live against the real 41-customer fleet: correctly sorted the highest-risk account (510 critical risks) to the top, click-to-focus and CSV export both confirmed working, SLA compliance % confirmed populating once tracker data exists for a customer",
+          "Third of several planned operational additions (tracking, SLA policy, portfolio rollup, then DR-test verification, trend dashboards, and more)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.31",
     date: "19 August 2026",
@@ -6393,6 +6413,88 @@ function updateOverviewKpis() {
   document.getElementById("kpiCriticalRisks").style.color = criticalRisksCount > 0 ? "var(--status-critical)" : "var(--status-normal)";
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
+}
+
+// ── Customer Portfolio (Overview) ───────────────────────────────────────────
+// Everything else in this app is scoped to whatever ONE customer/selection is
+// currently active in the sidebar filter. An MSP/partner managing 50 accounts
+// had no way to answer "which of my accounts needs attention right now"
+// without opening each one individually. This rolls up every distinct
+// customer in the loaded fleet -- always the FULL state.systems, not the
+// current filtered scope -- into one sortable table. Only shown when more
+// than one customer is actually loaded (a single-customer TAM deployment
+// gets no benefit from a portfolio view of one row).
+function focusOnCustomer(customerName) {
+  state.activeFilterType = "CUSTOMER";
+  state.activeFilterValue = customerName;
+  state.activeSearchQuery = "";
+  state.activeKpiFilter = null;
+  renderSidebarGroups();
+  switchTab("overview");
+}
+
+function renderCustomerPortfolio() {
+  const card = document.getElementById("overviewPortfolioCard");
+  const body = document.getElementById("overviewPortfolioBody");
+  if (!card || !body) return;
+
+  const customers = [...new Set(state.systems.map(s => s.customerName).filter(Boolean))];
+  if (customers.length < 2) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+
+  const rows = customers.map(cust => {
+    const sys = state.systems.filter(s => s.customerName === cust);
+    const critRisks = sys.reduce((sum, s) => sum + (s.risks || []).filter(r => r.severity === 'critical').length, 0);
+    const highRisks = sys.reduce((sum, s) => sum + (s.risks || []).filter(r => r.severity === 'high').length, 0);
+    const expiring90 = sys.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90).length;
+    const eosCount = (_realRecommendationCount('EOS_AND_PLAT_AND_HW', sys) || 0) + (_realRecommendationCount('EOS_6M', sys) || 0);
+    const healthScore = computeAccountHealthScore(sys);
+    const trackerItems = state.trackerItems.filter(i => i.customerName === cust && TRACKER_ACTIVE_STATUSES.includes(i.status));
+    const slaBreached = trackerItems.filter(_trackerIsOverdue).length;
+    const slaCompliance = trackerItems.length > 0 ? Math.round((trackerItems.length - slaBreached) / trackerItems.length * 100) : null;
+    // Risk score for sorting -- weights critical highest, roughly matches
+    // how a TAM would eyeball "which account is worst" at a glance.
+    const riskScore = critRisks * 10 + highRisks * 3 + expiring90 * 2 + eosCount * 2 + (100 - healthScore);
+    return { cust, systemCount: sys.length, critRisks, highRisks, expiring90, eosCount, healthScore, slaCompliance, riskScore };
+  }).sort((a, b) => b.riskScore - a.riskScore);
+
+  body.innerHTML = rows.map(r => {
+    const healthColor = r.healthScore >= 80 ? '#22c55e' : r.healthScore >= 65 ? '#f59e0b' : '#ef4444';
+    const slaColor = r.slaCompliance == null ? 'var(--text-muted)' : r.slaCompliance >= 90 ? '#22c55e' : r.slaCompliance >= 70 ? '#f59e0b' : '#ef4444';
+    return `
+    <tr style="cursor:pointer;border-bottom:1px solid var(--border-color);" onclick="focusOnCustomer('${r.cust.replace(/'/g, "\\'")}')">
+      <td style="padding:10px;font-weight:600;">${r.cust}</td>
+      <td style="padding:10px;text-align:center;">${r.systemCount}</td>
+      <td style="padding:10px;text-align:center;color:${r.critRisks > 0 ? '#ef4444' : 'var(--text-muted)'};font-weight:${r.critRisks > 0 ? '700' : '400'};">${r.critRisks}</td>
+      <td style="padding:10px;text-align:center;color:${r.highRisks > 0 ? '#f59e0b' : 'var(--text-muted)'};">${r.highRisks}</td>
+      <td style="padding:10px;text-align:center;color:${r.expiring90 > 0 ? '#f59e0b' : 'var(--text-muted)'};">${r.expiring90}</td>
+      <td style="padding:10px;text-align:center;color:${r.eosCount > 0 ? '#ef4444' : 'var(--text-muted)'};">${r.eosCount}</td>
+      <td style="padding:10px;text-align:center;color:${slaColor};">${r.slaCompliance == null ? '—' : r.slaCompliance + '%'}</td>
+      <td style="padding:10px;text-align:center;color:${healthColor};font-weight:700;">${r.healthScore}</td>
+    </tr>`;
+  }).join('');
+
+  // Cache for CSV export
+  state._portfolioRows = rows;
+}
+
+function downloadPortfolioCSV() {
+  const rows = state._portfolioRows || [];
+  if (!rows.length) { alert('No portfolio data to export.'); return; }
+  let csv = 'data:text/csv;charset=utf-8,';
+  csv += 'Customer,Systems,Critical Risks,High Risks,Contracts Expiring <90d,EOS Systems,SLA Compliance %,Health Score\n';
+  rows.forEach(r => {
+    csv += `"${r.cust.replace(/"/g, '""')}",${r.systemCount},${r.critRisks},${r.highRisks},${r.expiring90},${r.eosCount},${r.slaCompliance == null ? '' : r.slaCompliance},${r.healthScore}\n`;
+  });
+  const link = document.createElement('a');
+  link.setAttribute('href', encodeURI(csv));
+  link.setAttribute('download', `customer_portfolio_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 // ── Needs Attention (Overview) ──────────────────────────────────────────────
@@ -28792,6 +28894,12 @@ function switchTab(tabId) {
     renderNeedsAttention();
     renderOverviewTable();
     renderCharts();
+    // SLA compliance in the portfolio table needs tracker items loaded --
+    // render once immediately with whatever's cached, then again once the
+    // (usually already-cached) tracker fetch resolves so SLA % isn't stuck
+    // on "—" the first time a user visits Overview in a session.
+    renderCustomerPortfolio();
+    loadTrackerItems().then(() => { if (state.currentTab === 'overview') renderCustomerPortfolio(); });
   } else if (tabId === "tam") {
     renderTAMTab();
   } else if (tabId === "sam") {

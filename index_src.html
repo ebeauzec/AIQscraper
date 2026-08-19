@@ -235,6 +235,38 @@
              of just KPI counts with no ranking of what to actually look at first -->
         <div class="card" id="overviewNeedsAttentionCard" style="margin-bottom: 20px; display: none;"></div>
 
+        <!-- Customer Portfolio — cross-account rollup for MSPs/partners managing
+             multiple customers. Everything else in the app is scoped to whatever
+             one customer/selection is currently active; this is the one view that
+             answers "which of MY accounts needs attention right now" without
+             opening each one individually. Only shown when >1 customer is loaded. -->
+        <div class="card table-card" id="overviewPortfolioCard" style="margin-bottom: 20px; display: none;">
+          <div class="table-header-row">
+            <div class="section-title">Customer Portfolio</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Sorted by risk — click a row to focus that customer</span>
+              <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPortfolioCSV()">Export CSV</button>
+            </div>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table" id="overviewPortfolioTable">
+              <thead>
+                <tr>
+                  <th style="padding: 10px;">Customer</th>
+                  <th style="padding: 10px; text-align: center;">Systems</th>
+                  <th style="padding: 10px; text-align: center;">Critical Risks</th>
+                  <th style="padding: 10px; text-align: center;">High Risks</th>
+                  <th style="padding: 10px; text-align: center;">Contracts &lt;90d</th>
+                  <th style="padding: 10px; text-align: center;">EOS Systems</th>
+                  <th style="padding: 10px; text-align: center;">SLA Compliance</th>
+                  <th style="padding: 10px; text-align: center;">Health Score</th>
+                </tr>
+              </thead>
+              <tbody id="overviewPortfolioBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Systems Table Card -->
         <div class="card table-card">
           <div class="table-header-row">

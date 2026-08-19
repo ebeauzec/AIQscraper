@@ -1,8 +1,8 @@
 {
-  "version": "5.6.31",
+  "version": "5.6.32",
   "major": 5,
   "minor": 6,
-  "patch": 31,
+  "patch": 32,
   "date": "2026-08-19",
-  "notes": "Added a configurable Remediation SLA Policy. The Remediation Tracker (5.6.30) only flagged an item overdue if a TAM had manually set a due date -- a freshly-imported critical finding with no due date yet never showed as overdue. Now every tracked item has an effective due date from creation, computed from a configurable days-to-remediate policy per severity (critical=7d, high=30d, medium=90d, low=180d by default). New Settings card lets a TAM edit the policy, saved via the existing /api/config endpoint. Tracker table gets an SLA column (On Track / Due Soon / Breached) and a new SLA Compliance % KPI. A manually-set due date always overrides the policy default. Verified live: saved a custom policy, confirmed it persisted and was reflected in the tracker's badges and compliance %, then restored defaults. Second of several planned operational additions."
+  "notes": "Added a Customer Portfolio rollup on the Overview Dashboard for MSPs/partners managing multiple accounts. Nearly everything else in this tool is scoped to one customer/selection at a time -- there was no way to see which of many managed accounts needs attention right now without opening each one individually. New card: one row per customer (always the full loaded fleet, not the current filter), showing system count, critical/high risk counts, contracts expiring within 90 days, EOS system count, SLA compliance % (from the Remediation Tracker), and account health score, sorted by a risk score so the worst accounts surface first. Only shown when more than one customer is loaded. Click any row to filter the app to that customer, or export the table as CSV. Verified live against the real 41-customer fleet. Third of several planned operational additions."
 }
