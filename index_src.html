@@ -663,7 +663,7 @@
           </div>
         </div>
 
-        <div id="trackerKpiRow" class="kpi-row" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 20px;">
+        <div id="trackerKpiRow" class="kpi-row" style="grid-template-columns: repeat(6, 1fr); margin-bottom: 20px;">
           <!-- Injected dynamically by JS -->
         </div>
 
@@ -673,6 +673,7 @@
               <tr>
                 <th style="padding: 10px;">Status</th>
                 <th style="padding: 10px;">Severity</th>
+                <th style="padding: 10px;">SLA</th>
                 <th style="padding: 10px;">Customer</th>
                 <th style="padding: 10px;">System</th>
                 <th style="padding: 10px;">Title</th>
@@ -893,6 +894,40 @@
             </button>
             <button class="action-btn secondary" style="font-size: 0.76rem; padding: 7px 14px;" onclick="refreshEnrichmentStatus()">↻ Status</button>
           </div>
+        </div>
+
+        <!-- CARD: Remediation SLA Policy -->
+        <div class="card settings-card" style="border-top: 2px solid #f59e0b; margin-bottom: 16px;">
+          <div class="settings-card-header">
+            <div class="settings-card-icon" style="background: rgba(245,158,11,0.12);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div>
+              <div class="settings-card-title" style="background: linear-gradient(135deg, #f59e0b, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Remediation SLA Policy</div>
+              <div class="settings-card-desc">Days-to-remediate by severity, used by the Remediation Tracker when an item has no manually-set due date</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;">
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="settingsSlaCritical" style="color:#ef4444;">Critical</label>
+              <input type="number" id="settingsSlaCritical" class="form-input" min="1" value="7" style="border-color: rgba(239,68,68,0.25);">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="settingsSlaHigh" style="color:#f59e0b;">High</label>
+              <input type="number" id="settingsSlaHigh" class="form-input" min="1" value="30" style="border-color: rgba(245,158,11,0.25);">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="settingsSlaMedium" style="color:#eab308;">Medium</label>
+              <input type="number" id="settingsSlaMedium" class="form-input" min="1" value="90" style="border-color: rgba(234,179,8,0.25);">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="settingsSlaLow" style="color:#94a3b8;">Low</label>
+              <input type="number" id="settingsSlaLow" class="form-input" min="1" value="180" style="border-color: rgba(148,163,184,0.25);">
+            </div>
+          </div>
+          <div class="form-helper" style="margin-bottom: 12px;">Values are days. A tracked item with a manually-set due date always uses that instead of the policy default.</div>
+          <button class="action-btn" style="font-size: 0.76rem; padding: 7px 14px;" onclick="saveSlaSettingsFromUI()">Save SLA Policy</button>
         </div>
 
         <!-- Sync Controls Bar -->

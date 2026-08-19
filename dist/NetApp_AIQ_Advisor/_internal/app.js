@@ -27,9 +27,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.30";
+const APP_VERSION = "5.6.31";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.31",
+    date: "19 August 2026",
+    title: "Added: Remediation SLA Policy — Overdue Now Means Something Even Before You Touch an Item",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Configurable SLA Policy for the Remediation Tracker",
+        color: "#22c55e",
+        items: [
+          "The Remediation Tracker (5.6.30) only flagged an item overdue if a TAM had manually set a due date -- a freshly-imported critical finding with no due date yet never showed as overdue, no matter how old it got. Added a configurable SLA policy (days-to-remediate by severity: critical/high/medium/low) so every tracked item has an effective due date from the moment it's created, not just once someone gets around to setting one",
+          "New Settings card: 'Remediation SLA Policy' -- editable days per severity, saved via the existing /api/config endpoint (new slaDays field). Defaults: critical=7d, high=30d, medium=90d, low=180d. A manually-set due date always overrides the policy default",
+          "Tracker table gets a new SLA column: On Track / Due Soon (<=3 days) / Breached, with a tooltip showing exact days remaining and whether it's using the SLA default or a manual due date",
+          "New 'SLA Compliance %' KPI on the tracker tab -- percentage of open/in-progress items still within their due date or SLA default, alongside a new 'SLA Breached' count (replacing the old due-date-only overdue count, which silently ignored any item without a manual due date)",
+          "Verified live: saved a custom SLA policy via the Settings UI, confirmed it persisted and was reflected in the tracker's SLA badges and compliance %, then restored defaults",
+          "Second of several planned operational additions (tracking, SLA policy, then an MSP portfolio rollup, DR-test verification, and more)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.30",
     date: "19 August 2026",
@@ -28566,6 +28586,87 @@ async function importTrackerItemsFromScope() {
 
 const TRACKER_STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', deferred: 'Deferred', accepted: 'Risk Accepted' };
 const TRACKER_STATUS_COLORS = { open: '#ef4444', in_progress: '#f59e0b', resolved: '#22c55e', deferred: '#94a3b8', accepted: '#3b82f6' };
+const TRACKER_ACTIVE_STATUSES = ['open', 'in_progress'];
+const DEFAULT_SLA_DAYS = { critical: 7, high: 30, medium: 90, low: 180 };
+
+// Remediation SLA policy (days-to-remediate by severity) -- loaded from
+// server config, editable in Settings. A tracked item with no manually-set
+// due date falls back to createdAt + policy days for its severity, so
+// "overdue" means something even before a TAM has touched the item.
+state.slaDays = state.slaDays || { ...DEFAULT_SLA_DAYS };
+
+async function loadSlaPolicy() {
+  try {
+    const res = await fetch('/api/config', { cache: 'no-store' });
+    const cfg = await res.json();
+    if (cfg && cfg.slaDays) state.slaDays = { ...DEFAULT_SLA_DAYS, ...cfg.slaDays };
+  } catch (e) {
+    console.error('Failed to load SLA policy:', e);
+  }
+}
+
+function saveSlaSettingsFromUI() {
+  const val = (id, fallback) => {
+    const el = document.getElementById(id);
+    const n = el ? parseInt(el.value, 10) : NaN;
+    return isNaN(n) || n < 1 ? fallback : n;
+  };
+  const slaDays = {
+    critical: val('settingsSlaCritical', DEFAULT_SLA_DAYS.critical),
+    high: val('settingsSlaHigh', DEFAULT_SLA_DAYS.high),
+    medium: val('settingsSlaMedium', DEFAULT_SLA_DAYS.medium),
+    low: val('settingsSlaLow', DEFAULT_SLA_DAYS.low)
+  };
+  saveSlaPolicy(slaDays).then(() => alert('SLA policy saved.'));
+}
+
+async function saveSlaPolicy(slaDays) {
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slaDays })
+    });
+    const data = await res.json();
+    await loadSlaPolicy();
+    if (state.currentTab === 'tracker') renderTrackerTab();
+    return data;
+  } catch (e) {
+    console.error('Failed to save SLA policy:', e);
+  }
+}
+
+// The effective due date used for overdue/SLA calculations: a manually-set
+// due date always wins (a TAM's explicit judgment beats the generic policy);
+// otherwise fall back to createdAt + policy days for the item's severity.
+function _trackerEffectiveDueDate(item) {
+  if (item.dueDate) return new Date(item.dueDate).getTime();
+  const days = state.slaDays[(item.severity || '').toLowerCase()] ?? DEFAULT_SLA_DAYS.medium;
+  return new Date(item.createdAt).getTime() + days * 86400000;
+}
+
+function _trackerIsOverdue(item) {
+  if (!TRACKER_ACTIVE_STATUSES.includes(item.status)) return false;
+  const due = _trackerEffectiveDueDate(item);
+  return !isNaN(due) && due < Date.now();
+}
+
+function _trackerSlaBadge(item) {
+  if (!TRACKER_ACTIVE_STATUSES.includes(item.status)) {
+    return `<span style="color:var(--text-muted);font-size:0.72rem;">—</span>`;
+  }
+  const due = _trackerEffectiveDueDate(item);
+  const daysLeft = Math.ceil((due - Date.now()) / 86400000);
+  const isSlaDefault = !item.dueDate;
+  const suffix = isSlaDefault ? ' (SLA default)' : '';
+  if (daysLeft < 0) {
+    return `<span style="color:#ef4444;font-weight:700;font-size:0.72rem;" title="${Math.abs(daysLeft)} day(s) past due${suffix}">✗ Breached</span>`;
+  }
+  if (daysLeft <= 3) {
+    return `<span style="color:#f59e0b;font-weight:700;font-size:0.72rem;" title="Due in ${daysLeft} day(s)${suffix}">⚠ Due Soon</span>`;
+  }
+  return `<span style="color:#22c55e;font-size:0.72rem;" title="Due in ${daysLeft} day(s)${suffix}">✓ On Track</span>`;
+}
 
 function renderTrackerTab() {
   const body = document.getElementById('trackerTableBody');
@@ -28595,13 +28696,17 @@ function renderTrackerTab() {
   // KPI row
   const openCount = state.trackerItems.filter(i => i.status === 'open').length;
   const inProgCount = state.trackerItems.filter(i => i.status === 'in_progress').length;
-  const overdueCount = state.trackerItems.filter(i => i.status !== 'resolved' && i.status !== 'deferred' && i.status !== 'accepted' && i.dueDate && new Date(i.dueDate).getTime() < Date.now()).length;
+  const activeItems = state.trackerItems.filter(i => TRACKER_ACTIVE_STATUSES.includes(i.status));
+  const overdueCount = activeItems.filter(_trackerIsOverdue).length;
   const resolvedCount = state.trackerItems.filter(i => i.status === 'resolved').length;
+  const slaCompliancePct = activeItems.length > 0 ? Math.round((activeItems.length - overdueCount) / activeItems.length * 100) : 100;
+  const slaColor = slaCompliancePct >= 90 ? '#22c55e' : slaCompliancePct >= 70 ? '#f59e0b' : '#ef4444';
   if (kpiRow) {
     kpiRow.innerHTML = `
       <div class="card kpi-card"><div class="card-title">Open</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.open};">${openCount}</div></div>
       <div class="card kpi-card"><div class="card-title">In Progress</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.in_progress};">${inProgCount}</div></div>
-      <div class="card kpi-card"><div class="card-title">Overdue</div><div class="card-value" style="color:#ef4444;">${overdueCount}</div></div>
+      <div class="card kpi-card" data-tooltip="Active items past their due date (manually set, or the SLA policy default for their severity if none was set)."><div class="card-title">SLA Breached</div><div class="card-value" style="color:#ef4444;">${overdueCount}</div></div>
+      <div class="card kpi-card" data-tooltip="Percentage of open/in-progress items still within their due date or SLA policy default."><div class="card-title">SLA Compliance</div><div class="card-value" style="color:${slaColor};">${slaCompliancePct}%</div></div>
       <div class="card kpi-card"><div class="card-title">Resolved</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.resolved};">${resolvedCount}</div></div>
       <div class="card kpi-card"><div class="card-title">Total Tracked</div><div class="card-value">${state.trackerItems.length}</div></div>
     `;
@@ -28631,9 +28736,9 @@ function renderTrackerTab() {
   const truncated = totalMatched > RENDER_CAP;
   if (truncated) items = items.slice(0, RENDER_CAP);
 
-  body.innerHTML = (truncated ? `<tr><td colspan="10" style="padding:10px;text-align:center;color:var(--text-muted);font-size:0.78rem;background:rgba(245,158,11,0.08);">Showing the ${RENDER_CAP} most severe/recent of ${totalMatched} matching items — narrow with the Status or Customer filter above to see the rest.</td></tr>` : '') +
+  body.innerHTML = (truncated ? `<tr><td colspan="11" style="padding:10px;text-align:center;color:var(--text-muted);font-size:0.78rem;background:rgba(245,158,11,0.08);">Showing the ${RENDER_CAP} most severe/recent of ${totalMatched} matching items — narrow with the Status or Customer filter above to see the rest.</td></tr>` : '') +
   items.map(i => {
-    const isOverdue = i.status !== 'resolved' && i.status !== 'deferred' && i.status !== 'accepted' && i.dueDate && new Date(i.dueDate).getTime() < Date.now();
+    const isOverdue = _trackerIsOverdue(i);
     return `
     <tr style="border-bottom:1px solid var(--border-color);">
       <td style="padding:8px 10px;">
@@ -28642,11 +28747,12 @@ function renderTrackerTab() {
         </select>
       </td>
       <td style="padding:8px 10px;font-size:0.72rem;text-transform:uppercase;font-weight:700;color:${i.severity === 'critical' ? '#ef4444' : i.severity === 'high' ? '#f59e0b' : 'var(--text-muted)'};">${i.severity || ''}</td>
+      <td style="padding:8px 10px;">${_trackerSlaBadge(i)}</td>
       <td style="padding:8px 10px;font-size:0.8rem;">${i.customerName || '—'}</td>
       <td style="padding:8px 10px;font-size:0.8rem;">${i.systemName || '—'}</td>
       <td style="padding:8px 10px;font-size:0.8rem;max-width:280px;">${i.title}${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${i.detail}</div>` : ''}</td>
       <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:110px;color:var(--text-primary);"></td>
-      <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.78rem;color:var(--text-primary);"></td>
+      <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" placeholder="SLA default" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.78rem;color:var(--text-primary);" title="${i.dueDate ? '' : 'No manual due date set -- using SLA policy default for ' + (i.severity||'medium') + ' severity'}"></td>
       <td style="padding:8px 10px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${i.lastSeenAt ? new Date(i.lastSeenAt).toLocaleDateString() : '—'}</td>
       <td style="padding:8px 10px;"><input type="text" value="${(i.notes || '').replace(/"/g, '&quot;')}" placeholder="Notes..." onchange="updateTrackerItem(${i.id}, {notes: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:140px;color:var(--text-primary);"></td>
       <td style="padding:8px 10px;"><button onclick="deleteTrackerItem(${i.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Remove from tracker">✕</button></td>
@@ -28696,10 +28802,16 @@ function switchTab(tabId) {
     populateActionPlanSelector();
     generateActionPlan();
   } else if (tabId === "tracker") {
-    loadTrackerItems().then(renderTrackerTab);
+    Promise.all([loadTrackerItems(), loadSlaPolicy()]).then(renderTrackerTab);
   } else if (tabId === "settings") {
     populateGroupManagerSystems();
     populateLogisticsEditor();
+    loadSlaPolicy().then(() => {
+      if (document.getElementById('settingsSlaCritical')) document.getElementById('settingsSlaCritical').value = state.slaDays.critical;
+      if (document.getElementById('settingsSlaHigh')) document.getElementById('settingsSlaHigh').value = state.slaDays.high;
+      if (document.getElementById('settingsSlaMedium')) document.getElementById('settingsSlaMedium').value = state.slaDays.medium;
+      if (document.getElementById('settingsSlaLow')) document.getElementById('settingsSlaLow').value = state.slaDays.low;
+    });
     
     // Load auth token input
     document.getElementById("settingsMockModeToggle").checked = state.mockMode;

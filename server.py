@@ -8382,6 +8382,12 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
                 "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
                 "hasGithubToken": bool(cfg.get("githubToken", "")),
+                # Remediation SLA policy: days-to-remediate by severity, used by
+                # the Remediation Tracker to compute an SLA due date for items
+                # with no manually-set due date. Defaults match common
+                # practice (critical=7d, high=30d, medium=90d, low=180d) but
+                # are editable in Settings since every org's policy differs.
+                "slaDays": cfg.get("slaDays") or {"critical": 7, "high": 30, "medium": 90, "low": 180},
                 # Multi-account (multi-customer) support — never return raw tokens,
                 # only enough for the Settings UI to list/edit accounts safely.
                 "accounts": [
@@ -8438,6 +8444,14 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "slaDays" in body and isinstance(body["slaDays"], dict):
+                sla = {}
+                for sev in ("critical", "high", "medium", "low"):
+                    try:
+                        sla[sev] = max(1, int(body["slaDays"].get(sev, cfg.get("slaDays", {}).get(sev, 30))))
+                    except (TypeError, ValueError):
+                        sla[sev] = cfg.get("slaDays", {}).get(sev, 30)
+                cfg["slaDays"] = sla
             if "nvdApiKey" in body and body["nvdApiKey"].strip():
                 cfg["nvdApiKey"] = body["nvdApiKey"].strip()
             if "githubToken" in body and body["githubToken"].strip():

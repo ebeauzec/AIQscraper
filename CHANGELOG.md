@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.31] - 2026-08-19
+
+### Added
+- **Configurable Remediation SLA Policy.** The Remediation Tracker (5.6.30) only flagged an item overdue if a TAM had manually set a due date — a freshly-imported critical finding with no due date yet never showed as overdue. Now every tracked item has an effective due date from creation, computed from a configurable days-to-remediate policy per severity (critical=7d, high=30d, medium=90d, low=180d by default). New Settings card lets a TAM edit the policy, saved via the existing `/api/config` endpoint (new `slaDays` field). Tracker table gets an SLA column (On Track / Due Soon / Breached) and a new SLA Compliance % KPI. A manually-set due date always overrides the policy default. Second of several planned operational additions.
+
+---
+
 ## [5.6.30] - 2026-08-19
 
 ### Added
