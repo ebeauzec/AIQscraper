@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.34] - 2026-08-19
+
+### Added
+- **Fleet/customer risk trend chart.** Per-system trend history already existed (the CSM tab's history panel), but there was no fleet-wide or customer-scoped view — no way to see whether risk exposure is trending up or down over time without checking one system at a time. New backend: `GET /api/history/trend[?days=90&customer=Name]` aggregates the same daily `system_snapshots` data already captured on every harvest into one row per date. New chart on the Overview Dashboard, automatically scoped to the active customer filter or the whole fleet, shown only once at least 2 distinct days of real history exist — never a fabricated trend line for a single data point. Fifth of several planned operational additions.
+
+---
+
 ## [5.6.33] - 2026-08-19
 
 ### Added

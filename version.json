@@ -1,8 +1,8 @@
 {
-  "version": "5.6.33",
+  "version": "5.6.34",
   "major": 5,
   "minor": 6,
-  "patch": 33,
+  "patch": 34,
   "date": "2026-08-19",
-  "notes": "Added DR failover test verification tracking. DR health throughout this tool only ever showed whether DR is CONFIGURED (MetroCluster Mediator/AUSO status, SnapMirror relationship counts) -- Active IQ has no field anywhere for whether a failover was ever actually tested. Rather than fabricate a 'last tested' status the API can't provide, 'Import Findings Into Tracker' now also creates a trackable action item per DR-configured cluster/system: one per MetroCluster pair (deduped by cluster) and one per SnapMirror-protected system, with the tracker's manual notes/status/due-date serving as the honest record of whether and when it was actually tested. Defaults to medium severity (90-day SLA cadence). Verified live against the real 8-system MetroCluster fleet: correctly deduplicated to 4 cluster-level items. Fourth of several planned operational additions."
+  "notes": "Added a fleet/customer risk trend chart. Per-system trend history already existed (the CSM tab's history panel), but there was no fleet-wide or customer-scoped view -- no way to see whether risk exposure is trending up or down over time without checking one system at a time. New backend: GET /api/history/trend[?days=90&customer=Name] aggregates the same daily system_snapshots data already captured on every harvest into one row per date. New chart on the Overview Dashboard, automatically scoped to the active customer filter or the whole fleet, shown only once at least 2 distinct days of real history exist. Verified live against real data; confirmed the chart stays honestly hidden when there's only one day of history rather than showing a fabricated trend. Fifth of several planned operational additions."
 }

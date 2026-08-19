@@ -939,6 +939,46 @@ def _get_system_history(db, serial_number, days=400):
     return out
 
 
+def _get_fleet_trend(db, days=90, customer_name=None):
+    """Aggregate system_snapshots across ALL systems (or one customer, if
+    given) into one row per date: total critical/high risks, total open
+    critical cases, and how many distinct systems were captured that day.
+
+    Per-system trend already existed (_get_system_history, used by the CSM
+    tab's history panel) but there was no fleet-wide or customer-wide view --
+    a TAM/MSP had no way to see "is my whole book of business trending up or
+    down in risk" over time, only one system at a time. Reuses the same
+    system_snapshots data already captured on every harvest; no new capture
+    logic needed.
+    """
+    if customer_name:
+        rows = db.execute("""
+            SELECT snapshot_date, snapshot_json FROM system_snapshots
+            WHERE snapshot_date >= date('now', ?) AND customer_name = ?
+            ORDER BY snapshot_date ASC
+        """, (f"-{days} days", customer_name)).fetchall()
+    else:
+        rows = db.execute("""
+            SELECT snapshot_date, snapshot_json FROM system_snapshots
+            WHERE snapshot_date >= date('now', ?)
+            ORDER BY snapshot_date ASC
+        """, (f"-{days} days",)).fetchall()
+
+    by_date = {}
+    for date_str, snap_json in rows:
+        try:
+            rec = json.loads(snap_json)
+        except Exception:
+            continue
+        d = by_date.setdefault(date_str, {"date": date_str, "critical": 0, "high": 0, "openCriticalCases": 0, "systemCount": 0})
+        rc = rec.get("riskCounts") or {}
+        d["critical"] += int(rc.get("critical") or 0)
+        d["high"] += int(rc.get("high") or 0)
+        d["openCriticalCases"] += int(rec.get("openCriticalCases") or 0)
+        d["systemCount"] += 1
+    return sorted(by_date.values(), key=lambda x: x["date"])
+
+
 def _populate_reporting_tables(db, account_id, account_label, result):
     """Mirror one account's harvest result into the normalized reporting_*
     tables, so the SQLite database can be queried directly with plain SQL
@@ -7292,6 +7332,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_scan()
         elif self.path.startswith('/api/bulletins'):
             self.handle_bulletins_get()
+        elif self.path.startswith('/api/history/trend'):
+            self.handle_fleet_trend()
         elif self.path.startswith('/api/history/'):
             self.handle_system_history()
         elif self.path.startswith('/api/asup/imports'):
@@ -7830,6 +7872,26 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"  [HISTORY] Error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e), "history": []})
+
+    def handle_fleet_trend(self):
+        """GET /api/history/trend?days=90[&customer=Name] — fleet-wide or
+        one-customer daily trend (total critical/high risks, open critical
+        cases, systems captured) built from the same system_snapshots data
+        already captured on every harvest."""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            params = parse_qs(urlparse(self.path).query)
+            days = int((params.get('days') or ['90'])[0])
+            customer = (params.get('customer') or [None])[0]
+            db = _init_db()
+            try:
+                trend = _get_fleet_trend(db, days=days, customer_name=customer)
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "trend": trend, "count": len(trend)})
+        except Exception as e:
+            print(f"  [HISTORY] Trend error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e), "trend": []})
 
     def handle_history_annotate(self):
         """POST /api/history/annotate

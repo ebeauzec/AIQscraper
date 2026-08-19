@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.33";
+const APP_VERSION = "5.6.34";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.34",
+    date: "19 August 2026",
+    title: "Added: Fleet/Customer Risk Trend Chart",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Risk Trend Chart on the Overview Dashboard",
+        color: "#22c55e",
+        items: [
+          "Per-system trend history already existed (the CSM tab's history panel), but there was no fleet-wide or customer-scoped view -- no way to see whether risk exposure is trending up or down over time without checking one system at a time",
+          "New backend: GET /api/history/trend[?days=90&customer=Name] aggregates the same daily system_snapshots data already captured on every harvest (no new capture logic) into one row per date -- total critical/high risk counts, open critical cases, and systems captured that day",
+          "New 'Risk Trend — Critical & High Findings Over Time' chart on the Overview Dashboard, automatically scoped to the active customer filter or the whole fleet. Only shown once at least 2 distinct days of real history exist -- a single flat point isn't a trend and would be misleading to show as a line",
+          "Verified live: confirmed the endpoint correctly aggregates and scopes by customer against real data, and confirmed the chart renders correctly and stays hidden when there's genuinely only one day of history -- no fabricated trend line for data that doesn't exist yet",
+          "Fifth of several planned operational additions (tracking, SLA policy, portfolio rollup, DR-test verification, trend dashboards, then notifications and more)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.33",
     date: "19 August 2026",
@@ -6034,6 +6053,7 @@ function simulateMockAPIResponse(endpoint) {
 // 5. DOM Render Utilities & Charts
 let efficiencyChartInstance = null;
 let capacityChartInstance = null;
+let riskTrendChartInstance = null;
 let projectionsChartInstance = null; // Line chart for capacity & performance trends
 
 // ── Chart data fingerprint — avoids destroy/recreate when data is unchanged ───
@@ -6432,6 +6452,71 @@ function updateOverviewKpis() {
   document.getElementById("kpiCriticalRisks").style.color = criticalRisksCount > 0 ? "var(--status-critical)" : "var(--status-normal)";
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
+}
+
+// ── Risk Trend (Overview) ───────────────────────────────────────────────────
+// Per-system trend already existed (CSM tab's history panel, via
+// /api/history/<serial>), but there was no fleet-wide or customer-scoped
+// trend view -- no way to see whether risk exposure is trending up or down
+// over time without checking one system at a time. Built from the same
+// system_snapshots data already captured on every harvest (server.py
+// _get_fleet_trend), scoped to whatever customer filter is currently active
+// (or the whole fleet if none). Hidden until there are at least 2 distinct
+// dates of real history -- a single flat point isn't a trend and would be
+// misleading to show as a line chart.
+async function renderRiskTrendChart() {
+  const card = document.getElementById('overviewTrendCard');
+  const canvas = document.getElementById('riskTrendChart');
+  if (!card || !canvas || typeof Chart === 'undefined') return;
+
+  const customerParam = state.activeFilterType === 'CUSTOMER' && state.activeFilterValue
+    ? `&customer=${encodeURIComponent(state.activeFilterValue)}` : '';
+  let trend = [];
+  try {
+    const res = await fetch(`/api/history/trend?days=90${customerParam}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (data.ok) trend = data.trend || [];
+  } catch (e) {
+    console.error('Failed to load risk trend:', e);
+  }
+
+  if (trend.length < 2) {
+    card.style.display = 'none';
+    if (riskTrendChartInstance) { riskTrendChartInstance.destroy(); riskTrendChartInstance = null; }
+    return;
+  }
+  card.style.display = '';
+
+  if (riskTrendChartInstance) riskTrendChartInstance.destroy();
+  riskTrendChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: trend.map(t => t.date),
+      datasets: [
+        { label: 'Critical', data: trend.map(t => t.critical), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', tension: 0.25, fill: true },
+        { label: 'High', data: trend.map(t => t.high), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.06)', tension: 0.25, fill: true }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { min: 0, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#f3f4f6', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            afterBody: ctx => {
+              const d = trend[ctx[0].dataIndex];
+              return `${d.systemCount} system(s) captured that day`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 // ── Customer Portfolio (Overview) ───────────────────────────────────────────
@@ -28950,6 +29035,7 @@ function switchTab(tabId) {
     renderNeedsAttention();
     renderOverviewTable();
     renderCharts();
+    renderRiskTrendChart();
     // SLA compliance in the portfolio table needs tracker items loaded --
     // render once immediately with whatever's cached, then again once the
     // (usually already-cached) tracker fetch resolves so SLA % isn't stuck
