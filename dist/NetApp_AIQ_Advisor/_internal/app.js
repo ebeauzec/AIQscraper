@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.25";
+const APP_VERSION = "5.6.26";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.26",
+    date: "19 August 2026",
+    title: "Fixed: Active IQ's 'No RCF Version' Placeholder Shown as a Real Firmware Target",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: False 'Target: No RCF version found.' and Contradictory RCF Mismatch Warning",
+        color: "#f87171",
+        items: [
+          "Confirmed live: Active IQ's own rcfVersion field literally returns the placeholder sentence \"No RCF version found.\" (not null/empty) for switches with no published reference config -- observed on real Cumulus Linux/NVIDIA MetroCluster ISL switches. The app treated it as a real version string, showing it as the firmware upgrade target and flagging an 'RCF Mismatch' warning right next to an 'OPTIMAL' status badge",
+          "Server now normalizes this and equivalent 'not found'/'n/a' placeholder text to empty, same as a genuinely blank field, before computing target firmware and RCF compliance",
+          "Switch Validation now shows an honest 'No RCF published by Active IQ for this switch — current firmware only' message instead of a fabricated target and false mismatch. This also fixes every deliverable and AS-Built section that reads targetFirmware, including two spots that would have embedded the placeholder text into a CLI command as a bogus filename",
+          "Verified live against the exact two switches (Switch-B1/B2, MT2346XZ000G/MT2346XZ001X) reported: targetFirmware and rcfVersion now both correctly empty, rcfCompliant now correctly null (unknown) instead of false"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.25",
     date: "19 August 2026",
@@ -10979,7 +10997,7 @@ function renderTAMTab() {
           <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}</td>
           <td>
             <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware}</code></div>
-            <div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>
+            ${sw.targetFirmware ? `<div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>` : `<div style="font-size: 0.75rem; color: var(--text-muted);">No RCF published by Active IQ for this switch — current firmware only.</div>`}
             <div style="margin-top:4px;">
               <a href="${fwLink.url}" target="_blank"
                  style="font-size:0.68rem;color:var(--accent-cyan);text-decoration:underline;"

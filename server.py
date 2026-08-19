@@ -2534,6 +2534,17 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 else:
                     validation = f"Switch '{sw_name}' firmware validated by Active IQ CSHM."
 
+                # Active IQ's rcfVersion field is sometimes a literal placeholder
+                # sentence -- "No RCF version found." -- instead of null/empty when
+                # it has no published reference config for a switch (confirmed live
+                # on Cumulus Linux/NVIDIA MetroCluster ISL switches). Treated as a
+                # real version string, this produced "Target: No RCF version found."
+                # and a false "RCF Mismatch" warning on switches Active IQ never
+                # actually assessed. Normalize any such placeholder to "no data",
+                # same as a genuinely blank field.
+                if rcf and ("no rcf" in rcf.lower() or "not found" in rcf.lower() or "n/a" == rcf.strip().lower()):
+                    rcf = ""
+
                 # ── targetFirmware: only use RCF if it differs from current fw ──
                 # When rcf == fw (or rcf is blank) the API has no upgrade recommendation
                 target_fw = rcf if (rcf and rcf != fw) else ""

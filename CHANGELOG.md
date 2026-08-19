@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.26] - 2026-08-19
+
+### Fixed
+- **False "RCF Mismatch" warning and fabricated firmware target on Switch Validation.** Confirmed live: Active IQ's own `rcfVersion` field literally returns the placeholder sentence "No RCF version found." (not null/empty) for switches with no published reference config — observed on real Cumulus Linux/NVIDIA MetroCluster ISL switches (Switch-B1/B2, serials MT2346XZ000G/MT2346XZ001X). The app treated that placeholder as a real version string, showing it as the firmware upgrade target and flagging an RCF Mismatch warning directly next to an OPTIMAL status badge. Server now normalizes this and equivalent "not found"/"n/a" placeholder text to empty before computing target firmware and RCF compliance; Switch Validation now shows an honest "No RCF published by Active IQ for this switch" message instead. Verified live against the exact two switches reported: `targetFirmware`/`rcfVersion` now correctly empty, `rcfCompliant` now correctly `null` instead of `false`.
+
+---
+
 ## [5.6.25] - 2026-08-19
 
 ### Changed

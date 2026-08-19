@@ -1,8 +1,8 @@
 {
-  "version": "5.6.25",
+  "version": "5.6.26",
   "major": 5,
   "minor": 6,
-  "patch": 25,
+  "patch": 26,
   "date": "2026-08-19",
-  "notes": "Extended the MetroCluster Health line (Mediator + AUSO status, added to the QBR Pack and Security Brief in 5.6.24) to every other deliverable that reports DR coverage via computeFleetDRSummary(): the TAM Success Plan, MSP Service Report, MEDDPICC Brief, Account Handover Brief, and the extended-deliverables cross-document summary blocks. Each is gated on MC systems actually being in scope. Terser checklist-style blocks get a compact inline marker instead of a full sentence, matching each block's existing style. compileExtendedDeliverables() inherits the fix automatically since it wraps the already-fixed compile functions. Verified live against the real 8-system MetroCluster fleet: Mediator/AUSO status confirmed present in every deliverable listed above, including the bundled extended-deliverables output."
+  "notes": "Fixed a false 'RCF Mismatch' warning and a fabricated firmware target. Confirmed live: Active IQ's own rcfVersion field literally returns the placeholder sentence 'No RCF version found.' (not null/empty) for switches with no published reference config -- observed on real Cumulus Linux/NVIDIA MetroCluster ISL switches (Switch-B1/B2, serials MT2346XZ000G/MT2346XZ001X). The app treated that placeholder as a real version string: showing it as the firmware upgrade target and flagging an RCF Mismatch warning directly next to an OPTIMAL status badge. Server now normalizes this and equivalent 'not found'/'n/a' placeholder text to empty before computing target firmware and RCF compliance, so Switch Validation shows an honest 'No RCF published by Active IQ for this switch' message instead. This also fixes every deliverable and AS-Built section reading targetFirmware, including two spots that would have embedded the placeholder text into a CLI command as a bogus filename. Verified live against the exact two switches reported: targetFirmware/rcfVersion now correctly empty, rcfCompliant now correctly null instead of false."
 }
