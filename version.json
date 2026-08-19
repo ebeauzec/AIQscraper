@@ -1,8 +1,8 @@
 {
-  "version": "5.6.12",
+  "version": "5.6.13",
   "major": 5,
   "minor": 6,
-  "patch": 12,
+  "patch": 13,
   "date": "2026-08-19",
-  "notes": "TAM Recommendations are Active IQ account/fleet-wide health checks, not per-customer data -- state.tamRecommendations (merged across ALL configured accounts) was shown unfiltered in every report/deliverable regardless of scope. Diagnosed via a real customer report for Saudi Telecom Company (stc): the same check appeared to fire twice at different percentages, and two checks appeared to contradict each other, but stc's 186 systems all belong to ONE account (23 recommendations, zero internal duplicates) -- the other 14 entries were an entirely unrelated second account's fleet checks bleeding into the report. Added _scopeRecommendationsToAccounts() to filter recommendations to only the account(s) with systems in the current scope, applied to the on-screen Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable. Verified live: stc's report count dropped from 37 to the correct 23, zero duplicate checks, zero contradictions. When a scope genuinely spans multiple accounts, each recommendation is now labeled with its source account."
+  "notes": "Full audit of every deliverable rendering TAM recommendations, as requested after the 5.6.12 account-scoping fix. Found the 'N of your systems' rescoping fell back to a category-wide risk count whenever a recommendation's subCategory didn't exactly match a risk subCategory string -- true for every Best Practices check -- so every card in that category showed the same fabricated count (e.g. '162 of your 171') regardless of that card's own, very different score. Also fixed a related bug: a recommendation with a genuine 0% problem rate displayed as 'Score: 0%' (total failure) instead of the correct 100% all-clear. Both are now derived directly from the already-normalized health score (exact by construction), fixed identically across the on-screen tab, the Section 12 TXT export (previously no correction at all), and the QBR Pack deliverable (previously a vague '[see scoped count]' placeholder). Verified live: four checks (43%/63%/87%/99%) that all showed '162 of your 171' now correctly show 97, 63, 22, and 2 -- across all three surfaces."
 }

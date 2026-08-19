@@ -18,9 +18,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.12";
+const APP_VERSION = "5.6.13";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.13",
+    date: "19 August 2026",
+    title: "Fixed: Same Fabricated System Count Shown Across Unrelated Checks",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Best Practices Checks All Showed the Same Wrong Fail Count",
+        color: "#f87171",
+        items: [
+          "Full audit of every deliverable that renders TAM recommendations, as requested. Found the 'N of your systems' rescoping (added to correct Active IQ's raw fleet-wide count to the current scope) fell back to a category-wide risk count whenever a recommendation's subCategory didn't exactly match a risk subCategory string -- true for every Best Practices check (Availability Protection, Configuration, Performance Efficiency, Capacity, etc) -- so every card in that whole category showed the SAME count (e.g. '162 of your 171') regardless of that card's own, very different score (43%, 63%, 87%, 99%)",
+          "Also fixed a related bug: a recommendation with a genuinely perfect 0% problem rate (e.g. '0% of entitled systems are expiring within 6 months') displayed as 'Score: 0%' -- reading as a total failure when it was actually a 100% all-clear result",
+          "Both are now derived directly from the already-normalized health score shown on the badge (exact by construction, no string matching involved), and the fix is shared by all three surfaces that render recommendations: the on-screen tab, the Section 12 TXT export (previously showed Active IQ's raw, unscoped count with no correction at all), and the QBR Pack deliverable (previously replaced the count with a vague '[see scoped count]' placeholder instead of a real number)",
+          "Verified live: four Best Practices checks (scores 43%/63%/87%/99%) that all previously showed '162 of your 171' now correctly show 97, 63, 22, and 2 respectively -- across all three surfaces"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.12",
     date: "19 August 2026",
@@ -18165,11 +18183,19 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     });
     recsSection += Object.keys(byCat).map(cat => {
       const items = byCat[cat];
-      // Strip global "N of your systems" counts from the truncated text to avoid confusion
+      // Replace the raw "N of your systems" count (Active IQ's own fleet-wide
+      // figure) with the actual count for THIS scope, derived from the
+      // already-normalized effectiveScore -- exact by construction, no risk
+      // string-matching involved. Same formula used by the on-screen view's
+      // rescopeText(), so this TXT export and the HTML tab always agree.
       const lines = items.slice(0, 5).map(r => {
-        const clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `[see scoped count]`);
         const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
         const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' corrected' : ''}`;
+        const failCount = Math.round(((100 - effectiveScore) / 100) * total);
+        let clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `${failCount} of your ${total} selected systems`);
+        if (total > 0) {
+          clean = clean.replace(/(\d+)%\s+of\b/gi, (m, n) => `${Math.round((parseInt(n, 10) / 100) * total)} of ${total}`);
+        }
         const acctTag = qbrMultiAcct && r.accountId ? ` [${qbrAcctLabels[r.accountId] || r.accountId}]` : '';
         return `    • [Score ${scoreLabel}]${acctTag} ${_truncate(clean)}`;
       }).join('\n');
@@ -21226,6 +21252,10 @@ function _renderSustainabilitySection(systems) {
 // Active IQ uses `score` in THREE distinct ways:
 //  CASE A — Health percentage (use as-is): score=87, text "13% of systems are not using HTTPS"
 //  CASE B — Problem percentage (must INVERT): score=26, text starts "26% of entitled systems are expiring..."
+//    Includes the score=0 edge case ("0% of entitled systems are expiring" is a
+//    perfect 100% health score, not a literal 0% -- confirmed live: a card read
+//    "0 of 171 entitled systems are expiring" under a "Score: 0%" badge, which
+//    reads as if every single system were a problem when actually none are).
 //  CASE C — All-clear zero (remap to 100%): score=0, text "No platforms or storage are End of Support"
 // Shared by the HTML render (_renderRecommendationsSection) and the TXT export
 // (downloadPlanSection index 12) so both surfaces show the same corrected score.
@@ -21233,7 +21263,7 @@ function _resolveRecommendationScore(r) {
   const rawScore = (r.score == null ? null : r.score);
   const recText  = (r.recommendation || '');
 
-  const isProblemRate = rawScore > 0 && rawScore < 100 &&
+  const isProblemRate = rawScore >= 0 && rawScore < 100 &&
     new RegExp(`^${rawScore}%\\s+of`, 'i').test(recText.trim());
 
   const allClearPatterns = [
@@ -21291,32 +21321,6 @@ function _renderRecommendationsSection(targetSystems) {
 
   if (recs.length === 0) return '<p style="color:var(--text-secondary);font-size:0.85rem;">No recommendations available. Run a data refresh to load TAM recommendations.</p>';
 
-  // ── Build scoped risk counts per category/subCategory from actual system data ──
-  // This is used to restate the "N of your systems" counts accurately for the selected scope.
-  const scopedCatFailCounts = {}; // category -> count of scoped systems with >=1 risk in that category
-  const scopedSubCatFailCounts = {}; // subCategory (normalized) -> count
-  (targetSystems || []).forEach(sys => {
-    const catsSeen = new Set();
-    const subCatsSeen = new Set();
-    (sys.risks || []).forEach(r => {
-      const cat  = (r.category || '').toUpperCase().replace(/\s+/g, '_');
-      const sub  = (r.subCategory || r.type || '').toUpperCase().replace(/\s+/g, '_');
-      if (cat  && !catsSeen.has(cat))  { catsSeen.add(cat);   scopedCatFailCounts[cat]  = (scopedCatFailCounts[cat]  || 0) + 1; }
-      if (sub  && !subCatsSeen.has(sub)) { subCatsSeen.add(sub); scopedSubCatFailCounts[sub] = (scopedSubCatFailCounts[sub] || 0) + 1; }
-    });
-  });
-
-  // ── Map known recommendation subCategories to risk categories ──
-  const subCatToCat = {
-    'LATEST_VERSION': 'VERSION', 'MAJOR_VERSION': 'VERSION', 'PATCH_VERSION': 'VERSION',
-    'AUTO_SUPPORT': 'AUTO_SUPPORT', 'AUTOSUPPORT': 'AUTO_SUPPORT',
-    'AVAILABILITY_PROTECTION': 'BEST_PRACTICES', 'CONFIGURATION': 'BEST_PRACTICES',
-    'PERFORMANCE_EFFICIENCY': 'BEST_PRACTICES', 'CAPACITY': 'BEST_PRACTICES',
-    'SECURITY': 'BEST_PRACTICES', 'BIOS': 'BEST_PRACTICES',
-    'SPARES_AND_FAILED_DRIVES': 'CONFIG',
-    'SLA_AND_ENTITLEMENTS': 'SUPPORT_AND_ENTITLEMENTS'
-  };
-
   // Helper: rewrite "N of your systems" AND "N% of <label> systems" in
   // recommendation text to actual system counts for the selected scope —
   // the raw Active IQ text states percentages ("8% of AutoSupport capable
@@ -21324,12 +21328,23 @@ function _renderRecommendationsSection(targetSystems) {
   // is without doing the math yourself. Score badges stay as percentages
   // (unaffected -- see _resolveRecommendationScore); this only rewrites the
   // prose.
-  function rescopeText(text, cat, subCat) {
+  //
+  // effectiveScore is the ALREADY-NORMALIZED health % from
+  // _resolveRecommendationScore (same value shown on the badge) -- deriving
+  // the fail count as (100-effectiveScore)/100 * scopeCount from it, instead
+  // of the old scopedSubCatFailCounts/scopedCatFailCounts risk-based lookup.
+  // That lookup fell back to the CATEGORY-level count whenever a recommendation's
+  // subCategory (e.g. AVAILABILITY_PROTECTION, PERFORMANCE_EFFICIENCY, CAPACITY)
+  // didn't exactly match a risk subCategory string -- which was every Best
+  // Practices check -- so every card in that whole category showed the exact
+  // same category-wide count (e.g. "162 of your 171") regardless of that
+  // card's own, very different score (43%, 63%, 87%, 99%). The score-derived
+  // count is exact by construction and needs no string matching at all.
+  function rescopeText(text, effectiveScore) {
     if (!text) return '';
-    // Try to get the scoped failing count for this specific category
-    const normSub = (subCat || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const normCat = (cat || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const failCount = scopedSubCatFailCounts[normSub] || scopedCatFailCounts[normCat] || 0;
+    const failCount = effectiveScore != null
+      ? Math.round(((100 - effectiveScore) / 100) * scopeCount)
+      : 0;
     // Replace patterns like "98 of your systems", "27 of your systems are failing"
     let out = text.replace(/(\d+)\s+of\s+your\s+systems/gi, (match, n) => {
       return `<strong style="color:#f59e0b">${failCount}</strong> of your <strong>${scopeCount}</strong> selected systems`;
@@ -21391,7 +21406,7 @@ function _renderRecommendationsSection(targetSystems) {
         // Strip remaining tags (strong, span, br, etc.)
         .replace(/<[^>]+>/g, '');
       const truncated = rawRec.length > 500 ? rawRec.substring(0, 497) + '…' : rawRec;
-      const displayText = rescopeText(linkify(truncated), cat, r.subCategory);
+      const displayText = rescopeText(linkify(truncated), effectiveScore);
       // When the current scope spans multiple accounts, the same check can
       // legitimately report different scores per account (two real, separate
       // fleets) -- label which account each card belongs to instead of
@@ -25067,6 +25082,18 @@ B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
       byCategory[cat].push(r);
     });
     const stripTags = (s) => String(s || '').replace(/<[^>]*>/g, '');
+    // Rescope Active IQ's raw fleet-wide counts/percentages to this report's
+    // actual scope, same formula as the on-screen view and QBR Pack (derived
+    // from the already-normalized effectiveScore, exact by construction).
+    const recScopeCount = targetSystems.length;
+    const rescopeCount = (rawText, effectiveScore) => {
+      const failCount = Math.round(((100 - effectiveScore) / 100) * recScopeCount);
+      let out = stripTags(rawText).replace(/\d+\s+of\s+your\s+systems/gi, `${failCount} of your ${recScopeCount} selected systems`);
+      if (recScopeCount > 0) {
+        out = out.replace(/(\d+)%\s+of\b/gi, (m, n) => `${Math.round((parseInt(n, 10) / 100) * recScopeCount)} of ${recScopeCount}`);
+      }
+      return out;
+    };
     text = `NETAPP TAM RECOMMENDATIONS REPORT
 Scope: ${scopeTitle}
 Date Generated: ${new Date().toISOString().split('T')[0]}
@@ -25081,7 +25108,7 @@ ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to l
         const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' (corrected from raw problem-rate)' : ''}`;
         const acctTag = multiAcct && r.accountId ? ` [${scopeAcctLabels[r.accountId] || r.accountId}]` : '';
         return `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}${acctTag}Score: ${scoreLabel}
-   ${stripTags(r.recommendation)}`;
+   ${rescopeCount(r.recommendation, effectiveScore)}`;
       }).join('\n\n');
   }).join('\n\n\n')}`;
   } else if (index === 19) {

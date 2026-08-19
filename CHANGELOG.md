@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.13] - 2026-08-19
+
+### Fixed
+- **Best Practices recommendation checks all showed the same fabricated fail count.** The "N of your systems" rescoping fell back to a category-wide risk count whenever a recommendation's subCategory didn't exactly match a risk subCategory string — true for every Best Practices check — so every card in that category showed the same count (e.g. "162 of your 171") regardless of its own, very different score. Now derived directly from the already-normalized health score, exact by construction. Fixed identically across the on-screen tab, the Section 12 TXT export, and the QBR Pack deliverable.
+- **A recommendation with a genuine 0% problem rate displayed as "Score: 0%"** (reading as total failure) instead of the correct 100% all-clear.
+
+---
+
 ## [5.6.12] - 2026-08-19
 
 ### Fixed
