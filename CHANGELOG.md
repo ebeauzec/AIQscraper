@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.28] - 2026-08-19
+
+### Fixed
+- **5 more fabricated-value bugs**, found via a dedicated, full 30,911-line audit of `app.js` (8 parallel review passes) triggered by the fabricated TAM Recommendations counts fixed in 5.6.27:
+  1. **AutoSupport status silently defaulted to a fabricated "healthy" reading** at 5 call sites (SAM tab, TAM Success Plan, `compileExtendedDeliverables`, Action Planner's AutoSupport Executive Summary) when a system's real telemetry was missing — now correctly shows "Not Reported by Active IQ".
+  2. **CSM tab's MEDDPICC Quick-View panel was entirely hardcoded fictional text** ("Sales Rep: John Smith", "Champion: Jane Doe", "3 CVEs") shown identically for whatever customer was selected — every line is now computed from the real selected systems; fields with no source in Active IQ data are labeled "Not tracked" instead of invented.
+  3. **E-Series Hardware Audit fabricated a full controller/disk inventory** with randomized-on-every-render wear-life percentages for any E-Series system, live or mock, with no gating — now mock-only; live systems show the existing honest "No hardware details available" message.
+  4. **SVM Security Audit hardcoded "✓ Secure (TLS)"** for every system regardless of actual configuration — now "Not Reported by Active IQ".
+  5. **SVM SMBv1/audit-logging/NFS-superuser checks were hardcoded to always read as compliant**, so they could structurally never surface a real finding, and protocol detection fabricated `["NFS","CIFS"]` directly contradicting its own "avoid fabricating protocols" comment — both now show "Not Reported"/"Unknown" instead of a false-positive "Secure".
+
+  All findings verified live against real harvested data before fixing.
+
+---
+
 ## [5.6.27] - 2026-08-19
 
 ### Fixed

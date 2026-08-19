@@ -27,9 +27,31 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.27";
+const APP_VERSION = "5.6.28";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.28",
+    date: "19 August 2026",
+    title: "Fixed: 5 More Fabricated-Value Bugs Found in a Full 30,000-Line Sweep",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Fabricated/Hardcoded Values Displayed as Real Measurements",
+        color: "#f87171",
+        items: [
+          "AutoSupport status silently defaulted to a fabricated \"enabled, healthy, last received 1 day ago\" reading at 5 separate call sites (SAM tab aggregate and single-system view, TAM Success Plan, compileExtendedDeliverables, and the Action Planner's AutoSupport Executive Summary) whenever a system's autosupport field was missing -- reporting the BEST possible status for a system we had zero telemetry for. All 5 now share one helper and correctly render 'Not Reported by Active IQ' instead of a fabricated green 'Healthy' badge",
+          "CSM tab's MEDDPICC Quick-View panel was entirely hardcoded fictional template text (\"Sales Rep: John Smith\", \"Champion: Jane Doe\", \"3 CVEs, 2 EOSA systems\", etc.) shown identically for whatever customer was selected, right next to the genuinely-computed Account Health Score. Every line is now computed from the actual selected systems (real sales rep name, data reduction ratio, TB saved, feature adoption count, critical risk count, contracts expiring, CVE bulletin count, EOS system count, aggregate case health, refresh candidates); fields with no real source in Active IQ data (a named deal \"champion\" contact) are labeled 'Not tracked in Active IQ' instead of invented",
+          "E-Series Hardware Audit fabricated a full controller/shelf/disk inventory (controller status 'Optimal', battery status, cache size, NVSRAM part numbers, and per-disk wear-life percentages that RE-RANDOMIZED on every render) for any E-Series system, live or mock, with no gating at all. Now only synthesizes this for the intentional mock-data path; live E-Series systems correctly show the existing honest 'No hardware details available' message instead",
+          "SVM Security Audit hardcoded '✓ Secure (TLSv1.2, TLSv1.3 only)' for Management Port Security on every system regardless of actual configuration -- not derived from any field. Now shows 'Not Reported by Active IQ' with guidance to verify manually",
+          "SVM SMBv1 status, audit logging status, and NFS export superuser mapping were hardcoded to always read as compliant (smb1Enabled defaulted to false, auditLogging defaulted to a string that could never match \"Disabled\") -- these checklist rows could structurally never surface a real finding no matter the SVM's actual config. Now explicitly unknown, and the checklist shows 'Not Reported by Active IQ' instead of a false '✓ Secure'",
+          "SVM protocol detection had a comment reading \"show NONE marker to avoid fabricating protocols\" directly above code doing the opposite -- pushing [\"NFS\", \"CIFS\"] whenever LIF-name heuristics found no real hint. Now leaves the protocol list empty in that case, and the UI shows 'Not Reported' instead of two guessed protocols",
+          "ASA r2 systems with no computable Storage Availability Zone data showed NetApp's marketed '4:1 efficiency SLA' as the Efficiency Ratio field value, indistinguishable from a measured ratio. Now shows 'N/A'; the SLA claim remains visible separately via the existing platform note",
+          "Found via a dedicated, full 30,911-line line-by-line audit of app.js run across 8 parallel review passes after a user-reported fabricated 'X of Y systems' count in TAM Recommendations (fixed in 5.6.27) raised the question of what else might be fabricated. All findings verified live against real harvested data before fixing"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.27",
     date: "19 August 2026",
@@ -11419,17 +11441,19 @@ function renderSAMTab() {
     `;
 
     // 3.5 AutoSupport aggregate
-    let asupHealthy = 0, asupFailed = 0, asupDisabled = 0;
+    let asupHealthy = 0, asupFailed = 0, asupDisabled = 0, asupUnknown = 0;
     targetSAMSystems.forEach(s => {
-      const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
-      if (!asup.enabled) asupDisabled++;
+      const asup = _realAutosupportStatus(s);
+      if (asup.unknown) asupUnknown++;
+      else if (!asup.enabled) asupDisabled++;
       else if (asup.status === "failed" || asup.lastReceivedDays > 7) asupFailed++;
       else asupHealthy++;
     });
     let asupBadge = `<span class="badge normal">Healthy</span>`;
     if (asupFailed > 0) asupBadge = `<span class="badge critical">${asupFailed} Failed</span>`;
     else if (asupDisabled > 0) asupBadge = `<span class="badge warning">${asupDisabled} Disabled</span>`;
-    
+    else if (asupUnknown > 0 && asupHealthy === 0) asupBadge = `<span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;">Not Reported</span>`;
+
     document.getElementById("samAutoSupportCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <h4 style="font-size: 0.9rem; color: var(--text-secondary);">AutoSupport Status</h4>
@@ -11442,6 +11466,7 @@ function renderSAMTab() {
         <span style="color: var(--status-normal);">Healthy: ${asupHealthy} nodes</span>
         <span style="color: var(--status-warning);">Stopped/Failed: ${asupFailed} nodes</span>
         <span style="color: var(--status-critical);">Disabled: ${asupDisabled} nodes</span>
+        ${asupUnknown > 0 ? `<span style="color: var(--text-muted);">Not Reported by Active IQ: ${asupUnknown} nodes</span>` : ''}
       </div>
     `;
 
@@ -11793,10 +11818,13 @@ function renderSAMTab() {
   }
 
   // AutoSupport Details
-  const asup = sys.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+  const asup = _realAutosupportStatus(sys);
   let asupBadge = `<span class="badge normal">Healthy</span>`;
   let asupColor = "var(--status-normal)";
-  if (!asup.enabled) {
+  if (asup.unknown) {
+    asupBadge = `<span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;">Not Reported</span>`;
+    asupColor = "var(--text-muted)";
+  } else if (!asup.enabled) {
     asupBadge = `<span class="badge critical">Disabled</span>`;
     asupColor = "var(--status-critical)";
   } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
@@ -11810,10 +11838,10 @@ function renderSAMTab() {
       ${asupBadge}
     </div>
     <div style="font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; color: ${asupColor};">
-      ${asup.enabled ? (asup.status === 'failed' ? 'Connection Failed' : 'Telemetry Active') : 'Disabled'}
+      ${asup.unknown ? 'Not Reported by Active IQ' : (asup.enabled ? (asup.status === 'failed' ? 'Connection Failed' : 'Telemetry Active') : 'Disabled')}
     </div>
     <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 4px;">
-      Last Received: <strong>${asup.lastReceivedDays !== null ? `${asup.lastReceivedDays} days ago` : 'Never'}</strong>
+      Last Received: <strong>${asup.lastReceivedDays != null ? `${asup.lastReceivedDays} days ago` : (asup.unknown ? 'No telemetry reported' : 'Never')}</strong>
     </div>
     <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; max-height: 38px;" title="${asup.failureReason || 'None'}">
       ${asup.failureReason || 'None'}
@@ -12274,6 +12302,31 @@ function renderCSMTab() {
     const healthGrade = getHealthGrade(healthScore);
     const healthColor = healthScore >= 80 ? '#22c55e' : healthScore >= 65 ? '#f59e0b' : '#ef4444';
 
+    // ── MEDDPICC Quick-View: real, scope-computed values ──────────────────
+    // This panel used to be entirely hardcoded template strings ("John Smith",
+    // "Jane Doe", "3 CVEs", etc.) shown identically for whatever customer was
+    // selected -- not derived from targetCSMSystems at all. Every line below
+    // is now computed from the actual scoped systems; fields with no real
+    // source in the Active IQ data (economic-buyer propensity, a named
+    // "champion" contact) are labeled "Not tracked in Active IQ" instead of
+    // being fabricated.
+    const _mAvgDR = (() => {
+      const ratios = targetCSMSystems.map(s => s.efficiency && s.efficiency.dataReductionRatio).filter(r => r != null && r > 0);
+      return ratios.length ? (ratios.reduce((a, b) => a + b, 0) / ratios.length).toFixed(1) : null;
+    })();
+    const _mTbSaved = targetCSMSystems.reduce((sum, s) => sum + ((s.efficiency && s.efficiency.spaceSavedTB) || 0), 0);
+    const _mSalesReps = [...new Set(targetCSMSystems.map(s => s.salesRepName).filter(Boolean))];
+    const _mFeat = computeFleetFeatureMatrix(targetCSMSystems);
+    const _mAdoptScore = _mFeat.perSystem.reduce((s, p) => s + p.score, 0);
+    const _mAdoptTotal = _mFeat.perSystem.reduce((s, p) => s + p.total, 0);
+    const _mCritRisks = targetCSMSystems.reduce((sum, s) => sum + (s.risks || []).filter(r => (r.severity || '').toLowerCase() === 'critical').length, 0);
+    const _mExpiring90 = targetCSMSystems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90).length;
+    const _mCveCount = targetCSMSystems.reduce((sum, s) => sum + (s.securityBulletins || []).filter(b => /CVE-[0-9]{4}-[0-9]+/.test(b.description || b.cve || '')).length, 0);
+    const _mEosaCount = _realRecommendationCount('EOS_AND_PLAT_AND_HW', targetCSMSystems) || 0;
+    const _mAllCases = targetCSMSystems.reduce((arr, s) => arr.concat(s.supportCases || []), []);
+    const _mCaseHealth = computeSupportCaseHealth({ supportCases: _mAllCases });
+    const _mRefreshCandidates = targetCSMSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
+
     const _healthEl = document.getElementById("csmHealthScoreCard");
     if (_healthEl) _healthEl.innerHTML = `
       <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
@@ -12286,16 +12339,16 @@ function renderCSMTab() {
         </div>
         <div style="flex: 1;">
           <details style="cursor: pointer;">
-            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="MEDDPICC sales qualification framework: Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Implicate Pain, Champion, Competition. Each element maps to a dimension of deal intelligence for TAM account planning.">MEDDPICC Quick-View</summary>
+            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="MEDDPICC sales qualification framework: Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Implicate Pain, Champion, Competition. Each element maps to a dimension of deal intelligence for TAM account planning. Values below are computed from the ${targetCSMSystems.length} selected system(s); fields with no source in Active IQ data are labeled as such rather than invented.">MEDDPICC Quick-View</summary>
             <div style="margin-top: 12px; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:     Health 87/100, DR 3.2:1, 42.5 TB saved</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Econ Buyer:  Sales Rep: John Smith, Propensity: Expansion</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Criteria:    Adoption 12/15 (80%), OS Current 14/16</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Process:     3 critical items &rarr; Phase 1 priority</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Paper:       2 contracts expiring &lt;90d, 1 co-term opportunity</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Pain:        Score 45 &mdash; 3 CVEs, 2 EOSA systems</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Champion:    Jane Doe (Case Health 8.5/10)</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Competition: 4 systems flagged for refresh</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:     Health ${healthScore}/100${_mAvgDR ? `, DR ${_mAvgDR}:1` : ''}, ${_mTbSaved.toFixed(1)} TB saved</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Econ Buyer:  ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Not set in Active IQ'}</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Criteria:    Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''}</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Process:     ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Paper:       ${_mExpiring90} contract${_mExpiring90 !== 1 ? 's' : ''} expiring &lt;90d</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Pain:        ${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''}, ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''}</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Champion:    Not tracked in Active IQ (Case Health ${_mCaseHealth.score.toFixed(1)}/10)</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Competition: ${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh</span></div>
             </div>
           </details>
         </div>
@@ -15482,9 +15535,16 @@ function enrichSystemTelemetry(s) {
     clusterRawCapacityTB:     s.clusterRawCapacityTB     || 0,
     // ── E-Series Hardware Audit ──
     // Active IQ GraphQL does not expose controller/shelf/disk detail for E-Series.
-    // Synthesize a representative structure from model + version so the SANtricity
-    // Hardware Health Audit panel renders useful context instead of "No hardware details".
-    eseriesHardware: s.eseriesHardware || (isEseries ? (function() {
+    // This used to synthesize a FAKE controller/shelf/disk structure (hardcoded
+    // "Optimal" status, randomized-on-every-render Math.random() disk wear-life,
+    // invented NVSRAM part numbers) for ANY E-Series system, live or mock, with no
+    // isLiveData gate -- indistinguishable from real per-component telemetry pulled
+    // from the API. Confirmed live: this ran unconditionally for real customer
+    // E-Series systems. Only synthesize this for the intentional mock-data path;
+    // for live systems, leave it undefined so renderEseriesHardwareAudit() shows
+    // its existing, honest "No hardware details available for this system"
+    // fallback instead of fabricated hardware health.
+    eseriesHardware: s.eseriesHardware || (isEseries && !isLiveData ? (function() {
       const _m = model.toUpperCase();
       // Determine controller shelf model and drive type from platform
       let shelfModel = _m + ' Controller Shelf';
@@ -18082,9 +18142,11 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   // ── AutoSupport issues ──
   const asupIssues = [];
   targetSystems.forEach(s => {
-    const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
+    const asup = _realAutosupportStatus(s);
     const sysNameModel = `${s.systemName} (${s.platform || s.model || ''})`;
-    if (!asup.enabled) {
+    if (asup.unknown) {
+      asupIssues.push({ name: sysNameModel, issue: "AutoSupport Not Reported", detail: "Active IQ did not return AutoSupport telemetry for this system -- status unverified, not confirmed healthy." });
+    } else if (!asup.enabled) {
       asupIssues.push({ name: sysNameModel, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
       asupIssues.push({ name: sysNameModel, issue: "AutoSupport Stale", detail: `No telemetry for ${asup.lastReceivedDays} days. Verify HTTPS (443) to support.netapp.com.` });
@@ -20327,8 +20389,10 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   // Parse AutoSupport issues
   const asupIssues = [];
   targetSystems.forEach(s => {
-    const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
-     if (!asup.enabled) {
+    const asup = _realAutosupportStatus(s);
+    if (asup.unknown) {
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Not Reported", detail: "Active IQ did not return AutoSupport telemetry for this system -- status unverified, not confirmed healthy." });
+    } else if (!asup.enabled) {
       asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled intentionally." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
       asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Connection Failed", detail: `No telemetry for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify HTTPS (443) to support.netapp.com."}` });
@@ -21802,6 +21866,21 @@ function _resolveRecommendationScore(r) {
 // different percentages because BOTH accounts' full-fleet recommendations were
 // being shown, unfiltered, for every customer/scope regardless of which account
 // that customer's systems actually belong to.
+// Systems without a populated `autosupport` field (harvester didn't return
+// telemetry for that specific system) used to fall back to a hardcoded
+// { enabled: true, status: "healthy", lastReceivedDays: 1 } object at 5
+// separate call sites -- silently reporting the BEST possible AutoSupport
+// status for a system we actually have zero telemetry for, the opposite of
+// what "no data" should mean for a connectivity check. Confirmed live: this
+// ran unconditionally in the live-data path with no isLiveData gate. Every
+// caller now goes through this shared helper instead, which returns an
+// explicit unknown=true marker so callers can render "Not Reported" rather
+// than a fabricated green "Healthy" badge.
+function _realAutosupportStatus(s) {
+  if (s && s.autosupport) return s.autosupport;
+  return { enabled: false, status: 'unknown', lastReceivedDays: null, unknown: true };
+}
+
 // Real, per-system counts for the handful of TAM Recommendation checks we
 // actually have per-system source data for. See _renderRecommendationsSection's
 // rescopeText comment for the full rationale: Active IQ scores these checks
@@ -24160,9 +24239,19 @@ function generateActionPlan() {
   // Helper to compile AutoSupport verification sub-sections in Action Plan
   function renderAutoSupportExecutiveSummary(systems) {
     const issues = [];
+    let unknownCount = 0;
     systems.forEach(s => {
-      const asup = s.autosupport || { enabled: true, status: "healthy", lastReceivedDays: 1 };
-      if (!asup.enabled) {
+      const asup = _realAutosupportStatus(s);
+      if (asup.unknown) {
+        unknownCount++;
+        issues.push({
+          name: s.systemName,
+          serial: s.serialNumber,
+          model: s.platform || '',
+          type: "Not Reported",
+          detail: "Active IQ did not return AutoSupport telemetry for this system -- status unverified, not confirmed healthy."
+        });
+      } else if (!asup.enabled) {
         issues.push({
           name: s.systemName,
           serial: s.serialNumber,
@@ -28734,10 +28823,11 @@ function getSystemSvms(sys) {
         if (hasIscsiHint || vName.includes("iscsi") || vName.includes("san") || subType.includes("san")) protocols.push("iSCSI");
         if (hasFcpHint || vName.includes("fcp")) protocols.push("FCP");
         if (hasS3Hint || vName.includes("s3")) protocols.push("S3");
-        // If still nothing, show NONE marker to avoid fabricating protocols
-        if (protocols.length === 0 && lifCount > 0) {
-          protocols.push("NFS", "CIFS");
-        }
+        // If still nothing, leave protocols empty -- consumers must render
+        // "Not Reported" rather than a guessed protocol list. This used to
+        // push ["NFS", "CIFS"] here, directly contradicting this comment,
+        // whenever LIF-name heuristics found no hint at all -- fabricating
+        // exactly the two protocols it claimed to avoid inventing.
       }
       // Remove 'NONE' entries from API (management-only LIFs report protocol=NONE)
       protocols = protocols.filter(p => p !== "NONE");
@@ -28771,10 +28861,15 @@ function getSystemSvms(sys) {
 
       const migratedCount = lifDetails.filter(l => !l.isHomed).length;
 
-      // Derive security settings from protocol mix — conservative defaults
-      // (real security posture requires ONTAP CLI audit, not available via AIQ API)
-      const hasCifs = protocols.includes("CIFS");
-      const hasNfs  = protocols.includes("NFS");
+      // Real security posture (SMBv1 status, audit logging, NFS superuser
+      // mapping) requires an ONTAP CLI audit and is NOT exposed via the
+      // Active IQ API. This used to default smb1Enabled to `false` ("assume
+      // compliant") -- a hardcoded value indistinguishable from a real
+      // "checked and confirmed disabled" measurement, which meant the SMBv1
+      // and audit-logging checklist rows in renderSvmSecurityAudit() could
+      // never surface a real finding no matter the SVM's actual config.
+      // Use null/"unknown" explicitly so consumers render "Not Reported"
+      // instead of a false "✓ Secure".
       return {
         name: v.name,
         status: "running",
@@ -28785,10 +28880,10 @@ function getSystemSvms(sys) {
         migratedLifs: migratedCount,
         svmType: (v.type || "").toUpperCase(),
         securitySettings: {
-          smb1Enabled: false,        // Cannot determine from API — assume compliant
-          smbEncryption: hasCifs ? "Unknown" : "N/A",
-          nfsExportSuperuser: hasNfs ? "unknown" : "N/A",
-          auditLogging: "Unknown"    // Cannot determine from API
+          smb1Enabled: null,          // unknown -- not exposed via AIQ API
+          smbEncryption: "Unknown",   // unknown -- not exposed via AIQ API
+          nfsExportSuperuser: "unknown", // unknown -- not exposed via AIQ API
+          auditLogging: "Unknown"     // unknown -- not exposed via AIQ API
         }
       };
     });
@@ -29992,22 +30087,30 @@ function renderSvmSecurityAudit(sys) {
   let anyDisabledAudit = false;
   let totalMigratedLifs = 0;
 
+  let anyUnknownSecurity = false;
   svms.forEach(svm => {
     const isSmb1 = svm.securitySettings.smb1Enabled === true;
     const isInsecureNfs = svm.securitySettings.nfsExportSuperuser === "any_host";
     const isAuditDisabled = svm.securitySettings.auditLogging === "Disabled";
-    
+    const isUnknownSecurity = svm.securitySettings.smb1Enabled == null;
+
     if (isSmb1) anySmb1 = true;
     if (isInsecureNfs) anyInsecureNfs = true;
     if (isAuditDisabled) anyDisabledAudit = true;
+    if (isUnknownSecurity) anyUnknownSecurity = true;
     totalMigratedLifs += (svm.migratedLifs || 0);
 
-    // Security Status badge
-    let secStatusBadge = `<span class="badge info" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.25); color: var(--status-normal);">✓ Secure</span>`;
+    // Security Status badge -- "Secure" requires a real measurement, not the
+    // absence of one. If SMBv1/audit posture is unreported (the normal case,
+    // since the AIQ API doesn't expose it), show "Not Reported" instead of a
+    // false-positive "✓ Secure".
+    let secStatusBadge = `<span class="badge" style="background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.25); color: #94a3b8;">Not Reported</span>`;
     if (isSmb1 || isInsecureNfs) {
       secStatusBadge = `<span class="badge critical" style="background: rgba(255, 51, 102, 0.08); border-color: rgba(255, 51, 102, 0.25); color: var(--status-critical);">✗ At Risk</span>`;
     } else if (isAuditDisabled) {
       secStatusBadge = `<span class="badge warning" style="background: rgba(255, 152, 0, 0.08); border-color: rgba(255, 152, 0, 0.25); color: var(--status-warning);">⚠️ Warning</span>`;
+    } else if (!isUnknownSecurity) {
+      secStatusBadge = `<span class="badge info" style="background: rgba(0, 230, 118, 0.08); border-color: rgba(0, 230, 118, 0.25); color: var(--status-normal);">✓ Secure</span>`;
     }
 
     // Migrated LIFs badge
@@ -30016,14 +30119,14 @@ function renderSvmSecurityAudit(sys) {
       : `<span style="color: var(--status-normal); font-size: 0.72rem;">✓ 0</span>`;
 
     // Protocol label list
-    const protoBadges = svm.protocols.map(p => {
+    const protoBadges = svm.protocols.length > 0 ? svm.protocols.map(p => {
       let color = "var(--accent-cyan)";
       if (p === "NFS") color = "#3b82f6";
       if (p === "CIFS") color = "#10b981";
       if (p === "iSCSI") color = "#f59e0b";
       if (p === "FCP") color = "#eab308";
       return `<span style="background: rgba(255,255,255,0.05); color: ${color}; border: 1px solid rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; margin-right: 4px; font-family: monospace;">${p}</span>`;
-    }).join("");
+    }).join("") : `<span style="color: var(--text-muted); font-size: 0.72rem;">Not Reported</span>`;
 
     svmRowsHtml += `
       <tr style="border-bottom: 1px solid var(--border-color);">
@@ -30043,17 +30146,26 @@ function renderSvmSecurityAudit(sys) {
     `;
   });
 
-  // Build Protocol Hardening Compliance Ticks
+  // Build Protocol Hardening Compliance Ticks. SMBv1/audit posture is not
+  // exposed via the Active IQ API -- when unreported, show that honestly
+  // instead of a default "✓ Secure" that would look identical to a real
+  // measurement confirming the setting is actually disabled.
   const smb1StatusHtml = anySmb1
     ? `<span style="color: var(--status-critical); font-weight: 700;">✗ At Risk (SMB1 Enabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Ransomware vulnerability. Remediation: Run <code>vserver cifs options modify -vserver &lt;svm&gt; -smb1-enabled false</code></div>`
+    : anyUnknownSecurity
+    ? `<span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SMBv1 status is not exposed via the Active IQ API. Verify manually with <code>vserver cifs options show -fields smb1-enabled</code>.</div>`
     : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (SMBv1 Disabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Enforces secure SMB2/SMB3 communication channels.</div>`;
 
   const nfsStatusHtml = anyInsecureNfs
     ? `<span style="color: var(--status-critical); font-weight: 700;">✗ At Risk (Superuser root mount allowed)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Anonymous hosts can claim root ownership. Remediation: Squash root (superuser=none) in export policy rules.</div>`
+    : anyUnknownSecurity
+    ? `<span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">NFS export superuser mapping is not exposed via the Active IQ API. Verify manually with <code>vserver export-policy rule show</code>.</div>`
     : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (NFS Export Controls)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">All NFS root mount superuser mappings are squashed or restricted.</div>`;
 
   const auditStatusHtml = anyDisabledAudit
     ? `<span style="color: var(--status-warning); font-weight: 600;">⚠️ Warning (Audit Logging Disabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Config changes and file access auditing are disabled. Enable auditing to meet audit compliance.</div>`
+    : anyUnknownSecurity
+    ? `<span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SVM audit logging status is not exposed via the Active IQ API. Verify manually with <code>vserver audit show</code>.</div>`
     : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (SVM Auditing Enabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SVM configuration changes are actively logged.</div>`;
 
   container.innerHTML = `
@@ -30084,26 +30196,26 @@ function renderSvmSecurityAudit(sys) {
         <h4 style="font-size: 0.82rem; font-weight: 700; color: #fff; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">Protocol Security Checklist</h4>
         
         <div style="display: flex; flex-direction: column; gap: 14px;">
-          <div style="border-left: 3px solid ${anySmb1 ? 'var(--status-critical)' : 'var(--status-normal)'}; padding-left: 10px;">
+          <div style="border-left: 3px solid ${anySmb1 ? 'var(--status-critical)' : (anyUnknownSecurity ? 'var(--text-muted)' : 'var(--status-normal)')}; padding-left: 10px;">
             <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">SMBv1 Protocol Status</div>
             <div style="font-size: 0.75rem; margin-top: 2px;">${smb1StatusHtml}</div>
           </div>
-          
-          <div style="border-left: 3px solid ${anyInsecureNfs ? 'var(--status-critical)' : 'var(--status-normal)'}; padding-left: 10px;">
+
+          <div style="border-left: 3px solid ${anyInsecureNfs ? 'var(--status-critical)' : (anyUnknownSecurity ? 'var(--text-muted)' : 'var(--status-normal)')}; padding-left: 10px;">
             <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">NFS Root Export Access</div>
             <div style="font-size: 0.75rem; margin-top: 2px;">${nfsStatusHtml}</div>
           </div>
 
-          <div style="border-left: 3px solid ${anyDisabledAudit ? 'var(--status-warning)' : 'var(--status-normal)'}; padding-left: 10px;">
+          <div style="border-left: 3px solid ${anyDisabledAudit ? 'var(--status-warning)' : (anyUnknownSecurity ? 'var(--text-muted)' : 'var(--status-normal)')}; padding-left: 10px;">
             <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">SVM Configuration Audit Logging</div>
             <div style="font-size: 0.75rem; margin-top: 2px;">${auditStatusHtml}</div>
           </div>
           
-          <div style="border-left: 3px solid var(--status-normal); padding-left: 10px;">
+          <div style="border-left: 3px solid var(--text-muted); padding-left: 10px;">
             <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">Management Port Security (SSL/TLS)</div>
             <div style="font-size: 0.75rem; margin-top: 2px;">
-              <span style="color: var(--status-normal); font-weight: 600;">✓ Secure (TLSv1.2, TLSv1.3 only)</span>
-              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Deprecated SSLv3 and TLSv1.0/1.1 protocols are disabled cluster-wide.</div>
+              <span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span>
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">TLS/SSL protocol configuration is not exposed via the Active IQ GraphQL API. Verify manually with <code>security config show</code>.</div>
             </div>
           </div>
 
