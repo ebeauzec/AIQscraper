@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.36] - 2026-08-19
+
+### Added
+- **Recent Activity digest on the Remediation Tracker.** The QBR Pack's "Prior Quarter Action Review" already answers "did last quarter's flagged items get resolved" — but only once a quarter. New "Recent Activity — Last 7 Days" card shows how many items were resolved, how many newly tracked, and how many went stale and crossed into SLA-breached without anyone touching them in over a week. Built entirely from data already on each tracked item — no new backend needed. Seventh and last of the planned operational additions from this session's audit.
+
+---
+
 ## [5.6.35] - 2026-08-19
 
 ### Added

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.35",
+  "version": "5.6.36",
   "major": 5,
   "minor": 6,
-  "patch": 35,
+  "patch": 36,
   "date": "2026-08-19",
-  "notes": "Added outbound webhook notifications. Everything in this tool was pull-based -- open the app, generate a report -- with no way to be told something changed without checking manually. New Settings card lets a TAM configure a Slack/Teams-compatible webhook URL with a test-send button. After every harvest, the server compares this account's fleet-wide critical risk count against the most recent prior day's snapshot and POSTs a summary only on a genuine increase (never a decrease or unchanged count), also reporting contracts newly within 30 days of expiring. Built entirely on stdlib urllib, no new dependency. The webhook URL is treated like a credential and never returned in plaintext. Verified live end-to-end with a local HTTP listener confirming real payload delivery, the Settings save/status flow, and clean error handling for an unreachable URL. Sixth of several planned operational additions -- this list is now largely complete."
+  "notes": "Added a Recent Activity digest to the Remediation Tracker. The QBR Pack's 'Prior Quarter Action Review' already answers 'did last quarter's flagged items get resolved' -- but only once a quarter. New 'Recent Activity - Last 7 Days' card shows how many items were resolved, how many newly tracked, and how many went stale and crossed into SLA-breached without anyone touching them in over a week. Built entirely from data already on each tracked item, no new backend needed. Verified live against real tracked items. Seventh and last of the planned operational additions from this session's audit."
 }

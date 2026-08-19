@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.35";
+const APP_VERSION = "5.6.36";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.36",
+    date: "19 August 2026",
+    title: "Added: Recent Activity Digest — an Always-On Version of the Quarterly Action Review",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Recent Activity Card on the Remediation Tracker",
+        color: "#22c55e",
+        items: [
+          "The QBR Pack's 'Prior Quarter Action Review' already answers 'did last quarter's flagged items get resolved' -- but only once a quarter. There was no lightweight, always-on version of the same question for the weeks in between",
+          "New 'Recent Activity — Last 7 Days' card on the Remediation Tracker tab: how many items were resolved, how many newly tracked, and how many went stale and crossed into SLA-breached without anyone touching them in over a week",
+          "Built entirely from data already on each tracked item (createdAt/updatedAt/status) -- no new backend endpoint, no new database table",
+          "Verified live: imported real findings, resolved one, and confirmed the digest correctly counted '1 resolved, 3 newly tracked, 0 stale' against real tracked items",
+          "Seventh and last of the planned operational additions from this session's audit (tracking, SLA policy, portfolio rollup, DR-test verification, trend dashboards, notifications, recent-activity digest)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.35",
     date: "19 August 2026",
@@ -28981,6 +29000,30 @@ function _trackerSlaBadge(item) {
   return `<span style="color:#22c55e;font-size:0.72rem;" title="Due in ${daysLeft} day(s)${suffix}">✓ On Track</span>`;
 }
 
+function renderTrackerRecentActivity() {
+  const card = document.getElementById('trackerActivityCard');
+  if (!card) return;
+  const cutoff = Date.now() - 7 * 86400000;
+  const newlyOpened = state.trackerItems.filter(i => new Date(i.createdAt).getTime() >= cutoff);
+  const resolvedRecently = state.trackerItems.filter(i => i.status === 'resolved' && new Date(i.updatedAt).getTime() >= cutoff);
+  const newlyBreached = state.trackerItems.filter(i => _trackerIsOverdue(i) && new Date(i.updatedAt).getTime() < cutoff);
+
+  if (state.trackerItems.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  card.innerHTML = `
+    <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 10px;">Recent Activity — Last 7 Days</div>
+    <div style="display: flex; gap: 28px; flex-wrap: wrap; font-size: 0.85rem;">
+      <div><span style="color:#22c55e;font-weight:700;font-size:1.1rem;">${resolvedRecently.length}</span> <span style="color:var(--text-secondary);">resolved</span></div>
+      <div><span style="color:#f59e0b;font-weight:700;font-size:1.1rem;">${newlyOpened.length}</span> <span style="color:var(--text-secondary);">newly tracked</span></div>
+      <div><span style="color:#ef4444;font-weight:700;font-size:1.1rem;">${newlyBreached.length}</span> <span style="color:var(--text-secondary);">stale &amp; now SLA-breached (no update in 7+ days)</span></div>
+    </div>
+    ${resolvedRecently.length === 0 && newlyOpened.length === 0 ? '<div style="color:var(--text-muted);font-size:0.78rem;margin-top:6px;">No activity in the last 7 days -- nothing new tracked, nothing resolved. Re-run "Import Findings Into Tracker" after your next sync to catch newly-appeared risks.</div>' : ''}
+  `;
+}
+
 function renderTrackerTab() {
   const body = document.getElementById('trackerTableBody');
   const kpiRow = document.getElementById('trackerKpiRow');
@@ -29005,6 +29048,14 @@ function renderTrackerTab() {
     if (customerFilter && i.customerName !== customerFilter) return false;
     return true;
   });
+
+  // ── Recent Activity (last 7 days) ──────────────────────────────────────
+  // QBR's "Prior Quarter Action Review" already answers "did last quarter's
+  // items get resolved," but only once a quarter. This is the always-on,
+  // lightweight version of the same question -- "what actually changed
+  // recently" -- built entirely from data already on each tracked item
+  // (createdAt/updatedAt/status), no new backend needed.
+  renderTrackerRecentActivity();
 
   // KPI row
   const openCount = state.trackerItems.filter(i => i.status === 'open').length;
