@@ -27,9 +27,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.23";
+const APP_VERSION = "5.6.24";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.24",
+    date: "19 August 2026",
+    title: "MetroCluster Health Extended to the Action Planner and Deliverables",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: MetroCluster Section No Longer Hides When the Fleet Is Healthy",
+        color: "#2dd4bf",
+        items: [
+          "The Action Planner's MetroCluster Infrastructure Health widget was gated behind having active MC findings (mcRisks.length > 0) -- same gap just fixed in Technical Audit -- so a fleet with real MetroCluster systems but zero findings showed nothing MC-specific at all",
+          "Now gates on the real isMetroCluster field instead, and always shows MC node count, Mediator status, and AUSO status -- including a clean 'no MetroCluster-specific findings detected' state instead of disappearing entirely",
+          "Verified live against 8 real MetroCluster systems with no active findings: the section now correctly renders 'MetroCluster system(s) in scope — no MetroCluster-specific findings detected'"
+        ]
+      },
+      {
+        icon: "✨",
+        label: "New: MetroCluster Health Line in QBR Pack and Security Brief Deliverables",
+        color: "#2dd4bf",
+        items: [
+          "computeFleetDRSummary() (used throughout the deliverables) now also returns mcMediatorIssues and mcAusoDisabled, so any deliverable already showing DR Coverage can report real MetroCluster health, not just a bare node count",
+          "Added a 'MetroCluster Health: Mediator [OK/UNREACHABLE] | AUSO [ENABLED/DISABLED]' line to the QBR Pack and Security Brief's existing Data Protection & DR Posture sections whenever MetroCluster systems are in scope",
+          "Verified live: QBR Pack for the real MetroCluster fleet now includes 'MetroCluster Health: Mediator OK | AUSO ENABLED'"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.23",
     date: "19 August 2026",
@@ -18738,7 +18765,8 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverag
   SnapMirror Relations:  ${dr.smRelCount} (${dr.smSync} Sync, ${dr.smAsync} Async)
   HA Configured:         ${dr.haSystems}/${total}
   Unprotected Systems:   ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems have DR coverage'}
-  RPO Warnings:          ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' — lag ' + w.lag).join('; ') : 'None — replication within SLA'}`; })()}
+  RPO Warnings:          ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' — lag ' + w.lag).join('; ') : 'None — replication within SLA'}${dr.mcSystems > 0 ? `
+  MetroCluster Health:   Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}`; })()}
 
 --------------------------------------------------------------------------------
 8. CAPACITY FORECAST & GROWTH [MEDDPICC: I]
@@ -19756,7 +19784,8 @@ ${compileSvmLifInventoryText(targetSystems)}
   ────────────────────────────────────────────────────────────────────────────
     DR Coverage:       ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)
     Unprotected:       ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems protected'}
-    RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}
+    RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}${dr.mcSystems > 0 ? `
+    MetroCluster:      Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}
 
   7. SECURITY ACTIONS
   ────────────────────────────────────────────────────────────────────────────
@@ -19910,6 +19939,20 @@ function computeFleetDRSummary(targetSystems) {
   let mcSystems = 0, syncMirrorSystems = 0, haSystems = 0;
   const unprotected = [];
   const lagWarnings = [];
+  // MetroCluster health signals (Mediator/AUSO), same detection used by the
+  // Action Planner and Technical Audit MC widgets -- surfaced here too so
+  // deliverables reading computeFleetDRSummary() can report real MC health,
+  // not just a bare node count.
+  const mcMediatorIssues = [];
+  const mcAusoDisabled = [];
+  targetSystems.forEach(s => {
+    if (!s.isMetroCluster) return;
+    (s.risks || []).forEach(r => {
+      const desc = (r.description || r.shortName || '').toLowerCase();
+      if (desc.includes('mediator unreachable')) mcMediatorIssues.push(s.systemName || s.serialNumber);
+      if (desc.includes('mauso disabled')) mcAusoDisabled.push(s.systemName || s.serialNumber);
+    });
+  });
   targetSystems.forEach(s => {
     const sm = s.snapmirror || {};
     const smCount = sm.totalCount || s.snapMirrorCount || s.snapmirrorCount || 0;
@@ -19943,6 +19986,8 @@ function computeFleetDRSummary(targetSystems) {
     smSystems, smRelCount, smAsync, smSync,
     mcSystems, syncMirrorSystems, haSystems,
     unprotected, lagWarnings,
+    mcMediatorIssues: [...new Set(mcMediatorIssues)],
+    mcAusoDisabled: [...new Set(mcAusoDisabled)],
     drCoveragePct: total > 0 ? Math.round((smSystems + mcSystems) / total * 100) : 0,
     haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0
   };
@@ -23974,12 +24019,18 @@ function generateActionPlan() {
   allRisks.sort(bySev);
   allSecurityAdvisories.sort(bySev);
 
-  // Extract MetroCluster risks for dedicated MC health reporting
+  // Extract MetroCluster risks for dedicated MC health reporting.
+  // mcConfiguredSystems (real isMetroCluster field) is the gate for whether
+  // this section shows at all -- mcSystems (derived from findings) used to
+  // BE that gate, which meant a perfectly healthy MC pair with zero findings
+  // showed nothing MC-specific anywhere in the Action Planner. Now the
+  // section always shows for any MC fleet, with a clean all-clear state.
+  const mcConfiguredSystems = [...new Set(targetSystems.filter(s => s.isMetroCluster).map(s => s.systemName))];
   const mcRisks = allRisks.filter(r => {
     const cat = (r.category || '').toLowerCase();
     const desc = (r.description || r.shortName || '').toLowerCase();
-    return cat === 'metrocluster' || cat.includes('metrocluster') || 
-           desc.includes('mc-med') || desc.includes('mauso') || 
+    return cat === 'metrocluster' || cat.includes('metrocluster') ||
+           desc.includes('mc-med') || desc.includes('mauso') ||
            desc.includes('metrocluster') || desc.includes('mediator');
   });
   const mcSystems = [...new Set(mcRisks.map(r => r.systemName))];
@@ -24181,7 +24232,7 @@ function generateActionPlan() {
           </div>
         </div>
 
-        ${mcRisks.length > 0 ? `
+        ${mcConfiguredSystems.length > 0 ? `
         <!-- MetroCluster Health Section -->
         <div style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.06), rgba(255, 87, 34, 0.04)); border: 1px solid rgba(255, 152, 0, 0.3); padding: 20px; border-radius: var(--radius-sm); margin-top: 20px;">
           <h3 style="font-size: 0.95rem; margin: 0 0 12px 0; color: #ff9800; display: flex; align-items: center; gap: 8px;">
@@ -24190,12 +24241,12 @@ function generateActionPlan() {
           </h3>
           <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.5;">
             MetroCluster provides continuous data availability through synchronous replication across geographically separated sites.
-            <strong>${mcSystems.length}</strong> system(s) have MetroCluster-related findings requiring attention.
+            <strong>${mcConfiguredSystems.length}</strong> MetroCluster system(s) in scope${mcSystems.length > 0 ? `, <strong>${mcSystems.length}</strong> with findings requiring attention` : ' — no MetroCluster-specific findings detected'}.
           </p>
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
             <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${mcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'}">
               <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">MC Findings</div>
-              <div style="font-size: 1.2rem; font-weight: 700; color: #ff9800;">${mcRisks.length}${mcSystems.length > 1 ? ` <span style="font-size:0.6rem; font-weight:400; color:var(--text-muted);">(${mcSystems.length} pairs)</span>` : ''}</div>
+              <div style="font-size: 1.2rem; font-weight: 700; color: #ff9800;">${mcRisks.length}${mcConfiguredSystems.length > 1 ? ` <span style="font-size:0.6rem; font-weight:400; color:var(--text-muted);">(${mcConfiguredSystems.length} nodes)</span>` : ''}</div>
             </div>
             <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); text-align: center; border-left: 3px solid ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'}" title="${hasMediatorIssue ? _esc(mcMediatorSystems.join(', ')) : ''}">
               <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Mediator</div>
@@ -24214,7 +24265,7 @@ function generateActionPlan() {
             </div>
           </div>
           <div style="font-size: 0.78rem; color: var(--text-muted);">
-            Affected systems: <strong>${mcSystems.join(', ') || 'N/A'}</strong>
+            MetroCluster systems in scope: <strong>${mcConfiguredSystems.join(', ') || 'N/A'}</strong>${mcSystems.length > 0 ? `<br>Affected by findings: <strong style="color:#ff9800;">${mcSystems.join(', ')}</strong>` : ''}
           </div>
         </div>
         ` : ''}

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.24] - 2026-08-19
+
+### Added
+- **MetroCluster Health line in the QBR Pack and Security Brief deliverables.** `computeFleetDRSummary()` now also returns `mcMediatorIssues`/`mcAusoDisabled`, surfaced as a "MetroCluster Health: Mediator [status] | AUSO [status]" line in the existing Data Protection & DR Posture sections whenever MC systems are in scope.
+
+### Changed
+- **Action Planner's MetroCluster Infrastructure Health widget no longer hides when the fleet is healthy.** Was gated on having active MC findings — the same gap just fixed in Technical Audit. Now gates on the real `isMetroCluster` field and always shows MC node count, Mediator status, and AUSO status, including a clean all-clear state.
+
+---
+
 ## [5.6.23] - 2026-08-19
 
 ### Added

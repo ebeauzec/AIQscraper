@@ -1,8 +1,8 @@
 {
-  "version": "5.6.23",
+  "version": "5.6.24",
   "major": 5,
   "minor": 6,
-  "patch": 23,
+  "patch": 24,
   "date": "2026-08-19",
-  "notes": "MetroCluster systems were previously indistinguishable from normal clusters anywhere in Technical Audit -- isMetroCluster is a real, reliably-populated field, but nothing surfaced it. Added an amber METROCLUSTER badge to the system header, multi-select dropdown, and selected-systems summary. Added a dedicated MetroCluster Configuration & DR Health card (MC node count, Mediator status, AUSO status, MC-specific findings) that always renders for MC systems -- previously this info only existed in the Action Planner's executive summary and only appeared when there were active findings, so a healthy MC pair showed nothing. Verified live against 8 real MetroCluster systems in the current fleet."
+  "notes": "Extended MetroCluster coverage from Technical Audit (5.6.23) to the Action Planner and deliverables, as requested. (1) The Action Planner's MetroCluster Infrastructure Health widget was gated on mcRisks.length > 0 -- the same gap just fixed in Technical Audit -- so a fleet with real MC systems but zero findings showed nothing. Now gates on the real isMetroCluster field and always shows MC node count, Mediator status, and AUSO status, including a clean all-clear state. (2) computeFleetDRSummary() now also returns mcMediatorIssues/mcAusoDisabled, and the QBR Pack and Security Brief's existing DR Posture sections now include a 'MetroCluster Health: Mediator [status] | AUSO [status]' line whenever MC systems are in scope. Verified live against 8 real MetroCluster systems: Action Planner now shows 'MetroCluster system(s) in scope — no MetroCluster-specific findings detected', QBR Pack includes 'MetroCluster Health: Mediator OK | AUSO ENABLED'."
 }
