@@ -1129,6 +1129,35 @@
           <button class="action-btn" style="font-size: 0.76rem; padding: 7px 14px;" onclick="saveSlaSettingsFromUI()">Save SLA Policy</button>
         </div>
 
+        <!-- CARD: Notifications -->
+        <div class="card" style="border-top: 2px solid #818cf8; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(129,140,248,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 1.02rem;">Notifications</div>
+              <div style="color: var(--text-secondary); font-size: 0.8rem;">POST a summary to a webhook (Slack/Teams-compatible) after a harvest finds new critical risks or contracts newly expiring within 30 days</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(129,140,248,0.2); background: rgba(129,140,248,0.05);">
+            <label class="switch"><input type="checkbox" id="settingsWebhookEnabled"><span class="slider"></span></label>
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem;">Enable Webhook Notifications</div>
+              <div style="color: var(--text-muted); font-size: 0.76rem;">Only fires on a genuine increase in critical risk count since the last harvest</div>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="settingsWebhookUrl">Webhook URL</label>
+            <input type="password" id="settingsWebhookUrl" class="form-input" placeholder="https://hooks.slack.com/services/... (leave blank to keep current)">
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="action-btn" style="font-size: 0.76rem; padding: 7px 14px;" onclick="saveWebhookSettingsFromUI()">Save</button>
+            <button class="action-btn secondary" style="font-size: 0.76rem; padding: 7px 14px;" onclick="testWebhookFromUI()">Send Test Notification</button>
+          </div>
+          <div id="webhookStatusText" style="margin-top: 10px; font-size: 0.78rem; color: var(--text-muted);"></div>
+        </div>
+
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- ROW 4 — SUBGROUP CREATOR + GRAPHQL SANDBOX                     -->
         <!-- ═══════════════════════════════════════════════════════════════ -->

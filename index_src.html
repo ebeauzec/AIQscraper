@@ -973,6 +973,37 @@
           <button class="action-btn" style="font-size: 0.76rem; padding: 7px 14px;" onclick="saveSlaSettingsFromUI()">Save SLA Policy</button>
         </div>
 
+        <!-- CARD: Notifications -->
+        <div class="card settings-card" style="border-top: 2px solid #818cf8; margin-bottom: 16px;">
+          <div class="settings-card-header">
+            <div class="settings-card-icon" style="background: rgba(129,140,248,0.12);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </div>
+            <div>
+              <div class="settings-card-title" style="background: linear-gradient(135deg, #818cf8, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Notifications</div>
+              <div class="settings-card-desc">POST a summary to a webhook (Slack/Teams-compatible) after a harvest finds new critical risks or contracts newly expiring within 30 days</div>
+            </div>
+          </div>
+
+          <div class="settings-toggle-row" style="margin-bottom: 12px; border-color: rgba(129,140,248,0.2); background: rgba(129,140,248,0.05);">
+            <label class="switch"><input type="checkbox" id="settingsWebhookEnabled"><span class="slider"></span></label>
+            <div>
+              <span class="settings-toggle-label">Enable Webhook Notifications</span>
+              <span class="settings-toggle-desc">Only fires on a genuine increase in critical risk count since the last harvest -- never on a decrease or unchanged count</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="settingsWebhookUrl">Webhook URL</label>
+            <input type="password" id="settingsWebhookUrl" class="form-input" placeholder="https://hooks.slack.com/services/... (leave blank to keep current)" style="font-family: var(--font-mono); font-size: 0.76rem; border-color: rgba(129,140,248,0.25);">
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="action-btn" style="font-size: 0.76rem; padding: 7px 14px;" onclick="saveWebhookSettingsFromUI()">Save</button>
+            <button class="action-btn secondary" style="font-size: 0.76rem; padding: 7px 14px;" onclick="testWebhookFromUI()">Send Test Notification</button>
+          </div>
+          <div id="webhookStatusText" style="margin-top: 10px; font-size: 0.78rem; color: var(--text-muted);"></div>
+        </div>
+
         <!-- Sync Controls Bar -->
 
         <div class="settings-sync-bar">

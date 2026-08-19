@@ -939,6 +939,87 @@ def _get_system_history(db, serial_number, days=400):
     return out
 
 
+def _maybe_send_webhook_alert(db, result, account_label):
+    """After a harvest completes, compare this account's fleet-wide critical
+    risk count and near-term contract expirations against the most recent
+    PRIOR day's system_snapshots to see if anything genuinely NEW appeared,
+    and POST a summary to a configured webhook URL if so. Everything else in
+    this tool is pull-based (open the app, generate a report) -- there was no
+    way to be told something changed without checking. Best-effort: never
+    raises, since a notification failure must not break the harvest it's
+    attached to. Uses only stdlib urllib -- no new dependency.
+    """
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+        webhook_url = (cfg.get("webhookUrl") or "").strip()
+        if not webhook_url or not cfg.get("webhookEnabled"):
+            return
+
+        systems = result.get("systems") or []
+        today_critical = sum(1 for s in systems for r in (s.get("risks") or []) if str(r.get("severity") or "").lower() == "critical")
+        today_expiring30 = sum(
+            1 for s in systems
+            if (s.get("contracts") or {}).get("daysRemaining") is not None
+            and 0 <= (s.get("contracts") or {}).get("daysRemaining", 999) <= 30
+        )
+
+        # Most recent PRIOR distinct date's totals (excludes today, which
+        # _capture_snapshots already wrote before this function is called).
+        prev_date_row = db.execute("""
+            SELECT snapshot_date FROM system_snapshots
+            WHERE snapshot_date < date('now') ORDER BY snapshot_date DESC LIMIT 1
+        """).fetchone()
+        prev_critical, prev_expiring30 = None, None
+        if prev_date_row:
+            prev_rows = db.execute(
+                "SELECT snapshot_json FROM system_snapshots WHERE snapshot_date = ?",
+                (prev_date_row[0],)
+            ).fetchall()
+            prev_critical, prev_expiring30 = 0, 0
+            for (snap_json,) in prev_rows:
+                try:
+                    snap = json.loads(snap_json)
+                except Exception:
+                    continue
+                prev_critical += int((snap.get("riskCounts") or {}).get("critical") or 0)
+
+        critical_delta = (today_critical - prev_critical) if prev_critical is not None else None
+        # Only alert on a genuine INCREASE (or the very first harvest ever,
+        # where there's nothing to compare against and silence would hide a
+        # real critical count from a brand-new deployment) -- a decrease or
+        # unchanged count is not something anyone needs pinged about.
+        should_alert = (critical_delta is not None and critical_delta > 0) or (prev_critical is None and today_critical > 0)
+        if not should_alert:
+            return
+
+        lines = [f"ARIA Alert: {account_label}"]
+        if critical_delta is not None and critical_delta > 0:
+            lines.append(f"Critical risks increased by {critical_delta} (was {prev_critical}, now {today_critical}).")
+        else:
+            lines.append(f"{today_critical} critical risk(s) across {len(systems)} system(s) (first harvest, no prior baseline).")
+        if today_expiring30 > 0:
+            lines.append(f"{today_expiring30} system(s) with support contracts expiring within 30 days.")
+        payload = {
+            "text": "\n".join(lines),  # Slack/Teams-compatible top-level "text" field
+            "account": account_label,
+            "criticalRisks": today_critical,
+            "criticalRisksDelta": critical_delta,
+            "contractsExpiring30d": today_expiring30,
+            "systemCount": len(systems),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        req = urllib.request.Request(
+            webhook_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10).read()
+        print(f"  [WEBHOOK] Alert sent for {account_label}: critical={today_critical} (delta={critical_delta})", flush=True)
+    except Exception as e:
+        print(f"  [WEBHOOK] Alert failed (non-fatal): {e}", flush=True)
+
+
 def _get_fleet_trend(db, days=90, customer_name=None):
     """Aggregate system_snapshots across ALL systems (or one customer, if
     given) into one row per date: total critical/high risks, total open
@@ -3237,6 +3318,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 _save_harvest(db, result, duration_ms)
             _capture_snapshots(db, result)
             _populate_reporting_tables(db, _acct_id or "default", _acct_label or "default", result)
+            _maybe_send_webhook_alert(db, result, _acct_label or "default")
         finally:
             db.close()
 
@@ -7688,6 +7770,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_associate()
         elif self.path == '/api/history/annotate':
             self.handle_history_annotate()
+        elif self.path == '/api/webhook/test':
+            self.handle_webhook_test()
         elif self.path == '/api/tracker/update':
             self.handle_tracker_update()
         elif self.path == '/api/tracker':
@@ -8293,6 +8377,38 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     # Remediation Tracker Handlers
     # ─────────────────────────────────────────────────────────────────────
 
+    def handle_webhook_test(self):
+        """POST /api/webhook/test
+        Body: { webhookUrl? } -- tests the given URL if provided (so a TAM
+        can verify connectivity before saving), otherwise the currently
+        saved one. Sends a clearly-labeled test payload, not a real alert.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8")) if content_length else {}
+            url = (body.get("webhookUrl") or "").strip()
+            if not url:
+                cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                url = (cfg.get("webhookUrl") or "").strip()
+            if not url:
+                self._json_response(400, {"ok": False, "error": "No webhook URL configured or provided"})
+                return
+            payload = {
+                "text": "ARIA test notification -- if you're seeing this, your webhook is configured correctly.",
+                "test": True,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            req = urllib.request.Request(
+                url, data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}, method="POST",
+            )
+            resp = urllib.request.urlopen(req, timeout=10)
+            self._json_response(200, {"ok": True, "statusCode": resp.status})
+        except urllib.error.HTTPError as e:
+            self._json_response(200, {"ok": False, "error": f"Webhook endpoint returned HTTP {e.code}"})
+        except Exception as e:
+            self._json_response(200, {"ok": False, "error": str(e)})
+
     def handle_tracker_list(self):
         """GET /api/tracker — return every tracked remediation item."""
         try:
@@ -8450,6 +8566,13 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # practice (critical=7d, high=30d, medium=90d, low=180d) but
                 # are editable in Settings since every org's policy differs.
                 "slaDays": cfg.get("slaDays") or {"critical": 7, "high": 30, "medium": 90, "low": 180},
+                # Notification webhook: POSTs a summary after a harvest finds new
+                # critical risks or contracts newly expiring within 30 days. The
+                # URL itself may embed a token (Slack/Teams incoming webhooks
+                # commonly do), so treat it like refreshToken -- never return the
+                # raw value, only whether one is set.
+                "webhookEnabled": bool(cfg.get("webhookEnabled", False)),
+                "hasWebhookUrl": bool(cfg.get("webhookUrl", "")),
                 # Multi-account (multi-customer) support — never return raw tokens,
                 # only enough for the Settings UI to list/edit accounts safely.
                 "accounts": [
@@ -8506,6 +8629,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "webhookEnabled" in body:
+                cfg["webhookEnabled"] = bool(body["webhookEnabled"])
+            if "webhookUrl" in body and body["webhookUrl"].strip():
+                cfg["webhookUrl"] = body["webhookUrl"].strip()
             if "slaDays" in body and isinstance(body["slaDays"], dict):
                 sla = {}
                 for sev in ("critical", "high", "medium", "low"):

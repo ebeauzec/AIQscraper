@@ -27,9 +27,30 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.34";
+const APP_VERSION = "5.6.35";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.35",
+    date: "19 August 2026",
+    title: "Added: Webhook Notifications for New Critical Risks",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Outbound Webhook Notifications",
+        color: "#22c55e",
+        items: [
+          "Everything in this tool was pull-based -- open the app, generate a report. There was no way to be told something changed without checking manually",
+          "New Settings card: 'Notifications' -- configure a webhook URL (Slack/Teams-compatible JSON payload) and a 'Send Test Notification' button to verify connectivity before relying on it",
+          "After every harvest completes, the server compares this account's fleet-wide critical risk count against the most recent prior day's snapshot (system_snapshots, already captured on every harvest) and POSTs a summary only when critical risks genuinely INCREASED -- never on a decrease or unchanged count, so it can't turn into noise",
+          "Also reports contracts newly within 30 days of expiring in the same alert. No new dependency -- built entirely on stdlib urllib",
+          "The webhook URL is treated like a credential (may embed a Slack/Teams token) -- never returned in plaintext by GET /api/config, only whether one is set",
+          "Verified live end-to-end: spun up a local HTTP listener, confirmed the test-notification round-trip actually delivers a JSON payload, confirmed the Settings UI save/status-refresh flow, and confirmed the error path for an unreachable URL reports cleanly instead of hanging or crashing the harvest",
+          "Sixth of several planned operational additions (tracking, SLA policy, portfolio rollup, DR-test verification, trend dashboards, notifications -- this list is now largely complete)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.34",
     date: "19 August 2026",
@@ -28863,6 +28884,55 @@ function saveSlaSettingsFromUI() {
   saveSlaPolicy(slaDays).then(() => alert('SLA policy saved.'));
 }
 
+function saveWebhookSettingsFromUI() {
+  const enabled = document.getElementById('settingsWebhookEnabled').checked;
+  const urlInput = document.getElementById('settingsWebhookUrl');
+  const body = { webhookEnabled: enabled };
+  if (urlInput && urlInput.value.trim()) body.webhookUrl = urlInput.value.trim();
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(r => r.json()).then(() => {
+    if (urlInput) urlInput.value = '';
+    document.getElementById('webhookStatusText').textContent = 'Saved.';
+    refreshWebhookStatusText();
+  }).catch(e => {
+    console.error('Failed to save webhook settings:', e);
+    document.getElementById('webhookStatusText').textContent = 'Save failed -- check the console.';
+  });
+}
+
+function testWebhookFromUI() {
+  const urlInput = document.getElementById('settingsWebhookUrl');
+  const statusEl = document.getElementById('webhookStatusText');
+  const body = urlInput && urlInput.value.trim() ? { webhookUrl: urlInput.value.trim() } : {};
+  statusEl.textContent = 'Sending test notification...';
+  fetch('/api/webhook/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(r => r.json()).then(data => {
+    statusEl.textContent = data.ok ? '✓ Test notification sent successfully.' : `✗ Failed: ${data.error || 'unknown error'}`;
+    statusEl.style.color = data.ok ? '#22c55e' : '#ef4444';
+  }).catch(e => {
+    statusEl.textContent = '✗ Failed: ' + e.message;
+    statusEl.style.color = '#ef4444';
+  });
+}
+
+function refreshWebhookStatusText() {
+  fetch('/api/config').then(r => r.json()).then(cfg => {
+    const el = document.getElementById('webhookStatusText');
+    if (!el) return;
+    el.style.color = 'var(--text-muted)';
+    el.textContent = cfg.hasWebhookUrl
+      ? `Webhook URL is configured. Notifications are currently ${cfg.webhookEnabled ? 'ENABLED' : 'disabled'}.`
+      : 'No webhook URL configured yet.';
+    if (document.getElementById('settingsWebhookEnabled')) document.getElementById('settingsWebhookEnabled').checked = !!cfg.webhookEnabled;
+  }).catch(() => {});
+}
+
 async function saveSlaPolicy(slaDays) {
   try {
     const res = await fetch('/api/config', {
@@ -29062,6 +29132,7 @@ function switchTab(tabId) {
       if (document.getElementById('settingsSlaMedium')) document.getElementById('settingsSlaMedium').value = state.slaDays.medium;
       if (document.getElementById('settingsSlaLow')) document.getElementById('settingsSlaLow').value = state.slaDays.low;
     });
+    refreshWebhookStatusText();
     
     // Load auth token input
     document.getElementById("settingsMockModeToggle").checked = state.mockMode;

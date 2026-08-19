@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.35] - 2026-08-19
+
+### Added
+- **Outbound webhook notifications.** Everything in this tool was pull-based — open the app, generate a report — with no way to be told something changed without checking manually. New Settings card lets a TAM configure a Slack/Teams-compatible webhook URL with a test-send button. After every harvest, the server compares this account's fleet-wide critical risk count against the most recent prior day's snapshot and POSTs a summary only on a genuine increase (never a decrease or unchanged count), also reporting contracts newly within 30 days of expiring. Built entirely on stdlib `urllib`, no new dependency. The webhook URL is treated like a credential and never returned in plaintext by `GET /api/config`. Sixth of several planned operational additions — this list is now largely complete.
+
+---
+
 ## [5.6.34] - 2026-08-19
 
 ### Added

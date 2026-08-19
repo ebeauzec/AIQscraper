@@ -1,8 +1,8 @@
 {
-  "version": "5.6.34",
+  "version": "5.6.35",
   "major": 5,
   "minor": 6,
-  "patch": 34,
+  "patch": 35,
   "date": "2026-08-19",
-  "notes": "Added a fleet/customer risk trend chart. Per-system trend history already existed (the CSM tab's history panel), but there was no fleet-wide or customer-scoped view -- no way to see whether risk exposure is trending up or down over time without checking one system at a time. New backend: GET /api/history/trend[?days=90&customer=Name] aggregates the same daily system_snapshots data already captured on every harvest into one row per date. New chart on the Overview Dashboard, automatically scoped to the active customer filter or the whole fleet, shown only once at least 2 distinct days of real history exist. Verified live against real data; confirmed the chart stays honestly hidden when there's only one day of history rather than showing a fabricated trend. Fifth of several planned operational additions."
+  "notes": "Added outbound webhook notifications. Everything in this tool was pull-based -- open the app, generate a report -- with no way to be told something changed without checking manually. New Settings card lets a TAM configure a Slack/Teams-compatible webhook URL with a test-send button. After every harvest, the server compares this account's fleet-wide critical risk count against the most recent prior day's snapshot and POSTs a summary only on a genuine increase (never a decrease or unchanged count), also reporting contracts newly within 30 days of expiring. Built entirely on stdlib urllib, no new dependency. The webhook URL is treated like a credential and never returned in plaintext. Verified live end-to-end with a local HTTP listener confirming real payload delivery, the Settings save/status flow, and clean error handling for an unreachable URL. Sixth of several planned operational additions -- this list is now largely complete."
 }
