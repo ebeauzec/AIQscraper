@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.17] - 2026-08-19
+
+### Fixed
+- **Tech Refresh Roadmap always said "No immediate tech refresh candidates identified"**, regardless of the fleet's actual state. `isEOA`/`isEOS`/`hardwareAgeMonths`/`eoaDate`/`eosDate`/`maintenanceCostEst` are not real fields anywhere in the harvest — switched to `lifecycle.isNearEos`/`eoaDate`/`eosDate` (used correctly in 10+ other places) and `originalShipDate` for age.
+- **Security Brief's "OS Currency" always read 0**, even when every system was fully current, which caused the data-driven Security Actions list (5.6.14) to falsely claim every system needed a firmware update. `firmwareStatus` is not a real field — switched to the `swRecMin`/`osVersion` + `versionLt()` check used correctly everywhere else.
+
+Both found via a systematic audit of every field read off system objects, prompted by the 5.6.16 `accountId` bug — checking for other fields silently dropped or never populated at all.
+
+---
+
 ## [5.6.16] - 2026-08-19
 
 ### Fixed

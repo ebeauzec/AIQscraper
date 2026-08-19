@@ -18,9 +18,35 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.16";
+const APP_VERSION = "5.6.17";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.17",
+    date: "19 August 2026",
+    title: "Data Fidelity Audit: Two More Fields That Were Always Wrong, Every Report",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Tech Refresh Roadmap Always Said 'No Candidates', Regardless of Reality",
+        color: "#f87171",
+        items: [
+          "Systematic audit of every field read off system objects across all deliverables, following the accountId bug in 5.6.16, to check for other silently-dropped or non-existent fields",
+          "Found isEOA/isEOS/hardwareAgeMonths/eoaDate/eosDate/maintenanceCostEst are not real fields anywhere in the harvest -- reading them always returned undefined, so the Tech Refresh Roadmap (TAM Success Plan + QBR Pack) always showed 'No immediate tech refresh candidates identified' and 'Avg Age: 0 years' for every platform, no matter how old or close to end-of-support the fleet actually was",
+          "Switched to lifecycle.isNearEos / lifecycle.eoaDate / lifecycle.eosDate -- the real, correctly-populated fields already used consistently in 10+ other places across the app -- and to originalShipDate for age (same source the MSP report already uses correctly). Verified live: a synthetic EOS system now correctly surfaces in the roadmap with its real EOA/EOS dates instead of being silently excluded"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Security Brief's OS Currency Always Read 0, Even When Every System Was Current",
+        color: "#f87171",
+        items: [
+          "firmwareStatus is not a real system field either -- never set anywhere in the harvest, only ever read in the Security Posture Brief. OS Currency always showed 0/N regardless of actual fleet state, and the new data-driven Security Actions list (added in 5.6.14) would then falsely claim every single system needed a firmware update, even on a fully up-to-date fleet",
+          "Switched to the swRecMin/osVersion + versionLt() check already used correctly everywhere else in the app for OS currency. Verified live: two fully current synthetic systems now correctly read '2/2' instead of '0/2', and the false firmware-update action no longer appears"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.16",
     date: "19 August 2026",
@@ -17669,19 +17695,33 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     ? `${enabled}         ${totalLen}      ${Math.round(enabled/totalLen*100)}%`
     : `N/A*        ${totalLen}      N/A*`;
 
+  // Age and EOA/EOS status: hardwareAgeMonths/isEOA/isEOS are NOT real fields on
+  // the system object (there is no such data anywhere in the harvest) -- reading
+  // them here always evaluated to undefined, so this section silently showed
+  // "0 years" for every platform and "0 systems flagged for tech refresh"
+  // regardless of the fleet's actual age or EOS exposure. Age is derived from
+  // originalShipDate (same source used correctly elsewhere, e.g. the MSP
+  // report's average system age); EOS exposure uses the real, correctly-
+  // populated lifecycle.isNearEos field used throughout the rest of the app.
   const platformAges = {};
   targetSystems.forEach(s => {
     const p = s.platform || 'Unknown';
-    if (!platformAges[p]) platformAges[p] = { count: 0, ageSum: 0, refreshCand: 0 };
+    if (!platformAges[p]) platformAges[p] = { count: 0, ageSum: 0, ageKnown: 0, refreshCand: 0 };
     platformAges[p].count++;
-    if (s.hardwareAgeMonths) platformAges[p].ageSum += s.hardwareAgeMonths;
-    if (s.isEOA || s.isEOS || (s.hardwareAgeMonths && s.hardwareAgeMonths > 60)) platformAges[p].refreshCand++;
+    if (s.originalShipDate) {
+      const shipDate = new Date(s.originalShipDate);
+      if (!isNaN(shipDate)) {
+        platformAges[p].ageSum += (Date.now() - shipDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000);
+        platformAges[p].ageKnown++;
+      }
+    }
+    if (s.lifecycle && s.lifecycle.isNearEos) platformAges[p].refreshCand++;
   });
   let refreshCandidatesCount = 0;
   const platformAgeLines = Object.entries(platformAges).map(([p, data]) => {
     refreshCandidatesCount += data.refreshCand;
-    const avgAge = data.count > 0 ? Math.round(data.ageSum / data.count / 12) : 0;
-    return `  - ${p}: ${data.count} system(s), Avg Age: ${avgAge} years`;
+    const avgAge = data.ageKnown > 0 ? `${Math.round(data.ageSum / data.ageKnown / 12)} years` : 'Unknown';
+    return `  - ${p}: ${data.count} system(s), Avg Age: ${avgAge}`;
   }).join('\n');
 
   // ── ASUP & ARP health ──
@@ -18305,11 +18345,18 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   }
 
   // ── Tech Refresh Roadmap ──
-  const eoaEosSystems = targetSystems.filter(s => s.isEOA || s.isEOS || s.hardwareAgeMonths > 60);
+  // isEOA/isEOS/hardwareAgeMonths/eoaDate/eosDate/maintenanceCostEst are NOT
+  // real top-level system fields (there's no such data in the harvest) --
+  // this filter always evaluated to empty, so the roadmap silently showed
+  // "No immediate tech refresh candidates identified" regardless of the
+  // fleet's actual EOS exposure. lifecycle.isNearEos and lifecycle.eoaDate/
+  // eosDate are the real, correctly-populated fields used everywhere else
+  // in the app for this exact purpose.
+  const eoaEosSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos);
   const techRefreshLines = eoaEosSystems.length > 0 ? eoaEosSystems.map(s => {
-    const eoaDate = s.eoaDate ? s.eoaDate.split('T')[0] : 'Unknown';
-    const eosDate = s.eosDate ? s.eosDate.split('T')[0] : 'Unknown';
-    const est = s.maintenanceCostEst ? '$' + s.maintenanceCostEst : 'TBD';
+    const eoaDate = s.lifecycle.eoaDate ? s.lifecycle.eoaDate.split('T')[0] : 'Unknown';
+    const eosDate = s.lifecycle.eosDate ? s.lifecycle.eosDate.split('T')[0] : 'Unknown';
+    const est = 'TBD (not available via Active IQ API)';
     return `  Current: ${s.platform || 'Unknown'} (${s.osVersion || 'Unknown'}) — EOA: ${eoaDate}, EOS: ${eosDate}
   Proposed: AFF A-Series / C-Series / ASA — ONTAP 9.16+
   Financial Case: Current maintenance ${est} → Modern platform: Lower power, higher DRR, NVMe perf
@@ -19384,7 +19431,12 @@ ${_kevAckLines}
 
   targetSystems.forEach(s => {
     if (s.isARPEnabled != null) { arpKnown++; if (s.isARPEnabled) arpEnabled++; }
-    if (s.firmwareStatus === 'Current' || s.firmwareStatus === 'Recommended') fwCurrent++;
+    // firmwareStatus is not a real system field (never set anywhere in the
+    // harvest) -- this always evaluated false, so OS Currency and the
+    // firmware-update action below always claimed every single system needed
+    // a firmware update, even when none did. swRecMin/osVersion + versionLt()
+    // is the real OS-currency check used consistently everywhere else.
+    if (s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)) fwCurrent++;
 
     (s.risks || []).forEach(r => {
       const _sev = (r.severity || '').toLowerCase();
