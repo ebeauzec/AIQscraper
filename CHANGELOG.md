@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.12] - 2026-08-19
+
+### Fixed
+- **Every customer report silently included every configured account's recommendations.** TAM Recommendations are Active IQ account/fleet-wide health checks — there is no per-customer breakdown in the API. `state.tamRecommendations` was shown unfiltered in every report and deliverable regardless of the selected scope. Diagnosed against a real customer report for Saudi Telecom Company (stc): the same check appeared to fire twice at different percentages, and two checks appeared to contradict each other — but stc's systems all belong to a single account (23 recommendations, zero internal duplicates); the other 14 entries were an unrelated second account's fleet checks bleeding into the report. Added `_scopeRecommendationsToAccounts()` and applied it to the on-screen Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable. Verified live: report count dropped from 37 to the correct 23, zero duplicates, zero contradictions. Genuine multi-account scopes now label each recommendation with its source account.
+
+---
+
 ## [5.6.11] - 2026-08-19
 
 ### Changed

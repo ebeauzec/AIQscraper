@@ -1,8 +1,8 @@
 {
-  "version": "5.6.11",
+  "version": "5.6.12",
   "major": 5,
   "minor": 6,
-  "patch": 11,
+  "patch": 12,
   "date": "2026-08-19",
-  "notes": "TAM Recommendations section: Active IQ's recommendation text states percentages ('8% of AutoSupport capable systems do not have AutoSupport enabled'), which don't say how many systems that actually is without doing the math. rescopeText() now also converts the 'N% of <label> systems' pattern into an actual count out of the selected scope (e.g. '15 of 186 AutoSupport capable systems...'), alongside the existing 'N of your systems' rewrite. Score badges are unaffected and continue to show percentages -- verified live: 8% of 186 -> 15 of 186, 1% of 186 -> 2 of 186, score badges unchanged at 92%/99%."
+  "notes": "TAM Recommendations are Active IQ account/fleet-wide health checks, not per-customer data -- state.tamRecommendations (merged across ALL configured accounts) was shown unfiltered in every report/deliverable regardless of scope. Diagnosed via a real customer report for Saudi Telecom Company (stc): the same check appeared to fire twice at different percentages, and two checks appeared to contradict each other, but stc's 186 systems all belong to ONE account (23 recommendations, zero internal duplicates) -- the other 14 entries were an entirely unrelated second account's fleet checks bleeding into the report. Added _scopeRecommendationsToAccounts() to filter recommendations to only the account(s) with systems in the current scope, applied to the on-screen Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable. Verified live: stc's report count dropped from 37 to the correct 23, zero duplicate checks, zero contradictions. When a scope genuinely spans multiple accounts, each recommendation is now labeled with its source account."
 }

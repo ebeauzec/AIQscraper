@@ -18,9 +18,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.11";
+const APP_VERSION = "5.6.12";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.12",
+    date: "19 August 2026",
+    title: "Fixed: Recommendations Report Showed an Unrelated Account's Fleet as the Customer's Own",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Every Customer Report Silently Included Every Configured Account's Recommendations",
+        color: "#f87171",
+        items: [
+          "TAM Recommendations are Active IQ account/fleet-wide health checks -- there is no per-customer breakdown in the API. state.tamRecommendations (the full merged list across ALL configured Active IQ accounts) was being shown unfiltered in every report and deliverable regardless of which customer or scope was selected",
+          "Found via a real customer report for Saudi Telecom Company (stc): the same check (e.g. Disk Firmware) appeared to fire twice at different percentages, and two checks appeared to contradict themselves (all-clear in one 'scope', an active finding in the other). Root cause: stc's 186 systems all belong to ONE account (23 recommendations, zero internal duplicates) -- the other 14 entries were a second, entirely unrelated account's fleet-wide checks, shown as if they were part of stc's report because nothing filtered by account",
+          "Recommendations are now filtered to only the account(s) that actually have systems in the current report/customer/group/watchlist scope -- applied to the on-screen Recommendations tab, the Section 12 TXT export, and the QBR Pack deliverable. Verified live against real data: the stc report count dropped from 37 to the correct 23, with zero duplicate checks and zero contradictions remaining",
+          "When a scope genuinely does span multiple accounts (e.g. viewing 'All Systems'), each recommendation is now labeled with which account it came from, so real cross-account differences stay attributable instead of looking like unexplained duplicate or conflicting data"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.11",
     date: "19 August 2026",
@@ -18130,10 +18148,15 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   }).join('\n') ||  '  No expiring contracts within scope.';
 
   // ── Recommendations (fleet-wide; scoped count provided as context) ──
-  const recs = state.tamRecommendations || [];
+  const recs = _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems);
+  const qbrAcctLabels = {};
+  targetSystems.forEach(s => { if (s.accountId) qbrAcctLabels[s.accountId] = s.accountLabel || s.accountId; });
+  const qbrMultiAcct = Object.keys(qbrAcctLabels).length > 1;
   let recsSection = '  No recommendations available.\n';
   if (recs.length > 0) {
-    recsSection = `  NOTE: Active IQ recommendation scores reflect the full TAM fleet. Scoped system count for this account: ${total} systems.\n\n`;
+    recsSection = `  NOTE: Active IQ recommendation scores reflect the full TAM fleet for the account(s) in scope, not just this customer's systems. Scoped system count: ${total} systems.` +
+      (qbrMultiAcct ? ` This scope spans multiple accounts (${Object.values(qbrAcctLabels).join(', ')}) -- where the same check appears more than once below, each instance is a distinct account.` : '') +
+      `\n\n`;
     const byCat = {};
     recs.forEach(r => {
       const cat = r.category || 'OTHER';
@@ -18147,7 +18170,8 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
         const clean = (r.recommendation || '').replace(/\d+\s+of\s+your\s+systems/gi, `[see scoped count]`);
         const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
         const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' corrected' : ''}`;
-        return `    • [Score ${scoreLabel}] ${_truncate(clean)}`;
+        const acctTag = qbrMultiAcct && r.accountId ? ` [${qbrAcctLabels[r.accountId] || r.accountId}]` : '';
+        return `    • [Score ${scoreLabel}]${acctTag} ${_truncate(clean)}`;
       }).join('\n');
       return `  ${cat.replace(/_/g, ' ')} (${items.length}):\n${lines}`;
     }).join('\n\n') + '\n';
@@ -21238,9 +21262,32 @@ function _resolveRecommendationScore(r) {
   return { effectiveScore, corrected, isAllClear };
 }
 
+// TAM recommendations are Active IQ fleet/account-wide health checks -- there
+// is no per-customer breakdown in the API, only per-account. Every recommendation
+// item is tagged with the accountId it came from (see _do_full_harvest). Filtering
+// to only the account(s) that actually have systems in the current scope stops a
+// customer-specific report from silently showing an unrelated account's entire
+// fleet recommendations under that customer's name -- confirmed live: a report for
+// "Saudi Telecom Company (stc)" showed the SAME check (e.g. Disk Firmware) at two
+// different percentages because BOTH accounts' full-fleet recommendations were
+// being shown, unfiltered, for every customer/scope regardless of which account
+// that customer's systems actually belong to.
+function _scopeRecommendationsToAccounts(recs, targetSystems) {
+  const scopeAccountIds = new Set((targetSystems || []).map(s => s.accountId).filter(Boolean));
+  if (scopeAccountIds.size === 0) return recs; // no accountId tagging (single-account setup) -- nothing to filter
+  return recs.filter(r => !r.accountId || scopeAccountIds.has(r.accountId));
+}
+
 function _renderRecommendationsSection(targetSystems) {
-  const recs = state.tamRecommendations || [];
+  const allRecs = state.tamRecommendations || [];
+  const recs = _scopeRecommendationsToAccounts(allRecs, targetSystems);
   const scopeCount = (targetSystems || []).length;
+  // How many distinct accounts remain in scope -- if more than one, any score
+  // differences between recs sharing a subCategory are genuinely two different
+  // accounts' fleets, not duplicate noise, so each card gets an account label.
+  const scopeAccountLabels = {};
+  (targetSystems || []).forEach(s => { if (s.accountId) scopeAccountLabels[s.accountId] = s.accountLabel || s.accountId; });
+  const multiAccountScope = Object.keys(scopeAccountLabels).length > 1;
 
   if (recs.length === 0) return '<p style="color:var(--text-secondary);font-size:0.85rem;">No recommendations available. Run a data refresh to load TAM recommendations.</p>';
 
@@ -21345,9 +21392,16 @@ function _renderRecommendationsSection(targetSystems) {
         .replace(/<[^>]+>/g, '');
       const truncated = rawRec.length > 500 ? rawRec.substring(0, 497) + '…' : rawRec;
       const displayText = rescopeText(linkify(truncated), cat, r.subCategory);
+      // When the current scope spans multiple accounts, the same check can
+      // legitimately report different scores per account (two real, separate
+      // fleets) -- label which account each card belongs to instead of
+      // leaving that implicit, so differing or contradictory scores are
+      // attributable rather than looking like duplicate/conflicting noise.
+      const acctLabel = multiAccountScope && r.accountId ? (scopeAccountLabels[r.accountId] || r.accountId) : null;
+      const acctBadge = acctLabel ? `<span style="font-size:0.65rem;color:var(--text-muted);font-weight:600;margin-left:8px;">· ${acctLabel}</span>` : '';
       html += `<div style="background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.12);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:0.7rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">${r.subCategory || ''}</span>
+          <span style="font-size:0.7rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">${r.subCategory || ''}${acctBadge}</span>
           <span style="background:${scoreColor}22;color:${scoreColor};padding:2px 10px;border-radius:10px;font-size:0.72rem;font-weight:700;border:1px solid ${scoreColor}44;">Score: ${scoreLabel}</span>
         </div>
         <p style="font-size:0.83rem;color:#e2e8f0;margin:0;line-height:1.65;">${displayText}</p>
@@ -25002,7 +25056,10 @@ B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
 - Astra Trident: Coordinate Trident upgrades alongside Kubernetes API migrations to avoid CSI mount failures.`;
   } else if (index === 12) {
     filename = `tam_recommendations_${cleanScope}.txt`;
-    const recs = state.tamRecommendations || [];
+    const recs = _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems);
+    const scopeAcctLabels = {};
+    targetSystems.forEach(s => { if (s.accountId) scopeAcctLabels[s.accountId] = s.accountLabel || s.accountId; });
+    const multiAcct = Object.keys(scopeAcctLabels).length > 1;
     const byCategory = {};
     recs.forEach(r => {
       const cat = r.category || 'OTHER';
@@ -25014,7 +25071,7 @@ B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
 Scope: ${scopeTitle}
 Date Generated: ${new Date().toISOString().split('T')[0]}
 Total Recommendations: ${recs.length}
-
+${multiAcct ? `NOTE: This scope spans multiple Active IQ accounts (${Object.values(scopeAcctLabels).join(', ')}). Recommendations are account/fleet-wide checks, not per-customer -- where the same check appears more than once below, each instance is a distinct account, tagged accordingly.\n` : ''}
 ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to load TAM recommendations." :
   Object.keys(byCategory).map(cat => {
     const items = byCategory[cat];
@@ -25022,7 +25079,8 @@ ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to l
       items.map((r, idx) => {
         const { effectiveScore, corrected, isAllClear } = _resolveRecommendationScore(r);
         const scoreLabel = isAllClear ? '100% (all clear)' : `${effectiveScore}%${corrected ? ' (corrected from raw problem-rate)' : ''}`;
-        return `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}Score: ${scoreLabel}
+        const acctTag = multiAcct && r.accountId ? ` [${scopeAcctLabels[r.accountId] || r.accountId}]` : '';
+        return `${idx + 1}. ${r.subCategory ? `[${r.subCategory}] ` : ''}${acctTag}Score: ${scoreLabel}
    ${stripTags(r.recommendation)}`;
       }).join('\n\n');
   }).join('\n\n\n')}`;
