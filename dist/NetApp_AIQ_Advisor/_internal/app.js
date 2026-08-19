@@ -27,9 +27,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.28";
+const APP_VERSION = "5.6.29";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.29",
+    date: "19 August 2026",
+    title: "Removed MEDDPICC Sales-Framework Terminology — Reframed for Fleet Operations",
+    sections: [
+      {
+        icon: "🔧",
+        label: "Changed: MEDDPICC Terminology Replaced with Operational Labels",
+        color: "#3b82f6",
+        items: [
+          "MSPs, partners, and customers don't use or recognize the MEDDPICC sales-qualification framework this tool borrowed section labels from. Removed the terminology everywhere while keeping the same underlying structure -- the same 8 categories of information stay organized the same way, just relabeled for fleet operations instead of sales deal-qualification",
+          "New mapping: Metrics stays Metrics; Economic Buyer -> Ownership; Decision Criteria -> Standards & Adoption; Decision Process -> Remediation Plan; Paper Process -> Contracts & Entitlements; Implicate the Pain -> Risk Exposure; Champion -> Primary Contacts; Competition -> Modernization Outlook",
+          "\"MEDDPICC Deal Intelligence Brief\" deliverable renamed to \"Risk & Remediation Brief\" (function, internal properties, download type, and UI all renamed consistently)",
+          "CSM tab's \"MEDDPICC Quick-View\" panel renamed to \"Account Snapshot\", with a rewritten operational tooltip and relabeled rows (Metrics/Ownership/Standards/Remediation/Contracts/Risk/Contacts/Modernization)",
+          "All ~35 inline section tags across the QBR Pack, MSP Service Report, Security Brief, Sustainability Report, and Extended Deliverables' growth-opportunities section updated to the new plain-language labels",
+          "Text/naming-only change -- no computation logic altered. Historical changelog entries describing past versions were left as-is since they're a record of what shipped at the time"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.28",
     date: "19 August 2026",
@@ -12302,7 +12322,7 @@ function renderCSMTab() {
     const healthGrade = getHealthGrade(healthScore);
     const healthColor = healthScore >= 80 ? '#22c55e' : healthScore >= 65 ? '#f59e0b' : '#ef4444';
 
-    // ── MEDDPICC Quick-View: real, scope-computed values ──────────────────
+    // ── Account Snapshot: real, scope-computed values ──────────────────
     // This panel used to be entirely hardcoded template strings ("John Smith",
     // "Jane Doe", "3 CVEs", etc.) shown identically for whatever customer was
     // selected -- not derived from targetCSMSystems at all. Every line below
@@ -12339,16 +12359,16 @@ function renderCSMTab() {
         </div>
         <div style="flex: 1;">
           <details style="cursor: pointer;">
-            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="MEDDPICC sales qualification framework: Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Implicate Pain, Champion, Competition. Each element maps to a dimension of deal intelligence for TAM account planning. Values below are computed from the ${targetCSMSystems.length} selected system(s); fields with no source in Active IQ data are labeled as such rather than invented.">MEDDPICC Quick-View</summary>
+            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="Operational account snapshot across 8 tracked dimensions: Metrics, Ownership, Standards & Adoption, Remediation Plan, Contracts & Entitlements, Risk Exposure, Primary Contacts, Modernization Outlook. Values below are computed from the ${targetCSMSystems.length} selected system(s); fields with no source in Active IQ data are labeled as such rather than invented.">Account Snapshot</summary>
             <div style="margin-top: 12px; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:     Health ${healthScore}/100${_mAvgDR ? `, DR ${_mAvgDR}:1` : ''}, ${_mTbSaved.toFixed(1)} TB saved</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Econ Buyer:  ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Not set in Active IQ'}</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Criteria:    Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''}</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Process:     ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Paper:       ${_mExpiring90} contract${_mExpiring90 !== 1 ? 's' : ''} expiring &lt;90d</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Pain:        ${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''}, ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''}</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Champion:    Not tracked in Active IQ (Case Health ${_mCaseHealth.score.toFixed(1)}/10)</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Competition: ${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:      Health ${healthScore}/100${_mAvgDR ? `, DR ${_mAvgDR}:1` : ''}, ${_mTbSaved.toFixed(1)} TB saved</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Ownership:    ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Not set in Active IQ'}</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Standards:    Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''}</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Remediation:  ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Contracts:    ${_mExpiring90} contract${_mExpiring90 !== 1 ? 's' : ''} expiring &lt;90d</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Risk:         ${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''}, ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''}</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Contacts:     Not tracked in Active IQ (Case Health ${_mCaseHealth.score.toFixed(1)}/10)</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Modernization:${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh</span></div>
             </div>
           </details>
         </div>
@@ -13814,7 +13834,7 @@ function _buildSnapMirrorData(s, clusterName, isLiveData) {
 // data. Safe to call multiple times (only fills absent fields, never overwrites
 // user-edited values). New customers and conditions from AIQ are automatically
 // handled without any code changes.
-// ── MEDDPICC KPI Computation Functions ──────────────────────────────────────
+// ── Operational Snapshot KPI Computation Functions ──────────────────────────
 
 function computeAccountHealthScore(targetSystems) {
   const total = targetSystems.length;
@@ -16816,7 +16836,7 @@ function formatHealthScoreText(systems) {
 
 function formatCostOfInactionText(systems) {
   const coi = computeCostOfInaction(systems);
-  return `  COST OF INACTION [MEDDPICC: I — Implicate the Pain]
+  return `  COST OF INACTION [RISK EXPOSURE]
   ──────────────────────────────────────────────────────
   • ${coi.critRisks} critical risks remain unaddressed
   • ${coi.cves} security advisories unpatched
@@ -17803,12 +17823,12 @@ function getFleetEnrichmentSections(targetSystems) {
     }
   }
 
-  // ── 11. MEDDPICC Brief — pain points mapped to evidence ──
+  // ── 11. Risk & Remediation Brief — risk items mapped to evidence ──
   {
     const arts = [...secArticles, ...upgradeArticles, ...troubleArticles];
-    counts.meddpiccBrief = arts.length;
+    counts.riskRemediationBrief = arts.length;
     if (arts.length > 0) {
-      let block = `\n================================================================================\nSUPPORTING EVIDENCE [MEDDPICC: I — Implicate the Pain]\n================================================================================\nFleet Profile: ${fleetCtx}\n\n`;
+      let block = `\n================================================================================\nSUPPORTING EVIDENCE [RISK EXPOSURE]\n================================================================================\nFleet Profile: ${fleetCtx}\n\n`;
       if (secArticles.length > 0) {
         block += `► SECURITY EXPOSURE — ${secArticles.length} vendor-published remediation guide(s)\n`;
         block += `  Evidence: NetApp has published ${secArticles.length} security-specific documents that\n`;
@@ -17833,7 +17853,7 @@ function getFleetEnrichmentSections(targetSystems) {
         block += `  for VMware, Kubernetes, database, automation, and cloud platforms.\n\n`;
         block += fmtBriefIntel(integrationArticles, 5) + '\n\n';
       }
-      sections.meddpiccBrief = block;
+      sections.riskRemediationBrief = block;
     }
   }
 
@@ -18240,7 +18260,7 @@ ENVIRONMENT HEALTH   : ${allRisks.length > 0 ? 'WARNING - Action Required' : 'OP
 SYSTEMS IN SCOPE     : ${systemCount}
 
 --------------------------------------------------------------------------------
-1. EXECUTIVE SUMMARY & VALUE ALIGNMENT [MEDDPICC: M]
+1. EXECUTIVE SUMMARY & VALUE ALIGNMENT [METRICS]
 --------------------------------------------------------------------------------
 This TAM Success Plan aligns storage operations to ITIL Change Control, NIST/SANS
 hardening, and NetApp Best Practices across ${systemCount} system${systemCount !== 1 ? 's' : ''} spanning:
@@ -18248,7 +18268,7 @@ ${platformLines}
 
 * ACCOUNT HEALTH SCORE: ${formatHealthScoreText(targetSystems)}
 
-* STAKEHOLDER MATRIX & RACI [MEDDPICC: E + C]
+* STAKEHOLDER MATRIX & RACI [OWNERSHIP + PRIMARY CONTACTS]
   TAM:                  ${activeTAMOwner}
   Sales Representative: ${activeSalesRep}
   Account Manager:      ${activeAMOwner}
@@ -18269,7 +18289,7 @@ ${platformLines}
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
 
-* FEATURE ADOPTION SCORECARD [MEDDPICC: D — Decision Criteria]
+* FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
   Feature                       Enabled     Total    Coverage    CLI Command
   ───────────────────────────── ─────────── ──────── ─────────── ──────────────────────────
   Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, systemCount)}      security anti-ransomware volume ...
@@ -18326,7 +18346,7 @@ ${mccSystems.length > 0 ? `
   - Use SANtricity System Manager > Upgrade Center for non-disruptive controller upgrades.
 ` : ''}
 --------------------------------------------------------------------------------
-2. SUPPORT CASE & SERVICE RESOLUTION HYGIENE (SAM PRACTICE) [MEDDPICC: I — Implicate Pain]
+2. SUPPORT CASE & SERVICE RESOLUTION HYGIENE (SAM PRACTICE) [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 Maintaining operational hygiene involves tracking and resolving support tickets promptly
 to prevent support SLA deviations and customer satisfaction impacts.
@@ -18341,7 +18361,7 @@ ${expiringContracts.length > 0 ? contractsText : "✓ All active support contrac
 ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — ${a.detail}`).join('\n') : "✓ All systems reporting AutoSupport telemetry within 7-day SLA window."}
 
 --------------------------------------------------------------------------------
-3. SECURITY POSTURE & CVE REMEDIATION [MEDDPICC: I — Implicate Pain]
+3. SECURITY POSTURE & CVE REMEDIATION [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${secBulletins.length > 0 ? `ACTIVE SECURITY ADVISORIES (Critical/High — ${secBulletins.length} total):
 ${secBulletins.map((b, i) => `  ${i+1}. [${(b.severity||'').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     System: ${b.systemName}\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n')}` : "✓ No critical or high-severity security advisories active."}
@@ -18374,7 +18394,7 @@ status directly on-cluster before applying):
 
 ${formatCostOfInactionText(targetSystems)}
 
-* FINANCIAL IMPACT & ROI SUMMARY [MEDDPICC: M + E]
+* FINANCIAL IMPACT & ROI SUMMARY [METRICS + OWNERSHIP]
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
   Estimated Cost Avoidance:            $${(totalSavedTB * 50).toLocaleString()}/month (at $50/TB/month)
   Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
@@ -18385,7 +18405,7 @@ ${formatCostOfInactionText(targetSystems)}
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
 --------------------------------------------------------------------------------
 
-PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7) [MEDDPICC: D — Decision Process / Pain Resolution]
+PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7) [REMEDIATION PLAN]
 --------------------------------------------------------------
 Focus: Address critical security drifts, ASUP failures, single points of failure.
 
@@ -18410,7 +18430,7 @@ Focus: Address critical security drifts, ASUP failures, single points of failure
 * IDENTIFIED PHASE 1 ITEMS IN ACTIVE ENVIRONMENT:
 ${allRisks.length > 0 ? risksText : "✓ No active high-priority configuration drifts detected."}
 
-PHASE 2: FIRMWARE & SOFTWARE LIFECYCLE ALIGNMENT (DAYS 8 - 30) [MEDDPICC: D — Decision Process / Pain Resolution]
+PHASE 2: FIRMWARE & SOFTWARE LIFECYCLE ALIGNMENT (DAYS 8 - 30) [REMEDIATION PLAN]
 ------------------------------------------------------------
 Focus: Bring all OS versions, switch firmware, shelf firmware, and disk qualification
 packages to NetApp validated baselines.
@@ -18443,7 +18463,7 @@ ${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(
   - Update: 'system service-processor image update -node * -update-type latest'
   - Verify: 'system service-processor show -fields firmware-version'
 
-PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30) [MEDDPICC: D — Decision Process / Criteria Alignment]
+PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 -----------------------------------------------------------
 Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.
 
@@ -18459,7 +18479,7 @@ Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediatio
   - FabricPool tiering: 'volume modify -vserver <svm> -volume <vol> -tiering-policy auto'
   - Reference: docs.netapp.com/us-en/ontap/fabricpool/
 
-PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [MEDDPICC: D — Decision Process / Criteria Alignment]
+PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 --------------------------------------------------------------------
 Focus: Drive long-term efficiency, audit logging, and host integration compliance.
 
@@ -18487,7 +18507,7 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Add rules for destructive operations: 'security multi-admin-verify rule create -operation <op>'
   - Reference: docs.netapp.com/us-en/ontap/multi-admin-verify/
 
-PHASE 5: CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [MEDDPICC: P — Paper Process]
+PHASE 5: CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
 ---------------------------------------------------------------------
 Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
 
@@ -18499,7 +18519,7 @@ ${expiringContracts.length > 0 ? contractsText : "  ✓ No contracts expiring wi
   - Identify near-EOS systems and initiate pre-sales engagement for AFF A-Series or ASA r2 refresh.
   - Reference: imt.netapp.com/matrix/ | netapp.com/data-storage/
 
-* COMPETITIVE POSITIONING [MEDDPICC: C — Competition]
+* COMPETITIVE POSITIONING [MODERNIZATION OUTLOOK]
   Platform Age Analysis:
 ${platformAgeLines}
   
@@ -18508,7 +18528,7 @@ ${platformAgeLines}
   Recommended Refresh:   AFF A-Series/C-Series for EOS/EOA candidates
 
 --------------------------------------------------------------------------------
-5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES [MEDDPICC: D — Decision Process]
+5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
 All operations under this plan must comply with standard ITIL Change Control procedures:
 1. PRE-CHANGE VERIFICATION: Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state.
@@ -18566,7 +18586,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
 
   // ── Health Grade ──
   // Use the canonical computeAccountHealthScore()/getHealthGrade() (same formula as
-  // the MEDDPICC Brief and Extended Deliverables) instead of a separate local 4-factor
+  // the Risk & Remediation Brief and Extended Deliverables) instead of a separate local 4-factor
   // average — otherwise the same account can get a different letter grade depending on
   // which of the 13 deliverables a TAM hands to the customer.
   const avgPct = computeAccountHealthScore(targetSystems);
@@ -18805,7 +18825,7 @@ Date:     ${today}
 Prepared: ${salesRep}
 
 --------------------------------------------------------------------------------
-1. ACCOUNT OVERVIEW [MEDDPICC: M]
+1. ACCOUNT OVERVIEW [METRICS]
 --------------------------------------------------------------------------------
   Customer:       ${cleanScope}
   Systems:        ${total}
@@ -18817,7 +18837,7 @@ Prepared: ${salesRep}
     ASP:          ${aspName}
 
 --------------------------------------------------------------------------------
-2. OPERATIONAL HEALTH SCORECARD [MEDDPICC: M]
+2. OPERATIONAL HEALTH SCORECARD [METRICS]
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < total ? ' *' : ''}
@@ -18832,7 +18852,7 @@ Prepared: ${salesRep}
 --------------------------------------------------------------------------------
 ${trendSection}
 --------------------------------------------------------------------------------
-3. RISK POSTURE [MEDDPICC: I]
+3. RISK POSTURE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
   Security Advisories: ${secCount}
@@ -18870,15 +18890,15 @@ ${(() => {
 ${formatCostOfInactionText(targetSystems)}
 
 --------------------------------------------------------------------------------
-4. SVM & LOGICAL INTERFACE INVENTORY [MEDDPICC: I]
+4. SVM & LOGICAL INTERFACE INVENTORY [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${compileSvmLifInventoryText(targetSystems)}
 --------------------------------------------------------------------------------
-5. SUSTAINABILITY & EFFICIENCY [MEDDPICC: I]
+5. SUSTAINABILITY & EFFICIENCY [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${sustainSection}
 --------------------------------------------------------------------------------
-6. LIFECYCLE & RENEWAL PIPELINE [MEDDPICC: P]
+6. LIFECYCLE & RENEWAL PIPELINE [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
   Contracts Expiring < 90 Days:  ${exp90}
   Contracts Expiring < 180 Days: ${exp180}
@@ -18887,7 +18907,7 @@ ${sustainSection}
 ${contractLines}
 
 --------------------------------------------------------------------------------
-7. DATA PROTECTION & DR POSTURE [MEDDPICC: I]
+7. DATA PROTECTION & DR POSTURE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverage:           ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
   SnapMirror Relations:  ${dr.smRelCount} (${dr.smSync} Sync, ${dr.smAsync} Async)
@@ -18897,7 +18917,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverag
   MetroCluster Health:   Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}`; })()}
 
 --------------------------------------------------------------------------------
-8. CAPACITY FORECAST & GROWTH [MEDDPICC: I]
+8. CAPACITY FORECAST & GROWTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Monthly Growth: ${cap.avgGrowthPctMo}%/mo
   Red Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
@@ -18906,16 +18926,16 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fl
   Est. Growth (12-mo):   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
 
 --------------------------------------------------------------------------------
-9. RECOMMENDATIONS (Active IQ) [MEDDPICC: D]
+9. RECOMMENDATIONS (Active IQ) [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
 ${recsSection}
 --------------------------------------------------------------------------------
-10. ARCHITECTURE ROADMAP & TECH REFRESH [MEDDPICC: D + C]
+10. ARCHITECTURE ROADMAP & TECH REFRESH [REMEDIATION PLAN + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
 ${techRefreshLines}
 
 --------------------------------------------------------------------------------
-11. ACTION ITEMS & NEXT STEPS [MEDDPICC: D]
+11. ACTION ITEMS & NEXT STEPS [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
@@ -18925,7 +18945,7 @@ ${techRefreshLines}
   □ Validate ITIL Change Control process for all planned remediation items
 
 --------------------------------------------------------------------------------
-12. PRIOR QUARTER ACTION REVIEW [MEDDPICC: D — Decision Process]
+12. PRIOR QUARTER ACTION REVIEW [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
 ${priorActionsText}
 ================================================================================`;
@@ -19107,7 +19127,7 @@ Report Period: ${thirtyAgo} to ${todayStr}
 Account Health Score: ${formatHealthScoreText(targetSystems)}
 
 --------------------------------------------------------------------------------
-1. SERVICE SUMMARY [MEDDPICC: M]
+1. SERVICE SUMMARY [METRICS]
 --------------------------------------------------------------------------------
   Systems Under Management:  ${total}
   Contract Coverage:         ${activeContracts}/${total} (${contractPct}%) active contracts
@@ -19116,14 +19136,14 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Average System Age:        ${avgAge} years
 
 --------------------------------------------------------------------------------
-2. PER-CUSTOMER HEALTH DASHBOARD [MEDDPICC: M]
+2. PER-CUSTOMER HEALTH DASHBOARD [METRICS]
 --------------------------------------------------------------------------------
   Customer           Health  Risks  ASUP   Supp   DRR
   ────────────────── ─────── ────── ────── ────── ──────
 ${dashboardLines}
 
 --------------------------------------------------------------------------------
-3. SLA COMPLIANCE MATRIX [MEDDPICC: M]
+3. SLA COMPLIANCE MATRIX [METRICS]
 --------------------------------------------------------------------------------
   Metric                    Target    Actual    Status
   ─────────────────────────────────────────────────────
@@ -19135,7 +19155,7 @@ ${dashboardLines}
   Case MTTR (<=${mttrTarget}d)        ${String(mttrTarget).padEnd(3)}d      ${mttrDays != null ? String(mttrDays).padStart(3) + 'd' : ' N/A'}      ${mttrDays != null ? (parseFloat(mttrDays) <= mttrTarget ? 'MET' : 'MISSED') : 'NO DATA'}
 
 --------------------------------------------------------------------------------
-4. CAPACITY CONSUMPTION & RUNWAY REPORT [MEDDPICC: M]
+4. CAPACITY CONSUMPTION & RUNWAY REPORT [METRICS]
 --------------------------------------------------------------------------------
   Customer           Phys(TB) Avail(TB)    DRR        Runway
   ────────────────── ──────── ──────────── ────────── ──────
@@ -19144,13 +19164,13 @@ ${capacityLines}
   PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway}d
 
 --------------------------------------------------------------------------------
-5. INCIDENT & CASE MANAGEMENT [MEDDPICC: I]
+5. INCIDENT & CASE MANAGEMENT [RISK EXPOSURE]
 --------------------------------------------------------------------------------
   Open Cases:     ${allSupportCases.length}
 ${casesLines}
 
 --------------------------------------------------------------------------------
-6. CONTRACT PORTFOLIO [MEDDPICC: P]
+6. CONTRACT PORTFOLIO [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
   Active:    ${activeContracts} systems
   Expiring:  ${exp90} systems (within 90 days)
@@ -19161,7 +19181,7 @@ ${casesLines}
 ${tierLines}
 
 --------------------------------------------------------------------------------
-7. DATA PROTECTION & DR COVERAGE [MEDDPICC: I]
+7. DATA PROTECTION & DR COVERAGE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
   Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
@@ -19171,11 +19191,11 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-8. SVM & LOGICAL INTERFACE INVENTORY [MEDDPICC: I]
+8. SVM & LOGICAL INTERFACE INVENTORY [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${compileSvmLifInventoryText(targetSystems)}
 --------------------------------------------------------------------------------
-9. CAPACITY & EFFICIENCY [MEDDPICC: I]
+9. CAPACITY & EFFICIENCY [RISK EXPOSURE]
 --------------------------------------------------------------------------------
   Total Physical Capacity Used: ${physTotal.toFixed(1)} TB
   Total Logical Capacity:       ${logTotal.toFixed(1)} TB
@@ -19189,12 +19209,12 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-10. IMPROVEMENT BACKLOG [MEDDPICC: D]
+10. IMPROVEMENT BACKLOG [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
 ${backlogLines}
 
 --------------------------------------------------------------------------------
-11. NEXT PERIOD OBJECTIVES [MEDDPICC: D]
+11. NEXT PERIOD OBJECTIVES [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
   □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
@@ -19215,7 +19235,7 @@ ${backlogLines}
 }
 
 
-function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
+function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   const cleanScope = scopeTitle.replace(/_/g, ' ');
   const today = new Date().toISOString().split('T')[0];
   let tamName = 'Not Assigned';
@@ -19355,13 +19375,13 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
   const eoaLines = eoaSystems.map(s => `    - ${s.systemName} (${s.platform || 'Unknown'})`).join('\n');
 
   return `================================================================================
-  MEDDPICC DEAL INTELLIGENCE BRIEF
+  RISK & REMEDIATION BRIEF
 ================================================================================
   CUSTOMER: ${cleanScope}  |  DATE: ${today}
   TAM: ${tamName}  |  Sales Rep: ${salesRep}
   Account Health Score: ${accountHealthScore}/100 (Grade ${grade})
 
-  M — METRICS (Quantifiable Value Delivered)
+  METRICS (Quantifiable Value Delivered)
   ─────────────────────────────────────────────────────────────────────────────
     Data Reduction Ratio:     ${drr}:1 (dedupe + compression, excl. snapshots)
     Space Saved:              ${savedTotal.toFixed(1)} TB
@@ -19374,14 +19394,14 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
     Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
     Capacity at Risk (<60d):  ${cap.atRisk.length} system${cap.atRisk.length !== 1 ? 's' : ''}`; })()}
 
-  E — ECONOMIC BUYER
+  OWNERSHIP
   ─────────────────────────────────────────────────────────────────────────────
     Domestic Parent:          ${domesticParent}
     Sales Representative:     ${salesRep}
     Propensity Category:      ${propCategory}
     Next Best Action:         ${nextBestAction}
 
-  D — DECISION CRITERIA (Feature Adoption & Technical Benchmarks)
+  STANDARDS & ADOPTION (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
     Feature Adoption Score:   ${avgFeaturePassed}/15 (${avgFeaturePct}%)
     ARP Enablement:           ${arpCount}/${total}${arpKnownSys.length < total ? ' *' : ''}
@@ -19394,14 +19414,14 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
     Fleet Diversity:          ${uniqueOntapVersions} unique ONTAP versions across ${total} systems
 
 ${compileSvmLifInventoryText(targetSystems)}
-  D — DECISION PROCESS (Recommended Governance & Gates)
+  REMEDIATION PLAN (Recommended Governance & Gates)
   ─────────────────────────────────────────────────────────────────────────────
     Phase 1 (Days 1-7):    ${critCount} Critical risk remediation
     Phase 2 (Days 8-30):   ${fwBehind} Firmware & OS lifecycle alignment
     Phase 3 (Days 31-90):  Feature enablement & optimization
     Phase 4 (90+ days):    Tech refresh & architecture evolution
 
-  P — PAPER PROCESS (Contracts & Procurement)
+  CONTRACTS & ENTITLEMENTS (Contracts & Procurement)
   ─────────────────────────────────────────────────────────────────────────────
     Active Contracts:         ${activeContracts}/${total} systems (${contractPct}%)
     Expiring < 90 Days:       ${expiring90} systems
@@ -19410,7 +19430,7 @@ ${compileSvmLifInventoryText(targetSystems)}
     Service Tiers:            
 ${tierLines}
 
-  I — IMPLICATE THE PAIN (Risk & Cost of Inaction)
+  RISK EXPOSURE (Risk & Cost of Inaction)
   ─────────────────────────────────────────────────────────────────────────────
     Critical Risks:           ${coi.critRisks}
     High Risks:               ${coi.highRisks}
@@ -19425,14 +19445,14 @@ ${tierLines}
 ${coiText}
     ╚═══════════════════════════════════════════════════════════════════════╝
 
-  C — CHAMPION (Internal Advocate)
+  PRIMARY CONTACTS (Internal Advocate)
   ─────────────────────────────────────────────────────────────────────────────
     Primary Contact:          ${primContact}
     Email:                    ${email}
     Phone:                    ${phone}
     Case Health Score:        ${avgCsat.toFixed(1)}/10 (avg)
 
-  C — COMPETITION (Displacement Risk & Positioning)
+  MODERNIZATION OUTLOOK (Displacement Risk & Positioning)
   ─────────────────────────────────────────────────────────────────────────────
     Tech Refresh Flagged:     ${refreshFlagged} systems
     Platform Age > 5 Years:   ${ageOver5} systems
@@ -19874,7 +19894,7 @@ ${_kevAckLines}
     (* = not reported by Active IQ API — verify on-cluster)\n`;
 
   return `================================================================================
-  SECURITY POSTURE EXECUTIVE BRIEF [MEDDPICC: I + D]
+  SECURITY POSTURE EXECUTIVE BRIEF [RISK EXPOSURE + REMEDIATION PLAN]
 ================================================================================
   Account: ${cleanScope}  |  Date: ${today}
   Systems: ${count}  |  TAM: ${tamName}
@@ -19999,7 +20019,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   if (recLines.trim() === '') recLines = '    No urgent optimization recommendations found.';
 
   return `================================================================================
-  SUSTAINABILITY & ESG REPORT [MEDDPICC: M + E]
+  SUSTAINABILITY & ESG REPORT [METRICS + OWNERSHIP]
 ================================================================================
   Account: ${cleanScope}  |  Date: ${today}
   Systems: ${count}
@@ -20472,7 +20492,7 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const healthScore = computeAccountHealthScore(targetSystems);
   // Use the canonical getHealthGrade() thresholds (>=90/80/65/50) — this local
   // variant (>=90/75/60/40) let the same score earn a different letter grade
-  // than the MEDDPICC Brief and QBR Pack for the same account.
+  // than the Risk & Remediation Brief and QBR Pack for the same account.
   const healthGrade = getHealthGrade(healthScore);
   const coi = computeCostOfInaction(targetSystems);
   const coiLabel = coi.score >= 50 ? 'CRITICAL' : coi.score >= 25 ? 'MATERIAL' : coi.score >= 10 ? 'MODERATE' : 'LOW';
@@ -21171,7 +21191,7 @@ OPPORTUNITY INTELLIGENCE:
 
   // Contract renewals
   if (expiringContracts.length > 0) {
-    salesProposals += `CONTRACT RENEWALS (${expiringContracts.length}) [MEDDPICC: P]
+    salesProposals += `CONTRACT RENEWALS (${expiringContracts.length}) [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
@@ -21207,7 +21227,7 @@ OPPORTUNITY INTELLIGENCE:
   // Lifecycle refresh
   const eos = targetSystems.filter(s => s.lifecycle && (s.lifecycle.isNearEos || (s.ontapVersion || '').startsWith('9.5')));
   if (eos.length > 0) {
-    salesProposals += `LIFECYCLE REFRESH CANDIDATES (${eos.length}) [MEDDPICC: I + C]
+    salesProposals += `LIFECYCLE REFRESH CANDIDATES (${eos.length}) [RISK EXPOSURE + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
 `;
     eos.forEach((sys, i) => {
@@ -21226,7 +21246,7 @@ OPPORTUNITY INTELLIGENCE:
   const arpGap = sysCount - arpEnabledCount;
   const fwGap = sysCount - fwCurrentCount;
   if (arpGap > 0 || fwGap > 0) {
-    salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES [MEDDPICC: D]
+    salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES [STANDARDS & ADOPTION]
 --------------------------------------------------------------------------------
 `;
     if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} system(s) without Anti-Ransomware Protection\n    → ONTAP ARP licensing or upgrade engagement\n`;
@@ -21235,7 +21255,7 @@ OPPORTUNITY INTELLIGENCE:
 
   // DR protection upsell
   if (dr.unprotected.length > 0) {
-    salesProposals += `\nDATA PROTECTION UPSELL [MEDDPICC: I]
+    salesProposals += `\nDATA PROTECTION UPSELL [RISK EXPOSURE]
 --------------------------------------------------------------------------------
   ${dr.unprotected.length} system(s) without SnapMirror or MetroCluster protection:
 ${dr.unprotected.map(n => `    • ${n}`).join('\n')}
@@ -21247,7 +21267,7 @@ ${dr.unprotected.map(n => `    • ${n}`).join('\n')}
 
   // Capacity expansion upsell
   if (cap.redCount > 0 || cap.atRisk.length > 0) {
-    salesProposals += `\nCAPACITY EXPANSION [MEDDPICC: P + T]
+    salesProposals += `\nCAPACITY EXPANSION [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
   ${cap.redCount} system(s) in RED capacity zone, ${cap.atRisk.length} with <60d runway:
 ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remaining`).join('\n')}
@@ -21259,7 +21279,7 @@ ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remai
 
   // Feature adoption upsell
   if (fm.fleetAvgScore < 80) {
-    salesProposals += `\nFEATURE ADOPTION UPLIFT [MEDDPICC: D + C]
+    salesProposals += `\nFEATURE ADOPTION UPLIFT [STANDARDS & ADOPTION + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
   Fleet Average: ${fm.fleetAvgScore}%  |  Bottom Performers:
 ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; if (!s.arp) gaps.push('ARP'); if (!s.fabricPool) gaps.push('FabricPool'); if (!s.nve) gaps.push('NVE'); if (!s.snapMirror) gaps.push('SnapMirror'); if (!s.ha) gaps.push('HA'); if (!s.audit) gaps.push('Audit'); if (!s.snapLock) gaps.push('SnapLock'); if (!s.mav) gaps.push('MAV'); return `    • ${s.name}: ${s.score}/${s.total} (${s.pct}%) — gaps: ${gaps.slice(0, 3).join(', ')}`; }).join('\n')}
@@ -21286,7 +21306,7 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   const eosaPremium = Math.round(eosaCount * avgSupportCostPerSystem * 0.45);
   const unsupportedRiskCost = critCount * 25000; // Estimated per-incident exposure
 
-  salesProposals += `\nFINANCIAL BUSINESS CASE [MEDDPICC: M + E]
+  salesProposals += `\nFINANCIAL BUSINESS CASE [METRICS + OWNERSHIP]
 --------------------------------------------------------------------------------
   3-YEAR TCO COMPARISON (ESTIMATED)
 
@@ -21327,8 +21347,8 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   // 10. Account Handover Brief
   let handoverBrief = compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw);
 
-  // 11. MEDDPICC Deal Intelligence Brief
-  let meddpiccBrief = compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
+  // 11. Risk & Remediation Brief
+  let riskRemediationBrief = compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
 
   // 12. Security Posture Executive Brief
   let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -21348,7 +21368,7 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   if (enrichSections.qbrPack)             qbrPack             += enrichSections.qbrPack;
   if (enrichSections.mspReport)           mspReport           += enrichSections.mspReport;
   if (enrichSections.handoverBrief)       handoverBrief       += enrichSections.handoverBrief;
-  if (enrichSections.meddpiccBrief)       meddpiccBrief       += enrichSections.meddpiccBrief;
+  if (enrichSections.riskRemediationBrief) riskRemediationBrief += enrichSections.riskRemediationBrief;
   if (enrichSections.securityBrief)       securityBrief       += enrichSections.securityBrief;
   if (enrichSections.sustainabilityReport) sustainabilityReport += enrichSections.sustainabilityReport;
 
@@ -21377,7 +21397,7 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     qbrPack += _imtBlock;
     mspReport += _imtBlock;
     handoverBrief += _imtBlock;
-    meddpiccBrief += _imtBlock;
+    riskRemediationBrief += _imtBlock;
     customerSuccessPlan += _imtBlock;
     salesProposals += _imtBlock;
     changeTickets += _imtBlock;
@@ -21395,7 +21415,7 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     qbrPack,
     mspReport,
     handoverBrief,
-    meddpiccBrief,
+    riskRemediationBrief,
     securityBrief,
     sustainabilityReport,
     _enrichmentCounts: enrichSections._counts || {},
@@ -24344,7 +24364,7 @@ function generateActionPlan() {
           <div style="display:grid;grid-template-columns:repeat(3,auto);gap:8px 16px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;flex-shrink:0;">
             <div title="Risk-focused deliverables (A, B, C)">⬥ Risk: <strong style="color:var(--status-critical);">${(ec.problemStatements||0)+(ec.changeTickets||0)+(ec.implementationPlans||0)}</strong></div>
             <div title="Customer-facing deliverables (D, E, F)">⬥ Customer: <strong style="color:var(--accent-cyan);">${(ec.customerComms||0)+(ec.solutionProposals||0)+(ec.salesProposals||0)}</strong></div>
-            <div title="Security deliverables (H, I)">⬥ Security: <strong style="color:#f472b6;">${(ec.securityBrief||0)+(ec.meddpiccBrief||0)}</strong></div>
+            <div title="Security deliverables (H, I)">⬥ Security: <strong style="color:#f472b6;">${(ec.securityBrief||0)+(ec.riskRemediationBrief||0)}</strong></div>
             <div title="TAM operations deliverables (G, J)">⬥ TAM Ops: <strong style="color:var(--status-normal);">${(ec.customerSuccessPlan||0)+(ec.handoverBrief||0)}</strong></div>
             <div title="MSP and QBR deliverables (H, I)">⬥ QBR/MSP: <strong style="color:#fbbf24;">${(ec.qbrPack||0)+(ec.mspReport||0)}</strong></div>
             <div title="Sustainability report (M)">⬥ ESG: <strong style="color:#34d399;">${ec.sustainabilityReport||0}</strong></div>
@@ -25192,11 +25212,11 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. MEDDPICC Deal Intelligence Brief${enrBadge('meddpiccBrief')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MEDDPICC_BRIEF')">Download Brief (TXT)</button>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. Risk & Remediation Brief${enrBadge('riskRemediationBrief')}</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('RISK_REMEDIATION_BRIEF')">Download Brief (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Quantifiable account metrics, deal qualification criteria (Metrics, Economic Buyer, Decision Criteria, etc.), risk evaluation, and cost of inaction summaries.</p>
-        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.meddpiccBrief}</textarea>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Quantifiable account metrics, fleet tracking dimensions (Metrics, Ownership, Standards & Adoption, etc.), risk evaluation, and cost of inaction summaries.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.riskRemediationBrief}</textarea>
       </div>
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
@@ -25930,7 +25950,7 @@ function downloadAllDeliverables() {
   const types = [
     'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
     'EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL',
-    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'MEDDPICC_BRIEF',
+    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'RISK_REMEDIATION_BRIEF',
     'SECURITY_BRIEF', 'SUSTAINABILITY_REPORT'
   ];
   let delay = 0;
@@ -26024,8 +26044,8 @@ function downloadDeliverable(type) {
     triggerFileDownload(`msp_service_report_${cleanScope}.txt`, docs.mspReport);
   } else if (type === 'HANDOVER_BRIEF') {
     triggerFileDownload(`account_handover_brief_${cleanScope}.txt`, docs.handoverBrief);
-  } else if (type === 'MEDDPICC_BRIEF') {
-    triggerFileDownload(`meddpicc_brief_${cleanScope}.txt`, docs.meddpiccBrief || compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+  } else if (type === 'RISK_REMEDIATION_BRIEF') {
+    triggerFileDownload(`risk_remediation_brief_${cleanScope}.txt`, docs.riskRemediationBrief || compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'SECURITY_BRIEF') {
     triggerFileDownload(`security_brief_${cleanScope}.txt`, docs.securityBrief || compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'SUSTAINABILITY_REPORT') {

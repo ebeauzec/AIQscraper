@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.29] - 2026-08-19
+
+### Changed
+- **Removed MEDDPICC sales-framework terminology throughout the tool.** MSPs, partners, and customers don't use or recognize it. Kept the same underlying 8-category structure, relabeled for fleet operations: Metrics stays Metrics; Economic Buyer → Ownership; Decision Criteria → Standards & Adoption; Decision Process → Remediation Plan; Paper Process → Contracts & Entitlements; Implicate the Pain → Risk Exposure; Champion → Primary Contacts; Competition → Modernization Outlook. The "MEDDPICC Deal Intelligence Brief" deliverable is now the "Risk & Remediation Brief". The CSM tab's "MEDDPICC Quick-View" panel is now "Account Snapshot". All ~35 inline section tags across QBR Pack, MSP Service Report, Security Brief, Sustainability Report, and Extended Deliverables updated. Text/naming-only change — no computation logic altered.
+
+---
+
 ## [5.6.28] - 2026-08-19
 
 ### Fixed
