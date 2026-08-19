@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.21] - 2026-08-19
+
+### Fixed
+- **Missing contract data showed as "Invalid Date" and triggered false 0-day expiry alarms.** `daysRemaining` defaulted to `0` instead of `null` when a system had no contract data from Active IQ — `0` means a real, urgent same-day expiry, so every no-data system was indistinguishable from one actually expiring today. Cascaded into "Invalid Date (0d)" in the Overview table's Support Renewal Date column and false CRITICAL "contract expires in 0d" alerts in the Needs Attention widget, plus silent miscounts in several other `daysRemaining` comparisons. Fixed to use `null` with explicit exclusion at every comparison site. Traces back via git history to at least v3.8.0 (28 July 2026) — predates this session.
+- **Case Health always read 10/Excellent, even with real open cases.** `salesHealth.sentimentScore` (shown in Account Intelligence and the CSM tab) was computed against the raw harvest object, whose case field is named `cases`, not `supportCases` — so it always hit the empty-case fallback. Fixed to run after cases are normalized. Verified live: a system with one genuine open case now correctly scores 9.9.
+
+---
+
 ## [5.6.20] - 2026-08-19
 
 ### Changed

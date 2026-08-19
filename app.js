@@ -27,9 +27,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.20";
+const APP_VERSION = "5.6.21";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.21",
+    date: "19 August 2026",
+    title: "Fixed: Missing Contract Data Showed as False Alarms; Case Health Always Showed Perfect",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: No Contract Data Displayed as 'Invalid Date' and False 0-Day Expiry Alarms",
+        color: "#f87171",
+        items: [
+          "Systems with no contract data from Active IQ (confirmed live: StorageGRID/E-Series systems with no overallContractEndDate) had daysRemaining default to 0, not null -- 0 means a real and urgent 'expires today', so every no-data system was indistinguishable from a genuine same-day expiry",
+          "This cascaded everywhere daysRemaining is compared: the Overview table's Support Renewal Date column showed literal 'Invalid Date (0d)', the Needs Attention widget flagged these systems as 'contract expires in 0d' CRITICAL alerts, and several other filters (KPI expiring-contracts count, tech-refresh upsell scoring, system health status) silently miscounted them the same way",
+          "daysRemaining is now null when there's no contract data, with every comparison site updated to explicitly exclude null instead of letting it coerce to 0. Verified live: a real no-data system now shows 'N/A' with no false alarm anywhere, while systems with genuine 0-day or 13-day expiries are unaffected",
+          "This bug predates this session's work -- confirmed via git history to at least v3.8.0 (28 July 2026), the earliest commit touching this file in the repository"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Case Health Score Always Read 10/Excellent, Even With Real Open Cases",
+        color: "#f87171",
+        items: [
+          "The Case Health score shown in Account Intelligence and the CSM tab (salesHealth.sentimentScore) was computed by calling computeSupportCaseHealth() against the RAW, not-yet-processed system object -- whose case data lives in a field named 'cases', not 'supportCases'. Since sys.supportCases was always undefined on that raw object, the function always hit its 'no case data' fallback and returned a hardcoded 10/Excellent, regardless of how many real cases were open",
+          "Moved the calculation to after the system's cases are correctly normalized into the supportCases field already used everywhere else. Verified live: a system with one genuine open case now correctly scores 9.9, matching what computeSupportCaseHealth() already computed correctly everywhere else it's called directly on an enriched system"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.20",
     date: "19 August 2026",
@@ -6135,7 +6162,10 @@ function getFilteredSystems(excludeKpiFilter = false) {
     } else if (state.activeKpiFilter === "WARNING") {
       filtered = filtered.filter(s => s.status === "warning" || (s.risks || []).some(r => r.severity === "high" || r.severity === "medium"));
     } else if (state.activeKpiFilter === "CONTRACT") {
-      filtered = filtered.filter(s => s.contracts?.daysRemaining <= 90);
+      // daysRemaining is null (not 0) when there's no contract data at all --
+      // `null <= 90` is true in JS, so without this guard every no-data
+      // system would wrongly count as "expiring soon".
+      filtered = filtered.filter(s => s.contracts?.daysRemaining != null && s.contracts.daysRemaining <= 90);
     }
   }
 
@@ -6152,7 +6182,7 @@ function updateOverviewKpis() {
     acc + sys.risks.filter(r => r.severity === 'critical').length, 0);
   const warningRisksCount = filtered.reduce((acc, sys) => 
     acc + sys.risks.filter(r => r.severity === 'high' || r.severity === 'medium').length, 0);
-  const expiringContracts = filtered.filter(sys => sys.contracts.daysRemaining <= 90).length;
+  const expiringContracts = filtered.filter(sys => sys.contracts.daysRemaining != null && sys.contracts.daysRemaining <= 90).length;
 
   document.getElementById("kpiTotalSystems").innerText = totalSystems;
   document.getElementById("kpiCriticalRisks").innerText = criticalRisksCount;
@@ -14120,10 +14150,27 @@ function enrichSystemTelemetry(s) {
   if ((!contracts || contracts.daysRemaining == null) && isLiveData) {
     // Live API path: build from real contract fields
     const endDate = s.contractEndDate || s.contractHWEndDate || '';
-    const daysRem = endDate ? Math.max(0, Math.floor((new Date(endDate) - new Date()) / 86400000)) : 0;
+    // null (not 0) when there's no contract data at all -- 0 means "expires
+    // today", a real and urgent state, and must not be indistinguishable
+    // from "Active IQ has no entitlement data for this system". Confirmed
+    // live: systems with no contract data (StorageGRID/E-Series, no
+    // overallContractEndDate/hardwareContractEndDate from Active IQ) were
+    // defaulting to daysRemaining=0, which every consumer downstream
+    // (Needs Attention widget, Overview table, expiring-contracts filters)
+    // then reads as "contract expires in 0 days" -- a false CRITICAL alarm
+    // on a system where we simply don't know the real expiry.
+    const daysRem = endDate ? Math.max(0, Math.floor((new Date(endDate) - new Date()) / 86400000)) : null;
+    let status;
+    if (!endDate) status = 'unknown';
+    else if (!s.contractActive) status = 'expired';
+    else status = daysRem < 90 ? 'warning' : 'normal';
     contracts = {
-      status: s.contractActive ? (daysRem < 90 ? 'warning' : 'normal') : 'expired',
-      endDate: endDate || 'N/A',
+      status,
+      // Empty string, NOT the literal 'N/A' -- every reader downstream does
+      // `contracts.endDate ? new Date(...) : 'N/A'`, and the string 'N/A' is
+      // truthy, so it was being fed straight into `new Date('N/A')` and
+      // displayed as "Invalid Date" instead of the intended 'N/A' fallback.
+      endDate: endDate || '',
       daysRemaining: daysRem,
       supportLevel: s.serviceLevel || 'N/A'
     };
@@ -14368,18 +14415,10 @@ function enrichSystemTelemetry(s) {
       supportTam: "Active Lead TAM Engaged",
       sentimentScore: 8.5,
       healthStatus: "Stable",
-      upsellPotential: (lifecycle.isNearEos || contracts.daysRemaining < 180) ? "High (Tech Refresh Window)" : "Medium",
+      upsellPotential: (lifecycle.isNearEos || (contracts.daysRemaining != null && contracts.daysRemaining < 180)) ? "High (Tech Refresh Window)" : "Medium",
       refreshWindow: (lifecycle.isNearEos) ? "Immediate Action Required" : "Q3 2027"
     };
   }
-
-  // Compute Support Case Health score from real case data (replaces fake CSAT)
-  const _caseHealth = computeSupportCaseHealth(s);
-  if (salesHealth.sentimentScore === null || salesHealth.sentimentScore === 0) {
-    salesHealth.sentimentScore = _caseHealth.score;
-    salesHealth.healthStatus = _caseHealth.label;
-  }
-  salesHealth._caseHealthDetail = _caseHealth.detail;
 
   let projections;
   if (isLiveData) {
@@ -15101,6 +15140,24 @@ function enrichSystemTelemetry(s) {
     };
   });
 
+  // Compute Support Case Health score from real case data (replaces fake CSAT).
+  // MUST use the already-normalized `supportCases` array built just above, not
+  // the raw `s` -- server.py's harvest field is named "cases", but
+  // computeSupportCaseHealth() reads `sys.supportCases`. Passing raw `s` here
+  // meant sys.supportCases was always undefined regardless of real case data,
+  // so this ALWAYS returned the hardcoded {score:10, label:'Excellent', "No
+  // open support cases"} fallback -- confirmed live: a system with a genuine
+  // open case scored 9.9 when computeSupportCaseHealth() was called correctly
+  // against the enriched object, but always showed 10/Excellent via this
+  // salesHealth.sentimentScore path (Account Intelligence, CSM tab Case
+  // Health badge) no matter how many real cases were open.
+  const _caseHealth = computeSupportCaseHealth({ supportCases });
+  if (salesHealth.sentimentScore === null || salesHealth.sentimentScore === 0) {
+    salesHealth.sentimentScore = _caseHealth.score;
+    salesHealth.healthStatus = _caseHealth.label;
+  }
+  salesHealth._caseHealthDetail = _caseHealth.detail;
+
   // Compute health status from actual telemetry data (not from missing API field)
   const hasCritRisk = risks.some(r => r.severity === 'critical');
   const hasHighRisk = risks.some(r => r.severity === 'high');
@@ -15108,7 +15165,7 @@ function enrichSystemTelemetry(s) {
   const contractExpired = contracts && (contracts.status === 'expired' || contracts.daysRemaining < 0);
   let computedStatus = 'normal';
   if (hasCritRisk || contractExpired) computedStatus = 'critical';
-  else if (hasHighRisk || asupFailed || (contracts && contracts.daysRemaining <= 90)) computedStatus = 'warning';
+  else if (hasHighRisk || asupFailed || (contracts && contracts.daysRemaining != null && contracts.daysRemaining <= 90)) computedStatus = 'warning';
 
   // ── Backfill contractActive for mock/non-live systems ──────────────────────
   // contractActive: derived from contracts object; real API provides it as a boolean.
@@ -23830,7 +23887,7 @@ function generateActionPlan() {
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       allUpgrades.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
-    if (sys.contracts && sys.contracts.daysRemaining <= 90) {
+    if (sys.contracts && sys.contracts.daysRemaining != null && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
     }
     if (sys.fieldActions) {
@@ -25149,7 +25206,7 @@ function downloadPlanSection(index) {
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       allUpgrades.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
-    if (sys.contracts && sys.contracts.daysRemaining <= 90) {
+    if (sys.contracts && sys.contracts.daysRemaining != null && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
     }
     if (sys.fieldActions) {
@@ -25632,7 +25689,7 @@ function downloadDeliverable(type) {
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       allUpgrades.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades });
     }
-    if (sys.contracts && sys.contracts.daysRemaining <= 90) {
+    if (sys.contracts && sys.contracts.daysRemaining != null && sys.contracts.daysRemaining <= 90) {
       expiringContracts.push({ systemName: sys.systemName, serialNumber: sys.serialNumber, ...sys.contracts });
     }
     if (sys.supportCases) {
