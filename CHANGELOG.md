@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.30] - 2026-08-19
+
+### Added
+- **Persistent Remediation Tracker.** Every deliverable used to regenerate a fresh point-in-time snapshot of risks/recommendations/contracts on every re-harvest, with no way to mark something as being worked, assign an owner, set a due date, or see what's overdue. New backend: a `tracked_items` SQLite table plus `GET`/`POST /api/tracker`, `POST /api/tracker/update`, and `DELETE /api/tracker` endpoints — items are matched across syncs by a stable key so re-harvesting never resets tracked status/owner/due-date/notes. New "Remediation Tracker" nav tab: filterable by status (Open/In Progress/Resolved/Deferred/Risk Accepted) and customer, inline-editable owner/due-date/notes, and a KPI row (Open/In Progress/Overdue/Resolved/Total). "Import Findings Into Tracker" pulls the current scope's real critical/high risks, contracts expiring within 90 days, and near/already-EOS systems in as trackable items, built from actual per-system data — not an extrapolated estimate. Large imports (>500 findings) prompt for confirmation, and the table caps rendering at 300 rows with a narrow-with-filters note. First of several planned operational additions aimed at ongoing fleet visibility and remediation, not just point-in-time reporting.
+
+---
+
 ## [5.6.29] - 2026-08-19
 
 ### Changed

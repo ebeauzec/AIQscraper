@@ -624,6 +624,37 @@ def _run_db_schema_setup(db):
             source      TEXT DEFAULT ''
         );
     """)
+    # ── Remediation Tracker ──────────────────────────────────────────────
+    # Every deliverable/report in this tool regenerates a fresh point-in-time
+    # snapshot from the current Active IQ pull -- there was no persistent
+    # record of a finding's remediation status that survives a re-harvest.
+    # item_key is a stable hash of (source_type, system_serial, finding
+    # identity) computed client-side, so re-harvesting the same real finding
+    # upserts onto the SAME row (preserving status/owner/due_date) instead of
+    # creating a duplicate or losing tracked progress.
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS tracked_items (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_key      TEXT UNIQUE NOT NULL,
+            account_id    TEXT DEFAULT '',
+            customer_name TEXT DEFAULT '',
+            system_serial TEXT DEFAULT '',
+            system_name   TEXT DEFAULT '',
+            source_type   TEXT DEFAULT '',
+            severity      TEXT DEFAULT '',
+            title         TEXT NOT NULL,
+            detail        TEXT DEFAULT '',
+            status        TEXT NOT NULL DEFAULT 'open',
+            owner         TEXT DEFAULT '',
+            due_date      TEXT DEFAULT '',
+            notes         TEXT DEFAULT '',
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            last_seen_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_tracked_items_status ON tracked_items(status);
+        CREATE INDEX IF NOT EXISTS idx_tracked_items_account ON tracked_items(account_id);
+    """)
     # enrich_cache purge now happens in _maybe_purge_enrich_cache(), rate-
     # limited to once/hour rather than on every _init_db() call -- see there.
     # One-time migration: copy the legacy singleton harvest (id=1) into the
@@ -7271,6 +7302,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_customers()
         elif self.path.startswith('/api/firmware-probe'):
             self.handle_firmware_probe()
+        elif self.path.startswith('/api/tracker'):
+            self.handle_tracker_list()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -7613,6 +7646,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_associate()
         elif self.path == '/api/history/annotate':
             self.handle_history_annotate()
+        elif self.path == '/api/tracker/update':
+            self.handle_tracker_update()
+        elif self.path == '/api/tracker':
+            self.handle_tracker_upsert()
         elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
@@ -7621,6 +7658,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         if self.path.startswith('/api/asup/imports'):
             self.handle_asup_delete()
+        elif self.path.startswith('/api/tracker'):
+            self.handle_tracker_delete()
         else:
             self.send_error(404, "Not Found")
 
@@ -8188,6 +8227,146 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             print(f"  [ASUP] Delete error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e)})
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Remediation Tracker Handlers
+    # ─────────────────────────────────────────────────────────────────────
+
+    def handle_tracker_list(self):
+        """GET /api/tracker — return every tracked remediation item."""
+        try:
+            db = _init_db()
+            try:
+                rows = db.execute("""
+                    SELECT id, item_key, account_id, customer_name, system_serial, system_name,
+                           source_type, severity, title, detail, status, owner, due_date, notes,
+                           created_at, updated_at, last_seen_at
+                    FROM tracked_items ORDER BY updated_at DESC
+                """).fetchall()
+            finally:
+                db.close()
+            cols = ["id", "itemKey", "accountId", "customerName", "systemSerial", "systemName",
+                    "sourceType", "severity", "title", "detail", "status", "owner", "dueDate", "notes",
+                    "createdAt", "updatedAt", "lastSeenAt"]
+            items = [dict(zip(cols, r)) for r in rows]
+            self._json_response(200, {"ok": True, "items": items})
+        except Exception as e:
+            print(f"  [TRACKER] List error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_tracker_upsert(self):
+        """POST /api/tracker
+        Body: { items: [{ itemKey, accountId, customerName, systemSerial,
+                           systemName, sourceType, severity, title, detail }, ...] }
+
+        Upserts by item_key (a stable hash computed client-side from the
+        finding's identity, e.g. source_type + serial + risk description).
+        A finding that already exists gets its title/detail/last_seen_at
+        refreshed (so stale text doesn't linger if the underlying finding's
+        wording changes upstream) but its status/owner/due_date/notes are
+        left untouched -- re-harvesting the same real finding must never
+        silently reset a TAM's tracked progress on it back to "open".
+        New findings are inserted with status='open'.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            items = body.get("items") or []
+            now = datetime.now(timezone.utc).isoformat()
+            db = _init_db()
+            inserted, refreshed = 0, 0
+            try:
+                for it in items:
+                    key = (it.get("itemKey") or "").strip()
+                    title = (it.get("title") or "").strip()
+                    if not key or not title:
+                        continue
+                    existing = db.execute("SELECT id FROM tracked_items WHERE item_key = ?", (key,)).fetchone()
+                    if existing:
+                        db.execute("""
+                            UPDATE tracked_items SET title = ?, detail = ?, severity = ?, last_seen_at = ?
+                            WHERE item_key = ?
+                        """, (title, it.get("detail", ""), it.get("severity", ""), now, key))
+                        refreshed += 1
+                    else:
+                        db.execute("""
+                            INSERT INTO tracked_items
+                                (item_key, account_id, customer_name, system_serial, system_name,
+                                 source_type, severity, title, detail, status, owner, due_date, notes,
+                                 created_at, updated_at, last_seen_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', '', '', '', ?, ?, ?)
+                        """, (key, it.get("accountId", ""), it.get("customerName", ""),
+                              it.get("systemSerial", ""), it.get("systemName", ""),
+                              it.get("sourceType", ""), it.get("severity", ""), title,
+                              it.get("detail", ""), now, now, now))
+                        inserted += 1
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "inserted": inserted, "refreshed": refreshed})
+        except Exception as e:
+            print(f"  [TRACKER] Upsert error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_tracker_update(self):
+        """POST /api/tracker/update
+        Body: { id, status?, owner?, dueDate?, notes? } — updates only the
+        fields present in the body, leaving the rest of the row untouched.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            item_id = body.get("id")
+            if not item_id:
+                self._json_response(400, {"ok": False, "error": "id is required"})
+                return
+            valid_statuses = {"open", "in_progress", "resolved", "deferred", "accepted"}
+            fields, params = [], []
+            if "status" in body:
+                if body["status"] not in valid_statuses:
+                    self._json_response(400, {"ok": False, "error": f"invalid status, must be one of {sorted(valid_statuses)}"})
+                    return
+                fields.append("status = ?"); params.append(body["status"])
+            if "owner" in body:
+                fields.append("owner = ?"); params.append(body["owner"] or "")
+            if "dueDate" in body:
+                fields.append("due_date = ?"); params.append(body["dueDate"] or "")
+            if "notes" in body:
+                fields.append("notes = ?"); params.append(body["notes"] or "")
+            if not fields:
+                self._json_response(400, {"ok": False, "error": "no updatable fields provided"})
+                return
+            fields.append("updated_at = ?"); params.append(datetime.now(timezone.utc).isoformat())
+            params.append(item_id)
+            db = _init_db()
+            try:
+                db.execute(f"UPDATE tracked_items SET {', '.join(fields)} WHERE id = ?", params)
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True})
+        except Exception as e:
+            print(f"  [TRACKER] Update error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_tracker_delete(self):
+        """DELETE /api/tracker?id=NNN — permanently remove a tracked item."""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            params = parse_qs(urlparse(self.path).query)
+            item_id = params.get("id", [None])[0]
+            if not item_id:
+                self._json_response(400, {"ok": False, "error": "id parameter required"})
+                return
+            db = _init_db()
+            try:
+                db.execute("DELETE FROM tracked_items WHERE id = ?", (item_id,))
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "deleted": item_id})
+        except Exception as e:
+            print(f"  [TRACKER] Delete error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
 
     def handle_config_get(self):
         """GET /api/config — return current config (without sensitive tokens)."""

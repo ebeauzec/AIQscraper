@@ -52,9 +52,13 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           Value & ROI
         </div>
-        <div class="nav-item" data-tab="plan" onclick="switchTab('plan')" data-tooltip="Generate customer-ready deliverables (QBR pack, security brief, MEDDPICC, sustainability report, and more) plus fleet-wide contract/recommendation/lifecycle views.">
+        <div class="nav-item" data-tab="plan" onclick="switchTab('plan')" data-tooltip="Generate customer-ready deliverables (QBR pack, security brief, risk & remediation brief, sustainability report, and more) plus fleet-wide contract/recommendation/lifecycle views.">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           Action Planner
+        </div>
+        <div class="nav-item" data-tab="tracker" onclick="switchTab('tracker')" data-tooltip="Persistent, cross-sync tracking of open risks, recommendations, and action items with status, owner, and due date -- survives re-harvests instead of resetting to a fresh snapshot every time.">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          Remediation Tracker
         </div>
         <div class="nav-item" data-tab="settings" onclick="switchTab('settings')" data-tooltip="API credentials, watchlist scope, enrichment sources, and manually-tracked system metadata (site logistics, contacts, CSAT).">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -630,6 +634,54 @@
           <div class="card" style="padding: 32px; background-color: var(--bg-card);">
           <div id="generatedPlanBody" class="plan-document-body">
             <!-- Action plan compiles here -->
+          </div>
+        </div>
+      </div>
+      <div id="trackerTab" class="tab-content">
+        <div class="table-header-row" style="margin-bottom: 24px;">
+          <h2 style="font-weight: 700; font-size: 1.5rem;">Remediation Tracker</h2>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <select id="trackerStatusFilter" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 180px; background-color: var(--bg-card); cursor: pointer;" onchange="renderTrackerTab()">
+              <option value="">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="deferred">Deferred</option>
+              <option value="accepted">Risk Accepted</option>
+            </select>
+            <select id="trackerCustomerFilter" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 220px; background-color: var(--bg-card); cursor: pointer;" onchange="renderTrackerTab()">
+              <option value="">All Customers</option>
+            </select>
+            <button class="action-btn secondary" onclick="importTrackerItemsFromScope()" data-tooltip="Scan the current risks and recommendations for the selected scope and add any not already tracked.">Import Findings Into Tracker</button>
+          </div>
+        </div>
+
+        <div id="trackerKpiRow" class="kpi-row" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 20px;">
+          <!-- Injected dynamically by JS -->
+        </div>
+
+        <div class="card" style="padding: 0; overflow-x: auto;">
+          <table class="data-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th style="padding: 10px;">Status</th>
+                <th style="padding: 10px;">Severity</th>
+                <th style="padding: 10px;">Customer</th>
+                <th style="padding: 10px;">System</th>
+                <th style="padding: 10px;">Title</th>
+                <th style="padding: 10px;">Owner</th>
+                <th style="padding: 10px;">Due Date</th>
+                <th style="padding: 10px;">Last Seen</th>
+                <th style="padding: 10px;">Notes</th>
+                <th style="padding: 10px;"></th>
+              </tr>
+            </thead>
+            <tbody id="trackerTableBody">
+              <!-- Rendered dynamically by JS -->
+            </tbody>
+          </table>
+          <div id="trackerEmptyState" style="display: none; text-align: center; color: var(--text-muted); padding: 32px;">
+            No tracked items yet. Click "Import Findings Into Tracker" to pull the current scope's risks and recommendations in, or track individual findings from the Technical Audit and Action Planner tabs.
           </div>
         </div>
       </div>

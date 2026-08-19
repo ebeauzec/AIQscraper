@@ -27,9 +27,29 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.29";
+const APP_VERSION = "5.6.30";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.30",
+    date: "19 August 2026",
+    title: "Added: Remediation Tracker — Persistent Cross-Sync Status Tracking",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Remediation Tracker Tab",
+        color: "#22c55e",
+        items: [
+          "Every deliverable in this tool regenerated a fresh point-in-time snapshot of risks, recommendations, and contracts on every re-harvest -- there was no way to mark something as being worked, assign an owner, set a due date, or see what's overdue. Added a persistent Remediation Tracker that survives re-syncs",
+          "New backend: a tracked_items table in the existing SQLite cache (server.py), with GET/POST /api/tracker, POST /api/tracker/update, and DELETE /api/tracker endpoints. Items are matched across syncs by a stable key (source type + serial + finding text), so re-harvesting the same real finding updates its title/detail but never resets its status/owner/due-date/notes back to a fresh 'open' state",
+          "New 'Remediation Tracker' nav tab: filterable by status (Open/In Progress/Resolved/Deferred/Risk Accepted) and customer, with inline-editable owner, due date, and notes per item, and a KPI row (Open/In Progress/Overdue/Resolved/Total)",
+          "'Import Findings Into Tracker' button pulls the current scope's real critical/high risks, contracts expiring within 90 days, and systems reaching End of Support within 6 months (or already EOS) in as trackable items -- built from actual per-system data, not an extrapolated estimate",
+          "Large unfiltered imports (>500 findings) prompt for confirmation first, and the table caps rendering at the 300 most severe/recent matching rows with a note to narrow via filters, to avoid dropping thousands of DOM rows into the page at once",
+          "First of several planned operational additions (persistent tracking, then a portfolio-wide MSP rollup view, SLA policy tracking, and more) aimed at making the tool better suited for ongoing fleet visibility and remediation, not just point-in-time reporting"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.29",
     date: "19 August 2026",
@@ -28371,6 +28391,269 @@ function executeSearchGo() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// ── Remediation Tracker ──────────────────────────────────────────────────
+// Every deliverable in this tool regenerates a fresh point-in-time snapshot
+// of risks/recommendations/contracts on every re-harvest -- there was no way
+// to mark something as being worked, assign an owner, set a due date, or see
+// what's overdue. This module adds a persistent tracker (backed by the
+// tracked_items SQLite table added in server.py) that survives re-syncs.
+// Items are matched across syncs by a stable item_key (source type + serial
+// + finding text), so re-harvesting never resets a tracked item's status.
+// ══════════════════════════════════════════════════════════════════════════
+
+state.trackerItems = state.trackerItems || [];
+state.trackerLoaded = false;
+
+// Small deterministic string hash (djb2 variant) -- good enough for a stable
+// dedup key, not for cryptographic use. Same input always yields same key,
+// so re-importing the same real finding across syncs upserts onto the same
+// tracked_items row instead of creating a duplicate.
+function _trackerHash(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
+function _trackerItemKey(sourceType, systemSerial, title) {
+  return _trackerHash(`${sourceType}::${systemSerial || ''}::${title || ''}`);
+}
+
+async function loadTrackerItems() {
+  try {
+    const res = await fetch('/api/tracker', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.ok) {
+      state.trackerItems = data.items || [];
+      state.trackerLoaded = true;
+    }
+  } catch (e) {
+    console.error('Failed to load tracker items:', e);
+  }
+}
+
+// Track a single finding from anywhere in the app (Technical Audit risk
+// cards, TAM Recommendations, etc.) -- POSTs one item, refreshes local
+// cache, and re-renders the tracker tab if it's currently visible.
+async function trackFinding(sourceType, systemSerial, systemName, accountId, customerName, severity, title, detail) {
+  const itemKey = _trackerItemKey(sourceType, systemSerial, title);
+  try {
+    const res = await fetch('/api/tracker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [{ itemKey, accountId, customerName, systemSerial, systemName, sourceType, severity, title, detail }] })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      await loadTrackerItems();
+      if (state.currentTab === 'tracker') renderTrackerTab();
+      return true;
+    }
+  } catch (e) {
+    console.error('Failed to track finding:', e);
+  }
+  return false;
+}
+
+async function updateTrackerItem(id, patch) {
+  try {
+    const res = await fetch('/api/tracker/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...patch })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      await loadTrackerItems();
+      renderTrackerTab();
+    }
+  } catch (e) {
+    console.error('Failed to update tracker item:', e);
+  }
+}
+
+async function deleteTrackerItem(id) {
+  if (!confirm('Remove this item from the Remediation Tracker? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`/api/tracker?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) {
+      await loadTrackerItems();
+      renderTrackerTab();
+    }
+  } catch (e) {
+    console.error('Failed to delete tracker item:', e);
+  }
+}
+
+// Bulk-imports the current scope's real, already-computed findings (critical/
+// high risks, contracts expiring <=90d, systems reaching EOS within 6 months
+// or already EOS) as tracked items. Uses getFilteredSystems() -- whatever the
+// user currently has selected/filtered in the app -- as the scope, so this
+// reflects real per-system data, not an extrapolated fleet-wide estimate.
+async function importTrackerItemsFromScope() {
+  const systems = getFilteredSystems();
+  if (!systems.length) {
+    alert('No systems in the current scope to import findings from.');
+    return;
+  }
+  const items = [];
+  systems.forEach(s => {
+    (s.risks || []).forEach(r => {
+      const sev = (r.severity || '').toLowerCase();
+      if (sev !== 'critical' && sev !== 'high') return;
+      const title = `${r.category || 'Risk'}: ${r.description || r.subCategory || 'Unspecified finding'}`;
+      items.push({
+        itemKey: _trackerItemKey('risk', s.serialNumber, title),
+        accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
+        systemSerial: s.serialNumber || '', systemName: s.systemName || '',
+        sourceType: 'risk', severity: sev, title,
+        detail: r.recommendedAction || r.remediation || ''
+      });
+    });
+    if (s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90) {
+      const title = `Support contract expiring in ${s.contracts.daysRemaining} day(s)`;
+      items.push({
+        itemKey: _trackerItemKey('contract', s.serialNumber, title),
+        accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
+        systemSerial: s.serialNumber || '', systemName: s.systemName || '',
+        sourceType: 'contract', severity: s.contracts.daysRemaining <= 30 ? 'critical' : 'high', title,
+        detail: `Renewal due ${s.contracts.endDate || 'soon'}.`
+      });
+    }
+    if (s.lifecycle && s.lifecycle.eosDate && s.lifecycle.eosDate !== 'N/A') {
+      const eosTime = new Date(s.lifecycle.eosDate).getTime();
+      const now = Date.now();
+      if (!isNaN(eosTime) && eosTime <= now + 182 * 86400000) {
+        const already = eosTime <= now;
+        const title = already ? 'Platform is already End of Support' : 'Platform reaches End of Support within 6 months';
+        items.push({
+          itemKey: _trackerItemKey('eos', s.serialNumber, title),
+          accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
+          systemSerial: s.serialNumber || '', systemName: s.systemName || '',
+          sourceType: 'eos', severity: already ? 'critical' : 'high', title,
+          detail: `EOS date: ${s.lifecycle.eosDate}. Plan hardware refresh.`
+        });
+      }
+    }
+  });
+  if (!items.length) {
+    alert('No critical/high risks, near-term contract expirations, or EOS systems found in the current scope -- nothing to import.');
+    return;
+  }
+  if (items.length > 500 && !confirm(`This will import ${items.length} findings from ${systems.length} system(s) into the tracker. That's a lot -- if you meant to track one customer, select them first. Import all ${items.length} anyway?`)) {
+    return;
+  }
+  try {
+    const res = await fetch('/api/tracker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      await loadTrackerItems();
+      renderTrackerTab();
+      alert(`Imported ${data.inserted} new item(s) into the tracker. ${data.refreshed} already-tracked item(s) had their details refreshed (status/owner/notes preserved).`);
+    }
+  } catch (e) {
+    console.error('Failed to import tracker items:', e);
+    alert('Import failed -- check the console for details.');
+  }
+}
+
+const TRACKER_STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', deferred: 'Deferred', accepted: 'Risk Accepted' };
+const TRACKER_STATUS_COLORS = { open: '#ef4444', in_progress: '#f59e0b', resolved: '#22c55e', deferred: '#94a3b8', accepted: '#3b82f6' };
+
+function renderTrackerTab() {
+  const body = document.getElementById('trackerTableBody');
+  const kpiRow = document.getElementById('trackerKpiRow');
+  const emptyState = document.getElementById('trackerEmptyState');
+  if (!body) return;
+
+  const statusFilter = (document.getElementById('trackerStatusFilter') || {}).value || '';
+  const customerFilter = (document.getElementById('trackerCustomerFilter') || {}).value || '';
+
+  // Populate customer filter options from whatever's actually tracked
+  const custSelect = document.getElementById('trackerCustomerFilter');
+  if (custSelect) {
+    const customers = [...new Set(state.trackerItems.map(i => i.customerName).filter(Boolean))].sort();
+    const current = custSelect.value;
+    custSelect.innerHTML = '<option value="">All Customers</option>' +
+      customers.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+    custSelect.value = customers.includes(current) ? current : '';
+  }
+
+  let items = state.trackerItems.filter(i => {
+    if (statusFilter && i.status !== statusFilter) return false;
+    if (customerFilter && i.customerName !== customerFilter) return false;
+    return true;
+  });
+
+  // KPI row
+  const openCount = state.trackerItems.filter(i => i.status === 'open').length;
+  const inProgCount = state.trackerItems.filter(i => i.status === 'in_progress').length;
+  const overdueCount = state.trackerItems.filter(i => i.status !== 'resolved' && i.status !== 'deferred' && i.status !== 'accepted' && i.dueDate && new Date(i.dueDate).getTime() < Date.now()).length;
+  const resolvedCount = state.trackerItems.filter(i => i.status === 'resolved').length;
+  if (kpiRow) {
+    kpiRow.innerHTML = `
+      <div class="card kpi-card"><div class="card-title">Open</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.open};">${openCount}</div></div>
+      <div class="card kpi-card"><div class="card-title">In Progress</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.in_progress};">${inProgCount}</div></div>
+      <div class="card kpi-card"><div class="card-title">Overdue</div><div class="card-value" style="color:#ef4444;">${overdueCount}</div></div>
+      <div class="card kpi-card"><div class="card-title">Resolved</div><div class="card-value" style="color:${TRACKER_STATUS_COLORS.resolved};">${resolvedCount}</div></div>
+      <div class="card kpi-card"><div class="card-title">Total Tracked</div><div class="card-value">${state.trackerItems.length}</div></div>
+    `;
+  }
+
+  if (items.length === 0) {
+    body.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'block';
+    return;
+  }
+  if (emptyState) emptyState.style.display = 'none';
+
+  const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  items = [...items].sort((a, b) => {
+    const so = (sevOrder[(a.severity || '').toLowerCase()] ?? 4) - (sevOrder[(b.severity || '').toLowerCase()] ?? 4);
+    if (so !== 0) return so;
+    return new Date(b.updatedAt) - new Date(a.updatedAt);
+  });
+
+  // Cap rendered rows -- an unfiltered fleet-wide import can produce
+  // thousands of items, and rendering that many <tr> elements (each with
+  // 3 input/select controls) at once is a real DOM-perf problem, not a
+  // scaling non-issue. Show the most severe/most recent first and tell the
+  // user to narrow with the status/customer filters for the rest.
+  const RENDER_CAP = 300;
+  const totalMatched = items.length;
+  const truncated = totalMatched > RENDER_CAP;
+  if (truncated) items = items.slice(0, RENDER_CAP);
+
+  body.innerHTML = (truncated ? `<tr><td colspan="10" style="padding:10px;text-align:center;color:var(--text-muted);font-size:0.78rem;background:rgba(245,158,11,0.08);">Showing the ${RENDER_CAP} most severe/recent of ${totalMatched} matching items — narrow with the Status or Customer filter above to see the rest.</td></tr>` : '') +
+  items.map(i => {
+    const isOverdue = i.status !== 'resolved' && i.status !== 'deferred' && i.status !== 'accepted' && i.dueDate && new Date(i.dueDate).getTime() < Date.now();
+    return `
+    <tr style="border-bottom:1px solid var(--border-color);">
+      <td style="padding:8px 10px;">
+        <select onchange="updateTrackerItem(${i.id}, {status: this.value})" style="background:${TRACKER_STATUS_COLORS[i.status]}22;color:${TRACKER_STATUS_COLORS[i.status]};border:1px solid ${TRACKER_STATUS_COLORS[i.status]}55;border-radius:4px;padding:3px 6px;font-size:0.72rem;font-weight:700;">
+          ${Object.entries(TRACKER_STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${i.status === k ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding:8px 10px;font-size:0.72rem;text-transform:uppercase;font-weight:700;color:${i.severity === 'critical' ? '#ef4444' : i.severity === 'high' ? '#f59e0b' : 'var(--text-muted)'};">${i.severity || ''}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${i.customerName || '—'}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${i.systemName || '—'}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;max-width:280px;">${i.title}${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${i.detail}</div>` : ''}</td>
+      <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:110px;color:var(--text-primary);"></td>
+      <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.78rem;color:var(--text-primary);"></td>
+      <td style="padding:8px 10px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${i.lastSeenAt ? new Date(i.lastSeenAt).toLocaleDateString() : '—'}</td>
+      <td style="padding:8px 10px;"><input type="text" value="${(i.notes || '').replace(/"/g, '&quot;')}" placeholder="Notes..." onchange="updateTrackerItem(${i.id}, {notes: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:140px;color:var(--text-primary);"></td>
+      <td style="padding:8px 10px;"><button onclick="deleteTrackerItem(${i.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Remove from tracker">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
 // ── switchTab querySelectorAll cache ────────────────────────────────────────
 // switchTab() fires on every search keystroke (via handleSearch), every filter
 // click, and every 60 s auto-sync. Caching the static nav-item / tab-content
@@ -28412,6 +28695,8 @@ function switchTab(tabId) {
   } else if (tabId === "plan") {
     populateActionPlanSelector();
     generateActionPlan();
+  } else if (tabId === "tracker") {
+    loadTrackerItems().then(renderTrackerTab);
   } else if (tabId === "settings") {
     populateGroupManagerSystems();
     populateLogisticsEditor();
