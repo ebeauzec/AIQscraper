@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.25] - 2026-08-19
+
+### Changed
+- **MetroCluster Health line extended to every remaining deliverable** that reports DR coverage: TAM Success Plan, MSP Service Report, MEDDPICC Brief, Account Handover Brief, and the extended-deliverables cross-document summary blocks. Gated on MC systems actually being in scope. `compileExtendedDeliverables()` inherits the fix automatically. Verified live against the real 8-system MetroCluster fleet.
+
+---
+
 ## [5.6.24] - 2026-08-19
 
 ### Added

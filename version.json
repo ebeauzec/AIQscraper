@@ -1,8 +1,8 @@
 {
-  "version": "5.6.24",
+  "version": "5.6.25",
   "major": 5,
   "minor": 6,
-  "patch": 24,
+  "patch": 25,
   "date": "2026-08-19",
-  "notes": "Extended MetroCluster coverage from Technical Audit (5.6.23) to the Action Planner and deliverables, as requested. (1) The Action Planner's MetroCluster Infrastructure Health widget was gated on mcRisks.length > 0 -- the same gap just fixed in Technical Audit -- so a fleet with real MC systems but zero findings showed nothing. Now gates on the real isMetroCluster field and always shows MC node count, Mediator status, and AUSO status, including a clean all-clear state. (2) computeFleetDRSummary() now also returns mcMediatorIssues/mcAusoDisabled, and the QBR Pack and Security Brief's existing DR Posture sections now include a 'MetroCluster Health: Mediator [status] | AUSO [status]' line whenever MC systems are in scope. Verified live against 8 real MetroCluster systems: Action Planner now shows 'MetroCluster system(s) in scope — no MetroCluster-specific findings detected', QBR Pack includes 'MetroCluster Health: Mediator OK | AUSO ENABLED'."
+  "notes": "Extended the MetroCluster Health line (Mediator + AUSO status, added to the QBR Pack and Security Brief in 5.6.24) to every other deliverable that reports DR coverage via computeFleetDRSummary(): the TAM Success Plan, MSP Service Report, MEDDPICC Brief, Account Handover Brief, and the extended-deliverables cross-document summary blocks. Each is gated on MC systems actually being in scope. Terser checklist-style blocks get a compact inline marker instead of a full sentence, matching each block's existing style. compileExtendedDeliverables() inherits the fix automatically since it wraps the already-fixed compile functions. Verified live against the real 8-system MetroCluster fleet: Mediator/AUSO status confirmed present in every deliverable listed above, including the bundled extended-deliverables output."
 }

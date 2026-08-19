@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.24";
+const APP_VERSION = "5.6.25";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.25",
+    date: "19 August 2026",
+    title: "MetroCluster Health Now in Every Deliverable That Reports DR Coverage",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed: Real Mediator/AUSO Status Added to Every Remaining Deliverable",
+        color: "#2dd4bf",
+        items: [
+          "Extended the MetroCluster Health line (Mediator + AUSO status) added to the QBR Pack and Security Brief in 5.6.24 to every other deliverable that reports DR coverage via computeFleetDRSummary(): the TAM Success Plan, MSP Service Report, MEDDPICC Brief, Account Handover Brief, and the extended-deliverables cross-document summary blocks",
+          "Each is gated on MC systems actually being in scope (dr.mcSystems > 0) -- nothing new appears for fleets with no MetroCluster systems",
+          "Terser 'checklist'-style summary blocks get a compact ⚠/✓ inline marker instead of a full sentence, matching each block's existing formatting style",
+          "compileExtendedDeliverables() (which wraps all of the above into the 13-document bundle) inherits the fix automatically since it calls the already-fixed compile functions",
+          "Verified live against the real 8-system MetroCluster fleet: Mediator/AUSO status confirmed present in the TAM Success Plan, MSP Report, MEDDPICC Brief, Account Handover Brief, and the bundled extended-deliverables output"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.24",
     date: "19 August 2026",
@@ -18178,7 +18197,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
 * DATA PROTECTION & DR POSTURE:
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  - SnapMirror Coverage:    ${dr.smSystems}/${systemCount} systems (${dr.drCoveragePct}%)
   - Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
-  - MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
+  - MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
   - HA Configured:          ${dr.haSystems}/${systemCount} (${dr.haCoveragePct}%)
   - Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
   - RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
@@ -19037,7 +19056,7 @@ ${tierLines}
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
   Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
-  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
+  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
   HA Configured:          ${dr.haSystems}/${total}
   Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems protected'}
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
@@ -19241,7 +19260,7 @@ function compileMEDDPICCBrief(targetSystems, allRisks, expiringContracts, allSup
     Sustainability Score:     ${avgSust}/100
     Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
     Contract Coverage:        ${contractPct}%
-${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
+${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 ? ` [Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}]` : ''}
     HA Configured:            ${dr.haSystems}/${total}
     Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
     Capacity at Risk (<60d):  ${cap.atRisk.length} system${cap.atRisk.length !== 1 ? 's' : ''}`; })()}
@@ -19575,7 +19594,7 @@ ${faLines}
 8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
-  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}
+  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
   HA Configured:          ${dr.haSystems}/${total} (${dr.haCoveragePct}%)
   Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
@@ -20447,7 +20466,7 @@ ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unpatched CVEs, ${coi.capacityRed} capacity-red systems, ${coi.noArp} without ARP
 
 DATA PROTECTION POSTURE
-  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror + ${dr.mcSystems} MetroCluster of ${sysCount})
+  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror + ${dr.mcSystems} MetroCluster of ${sysCount})${dr.mcSystems > 0 ? '\n  MetroCluster:       Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}
   HA Coverage:        ${dr.haCoveragePct}% (${dr.haSystems}/${sysCount})
   Relationships:      ${dr.smRelCount} total (${dr.smAsync} async / ${dr.smSync} sync)
   Unprotected:        ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None'}${dr.lagWarnings.length > 0 ? '\n  RPO Risks:          ' + dr.lagWarnings.map(w => w.system + ' → ' + w.dest + ' lag: ' + w.lag).join('; ') : ''}
@@ -20563,7 +20582,7 @@ OPERATIONAL HEALTH SNAPSHOT:
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity, ${coi.noArp} without ransomware protection
 
-DATA PROTECTION: ${dr.drCoveragePct}% DR coverage (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)${dr.unprotected.length > 0 ? '\n  ⚠ UNPROTECTED: ' + dr.unprotected.join(', ') : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
+DATA PROTECTION: ${dr.drCoveragePct}% DR coverage (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ UNPROTECTED: ' + dr.unprotected.join(', ') : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
 
 CAPACITY: ${cap.utilPct}% fleet utilisation (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)${cap.atRisk.length > 0 ? '\n  ⚠ SYSTEMS AT RISK: ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd runway)').join(', ') : ''}
 
@@ -20602,7 +20621,7 @@ HEALTH METRICS:
   HW Firmware:        ${fw.overallFwScore}% ${fw.overallFwScore < 80 ? '⚠' : '✓'} (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
   Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
   Feature Adoption:   ${fm.fleetAvgScore}% fleet average
-  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)
+  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
   Capacity:           ${cap.utilPct}% fleet (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)
   Warranty:           ${warranty.active}/${sysCount} active${warranty.expired > 0 ? ', ' + warranty.expired + ' EXPIRED' : ''}${warranty.expiring30 > 0 ? ', ' + warranty.expiring30 + ' <30d' : ''}
 
