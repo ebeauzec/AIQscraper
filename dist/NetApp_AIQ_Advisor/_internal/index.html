@@ -688,7 +688,7 @@
             <select id="trackerCustomerFilter" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 220px; background-color: var(--bg-card); cursor: pointer;" onchange="renderTrackerTab()">
               <option value="">All Customers</option>
             </select>
-            <button class="action-btn secondary" onclick="importTrackerItemsFromScope()" data-tooltip="Scan the current scope for critical/high risks, near-term contract expirations, EOS systems, and DR-configured clusters/systems needing a failover test verification, and add any not already tracked.">Import Findings Into Tracker</button>
+            <button class="action-btn secondary" onclick="importTrackerItemsFromScope()" data-tooltip="Scans EVERY loaded customer (not just the selected one) for critical/high risks, near-term contract expirations, EOS systems, and DR-configured clusters/systems needing a failover test verification, and adds any not already tracked. Use the Customer filter below to view one account at a time.">Import Findings Into Tracker (All Customers)</button>
           </div>
         </div>
 
@@ -702,15 +702,15 @@
           <table class="data-table" style="width: 100%;">
             <thead>
               <tr>
-                <th style="padding: 10px;">Status</th>
-                <th style="padding: 10px;">Severity</th>
-                <th style="padding: 10px;">SLA</th>
-                <th style="padding: 10px;">Customer</th>
-                <th style="padding: 10px;">System</th>
-                <th style="padding: 10px;">Title</th>
-                <th style="padding: 10px;">Owner</th>
-                <th style="padding: 10px;">Due Date</th>
-                <th style="padding: 10px;">Last Seen</th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="status" onclick="sortTrackerBy('status')">Status<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="severity" onclick="sortTrackerBy('severity')">Severity<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="sla" onclick="sortTrackerBy('sla')">SLA<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="customer" onclick="sortTrackerBy('customer')">Customer<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="system" onclick="sortTrackerBy('system')">System<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="title" onclick="sortTrackerBy('title')">Title<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="owner" onclick="sortTrackerBy('owner')">Owner<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="dueDate" onclick="sortTrackerBy('dueDate')">Due Date<span class="sort-indicator"></span></th>
+                <th style="padding: 10px; cursor: pointer; user-select: none;" data-tracker-sort="lastSeen" onclick="sortTrackerBy('lastSeen')">Last Seen<span class="sort-indicator"></span></th>
                 <th style="padding: 10px;">Notes</th>
                 <th style="padding: 10px;"></th>
               </tr>
@@ -720,7 +720,7 @@
             </tbody>
           </table>
           <div id="trackerEmptyState" style="display: none; text-align: center; color: var(--text-muted); padding: 32px;">
-            No tracked items yet. Click "Import Findings Into Tracker" to pull the current scope's risks and recommendations in, or track individual findings from the Technical Audit and Action Planner tabs.
+            No tracked items yet. Click "Import Findings Into Tracker (All Customers)" to pull every loaded customer's risks and recommendations in, or track individual findings from the Technical Audit and Action Planner tabs.
           </div>
         </div>
       </div>

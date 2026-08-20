@@ -27,9 +27,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.37";
+const APP_VERSION = "5.6.38";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.38",
+    date: "19 August 2026",
+    title: "Fixed: Import Was Scoped to One Customer, Making the Tracker Look Broken When Switching — Plus Sortable Columns",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Import Findings Was Scoped, Making Customer Switching Look Broken",
+        color: "#f87171",
+        items: [
+          "5.6.37 fixed the tracker's customer dropdown not re-syncing to the sidebar filter -- but 'Import Findings Into Tracker' was still scoped to whatever customer was selected at import time. So switching to a DIFFERENT customer correctly filtered the view, but showed empty, since nothing had ever been imported for them. That looked exactly like the same 'not filtering' bug, just one layer deeper",
+          "Import now always scans EVERY loaded customer (state.systems), regardless of the sidebar filter. The customer dropdown still controls what the TABLE shows -- only the import itself ignores scope now. Button relabeled 'Import Findings Into Tracker (All Customers)' and its tooltip updated to make this explicit",
+          "Verified live: imported with a customer filter active beforehand, confirmed 1,643 items landed across all 40 loaded customers (not just the selected one), then confirmed the table still correctly showed only that one customer's ~34 items"
+        ]
+      },
+      {
+        icon: "✨",
+        label: "Added: Sortable Tracker Columns",
+        color: "#22c55e",
+        items: [
+          "Status, Severity, SLA, Customer, System, Title, Owner, Due Date, and Last Seen headers are now clickable -- click once to sort by that column, click again to reverse direction, with a visible ▲/▼ indicator on the active column",
+          "Default sort (severity, then most-recently-updated) unchanged from before",
+          "Verified live: confirmed ascending and descending title sort produced correctly ordered rows, and confirmed all 8 sortable columns run without error"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.37",
     date: "19 August 2026",
@@ -28774,15 +28801,22 @@ async function deleteTrackerItem(id) {
   }
 }
 
-// Bulk-imports the current scope's real, already-computed findings (critical/
+// Bulk-imports EVERY customer's real, already-computed findings (critical/
 // high risks, contracts expiring <=90d, systems reaching EOS within 6 months
-// or already EOS) as tracked items. Uses getFilteredSystems() -- whatever the
-// user currently has selected/filtered in the app -- as the scope, so this
-// reflects real per-system data, not an extrapolated fleet-wide estimate.
+// or already EOS, DR-configured clusters/systems) as tracked items --
+// deliberately ALWAYS the full fleet (state.systems), not the current
+// sidebar filter. The tracker is meant to be a persistent, cross-customer
+// backlog (see the Customer Portfolio's SLA Compliance column, which needs
+// every customer represented to mean anything); scoping the import to
+// "whatever's currently selected" meant switching to a customer nobody had
+// imported for yet showed an empty tracker, which looked broken even though
+// it was accurately reflecting that nothing had been imported for them.
+// The sidebar/dropdown customer filter still controls what the TABLE shows
+// -- only the import itself ignores it.
 async function importTrackerItemsFromScope() {
-  const systems = getFilteredSystems();
+  const systems = state.systems;
   if (!systems.length) {
-    alert('No systems in the current scope to import findings from.');
+    alert('No systems loaded to import findings from.');
     return;
   }
   const items = [];
@@ -28863,10 +28897,10 @@ async function importTrackerItemsFromScope() {
     }
   });
   if (!items.length) {
-    alert('No critical/high risks, near-term contract expirations, EOS systems, or DR-configured systems found in the current scope -- nothing to import.');
+    alert('No critical/high risks, near-term contract expirations, EOS systems, or DR-configured systems found across any loaded system -- nothing to import.');
     return;
   }
-  if (items.length > 500 && !confirm(`This will import ${items.length} findings from ${systems.length} system(s) into the tracker. That's a lot -- if you meant to track one customer, select them first. Import all ${items.length} anyway?`)) {
+  if (items.length > 1500 && !confirm(`This will import ${items.length} findings from ${systems.length} system(s) across every customer into the tracker. That's a lot, but the tracker is meant to hold your full backlog -- use the Customer filter above to view one account at a time after importing. Continue?`)) {
     return;
   }
   try {
@@ -28879,12 +28913,81 @@ async function importTrackerItemsFromScope() {
     if (data.ok) {
       await loadTrackerItems();
       renderTrackerTab();
-      alert(`Imported ${data.inserted} new item(s) into the tracker. ${data.refreshed} already-tracked item(s) had their details refreshed (status/owner/notes preserved).`);
+      alert(`Imported ${data.inserted} new item(s) into the tracker across every customer. ${data.refreshed} already-tracked item(s) had their details refreshed (status/owner/notes preserved). Use the Customer filter above to view one account.`);
     }
   } catch (e) {
     console.error('Failed to import tracker items:', e);
     alert('Import failed -- check the console for details.');
   }
+}
+
+// ── Sortable columns ─────────────────────────────────────────────────────
+// Default sort (severity, then most-recently-updated) matches the old
+// hardcoded behavior; clicking a header switches to that column, clicking
+// the same header again flips direction.
+state.trackerSortCol = state.trackerSortCol || 'severity';
+state.trackerSortDir = state.trackerSortDir || 'asc';
+const TRACKER_SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const TRACKER_STATUS_ORDER = { open: 0, in_progress: 1, deferred: 2, accepted: 3, resolved: 4 };
+
+function sortTrackerBy(col) {
+  if (state.trackerSortCol === col) {
+    state.trackerSortDir = state.trackerSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.trackerSortCol = col;
+    // Text/date columns default to ascending; severity/status default to
+    // their natural "most urgent first" order, which is ascending too since
+    // both order maps put the most urgent value at 0.
+    state.trackerSortDir = 'asc';
+  }
+  renderTrackerTab();
+}
+
+function _sortTrackerItems(items) {
+  const col = state.trackerSortCol;
+  const dir = state.trackerSortDir === 'desc' ? -1 : 1;
+  const cmp = (a, b) => {
+    switch (col) {
+      case 'status':
+        return ((TRACKER_STATUS_ORDER[a.status] ?? 9) - (TRACKER_STATUS_ORDER[b.status] ?? 9));
+      case 'severity':
+        return ((TRACKER_SEV_ORDER[(a.severity || '').toLowerCase()] ?? 9) - (TRACKER_SEV_ORDER[(b.severity || '').toLowerCase()] ?? 9));
+      case 'sla': {
+        const aOverdue = _trackerIsOverdue(a), bOverdue = _trackerIsOverdue(b);
+        if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+        return _trackerEffectiveDueDate(a) - _trackerEffectiveDueDate(b);
+      }
+      case 'customer':
+        return (a.customerName || '').localeCompare(b.customerName || '');
+      case 'system':
+        return (a.systemName || '').localeCompare(b.systemName || '');
+      case 'title':
+        return (a.title || '').localeCompare(b.title || '');
+      case 'owner':
+        return (a.owner || '').localeCompare(b.owner || '');
+      case 'dueDate':
+        return _trackerEffectiveDueDate(a) - _trackerEffectiveDueDate(b);
+      case 'lastSeen':
+        return new Date(a.lastSeenAt) - new Date(b.lastSeenAt);
+      default:
+        return 0;
+    }
+  };
+  return [...items].sort((a, b) => {
+    const primary = cmp(a, b) * dir;
+    if (primary !== 0) return primary;
+    // Stable, sensible tiebreak: most-recently-updated first.
+    return new Date(b.updatedAt) - new Date(a.updatedAt);
+  });
+}
+
+function _updateTrackerSortHeaders() {
+  document.querySelectorAll('[data-tracker-sort]').forEach(th => {
+    const col = th.getAttribute('data-tracker-sort');
+    const indicator = th.querySelector('.sort-indicator');
+    if (!indicator) return;
+    indicator.textContent = state.trackerSortCol === col ? (state.trackerSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+  });
 }
 
 const TRACKER_STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', deferred: 'Deferred', accepted: 'Risk Accepted' };
@@ -29132,12 +29235,8 @@ function renderTrackerTab() {
   }
   if (emptyState) emptyState.style.display = 'none';
 
-  const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  items = [...items].sort((a, b) => {
-    const so = (sevOrder[(a.severity || '').toLowerCase()] ?? 4) - (sevOrder[(b.severity || '').toLowerCase()] ?? 4);
-    if (so !== 0) return so;
-    return new Date(b.updatedAt) - new Date(a.updatedAt);
-  });
+  items = _sortTrackerItems(items);
+  _updateTrackerSortHeaders();
 
   // Cap rendered rows -- an unfiltered fleet-wide import can produce
   // thousands of items, and rendering that many <tr> elements (each with

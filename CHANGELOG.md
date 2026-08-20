@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.38] - 2026-08-19
+
+### Fixed
+- **"Import Findings Into Tracker" was still scoped to one customer**, even after 5.6.37 fixed the dropdown sync — so switching to a different customer correctly filtered the view but showed empty, since nothing had been imported for them, which looked like the same bug one layer deeper. Import now always scans every loaded customer regardless of the sidebar filter; only the table view respects the customer dropdown. Button relabeled "Import Findings Into Tracker (All Customers)".
+
+### Added
+- **Sortable tracker columns.** Status, Severity, SLA, Customer, System, Title, Owner, Due Date, and Last Seen headers are now clickable — click to sort, click again to reverse, with a visible ▲/▼ indicator.
+
+---
+
 ## [5.6.37] - 2026-08-19
 
 ### Fixed

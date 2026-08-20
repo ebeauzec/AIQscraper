@@ -1,8 +1,8 @@
 {
-  "version": "5.6.37",
+  "version": "5.6.38",
   "major": 5,
   "minor": 6,
-  "patch": 37,
+  "patch": 38,
   "date": "2026-08-19",
-  "notes": "Fixed: the Remediation Tracker did not follow the sidebar customer filter. Every other tab (Technical Audit, Support & Ops, Value & ROI, Action Planner) auto-aligns its selection to the sidebar customer/group/watchlist filter when it changes -- the Tracker had its own independent customer dropdown that never synced, so switching customers while on that tab silently kept showing whatever was previously selected. The dropdown now re-syncs automatically on any sidebar filter change without overwriting a manual pick. Also fixed: the KPI row, SLA Compliance %, and Recent Activity digest were computed from ALL tracked items regardless of the customer dropdown -- only the table respected it; all three are now consistently scoped together. Audited every other tab for the same bug class; confirmed the Tracker was the only outlier. Verified live with two customers' worth of tracked items, switching between them and back to 'All'. Also cleaned up ~100 stale test rows left in the live database from an earlier verification pass this session."
+  "notes": "Fixed: 'Import Findings Into Tracker' was still scoped to whatever customer was selected at import time even after 5.6.37 fixed the dropdown sync -- so switching to a different customer correctly filtered the view but showed empty, since nothing had been imported for them, which looked like the same bug one layer deeper. Import now always scans every loaded customer regardless of the sidebar filter; only the table view respects the customer dropdown. Button relabeled 'Import Findings Into Tracker (All Customers)'. Also added sortable tracker columns -- Status, Severity, SLA, Customer, System, Title, Owner, Due Date, and Last Seen headers are now clickable with a visible sort direction indicator. Verified live: imported with a customer filter active, confirmed items landed across all loaded customers, confirmed the table still correctly scoped to one customer, and confirmed all 8 sortable columns work correctly in both directions."
 }
