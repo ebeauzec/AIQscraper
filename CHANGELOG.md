@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.43] - 2026-08-20
+
+### Fixed
+- **Tracker detail text still blew out row height on multi-step findings.** 5.6.41's fix relied on CSS `-webkit-line-clamp`, confirmed live to not reliably apply inside a table cell — a finding with several remediation steps rendered completely unclamped, blowing that row's height out and misaligning every column. Replaced with JS-based truncation to a fixed character length (guaranteed correct regardless of CSS layout quirks), full text still available via hover tooltip.
+- **Corrupted historical tracker text.** Some tracked items imported months ago captured KB-article text already corrupted by a lossy `errors='replace'` decode somewhere upstream in an older, since-fixed code path — confirmed the same live finding now enriches with clean text. The previously-captured text was permanently unrecoverable, so added a display-time sanitizer that strips the resulting replacement characters so old corrupted entries read cleanly instead of showing garbled character soup.
+
+---
+
 ## [5.6.42] - 2026-08-20
 
 ### Fixed

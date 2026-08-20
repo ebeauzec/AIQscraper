@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.42";
+const APP_VERSION = "5.6.43";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.43",
+    date: "20 August 2026",
+    title: "Fixed: Tracker Detail Text Still Blew Out Row Height on Multi-Step Findings",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: CSS Line-Clamp Was Silently Failing Inside a Table Cell",
+        color: "#f87171",
+        items: [
+          "5.6.41's fix relied on CSS -webkit-line-clamp to cap the detail text at 2 lines -- confirmed live it doesn't reliably apply inside a table cell (display:table-cell context), so a finding with several multi-step remediation instructions rendered completely unclamped, blowing that row's height out to many times normal and misaligning every column in the row",
+          "Replaced with a guaranteed-correct fix: the detail text is now truncated to a fixed character length in JavaScript before insertion, with the full text still available via a hover tooltip. This doesn't depend on any CSS layout behavior that can silently fail",
+          "Also found and fixed while investigating: some tracked items imported months ago captured KB-article remediation text that had already been corrupted by a lossy errors='replace' decode somewhere upstream in an older, since-fixed code path -- the exact same live finding now enriches with clean text, confirming the root cause is already resolved, but the previously-captured corrupted text was permanently unrecoverable (the replace-decode had already discarded the original bytes). Added a display-time sanitizer that strips the resulting replacement characters and stray control-range glyphs so old corrupted entries read cleanly instead of showing garbled character soup",
+          "Verified live against the real corrupted item reported: truncated output is now clean readable text, and general row heights across 300 real tracked items are consistently ~73-85px with no outliers"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.42",
     date: "20 August 2026",
@@ -29108,6 +29126,40 @@ function _updateTrackerSortHeaders() {
   });
 }
 
+// CSS -webkit-line-clamp inside a <td> (display:table-cell context) is
+// unreliable across browsers -- confirmed live: a finding with multi-step
+// remediation text (several KB links joined by " -> ") rendered completely
+// unclamped, blowing the row height out and breaking column alignment.
+// Truncating the string in JS before insertion is guaranteed correct
+// regardless of table-layout quirks; the full text is still available via
+// the title tooltip.
+//
+// _trackerSanitize strips U+FFFD replacement characters and stray C1
+// control-range characters (U+0080-U+009F) that show up as unreadable
+// glyph soup. Confirmed live: some tracked items imported months ago
+// captured KB-article text that had already been mangled by an
+// errors='replace' decode somewhere upstream (long since fixed -- the
+// SAME live finding now enriches with clean text) -- the original
+// characters are permanently gone from that already-stored text, so this
+// can only make old corrupted rows read cleanly, not restore them.
+function _trackerSanitize(str) {
+  if (!str) return '';
+  // U+FFFD (replacement char, 65533) and the C1 control range
+  // (U+0080-U+009F, 128-159) -- built from char codes, not literal
+  // characters, to avoid any source-encoding ambiguity.
+  var bad = [65533];
+  for (var c = 128; c <= 159; c++) bad.push(c);
+  var pattern = bad.map(function(c) { return String.fromCharCode(c); }).join('');
+  var badChars = new RegExp('[' + pattern + ']+', 'g');
+  return str.replace(badChars, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+function _trackerTruncate(str, maxLen) {
+  str = _trackerSanitize(str);
+  if (!str) return '';
+  return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+}
+
 const TRACKER_STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', deferred: 'Deferred', accepted: 'Risk Accepted' };
 const TRACKER_STATUS_COLORS = { open: '#ef4444', in_progress: '#f59e0b', resolved: '#22c55e', deferred: '#94a3b8', accepted: '#3b82f6' };
 const TRACKER_ACTIVE_STATUSES = ['open', 'in_progress'];
@@ -29488,7 +29540,7 @@ function renderTrackerTab() {
       <td style="padding:8px 10px;">${_trackerSlaBadge(i)}</td>
       <td style="padding:8px 10px;font-size:0.8rem;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(i.customerName || '').replace(/"/g, '&quot;')}">${i.customerName || '—'}</td>
       <td style="padding:8px 10px;font-size:0.8rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(i.systemName || '').replace(/"/g, '&quot;')}">${i.systemName || '—'}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;width:220px;max-width:220px;overflow-wrap:anywhere;word-break:break-word;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${i.detail.replace(/"/g, '&quot;')}">${i.detail}</div>` : ''}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;width:220px;max-width:220px;overflow-wrap:anywhere;word-break:break-word;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${i.detail.replace(/"/g, '&quot;')}">${_trackerTruncate(i.detail, 60)}</div>` : ''}</td>
       <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:85px;color:var(--text-primary);"></td>
       <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" placeholder="SLA default" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.75rem;width:120px;color:var(--text-primary);" title="${i.dueDate ? '' : 'No manual due date set -- using SLA policy default for ' + (i.severity||'medium') + ' severity'}"></td>
       <td style="padding:8px 10px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${i.lastSeenAt ? new Date(i.lastSeenAt).toLocaleDateString() : '—'}</td>
