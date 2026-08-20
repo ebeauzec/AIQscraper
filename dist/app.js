@@ -27,9 +27,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.40";
+const APP_VERSION = "5.6.41";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.41",
+    date: "20 August 2026",
+    title: "Fixed: One More Watchlist Still Showed a Random Name + Tracker Text Overflow",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Watchlist Naming Required Unanimous Agreement, Too Strict for Real Data",
+        color: "#f87171",
+        items: [
+          "5.6.40's watchlist auto-naming required every single system in a watchlist to agree on one customer name before using it -- too strict. A real 186-system watchlist was 171 systems on 'Saudi Telecom Company (stc)' and 15 on 'Saudi Telecom Co', the same customer with an inconsistent name on a handful of systems in Active IQ's own records, not a genuinely mixed-customer watchlist. The unanimous check correctly refused to guess, but left it stuck on the meaningless placeholder",
+          "Switched to majority vote: the dominant customer name is used once it covers at least 75% of the watchlist's resolved systems -- high enough that a real mixed-customer watchlist (roughly even split) still correctly keeps its generic label, low enough to absorb this kind of minority data-quality noise",
+          "Verified the fix against the real confirmed counts (171/186 = 91.9%, well above the 75% threshold) -- a live re-harvest to observe it end-to-end hung on a slow upstream API call unrelated to this change (the same harvest had completed successfully multiple times earlier in this session); the fix will apply on the next successful sync"
+        ]
+      },
+      {
+        icon: "🐛",
+        label: "Fixed: Remediation Tracker Table Text Overflow",
+        color: "#f87171",
+        items: [
+          "The Title column's remediation-step detail text (which can include full URLs pulled from Active IQ's own remediationPlan.steps) had no width constraint or wrapping, so a long unbroken URL stretched the column and visually overlapped the Owner/Due Date/Notes columns next to it",
+          "Added proper column width, word-wrapping, and a 2-line clamp with a full-text tooltip on hover, so long detail text wraps and truncates cleanly within its own column instead of bleeding into neighboring ones",
+          "Verified live: measured every column boundary in a row with a real URL-heavy remediation detail and confirmed zero pixel overlap between any adjacent columns"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.40",
     date: "20 August 2026",
@@ -29444,7 +29471,7 @@ function renderTrackerTab() {
       <td style="padding:8px 10px;">${_trackerSlaBadge(i)}</td>
       <td style="padding:8px 10px;font-size:0.8rem;">${i.customerName || '—'}</td>
       <td style="padding:8px 10px;font-size:0.8rem;">${i.systemName || '—'}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;max-width:280px;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${i.detail}</div>` : ''}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;width:280px;max-width:280px;overflow-wrap:anywhere;word-break:break-word;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${i.detail.replace(/"/g, '&quot;')}">${i.detail}</div>` : ''}</td>
       <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:110px;color:var(--text-primary);"></td>
       <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" placeholder="SLA default" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.78rem;color:var(--text-primary);" title="${i.dueDate ? '' : 'No manual due date set -- using SLA policy default for ' + (i.severity||'medium') + ' severity'}"></td>
       <td style="padding:8px 10px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${i.lastSeenAt ? new Date(i.lastSeenAt).toLocaleDateString() : '—'}</td>

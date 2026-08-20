@@ -3265,15 +3265,26 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         wl_cursor = new_cursor
                     wl["systemSerials"] = serials
                     # Replace a synthesized placeholder name with the real
-                    # customer name once we know the watchlist's membership --
-                    # only when every resolved system agrees on one customer,
-                    # so a genuinely mixed-customer watchlist doesn't get a
-                    # misleading single-customer label.
+                    # customer name once we know the watchlist's membership.
+                    # Originally required unanimous agreement across every
+                    # resolved system, but confirmed live that's too strict:
+                    # a real watchlist (186 systems) was 171 "Saudi Telecom
+                    # Company (stc)" and 15 "Saudi Telecom Co" -- the same
+                    # customer with an inconsistent name on a handful of
+                    # systems in Active IQ's own records, not a genuinely
+                    # mixed-customer watchlist. Use majority vote instead:
+                    # the dominant customer name is used once it covers at
+                    # least 75% of resolved systems: high enough that a
+                    # real mixed-customer watchlist (roughly even split)
+                    # still correctly keeps its generic label, low enough
+                    # to absorb this kind of minority data-quality noise.
                     if wl.pop("_isPlaceholderName", False) and serials:
-                        _customers_in_wl = {_serial_to_customer.get(sn) for sn in serials}
-                        _customers_in_wl.discard(None)
-                        if len(_customers_in_wl) == 1:
-                            wl["name"] = next(iter(_customers_in_wl))
+                        from collections import Counter
+                        _cust_counts = Counter(_serial_to_customer.get(sn) for sn in serials if _serial_to_customer.get(sn))
+                        if _cust_counts:
+                            _top_name, _top_count = _cust_counts.most_common(1)[0]
+                            if _top_count / sum(_cust_counts.values()) >= 0.75:
+                                wl["name"] = _top_name
                     print(f"    Watchlist '{wl['name']}': {len(serials)} systems", flush=True)
                 except Exception as wl_err:
                     wl.pop("_isPlaceholderName", None)

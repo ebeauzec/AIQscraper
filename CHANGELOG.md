@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.41] - 2026-08-20
+
+### Fixed
+- **Watchlist auto-naming required unanimous agreement, too strict for real data.** A real 186-system watchlist was 171 systems on "Saudi Telecom Company (stc)" and 15 on "Saudi Telecom Co" — the same customer with an inconsistent name on a handful of systems, not a genuinely mixed-customer watchlist. Switched to majority vote: the dominant customer name is used once it covers at least 75% of resolved systems, high enough that a real mixed-customer watchlist still correctly keeps its generic label.
+- **Remediation Tracker table text overflow.** The Title column's remediation-step detail (which can include full URLs from Active IQ) had no width constraint, so a long URL stretched the column into the Owner/Due Date/Notes columns next to it. Added proper width, word-wrapping, and a 2-line clamp with a full-text tooltip.
+
+---
+
 ## [5.6.40] - 2026-08-20
 
 ### Fixed
