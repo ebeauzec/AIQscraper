@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.39] - 2026-08-19
+
+### Added
+- **Click-through navigation from the Remediation Tracker to the real finding.** Clicking a finding's title now takes you to where it actually lives (Technical Audit for risks/DR-test items, with the matching risk row auto-expanded and highlighted; Support & Ops for contracts/EOS), with the sidebar customer filter switching to match automatically. A modal shows the full remediation steps plus a real "View Security Bulletin" link to the actual NetApp PSIRT advisory when available (new `advisory_url` column on tracked items). If the exact finding can't be re-matched, the modal says so instead of silently highlighting the wrong row.
+
+### Fixed
+- **Tracker's stored remediation text for risk findings was silently empty.** It referenced field names (`recommendedAction`/`remediation`) that don't exist on a real risk object — the actual field is `recommendation`, plus `remediationPlan.steps` when present. Now shows real guidance, preferring structured step-by-step instructions when available.
+
+---
+
 ## [5.6.38] - 2026-08-19
 
 ### Fixed

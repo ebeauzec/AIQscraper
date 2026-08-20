@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.38";
+const APP_VERSION = "5.6.39";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.39",
+    date: "19 August 2026",
+    title: "Added: Click a Tracked Finding to Jump to It and See Remediation Steps + Security Bulletin Link",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Click-Through Navigation from Tracker to the Real Finding",
+        color: "#22c55e",
+        items: [
+          "Clicking a finding's title in the Remediation Tracker now takes you to where it actually lives: Technical Audit for risks and DR-test items (auto-expanding and highlighting the matching risk row), Support & Ops for contracts/EOS -- and the sidebar customer filter switches to match automatically",
+          "A modal shows the finding's full remediation steps, plus a 'View Security Bulletin ↗' link straight to the real NetApp PSIRT advisory when the finding has one (new advisory_url column on tracked items, populated from the same real per-risk advisoryUrl already used elsewhere in Technical Audit)",
+          "If the exact finding can't be re-matched (risk data is periodically re-scanned and can change or resolve between when something was tracked and when you look at it again), the modal says so plainly instead of silently highlighting the wrong row with no explanation",
+          "Fixed a real bug found while building this: the tracker's stored remediation text for risk findings referenced field names (recommendedAction/remediation) that don't exist on a real risk object -- the actual field is recommendation, plus remediationPlan.steps when present. Every risk finding's remediation text had been silently empty since the tracker shipped. Now shows the real guidance, preferring structured step-by-step instructions when available",
+          "Verified live end-to-end against real harvested data: clicked a tracked CVE finding, confirmed it navigated to the correct customer/system in Technical Audit, expanded and highlighted the matching risk row, and the modal showed real remediation text plus a working link to the real security.netapp.com advisory page"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.38",
     date: "19 August 2026",
@@ -28750,13 +28769,13 @@ async function loadTrackerItems() {
 // Track a single finding from anywhere in the app (Technical Audit risk
 // cards, TAM Recommendations, etc.) -- POSTs one item, refreshes local
 // cache, and re-renders the tracker tab if it's currently visible.
-async function trackFinding(sourceType, systemSerial, systemName, accountId, customerName, severity, title, detail) {
+async function trackFinding(sourceType, systemSerial, systemName, accountId, customerName, severity, title, detail, advisoryUrl) {
   const itemKey = _trackerItemKey(sourceType, systemSerial, title);
   try {
     const res = await fetch('/api/tracker', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ itemKey, accountId, customerName, systemSerial, systemName, sourceType, severity, title, detail }] })
+      body: JSON.stringify({ items: [{ itemKey, accountId, customerName, systemSerial, systemName, sourceType, severity, title, detail, advisoryUrl: advisoryUrl || '' }] })
     });
     const data = await res.json();
     if (data.ok) {
@@ -28862,12 +28881,22 @@ async function importTrackerItemsFromScope() {
       const sev = (r.severity || '').toLowerCase();
       if (sev !== 'critical' && sev !== 'high') return;
       const title = `${r.category || 'Risk'}: ${r.description || r.subCategory || 'Unspecified finding'}`;
+      // r.recommendation is the real field on the enriched risk object (see
+      // enrichSystemTelemetry's risk normalization) -- this used to read
+      // r.recommendedAction/r.remediation, neither of which exists on a real
+      // risk object, so every risk item's stored remediation text was empty.
+      // remediationPlan.steps (when present) is more actionable than the
+      // one-line recommendation, so prefer it when available.
+      const stepsText = (r.remediationPlan && Array.isArray(r.remediationPlan.steps) && r.remediationPlan.steps.length > 0)
+        ? r.remediationPlan.steps.map(s2 => s2.replace(/^\d+\.\s*/, '')).join(' → ')
+        : '';
       items.push({
         itemKey: _trackerItemKey('risk', s.serialNumber, title),
         accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
         systemSerial: s.serialNumber || '', systemName: s.systemName || '',
         sourceType: 'risk', severity: sev, title,
-        detail: r.recommendedAction || r.remediation || ''
+        detail: stepsText || r.recommendation || '',
+        advisoryUrl: r.advisoryUrl || ''
       });
     });
     if (s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90) {
@@ -29123,6 +29152,114 @@ function _trackerSlaBadge(item) {
   return `<span style="color:#22c55e;font-size:0.72rem;" title="Due in ${daysLeft} day(s)${suffix}">✓ On Track</span>`;
 }
 
+// Clicking a tracked finding's title navigates to where that finding
+// actually lives in the app (Technical Audit for risks/DR-test items,
+// Support & Ops for contracts/EOS) and, for risk findings, expands and
+// highlights the exact matching row so the user isn't left to hunt through
+// a collapsed system group. Also surfaces the finding's real remediation
+// text (item.detail) in a modal, since the tracker table truncates it.
+function trackerGoToFinding(id) {
+  const item = state.trackerItems.find(i => i.id === id);
+  if (!item) return;
+
+  if (item.customerName) {
+    state.activeFilterType = 'CUSTOMER';
+    state.activeFilterValue = item.customerName;
+    renderSidebarGroups();
+  }
+
+  const systemExists = item.systemSerial && state.systems.some(s => s.serialNumber === item.systemSerial);
+  if (systemExists) {
+    selectSystem(item.systemSerial); // sets focus + switches to Technical Audit
+  } else {
+    switchTab('tam');
+  }
+
+  if (item.sourceType === 'contract' || item.sourceType === 'eos') {
+    switchTab('sam'); // Support & Ops has the contracts/lifecycle cards
+  }
+
+  if (item.sourceType === 'risk') {
+    _trackerExpandAndHighlightRisk(item, 0);
+  }
+
+  showTrackerRemediationModal(item);
+}
+
+// Polls briefly for the lazily-rendered risk group to exist (TAM tab renders
+// risks in staged setTimeout(...,0) chunks -- see renderTAMTab), expands it,
+// then finds the row whose description matches this finding's title and
+// scrolls/highlights it. Bounded retry, not indefinite, so a genuinely
+// missing/renamed finding fails quietly instead of polling forever.
+function _trackerExpandAndHighlightRisk(item, attempt) {
+  if (attempt > 20) return; // ~3s of polling, then give up quietly
+  const headerRow = document.querySelector('[data-group="risk-group-0"]');
+  if (!headerRow) {
+    setTimeout(() => _trackerExpandAndHighlightRisk(item, attempt + 1), 150);
+    return;
+  }
+  if (headerRow.dataset.expanded !== 'true') {
+    toggleRiskGroup('risk-group-0', headerRow);
+  }
+  // toggleRiskGroup's lazy build is synchronous, but give the DOM a tick.
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#risk-group-0 .tam-risk-detail-row');
+    // item.title is "${category}: ${description}" -- match on description text
+    const descPart = item.title.includes(': ') ? item.title.split(': ').slice(1).join(': ') : item.title;
+    let matched = null;
+    rows.forEach(row => {
+      if (matched) return;
+      if (row.textContent.includes(descPart.slice(0, 60))) matched = row;
+    });
+    const target = matched || headerRow;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const prevTransition = target.style.transition;
+    target.style.transition = 'background-color 0.3s ease';
+    const prevBg = target.style.backgroundColor;
+    target.style.backgroundColor = 'rgba(0,229,255,0.18)';
+    setTimeout(() => {
+      target.style.backgroundColor = prevBg;
+      setTimeout(() => { target.style.transition = prevTransition; }, 300);
+    }, 1600);
+    // The finding's exact wording can drift or disappear between when it was
+    // tracked and now (risks are re-scanned periodically) -- be upfront about
+    // it instead of silently highlighting the wrong row with no explanation.
+    const note = document.getElementById('trackerModalMatchNote');
+    if (note) note.style.display = matched ? 'none' : 'block';
+  }, 50);
+}
+
+function showTrackerRemediationModal(item) {
+  let modal = document.getElementById('trackerRemediationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'trackerRemediationModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+  }
+  const sevColor = item.severity === 'critical' ? '#ef4444' : item.severity === 'high' ? '#f59e0b' : item.severity === 'medium' ? '#eab308' : '#94a3b8';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card,#1a1f2e);border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:8px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;padding:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">
+        <div>
+          <span style="color:${sevColor};font-weight:700;font-size:0.72rem;text-transform:uppercase;">${item.severity || ''}</span>
+          <h3 style="margin:4px 0 0;font-size:1.05rem;">${item.title}</h3>
+        </div>
+        <button onclick="document.getElementById('trackerRemediationModal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem;line-height:1;">✕</button>
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px;">${item.customerName || ''}${item.systemName ? ' · ' + item.systemName : ''}</div>
+      ${item.advisoryUrl ? `<a href="${item.advisoryUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--accent-cyan);text-decoration:none;margin-bottom:16px;border:1px solid rgba(0,229,255,0.3);border-radius:6px;padding:6px 12px;background:rgba(0,229,255,0.06);">📄 View Security Bulletin ↗</a>` : ''}
+      <div style="font-weight:600;font-size:0.85rem;margin-bottom:6px;">Remediation Steps</div>
+      <div style="font-size:0.85rem;line-height:1.6;color:var(--text-primary);white-space:pre-line;">${item.detail || 'No remediation guidance was captured for this finding at import time. Re-run "Import Findings Into Tracker" to refresh it, or check the finding directly in Technical Audit.'}</div>
+      <div id="trackerModalMatchNote" style="display:none;margin-top:12px;font-size:0.76rem;color:var(--text-muted);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px;padding:8px 10px;">This exact finding may have changed or been resolved since it was tracked -- jumped to this system's current risk list in Technical Audit instead of the specific row.</div>
+      <div style="margin-top:18px;display:flex;gap:8px;">
+        <button class="action-btn" onclick="document.getElementById('trackerRemediationModal').remove()">Close</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderTrackerRecentActivity(scopedItems) {
   const card = document.getElementById('trackerActivityCard');
   if (!card) return;
@@ -29262,7 +29399,7 @@ function renderTrackerTab() {
       <td style="padding:8px 10px;">${_trackerSlaBadge(i)}</td>
       <td style="padding:8px 10px;font-size:0.8rem;">${i.customerName || '—'}</td>
       <td style="padding:8px 10px;font-size:0.8rem;">${i.systemName || '—'}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;max-width:280px;">${i.title}${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${i.detail}</div>` : ''}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;max-width:280px;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${i.detail}</div>` : ''}</td>
       <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:110px;color:var(--text-primary);"></td>
       <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" placeholder="SLA default" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.78rem;color:var(--text-primary);" title="${i.dueDate ? '' : 'No manual due date set -- using SLA policy default for ' + (i.severity||'medium') + ' severity'}"></td>
       <td style="padding:8px 10px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${i.lastSeenAt ? new Date(i.lastSeenAt).toLocaleDateString() : '—'}</td>

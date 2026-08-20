@@ -1,8 +1,8 @@
 {
-  "version": "5.6.38",
+  "version": "5.6.39",
   "major": 5,
   "minor": 6,
-  "patch": 38,
+  "patch": 39,
   "date": "2026-08-19",
-  "notes": "Fixed: 'Import Findings Into Tracker' was still scoped to whatever customer was selected at import time even after 5.6.37 fixed the dropdown sync -- so switching to a different customer correctly filtered the view but showed empty, since nothing had been imported for them, which looked like the same bug one layer deeper. Import now always scans every loaded customer regardless of the sidebar filter; only the table view respects the customer dropdown. Button relabeled 'Import Findings Into Tracker (All Customers)'. Also added sortable tracker columns -- Status, Severity, SLA, Customer, System, Title, Owner, Due Date, and Last Seen headers are now clickable with a visible sort direction indicator. Verified live: imported with a customer filter active, confirmed items landed across all loaded customers, confirmed the table still correctly scoped to one customer, and confirmed all 8 sortable columns work correctly in both directions."
+  "notes": "Added click-through navigation from the Remediation Tracker to the real finding. Clicking a finding's title now takes you to where it actually lives (Technical Audit for risks/DR-test items, with the matching risk row auto-expanded and highlighted; Support & Ops for contracts/EOS), with the sidebar customer filter switching to match automatically. A modal shows the full remediation steps plus a real 'View Security Bulletin' link to the actual NetApp PSIRT advisory when available (new advisory_url column on tracked items). If the exact finding can't be re-matched, the modal says so instead of silently highlighting the wrong row. Also fixed a real bug: the tracker's stored remediation text for risk findings referenced field names that don't exist on a real risk object, so it had been silently empty since the tracker shipped -- now shows real guidance, preferring structured step-by-step instructions when available. Verified live end-to-end against real harvested data."
 }

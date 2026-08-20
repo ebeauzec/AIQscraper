@@ -644,6 +644,7 @@ def _run_db_schema_setup(db):
             severity      TEXT DEFAULT '',
             title         TEXT NOT NULL,
             detail        TEXT DEFAULT '',
+            advisory_url  TEXT DEFAULT '',
             status        TEXT NOT NULL DEFAULT 'open',
             owner         TEXT DEFAULT '',
             due_date      TEXT DEFAULT '',
@@ -655,6 +656,13 @@ def _run_db_schema_setup(db):
         CREATE INDEX IF NOT EXISTS idx_tracked_items_status ON tracked_items(status);
         CREATE INDEX IF NOT EXISTS idx_tracked_items_account ON tracked_items(account_id);
     """)
+    # Migrate existing tracked_items rows created before advisory_url existed
+    # (safe no-op if the column is already present).
+    try:
+        db.execute("ALTER TABLE tracked_items ADD COLUMN advisory_url TEXT DEFAULT ''")
+        db.commit()
+    except Exception:
+        pass  # column already exists
     # enrich_cache purge now happens in _maybe_purge_enrich_cache(), rate-
     # limited to once/hour rather than on every _init_db() call -- see there.
     # One-time migration: copy the legacy singleton harvest (id=1) into the
@@ -8416,14 +8424,14 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 rows = db.execute("""
                     SELECT id, item_key, account_id, customer_name, system_serial, system_name,
-                           source_type, severity, title, detail, status, owner, due_date, notes,
+                           source_type, severity, title, detail, advisory_url, status, owner, due_date, notes,
                            created_at, updated_at, last_seen_at
                     FROM tracked_items ORDER BY updated_at DESC
                 """).fetchall()
             finally:
                 db.close()
             cols = ["id", "itemKey", "accountId", "customerName", "systemSerial", "systemName",
-                    "sourceType", "severity", "title", "detail", "status", "owner", "dueDate", "notes",
+                    "sourceType", "severity", "title", "detail", "advisoryUrl", "status", "owner", "dueDate", "notes",
                     "createdAt", "updatedAt", "lastSeenAt"]
             items = [dict(zip(cols, r)) for r in rows]
             self._json_response(200, {"ok": True, "items": items})
@@ -8461,21 +8469,21 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     existing = db.execute("SELECT id FROM tracked_items WHERE item_key = ?", (key,)).fetchone()
                     if existing:
                         db.execute("""
-                            UPDATE tracked_items SET title = ?, detail = ?, severity = ?, last_seen_at = ?
+                            UPDATE tracked_items SET title = ?, detail = ?, advisory_url = ?, severity = ?, last_seen_at = ?
                             WHERE item_key = ?
-                        """, (title, it.get("detail", ""), it.get("severity", ""), now, key))
+                        """, (title, it.get("detail", ""), it.get("advisoryUrl", ""), it.get("severity", ""), now, key))
                         refreshed += 1
                     else:
                         db.execute("""
                             INSERT INTO tracked_items
                                 (item_key, account_id, customer_name, system_serial, system_name,
-                                 source_type, severity, title, detail, status, owner, due_date, notes,
+                                 source_type, severity, title, detail, advisory_url, status, owner, due_date, notes,
                                  created_at, updated_at, last_seen_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', '', '', '', ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', '', '', '', ?, ?, ?)
                         """, (key, it.get("accountId", ""), it.get("customerName", ""),
                               it.get("systemSerial", ""), it.get("systemName", ""),
                               it.get("sourceType", ""), it.get("severity", ""), title,
-                              it.get("detail", ""), now, now, now))
+                              it.get("detail", ""), it.get("advisoryUrl", ""), now, now, now))
                         inserted += 1
                 db.commit()
             finally:
