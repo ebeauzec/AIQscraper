@@ -195,8 +195,8 @@
             <div class="card-subtitle">Preventative review recommended</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <div class="card kpi-card" id="kpiCardContract" onclick="setKpiFilter('CONTRACT')" style="cursor: pointer;" data-tooltip="Systems whose support contracts expire within 90 days. Proactive renewal avoids service gaps and ensures continued access to software updates, AutoSupport, and break/fix support. Click to filter.">
-            <div class="card-title">Expiring Contracts</div>
+          <div class="card kpi-card" id="kpiCardContract" onclick="setKpiFilter('CONTRACT')" style="cursor: pointer;" data-tooltip="Systems whose hardware warranties expire within 90 days. Proactive renewal avoids service gaps and ensures continued access to software updates, AutoSupport, and break/fix support. Click to filter.">
+            <div class="card-title">Expiring Warranties</div>
             <div class="card-value" id="kpiContracts">0</div>
             <div class="card-subtitle">Expires within 90 days</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
@@ -232,34 +232,6 @@
              of just KPI counts with no ranking of what to actually look at first -->
         <div class="card" id="overviewNeedsAttentionCard" style="margin-bottom: 20px; display: none;"></div>
 
-        <!-- Customer Portfolio — cross-account rollup for MSPs/partners -->
-        <div class="card table-card" id="overviewPortfolioCard" style="margin-bottom: 20px; display: none;">
-          <div class="table-header-row">
-            <div class="section-title">Customer Portfolio</div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="font-size: 0.72rem; color: var(--text-muted);">Sorted by risk — click a row to focus that customer</span>
-              <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPortfolioCSV()">Export CSV</button>
-            </div>
-          </div>
-          <div class="data-table-container">
-            <table class="data-table" id="overviewPortfolioTable">
-              <thead>
-                <tr>
-                  <th style="padding: 10px;">Customer</th>
-                  <th style="padding: 10px; text-align: center;">Systems</th>
-                  <th style="padding: 10px; text-align: center;">Critical Risks</th>
-                  <th style="padding: 10px; text-align: center;">High Risks</th>
-                  <th style="padding: 10px; text-align: center;">Contracts &lt;90d</th>
-                  <th style="padding: 10px; text-align: center;">EOS Systems</th>
-                  <th style="padding: 10px; text-align: center;">SLA Compliance</th>
-                  <th style="padding: 10px; text-align: center;">Health Score</th>
-                </tr>
-              </thead>
-              <tbody id="overviewPortfolioBody"></tbody>
-            </table>
-          </div>
-        </div>
-
         <!-- Systems Table Card -->
         <div class="card table-card">
           <div class="table-header-row">
@@ -278,7 +250,7 @@
                   <th onclick="sortTable('clusterName')" style="cursor: pointer; user-select: none;">Cluster <span id="sort-clusterName" class="sort-icon"></span></th>
                   <th onclick="sortTable('platform')" style="cursor: pointer; user-select: none;">Platform <span id="sort-platform" class="sort-icon"></span></th>
                   <th onclick="sortTable('status')" style="cursor: pointer; user-select: none;">Health Status <span id="sort-status" class="sort-icon"></span></th>
-                  <th onclick="sortTable('contracts.endDate')" style="cursor: pointer; user-select: none;">Support Renewal Date <span id="sort-contracts-endDate" class="sort-icon"></span></th>
+                  <th onclick="sortTable('contracts.endDate')" style="cursor: pointer; user-select: none;">Warranty End Date <span id="sort-contracts-endDate" class="sort-icon"></span></th>
                 </tr>
               </thead>
               <tbody id="overviewTableBody">
@@ -287,8 +259,37 @@
             </table>
           </div>
         </div>
+
+        <!-- Customer Portfolio — cross-account rollup for MSPs/partners. Placed
+             last since it's fleet-wide, not scoped like everything above it. -->
+        <div class="card table-card" id="overviewPortfolioCard" style="margin-bottom: 20px; display: none;">
+          <div class="table-header-row">
+            <div class="section-title">Customer Portfolio</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Sorted by risk — click a row to focus that customer</span>
+              <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPortfolioCSV()">Export CSV</button>
+            </div>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table" id="overviewPortfolioTable">
+              <thead>
+                <tr>
+                  <th style="padding: 10px;">Customer</th>
+                  <th style="padding: 10px; text-align: center;">Systems</th>
+                  <th style="padding: 10px; text-align: center;">Critical Risks</th>
+                  <th style="padding: 10px; text-align: center;">High Risks</th>
+                  <th style="padding: 10px; text-align: center;">Warranties &lt;90d</th>
+                  <th style="padding: 10px; text-align: center;">EOS Systems</th>
+                  <th style="padding: 10px; text-align: center;">SLA Compliance</th>
+                  <th style="padding: 10px; text-align: center;">Health Score</th>
+                </tr>
+              </thead>
+              <tbody id="overviewPortfolioBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      
+
       <!-- VIEW: TECHNICAL AUDIT -->
       <div id="tamTab" class="tab-content">
         <div class="table-header-row" style="margin-bottom: 24px;">
@@ -433,7 +434,7 @@
       <!-- VIEW: SUPPORT & OPERATIONS -->
       <div id="samTab" class="tab-content">
         <div class="table-header-row" style="margin-bottom: 24px;">
-          <h2 style="font-weight: 700; font-size: 1.5rem;">Support Contracts & Lifecycles</h2>
+          <h2 style="font-weight: 700; font-size: 1.5rem;">Warranties & Lifecycles</h2>
           <div style="display: flex; align-items: center; gap: 12px;">
             <select id="samSystemSelect" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 280px; background-color: var(--bg-card); cursor: pointer;">
               <!-- JS injected options -->
@@ -688,7 +689,7 @@
             <select id="trackerCustomerFilter" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 220px; background-color: var(--bg-card); cursor: pointer;" onchange="renderTrackerTab()">
               <option value="">All Customers</option>
             </select>
-            <button class="action-btn secondary" onclick="importTrackerItemsFromScope()" data-tooltip="Scans EVERY loaded customer (not just the selected one) for critical/high risks, near-term contract expirations, EOS systems, and DR-configured clusters/systems needing a failover test verification, and adds any not already tracked. Use the Customer filter below to view one account at a time.">Import Findings Into Tracker (All Customers)</button>
+            <button class="action-btn secondary" onclick="importTrackerItemsFromScope()" data-tooltip="Scans EVERY loaded customer (not just the selected one) for critical/high risks, near-term warranty expirations, EOS systems, and DR-configured clusters/systems needing a failover test verification, and adds any not already tracked. Use the Customer filter below to view one account at a time.">Import Findings Into Tracker (All Customers)</button>
           </div>
         </div>
 

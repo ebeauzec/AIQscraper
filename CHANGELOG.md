@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.40] - 2026-08-20
+
+### Fixed
+- **Warranty end date replaces broken support contract data throughout the tool.** Confirmed live by logging Active IQ's raw `contract{}` GraphQL response for every system across both accounts: `softwareContractId`, `hardwareContractId`, `overallContractEndDate`, and `hardwareContractEndDate` are ALL null for this tenant's entire fleet, while `hardwareWarrantyEndDate` on that same object is populated with real dates for every system — ruling out a query bug. `enrichSystemTelemetry()` now builds the per-system `contracts` object from the real `warrantyEndDate` field. Every user-facing label following that data was renamed from Contract/Support Contract/Support Renewal to Warranty throughout the app and all 7 deliverables. The system detail card's 7 permanently-null contract fields were merged into one honest "Warranty & Support" section. Left untouched: the separate, still-working TAM Recommendations "Active Support Contracts" entitlement check — a different Active IQ API surface confirmed to still return real data.
+
+### Added
+- **Watchlist auto-naming from real customer identity.** Watchlists with no name on record were labeled "Watchlist &lt;id prefix&gt;". The harvest now resolves the real customer name from the watchlist's actual system membership, but only when every system agrees on one customer — a genuinely mixed-customer watchlist correctly keeps its generic label. Verified live: 3 of 4 real watchlists resolved correctly; the 4th correctly stayed generic since it spans two customer-name variants of the same account.
+
+### Changed
+- **Customer Portfolio moved to the bottom of the Overview Dashboard**, after the Monitored Systems table — the one fleet-wide, cross-customer view on a tab where everything else is scoped to the active customer/selection.
+
+---
+
 ## [5.6.39] - 2026-08-19
 
 ### Added

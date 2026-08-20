@@ -1,8 +1,8 @@
 {
-  "version": "5.6.39",
+  "version": "5.6.40",
   "major": 5,
   "minor": 6,
-  "patch": 39,
-  "date": "2026-08-19",
-  "notes": "Added click-through navigation from the Remediation Tracker to the real finding. Clicking a finding's title now takes you to where it actually lives (Technical Audit for risks/DR-test items, with the matching risk row auto-expanded and highlighted; Support & Ops for contracts/EOS), with the sidebar customer filter switching to match automatically. A modal shows the full remediation steps plus a real 'View Security Bulletin' link to the actual NetApp PSIRT advisory when available (new advisory_url column on tracked items). If the exact finding can't be re-matched, the modal says so instead of silently highlighting the wrong row. Also fixed a real bug: the tracker's stored remediation text for risk findings referenced field names that don't exist on a real risk object, so it had been silently empty since the tracker shipped -- now shows real guidance, preferring structured step-by-step instructions when available. Verified live end-to-end against real harvested data."
+  "patch": 40,
+  "date": "2026-08-20",
+  "notes": "Warranty end date replaces broken support contract data throughout the tool. Confirmed live by logging Active IQ's raw contract{} GraphQL response for every system across both accounts: softwareContractId, hardwareContractId, overallContractEndDate, and hardwareContractEndDate are ALL null for this tenant's entire fleet, while hardwareWarrantyEndDate on that same object is populated with real dates for every system -- ruling out a query bug. enrichSystemTelemetry() now builds the per-system contracts object from the real warrantyEndDate field. Every user-facing label following that data was renamed from Contract/Support Contract/Support Renewal to Warranty throughout the app and all 7 deliverables. The system detail card's 7 permanently-null contract fields were merged into one honest Warranty & Support section. Left untouched: the separate, still-working TAM Recommendations Active Support Contracts entitlement check (a different Active IQ API surface with real data). Also added: watchlist auto-naming from real customer identity (3 of 4 watchlists in this account correctly resolved; the 4th correctly stayed generic since it genuinely spans two customer-name variants). Also moved Customer Portfolio to the bottom of the Overview Dashboard, since it's the one fleet-wide view among otherwise customer-scoped content. Verified live end-to-end against real harvested data throughout."
 }

@@ -27,9 +27,47 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.39";
+const APP_VERSION = "5.6.40";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.40",
+    date: "20 August 2026",
+    title: "Changed: Warranty End Date Replaces Broken Support Contract Data Throughout the Tool",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Every 'Support Contract' Date Was Reading From a Field Active IQ Never Populates",
+        color: "#f87171",
+        items: [
+          "Confirmed live by logging Active IQ's raw contract{} GraphQL response directly, for every system across both harvested accounts: softwareContractId, hardwareContractId, overallContractEndDate, and hardwareContractEndDate are ALL null for this tenant's entire fleet -- while hardwareWarrantyEndDate on that SAME object is populated with real dates for every system. Two independent Active IQ API surfaces (the per-system contract field and the separate contract-renewals/lifecycle-events endpoint) both confirmed the same thing, ruling out a query bug",
+          "enrichSystemTelemetry() now builds the per-system contracts object (daysRemaining/endDate/status -- used by Overview KPIs, Needs Attention, the Overview table, SAM tab, Customer Portfolio, Remediation Tracker, and every deliverable) from the real warrantyEndDate field instead",
+          "Every user-facing label following that data was renamed from 'Contract'/'Support Contract'/'Support Renewal' to 'Warranty' throughout the app and all 7 deliverables -- Overview KPI card, table columns, SAM tab, Customer Portfolio, Tracker item titles, CSV exports, and every deliverable section header",
+          "The system detail 'Support & Contracts' card had 7 of its 10 fields (HW/SW Contract End Date, Contract Expiry, Service Level, HW/SW Contract ID, NRD End Date) reading directly from the same permanently-null fields, always rendering as blank dashes right next to a separate, correct Warranty block. Merged into one honest 'Warranty & Support' section using only real fields",
+          "Left untouched: the separate TAM Recommendations 'Active Support Contracts' entitlement check, a different Active IQ API surface confirmed still returning real, meaningful data (e.g. '100% -- all applicable systems have current support entitlement') for at least one account -- not affected by this bug, so not renamed or removed",
+          "Verified live end-to-end: triggered a real forced harvest and confirmed the resulting numbers and labels reflect real warranty data across the Overview, SAM tab, and system detail view against actual harvested systems"
+        ]
+      },
+      {
+        icon: "✨",
+        label: "Added: Watchlist Auto-Naming from Customer Identity",
+        color: "#22c55e",
+        items: [
+          "Watchlists with no real name on record (Active IQ's watchlist-listing API doesn't expose one for every account) were synthesized as 'Watchlist <id prefix>' -- a meaningless label in Settings and the sync status line",
+          "The harvest now resolves a watchlist's real customer name from its actual system membership once serials are known, and uses that instead -- but only when every system in the watchlist agrees on one customer, so a genuinely mixed-customer watchlist is correctly left with its generic label rather than being given a misleading single-customer name",
+          "Verified live: 3 of 4 real watchlists in this account correctly resolved to their actual customer names (e.g. 'Saudi Aramco Tower', 'Vodacom Tanzania Ltd.'); the 4th correctly stayed generic because it genuinely spans two customer-name variants of the same account ('Saudi Telecom Co' / 'Saudi Telecom Company (stc)') -- confirmed by checking its real system membership directly"
+        ]
+      },
+      {
+        icon: "🔧",
+        label: "Changed: Customer Portfolio Repositioned",
+        color: "#3b82f6",
+        items: [
+          "Moved to the bottom of the Overview Dashboard, after the Monitored Systems table -- it's the one fleet-wide, cross-customer view on that tab; everything above it (KPI tiles, charts, risk trend, Needs Attention, the systems table) is scoped to whatever customer/selection is currently active"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.39",
     date: "19 August 2026",
@@ -6695,7 +6733,7 @@ function downloadPortfolioCSV() {
   const rows = state._portfolioRows || [];
   if (!rows.length) { alert('No portfolio data to export.'); return; }
   let csv = 'data:text/csv;charset=utf-8,';
-  csv += 'Customer,Systems,Critical Risks,High Risks,Contracts Expiring <90d,EOS Systems,SLA Compliance %,Health Score\n';
+  csv += 'Customer,Systems,Critical Risks,High Risks,Warranties Expiring <90d,EOS Systems,SLA Compliance %,Health Score\n';
   rows.forEach(r => {
     csv += `"${r.cust.replace(/"/g, '""')}",${r.systemCount},${r.critRisks},${r.highRisks},${r.expiring90},${r.eosCount},${r.slaCompliance == null ? '' : r.slaCompliance},${r.healthScore}\n`;
   });
@@ -6743,7 +6781,7 @@ function renderNeedsAttention() {
         const parts = [];
         if (r.critCount > 0) parts.push(`<span style="color: var(--status-critical); font-weight: 600;">${r.critCount} critical</span>`);
         if (r.highCount > 0) parts.push(`<span style="color: var(--status-warning); font-weight: 600;">${r.highCount} high</span>`);
-        if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">contract expires in ${r.daysRemaining}d</span>`);
+        if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">warranty expires in ${r.daysRemaining}d</span>`);
         return `
           <div onclick="focusOnSystem('${r.sys.serialNumber}'); switchTab('tam');" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
             <div>
@@ -11756,11 +11794,11 @@ function renderSAMTab() {
     }
     document.getElementById("samContractCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Contracts Summary</h4>
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Warranty Summary</h4>
         ${cBadge}
       </div>
       <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; color: ${cColor};">
-        ${targetSAMSystems.length} Monitored Contracts
+        ${targetSAMSystems.length} Monitored Warranties
       </div>
       <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 8px;">
         <span style="color: var(--status-normal);">Active: ${activeCount}</span> | 
@@ -12127,7 +12165,7 @@ function renderSAMTab() {
 
   document.getElementById("samContractCard").innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Support Level</h4>
+      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Warranty Status</h4>
       ${contractBadge}
     </div>
     <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; color: ${expiryColor};">
@@ -12137,7 +12175,7 @@ function renderSAMTab() {
       Expires: <strong>${sys.contracts.endDate ? new Date(sys.contracts.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}</strong>
     </div>
     <div style="font-size: 0.8rem; color: var(--text-muted);">
-      ${sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining < 0 ? `Support ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`) : 'Days remaining unknown.'}
+      ${sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining < 0 ? `Warranty ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`) : 'Days remaining unknown.'}
     </div>
   `;
 
@@ -12717,7 +12755,7 @@ function renderCSMTab() {
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Ownership:    ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Not set in Active IQ'}</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Standards:    Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''}</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Remediation:  ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Contracts:    ${_mExpiring90} contract${_mExpiring90 !== 1 ? 's' : ''} expiring &lt;90d</span></div>
+              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Warranties:    ${_mExpiring90} warrant${_mExpiring90 !== 1 ? 'ies' : 'y'} expiring &lt;90d</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Risk:         ${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''}, ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''}</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Contacts:     Not tracked in Active IQ (Case Health ${_mCaseHealth.score.toFixed(1)}/10)</span></div>
               <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Modernization:${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh</span></div>
@@ -13035,8 +13073,8 @@ function renderCSMTab() {
       { name: 'No Config Drift (unassigned ports \u2264 2)',              completedCount: _configDriftPass,    detail: '', tip: 'Systems with 2 or fewer network ports lacking a broadcast domain assignment. Unassigned ports beyond that are typically a sign of incomplete or drifted network configuration.' },
       { name: 'MTTR Posture (no stale cases \u003e 90 days)',             completedCount: _mttrPass,           detail: '', tip: 'Systems with no support case open longer than 90 days. Cases open that long usually indicate a stuck escalation, a resourcing gap, or a fix waiting on the customer.' },
       // — Contracts & Lifecycle —
-      { cat: 'CONTRACTS \u0026 LIFECYCLE', name: 'Support Contract Active (\u003e 90 days remaining)',   completedCount: _contractPass,  detail: '', tip: 'Systems with more than 90 days remaining on their hardware/software support contract, i.e. not yet in the renewal-urgency window.' },
-      { name: 'Contract Co-Term Alignment',                            completedCount: _cotermOk ? _n : Math.max(_n - _cotermGroups.reduce((s, g) => s + g.length, 0), 0), detail: _cotermDetails.join(' | '), tip: 'Whether this account systems share a common support contract end date. Staggered (non-co-termed) end dates across a fleet create renewal admin overhead and forfeit bundling/volume-discount opportunities -- co-terming them onto one renewal date simplifies procurement for both sides.' },
+      { cat: 'CONTRACTS \u0026 LIFECYCLE', name: 'Warranty Active (\u003e 90 days remaining)',   completedCount: _contractPass,  detail: '', tip: 'Systems with more than 90 days remaining on their hardware warranty, i.e. not yet in the renewal-urgency window.' },
+      { name: 'Warranty Co-Term Alignment',                            completedCount: _cotermOk ? _n : Math.max(_n - _cotermGroups.reduce((s, g) => s + g.length, 0), 0), detail: _cotermDetails.join(' | '), tip: 'Whether this account systems share a common warranty end date. Staggered (non-co-termed) end dates across a fleet create renewal admin overhead and forfeit bundling/volume-discount opportunities -- co-terming them onto one renewal date simplifies procurement for both sides.' },
     ];
 
     // ── Render helper ───────────────────────────────────────────────────────
@@ -13508,13 +13546,13 @@ function renderCSMTab() {
     },
     // CONTRACTS & LIFECYCLE
     { cat: 'CONTRACTS \u0026 LIFECYCLE',
-      name: 'Support Contract Active (\u003e 90 days remaining)',
+      name: 'Warranty Active (\u003e 90 days remaining)',
       ok: !!(sys.contracts && sys.contracts.daysRemaining > 90),
       detail: sys.contracts
-        ? (sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`) : `Support Level: ${sys.contracts.supportLevel || 'N/A'}`)
-        : 'No contract data available'
+        ? (sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`) : `Coverage Level: ${sys.contracts.supportLevel || 'N/A'}`)
+        : 'No warranty data available'
     },
-    { name: 'Contract Co-Term Alignment',
+    { name: 'Warranty Co-Term Alignment',
       ok: true, // Single-system context — fleet-level check always passes
       detail: 'Co-term alignment is evaluated at fleet level \u2014 see aggregate view'
     },
@@ -14714,24 +14752,30 @@ function enrichSystemTelemetry(s) {
     }
   }
 
-  // 2. Dynamic Contracts
+  // 2. Dynamic Contracts -- SOURCED FROM WARRANTY, NOT SUPPORT CONTRACT DATA.
+  // Confirmed live (2026-08-20) by logging Active IQ's raw contract{} object
+  // straight off the GraphQL response for every system across both accounts:
+  // softwareContractId, hardwareContractId, overallContractEndDate,
+  // hardwareContractEndDate are ALL null for the entire fleet (450/450
+  // systems), and the separate contract-renewals/lifecycle-events API also
+  // returned 0 for both accounts -- two independent Active IQ surfaces
+  // agreeing there is no support-contract linkage data for this tenant.
+  // hardwareWarrantyEndDate on that SAME contract{} object IS populated with
+  // real dates for every system, proving this isn't a broken query or a
+  // permission gap. Per explicit instruction: stop referencing support
+  // contract data (which this tenant's Active IQ simply doesn't have) and
+  // use warranty end date as the single date shown everywhere a
+  // contract/support renewal date used to be.
   let contracts = s.contracts;
   if ((!contracts || contracts.daysRemaining == null) && isLiveData) {
-    // Live API path: build from real contract fields
-    const endDate = s.contractEndDate || s.contractHWEndDate || '';
-    // null (not 0) when there's no contract data at all -- 0 means "expires
+    // Live API path: build from the real, reliably-populated warranty field
+    const endDate = s.warrantyEndDate || '';
+    // null (not 0) when there's no warranty data at all -- 0 means "expires
     // today", a real and urgent state, and must not be indistinguishable
-    // from "Active IQ has no entitlement data for this system". Confirmed
-    // live: systems with no contract data (StorageGRID/E-Series, no
-    // overallContractEndDate/hardwareContractEndDate from Active IQ) were
-    // defaulting to daysRemaining=0, which every consumer downstream
-    // (Needs Attention widget, Overview table, expiring-contracts filters)
-    // then reads as "contract expires in 0 days" -- a false CRITICAL alarm
-    // on a system where we simply don't know the real expiry.
+    // from "Active IQ has no warranty data for this system".
     const daysRem = endDate ? Math.max(0, Math.floor((new Date(endDate) - new Date()) / 86400000)) : null;
     let status;
     if (!endDate) status = 'unknown';
-    else if (!s.contractActive) status = 'expired';
     else status = daysRem < 90 ? 'warning' : 'normal';
     contracts = {
       status,
@@ -18631,7 +18675,7 @@ ${platformLines}
   ─────────────── | ─────────── | ─────────── | ───────── | ────────
   Risk Remediation| TAM         | Customer    | Sales     | Management
   Upgrade Planning| TAM         | Customer    | Sales     | Management
-  Contract Renewal| Sales       | Customer    | TAM       | Management
+  Warranty Renewal| Sales       | Customer    | TAM       | Management
   Feature Adoption| TAM         | Customer    | TAM       | Sales
 
 * OPERATIONAL HEALTH SCORECARD:
@@ -18706,8 +18750,8 @@ to prevent support SLA deviations and customer satisfaction impacts.
 * ACTIVE SUPPORT TICKETS:
 ${allSupportCases.length > 0 ? casesText : "✓ No active open support cases detected."}
 
-* CONTRACT COVERAGE & LIFECYCLE RISKS:
-${expiringContracts.length > 0 ? contractsText : "✓ All active support contracts have > 90 days remaining. SupportEdge Premium SLA active."}
+* WARRANTY COVERAGE & LIFECYCLE RISKS:
+${expiringContracts.length > 0 ? contractsText : "✓ All warranties have > 90 days remaining. SupportEdge Premium SLA active."}
 
 * AUTOSUPPORT TELEMETRY STATUS:
 ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — ${a.detail}`).join('\n') : "✓ All systems reporting AutoSupport telemetry within 7-day SLA window."}
@@ -18859,12 +18903,12 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Add rules for destructive operations: 'security multi-admin-verify rule create -operation <op>'
   - Reference: docs.netapp.com/us-en/ontap/multi-admin-verify/
 
-PHASE 5: CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
+PHASE 5: WARRANTY RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
 ---------------------------------------------------------------------
 Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
 
-* ACTION 5.1: Support Contract Renewals
-${expiringContracts.length > 0 ? contractsText : "  ✓ No contracts expiring within 90 days."}
+* ACTION 5.1: Warranty Renewals
+${expiringContracts.length > 0 ? contractsText : "  ✓ No warranties expiring within 90 days."}
   - Portal: https://mysupport.netapp.com/
 
 * ACTION 5.2: Hardware Refresh Planning
@@ -19252,8 +19296,8 @@ ${sustainSection}
 --------------------------------------------------------------------------------
 6. LIFECYCLE & RENEWAL PIPELINE [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
-  Contracts Expiring < 90 Days:  ${exp90}
-  Contracts Expiring < 180 Days: ${exp180}
+  Warranties Expiring < 90 Days:  ${exp90}
+  Warranties Expiring < 180 Days: ${exp180}
   Systems Near EOS:              ${nearEos}
 
 ${contractLines}
@@ -20929,7 +20973,7 @@ ACCOUNT TEAM
 RISK SUMMARY
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
   Security: ${secRisksCount}   AutoSupport: ${asupIssues.length}   Cases: ${allSupportCases.length}
-  Upgrades: ${allUpgrades.length}   Contracts: ${expiringContracts.length}
+  Upgrades: ${allUpgrades.length}   Warranties: ${expiringContracts.length}
 
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
@@ -21015,7 +21059,7 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
   }
 
   if (expiringContracts.length > 0) {
-    problemStatements += `EXPIRING CONTRACTS (${expiringContracts.length})
+    problemStatements += `EXPIRING WARRANTIES (${expiringContracts.length})
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
@@ -21075,7 +21119,7 @@ ${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • $
 
 ${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}] ${c.title}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
 
-${exp90.length > 0 ? 'CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
+${exp90.length > 0 ? 'WARRANTIES EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
@@ -21116,7 +21160,7 @@ ${sustLatest.scorePercentage ? `\nSUSTAINABILITY (fleet, all tenants): ${sustLat
 PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
-${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring contract(s)` : ''}
+${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring warranty(ies)` : ''}
 ${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}
 ${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (sysCount - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}
 ${imtFindings.length > 0 ? `\nINTEROPERABILITY POSTURE (IMT CHECK):\n${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ') + ' ' + f.message).join('\n')}` : ''}`;
@@ -21543,7 +21587,7 @@ OPPORTUNITY INTELLIGENCE:
 
   // Contract renewals
   if (expiringContracts.length > 0) {
-    salesProposals += `CONTRACT RENEWALS (${expiringContracts.length}) [CONTRACTS & ENTITLEMENTS]
+    salesProposals += `WARRANTY RENEWALS (${expiringContracts.length}) [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
@@ -23950,30 +23994,31 @@ function _renderAsBuiltSection(systems) {
             </details>
         `;
 
-        // ── 7. Support & Contract Status ───────────────────────────────────────
-        const con = s.contracts || {};
-        const cStatus = s.contractActive ? 'Active' : (con.status || 'Unknown');
+        // ── 7. Warranty & Support ───────────────────────────────────────────────
+        // Was "Support & Contracts": 7 of its 10 rows (HW/SW Contract End Date,
+        // Contract Expiry, Service Level, HW/SW Contract ID, NRD End Date) read
+        // directly from Active IQ's contract{} sub-fields, confirmed genuinely
+        // null for this tenant's entire fleet (live-verified by logging the raw
+        // API response) -- every one of those rows always rendered "--",
+        // duplicating nothing useful right next to the Warranty block, which
+        // uses the one field on that same object (hardwareWarrantyEndDate) that
+        // Active IQ actually populates. Merged into one honest section using
+        // only real fields.
+        const con = s.contracts || {};  // now warranty-sourced, see enrichSystemTelemetry
+        const wStatus = con.status === 'unknown' ? 'Unknown' : (con.status === 'warning' ? 'Expiring Soon' : (con.daysRemaining != null && con.daysRemaining < 0 ? 'Expired' : 'Active'));
         const cases = s.supportCases || [];
 
         html += `
             <details open style="border:1px solid rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
-                <summary style="padding:10px 16px; background:rgba(255,255,255,0.025); font-weight:600; cursor:pointer; font-size:0.9rem;">Support & Contracts</summary>
+                <summary style="padding:10px 16px; background:rgba(255,255,255,0.025); font-weight:600; cursor:pointer; font-size:0.9rem;">Warranty & Support</summary>
                 <div style="padding:16px; display:flex; gap:32px; flex-wrap:wrap;">
                     <table style="${tblStyle} flex:1; min-width:280px;">
-                        <tr><th style="${thStyle} width:40%;">Contract Status</th><td style="${tdStyle}"><span style="${getBadgeStyle(cStatus)}">${valOrDash(cStatus)}</span></td></tr>
-                        <tr><th style="${thStyle}">End Date</th><td style="${tdStyle}">${valOrDash(((s.contractEndDate || con.endDate || '') + '').substring(0, 10))}${con.daysRemaining != null ? ' (' + con.daysRemaining + ' days)' : ''}</td></tr>
-                        <tr><th style="${thStyle}">HW Contract End Date</th><td style="${tdStyle}">${valOrDash((s.contractHWEndDate || '').substring(0, 10))}</td></tr>
-                        <tr><th style="${thStyle}">SW Contract End Date</th><td style="${tdStyle}">${valOrDash((s.contractSWEndDate || '').substring(0, 10))}</td></tr>
-                        <tr><th style="${thStyle}">Contract Expiry</th><td style="${tdStyle}">${valOrDash((s.contractExpiry || '').substring(0, 10))}</td></tr>
-                        <tr><th style="${thStyle}">Service Level</th><td style="${tdStyle}">${valOrDash(s.serviceLevel || con.serviceLevel)}</td></tr>
-                        <tr><th style="${thStyle}">HW Contract ID</th><td style="${tdStyle}">${valOrDash(s.contractHWId)}</td></tr>
-                        <tr><th style="${thStyle}">SW Contract ID</th><td style="${tdStyle}">${valOrDash(s.contractSWId)}</td></tr>
-                        <tr><th style="${thStyle}">NRD End Date</th><td style="${tdStyle}">${valOrDash((s.contractNRDEndDate || '').substring(0, 10))}</td></tr>
+                        <tr><th style="${thStyle} width:40%;">Warranty Status</th><td style="${tdStyle}"><span style="${getBadgeStyle(wStatus)}">${valOrDash(wStatus)}</span></td></tr>
+                        <tr><th style="${thStyle}">Warranty Start</th><td style="${tdStyle}">${valOrDash((s.warrantyStartDate || '').substring(0, 10))}</td></tr>
+                        <tr><th style="${thStyle}">Warranty End</th><td style="${tdStyle}">${valOrDash(((s.warrantyEndDate || con.endDate || '') + '').substring(0, 10))}${con.daysRemaining != null ? ' (' + con.daysRemaining + ' days)' : ''}</td></tr>
                         <tr><th style="${thStyle}">ASP</th><td style="${tdStyle}">${valOrDash(s.aspName)}${s.aspEndDate ? ' (Ends: ' + (s.aspEndDate + '').substring(0, 10) + ')' : ''}</td></tr>
                     </table>
                     <div style="flex:1; min-width:280px;">
-                        <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Warranty</div>
-                        <div style="font-size:0.85rem; margin-bottom:16px;">Start: ${valOrDash((s.warrantyStartDate || '').substring(0, 10))} \u2014 End: ${valOrDash((s.warrantyEndDate || '').substring(0, 10))}</div>
                         <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Primary Contact</div>
                         <div style="font-size:0.85rem; margin-bottom:16px;">Name: ${valOrDash((s.contacts || {}).name)}<br>Phone: ${valOrDash((s.contacts || {}).phone)}<br>Email: ${valOrDash((s.contacts || {}).email)}</div>
                         <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Support Cases (${cases.length})</div>
@@ -24780,8 +24825,8 @@ function generateActionPlan() {
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Cases</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.filter(c => c._isActive).length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.filter(c => c._isActive).length}<span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400;"> / ${allSupportCases.length}</span></div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Systems whose HW/SW support contract expires within 90 days. Requires proactive renewal engagement to avoid service coverage gaps.">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Expiring</div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Systems whose hardware warranty expires within 90 days. Requires proactive renewal engagement to avoid service coverage gaps.">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Warranty Expiring</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
           </div>
           <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="NetApp-issued field actions (FAs) requiring customer action — typically proactive hardware replacements, firmware updates, or configuration changes mandated by engineering.">
@@ -25558,7 +25603,7 @@ function generateActionPlan() {
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">F. Sales Refresh &amp; Renewal Proposals${enrBadge('salesProposals')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SALES_PROPOSAL')">Download Draft (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Contract renewals, TAM renewal pipeline with tech refresh status, lifecycle refresh candidates, and security/compliance upsell opportunities.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Warranty renewals, TAM renewal pipeline with tech refresh status, lifecycle refresh candidates, and security/compliance upsell opportunities.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.salesProposals}</textarea>
       </div>
 
@@ -25912,7 +25957,7 @@ METRICS SUMMARY:
 - Technical Risks: ${allRisks.length}
 - Security Advisories: ${allSecurityAdvisories.length}
 - Open Support Cases: ${allSupportCases.length}
-- Expiring Contracts: ${expiringContracts.length}
+- Expiring Warranties: ${expiringContracts.length}
 - Active Field Actions: ${activeFAs.length}
 
 This document compiles the high-level metrics generated from telemetry data analyzed by NetApp Active IQ Digital Advisor.`;
@@ -26200,9 +26245,9 @@ ${sepThin}
   SnapMirror Count:   ${_v(sys.snapMirrorCount)}
   Shelves:            ${(sys.shelves || []).length}
 
-5. CONTRACTS & LIFECYCLE
+5. WARRANTY & LIFECYCLE
 ${sepThin}
-  Contract Status:    ${sys.contracts ? _v(sys.contracts.status) : '—'}
+  Warranty Status:    ${sys.contracts ? _v(sys.contracts.status) : '—'}
   HW End Date:        ${sys.contracts ? _v(sys.contracts.hwEndDate) : '—'}
   SW End Date:        ${sys.contracts ? _v(sys.contracts.swEndDate) : '—'}
   Days Remaining:     ${sys.contracts ? _v(sys.contracts.daysRemaining) : '—'}
@@ -26403,7 +26448,7 @@ function downloadDeliverable(type) {
   } else if (type === 'SUSTAINABILITY_REPORT') {
     triggerFileDownload(`sustainability_report_${cleanScope}.txt`, docs.sustainabilityReport || compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CSV') {
-    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Contract End Date", "TAM Owner"];
+    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Warranty End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
       sys.customerName,
       sys.systemName,
@@ -28900,7 +28945,7 @@ async function importTrackerItemsFromScope() {
       });
     });
     if (s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90) {
-      const title = `Support contract expiring in ${s.contracts.daysRemaining} day(s)`;
+      const title = `Warranty expiring in ${s.contracts.daysRemaining} day(s)`;
       items.push({
         itemKey: _trackerItemKey('contract', s.serialNumber, title),
         accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
@@ -29501,7 +29546,7 @@ function switchTab(tabId) {
 
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Contracts Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\n";
+  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Warranty Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\n";
 
   state.systems.forEach(s => {
     const risksCount = s.risks.length;

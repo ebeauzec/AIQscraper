@@ -3212,9 +3212,17 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             except Exception:
                 pass
             for wid in watchlist_ids:
+                _placeholder_name = f"Watchlist {wid[:8]}"
+                _resolved_name = _cfg_names.get(wid, _placeholder_name)
                 watchlists_out.append({
                     "id": wid,
-                    "name": _cfg_names.get(wid, f"Watchlist {wid[:8]}"),
+                    "name": _resolved_name,
+                    # Only a name we synthesized ourselves (no real name from
+                    # GQL/config) is safe to overwrite with a customer name
+                    # once serials resolve below -- a real, human-chosen
+                    # watchlist name (e.g. "APAC Region") must never be
+                    # silently replaced.
+                    "_isPlaceholderName": _resolved_name == _placeholder_name,
                     "systemSerials": []
                 })
             print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from config (fallback)", flush=True)
@@ -3222,6 +3230,14 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # 14c. Resolve system serial numbers for each watchlist via GraphQL
         if watchlists_out:
             print(f"  [HARVEST] Resolving system serials for {len(watchlists_out)} watchlist(s)...", flush=True)
+            # Serial -> real customer name, from the systems already harvested
+            # above (step 13) -- used below to replace a synthesized
+            # "Watchlist <id prefix>" placeholder with the actual customer
+            # name once we know which systems are in that watchlist. MSP/TAM
+            # watchlists are typically scoped one-per-customer, so the
+            # customer name is a far more useful label than a random ID
+            # fragment.
+            _serial_to_customer = {s.get("serialNumber"): s.get("customerName") for s in systems_out if s.get("serialNumber")}
             for wl in watchlists_out[:20]:  # Limit to 20 watchlists to avoid excessive API calls
                 wl_id = wl.get("id", "")
                 if not wl_id:
@@ -3248,9 +3264,36 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                             break
                         wl_cursor = new_cursor
                     wl["systemSerials"] = serials
+                    # Replace a synthesized placeholder name with the real
+                    # customer name once we know the watchlist's membership --
+                    # only when every resolved system agrees on one customer,
+                    # so a genuinely mixed-customer watchlist doesn't get a
+                    # misleading single-customer label.
+                    if wl.pop("_isPlaceholderName", False) and serials:
+                        _customers_in_wl = {_serial_to_customer.get(sn) for sn in serials}
+                        _customers_in_wl.discard(None)
+                        if len(_customers_in_wl) == 1:
+                            wl["name"] = next(iter(_customers_in_wl))
                     print(f"    Watchlist '{wl['name']}': {len(serials)} systems", flush=True)
                 except Exception as wl_err:
+                    wl.pop("_isPlaceholderName", None)
                     print(f"    Watchlist '{wl.get('name', wl_id)}' serial resolve failed: {wl_err}", flush=True)
+            # Any watchlist beyond the [:20] processing cap above never ran
+            # through the try/except that pops this internal marker -- strip
+            # it from all of them so it never leaks into the JSON response.
+            for wl in watchlists_out:
+                wl.pop("_isPlaceholderName", None)
+            # Persist any newly-resolved customer names so the next harvest's
+            # config-fallback path (14b above) reuses them instead of
+            # re-synthesizing "Watchlist <id prefix>" every time.
+            try:
+                _cfg_w2 = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                _names_now = _cfg_w2.get("watchlistNames", {})
+                _names_now.update({w["id"]: w["name"] for w in watchlists_out if w.get("id") and w.get("name")})
+                _cfg_w2["watchlistNames"] = _names_now
+                CONFIG_PATH.write_text(json.dumps(_cfg_w2, indent=2), encoding="utf-8")
+            except Exception:
+                pass
 
         duration_ms = int((time.time() - start_time) * 1000)
 
