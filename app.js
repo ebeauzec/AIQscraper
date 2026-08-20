@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.41";
+const APP_VERSION = "5.6.42";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.42",
+    date: "20 August 2026",
+    title: "Fixed: Remediation Tracker Table Still Overflowed at Normal Desktop Widths",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Tracker Table Needed ~1076-1269px, Wider Than Common Laptop Screens",
+        color: "#f87171",
+        items: [
+          "5.6.41's overflow fix stopped columns from visually bleeding into each other, but the row's total width (Title 280px + unconstrained Customer/System text + Owner/Due Date/Notes inputs) still needed more horizontal space than it had at common laptop widths -- the table correctly became scrollable rather than overlapping, but the Notes column and delete button ended up past the visible edge with no obvious way to reach them, reported live by the user with a screenshot",
+          "Tightened column widths throughout: Title 280px to 220px, Owner input 110px to 85px, Notes input 140px to 100px, Due Date input constrained to 120px (previously unconstrained, native date inputs can run wider than expected). Customer and System columns now truncate very long names (e.g. 'Saudi Telecom Company (stc)') with an ellipsis and full-text tooltip instead of expanding the row",
+          "Verified live: at 1366px (a common laptop width) the table now fits with zero horizontal overflow and zero column overlap; at 1280px it still needs to scroll, but does so cleanly via the existing overflow-x:auto container rather than clipping or overlapping content"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.41",
     date: "20 August 2026",
@@ -29469,13 +29486,13 @@ function renderTrackerTab() {
       </td>
       <td style="padding:8px 10px;font-size:0.72rem;text-transform:uppercase;font-weight:700;color:${i.severity === 'critical' ? '#ef4444' : i.severity === 'high' ? '#f59e0b' : 'var(--text-muted)'};">${i.severity || ''}</td>
       <td style="padding:8px 10px;">${_trackerSlaBadge(i)}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;">${i.customerName || '—'}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;">${i.systemName || '—'}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;width:280px;max-width:280px;overflow-wrap:anywhere;word-break:break-word;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${i.detail.replace(/"/g, '&quot;')}">${i.detail}</div>` : ''}</td>
-      <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:110px;color:var(--text-primary);"></td>
-      <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" placeholder="SLA default" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.78rem;color:var(--text-primary);" title="${i.dueDate ? '' : 'No manual due date set -- using SLA policy default for ' + (i.severity||'medium') + ' severity'}"></td>
+      <td style="padding:8px 10px;font-size:0.8rem;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(i.customerName || '').replace(/"/g, '&quot;')}">${i.customerName || '—'}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(i.systemName || '').replace(/"/g, '&quot;')}">${i.systemName || '—'}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;width:220px;max-width:220px;overflow-wrap:anywhere;word-break:break-word;"><a href="#" onclick="trackerGoToFinding(${i.id});return false;" style="color:var(--accent-cyan);text-decoration:none;" title="Go to this finding and show remediation steps">${i.title}</a>${i.detail ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;max-height:2.8em;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${i.detail.replace(/"/g, '&quot;')}">${i.detail}</div>` : ''}</td>
+      <td style="padding:8px 10px;"><input type="text" value="${(i.owner || '').replace(/"/g, '&quot;')}" placeholder="Unassigned" onchange="updateTrackerItem(${i.id}, {owner: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:85px;color:var(--text-primary);"></td>
+      <td style="padding:8px 10px;"><input type="date" value="${i.dueDate || ''}" placeholder="SLA default" onchange="updateTrackerItem(${i.id}, {dueDate: this.value})" style="background:${isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${isOverdue ? '#ef4444' : 'var(--border-color)'};border-radius:4px;padding:4px 6px;font-size:0.75rem;width:120px;color:var(--text-primary);" title="${i.dueDate ? '' : 'No manual due date set -- using SLA policy default for ' + (i.severity||'medium') + ' severity'}"></td>
       <td style="padding:8px 10px;font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${i.lastSeenAt ? new Date(i.lastSeenAt).toLocaleDateString() : '—'}</td>
-      <td style="padding:8px 10px;"><input type="text" value="${(i.notes || '').replace(/"/g, '&quot;')}" placeholder="Notes..." onchange="updateTrackerItem(${i.id}, {notes: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:140px;color:var(--text-primary);"></td>
+      <td style="padding:8px 10px;"><input type="text" value="${(i.notes || '').replace(/"/g, '&quot;')}" placeholder="Notes..." onchange="updateTrackerItem(${i.id}, {notes: this.value})" style="background:rgba(255,255,255,0.04);border:1px solid var(--border-color);border-radius:4px;padding:4px 6px;font-size:0.78rem;width:100px;color:var(--text-primary);"></td>
       <td style="padding:8px 10px;"><button onclick="deleteTrackerItem(${i.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Remove from tracker">✕</button></td>
     </tr>`;
   }).join('');

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.42] - 2026-08-20
+
+### Fixed
+- **Remediation Tracker table overflowing at common desktop widths.** 5.6.41 stopped columns from visually bleeding into each other, but the row's total width still needed more space than common laptop screens have — the table correctly became scrollable, but the Notes column and delete button ended up past the visible edge with no obvious way to reach them. Tightened column widths throughout (Title 280px→220px, Owner input→85px, Notes input→100px, Due Date input constrained to 120px). Customer and System columns now truncate long names with an ellipsis and tooltip instead of expanding the row. Verified live: at 1366px the table now fits with zero overflow; at 1280px it still scrolls cleanly rather than clipping.
+
+---
+
 ## [5.6.41] - 2026-08-20
 
 ### Fixed

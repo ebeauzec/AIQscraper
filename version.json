@@ -1,8 +1,8 @@
 {
-  "version": "5.6.41",
+  "version": "5.6.42",
   "major": 5,
   "minor": 6,
-  "patch": 41,
+  "patch": 42,
   "date": "2026-08-20",
-  "notes": "Fixed watchlist auto-naming requiring unanimous agreement, which was too strict for real data: a real 186-system watchlist was 171 systems on 'Saudi Telecom Company (stc)' and 15 on 'Saudi Telecom Co', the same customer with an inconsistent name on a handful of systems, not a genuinely mixed-customer watchlist. Switched to majority vote: the dominant customer name is used once it covers at least 75% of resolved systems. Verified against the real confirmed counts (91.9%, well above threshold). Also fixed Remediation Tracker table text overflow: the Title column's remediation-step detail (which can include full URLs from Active IQ) had no width constraint, so a long URL stretched the column into the Owner/Due Date/Notes columns next to it. Added proper width, word-wrapping, and a 2-line clamp with full-text tooltip. Verified live with zero pixel overlap between columns."
+  "notes": "Fixed Remediation Tracker table overflowing at common desktop widths. 5.6.41 stopped columns from visually bleeding into each other, but the row's total width still needed more space than common laptop screens have -- the table correctly became scrollable, but the Notes column and delete button ended up past the visible edge with no obvious way to reach them. Tightened column widths throughout: Title 280px to 220px, Owner input to 85px, Notes input to 100px, Due Date input constrained to 120px (previously unconstrained). Customer and System columns now truncate long names with an ellipsis and tooltip instead of expanding the row. Verified live: at 1366px the table now fits with zero overflow and zero overlap; at 1280px it still scrolls cleanly rather than clipping."
 }
