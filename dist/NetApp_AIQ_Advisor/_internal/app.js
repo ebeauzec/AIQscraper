@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.45";
+const APP_VERSION = "5.6.46";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.46",
+    date: "21 August 2026",
+    title: "Reorganized: Account Snapshot Regrouped as 'Value Insights' (Value Insights, Phase 3)",
+    sections: [
+      {
+        icon: "🔄",
+        label: "Reorganized: 4-Bucket Value Insights Framing on the Value & ROI Tab",
+        color: "#22c55e",
+        items: [
+          "Third phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Before building a whole separate consolidated tab, checked what already existed: the Value & ROI tab's Account Snapshot panel already computed and displayed most of the same real data (health score, savings, risk/CVE counts, modernization candidates) -- it just wasn't grouped the way Digital Advisor groups it",
+          "Relabeled the existing panel's contents (no new computation beyond reusing Phase 1's computeFleetUptimeSummary() and Phase 2's computeFleetCapacitySummary() savings/projectedMonthlySavings fields) under Digital Advisor's 4 categories: Overall Health, NetApp-Delivered Savings & Stability, Security & Future Planning, Maximize Infrastructure Value",
+          "Chose this over a duplicate tab specifically to avoid showing the same real numbers twice in two different places -- everything here was already real, tested data, just re-grouped",
+          "Verified live: all 4 groups render with real computed values against the current fleet, savings figure reflects the configured cost-per-TiB setting from Phase 2"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.45",
     date: "21 August 2026",
@@ -12835,6 +12853,12 @@ function renderCSMTab() {
     const _mAllCases = targetCSMSystems.reduce((arr, s) => arr.concat(s.supportCases || []), []);
     const _mCaseHealth = computeSupportCaseHealth({ supportCases: _mAllCases });
     const _mRefreshCandidates = targetCSMSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
+    // Value Insights (Phase 3): reuses computeFleetUptimeSummary() (Phase 1)
+    // and computeFleetCapacitySummary()'s savedTB/projectedMonthlySavings
+    // (Phase 2) to regroup this same real, already-computed data under NetApp
+    // Digital Advisor's 4-bucket framing, instead of building a duplicate tab.
+    const _mUptime = computeFleetUptimeSummary(targetCSMSystems);
+    const _mCap = computeFleetCapacitySummary(targetCSMSystems);
 
     const _healthEl = document.getElementById("csmHealthScoreCard");
     if (_healthEl) _healthEl.innerHTML = `
@@ -12848,16 +12872,24 @@ function renderCSMTab() {
         </div>
         <div style="flex: 1;">
           <details style="cursor: pointer;">
-            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="Operational account snapshot across 8 tracked dimensions: Metrics, Ownership, Standards & Adoption, Remediation Plan, Contracts & Entitlements, Risk Exposure, Primary Contacts, Modernization Outlook. Values below are computed from the ${targetCSMSystems.length} selected system(s); fields with no source in Active IQ data are labeled as such rather than invented.">Account Snapshot</summary>
-            <div style="margin-top: 12px; font-family: monospace; font-size: 0.8rem; line-height: 1.5; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">M</span><span>Metrics:      Health ${healthScore}/100${_mAvgDR ? `, DR ${_mAvgDR}:1` : ''}, ${_mTbSaved.toFixed(1)} TB saved</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">E</span><span>Ownership:    ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Not set in Active IQ'}</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Standards:    Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''}</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">D</span><span>Remediation:  ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">P</span><span>Warranties:    ${_mExpiring90} warrant${_mExpiring90 !== 1 ? 'ies' : 'y'} expiring &lt;90d</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">I</span><span>Risk:         ${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''}, ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''}</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Contacts:     Not tracked in Active IQ (Case Health ${_mCaseHealth.score.toFixed(1)}/10)</span></div>
-              <div style="display: flex;"><span style="color: var(--accent-cyan); width: 20px;">C</span><span>Modernization:${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh</span></div>
+            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="Grouped along the same 4 categories as NetApp Digital Advisor's Value Insights dashboard: Overall Health, Savings &amp; Stability, Security &amp; Future Planning, Maximize Infrastructure Value. Values below are computed from the ${targetCSMSystems.length} selected system(s); fields with no source in Active IQ data are labeled as such rather than invented.">Value Insights</summary>
+            <div style="margin-top: 12px; font-size: 0.8rem; line-height: 1.6; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <div style="margin-bottom: 10px;">
+                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Overall Health</div>
+                <div>Account Health Score: <strong>${healthScore}/100</strong> (Grade ${healthGrade}) &middot; ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open &middot; Case health ${_mCaseHealth.score.toFixed(1)}/10</div>
+              </div>
+              <div style="margin-bottom: 10px;">
+                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">NetApp-Delivered Savings &amp; Stability</div>
+                <div>${_mAvgDR ? `Data reduction ${_mAvgDR}:1, ` : ''}${_mTbSaved.toFixed(1)} TB saved${_mCap.projectedMonthlySavings > 0 ? ` (~$${Math.round(_mCap.projectedMonthlySavings).toLocaleString()}/mo at $${state.costPerTiB}/TiB)` : ''} &middot; ${_mUptime.systemsWithEvents > 0 ? `${_mUptime.totalOutageMinutes} outage min across ${_mUptime.systemsWithEvents} system${_mUptime.systemsWithEvents !== 1 ? 's' : ''}` : 'No downtime events recorded'}</div>
+              </div>
+              <div style="margin-bottom: 10px;">
+                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Security &amp; Future Planning</div>
+                <div>${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''} &middot; ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''} &middot; ${_mExpiring90} warrant${_mExpiring90 !== 1 ? 'ies' : 'y'} expiring &lt;90d</div>
+              </div>
+              <div>
+                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Maximize Infrastructure Value</div>
+                <div>Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''} &middot; ${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh &middot; ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Sales rep not set in Active IQ'}</div>
+              </div>
             </div>
           </details>
         </div>

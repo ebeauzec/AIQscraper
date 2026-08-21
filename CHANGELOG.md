@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.46] - 2026-08-21
+
+### Changed
+- **Reorganized the Value & ROI tab's Account Snapshot panel into "Value Insights"** — third phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Rather than building a whole separate consolidated tab (which would have shown the same real numbers twice), relabeled the existing panel's contents under Digital Advisor's 4 categories: Overall Health, NetApp-Delivered Savings & Stability, Security & Future Planning, Maximize Infrastructure Value. Reuses `computeFleetUptimeSummary()` (Phase 1) and `computeFleetCapacitySummary()`'s savings fields (Phase 2) — no new fabricated numbers.
+
+### Fixed
+- **`index_src.html` (dev-served file) was missing the `csmHealthScoreCard`/`csmHistoryCard` containers entirely** — found while live-verifying this change. Present only in the compiled `index.html`, so the Account Snapshot / Value Insights panel never rendered at all when running via the dev server. Both files are now in sync.
+
+---
+
 ## [5.6.45] - 2026-08-21
 
 ### Added
