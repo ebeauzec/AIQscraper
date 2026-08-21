@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.44] - 2026-08-21
+
+### Added
+- **Fleet-level Storage Uptime & Downtime rollup** on the Value & ROI tab — first phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Active IQ's real per-system downtime event data was already harvested but never rolled up to fleet/customer scope. New `computeFleetUptimeSummary()` aggregates real downtime events: total outage minutes, systems ranked by downtime, and month-over-month trend. Found while building this: Active IQ's monthly uptime *percentage* field is never actually requested in this tool's GraphQL queries — confirmed by inspecting every query field list, it's always empty. Given this codebase previously broke its own harvest by exceeding Active IQ's field-count limit, a guessed field name was not safely addable without live-testing first, so it was deliberately not fabricated — the new card reports real event counts/durations only and says explicitly that monthly uptime % isn't available.
+
+---
+
 ## [5.6.43] - 2026-08-20
 
 ### Fixed

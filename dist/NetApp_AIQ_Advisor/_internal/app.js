@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.43";
+const APP_VERSION = "5.6.44";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.44",
+    date: "21 August 2026",
+    title: "Added: Fleet-Level Storage Uptime & Downtime Rollup (Value Insights, Phase 1)",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: Storage Uptime & Downtime Card on the Value & ROI Tab",
+        color: "#22c55e",
+        items: [
+          "First phase of mapping NetApp Digital Advisor's 'Value Insights' dashboard onto this tool. Active IQ's real per-system downtime event data (category, date, summary, outage duration) was already being harvested and rendered per-system in the As-Built report, but never rolled up to fleet/customer scope -- there was no way to see which systems were responsible for downtime, or trend it over months, without opening every system individually",
+          "New computeFleetUptimeSummary() aggregates real downtime events across the selected scope: total outage minutes, systems ranked by downtime (click to expand each system's individual events), and a month-over-month outage-minutes trend",
+          "Found while building this: Active IQ's monthly uptime PERCENTAGE field is never actually requested anywhere in this tool's GraphQL queries -- confirmed by inspecting every query field list. It's read from the harvest response but the field itself is never asked for, so it's always empty. Given this codebase has already broken its own harvest once by adding a query field that exceeded Active IQ's field-count limit, a guessed field name was not safely addable without live-testing against the real API first -- deliberately NOT fabricated. The new card reports real downtime event counts/durations only, and says explicitly that monthly uptime % isn't available in this build rather than showing a made-up number",
+          "Verified live: confirmed the aggregation, sorting, and month-grouping logic against a controlled test case, and confirmed the empty-state ('no downtime events -- a genuinely healthy signal, not missing data') renders correctly against the real current fleet, where most systems report zero downtime events in the harvested window"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.43",
     date: "20 August 2026",
@@ -12752,6 +12770,7 @@ function renderCSMTab() {
     document.getElementById("csmSavingsCard").innerHTML = "";
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
+    { const _upElX = document.getElementById("csmUptimeCard"); if (_upElX) _upElX.innerHTML = ""; }
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
     const _rEl1 = document.getElementById("csmAdoptionChecklistRight"); if (_rEl1) _rEl1.innerHTML = "";
     const _lSc1 = document.getElementById("csmCheckLeftScore"); if (_lSc1) _lSc1.textContent = "";
@@ -12934,6 +12953,9 @@ function renderCSMTab() {
         ${relationshipsHTML}
       </div>
     `;
+
+    // 3b. Fleet Uptime & Downtime Rollup
+    renderFleetUptimeCard(targetCSMSystems);
 
     // 4. Checklist aggregate — TAM/MSP remediation readiness (25 categorised checks)
     // ── LEFT COLUMN: Operations & Security ──────────────────────────────────────
@@ -13280,6 +13302,7 @@ function renderCSMTab() {
     document.getElementById("csmSavingsCard").innerHTML = "";
     document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
+    { const _upElX = document.getElementById("csmUptimeCard"); if (_upElX) _upElX.innerHTML = ""; }
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
     const _rEl2 = document.getElementById("csmAdoptionChecklistRight"); if (_rEl2) _rEl2.innerHTML = "";
     const _lSc2 = document.getElementById("csmCheckLeftScore"); if (_lSc2) _lSc2.textContent = "";
@@ -20597,6 +20620,116 @@ function computeFleetDRSummary(targetSystems) {
     drCoveragePct: total > 0 ? Math.round((smSystems + mcSystems) / total * 100) : 0,
     haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0
   };
+}
+
+// ── Fleet Uptime & Downtime Rollup ──────────────────────────────────────────
+// downtimeEvents (per-system: category, EMS date, summary, outage seconds) is
+// a real, queried GraphQL field with real data -- confirmed live, though
+// sparse (most systems report zero events in the harvested window, which is
+// itself a legitimate "healthy" signal, not missing data). Rolls per-system
+// events up to fleet/customer scope: total outage minutes, which systems were
+// responsible, and month-over-month trend -- previously only ever shown
+// per-system, buried in the As-Built report.
+//
+// monthlyUptimeStats (a monthly uptime % figure, distinct from raw downtime
+// events) is NOT included anywhere in server.py's GraphQL queries -- it's
+// read from the harvest response (`s.get("monthlyUptimeStats") or []"`) but
+// never actually requested, so it is always empty. Confirmed by grepping the
+// query field lists. This codebase has already broken its own harvest once
+// by adding fields that pushed a GraphQL query over Active IQ's field-count
+// limit (see SYSTEMS_FIELDS_TAM's fallback-tier comments), so a guessed field
+// name is not safely addable without live-testing against the real API
+// first. Deliberately NOT fabricating a monthly-uptime-% figure from the
+// event data (event count is not the same measurement as uptime percentage)
+// -- this summary reports real downtime EVENTS only, and callers should
+// treat "monthly uptime %" as a known, flagged gap rather than synthesize it.
+function computeFleetUptimeSummary(targetSystems) {
+  const total = targetSystems.length;
+  const bySystem = [];
+  let totalOutageSeconds = 0;
+  let totalEvents = 0;
+  const byMonth = {};
+
+  targetSystems.forEach(s => {
+    const events = (s.downtimeEvents && s.downtimeEvents.events) || [];
+    if (events.length === 0) return;
+    let sysOutageSeconds = 0;
+    events.forEach(e => {
+      const secs = e.outageSeconds || 0;
+      sysOutageSeconds += secs;
+      totalOutageSeconds += secs;
+      totalEvents++;
+      const d = e.emsDate ? new Date(e.emsDate) : null;
+      if (d && !isNaN(d)) {
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        byMonth[monthKey] = (byMonth[monthKey] || 0) + secs;
+      }
+    });
+    bySystem.push({
+      systemName: s.systemName || s.serialNumber,
+      customerName: s.customerName || '',
+      eventCount: events.length,
+      outageSeconds: sysOutageSeconds,
+      events: [...events].sort((a, b) => new Date(b.emsDate) - new Date(a.emsDate))
+    });
+  });
+
+  bySystem.sort((a, b) => b.outageSeconds - a.outageSeconds);
+  const monthlyTrend = Object.keys(byMonth).sort().map(m => ({ month: m, outageSeconds: byMonth[m] }));
+
+  return {
+    totalSystems: total,
+    systemsWithEvents: bySystem.length,
+    totalEvents,
+    totalOutageSeconds,
+    totalOutageMinutes: Math.round(totalOutageSeconds / 60),
+    bySystem,
+    monthlyTrend,
+    // Explicit, honest flag -- see comment above. Consumers must not display
+    // a computed "% uptime" figure; only real event counts/durations.
+    monthlyUptimePctAvailable: false
+  };
+}
+
+function renderFleetUptimeCard(targetSystems) {
+  const card = document.getElementById('csmUptimeCard');
+  if (!card) return;
+  const u = computeFleetUptimeSummary(targetSystems);
+
+  const monthRows = u.monthlyTrend.length > 0 ? u.monthlyTrend.map(m => {
+    const label = new Date(m.month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    return `<div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:var(--text-secondary);">${label}</span><span>${Math.round(m.outageSeconds / 60)} min</span></div>`;
+  }).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;">No downtime events reported in the harvested window.</div>';
+
+  const systemRows = u.bySystem.slice(0, 8).map(s => `
+    <div style="border-top:1px solid rgba(255,255,255,0.04);padding:8px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:600;font-size:0.85rem;cursor:pointer;color:var(--accent-cyan);" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none';">${s.systemName}</span>
+        <span style="font-size:0.78rem;color:var(--text-muted);">${s.eventCount} event${s.eventCount !== 1 ? 's' : ''} · ${Math.round(s.outageSeconds / 60)} min</span>
+      </div>
+      <div style="display:none;margin-top:6px;">
+        ${s.events.slice(0, 5).map(e => `<div style="font-size:0.75rem;color:var(--text-muted);padding:3px 0 3px 12px;border-left:2px solid var(--border-color);margin-bottom:2px;">${e.emsDate ? new Date(e.emsDate).toLocaleDateString() : '—'} · <strong>${e.category || 'Event'}</strong> · ${e.outageSeconds != null ? Math.round(e.outageSeconds / 60) + ' min outage' : ''} — ${e.summary || ''}</div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  card.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <h4 style="font-size:0.9rem;color:var(--text-secondary);" title="Rolled up from Active IQ's real per-system downtime event data (category, date, summary, outage duration). Monthly uptime percentage is not exposed by this build's Active IQ query -- shown here as real event counts/durations only, not a fabricated percentage.">Storage Uptime &amp; Downtime</h4>
+      <span class="badge ${u.totalEvents === 0 ? 'normal' : 'warning'}">${u.totalEvents === 0 ? 'No Events Reported' : u.totalEvents + ' Event' + (u.totalEvents !== 1 ? 's' : '')}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.5px;">Systems Responsible for Downtime</div>
+        ${u.bySystem.length > 0 ? systemRows : '<div style="color:var(--text-muted);font-size:0.8rem;">No downtime events reported for any system in scope -- a genuinely healthy signal, not missing data.</div>'}
+      </div>
+      <div>
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.5px;">Outage Minutes by Month</div>
+        ${monthRows}
+        <div style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);">Monthly uptime % is not exposed by Active IQ's current query for this build -- showing real downtime event duration instead of a computed percentage.</div>
+      </div>
+    </div>
+  `;
 }
 
 function computeFleetFeatureMatrix(targetSystems) {

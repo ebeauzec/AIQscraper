@@ -1,8 +1,8 @@
 {
-  "version": "5.6.43",
+  "version": "5.6.44",
   "major": 5,
   "minor": 6,
-  "patch": 43,
-  "date": "2026-08-20",
-  "notes": "Fixed tracker detail text still blowing out row height on multi-step findings. 5.6.41's fix relied on CSS -webkit-line-clamp, confirmed live to not reliably apply inside a table cell -- a finding with several remediation steps rendered completely unclamped. Replaced with JS-based truncation to a fixed character length (guaranteed correct, doesn't depend on CSS layout behavior that can silently fail), with full text still available via hover tooltip. Also found and fixed: some tracked items imported months ago captured KB-article text already corrupted by a lossy errors='replace' decode somewhere upstream in an older, since-fixed code path -- the exact same live finding now enriches with clean text, confirming the root cause is already resolved, but the previously-captured text was permanently unrecoverable. Added a display-time sanitizer that strips the resulting replacement characters so old corrupted entries read cleanly. Verified live against the real corrupted item reported."
+  "patch": 44,
+  "date": "2026-08-21",
+  "notes": "Added a fleet-level Storage Uptime & Downtime rollup to the Value & ROI tab -- first phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Active IQ's real per-system downtime event data was already harvested but never rolled up to fleet/customer scope. New computeFleetUptimeSummary() aggregates real downtime events: total outage minutes, systems ranked by downtime, and month-over-month trend. Found while building this: Active IQ's monthly uptime PERCENTAGE field is never actually requested in this tool's GraphQL queries (confirmed by inspecting every query field list) -- it's always empty. Given this codebase previously broke its own harvest by exceeding Active IQ's field-count limit, a guessed field name was not safely addable without live-testing first, so it was deliberately not fabricated -- the new card reports real event counts/durations only and says explicitly that monthly uptime % isn't available, rather than showing a made-up number. Verified live against a controlled test case and against the real current fleet's honest empty state."
 }

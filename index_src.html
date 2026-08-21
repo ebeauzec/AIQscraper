@@ -584,6 +584,17 @@
           </div>
         </div>
 
+        <!-- Storage Uptime & Downtime -- rolls up downtimeEvents (real, per-
+             system Active IQ data) to fleet/customer scope. Monthly uptime %
+             is NOT available -- Active IQ's GraphQL API is never actually
+             queried for it in this build (confirmed by inspecting the query
+             field lists), so this card reports real downtime EVENTS/duration
+             only and says so explicitly rather than showing a fabricated
+             percentage. -->
+        <div class="card" id="csmUptimeCard" style="margin-bottom: 32px;">
+          <!-- Fleet Uptime & Downtime Rollup -->
+        </div>
+
         <!-- Capacity and Performance Projections / Trends line graph -->
         <div class="card" style="margin-bottom: 32px; display: flex; flex-direction: column;">
           <div class="table-header-row" style="margin-bottom: 16px;">
