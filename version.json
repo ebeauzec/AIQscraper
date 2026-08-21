@@ -1,8 +1,8 @@
 {
-  "version": "5.6.46",
+  "version": "5.6.47",
   "major": 5,
   "minor": 6,
-  "patch": 46,
+  "patch": 47,
   "date": "2026-08-21",
-  "notes": "Third phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Rather than building a whole separate consolidated tab that would duplicate real data already shown, relabeled the existing Value & ROI tab's Account Snapshot panel under Digital Advisor's 4 categories: Overall Health, NetApp-Delivered Savings & Stability, Security & Future Planning, Maximize Infrastructure Value. Reuses Phase 1's computeFleetUptimeSummary() and Phase 2's computeFleetCapacitySummary() savings fields -- no new fabricated numbers. Also fixed a pre-existing sync gap found while verifying this live: index_src.html (the dev-served file) was missing the csmHealthScoreCard and csmHistoryCard containers entirely, present only in the compiled index.html -- the Account Snapshot panel never rendered at all when running via the dev server. Verified live against the real 450-system fleet."
+  "notes": "Final phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Adds a real PowerPoint export -- 'N. Customer Value Report (PPTX)' in the Action Planner's deliverables suite -- with Title, Executive Summary, Value Insights, Optimization Opportunities, and Renewal Value Highlights slides, each toggleable, built from this tool's already-computed real fleet data. Digital Advisor's original CVR also has an 'Innovation Roadmap' slide; deliberately NOT built here since Active IQ has no real data source for it (curated marketing content in the source product, not customer telemetry) and this tool never fabricates content to fill a visual gap. Vendored pptxgenjs 4.0.1's offline browser bundle (pptxgen.bundle.js, no CDN dependency) alongside chart.js. Verified live against the real 450-system fleet: all 4 sections render real computed values and the deck downloads correctly as a .pptx file."
 }

@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.46";
+const APP_VERSION = "5.6.47";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.47",
+    date: "21 August 2026",
+    title: "Added: Customer Value Report PPTX Export (Value Insights, Phase 4)",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: 'N. Customer Value Report (PPTX)' Deliverable",
+        color: "#22c55e",
+        items: [
+          "Final phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Adds a real PowerPoint export -- Title, Executive Summary, Value Insights, Optimization Opportunities, and Renewal Value Highlights slides, each toggleable via checkbox -- built entirely from this tool's already-computed real fleet data (Account Health Score, uptime rollup, efficiency savings, feature adoption, top open risks, warranty expirations)",
+          "Digital Advisor's original CVR also includes an 'Innovation Roadmap' slide. Deliberately NOT built here: Active IQ has no real data source for it in this tenant's telemetry -- it's curated NetApp marketing content in the source product, not customer data -- and this tool's standing rule is to never fabricate a slide's worth of content to fill a visual gap",
+          "Vendored pptxgenjs 4.0.1's offline browser bundle (pptxgen.bundle.js, ~450KB, no CDN dependency) alongside chart.js, consistent with this tool's dark-site design -- confirmed the bundle runs fully offline and produces a valid .pptx blob before wiring it into the UI",
+          "Verified live against the real 450-system fleet: all 4 optional sections render with real computed values (health score, savings, uptime, top risks, warranty expirations), and the deck downloads correctly as a .pptx file"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.46",
     date: "21 August 2026",
@@ -25772,7 +25790,7 @@ function generateActionPlan() {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
               <h2 style="font-size: 1.25rem; margin: 0; border: none; padding: 0; color: #ffd700;">★ Executable Account Deliverables Suite</h2>
-              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">13 DELIVERABLES</span>
+              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">14 DELIVERABLES</span>
             </div>
             <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; max-width: 700px;">
               Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT file for distribution to stakeholders.
@@ -25781,7 +25799,7 @@ function generateActionPlan() {
               Equally usable by enterprise end-customers managing their own fleet: scope to a business unit, data center, or environment instead of an external customer to get the same security, licensing, capacity, and lifecycle deliverables for internal reporting and audit.
             </p>
           </div>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 13 deliverables as individual TXT files">⬇ Download All</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download the 13 TXT deliverables as individual files. The Customer Value Report (PPTX) is generated separately via its own button below.">⬇ Download All (TXT)</button>
         </div>
         <div style="display: flex; gap: 16px; margin-top: 8px;">
           <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C)</span>
@@ -25925,6 +25943,20 @@ function generateActionPlan() {
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Comprehensive account profile for SAM/TAM transitions &mdash; environment inventory, personnel, risk posture, contract status, recent activity, and auto-generated talking points.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.handoverBrief}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">N. Customer Value Report (PPTX)</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CVR_PPTX')" data-tooltip="Generate a short exec-ready slide deck from real fleet data, styled after NetApp Digital Advisor's Customer Value Report.">Generate CVR (PPTX)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Exec-ready PowerPoint deck built from this tool's real computed fleet data (Account Health Score, uptime rollup, efficiency savings, feature adoption, risk posture, warranty coverage) -- styled after NetApp Digital Advisor's Customer Value Report. Innovation Roadmap is intentionally not included: Active IQ has no real data source for it, and this tool does not fabricate slide content.</p>
+        <div style="display: flex; gap: 18px; flex-wrap: wrap;">
+          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionExec" checked> Executive Summary</label>
+          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionValue" checked> Value Insights</label>
+          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionOptimize" checked> Optimization Opportunities</label>
+          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionRenewal" checked> Renewal Value Highlights</label>
+        </div>
       </div>
     </div>
 
@@ -26716,6 +26748,176 @@ function downloadDeliverable(type) {
     const csvContent = [headers.join(","), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
     
     triggerFileDownload(`systems_audit_${cleanScope}.csv`, csvContent);
+  } else if (type === 'CVR_PPTX') {
+    generateCVRPptx(targetSystems, cleanScope);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer Value Report (CVR) PPTX Export — Value Insights, Phase 4
+// Mirrors NetApp Digital Advisor's CVR: a short, exec-ready slide deck built
+// from real fleet data already computed elsewhere in this tool (Account
+// Health Score, uptime rollup, efficiency savings, feature adoption, risk
+// posture, warranty coverage). Digital Advisor's CVR also has an "Innovation
+// Roadmap" section — deliberately NOT included here, since Active IQ has no
+// real data source for it (it's curated NetApp marketing content in the
+// original product, not customer telemetry) and this tool's standing rule is
+// to never fabricate a slide's worth of content to fill a visual gap.
+// Uses the offline-vendored pptxgen.bundle.js (window.PptxGenJS) -- no CDN,
+// works fully dark-site.
+const CVR_BRAND = { navy: '1B2A4A', cyan: '00E5FF', green: '22C55E', amber: 'F59E0B', red: 'EF4444', ink: '1F2937', muted: '64748B' };
+
+function _cvrAddTitleSlide(pptx, scopeLabel, targetSystems) {
+  const slide = pptx.addSlide();
+  slide.background = { color: CVR_BRAND.navy };
+  slide.addText('Customer Value Report', { x: 0.6, y: 1.7, w: 9, h: 0.9, fontSize: 32, bold: true, color: 'FFFFFF' });
+  slide.addText(scopeLabel.replace(/_/g, ' '), { x: 0.6, y: 2.5, w: 9, h: 0.5, fontSize: 18, color: CVR_BRAND.cyan });
+  slide.addText(`${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''} in scope · Generated ${new Date().toISOString().slice(0, 10)}`, { x: 0.6, y: 3.1, w: 9, h: 0.4, fontSize: 12, color: 'CBD5E1' });
+  slide.addText('Compiled from Active IQ telemetry via ARIA — Active IQ Risk Intelligence Advisor', { x: 0.6, y: 6.9, w: 9, h: 0.3, fontSize: 9, color: '94A3B8', italic: true });
+  return slide;
+}
+
+function _cvrAddExecSummarySlide(pptx, targetSystems, health, uptime, cap) {
+  const slide = pptx.addSlide();
+  slide.addText('Executive Summary', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 24, bold: true, color: CVR_BRAND.ink });
+  const healthColor = health.score >= 80 ? CVR_BRAND.green : health.score >= 65 ? CVR_BRAND.amber : CVR_BRAND.red;
+  const kpis = [
+    { label: 'Account Health', value: `${health.score}/100`, sub: `Grade ${health.grade}`, color: healthColor },
+    { label: 'Data Reduction Savings', value: `${cap.savedTB.toFixed(1)} TB`, sub: cap.projectedMonthlySavings > 0 ? `~$${Math.round(cap.projectedMonthlySavings).toLocaleString()}/mo` : 'No efficiency data', color: CVR_BRAND.cyan },
+    { label: 'Fleet Stability', value: uptime.systemsWithEvents > 0 ? `${uptime.totalOutageMinutes} min` : '0 min', sub: uptime.systemsWithEvents > 0 ? `${uptime.systemsWithEvents} system(s) affected` : 'No downtime events', color: CVR_BRAND.green }
+  ];
+  kpis.forEach((k, i) => {
+    const x = 0.5 + i * 3.1;
+    slide.addShape('roundRect', { x, y: 1.2, w: 2.85, h: 1.7, fill: { color: 'F8FAFC' }, line: { color: 'E2E8F0', width: 1 }, rectRadius: 0.08 });
+    slide.addText(k.label.toUpperCase(), { x: x + 0.15, y: 1.32, w: 2.55, h: 0.35, fontSize: 10, color: CVR_BRAND.muted, bold: true });
+    slide.addText(k.value, { x: x + 0.15, y: 1.62, w: 2.55, h: 0.6, fontSize: 26, bold: true, color: k.color });
+    slide.addText(k.sub, { x: x + 0.15, y: 2.35, w: 2.55, h: 0.4, fontSize: 11, color: CVR_BRAND.muted });
+  });
+  slide.addText('Note: all figures above are computed from real Active IQ telemetry for the systems in this report\'s scope — no estimated or industry-average figures are used.', { x: 0.5, y: 3.3, w: 9, h: 0.5, fontSize: 10, italic: true, color: CVR_BRAND.muted });
+  return slide;
+}
+
+function _cvrAddValueInsightsSlide(pptx, health, uptime, cap, feat, security) {
+  const slide = pptx.addSlide();
+  slide.addText('Value Insights', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 24, bold: true, color: CVR_BRAND.ink });
+  const rows = [
+    ['Category', 'Finding'],
+    ['Overall Health', `${health.score}/100 (Grade ${health.grade})`],
+    ['NetApp-Delivered Savings & Stability', `${cap.savedTB.toFixed(1)} TB saved${cap.projectedMonthlySavings > 0 ? ` (~$${Math.round(cap.projectedMonthlySavings).toLocaleString()}/mo)` : ''}; ${uptime.systemsWithEvents > 0 ? `${uptime.totalOutageMinutes} outage min across ${uptime.systemsWithEvents} system(s)` : 'no downtime events recorded'}`],
+    ['Security & Future Planning', `${security.cveCount} critical/high CVE bulletin(s); ${security.eosCount} system(s) approaching end-of-support; ${security.expiring90} warrant(y/ies) expiring <90 days`],
+    ['Maximize Infrastructure Value', `Feature adoption ${feat.fleetAvgScore}% fleet average (ARP, FabricPool, SnapMirror, HA)`]
+  ];
+  slide.addTable(rows, {
+    x: 0.5, y: 1.05, w: 9, colW: [3, 6],
+    fontSize: 11, color: CVR_BRAND.ink, border: { type: 'solid', color: 'E2E8F0', pt: 1 },
+    fill: { color: 'FFFFFF' },
+    autoPage: false,
+    rowH: 0.9
+  });
+  return slide;
+}
+
+function _cvrAddOptimizationSlide(pptx, targetSystems, topRisks, security) {
+  const slide = pptx.addSlide();
+  slide.addText('Optimization Opportunities', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 24, bold: true, color: CVR_BRAND.ink });
+  if (topRisks.length === 0) {
+    slide.addText('No open critical or high-severity risk items in the current scope.', { x: 0.5, y: 1.2, w: 9, h: 0.5, fontSize: 14, color: CVR_BRAND.green });
+  } else {
+    const rows = [['Severity', 'System', 'Finding']].concat(
+      topRisks.slice(0, 8).map(r => [
+        (r.severity || '').toUpperCase(),
+        r.systemName || r.serialNumber || '',
+        (r.description || r.title || r.name || 'Untitled risk').slice(0, 90)
+      ])
+    );
+    slide.addTable(rows, {
+      x: 0.5, y: 1.05, w: 9, colW: [1.1, 2.2, 5.7],
+      fontSize: 10, color: CVR_BRAND.ink, border: { type: 'solid', color: 'E2E8F0', pt: 1 },
+      fill: { color: 'FFFFFF' }, autoPage: false, rowH: 0.4
+    });
+    if (topRisks.length > 8) {
+      slide.addText(`+ ${topRisks.length - 8} additional item(s) not shown — see the Remediation Tracker for the full list.`, { x: 0.5, y: 6.6, w: 9, h: 0.3, fontSize: 9, italic: true, color: CVR_BRAND.muted });
+    }
+  }
+  return slide;
+}
+
+function _cvrAddRenewalSlide(pptx, expiringContracts) {
+  const slide = pptx.addSlide();
+  slide.addText('Renewal Value Highlights', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 24, bold: true, color: CVR_BRAND.ink });
+  slide.addText('Warranty coverage is used here, not support-contract data — Active IQ does not expose per-system support contract dates for this tenant, but hardware warranty end dates are real and populated.', { x: 0.5, y: 0.85, w: 9, h: 0.4, fontSize: 9, italic: true, color: CVR_BRAND.muted });
+  if (expiringContracts.length === 0) {
+    slide.addText('No systems with warranty coverage expiring within 90 days.', { x: 0.5, y: 1.4, w: 9, h: 0.5, fontSize: 14, color: CVR_BRAND.green });
+  } else {
+    const sorted = [...expiringContracts].sort((a, b) => (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999));
+    const rows = [['System', 'Warranty End Date', 'Days Remaining']].concat(
+      sorted.slice(0, 10).map(c => [c.systemName || c.serialNumber || '', c.endDate || 'N/A', c.daysRemaining != null ? String(c.daysRemaining) : 'N/A'])
+    );
+    slide.addTable(rows, {
+      x: 0.5, y: 2.0, w: 9, colW: [4, 3, 2],
+      fontSize: 11, color: CVR_BRAND.ink, border: { type: 'solid', color: 'E2E8F0', pt: 1 },
+      fill: { color: 'FFFFFF' }, autoPage: false, rowH: 0.4
+    });
+    if (sorted.length > 10) {
+      slide.addText(`+ ${sorted.length - 10} additional system(s) not shown.`, { x: 0.5, y: 6.6, w: 9, h: 0.3, fontSize: 9, italic: true, color: CVR_BRAND.muted });
+    }
+  }
+  return slide;
+}
+
+async function generateCVRPptx(targetSystems, cleanScope) {
+  const sections = {
+    exec: !!document.getElementById('cvrSectionExec') ? document.getElementById('cvrSectionExec').checked : true,
+    value: !!document.getElementById('cvrSectionValue') ? document.getElementById('cvrSectionValue').checked : true,
+    optimize: !!document.getElementById('cvrSectionOptimize') ? document.getElementById('cvrSectionOptimize').checked : true,
+    renewal: !!document.getElementById('cvrSectionRenewal') ? document.getElementById('cvrSectionRenewal').checked : true
+  };
+  if (!sections.exec && !sections.value && !sections.optimize && !sections.renewal) {
+    alert('Select at least one section to include in the Customer Value Report.');
+    return;
+  }
+  if (typeof window.PptxGenJS !== 'function') {
+    alert('PPTX export library failed to load (pptxgen.bundle.js). Check the browser console.');
+    return;
+  }
+
+  const healthScoreVal = computeAccountHealthScore(targetSystems);
+  const health = { score: healthScoreVal, grade: getHealthGrade(healthScoreVal) };
+  const uptime = computeFleetUptimeSummary(targetSystems);
+  const cap = computeFleetCapacitySummary(targetSystems);
+  const feat = computeFleetFeatureMatrix(targetSystems);
+  const security = {
+    cveCount: targetSystems.reduce((sum, s) => sum + (s.securityBulletins || []).filter(b => /CVE-[0-9]{4}-[0-9]+/.test(b.description || b.cve || '')).length, 0),
+    eosCount: _realRecommendationCount('EOS_AND_PLAT_AND_HW', targetSystems) || 0,
+    expiring90: targetSystems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90).length
+  };
+  const topRisks = [];
+  targetSystems.forEach(s => (s.risks || []).forEach(r => {
+    const sev = (r.severity || '').toLowerCase();
+    if (sev === 'critical' || sev === 'high') topRisks.push({ ...r, systemName: s.systemName, serialNumber: s.serialNumber });
+  }));
+  topRisks.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
+  const expiringContracts = targetSystems
+    .filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90)
+    .map(s => ({ systemName: s.systemName, serialNumber: s.serialNumber, ...s.contracts }));
+
+  const pptx = new window.PptxGenJS();
+  pptx.defineLayout({ name: 'CVR_WIDE', width: 10, height: 7.5 });
+  pptx.layout = 'CVR_WIDE';
+  pptx.author = 'ARIA — Active IQ Risk Intelligence Advisor';
+  pptx.title = 'Customer Value Report';
+
+  _cvrAddTitleSlide(pptx, cleanScope, targetSystems);
+  if (sections.exec) _cvrAddExecSummarySlide(pptx, targetSystems, health, uptime, cap);
+  if (sections.value) _cvrAddValueInsightsSlide(pptx, health, uptime, cap, feat, security);
+  if (sections.optimize) _cvrAddOptimizationSlide(pptx, targetSystems, topRisks, security);
+  if (sections.renewal) _cvrAddRenewalSlide(pptx, expiringContracts);
+
+  try {
+    await pptx.writeFile({ fileName: `customer_value_report_${cleanScope}.pptx` });
+  } catch (e) {
+    console.error('CVR PPTX generation failed:', e);
+    alert('Failed to generate the Customer Value Report -- check the browser console.');
   }
 }
 

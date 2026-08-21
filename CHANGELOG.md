@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.47] - 2026-08-21
+
+### Added
+- **Customer Value Report PPTX export** ("N. Customer Value Report (PPTX)" in the Action Planner's deliverables suite) — final phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Real PowerPoint export with Title, Executive Summary, Value Insights, Optimization Opportunities, and Renewal Value Highlights slides (each toggleable via checkbox), built entirely from this tool's already-computed real fleet data — Account Health Score, uptime rollup, efficiency savings, feature adoption, top open risks, warranty expirations. Digital Advisor's original CVR also includes an "Innovation Roadmap" slide; deliberately not built here, since Active IQ has no real data source for it in this tenant's telemetry and this tool does not fabricate slide content to fill a visual gap. Vendored pptxgenjs 4.0.1's offline browser bundle (`pptxgen.bundle.js`, no CDN dependency) alongside `chart.js`, consistent with this tool's dark-site design.
+
+---
+
 ## [5.6.46] - 2026-08-21
 
 ### Changed
