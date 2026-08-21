@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.44";
+const APP_VERSION = "5.6.45";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.45",
+    date: "21 August 2026",
+    title: "Added: Editable Cost-per-TiB Setting (Value Insights, Phase 2)",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: 'Value Reporting' Settings Card",
+        color: "#22c55e",
+        items: [
+          "Second phase of mapping NetApp Digital Advisor's 'Value Insights' dashboard onto this tool. Two deliverable templates (TAM Success Plan, MSP Service Report) computed a dollar savings figure using a hardcoded $50/TiB/month constant -- every org's actual storage cost differs, so this number was frequently wrong for the reader",
+          "New 'Value Reporting' card in Settings lets a $/TiB/month figure be set once and reused everywhere. Backed by a new costPerTiB field on the existing /api/config endpoint, same pattern as the Remediation SLA Policy and Notifications cards",
+          "Both hardcoded '* 50' cost-avoidance calculations now read state.costPerTiB instead. Also added savedTB/projectedMonthlySavings to computeFleetCapacitySummary() -- real fleet-wide efficiency (logical minus physical TB actually stored) valued at the configured rate, for use in the upcoming Value Insights tab",
+          "Defaults to $50/TiB/month (the same number previously hardcoded) so nothing changes for anyone who hasn't touched the new setting"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.44",
     date: "21 August 2026",
@@ -18877,7 +18895,7 @@ ${formatCostOfInactionText(targetSystems)}
 
 * FINANCIAL IMPACT & ROI SUMMARY [METRICS + OWNERSHIP]
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
-  Estimated Cost Avoidance:            $${(totalSavedTB * 50).toLocaleString()}/month (at $50/TB/month)
+  Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at $${state.costPerTiB}/TB/month)
   Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
   Contract Coverage Gap Risk:          ${systemCount - contractActive} systems without active support
   Support Premium Increase (EOSA):     ~45% increase for ${systemCount - contractActive} out-of-support systems
@@ -19707,7 +19725,7 @@ ${backlogLines}
 12. PARTNER VALUE STATEMENT
 --------------------------------------------------------------------------------
   Total Data Managed:       ${logTotal.toFixed(1)} TB
-  Storage Cost Avoidance:   $${(savedTotal * 50).toLocaleString()} / month (at $50/TB)
+  Storage Cost Avoidance:   $${(savedTotal * state.costPerTiB).toLocaleString()} / month (at $${state.costPerTiB}/TB)
   Risk Incidents Prevented: ${critCount} critical issues identified proactively
   Admin Time Saved:         ~${total * 2} hours/month via automated telemetry and monitoring
                             (ESTIMATE: 2 hrs/system/month manual-monitoring offset, not a measured value — do not cite externally)
@@ -20787,13 +20805,19 @@ function computeFleetCapacitySummary(targetSystems) {
     }
   });
   atRisk.sort((a, b) => a.runway - b.runway);
+  // Projected monthly savings: real fleet-wide efficiency (logical - physical
+  // TB actually stored) valued at the org's own cost-per-TiB setting, not a
+  // hardcoded $50/TiB guess.
+  const savedTB = Math.max(0, totalLogTB - totalPhysTB);
   return {
     totalPhysTB, totalAvailTB, totalLogTB,
     redCount, amberCount, greenCount,
     atRisk,
     fleetGrowthGBDay: totalGrowthGBDay,
     avgGrowthGBDay: growthCounted > 0 ? (totalGrowthGBDay / growthCounted) : 0,
-    utilPct: totalAvailTB > 0 ? Math.round(totalPhysTB / totalAvailTB * 100) : 0
+    utilPct: totalAvailTB > 0 ? Math.round(totalPhysTB / totalAvailTB * 100) : 0,
+    savedTB,
+    projectedMonthlySavings: savedTB * (state.costPerTiB || 50)
   };
 }
 
@@ -29378,6 +29402,40 @@ function refreshWebhookStatusText() {
   }).catch(() => {});
 }
 
+// Cost per TiB/month, used to convert real efficiency savings (dedup/
+// compression/compaction) into a dollar figure in deliverables. Was
+// hardcoded to $50/TiB in two report templates -- every org's actual
+// storage cost differs, so it's editable in Settings instead of a
+// guessed constant baked into report text.
+state.costPerTiB = state.costPerTiB || 50;
+
+async function loadCostPerTiB() {
+  try {
+    const res = await fetch('/api/config', { cache: 'no-store' });
+    const cfg = await res.json();
+    if (cfg && cfg.costPerTiB) state.costPerTiB = cfg.costPerTiB;
+  } catch (e) {
+    console.error('Failed to load cost-per-TiB setting:', e);
+  }
+}
+
+function saveCostPerTiBFromUI() {
+  const el = document.getElementById('settingsCostPerTiB');
+  const n = el ? parseFloat(el.value) : NaN;
+  const costPerTiB = isNaN(n) || n < 0 ? state.costPerTiB : n;
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ costPerTiB })
+  }).then(r => r.json()).then(() => {
+    state.costPerTiB = costPerTiB;
+    alert('Value Reporting settings saved.');
+  }).catch(e => {
+    console.error('Failed to save cost-per-TiB setting:', e);
+    alert('Save failed -- check the console.');
+  });
+}
+
 async function saveSlaPolicy(slaDays) {
   try {
     const res = await fetch('/api/config', {
@@ -29741,6 +29799,9 @@ function switchTab(tabId) {
       if (document.getElementById('settingsSlaHigh')) document.getElementById('settingsSlaHigh').value = state.slaDays.high;
       if (document.getElementById('settingsSlaMedium')) document.getElementById('settingsSlaMedium').value = state.slaDays.medium;
       if (document.getElementById('settingsSlaLow')) document.getElementById('settingsSlaLow').value = state.slaDays.low;
+    });
+    loadCostPerTiB().then(() => {
+      if (document.getElementById('settingsCostPerTiB')) document.getElementById('settingsCostPerTiB').value = state.costPerTiB;
     });
     refreshWebhookStatusText();
     

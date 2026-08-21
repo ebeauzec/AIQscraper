@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.45] - 2026-08-21
+
+### Added
+- **Editable cost-per-TiB setting** — second phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Two deliverable templates (TAM Success Plan, MSP Service Report) computed a dollar savings figure using a hardcoded $50/TiB/month constant; every org's actual storage cost differs, so this was frequently wrong for the reader. New "Value Reporting" Settings card lets a $/TiB/month figure be set once and reused everywhere, backed by a new `costPerTiB` field on the existing `/api/config` endpoint. Both hardcoded `* 50` cost-avoidance calculations now read the configured value. Also added `savedTB`/`projectedMonthlySavings` to `computeFleetCapacitySummary()` — real fleet-wide efficiency (logical minus physical TB actually stored) valued at the configured rate, for use in the upcoming Value Insights tab. Defaults to $50/TiB/month so nothing changes for anyone who hasn't touched the new setting.
+
+---
+
 ## [5.6.44] - 2026-08-21
 
 ### Added

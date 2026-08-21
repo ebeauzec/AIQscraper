@@ -8635,6 +8635,13 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # raw value, only whether one is set.
                 "webhookEnabled": bool(cfg.get("webhookEnabled", False)),
                 "hasWebhookUrl": bool(cfg.get("webhookUrl", "")),
+                # Cost per TiB ($/month) used to translate real efficiency
+                # savings (dedup/compression/compaction) into a dollar figure
+                # in deliverables. Was hardcoded to $50/TB in two deliverable
+                # templates -- every org's actual storage cost differs, so
+                # this is now editable in Settings instead of a guessed
+                # constant baked into the report text.
+                "costPerTiB": cfg.get("costPerTiB") or 50,
                 # Multi-account (multi-customer) support — never return raw tokens,
                 # only enough for the Settings UI to list/edit accounts safely.
                 "accounts": [
@@ -8691,6 +8698,11 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "costPerTiB" in body:
+                try:
+                    cfg["costPerTiB"] = max(0, float(body["costPerTiB"]))
+                except (TypeError, ValueError):
+                    pass  # ignore invalid input, keep existing/default value
             if "webhookEnabled" in body:
                 cfg["webhookEnabled"] = bool(body["webhookEnabled"])
             if "webhookUrl" in body and body["webhookUrl"].strip():
