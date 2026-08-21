@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.48";
+const APP_VERSION = "5.6.49";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.49",
+    date: "21 August 2026",
+    title: "Clarified: Why Recommendation Scores Repeat Across Customers Sharing an Active IQ Account",
+    sections: [
+      {
+        icon: "✨",
+        label: "Added: 'Same Active IQ Account' Notice on Section 12",
+        color: "#22c55e",
+        items: [
+          "User reported seeing identical recommendation numbers across multiple customers and flagged it as suspicious. Investigation found this tenant's 41 named customers actually map onto only 2 real Active IQ accounts (one account alone covers 36 customers) -- Active IQ computes each recommendation's Score % at the account level, so every customer sharing an account genuinely gets an identical score for a given check. Confirmed this is real (not a scoping bug): the rescoped fail COUNTS do differ correctly per customer's own system count (e.g. 20% -> 137/171 systems for one customer, 12/15 for another) -- only the underlying rate repeats, exactly as Active IQ reports it",
+          "Added an explicit notice to Section 12 (TAM Recommendations) when the scoped customer shares its Active IQ account with others: names the sibling customers and states plainly that the Score % is account-wide by Active IQ's own design, not a per-customer measurement -- so an identical score reads as expected instead of looking broken",
+          "New _siblingCustomersOnSameAccount() helper, computed from the same accountId field already used by the existing multi-account scoping logic"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.48",
     date: "21 August 2026",
@@ -22664,6 +22681,26 @@ function _realRecommendationCount(subCategory, systems) {
   return null;
 }
 
+// How many OTHER customer names share the same Active IQ account(s) as the
+// systems in scope. Active IQ computes recommendation scores per-ACCOUNT, not
+// per-customer, so any two customers billed under the same account (a common
+// MSP/distributor setup where one Active IQ account covers many end-customers)
+// see an IDENTICAL score for a given check -- not a scoping bug, a real
+// constraint of the API. Surfaced explicitly so an identical score across
+// customers reads as "expected, here's why" instead of looking broken.
+function _siblingCustomersOnSameAccount(targetSystems) {
+  const scopeAccountIds = new Set((targetSystems || []).map(s => s.accountId).filter(Boolean));
+  const scopeCustomers = new Set((targetSystems || []).map(s => s.customerName).filter(Boolean));
+  if (scopeAccountIds.size === 0) return [];
+  const siblings = new Set();
+  (state.systems || []).forEach(s => {
+    if (s.accountId && scopeAccountIds.has(s.accountId) && s.customerName && !scopeCustomers.has(s.customerName)) {
+      siblings.add(s.customerName);
+    }
+  });
+  return [...siblings];
+}
+
 function _scopeRecommendationsToAccounts(recs, targetSystems) {
   const scopeAccountIds = new Set((targetSystems || []).map(s => s.accountId).filter(Boolean));
   if (scopeAccountIds.size === 0) return recs; // no accountId tagging (single-account setup) -- nothing to filter
@@ -22722,10 +22759,15 @@ function _renderRecommendationsSection(targetSystems) {
   const catIcons  = {'VERSION':'🔄','AUTO_SUPPORT':'📡','BEST_PRACTICES':'✅','CONFIG':'⚙️','SUPPORT_AND_ENTITLEMENTS':'🛡️'};
   const catColors = {'VERSION':'#3b82f6','AUTO_SUPPORT':'#8b5cf6','BEST_PRACTICES':'#10b981','CONFIG':'#f59e0b','SUPPORT_AND_ENTITLEMENTS':'#ef4444'};
 
+  const siblingCustomers = _siblingCustomersOnSameAccount(targetSystems);
+
   let html = `<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Top ${recs.length} key recommendations from Active IQ — counts rescoped to <strong style="color:var(--accent-cyan)">${scopeCount} selected system${scopeCount !== 1 ? 's' : ''}</strong>.</p>
     <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;" title="Active IQ itself only scores these checks per-account, tenant-wide -- it has no API field for a per-customer count. Where this tool has its own real per-system telemetry for the same check (AutoSupport, HA config, OS/firmware currency, EOS, contract expiry), the count is measured directly against this customer's own systems. Only the checks with no equivalent harvested field (mainly the bundled Best Practices categories) fall back to an account-wide-rate estimate, and are marked (est.).">⚠ Counts are measured per-customer where this tool has real per-system data for the check; only counts marked (est.) are extrapolated from Active IQ's account-wide rate.</span>
-  </div>`;
+  </div>
+  ${siblingCustomers.length > 0 ? `<div style="margin-bottom:16px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:10px 14px;font-size:0.78rem;color:var(--text-secondary);">
+    ℹ️ This scope's systems are billed under the same Active IQ account as <strong style="color:#60a5fa">${siblingCustomers.length} other customer${siblingCustomers.length !== 1 ? 's' : ''}</strong> (${siblingCustomers.slice(0, 6).join(', ')}${siblingCustomers.length > 6 ? `, +${siblingCustomers.length - 6} more` : ''}). Active IQ computes each check's <strong>Score %</strong> for the whole account, so that percentage will be identical across all customers on this account — it is not a per-customer bug. The counts below are still rescoped to this customer's own ${scopeCount} system${scopeCount !== 1 ? 's' : ''} wherever real per-system data exists.
+  </div>` : ''}`;
 
   Object.keys(byCategory).forEach(cat => {
     const items = byCategory[cat];

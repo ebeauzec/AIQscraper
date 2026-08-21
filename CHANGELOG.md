@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.49] - 2026-08-21
+
+### Added
+- **"Same Active IQ account" notice on Section 12 (TAM Recommendations).** User reported seeing identical recommendation numbers across multiple customers. Investigation found this tenant's 41 named customers map onto only 2 real Active IQ accounts (one alone covers 36 customers) — Active IQ computes each check's Score % at the account level, so customers sharing an account genuinely get an identical score for a given check; this is real, not a scoping bug (confirmed the rescoped fail *counts* already differ correctly per customer's own system count). Section 12 now names the sibling customers sharing an account and states plainly that the Score % is account-wide by Active IQ's own design, so an identical score reads as expected instead of looking broken.
+
+---
+
 ## [5.6.48] - 2026-08-21
 
 ### Fixed

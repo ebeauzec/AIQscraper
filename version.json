@@ -1,8 +1,8 @@
 {
-  "version": "5.6.48",
+  "version": "5.6.49",
   "major": 5,
   "minor": 6,
-  "patch": 48,
+  "patch": 49,
   "date": "2026-08-21",
-  "notes": "Section 12 (TAM Recommendations) only computed real per-customer counts for EOS and contract-expiry checks -- everything else was extrapolated from Active IQ's account-wide (tenant-wide) failure rate onto the customer's system count, even though this tool already has real per-system data for most of those checks elsewhere. _realRecommendationCount() now also measures AutoSupport adoption, HA configuration, OS version currency (min version and latest version), and SP/BMC & drive firmware currency directly against the scoped customer's own systems, reusing the same real fields already used by the Account Health Score and Firmware Currency section. The bundled Best Practices checks (capacity, configuration, protection, efficiency, security) genuinely have no per-system breakdown in the harvested data and remain honestly labeled (est.). Verified live: for a real 2-system customer scope, several checks that previously showed an extrapolated (est.) count now show the real measured count for those specific systems."
+  "notes": "User reported seeing identical recommendation numbers across multiple customers and flagged it as suspicious. Investigation found this tenant's 41 named customers actually map onto only 2 real Active IQ accounts (one account alone covers 36 customers) -- Active IQ computes each recommendation's Score % at the account level, so every customer sharing an account genuinely gets an identical score for a given check. Confirmed this is real, not a scoping bug: the rescoped fail counts do differ correctly per customer's own system count -- only the underlying rate repeats, exactly as Active IQ reports it. Added an explicit notice to Section 12 (TAM Recommendations) when the scoped customer shares its Active IQ account with others, naming the sibling customers and stating plainly that the Score % is account-wide by Active IQ's own design."
 }
