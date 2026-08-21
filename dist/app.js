@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.47";
+const APP_VERSION = "5.6.48";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.48",
+    date: "21 August 2026",
+    title: "Fixed: TAM Recommendations Extrapolated Too Many Checks That Have Real Per-Customer Data",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: 6 More Recommendation Checks Now Measured Per-Customer Instead of Estimated",
+        color: "#f87171",
+        items: [
+          "Section 12 (TAM Recommendations) only computed real per-customer counts for EOS and contract-expiry checks -- everything else, including AutoSupport adoption, HA configuration, OS version currency, and SP/BMC & drive firmware currency, was extrapolated from Active IQ's account-wide (tenant-wide) failure rate onto the customer's system count, even though this tool already has real per-system data for every one of those checks elsewhere (Account Health Score, Firmware Currency section, Software Currency Index all use the same fields)",
+          "_realRecommendationCount() now also answers ADOPTION (autosupport.enabled), HA_CONFIG (haConfigured), MIN_VERSION and LATEST_VERSION (osVersion vs swRecMin/recommendedOSVersion), and SP_BMC/DISK_FIRMWARE (via computeFleetFirmwareSummary()'s per-system firmware comparison) with real measured counts against the actual scoped systems, not an estimate",
+          "The bundled BEST_PRACTICES checks (capacity, configuration, protection, efficiency, security) genuinely have no per-system breakdown anywhere in the harvested data -- Active IQ never reports them below the account level -- so those remain honestly labeled (est.) rather than fabricated",
+          "Updated the on-screen banner to reflect the new mix: most checks are now measured per-customer, only the remaining unmapped checks fall back to the account-wide-rate estimate",
+          "Verified live: for a real 2-system customer scope, AutoSupport adoption now reads '0 of 2 AutoSupport capable systems' with no (est.) tag, and the estimate count across all Section 12 recommendations for that scope dropped accordingly"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.47",
     date: "21 August 2026",
@@ -22566,18 +22585,24 @@ function _realAutosupportStatus(s) {
   return { enabled: false, status: 'unknown', lastReceivedDays: null, unknown: true };
 }
 
-// Real, per-system counts for the handful of TAM Recommendation checks we
-// actually have per-system source data for. See _renderRecommendationsSection's
-// rescopeText comment for the full rationale: Active IQ scores these checks
-// per-ACCOUNT, not per-customer, so most checks can only be extrapolated from
-// that account-wide rate onto a customer's system count -- an estimate, not a
-// measurement. For EOS and contract-expiry checks specifically, real per-system
-// fields exist (lifecycle.eosDate, contracts.daysRemaining, both computed by
-// enrichSystemTelemetry from the live API), so count the actual scoped systems
-// instead. Shared by the on-screen tab, the Section 12 TXT export, and the QBR
-// Pack deliverable so all three always agree and none of them fabricate a count
-// this function can answer for real. Returns null (no real source) for every
-// other subCategory -- callers MUST treat a null return as "estimate only" and
+// Real, per-system counts for the TAM Recommendation checks we have real
+// per-system source data for. Active IQ scores every recommendation
+// per-ACCOUNT (tenant-wide), not per-customer -- there is no API field that
+// says "N of these specific systems are failing this check." For most
+// checks below, this tool has its own real per-system telemetry that answers
+// the same underlying question directly (autosupport.enabled, haConfigured,
+// osVersion vs swRecMin/recommendedOSVersion, lifecycle.eosDate,
+// contracts.daysRemaining, and computeFleetFirmwareSummary()'s per-system SP/
+// BMC and drive firmware comparison) -- so those are measured against the
+// actual scoped systems, not extrapolated from the account-wide rate.
+// The remaining subCategories (the bundled BEST_PRACTICES checks, and a few
+// AUTO_SUPPORT/CONFIG checks with no equivalent harvested field) have no real
+// per-system source at all -- Active IQ never breaks those down below the
+// account level -- so they stay as extrapolated estimates. Shared by the
+// on-screen tab, the Section 12 TXT export, and the QBR Pack deliverable so
+// all three always agree and none of them fabricate a count this function
+// can answer for real. Returns null (no real source) for every other
+// subCategory -- callers MUST treat a null return as "estimate only" and
 // label it accordingly, never display it with the confidence of a measurement.
 function _realRecommendationCount(subCategory, systems) {
   systems = systems || [];
@@ -22605,6 +22630,36 @@ function _realRecommendationCount(subCategory, systems) {
   if (subCategory === 'ACTIVE_SUPPORT_CONTRACTS') {
     return systems.filter(s => s.contracts && (s.contracts.status === 'expired' ||
       (s.contracts.daysRemaining != null && s.contracts.daysRemaining < 0))).length;
+  }
+  // AutoSupport adoption: real per-system field (enabled/status), matches Active
+  // IQ's own "not enabled and not declined" framing for this check.
+  if (subCategory === 'ADOPTION') {
+    return systems.filter(s => s.autosupport && s.autosupport.enabled === false && s.autosupport.status !== 'declined').length;
+  }
+  // HA configuration: real per-system field. Only counts systems where the
+  // field is explicitly false -- unknown/undefined is excluded rather than
+  // assumed to be a failure.
+  if (subCategory === 'HA_CONFIG') {
+    return systems.filter(s => s.haConfigured === false).length;
+  }
+  // OS version below the minimum recommended release: same real fields (osVersion,
+  // swRecMin) already used by computeAccountHealthScore's firmware-currency KPI.
+  if (subCategory === 'MIN_VERSION') {
+    return systems.filter(s => s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)).length;
+  }
+  // OS version behind the latest major/P release: same real fields used by
+  // computeSoftwareCurrencyIndex.
+  if (subCategory === 'LATEST_VERSION') {
+    return systems.filter(s => s.recommendedOSVersion && s.osVersion && s.osVersion !== s.recommendedOSVersion).length;
+  }
+  // SP/BMC and drive firmware currency: reuse computeFleetFirmwareSummary()'s
+  // real per-system firmware version comparison (same source as the Firmware
+  // Currency section and the Account Health Score's HW firmware KPI).
+  if (subCategory === 'SP_BMC') {
+    return computeFleetFirmwareSummary(systems).spBehind;
+  }
+  if (subCategory === 'DISK_FIRMWARE') {
+    return computeFleetFirmwareSummary(systems).driveFwBehind;
   }
   return null;
 }
@@ -22669,7 +22724,7 @@ function _renderRecommendationsSection(targetSystems) {
 
   let html = `<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Top ${recs.length} key recommendations from Active IQ — counts rescoped to <strong style="color:var(--accent-cyan)">${scopeCount} selected system${scopeCount !== 1 ? 's' : ''}</strong>.</p>
-    <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;">⚠ Active IQ scores these checks per-account, not per-customer. Counts marked (est.) are extrapolated from the account-wide rate, not measured for these specific systems.</span>
+    <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;" title="Active IQ itself only scores these checks per-account, tenant-wide -- it has no API field for a per-customer count. Where this tool has its own real per-system telemetry for the same check (AutoSupport, HA config, OS/firmware currency, EOS, contract expiry), the count is measured directly against this customer's own systems. Only the checks with no equivalent harvested field (mainly the bundled Best Practices categories) fall back to an account-wide-rate estimate, and are marked (est.).">⚠ Counts are measured per-customer where this tool has real per-system data for the check; only counts marked (est.) are extrapolated from Active IQ's account-wide rate.</span>
   </div>`;
 
   Object.keys(byCategory).forEach(cat => {

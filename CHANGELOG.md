@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.48] - 2026-08-21
+
+### Fixed
+- **TAM Recommendations (Section 12) extrapolated too many checks that this tool already has real per-customer data for.** Previously only EOS and contract-expiry checks were measured directly against the scoped customer's systems; everything else (AutoSupport adoption, HA configuration, OS version currency, SP/BMC & drive firmware currency) was extrapolated from Active IQ's account-wide failure rate, even though real per-system fields for all of those already exist and are used elsewhere (Account Health Score, Firmware Currency section, Software Currency Index). `_realRecommendationCount()` now measures those 6 additional checks directly. The bundled Best Practices checks genuinely have no per-system breakdown anywhere in the harvest and remain honestly labeled `(est.)`.
+
+---
+
 ## [5.6.47] - 2026-08-21
 
 ### Added

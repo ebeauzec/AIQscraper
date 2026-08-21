@@ -1,8 +1,8 @@
 {
-  "version": "5.6.47",
+  "version": "5.6.48",
   "major": 5,
   "minor": 6,
-  "patch": 47,
+  "patch": 48,
   "date": "2026-08-21",
-  "notes": "Final phase of mapping NetApp Digital Advisor's Value Insights dashboard onto this tool. Adds a real PowerPoint export -- 'N. Customer Value Report (PPTX)' in the Action Planner's deliverables suite -- with Title, Executive Summary, Value Insights, Optimization Opportunities, and Renewal Value Highlights slides, each toggleable, built from this tool's already-computed real fleet data. Digital Advisor's original CVR also has an 'Innovation Roadmap' slide; deliberately NOT built here since Active IQ has no real data source for it (curated marketing content in the source product, not customer telemetry) and this tool never fabricates content to fill a visual gap. Vendored pptxgenjs 4.0.1's offline browser bundle (pptxgen.bundle.js, no CDN dependency) alongside chart.js. Verified live against the real 450-system fleet: all 4 sections render real computed values and the deck downloads correctly as a .pptx file."
+  "notes": "Section 12 (TAM Recommendations) only computed real per-customer counts for EOS and contract-expiry checks -- everything else was extrapolated from Active IQ's account-wide (tenant-wide) failure rate onto the customer's system count, even though this tool already has real per-system data for most of those checks elsewhere. _realRecommendationCount() now also measures AutoSupport adoption, HA configuration, OS version currency (min version and latest version), and SP/BMC & drive firmware currency directly against the scoped customer's own systems, reusing the same real fields already used by the Account Health Score and Firmware Currency section. The bundled Best Practices checks (capacity, configuration, protection, efficiency, security) genuinely have no per-system breakdown in the harvested data and remain honestly labeled (est.). Verified live: for a real 2-system customer scope, several checks that previously showed an extrapolated (est.) count now show the real measured count for those specific systems."
 }
