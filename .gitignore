@@ -21,6 +21,12 @@ aiq_scraped_data.json
 aiq_scraped_endpoints.json
 aiq_format_report.json
 
+# Real harvested customer data (serials, hostnames, contract IDs, customer
+# names) -- must never be committed. These two were previously tracked by
+# mistake; removed 2026-08-31.
+data/tam_complete_data.json
+data/tam_real_data.json
+
 # Generated report documents
 *.docx
 
