@@ -12,6 +12,11 @@
 >
 > Equally built for **large enterprise end-customers** running NetApp storage at scale — internal storage/infrastructure teams who need a single fleet-wide operational view across hundreds of clusters, business units, or sites, without living inside Active IQ's per-system UI or maintaining a separate spreadsheet of contracts, EOA/EOS dates, and CVE exposure.
 
+<p align="center">
+  <img src="docs/images/dashboard-overview.png" alt="ARIA Overview Dashboard showing 450 monitored systems, 173 critical risks, storage efficiency, capacity by system, and a risk trend chart" width="820">
+</p>
+<p align="center"><sub>The Overview Dashboard, live against a real 450-system fleet across two Active IQ accounts. Customer names shown here are redacted for this screenshot only — nothing in the tool itself redacts them.</sub></p>
+
 ---
 
 ## Table of Contents
@@ -78,11 +83,15 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 
 > **A note on scale:** every fleet-wide view — capacity projection, CVE cross-reference, ARP/adoption audit, contract pipeline — runs the same aggregation logic whether it's scoped to one customer's 50 systems or an enterprise's 5,000. The dashboard, SQLite cache, and deliverable generators were built and tested against multi-hundred-system portfolios; there is no per-customer ceiling baked into the data model.
 
+<p align="center">
+  <img src="docs/images/workflow.svg" alt="Four-step ARIA pipeline: Harvest pulls the full fleet from Active IQ in one sync, Enrich cross-references it against a local reference library, Aggregate computes fleet-wide rollups once, and Deliver turns that into 14 customer-ready outputs" width="820">
+</p>
+
 ---
 
 ## 2. What It Delivers
 
-In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library and ARIA Knowledge Base Intelligence engine, and renders it as a fully interactive dashboard with 13 downloadable customer-facing deliverables — each enriched with fleet-relevant KB references, actionable CLI commands, and estimated remediation effort.
+In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library and ARIA Knowledge Base Intelligence engine, and renders it as a fully interactive dashboard with 14 downloadable customer-facing deliverables — each enriched with fleet-relevant KB references, actionable CLI commands, and estimated remediation effort.
 
 **Harvested from Active IQ:**
 - Every system and cluster across your entire portfolio
@@ -314,7 +323,7 @@ Use the **Customer Filter** dropdown in the sidebar to scope all views and deliv
 
 ## 5. Dashboard Guide
 
-The sidebar provides six primary navigation areas:
+The sidebar provides seven primary navigation areas:
 
 ### Overview
 
@@ -325,6 +334,11 @@ Fleet-wide KPI cards (systems, clusters, critical risks, open cases), interactiv
 The risk and security intelligence hub. Displays all Active IQ risks sorted by severity, security advisories with CVE cross-referencing, and Reference Library enrichment checks (Kerberos, SnapMirror, Varonis, firewall deprecation). Each advisory links to the NetApp Security Advisory portal.
 
 The Controller Node Port Assignments card now includes a **platform-specific rear-panel backplate** showing the physical slot layout, port types (color-coded), and live link status LEDs. Port hover interactions cross-highlight between the backplate and the cabling audit table. A new **LIF Inventory** table displays SVM logical interfaces per node.
+
+<p align="center">
+  <img src="docs/images/cabling-audit.png" alt="Technical Audit's Controller Node Port Assignments card showing a rendered AFF-A700 rear panel with color-coded slots, live link status per port, and a LIF inventory table" width="820">
+</p>
+<p align="center"><sub>Real-time cabling and physical-layer (L1) audit for a live AFF A700 — rendered from actual port, MAC, and LIF data returned by Active IQ.</sub></p>
 
 ### Support & Ops
 
@@ -343,9 +357,24 @@ Storage efficiency and capacity intelligence:
 
 > **Per Node toggle:** Click **Per Node** in the top-right of the chart to see each cluster node as a separate trend line. The breakdown table below updates to show per-node utilisation and runway. Raw TB shows "N/A" where the API reports capacity at cluster-aggregate level only — used TB and utilisation fall back to the actual monthly telemetry data (the same source the chart uses).
 
+**Value Insights** — grouped along the same 4 categories as NetApp Digital Advisor's Value Insights dashboard (Overall Health, NetApp-Delivered Savings & Stability, Security & Future Planning, Maximize Infrastructure Value), computed from real fleet data rather than Active IQ's account-wide figures wherever a real per-customer measurement exists:
+
+<p align="center">
+  <img src="docs/images/value-insights.png" alt="Value Insights panel showing Account Health Score 41/100, data reduction ratio, projected monthly savings at the configured cost-per-TiB, CVE and EOS counts, and feature adoption percentage" width="700">
+</p>
+
 ### Action Planner
 
 The core reporting engine. Click **Generate** to build all 18 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-18-sections) for full detail on each section.
+
+### Remediation Tracker
+
+Every open finding across the fleet — risks, security bulletins, best-practice failures — tracked as a persistent, per-item record with status, severity, SLA due date, and owner. SLA defaults are configurable per severity in Settings; a manually-set due date always overrides the default.
+
+<p align="center">
+  <img src="docs/images/remediation-tracker.png" alt="Remediation Tracker showing 6,653 tracked items, 767 SLA-breached, 88% SLA compliance, and per-status KPI cards" width="820">
+</p>
+<p align="center"><sub>A real tracker instance with 6,653 items imported from a live fleet import.</sub></p>
 
 ### Settings & Config
 
@@ -667,6 +696,10 @@ server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
   ├── NetApp OAuth (api.activeiq.netapp.com) — token exchange
   └── Active IQ GraphQL (gql.aiq.netapp.com) — 8+ queries
 ```
+
+<p align="center">
+  <img src="docs/images/architecture.svg" alt="Architecture: the browser dashboard talks only to the local server.py, which is the sole component that calls NetApp OAuth and Active IQ GraphQL and persists results to a local SQLite cache; nothing else leaves the machine" width="820">
+</p>
 
 ### Repository Layout
 

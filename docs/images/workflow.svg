@@ -1,0 +1,48 @@
+<svg viewBox="0 0 1000 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ARIA's four-step pipeline: Harvest pulls the full fleet from Active IQ in one sync, Enrich cross-references it against a local reference library Active IQ doesn't provide, Aggregate computes fleet-wide rollups once, and Deliver turns that into 14 customer-ready outputs — each step feeding the next.">
+  <defs>
+    <marker id="wfArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5FD4E3"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="260" fill="#0B1220"/>
+
+  <!-- 4 stage boxes -->
+  <!-- Harvest -->
+  <rect x="30" y="60" width="200" height="140" rx="12" fill="#121C2E" stroke="#2A3A55" stroke-width="1.5"/>
+  <text x="130" y="95" text-anchor="middle" font-family="Cambria, Georgia, serif" font-size="26" font-weight="700" fill="#0E8FA3">01</text>
+  <text x="130" y="122" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Harvest</text>
+  <text x="130" y="145" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">One sync pulls every</text>
+  <text x="130" y="162" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">system, risk, contract,</text>
+  <text x="130" y="179" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">and case via Active IQ</text>
+
+  <!-- Enrich -->
+  <rect x="270" y="60" width="200" height="140" rx="12" fill="#121C2E" stroke="#2A3A55" stroke-width="1.5"/>
+  <text x="370" y="95" text-anchor="middle" font-family="Cambria, Georgia, serif" font-size="26" font-weight="700" fill="#0E8FA3">02</text>
+  <text x="370" y="122" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Enrich</text>
+  <text x="370" y="145" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">Cross-referenced against</text>
+  <text x="370" y="162" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">70+ CVEs, EOA/EOS data,</text>
+  <text x="370" y="179" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">and firmware baselines</text>
+
+  <!-- Aggregate -->
+  <rect x="510" y="60" width="200" height="140" rx="12" fill="#121C2E" stroke="#2A3A55" stroke-width="1.5"/>
+  <text x="610" y="95" text-anchor="middle" font-family="Cambria, Georgia, serif" font-size="26" font-weight="700" fill="#0E8FA3">03</text>
+  <text x="610" y="122" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Aggregate</text>
+  <text x="610" y="145" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">Fleet-wide capacity, CVE</text>
+  <text x="610" y="162" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">exposure, and adoption</text>
+  <text x="610" y="179" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#9FB0C6">computed once, sliced</text>
+
+  <!-- Deliver -->
+  <rect x="750" y="60" width="220" height="140" rx="12" fill="#12202B" stroke="#5FD4E3" stroke-width="2"/>
+  <text x="860" y="95" text-anchor="middle" font-family="Cambria, Georgia, serif" font-size="26" font-weight="700" fill="#5FD4E3">04</text>
+  <text x="860" y="122" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">Deliver</text>
+  <text x="860" y="145" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#CFE9EE">14 ready-to-share outputs</text>
+  <text x="860" y="162" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#CFE9EE">— QBR packs to a board-</text>
+  <text x="860" y="179" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="11.5" fill="#CFE9EE">ready PPTX — in seconds</text>
+
+  <!-- arrows -->
+  <line x1="232" y1="130" x2="268" y2="130" stroke="#5FD4E3" stroke-width="2" marker-end="url(#wfArrow)"/>
+  <line x1="472" y1="130" x2="508" y2="130" stroke="#5FD4E3" stroke-width="2" marker-end="url(#wfArrow)"/>
+  <line x1="712" y1="130" x2="748" y2="130" stroke="#5FD4E3" stroke-width="2" marker-end="url(#wfArrow)"/>
+
+  <text x="500" y="235" text-anchor="middle" font-family="Calibri, Arial, sans-serif" font-size="12" fill="#7C8AA5">Same pipeline whether scoped to one customer's 50 systems or an enterprise's 5,000</text>
+</svg>
