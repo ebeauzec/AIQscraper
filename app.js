@@ -28500,13 +28500,14 @@ async function saveEnrichmentConfig() {
   try {
     const enrichEnabled = document.getElementById("settingsEnrichEnabled")?.checked ?? true;
     const enrichInterval = parseInt(document.getElementById("settingsEnrichInterval")?.value) || 12;
+    const kbInterval = parseInt(document.getElementById("settingsKbInterval")?.value) || 168;
     const nvdApiKey = document.getElementById("settingsNvdApiKey")?.value?.trim() || "";
     const githubToken = document.getElementById("settingsGithubToken")?.value?.trim() || "";
 
     await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, nvdApiKey, githubToken })
+      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, kb_interval_hours: kbInterval, nvdApiKey, githubToken })
     });
     console.log("[ENRICH] Config saved to server.");
   } catch (err) {
@@ -30151,14 +30152,16 @@ function switchTab(tabId) {
     loadAccountsUI();
 
     // Load and display enrichment scanner status
-    refreshEnrichmentStatus();
+     refreshEnrichmentStatus();
     // Load enrichment config from server
     if (state.isRunningViaProxy) {
       fetch("/api/config").then(r => r.json()).then(cfg => {
         const enrichToggle = document.getElementById("settingsEnrichEnabled");
         const enrichInterval = document.getElementById("settingsEnrichInterval");
+        const kbInterval = document.getElementById("settingsKbInterval");
         if (enrichToggle && cfg.enrichEnabled !== undefined) enrichToggle.checked = cfg.enrichEnabled;
         if (enrichInterval && cfg.enrichIntervalHours) enrichInterval.value = cfg.enrichIntervalHours.toString();
+        if (kbInterval && cfg.kb_interval_hours) kbInterval.value = cfg.kb_interval_hours.toString();
       }).catch(() => {});
     }
   }

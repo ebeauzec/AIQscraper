@@ -917,7 +917,7 @@
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
             <div class="form-group" style="margin: 0;">
-              <label class="form-label" for="settingsEnrichInterval">Scan Interval</label>
+              <label class="form-label" for="settingsEnrichInterval">Security Scan Interval</label>
               <select id="settingsEnrichInterval" class="form-input settings-sync-select" style="border-color: rgba(52,211,153,0.25);">
                 <option value="6">Every 6 Hours</option>
                 <option value="12" selected>Every 12 Hours</option>
@@ -926,25 +926,35 @@
               </select>
             </div>
             <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="settingsKbInterval">KB Crawl Interval</label>
+              <select id="settingsKbInterval" class="form-input settings-sync-select" style="border-color: rgba(52,211,153,0.25);">
+                <option value="24">Every 24 Hours</option>
+                <option value="48">Every 48 Hours</option>
+                <option value="72">Every 72 Hours</option>
+                <option value="168" selected>Every 7 Days</option>
+                <option value="240">Every 10 Days</option>
+                <option value="336">Every 14 Days</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-helper" style="margin-bottom: 12px;">Security: fast, frequently updated CVE/PSIRT/EPSS sources. KB Crawl: slow, network-intensive KB article indexing (runs independently).</div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+            <div class="form-group" style="margin: 0;">
               <label class="form-label" for="settingsNvdApiKey" style="display:flex; justify-content:space-between; align-items:center;">
                 <span>NVD API Key <span style="font-weight:400;color:var(--text-muted);font-size:0.7rem;">(optional)</span></span>
                 <span class="settings-toggle-link" onclick="const t=document.getElementById('settingsNvdApiKey'); t.type=t.type==='password'?'text':'password'">👁</span>
               </label>
               <input type="password" id="settingsNvdApiKey" class="form-input" placeholder="Free key → faster scans" style="font-family: var(--font-mono); font-size: 0.76rem; border-color: rgba(52,211,153,0.25);">
             </div>
-          </div>
-          <div class="form-helper" style="margin-bottom: 12px;">Free NVD API key: <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" style="color: #34d399;">nvd.nist.gov/developers</a> — increases rate limit from 5 to 50 req/30s.</div>
-
-          <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px;">
             <div class="form-group" style="margin: 0;">
               <label class="form-label" for="settingsGithubToken" style="display:flex; justify-content:space-between; align-items:center;">
                 <span>GitHub Token <span style="font-weight:400;color:var(--text-muted);font-size:0.7rem;">(optional)</span></span>
                 <span class="settings-toggle-link" onclick="const t=document.getElementById('settingsGithubToken'); t.type=t.type==='password'?'text':'password'">👁</span>
               </label>
               <input type="password" id="settingsGithubToken" class="form-input" placeholder="ghp_… → 5,000 req/hr GitHub API" style="font-family: var(--font-mono); font-size: 0.76rem; border-color: rgba(129,140,248,0.25);">
-            </div>
           </div>
-          <div class="form-helper" style="margin-bottom: 12px;">GitHub PAT: <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color: #818cf8;">github.com/settings/tokens</a> — raises GitHub API rate limit from 60 to 5,000 req/hr for reference harvester.</div>
+          <div class="form-helper" style="margin-bottom: 12px;">Free NVD API key: <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" style="color: #34d399;">nvd.nist.gov/developers</a> — increases rate limit from 5 to 50 req/30s. GitHub PAT: <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color: #818cf8;">github.com/settings/tokens</a> — raises API rate limit from 60 to 5,000 req/hr.</div>
 
           <div id="enrichStatusPanel" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(52,211,153,0.06); border: 1px solid rgba(52,211,153,0.15); margin-bottom: 12px; font-size: 0.78rem;">
             <div id="enrichStatusLed" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0;"></div>
