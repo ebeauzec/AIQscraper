@@ -8620,8 +8620,9 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "hasToken": bool(cfg.get("refreshToken") or cfg.get("refresh_token")),
                 "enrichEnabled": cfg.get("enrichEnabled", True),
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
-                "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
-                "hasGithubToken": bool(cfg.get("githubToken", "")),
+               "kb_interval_hours": cfg.get("kb_interval_hours", 168),
+               "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
+               "hasGithubToken": bool(cfg.get("githubToken", "")),
                 # Remediation SLA policy: days-to-remediate by severity, used by
                 # the Remediation Tracker to compute an SLA due date for items
                 # with no manually-set due date. Defaults match common
