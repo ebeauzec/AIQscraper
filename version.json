@@ -1,8 +1,8 @@
 {
-  "version": "5.6.50",
+  "version": "5.6.51",
   "major": 5,
   "minor": 6,
-  "patch": 50,
+  "patch": 51,
   "date": "2026-09-14",
-  "notes": "Audit found the NetApp security advisory scraper had been silently broken for 44 days -- security.netapp.com's advisory index became a client-rendered SPA at some point, so the raw-HTML scraper always found '0 unique advisories' and did nothing, with no error to surface it. Found NetApp's own JSON API the SPA calls and repointed the scraper at that instead; verified live it now finds 233 relevant advisories and grows the database from 70 to 303 real entries. Also fixed a second staleness bug found in the process: the EOA/IMT/firmware reference-library scanner was gating its own refresh check on the wrong file's age, so it would have silently stopped refreshing once the bulletins scanner above was fixed. Removed a speculative not-yet-released ONTAP '9.19.1' placeholder that was failing every real system's 'on latest OS' checklist item fleet-wide. Relabeled 'Contract Coverage' to 'Warranty Coverage' at ~15 sites across every deliverable and the Account Health Score, since that KPI has been sourced from hardware warranty data (not real support-contract data, which Active IQ doesn't report for this tenant) since v5.6.40 but the label was never updated to say so."
+  "notes": "Investigated the EOA harvester bug further (v5.6.50 fixed its change-detection logic, but a live re-run still found zero changes). Root cause: NetApp stopped publishing per-model EOA/EOS dates anywhere this tool can reach -- the docs.netapp.com page it used to scrape no longer links to per-model detail pages (confirmed live, zero matching links), the 44MB PDF now linked from its sidebar turned out to be a bulk install/maintenance doc export with no EOA/EOS table in any of its 3,184 pages, and NetApp Hardware Universe requires customer sign-in. This is a data-availability problem, not a parsing bug. Rather than let the existing EOA data quietly go stale, added explicit disclosure everywhere it's shown: the EOA risk finding's description and remediation cause, and the Firmware Currency section's freshness indicator tooltip (previously implied EOA was live-updating). All now state plainly the date is a manually-maintained snapshot, not a live status."
 }

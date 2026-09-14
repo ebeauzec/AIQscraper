@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.50";
+const APP_VERSION = "5.6.51";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.51",
+    date: "14 September 2026",
+    title: "Disclosed: EOA Platform Data Is a Frozen Snapshot, Not a Live Feed",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Investigated the EOA Harvester Bug Further — Found the Real Data Source Is Gone",
+        color: "#f87171",
+        items: [
+          "Fixed the harvester's change-detection logic last release (it only ever detected brand-new EOA platforms, never re-checked dates for platforms already known) -- but a live re-run still found zero changes, which led to digging into why",
+          "docs.netapp.com/us-en/ontap-systems/endofavail/ no longer links to per-model EOA detail pages at all -- confirmed live, 0 matching links found. The sidebar's 'End-of-Availability systems' PDF (44MB, 3,184 pages) turned out to be a bulk export of install/maintenance docs, not an EOA/EOS date table -- searched every page for 'end of availability' and 'end of support' co-occurring: zero matches. NetApp Hardware Universe, the other plausible source, requires customer sign-in",
+          "Conclusion: NetApp appears to have stopped publishing per-model EOA/EOS dates anywhere this tool (or any anonymous scraper) can reach. This is a data-availability problem, not a parsing bug -- the harvester fix from last release is correct and will work the moment a real source exists again, but there is currently nothing for it to find",
+          "Rather than let the existing EOA data quietly go stale with no indication, added an explicit disclosure everywhere it's shown: the EOA risk finding's own description, its remediation plan's cause statement, and the Firmware Currency section's 'Auto-updated' freshness indicator (whose tooltip previously implied EOA was live-updating, which is no longer true). All now state plainly that the date is a manually-maintained snapshot, not a live status, and point to Hardware Universe / the NetApp account team to confirm it"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.50",
     date: "14 September 2026",
@@ -15642,11 +15660,11 @@ function enrichSystemTelemetry(s) {
         id: 504,
         severity: "high",
         category: "Lifecycle",
-        description: `Platform ${matchedEOA} has reached End-of-Availability (EOA). EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA.`,
+        description: `Platform ${matchedEOA} has reached End-of-Availability (EOA). EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA. ⚠ This platform's EOA/EOS dates are from a manually-maintained snapshot, not a live feed -- NetApp's public EOA page stopped publishing per-model dates in a machine-readable form as of Sep 2026 (moved off the page this tool used to scrape, and not present in the PDF it now links to). Confirm the current date with your NetApp account team or Hardware Universe before acting on it.`,
         recommendation: `Initiate tech-refresh evaluation. Current generation replacements: AFF A-Series (A20/A30/A50/A70/A90/A1K), AFF C-Series (C30/C60/C80), or ASA A-Series for SAN-only workloads.`,
         kbLink: "https://docs.netapp.com/us-en/ontap-systems/endofavail/",
         remediationPlan: {
-          cause: `The ${matchedEOA} platform is listed on NetApp's official End-of-Availability page. No new orders can be placed, and the EOS clock is ticking.`,
+          cause: `The ${matchedEOA} platform is listed on NetApp's official End-of-Availability page (as last confirmed by this tool). No new orders can be placed, and the EOS clock is ticking. NetApp's own public page no longer publishes per-model dates in a scrapeable form, so this tool's automated refresh cannot currently verify this date is still current -- treat it as a starting point, not a live status.`,
           impact: "Post-EOS, no further security patches or bug fixes will ship. Any CVE affecting this platform may have no vendor-supplied remediation path other than hardware refresh.",
           steps: [
             "1. Verify EOA/EOS dates for this specific serial: check Hardware Universe (hwu.netapp.com) or NetApp Support Site.",
@@ -23671,10 +23689,10 @@ function _renderFirmwareCurrencySection(systems) {
   const _imtDate = ((typeof state !== 'undefined' && state.imt_interop) || {})._lastUpdated || '';
   const _freshParts = [];
   if (blDate) _freshParts.push('Firmware: ' + blDate);
-  if (_eoaDate) _freshParts.push('EOA: ' + _eoaDate);
+  if (_eoaDate) _freshParts.push('EOA: ' + _eoaDate + ' ⚠');
   if (_imtDate) _freshParts.push('IMT: ' + _imtDate);
   if (_freshParts.length) {
-    html += '<div style="font-size:0.6rem;color:var(--text-muted);text-align:right;margin-bottom:6px;" title="Reference data auto-updated by server enrichment scheduler">Auto-updated: ' + _freshParts.join(' | ') + '</div>';
+    html += '<div style="font-size:0.6rem;color:var(--text-muted);text-align:right;margin-bottom:6px;" title="Firmware and IMT data are actively auto-updated by the server enrichment scheduler. EOA platform data is NOT currently auto-refreshing -- NetApp stopped publishing per-model EOA/EOS dates in a machine-readable form as of Sep 2026 (the page this tool scraped no longer has them, and the PDF it now links to does not contain them either). The EOA date shown is a manually-maintained snapshot as of that date, not a live status -- confirm against Hardware Universe or your NetApp account team before acting on it.">Auto-updated: ' + _freshParts.join(' | ') + '</div>';
   }
 
   // ── Per-system collapsible cards ──

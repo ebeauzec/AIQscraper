@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.51] - 2026-09-14
+
+### Fixed / Disclosed
+- **EOA platform data source is gone, not just harder to parse.** Investigating why the v5.6.50 harvester fix still found zero changes live: `docs.netapp.com/us-en/ontap-systems/endofavail/` no longer links to per-model EOA detail pages (0 matching links, confirmed live); the 44MB PDF now linked from its sidebar is a bulk install/maintenance doc export, not an EOA/EOS table (searched all 3,184 pages, zero matches for "end of availability" + "end of support" co-occurring); NetApp Hardware Universe requires customer sign-in. NetApp appears to have stopped publishing per-model EOA/EOS dates anywhere this tool can reach.
+- Added explicit disclosure everywhere EOA data is shown, since it can no longer auto-refresh: the EOA risk finding's description and remediation-plan cause, and the Firmware Currency section's "Auto-updated" freshness tooltip (previously implied EOA was live, which is no longer accurate). All now state the date is a manually-maintained snapshot and point to Hardware Universe / the NetApp account team to confirm it.
+
+---
+
 ## [5.6.50] - 2026-09-14
 
 ### Fixed

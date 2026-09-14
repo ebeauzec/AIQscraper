@@ -289,6 +289,7 @@ def harvest_eoa_announcements(existing_eoa):
         re.IGNORECASE
     )
 
+    seen_this_run = set()  # avoid duplicate _changes entries if a model appears on >1 page
     for eoa_url, link_text in eoa_links[:20]:  # limit to 20 pages
         try:
             page = _fetch_url(eoa_url, timeout=10)
@@ -303,25 +304,53 @@ def harvest_eoa_announcements(existing_eoa):
 
             for model_raw in models:
                 model = model_raw.strip().upper()
+                if model in seen_this_run:
+                    continue
+                seen_this_run.add(model)
+
                 if model not in existing_platforms:
                     results["platforms"].append(model)
                     results["_changes"].append(f"New EOA platform: {model}")
 
-                if model not in existing_dates:
-                    date_entry = {}
-                    if eoa_dates:
-                        date_entry['eoaDate'] = eoa_dates[0]
-                    if eos_dates:
-                        date_entry['eosDate'] = eos_dates[0]
-                    if replacements:
-                        date_entry['replacement'] = replacements[0]
-                    if date_entry:
-                        results["dates"][model] = date_entry
-                        results["_changes"].append(
-                            f"New EOA dates for {model}: "
-                            f"EOA={date_entry.get('eoaDate','?')}, "
-                            f"EOS={date_entry.get('eosDate','?')}"
+                date_entry = {}
+                if eoa_dates:
+                    date_entry['eoaDate'] = eoa_dates[0]
+                if eos_dates:
+                    date_entry['eosDate'] = eos_dates[0]
+                if replacements:
+                    date_entry['replacement'] = replacements[0]
+                if not date_entry:
+                    continue
+
+                prior_entry = existing_dates.get(model)
+                if prior_entry is None:
+                    # Brand-new model -- no prior dates to compare against.
+                    results["dates"][model] = date_entry
+                    results["_changes"].append(
+                        f"New EOA dates for {model}: "
+                        f"EOA={date_entry.get('eoaDate','?')}, "
+                        f"EOS={date_entry.get('eosDate','?')}"
+                    )
+                else:
+                    # Model already tracked -- this used to be silently skipped
+                    # forever (the harvester only ever detected brand-new
+                    # models, never re-verified dates it already had), so a
+                    # NetApp-side date correction or EOS extension for an
+                    # already-known platform would never reach this tool.
+                    # Now: re-check every field NetApp's page actually gave us
+                    # this run, and record + apply only the ones that changed.
+                    changed_fields = {
+                        k: v for k, v in date_entry.items()
+                        if v and v != prior_entry.get(k)
+                    }
+                    if changed_fields:
+                        merged_entry = {**prior_entry, **changed_fields}
+                        results["dates"][model] = merged_entry
+                        change_desc = ', '.join(
+                            f"{k} {prior_entry.get(k, '(none)')} -> {v}"
+                            for k, v in changed_fields.items()
                         )
+                        results["_changes"].append(f"Updated EOA dates for {model}: {change_desc}")
         except Exception as e:
             logger.warning(f"Error parsing EOA page {eoa_url}: {e}")
 
@@ -1135,11 +1164,15 @@ def run_reference_harvest(data_dir=None, dry_run=False,
             for p in eoa_results.get('platforms', []):
                 if p not in existing_platforms:
                     eoa_db.setdefault('platforms', []).append(p)
-            # Merge new dates
+            # Merge new + updated dates. harvest_eoa_announcements() only ever
+            # puts a model in eoa_results['dates'] when it's brand-new OR its
+            # fields actually differ from what's already stored -- so this can
+            # safely overwrite unconditionally instead of skipping models that
+            # already exist (that "if not already present" guard used to
+            # silently discard every legitimate date update/correction).
             existing_dates = eoa_db.get('dates') or {}
             for model, dates in eoa_results.get('dates', {}).items():
-                if model not in existing_dates:
-                    existing_dates[model] = dates
+                existing_dates[model] = dates
             eoa_db['dates'] = existing_dates
             eoa_db['_lastUpdated'] = date.today().isoformat()
             save_json('eoa_database.json', eoa_db)

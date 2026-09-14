@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.50-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.51-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -108,7 +108,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - **SVM & LIF Inventory** — harvests vserver data (SVM name, type, LIFs with IPs, service policies, failover configuration) from the Active IQ GraphQL API and displays per-node LIF tables in the cabling audit view.
 
 **Added by the Reference Library (not in Active IQ):**
-- **EOA hardware flags** — automatically detects End-of-Availability controllers, shelves, and switches across all NetApp product families: ONTAP (AFF, ASA, FAS), StorageGRID appliances, and E-Series/EF-Series arrays. The database is updated as NetApp publishes new EOA notices.
+- **EOA hardware flags** — detects End-of-Availability controllers, shelves, and switches across all NetApp product families: ONTAP (AFF, ASA, FAS), StorageGRID appliances, and E-Series/EF-Series arrays. ⚠️ **This database is a manually-maintained snapshot, not a live feed, as of September 2026** — NetApp stopped publishing per-model EOA/EOS dates in a machine-readable form on the page this tool used to scrape; the automated refresh has no working source to pull from until that changes. The app surfaces this honestly wherever an EOA finding is shown. Confirm current dates against Hardware Universe or your NetApp account team before acting on one.
 - **CVE cross-referencing** — advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP/StorageGRID/SANtricity version range. The database grows continuously as new advisories are published.
 - **CISA KEV integration** — CVEs confirmed as actively exploited by CISA are flagged with 🚨 priority. Updated on each Reference Library sync.
 - Firmware baseline checks for shelves and switches
