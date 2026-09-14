@@ -3,7 +3,7 @@
   "lastUpdated": "2026-09-14",
   "catalogVersion": "2026.09.11",
   "totalKevEntries": 1709,
-  "matchedToFleet": 3,
+  "matchedToFleet": 6,
   "vulnerabilities": [
     {
       "cveID": "CVE-2026-84869",

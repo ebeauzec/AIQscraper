@@ -3134,7 +3134,11 @@
       "_addedAt": "2026-09-14",
       "_source": "scan",
       "epssScore": 0.0051,
-      "epssPercentile": 0.41978
+      "epssPercentile": 0.41978,
+      "cisaKev": true,
+      "cisaKevDateAdded": "2026-08-27",
+      "cisaKevDueDate": "2026-08-30",
+      "cisaKevAction": "Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes). Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable. Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching guidelines."
     },
     {
       "id": "ntap-20260424-0005",
@@ -5326,7 +5330,11 @@
       "_addedAt": "2026-09-14",
       "_source": "scan",
       "epssScore": 0.81422,
-      "epssPercentile": 0.99616
+      "epssPercentile": 0.99616,
+      "cisaKev": true,
+      "cisaKevDateAdded": "2023-11-21",
+      "cisaKevDueDate": "2023-12-12",
+      "cisaKevAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable."
     },
     {
       "id": "ntap-20260724-0016",
@@ -7687,7 +7695,11 @@
       "_addedAt": "2026-09-14",
       "_source": "scan",
       "epssScore": 0.10695,
-      "epssPercentile": 0.95552
+      "epssPercentile": 0.95552,
+      "cisaKev": true,
+      "cisaKevDateAdded": "2024-09-09",
+      "cisaKevDueDate": "2024-09-30",
+      "cisaKevAction": "Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable."
     },
     {
       "id": "ntap-20260424-0006",

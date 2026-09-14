@@ -1,8 +1,8 @@
 {
-  "version": "5.6.51",
+  "version": "5.6.52",
   "major": 5,
   "minor": 6,
-  "patch": 51,
+  "patch": 52,
   "date": "2026-09-14",
-  "notes": "Investigated the EOA harvester bug further (v5.6.50 fixed its change-detection logic, but a live re-run still found zero changes). Root cause: NetApp stopped publishing per-model EOA/EOS dates anywhere this tool can reach -- the docs.netapp.com page it used to scrape no longer links to per-model detail pages (confirmed live, zero matching links), the 44MB PDF now linked from its sidebar turned out to be a bulk install/maintenance doc export with no EOA/EOS table in any of its 3,184 pages, and NetApp Hardware Universe requires customer sign-in. This is a data-availability problem, not a parsing bug. Rather than let the existing EOA data quietly go stale, added explicit disclosure everywhere it's shown: the EOA risk finding's description and remediation cause, and the Firmware Currency section's freshness indicator tooltip (previously implied EOA was live-updating). All now state plainly the date is a manually-maintained snapshot, not a live status."
+  "notes": "User reported a real customer's watchlist showing 0 systems despite being a real, correctly-listed watchlist in the sidebar. Traced to a live harvest: Active IQ's GraphQL API rejected that specific watchlist's systems query at the richest 'TAM/full' tier with 'Float cannot represent non numeric value: null'. The harvester's existing 3-tier fallback (TAM -> Efficiency -> Minimal) only checked success at the whole-account level, so once 3 of the account's 4 watchlists succeeded at the TAM tier, the tier was declared a success account-wide and the one failing watchlist was never retried at a smaller field set -- its systems were silently dropped every harvest. Fixed: the tier fallback now applies per-watchlist, independent of whether sibling watchlists already succeeded. Verified live: the previously-empty watchlist now correctly retries at the Efficiency tier and returns all 78 of its systems."
 }

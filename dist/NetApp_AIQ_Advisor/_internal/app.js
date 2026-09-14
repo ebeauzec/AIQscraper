@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.51";
+const APP_VERSION = "5.6.52";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.52",
+    date: "14 September 2026",
+    title: "Fixed: A Whole Watchlist's Systems Could Silently Vanish From the Harvest",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: Per-Watchlist Tier Fallback Was Account-Wide, Not Per-Watchlist",
+        color: "#f87171",
+        items: [
+          "User reported a real customer's watchlist showing 0 systems in the dashboard despite being a real, correctly-listed watchlist in the sidebar (78 real systems). Traced to a live harvest: Active IQ's GraphQL API rejected that specific watchlist's systems query at the richest ('TAM/full') tier with 'Float cannot represent non numeric value: null' -- at least one of its systems has a null value in a field that tier's query expects to be numeric, and Active IQ errors out the entire query rather than just omitting that field",
+          "The harvester already has a 3-tier fallback (TAM -> Efficiency -> Minimal) for exactly this kind of error, but it only checked success at the whole-account level: since 3 of this account's 4 watchlists succeeded at the TAM tier (239 systems total), the account-wide total was non-zero, so the tier was declared a success and the harvester moved on -- the one failing watchlist was never retried at a smaller field set, and its systems were silently dropped every single harvest with nothing but a log line to show for it",
+          "Fixed: the tier fallback now applies per-watchlist. A watchlist that fails at TAM now retries at Efficiency, then Minimal, independent of whether sibling watchlists in the same account already succeeded -- each watchlist keeps the richest tier that actually works for it",
+          "Verified live against the real account: the previously-empty watchlist's query still fails at TAM tier as before, but now correctly retries at Efficiency tier and returns all 78 systems"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.51",
     date: "14 September 2026",

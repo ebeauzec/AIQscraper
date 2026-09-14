@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.52] - 2026-09-14
+
+### Fixed
+- **A whole watchlist's systems could silently vanish from the harvest.** A user reported a real customer's watchlist showing 0 systems despite being correctly listed in the sidebar. Traced to Active IQ's GraphQL API rejecting that watchlist's systems query at the richest ("TAM/full") tier with `Float cannot represent non numeric value: null` — the harvester's existing 3-tier fallback (TAM → Efficiency → Minimal) only checked success at the whole-account level, so once other watchlists in the same account succeeded at the TAM tier, the tier was declared a success and the one failing watchlist was never retried at a smaller field set. Its systems were silently dropped every harvest, with only a log line to show for it. Fixed: the tier fallback now applies per-watchlist. Verified live: the previously-empty watchlist now correctly falls back to the Efficiency tier and returns all of its systems.
+
+---
+
 ## [5.6.51] - 2026-09-14
 
 ### Fixed / Disclosed

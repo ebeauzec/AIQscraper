@@ -1804,72 +1804,105 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 cursor = new_cursor
             return systems, privilege_blocked
 
-        # Try expanded first, fall back to efficiency-only, then minimal
+        # Try expanded first, fall back to efficiency-only, then minimal.
+        # IMPORTANT: this fallback is applied PER WATCHLIST, not just once for
+        # the whole account. A single watchlist can fail a richer tier (e.g.
+        # Active IQ's "Float cannot represent non numeric value: null" when
+        # one system in that specific watchlist has a null numeric field the
+        # TAM-tier query expects) while sibling watchlists in the same account
+        # succeed fine at that tier. The old code treated a tier as "succeeded"
+        # once the ACCOUNT-WIDE total across all watchlists was non-zero, so a
+        # failing watchlist's systems were silently dropped forever -- the
+        # other watchlists' non-zero total masked it, and there was no retry
+        # at a smaller field set for just that one watchlist. Confirmed live:
+        # a real account's 4th watchlist returned 0 systems this way every
+        # harvest while the other 3 succeeded, with only a log line to show
+        # for it -- the watchlist's own membership list (shown in the sidebar)
+        # was correct the whole time, but none of its systems ever made it
+        # into the harvested fleet.
         all_systems = []
         used_tam_query = False
         _QUERY_NAMES = ["TAM (full)", "Efficiency (medium)", "Minimal (bare)"]
-        for attempt, fields in enumerate([SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_EFFICIENCY, SYSTEMS_FIELDS_MINIMAL]):
-            all_systems = []
+        _tiers = [SYSTEMS_FIELDS_TAM, SYSTEMS_FIELDS_EFFICIENCY, SYSTEMS_FIELDS_MINIMAL]
 
-            print(f"  [HARVEST] Attempting {_QUERY_NAMES[attempt]} query...", flush=True)
-
-            # First: try with configured watchlist_ids (fetching + deduplicating across all)
-            if watchlist_ids:
-                print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s)...", flush=True)
-                seen_serials = set()
-                for wl_id_cfg in watchlist_ids:
+        if watchlist_ids:
+            print(f"  [HARVEST] Fetching systems across {len(watchlist_ids)} configured watchlist(s)...", flush=True)
+            seen_serials = set()
+            _min_attempt_used = None
+            for wl_id_cfg in watchlist_ids:
+                wl_systems = []
+                wl_blocked = False
+                for attempt, fields in enumerate(_tiers):
                     wl_systems, wl_blocked = _fetch_systems_for_scope(fields, wl_id_cfg)
+                    if wl_systems:
+                        if _min_attempt_used is None or attempt < _min_attempt_used:
+                            _min_attempt_used = attempt
+                        break  # this watchlist succeeded at this tier -- stop retrying it
+                    if wl_blocked:
+                        # A privilege block isn't fixed by asking for fewer fields --
+                        # no point retrying this watchlist at a smaller tier.
+                        break
+                    if attempt < len(_tiers) - 1:
+                        print(f"  [HARVEST] Watchlist {wl_id_cfg} returned 0 systems at "
+                              f"{_QUERY_NAMES[attempt]} tier -- retrying that watchlist at "
+                              f"{_QUERY_NAMES[attempt + 1]} tier...", flush=True)
+                for s in wl_systems:
+                    sn = s.get("serialNumber", "")
+                    if sn not in seen_serials:
+                        seen_serials.add(sn)
+                        all_systems.append(s)
+                if wl_blocked:
+                    print(f"  [HARVEST] Privilege block on watchlist {wl_id_cfg} (skipping)", flush=True)
+                elif not wl_systems:
+                    print(f"  [HARVEST] Watchlist {wl_id_cfg} returned 0 systems at every tier", flush=True)
+            blocked = len(all_systems) == 0
+            used_tam_query = _min_attempt_used is not None and _min_attempt_used <= 1
+        else:
+            for attempt, fields in enumerate(_tiers):
+                fetched, blocked = _fetch_systems_for_scope(fields, None)
+                if fetched:
+                    all_systems = list(fetched)
+                    used_tam_query = attempt <= 1
+                    print(f"  [HARVEST] {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
+                    break
+                print(f"  [HARVEST] WARNING: {_QUERY_NAMES[attempt]} query returned 0 systems — trying next tier...", flush=True)
+
+        # If blocked by privilege OR returned 0 systems (outside corp network the API
+        # returns success+empty instead of a privilege error), retry with auto-discovered watchlists.
+        # Also retry if configured watchlist_ids produced 0 (they may be stale/invalid).
+        if (blocked or len(all_systems) == 0) and _early_watchlists:
+            already_tried = set(watchlist_ids or [])
+            new_wls = [w for w in _early_watchlists if w not in already_tried]
+            if new_wls:
+                print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) (reason: {'privilege block' if blocked else '0 systems from unfiltered/configured query'})...", flush=True)
+                seen_serials = {s.get('serialNumber', '') for s in all_systems}
+                for wl_id_auto in new_wls:
+                    wl_systems, _ = _fetch_systems_for_scope(SYSTEMS_FIELDS_TAM, wl_id_auto)
+                    if not wl_systems:
+                        wl_systems, _ = _fetch_systems_for_scope(SYSTEMS_FIELDS_EFFICIENCY, wl_id_auto)
+                    if not wl_systems:
+                        wl_systems, _ = _fetch_systems_for_scope(SYSTEMS_FIELDS_MINIMAL, wl_id_auto)
                     for s in wl_systems:
                         sn = s.get("serialNumber", "")
                         if sn not in seen_serials:
                             seen_serials.add(sn)
                             all_systems.append(s)
-                    if wl_blocked:
-                        print(f"  [HARVEST] Privilege block on watchlist {wl_id_cfg} (skipping)", flush=True)
-                blocked = len(all_systems) == 0
-                fetched = all_systems[:]
-            else:
-                fetched, blocked = _fetch_systems_for_scope(fields, None)
-                # ── BUG FIX: assign the unfiltered result to all_systems ──────
-                # Previously `fetched` was populated but `all_systems` stayed []
-                # causing the server to always store 0 systems even when the API
-                # returned hundreds of systems.
-                all_systems = list(fetched)
+                print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
 
-            # If blocked by privilege OR returned 0 systems (outside corp network the API
-            # returns success+empty instead of a privilege error), retry with auto-discovered watchlists.
-            # Also retry if configured watchlist_ids produced 0 (they may be stale/invalid).
-            if (blocked or len(all_systems) == 0) and _early_watchlists:
-                already_tried = set(watchlist_ids or [])
-                new_wls = [w for w in _early_watchlists if w not in already_tried]
-                if new_wls:
-                    print(f"  [HARVEST] Retrying with {len(new_wls)} auto-scoped watchlist(s) (reason: {'privilege block' if blocked else '0 systems from unfiltered/configured query'})...", flush=True)
-                    seen_serials = {s.get('serialNumber', '') for s in all_systems}
-                    for wl_id_auto in new_wls:
-                        wl_systems, _ = _fetch_systems_for_scope(fields, wl_id_auto)
-                        for s in wl_systems:
-                            sn = s.get("serialNumber", "")
-                            if sn not in seen_serials:
-                                seen_serials.add(sn)
-                                all_systems.append(s)
-                    print(f"  [HARVEST] Combined from watchlists: {len(all_systems)} unique systems", flush=True)
-
-            # Final fallback: try unfiltered query (no watchlist scope) when all
-            # configured + auto-discovered watchlists returned 0 systems.
-            if len(all_systems) == 0 and watchlist_ids:
-                print("  [HARVEST] All watchlists returned 0 — trying unfiltered query...", flush=True)
+        # Final fallback: try unfiltered query (no watchlist scope) when all
+        # configured + auto-discovered watchlists returned 0 systems.
+        if len(all_systems) == 0 and watchlist_ids:
+            print("  [HARVEST] All watchlists returned 0 — trying unfiltered query...", flush=True)
+            for attempt, fields in enumerate(_tiers):
                 unfiltered, _uf_blocked = _fetch_systems_for_scope(fields, None)
                 if unfiltered and not _uf_blocked:
                     all_systems = list(unfiltered)
-                    print(f"  [HARVEST] Unfiltered query succeeded: {len(all_systems)} systems", flush=True)
+                    used_tam_query = attempt <= 1
+                    print(f"  [HARVEST] Unfiltered {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
+                    break
 
-
-            if len(all_systems) > 0:
-                used_tam_query = attempt <= 1  # TAM or EFFICIENCY both include capacity/efficiency
-                print(f"  [HARVEST] {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
-                break
-            else:
-                print(f"  [HARVEST] WARNING: {_QUERY_NAMES[attempt]} query returned 0 systems — trying next tier...", flush=True)
+        print(f"  [HARVEST] Systems fetch complete: {len(all_systems)} total systems"
+              f"{' (TAM/Efficiency tier)' if used_tam_query else ' (Minimal tier)'}", flush=True)
 
 
 
