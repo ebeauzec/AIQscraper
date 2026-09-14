@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-17",
+  "lastUpdated": "2026-09-14",
   "knownSlugs": [
     "about",
     "active-iq",
@@ -64,6 +64,7 @@
     "console-setup-admin",
     "console-software-updates",
     "console-volume-caching",
+    "console-well-architected",
     "data-migrator",
     "data-services-backup-recovery",
     "data-services-cloud-tiering",
@@ -270,10 +271,6 @@
     "xcp"
   ],
   "lastNewSlugs": [
-    "console-all-family",
-    "console-local",
-    "console-local-automation",
-    "console-local-family",
-    "console-local-relnotes"
+    "console-well-architected"
   ]
 }

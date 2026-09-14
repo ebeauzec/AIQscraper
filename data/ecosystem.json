@@ -1,18 +1,51 @@
 {
   "version": 1,
-  "_lastUpdated": "2026-08-17",
+  "_lastUpdated": "2026-09-14",
   "sources": {
     "github_netapp": {
-      "totalRepos": 1,
-      "lastChecked": "2026-08-17",
+      "totalRepos": 12,
+      "lastChecked": "2026-09-14",
       "repos": [
         {
+          "description": "Open-metrics endpoint for ONTAP, StorageGRID, E-Series, and Cisco switches"
+        },
+        {
+          "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
+        },
+        {
+          "description": "Storage orchestrator for containers"
+        },
+        {
           "description": "NetApp's ONTAP model context protocol server"
+        },
+        {
+          "description": "Terrafrom ONTAP provider"
+        },
+        {
+          "description": "Ansible collection that facilitates host related tasks for NetApp E-Series storage."
+        },
+        {
+          "description": "Terraform provider to create NetAPP OCCM instances, CVO resources, volumes, snapshots, ... in Azure, AWS, GCP."
+        },
+        {
+          "description": "tridentctl plugin for NetApp Trident protect"
+        },
+        {
+          "description": "Repo for Ansible roles developed for NetApp Ansible modules and playbooks"
+        },
+        {
+          "description": "Ansible Validated Content for NetApp Trident Protect Roles and Tasks in OpenShift Virtualization environment"
+        },
+        {
+          "description": "Ansible Validated Content for NetApp Trident Roles and Tasks in OpenShift Virtualization environment"
+        },
+        {
+          "description": "Support for Volume, Initiator, Account, and Volume Access Group resources."
         }
       ]
     },
     "pypi": {
-      "lastChecked": "2026-08-17",
+      "lastChecked": "2026-09-14",
       "packages": {
         "netapp-ontap": {
           "version": "9.19.1.0",
@@ -25,7 +58,7 @@
       }
     },
     "ansible_galaxy": {
-      "lastChecked": "2026-08-17",
+      "lastChecked": "2026-09-14",
       "collections": {
         "netapp.ontap": {
           "version": "23.6.0",
@@ -46,7 +79,7 @@
       }
     },
     "terraform": {
-      "lastChecked": "2026-08-17",
+      "lastChecked": "2026-09-14",
       "providers": {
         "NetApp/netapp-ontap": {
           "version": "2.7.1",
@@ -59,7 +92,7 @@
       }
     },
     "cloud_providers": {
-      "lastChecked": "2026-08-17",
+      "lastChecked": "2026-09-14",
       "providers": {
         "aws_fsx_ontap": {
           "name": "Amazon FSx for NetApp ONTAP",

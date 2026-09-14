@@ -15,6 +15,8 @@ __pycache__/
 
 # Runtime data (user-specific, not tracked)
 aiq_cache.db
+aiq_cache.db-shm
+aiq_cache.db-wal
 aiq_config.json
 aiq_harvested_systems.json
 aiq_scraped_data.json
@@ -29,6 +31,9 @@ data/tam_real_data.json
 
 # Generated report documents
 *.docx
+
+# Atomic-write backups (runtime artefacts, not tracked)
+data/*.bak
 
 # Scratch/dev artefacts
 brace_report.txt

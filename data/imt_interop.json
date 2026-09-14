@@ -1,6 +1,6 @@
 {
   "_comment": "IMT Interoperability Matrix — 3rd party version compatibility data. Auto-updated by reference_harvester.py via EnrichmentScheduler Scanner 7. Source: imt.netapp.com, vendor support matrices, GitHub/PyPI APIs.",
-  "_lastUpdated": "2026-08-13",
+  "_lastUpdated": "2026-08-31",
   "_source": "imt.netapp.com + vendor documentation + GitHub/PyPI APIs",
   "vmware_otv": {
     "name": "ONTAP Tools for VMware vSphere (OTV)",
@@ -36,7 +36,7 @@
   "trident": {
     "name": "Astra Trident (CSI Driver)",
     "signal": "kubernetes",
-    "currentRecommended": "26.06.0",
+    "currentRecommended": "26.06.1",
     "versions": {
       "26.06": {
         "minOntap": "9.8",
@@ -69,7 +69,7 @@
     "upgradeDoc": "https://docs.netapp.com/us-en/trident/trident-managing-k8s/upgrade-trident.html",
     "cve": "CVE-2026-24051 fixed in 26.02.0+ -- upgrade immediately if below 26.02",
     "source": "github.com/NetApp/trident",
-    "published_at": "2026-06-30"
+    "published_at": "2026-08-19"
   },
   "snapcenter": {
     "name": "SnapCenter",
@@ -423,7 +423,7 @@
   "harvest": {
     "name": "NetApp Harvest (Prometheus/Grafana)",
     "signal": "splunk",
-    "currentRecommended": "26.05.0",
+    "currentRecommended": "26.08.0",
     "versions": {
       "24.05": {
         "minOntap": "9.6",
@@ -435,7 +435,7 @@
     "upgradeDoc": "https://github.com/NetApp/harvest",
     "notes": "300+ ONTAP metrics via REST/ZAPI. Grafana dashboards included.",
     "source": "github.com/NetApp/harvest",
-    "published_at": "2026-05-11"
+    "published_at": "2026-08-24"
   },
   "fpolicy_varonis": {
     "name": "Varonis DatAdvantage (FPolicy)",

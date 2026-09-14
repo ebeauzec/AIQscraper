@@ -145,6 +145,7 @@ KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
 VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
 ECOSYSTEM_PATH = SCRIPT_DIR / "data" / "ecosystem.json"
 DISCOVERED_PRODUCTS_PATH = SCRIPT_DIR / "data" / "discovered_products.json"
+EOA_DATABASE_PATH = SCRIPT_DIR / "data" / "eoa_database.json"
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -3802,38 +3803,39 @@ def fetch_cve_nvd(cve_id, api_key=None):
 
 def fetch_netapp_psirt(advisory_id):
     """
-    Fetch and parse a NetApp PSIRT advisory page.
+    Fetch a single NetApp PSIRT advisory from NetApp's own JSON API.
     Returns dict: {id, title, description, severity, affectedProducts, publishedDate, link}
+
+    security.netapp.com is a client-rendered SPA (Create React App) -- the raw
+    HTML for any page there is just a `<div id="root">` shell with no advisory
+    content, so scraping it with regex (the old approach) always found nothing.
+    The SPA itself calls a plain JSON API to render; this hits that same API
+    directly. Discovered via the browser's network panel while the SPA loaded
+    a real advisory page: GET /adv_api/advisory/{adv_id}/ -> {"status":
+    "success", "advisory": {...}}.
     """
-    url = f'https://security.netapp.com/advisory/{urllib.parse.quote(advisory_id)}/'
+    url = f'https://security.netapp.com/adv_api/advisory/{urllib.parse.quote(advisory_id)}/'
     text, err = _enrich_fetch(url)
     if err or not text:
         return None
     try:
-        # Extract title
-        title_m = _re.search(r'<title>([^<]+)</title>', text, _re.IGNORECASE)
-        title = _strip_html_tags(title_m.group(1)) if title_m else advisory_id
-        # Extract severity from page content
-        sev_m = _re.search(r'(?:severity|risk)[\s:]*<[^>]*>\s*([A-Za-z]+)', text, _re.IGNORECASE)
-        severity = sev_m.group(1).upper() if sev_m else 'UNKNOWN'
-        # Get first substantial paragraph of content as description
-        content_m = _re.search(r'<div[^>]*class="[^"]*description[^"]*"[^>]*>(.*?)</div>', text, _re.IGNORECASE | _re.DOTALL)
-        if not content_m:
-            content_m = _re.search(r'<p>((?:(?!</p>).){80,500})</p>', text, _re.DOTALL)
-        description = _strip_html_tags(content_m.group(1))[:800] if content_m else ''
-        # Extract CVE IDs from page
-        cves = list(dict.fromkeys(_re.findall(r'CVE-\d{4}-\d+', text)))[:10]
-        # Extract published date
-        date_m = _re.search(r'(?:published|date)[^>]*>\s*(\d{4}-\d{2}-\d{2})', text, _re.IGNORECASE)
-        published = date_m.group(1) if date_m else ''
+        data = json.loads(text)
+        adv = data.get('advisory') or {}
+        if not adv:
+            return {'id': advisory_id, 'error': 'not found'}
+        severity = 'UNKNOWN'
+        scoring_calc = adv.get('kb_scoring_calc') or []
+        if scoring_calc:
+            severity = (scoring_calc[0].get('range') or 'UNKNOWN').upper()
         return {
             'id': advisory_id,
-            'title': title.replace(' | NetApp', '').strip(),
-            'description': description,
+            'title': adv.get('kb_title') or advisory_id,
+            'description': (adv.get('kb_summary') or '')[:800],
             'severity': severity,
-            'cve': cves,
-            'published': published,
-            'link': url
+            'cve': adv.get('kb_cve') or [],
+            'published': (adv.get('published_date') or '')[:10],
+            'link': f'https://security.netapp.com/advisory/{advisory_id}/',
+            '_raw': adv,
         }
     except Exception as e:
         return {'id': advisory_id, 'error': str(e)}
@@ -3842,56 +3844,74 @@ def fetch_netapp_psirt(advisory_id):
 def scan_and_persist_advisories(nvd_api_key=None):
     """
     Full advisory scan pipeline:
-    1. Fetch the NTAP advisory index from security.netapp.com
-    2. Collect all advisory IDs (NTAP-YYYYMMDD-XXXX format)
+    1. Fetch the NTAP advisory index from NetApp's own JSON API (security.netapp.com/adv_api/advisory/)
+    2. Collect all advisory records for tracked products (ONTAP, StorageGRID, SnapCenter, Trident, Active IQ)
     3. Load existing IDs from data/security_bulletins.json
-    4. For each NEW advisory: fetch detail page + NVD CVSS data
+    4. For each NEW advisory: build the bulletin entry directly from the API record (CVSS/severity/fixes all included -- no second fetch)
     5. Upsert into data/security_bulletins.json (atomic write)
     Returns dict: {added, updated, total, scanned, errors, newIds}
 
-    nvd_api_key: optional NVD API key for the CVSS lookup (50 req/30s instead
-    of 5/30s). If not passed explicitly, read directly from aiq_config.json —
-    lets callers that don't already have the key cached (HTTP handler, startup
-    scan) still benefit without threading it through every call site.
+    nvd_api_key: unused now that CVSS comes from NetApp's own kb_scoring_calc
+    (more authoritative than a generic NVD lookup for a NetApp-specific
+    advisory anyway). Kept as a parameter for call-site compatibility.
     """
     import time
     added = updated = errors = 0
     new_ids = []
 
-    if nvd_api_key is None:
-        try:
-            if CONFIG_PATH.exists():
-                nvd_api_key = json.loads(CONFIG_PATH.read_text(encoding='utf-8')).get('nvdApiKey') or None
-        except Exception:
-            nvd_api_key = None
-
     # ── 1. Fetch PSIRT advisory index ──────────────────────────────────────────
-    print('  [SCAN] Fetching NetApp PSIRT advisory index...', flush=True)
-    index_entries = []  # list of {id, title, link}
-    products = ['ONTAP', 'StorageGRID', 'SnapCenter', 'Trident', 'Active+IQ']
+    # security.netapp.com/advisory/ is a client-rendered SPA (Create React
+    # App) -- the raw HTML is just a `<div id="root">` shell with no advisory
+    # links in it, so the old regex-over-HTML approach always found 0 results
+    # (confirmed live: 44 days of silent no-op scans before this was caught).
+    # The SPA renders from a plain JSON API; this calls that API directly.
+    # Discovered via the browser's network panel: GET /adv_api/advisory/?limit=
+    # &skip=&order=desc&sort_by=updated_date -> {"advisories":[...full records...]}.
+    # Each list entry already contains the complete advisory (kb_affected_list,
+    # kb_cve, kb_scoring_calc, kb_summary, etc.) -- no separate detail fetch
+    # needed for entries found here.
+    print('  [SCAN] Fetching NetApp PSIRT advisory index (JSON API)...', flush=True)
+    index_entries = []  # list of {id, link, raw}
+    products = ['ONTAP', 'StorageGRID', 'SnapCenter', 'Trident', 'Active IQ']
     seen_ids = set()
-    for product in products:
-        url = f'https://security.netapp.com/advisory/?q={urllib.parse.quote(product)}'
+    page_limit = 50
+    max_pages = 8  # 400 most-recently-updated advisories -- generous headroom over the ~70-entry local DB
+    for page in range(max_pages):
+        skip = page * page_limit
+        url = (f'https://security.netapp.com/adv_api/advisory/'
+               f'?limit={page_limit}&skip={skip}&order=desc&sort_by=updated_date')
         text, err = _enrich_fetch(url, timeout=20)
         if err or not text:
-            print(f'  [SCAN] Index fetch failed for {product}: {err}', flush=True)
-            continue
-        # Match advisory hrefs: /advisory/ntap-YYYYMMDD-XXXX/
-        matches = _re.findall(
-            r'href="(/advisory/(ntap-[\w-]+))/?"',
-            text, _re.IGNORECASE
-        )
-        for path, adv_id in matches:
-            adv_id_clean = adv_id.lower()
-            if adv_id_clean not in seen_ids:
-                seen_ids.add(adv_id_clean)
-                index_entries.append({
-                    'id': adv_id_clean,
-                    'link': f'https://security.netapp.com{path}'
-                })
+            print(f'  [SCAN] Index page {page} fetch failed: {err}', flush=True)
+            break
+        try:
+            page_data = json.loads(text)
+        except Exception as ex:
+            print(f'  [SCAN] Index page {page} JSON parse failed: {ex}', flush=True)
+            break
+        advisories = page_data.get('advisories') or []
+        if not advisories:
+            break
+        for adv in advisories:
+            adv_id = (adv.get('adv_id') or '').lower()
+            if not adv_id or adv_id in seen_ids:
+                continue
+            haystack = ' '.join(
+                (adv.get('kb_affected_list') or []) + (adv.get('kb_investigating_list') or [])
+            ).lower()
+            if not any(p.lower() in haystack for p in products):
+                continue
+            seen_ids.add(adv_id)
+            index_entries.append({
+                'id': adv_id,
+                'link': f'https://security.netapp.com/advisory/{adv_id}/',
+                'raw': adv,
+            })
         time.sleep(0.3)  # be polite
+        if len(advisories) < page_limit:
+            break  # reached the end of the index
 
-    print(f'  [SCAN] Found {len(index_entries)} unique advisories on index pages', flush=True)
+    print(f'  [SCAN] Found {len(index_entries)} relevant advisories across {page + 1} index page(s)', flush=True)
 
     # ── 2. Load existing DB ────────────────────────────────────────────────────
     if BULLETINS_PATH.exists():
@@ -3906,42 +3926,34 @@ def scan_and_persist_advisories(nvd_api_key=None):
     id_to_idx = {b['id']: i for i, b in enumerate(bulletins) if b.get('id')}
     today = datetime.now(timezone.utc).isoformat()[:10]
 
-    # ── 3. Fetch detail for each new advisory ──────────────────────────────────
+    # ── 3. Build bulletin entries for new advisories ────────────────────────────
+    # The index fetch above already pulled the complete advisory record from
+    # NetApp's own API (kb_scoring_calc has NetApp's own CVSS score/severity,
+    # kb_affected_list has the real affected-product list) -- no second
+    # per-advisory fetch or NVD lookup needed, unlike the old two-step flow.
     for entry in index_entries:
         adv_id = entry['id']
         is_new = adv_id not in id_to_idx
         if not is_new:
-            continue  # already in DB, skip detail fetch
+            continue  # already in DB, nothing to do
 
-        print(f'  [SCAN] Fetching new advisory: {adv_id}', flush=True)
         try:
-            detail = fetch_netapp_psirt(adv_id) or {}
-            if detail.get('error'):
-                errors += 1
-                continue
-
-            # ── Augment with NVD CVSS if CVEs are present ──────────────────────
+            adv = entry['raw']
+            cves = adv.get('kb_cve') or []
             cvss_score = None
-            severity = (detail.get('severity') or 'UNKNOWN').upper()
-            cves = detail.get('cve', [])
-            if cves:
-                nvd_url = f'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cves[0]}'
-                nvd_text, nvd_err = _enrich_fetch(nvd_url, timeout=15,
-                    extra_headers={'apiKey': nvd_api_key} if nvd_api_key else None)
-                if not nvd_err and nvd_text:
-                    try:
-                        nvd_data = json.loads(nvd_text)
-                        vuln = nvd_data.get('vulnerabilities', [{}])[0].get('cve', {})
-                        metrics = vuln.get('metrics', {})
-                        for key in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
-                            if key in metrics and metrics[key]:
-                                m = metrics[key][0].get('cvssData', {})
-                                cvss_score = m.get('baseScore')
-                                severity = (m.get('baseSeverity') or severity).upper()
-                                break
-                    except Exception:
-                        pass
-                time.sleep(0.2)
+            severity = 'UNKNOWN'
+            scoring_calc = adv.get('kb_scoring_calc') or []
+            if scoring_calc:
+                cvss_score = scoring_calc[0].get('score')
+                severity = (scoring_calc[0].get('range') or 'UNKNOWN').upper()
+            affected_text = ' '.join(adv.get('kb_affected_list') or [])
+            fixes = adv.get('kb_fixes') or []
+            fixed_versions = {}
+            for fx in fixes:
+                prod = fx.get('product')
+                links = [f.get('link') for f in (fx.get('fixes') or []) if f.get('link')]
+                if prod and links:
+                    fixed_versions[prod] = links
 
             # ── Build bulletin entry ────────────────────────────────────────────
             bulletin = {
@@ -3950,13 +3962,13 @@ def scan_and_persist_advisories(nvd_api_key=None):
                 'cvss':             cvss_score,
                 'severity':         severity.lower() if severity != 'UNKNOWN' else 'medium',
                 'category':         'PSIRT',
-                'title':            detail.get('title', adv_id),
-                'description':      detail.get('description', ''),
-                'affectedProducts': _infer_affected_products(adv_id, detail.get('title', '')),
+                'title':            adv.get('kb_title') or adv_id,
+                'description':      (adv.get('kb_summary') or '')[:800],
+                'affectedProducts': _infer_affected_products(adv_id, affected_text),
                 'affectedVersions': {},
-                'fixedVersions':    {},
-                'mitigation':       'Refer to the NetApp advisory for mitigation guidance.',
-                'published':        detail.get('published', today),
+                'fixedVersions':    fixed_versions,
+                'mitigation':       adv.get('kb_workarounds') or 'Refer to the NetApp advisory for mitigation guidance.',
+                'published':        (adv.get('published_date') or today)[:10],
                 'link':             entry['link'],
                 '_addedAt':         today,
                 '_source':          'scan'
@@ -3966,7 +3978,6 @@ def scan_and_persist_advisories(nvd_api_key=None):
             id_to_idx[adv_id] = len(bulletins) - 1
             added += 1
             new_ids.append(adv_id)
-            time.sleep(0.25)  # rate limit
 
         except Exception as ex:
             print(f'  [SCAN] Error processing {adv_id}: {ex}', flush=True)
@@ -4255,9 +4266,15 @@ class EnrichmentScheduler:
                 print('  [ENRICH] Starting knowledge-base crawl (long-running)...', flush=True)
                 results['knowledge_base'] = self._scan_knowledge_base()
 
-            ref_age = self._file_age_hours(BULLETINS_PATH)
+            # Gated on eoa_database.json's own age -- this scanner's actual
+            # output file. Previously gated on BULLETINS_PATH's age by
+            # mistake, so once the (unrelated) bulletins scanner kept that
+            # file fresh, this scanner concluded it had nothing to do and
+            # skipped indefinitely, leaving EOA/IMT/firmware reference data
+            # stale for weeks with no error or symptom other than the date.
+            ref_age = self._file_age_hours(EOA_DATABASE_PATH)
             if ref_age is not None and ref_age < interval_h:
-                print(f'  [ENRICH] [7] security_bulletins.json is {ref_age:.1f}h old '
+                print(f'  [ENRICH] [7] eoa_database.json is {ref_age:.1f}h old '
                       f'(< {interval_h:.0f}h interval) — skipping reference library scan', flush=True)
                 results['reference_library'] = {'skipped': 'fresh'}
             else:

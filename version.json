@@ -1,8 +1,8 @@
 {
-  "version": "5.6.49",
+  "version": "5.6.50",
   "major": 5,
   "minor": 6,
-  "patch": 49,
-  "date": "2026-08-21",
-  "notes": "User reported seeing identical recommendation numbers across multiple customers and flagged it as suspicious. Investigation found this tenant's 41 named customers actually map onto only 2 real Active IQ accounts (one account alone covers 36 customers) -- Active IQ computes each recommendation's Score % at the account level, so every customer sharing an account genuinely gets an identical score for a given check. Confirmed this is real, not a scoping bug: the rescoped fail counts do differ correctly per customer's own system count -- only the underlying rate repeats, exactly as Active IQ reports it. Added an explicit notice to Section 12 (TAM Recommendations) when the scoped customer shares its Active IQ account with others, naming the sibling customers and stating plainly that the Score % is account-wide by Active IQ's own design."
+  "patch": 50,
+  "date": "2026-09-14",
+  "notes": "Audit found the NetApp security advisory scraper had been silently broken for 44 days -- security.netapp.com's advisory index became a client-rendered SPA at some point, so the raw-HTML scraper always found '0 unique advisories' and did nothing, with no error to surface it. Found NetApp's own JSON API the SPA calls and repointed the scraper at that instead; verified live it now finds 233 relevant advisories and grows the database from 70 to 303 real entries. Also fixed a second staleness bug found in the process: the EOA/IMT/firmware reference-library scanner was gating its own refresh check on the wrong file's age, so it would have silently stopped refreshing once the bulletins scanner above was fixed. Removed a speculative not-yet-released ONTAP '9.19.1' placeholder that was failing every real system's 'on latest OS' checklist item fleet-wide. Relabeled 'Contract Coverage' to 'Warranty Coverage' at ~15 sites across every deliverable and the Account Health Score, since that KPI has been sourced from hardware warranty data (not real support-contract data, which Active IQ doesn't report for this tenant) since v5.6.40 but the label was never updated to say so."
 }

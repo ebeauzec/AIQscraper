@@ -1,6 +1,6 @@
 {
   "_comment": "Ground-truth latest GA versions for NetApp products. Updated by automated harvester + daily Reference Library scan (0 8 * * *). Edit this file manually if the scan agent identifies a newer GA release not yet reflected here.",
-  "_lastUpdated": "2026-08-04",
+  "_lastUpdated": "2026-09-14",
   "_sources": {
     "ontap": "mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab \u2014 verified 2026-08-04",
     "cloudVolumesOntap": "docs.netapp.com/us-en/cloud-volumes-ontap \u2014 verified 2026-07-22",
@@ -36,7 +36,8 @@
       "9.7.2": "9.7.2",
       "9.7.1": "9.7.1",
       "9.7.0": "9.7.0",
-      "9.6.0": "9.6.0"
+      "9.6.0": "9.6.0",
+      "9.7.6": "9.7.6"
     },
     "supportedBranches": [
       "9.19.1",
@@ -64,7 +65,7 @@
     "releaseNotesUrl": "https://docs.netapp.com/us-en/storagegrid/release-notes/"
   },
   "santricity": {
-    "latestGA": "12.00",
+    "latestGA": "12.10",
     "latestPatch": "11.80.3",
     "latestByBranch": {
       "11.80": "11.80.3",
@@ -80,7 +81,7 @@
     "releaseNotesUrl": "https://docs.netapp.com/us-en/snapcenter/release-notes/release-notes.html"
   },
   "trident": {
-    "latestGA": "26.06.0",
+    "latestGA": "26.06.1",
     "releaseNotesUrl": "https://docs.netapp.com/us-en/trident/trident-rn.html"
   },
   "hostUtilities": {
@@ -450,12 +451,15 @@
     "downloadUrl": "https://mysupport.netapp.com/site/downloads/firmware/shelf-firmware"
   },
   "harvest": {
-    "latestGA": "26.05.0"
+    "latestGA": "26.08.0"
   },
   "snapcenter": {
     "latestGA": "6.2.2"
   },
   "cvo": {
     "latestGA": "9.19.1"
+  },
+  "storagegrid": {
+    "latestGA": "12.1"
   }
 }

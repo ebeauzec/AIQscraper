@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-08-17",
+  "lastUpdated": "2026-09-14",
   "articleCount": 762,
   "articles": [
     {
@@ -7371,6 +7371,111 @@
       "source": "sitemap-discovery",
       "category": "console-local-relnotes",
       "discoveredAt": "2026-08-17"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/cvo/configuration-analysis-cvo.html",
+      "title": "Configuration Analysis Cvo",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/fsx/configuration-analysis-fsx.html",
+      "title": "Configuration Analysis Fsx",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/gcnv/configuration-analysis-gcnv.html",
+      "title": "Configuration Analysis Gcnv",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/create-custom-rule.html",
+      "title": "Create Custom Rule",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/get-help.html",
+      "title": "Get Help",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/cvo/improve-configurations-cvo.html",
+      "title": "Improve Configurations Cvo",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/fsx/improve-configurations-fsx.html",
+      "title": "Improve Configurations Fsx",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/gcnv/improve-configurations-gcnv.html",
+      "title": "Improve Configurations Gcnv",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/index.html",
+      "title": "Index",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/lang-dropdown.html",
+      "title": "Lang Dropdown",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/learn-custom-rules.html",
+      "title": "Learn Custom Rules",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/learn-well-architected-dashboard.html",
+      "title": "Learn Well Architected Dashboard",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/legal-notices.html",
+      "title": "Legal Notices",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/manage-custom-rules.html",
+      "title": "Manage Custom Rules",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/console-well-architected/pdf-entries.html",
+      "title": "Pdf Entries",
+      "source": "sitemap-discovery",
+      "category": "console-well-architected",
+      "discoveredAt": "2026-09-14"
     }
   ]
 }

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.50] - 2026-09-14
+
+### Fixed
+- **NetApp security advisory scraper was silently broken for 44 days.** security.netapp.com's advisory index became a client-rendered SPA at some point in the last ~6 weeks; the raw-HTML scraper always found "0 unique advisories" and did nothing, with no error anywhere to surface it — `security_bulletins.json` had been stuck at exactly 70 entries since Aug 1. Found NetApp's own JSON API the SPA calls (`security.netapp.com/adv_api/advisory/`) and repointed the scraper at that instead, collapsing the old two-step index→detail-fetch→NVD-lookup flow into a single pass since the API returns complete advisory records (CVSS, affected products, fixes) directly. Verified live: 233 relevant advisories found, database grown from 70 to 303 real entries.
+- **A second, unrelated staleness bug**: the reference-library scanner (EOA database, IMT interop matrix, firmware baselines) was gating its own refresh check on `security_bulletins.json`'s age instead of its own output file's age. Once the bulletins scanner above was fixed and kept that file fresh, this scanner would have concluded — wrongly — that it had nothing to do, and stopped refreshing EOA/IMT data indefinitely. Now correctly gated on `eoa_database.json`'s own age.
+- **Speculative ONTAP `9.19.1` placeholder removed** from the hardcoded version fallback list. It represented a release "expected Q4 2026" that hasn't shipped, but was being read elsewhere as "the latest ONTAP version" — causing every real system, even ones on the true latest (9.18.1), to fail the "on latest OS" checklist item fleet-wide.
+
+### Changed
+- **"Contract Coverage" relabeled to "Warranty Coverage"** at ~15 sites across every deliverable (QBR Pack, MSP Service Report, TAM Success Plan, SLA reports) and the Account Health Score's 13% KPI weight. This metric has been sourced from hardware warranty data since v5.6.40 (Active IQ reports no real support-contract status for this tenant), but the label was never updated — a TAM reading "Contract Coverage: 88%" could reasonably mistake it for support entitlement, which drives renewal/ARR conversations differently than warranty status does. Also removed a fully redundant, mislabeled card pair in the Contracts & Lifecycle section that duplicated the already-correct warranty cards next to it.
+
+---
+
 ## [5.6.49] - 2026-08-21
 
 ### Added

@@ -27,9 +27,37 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.49";
+const APP_VERSION = "5.6.50";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.50",
+    date: "14 September 2026",
+    title: "Fixed: NetApp Security Advisory Scraper Was Silently Broken for 44 Days",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed: PSIRT Advisory Scraper Returned Zero Results Since NetApp's Site Redesign",
+        color: "#f87171",
+        items: [
+          "Audited the app for outdated/broken data sources. Found security.netapp.com's advisory index had become a client-rendered SPA at some point in the last ~6 weeks -- the tool's scraper was reading raw HTML that's just an empty '<div id=\"root\">' shell with no advisory content, so every scheduled scan silently found '0 unique advisories' and did nothing. security_bulletins.json had been stuck at exactly 70 entries since Aug 1 as a result, with no error anywhere to surface it",
+          "Found NetApp's own JSON API the SPA itself calls (security.netapp.com/adv_api/advisory/) via the browser's network panel, and repointed the scraper at that instead -- it returns complete advisory records (CVSS score/vector, affected products, fixes, summary) in one call, so the old two-step index-then-detail-fetch-then-NVD-lookup flow collapsed into a single pass",
+          "Verified live: the fixed scraper found 233 relevant advisories across 8 index pages on first run and grew the local database from 70 to 303 entries -- all real, current NetApp PSIRT data",
+          "Also found and fixed a second, unrelated staleness bug while investigating: the reference-library scanner (EOA database, IMT interop matrix, firmware baselines) was gating its own 7-day refresh check on security_bulletins.json's age instead of its own output file's age -- once the bulletins scanner above was fixed and kept that file fresh, this scanner concluded (wrongly) that it had nothing to do and would have skipped indefinitely. Now gates on eoa_database.json's own age",
+          "Removed a speculative, not-yet-released ONTAP '9.19.1' placeholder from the hardcoded version fallback list -- it was silently failing every real system's 'on latest OS version' checklist item fleet-wide, since nothing can match a version that doesn't exist yet. The live docs.netapp.com scraper confirms the real latest is 9.18.1"
+        ]
+      },
+      {
+        icon: "✨",
+        label: "Relabeled: 'Contract Coverage' Renamed to 'Warranty Coverage' Everywhere",
+        color: "#22c55e",
+        items: [
+          "The v5.6.40 fix (this tenant's real support-contract data is null; warranty data is the honest substitute) never updated the label at ~15 call sites across every deliverable -- QBR Pack, MSP Service Report, TAM Success Plan, SLA reports, and the Account Health Score's 13% KPI weight all still said 'Contract Coverage' / 'active support contract', which a TAM could reasonably read as real entitlement/renewal-risk data rather than hardware warranty status",
+          "Relabeled every site to 'Warranty Coverage' with an explicit note that Active IQ reports no support-contract status for this tenant. Also removed a fully redundant, mislabeled card pair from the Contracts & Lifecycle section that duplicated the already-correct warranty cards sitting right next to it"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.49",
     date: "21 August 2026",
@@ -8110,8 +8138,13 @@ function updateTAMSelectLabel() {
 
 let SOFTWARE_VERSION_DATABASES = {
   ontap: [
-    "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1", "9.17.1", "9.18.1", "9.19.1"
-    // Next GA expected Q4 2026 (twice-yearly Q2/Q4 cadence)
+    "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9.1", "9.10.1", "9.11.1", "9.12.1", "9.13.1", "9.14.1", "9.15.1", "9.16.1", "9.17.1", "9.18.1"
+    // Next GA expected Q4 2026 (twice-yearly Q2/Q4 cadence) -- do NOT pre-add the
+    // next version number here. This list's last entry is read elsewhere as "the
+    // latest ONTAP release" (e.g. the on-latest-version checklist item); a
+    // not-yet-GA placeholder makes every real system fail that check until the
+    // version actually ships. The live docs.netapp.com scraper (server-side,
+    // /api/enrich/versions) appends new GA versions here automatically -- let it.
   ],
   santricity: [
     "11.30", "11.40", "11.50", "11.60", "11.70", "11.75", "11.80.5", "11.90.1", "12.0"
@@ -12918,7 +12951,7 @@ function renderCSMTab() {
     if (_healthEl) _healthEl.innerHTML = `
       <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
         <div style="display: flex; flex-direction: column; align-items: center; min-width: 150px; border-right: 1px solid var(--border-color); padding-right: 24px;">
-          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), contract coverage (13%), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Account Health Score</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), warranty coverage (13%, proxy for support-contract status which Active IQ does not report for this tenant), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Account Health Score</span>
           <div style="position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
             <span style="font-size: 2rem; font-weight: 800; color: ${healthColor};">${healthScore}</span>
           </div>
@@ -15977,7 +16010,7 @@ function enrichSystemTelemetry(s) {
 
   // ── Backfill contractActive for mock/non-live systems ──────────────────────
   // contractActive: derived from contracts object; real API provides it as a boolean.
-  // Without this, Contract Coverage in CSM/reports shows 0/N (undefined !== true).
+  // Without this, Warranty Coverage in CSM/reports shows 0/N (undefined !== true).
   const _contractActive = s.contractActive != null
     ? s.contractActive
     : (contracts ? contracts.daysRemaining > 0 && contracts.status !== 'expired' : false);
@@ -18872,7 +18905,7 @@ ${platformLines}
   - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < systemCount ? ' *' : ''}
   - OS Currency:             ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
-  - Contract Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active support contract
+  - Warranty Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — within hardware warranty (Active IQ does not report support-contract status for this tenant)
 
 * FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
   Feature                       Enabled     Total    Coverage    CLI Command
@@ -18983,8 +19016,8 @@ ${formatCostOfInactionText(targetSystems)}
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
   Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at $${state.costPerTiB}/TB/month)
   Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
-  Contract Coverage Gap Risk:          ${systemCount - contractActive} systems without active support
-  Support Premium Increase (EOSA):     ~45% increase for ${systemCount - contractActive} out-of-support systems
+  Warranty Coverage Gap Risk:          ${systemCount - contractActive} systems past hardware warranty end date
+  Support Premium Increase (EOSA):     ~45% increase for ${systemCount - contractActive} out-of-warranty systems (illustrative rate; confirm actual renewal pricing with NetApp)
 
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
@@ -19165,7 +19198,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
-  // ── Contract Coverage ──
+  // ── Warranty Coverage (proxy for support-contract status) ──
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
   const contractPct = total > 0 ? ((contractActive / total) * 100).toFixed(0) : 0;
 
@@ -19428,7 +19461,7 @@ Prepared: ${salesRep}
   ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < total ? ' *' : ''}
   OS Currency:              ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
-  Contract Coverage:        ${contractActive}/${total} systems (${contractPct}%) — active support contract
+  Warranty Coverage:        ${contractActive}/${total} systems (${contractPct}%) — within hardware warranty (Active IQ does not report support-contract status for this tenant)
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
 
@@ -19546,7 +19579,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const thirtyAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const total = targetSystems.length;
 
-  // ── Contract Coverage ──
+  // ── Warranty Coverage (proxy for support-contract status) ──
   const activeContracts  = targetSystems.filter(s => s.contractActive === true).length;
   const expiredContracts = targetSystems.filter(s => s.contractActive === false).length;
   const unknownContracts = targetSystems.filter(s => s.contractActive == null).length;
@@ -19715,7 +19748,7 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
 1. SERVICE SUMMARY [METRICS]
 --------------------------------------------------------------------------------
   Systems Under Management:  ${total}
-  Contract Coverage:         ${activeContracts}/${total} (${contractPct}%) active contracts
+  Warranty Coverage:         ${activeContracts}/${total} (${contractPct}%) within HW warranty (proxy -- Active IQ reports no support-contract status for this tenant)
   ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Average System Age:        ${avgAge} years
@@ -19735,7 +19768,7 @@ ${dashboardLines}
   ASUP Compliance           ${String(slaThresholds.asup).padEnd(3)}%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, slaThresholds.asup)}
   ARP Enablement            ${String(slaThresholds.arp).padEnd(3)}%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, slaThresholds.arp)}
   OS Currency               ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
-  Contract Coverage         ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
+  Warranty Coverage (proxy) ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
   Case MTTR (<=${mttrTarget}d)        ${String(mttrTarget).padEnd(3)}d      ${mttrDays != null ? String(mttrDays).padStart(3) + 'd' : ' N/A'}      ${mttrDays != null ? (parseFloat(mttrDays) <= mttrTarget ? 'MET' : 'MISSED') : 'NO DATA'}
 
@@ -19973,7 +20006,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
     Capacity Runway:          ${runway} days to 90% (average)
     Sustainability Score:     ${avgSust}/100
     Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
-    Contract Coverage:        ${contractPct}%
+    Warranty Coverage:        ${contractPct}% (proxy -- Active IQ reports no support-contract status for this tenant)
 ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 ? ` [Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}]` : ''}
     HA Configured:            ${dr.haSystems}/${total}
     Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
@@ -20276,7 +20309,7 @@ ${compileSvmLifInventoryText(targetSystems)}
   Open Support Cases:   ${allSupportCases.length}
   ASUP Compliance:      ${asupPct}%
   ARP Coverage:         ${arpPct}%
-  Contract Coverage:    ${contractPct}%
+  Warranty Coverage:    ${contractPct}% (proxy -- Active IQ reports no support-contract status for this tenant)
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 
   Top Issues Requiring Attention:
@@ -21284,7 +21317,7 @@ OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
   ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
   OS Currency:        ${fwCurrentCount}/${sysCount} (${pctFw}%)
-  Contract Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%)
+  Warranty Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%) (proxy -- no support-contract status reported for this tenant)
 
 HARDWARE FIRMWARE CURRENCY (Detailed)
   SP/BMC:             ${fw.spCurrent}/${sysCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
@@ -21409,7 +21442,7 @@ OPERATIONAL HEALTH SNAPSHOT:
   ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
   OS Currency:        ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
   HW Firmware Score:  ${fw.overallFwScore}% (SP: ${fw.spPct}%, MB: ${fw.mbPct}%, DQP: ${fw.dqpPct}%, Drives: ${fw.drivePct}%)
-  Contract Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} active contracts)
+  Warranty Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} within HW warranty; proxy -- no support-contract status reported for this tenant)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity, ${coi.noArp} without ransomware protection
@@ -21451,7 +21484,7 @@ HEALTH METRICS:
   ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
   OS Currency:        ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
   HW Firmware:        ${fw.overallFwScore}% ${fw.overallFwScore < 80 ? '⚠' : '✓'} (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
-  Contract Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'}
+  Warranty Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'} (proxy -- no support-contract status reported for this tenant)
   Feature Adoption:   ${fm.fleetAvgScore}% fleet average
   DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
   Capacity:           ${cap.utilPct}% fleet (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)
@@ -21622,7 +21655,7 @@ OPERATIONAL HEALTH BASELINE:
   ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
   OS Currency:            ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
   HW Firmware Score:      ${fw.overallFwScore}% (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
-  Contract Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems)
+  Warranty Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems; proxy -- no support-contract status reported for this tenant)
 
 PRIORITISED CORRECTIVE ACTIONS
 --------------------------------------------------------------------------------
@@ -22954,10 +22987,6 @@ function _renderLicenseComplianceSection(systems) {
     return scopeHostNames.has(rHost) || scopeSerials.has(rSerial);
   });
   
-  const activeContracts = systems.filter(s => s.contractActive === true);
-  const expiredContracts = systems.filter(s => s.contractActive === false);
-  const noContract = systems.filter(s => s.contractActive == null);
-  
   // Service tier distribution
   const tierMap = {};
   systems.forEach(s => {
@@ -22970,17 +22999,7 @@ function _renderLicenseComplianceSection(systems) {
   const warrantyExpired = systems.filter(s => s.warrantyEndDate && new Date(s.warrantyEndDate) < now);
   const warrantyActive = systems.filter(s => s.warrantyEndDate && new Date(s.warrantyEndDate) >= now);
   
-  let html = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
-    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems with a current, valid NetApp hardware or software support contract.">
-      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${activeContracts.length}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Active Contracts</div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Current HW/SW support coverage</div>
-    </div>
-    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems whose support contract has expired. These systems are not covered for break/fix or software updates.">
-      <div style="font-size:1.8rem;font-weight:700;color:#ef4444;">${expiredContracts.length}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Expired Contracts</div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No active support coverage</div>
-    </div>
+  let html = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
     <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems still within their original hardware warranty period (separate from support contracts).">
       <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${warrantyActive.length}</div>
       <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Warranty Active</div>
