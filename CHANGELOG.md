@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.55] - 2026-09-16
+
+### Fixed
+- **PSIRT advisory product classification was defaulting to ONTAP for anything it didn't recognize** — 185 of 341 bulletins (54%) were misclassified this way; real affected products included Element Software/NetApp HCI, NetApp Data Classification, HCI hardware/BMC, and Active IQ Unified Manager (none of which run on a storage array), all previously misapplied as ONTAP CVEs fleet-wide. Now reads NetApp's own structured "Affected Products" data directly, recognizes many more real product categories, and excludes an unclassifiable advisory instead of force-fitting it onto ONTAP. All 341 existing bulletins were reclassified against live data — 249 changed.
+- **CVE counts disagreed across the Security Posture Brief, Customer Value Report PPTX, and the on-screen widget** — each read only one of the two real CVE data sources. All three now use the same union already used by the (correct) Cost of Inaction box.
+- **DR Coverage % could exceed 100%** — a system that's both MetroCluster and SnapMirror-protected was counted twice. Fixed across every deliverable that reports DR coverage.
+- **MSP Service Report showed two disagreeing "Health" numbers in the same document** — the per-customer table now uses the same canonical Account Health Score as the document header.
+- **Account Handover Brief presented the fleet-wide (multi-tenant) sustainability score as one customer's own achievement** — now uses the real per-customer score when available, honestly labeled as fleet-wide otherwise. Also fixed the multi-account merge silently dropping a smaller account's real sustainability score (same bug class fixed for tamRecommendations in v5.6.12, never extended to this field).
+
+### Changed
+- **Support contract data is real again for most of the fleet** — re-verified live against the raw harvest and found `isContractActive`/`overallContractEndDate` are now populated (475/484 and 324/484 systems respectively) where a 2026-08-20 investigation found them entirely null. Support Contract Coverage and hardware Warranty Coverage are restored as two separate, correctly-labeled real metrics across the Overview KPI tile, SAM tab, system detail, CSV exports, the Account Health Score, and every deliverable (~25 sites that had been showing real contract data under a "Warranty" label).
+
+---
+
 ## [5.6.54] - 2026-09-16
 
 ### Added

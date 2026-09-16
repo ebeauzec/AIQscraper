@@ -111,7 +111,7 @@
       "title": "ONTAP FreeBSD Underlying OS Vulnerability — Data Modification Risk",
       "description": "All supported versions of FreeBSD are susceptible to CVE-2024-45289 which ONTAP uses as its underlying OS; successful exploitation could allow addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {
         "ontap": [
@@ -143,7 +143,11 @@
       "title": "ONTAP OpenSSH regreSSHion — Signal Handler Race Condition RCE",
       "description": "A race condition in OpenSSH sshd signal handler (regreSSHion) could theoretically allow remote unauthenticated code execution; ONTAP default sshd settings reduce exploitability and no exploit demonstrated on FreeBSD.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "Active IQ Unified Manager",
+        "SANtricity/E-Series",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "ontap": [
@@ -227,7 +231,9 @@
       "title": "ONTAP OpenSSH Pre-Auth Denial of Service (SSH2_MSG_PING Flood)",
       "description": "An unauthenticated attacker can flood ONTAP's OpenSSH daemon with SSH2_MSG_PING packets during pre-authentication, causing uncontrolled memory consumption and management SSH service unavailability.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "ontap": [
@@ -266,9 +272,7 @@
       "title": "Apache HTTP Server Multiple Vulnerabilities (ONTAP: CVE-2024-42516)",
       "description": "Multiple CVEs in Apache HTTP Server prior to 2.4.64 affect various NetApp products. ONTAP 9 is specifically listed as affected by CVE-2024-42516. CVE-2025-23048 (CVSS 9.1, Critical) affects other NetApp products within this advisory.",
       "affectedProducts": [
-        "ONTAP",
-        "SnapCenter",
-        "StorageGRID"
+        "ONTAP"
       ],
       "affectedVersions": {
         "ontap": [
@@ -300,7 +304,10 @@
       "title": "ONTAP libxml2 Use-After-Free Vulnerability",
       "description": "A use-after-free vulnerability in libxml2 triggered by a crafted XML document validated against a schema with identity constraints can lead to information disclosure, data modification, or DoS in ONTAP and other NetApp products.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "ontap": [
@@ -332,7 +339,7 @@
       "title": "ONTAP libxslt Vulnerability — Unauthorized Data Modification / DoS",
       "description": "A vulnerability in libxslt versions prior to 1.1.43 could allow unauthorized addition or modification of data or Denial of Service in ONTAP and other NetApp products.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {
         "ontap": [
@@ -364,7 +371,10 @@
       "title": "OpenSSL Vulnerability in ONTAP 9.18.1 Only",
       "description": "Multiple NetApp products incorporating OpenSSL 3.4–3.6 are susceptible to a vulnerability permitting information disclosure, data modification, or DoS. Only ONTAP 9.18.1 is affected in the ONTAP product line.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware",
+        "Brocade SAN Navigator"
       ],
       "affectedVersions": {
         "ontap": [
@@ -396,9 +406,7 @@
       "title": "Apache Netty HTTP/2 MadeYouReset DDoS in NetApp Products",
       "description": "A logical flaw in Netty's HTTP/2 implementation allows malformed control frames to bypass maximum concurrent streams limits, enabling resource exhaustion and distributed DDoS in multiple NetApp products.",
       "affectedProducts": [
-        "ONTAP",
-        "SnapCenter",
-        "Trident"
+        "Unknown"
       ],
       "affectedVersions": {
         "ontap": [
@@ -430,7 +438,9 @@
       "title": "Multiple Golang Vulnerabilities in NetApp Products including Trident",
       "description": "Multiple CVEs in bundled Golang components affect various NetApp products including Trident and Trident Protect. Advisory clarifies which CVEs are applicable per product version.",
       "affectedProducts": [
-        "Trident"
+        "ONTAP Tools for VMware vSphere",
+        "Astra Trident",
+        "Astra Control"
       ],
       "affectedVersions": {
         "trident": [
@@ -460,8 +470,10 @@
       "title": "Java Platform SE Hotspot Vulnerability in NetApp Products",
       "description": "A difficult-to-exploit vulnerability in Oracle Java SE Hotspot allows an unauthenticated network attacker to gain unauthorized read/write access to data accessible by the Java component in affected NetApp products.",
       "affectedProducts": [
-        "ONTAP",
-        "SnapCenter"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Brocade SAN Navigator",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {
         "ontap": [
@@ -838,7 +850,7 @@
       "title": "NetApp SAN Host Utilities for Windows Installer Local Privilege Escalation",
       "description": "The installer for SAN Host Utilities for Windows is susceptible to a local privilege escalation vulnerability. A local user could exploit this to modify data, disclose sensitive information, or cause DoS.",
       "affectedProducts": [
-        "SAN Host Utilities for Windows"
+        "SAN Host Utilities"
       ],
       "affectedVersions": {
         "sanHostUtils": [
@@ -1106,7 +1118,8 @@
       "title": "MySQL Server Vulnerabilities in NetApp Management Products (Oracle CPU Recurring)",
       "description": "Multiple advisories are periodically issued for MySQL vulnerabilities in bundled MySQL components across NetApp management products (SnapCenter, Active IQ Unified Manager). Arise from Oracle Critical Patch Updates.",
       "affectedProducts": [
-        "SnapCenter"
+        "SnapCenter",
+        "Active IQ Unified Manager"
       ],
       "affectedVersions": {
         "snapcenter": [
@@ -1210,7 +1223,7 @@
       "title": "ONTAP Apache HTTP Server Content-Type Legacy Config Source Disclosure",
       "description": "A vulnerability in Apache HTTP Server (CVE-2024-40725) related to incorrect handling of legacy content-type configurations can lead to source code disclosure of local content (e.g., PHP scripts served instead of interpreted) in ONTAP.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1445,7 +1458,10 @@
       "title": "OpenSSL Stack Buffer Overflow in CMS AuthEnvelopedData — ONTAP 9.18.1",
       "description": "Stack buffer overflow in OpenSSL (3.0–3.6) when parsing CMS (Auth)EnvelopedData messages with maliciously crafted AEAD parameters. Could enable remote code execution or DoS. Affects ONTAP 9.18.1 which incorporates vulnerable OpenSSL 3.x. SnapCenter confirmed NOT affected.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware",
+        "Brocade SAN Navigator"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1573,7 +1589,10 @@
       "title": "ONTAP OpenSSL TLSv1.3 Unbounded Memory Growth DoS",
       "description": "A Denial of Service vulnerability in OpenSSL TLSv1.3 causes unbounded memory growth in non-default configurations using SSL_OP_NO_TICKET. Affects multiple NetApp products including ONTAP.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1605,7 +1624,13 @@
       "title": "Linux Kernel Vulnerability — StorageGRID Hotfix Required",
       "description": "A Linux kernel vulnerability affecting StorageGRID and other NetApp products. Successful exploitation could lead to disclosure of sensitive information or Denial of Service. A StorageGRID hotfix 11.9.0.7 is required; reboot of affected nodes required post-patch.",
       "affectedProducts": [
-        "StorageGRID"
+        "ONTAP Tools for VMware vSphere",
+        "StorageGRID",
+        "SnapCenter",
+        "Active IQ Unified Manager",
+        "SANtricity/E-Series",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "storagegrid": [
@@ -1701,7 +1726,7 @@
       "title": "Node.js Denial of Service in Multiple NetApp Products",
       "description": "Node.js DoS vulnerability affecting multiple NetApp products that bundle Node.js (≤18.19.0, 19.x–20.11.0, 21.x–21.6.1) including Active IQ Unified Manager, ONTAP tools for VMware vSphere, and others. Remote unauthenticated attacker can cause service unavailability.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1733,7 +1758,7 @@
       "title": "Golang x/net/html DOM Construction XSS — Trident / NetApp Products",
       "description": "XSS/DOM manipulation vulnerability in golang.org/x/net/html tokenizer (prior to 0.38.0). HTML tokenizer incorrectly interprets unquoted attribute values ending in a solidus (/) as self-closing tags, causing incorrect DOM construction and potential XSS in foreign content (math/svg contexts). Affects NetApp Trident and other Golang-based products.",
       "affectedProducts": [
-        "Trident"
+        "Astra Control"
       ],
       "affectedVersions": {
         "trident": [
@@ -1765,7 +1790,7 @@
       "title": "FreeBSD UMTX Use-After-Free — ONTAP 9 Kernel Privilege Escalation (CVSS 10.0)",
       "description": "Use-After-Free in FreeBSD kernel UMTX subsystem (UMTX_SHM_DESTROY). Race condition on concurrent anonymous shared memory unmapping leads to kernel panic, arbitrary code execution at kernel privilege, or Capsicum sandbox bypass. All ONTAP 9 versions incorporating FreeBSD ≤14.1p3 are potentially affected.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1897,7 +1922,9 @@
       "title": "ISC BIND DNS Flood DoS — ONTAP 9 DNS Load Balancing",
       "description": "ISC BIND vulnerability (CVE-2024-0760): remote attacker can flood DNS messages over TCP causing DNS service instability (DoS). Affects ONTAP 9 v9.14.1+ systems configured for DNS load balancing.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1929,7 +1956,7 @@
       "title": "7-Zip MoTW Bypass in Active IQ Unified Manager — Arbitrary Code Execution Risk",
       "description": "Mark-of-the-Web (MoTW) Bypass in 7-Zip < 24.09 (CVE-2025-0411): When extracting archives from untrusted sources, 7-Zip fails to propagate the Windows security marker to extracted files, allowing bypass of Windows security warnings and potential code execution. Affects Active IQ Unified Manager 9.16x bundling 7-Zip 23.x/24.x < 24.09.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {
         "ontap": [
@@ -1997,7 +2024,7 @@
       "title": "ONTAP Select Deploy Hard-Coded Default Credentials",
       "description": "Hard-coded (default) credentials in ONTAP Select Deploy administration utility (CVE-2024-21990) could allow unauthorized access to configuration data or credential modification by any party with network access to the Deploy utility.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {
         "ontap": [
@@ -2127,7 +2154,7 @@
       "title": "OpenSSH ProxyCommand Injection via Control Characters — Multiple NetApp Products",
       "description": "OpenSSH client vulnerabilities: CVE-2025-61984 allows control characters in usernames via ProxyCommand %n expansion to cause code execution; CVE-2025-61985 allows null characters in ssh:// URIs with ProxyCommand to achieve code execution. ONTAP 9 confirmed NOT susceptible. Affects other NetApp products using OpenSSH client < 10.1.",
       "affectedProducts": [
-        "ONTAP"
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {
         "ontap": [
@@ -2191,7 +2218,7 @@
       "title": "7-Zip Archive Processing Vulnerability — Multiple NetApp Products",
       "description": "7-Zip vulnerability (CVE-2025-11002) leading to potential data disclosure, modification, or DoS when processing specially crafted archive files. Affects multiple NetApp products bundling 7-Zip < 25.x.",
       "affectedProducts": [
-        "ONTAP"
+        "Active IQ Unified Manager"
       ],
       "affectedVersions": {
         "ontap": [
@@ -2255,7 +2282,7 @@
       "title": "Active IQ Config Advisor 6.7.3 — Hard-Coded Credentials (CVE-2026-22054)",
       "description": "Hard-coded credentials in Active IQ Config Advisor 6.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations. NetApp has noted public discussion of this vulnerability exists. Affects the standalone diagnostic tool, not ONTAP cluster software. CVSS v4.0 5.3 (AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:N/SA:N).",
       "affectedProducts": [
-        "Active IQ Config Advisor"
+        "Active IQ Unified Manager"
       ],
       "affectedVersions": {
         "generic": [
@@ -2287,7 +2314,7 @@
       "title": "Active IQ OneCollect 2.7.3 — Hard-Coded Credentials (CVE-2026-22055)",
       "description": "Companion advisory to NTAP-20260603-0001. Hard-coded credentials in Active IQ OneCollect 2.7.3 allow an authenticated low-privilege attacker to perform unauthorized AutoSupport operations via the same credential class of vulnerability. NetApp is aware of public discussion; no known in-the-wild exploitation reported as of 2026-07-13. Both advisories (0001/0002) were bundled together under CERT-FR CERTFR-2026-AVI-0686. Affects the standalone data-collection tool, not ONTAP cluster software. CVSS v4.0 5.3 (AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:N/VA:N/SC:L/SI:N/SA:N).",
       "affectedProducts": [
-        "Active IQ OneCollect"
+        "Active IQ Unified Manager"
       ],
       "affectedVersions": {
         "generic": [
@@ -2322,9 +2349,7 @@
       "title": "Ingress NGINX Controller Vulnerabilities in NetApp Products (IngressNightmare)",
       "description": "Multiple critical and high-severity vulnerabilities in the Ingress NGINX controller (collectively known as 'IngressNightmare') affect NetApp products that bundle Ingress NGINX as a component, primarily BlueXP and Kubernetes-adjacent NetApp integrations. CVE-2025-1974 (CVSS 9.8) allows unauthenticated remote code execution via the Kubernetes admission controller webhook when accessible from within the pod network. Not core ONTAP cluster software. Check applicability against your specific product/version using the NetApp advisory.",
       "affectedProducts": [
-        "BlueXP",
-        "Astra Control Center",
-        "NetApp Kubernetes-adjacent components"
+        "Unknown"
       ],
       "affectedVersions": {
         "generic": [
@@ -2356,7 +2381,8 @@
       "title": "CVE-2026-21441 Urllib3 Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Urllib3. Urllib3 versions 1.22 prior to 2.6.3 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Element Software / NetApp HCI",
+        "NetApp Data Classification"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -2430,7 +2456,9 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1, and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2453,7 +2481,7 @@
       "title": "CVE-2026-41855 Spring Framework Vulnerability in NetApp Products",
       "description": "Spring Framework versions prior to 6.2.19 and 7.0.0-m1 prior to 7.0.8 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2476,7 +2504,7 @@
       "title": "CVE-2026-66909 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2499,7 +2527,7 @@
       "title": "CVE-2026-63687 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2522,7 +2550,7 @@
       "title": "CVE-2026-57818 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2545,7 +2573,8 @@
       "title": "CVE-2026-11972 Python Vulnerability in NetApp Products",
       "description": "Python versions 2.3 through 3.10.20, 3.11.0a1 through 3.11.15, 3.12.0a1 through 3.12.13, 3.13.0a1 through 3.13.14, 3.14.0a1 through 3.14.6, and 3.15.0a1 through 3.15.0b3 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2568,7 +2597,7 @@
       "title": "CVE-2026-68079 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2592,7 +2621,8 @@
       "title": "April 2026 Kerberos Vulnerabilities in NetApp Products",
       "description": "Kerberos versions prior to 1.22.3 are susceptible to vulnerabilities which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2615,7 +2645,8 @@
       "title": "CVE-2024-27012 Linux Kernel Vulnerability in NetApp Products",
       "description": "Certain Linux kernel versions are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2639,7 +2670,9 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1, and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2708,7 +2741,7 @@
       "title": "CVE-2026-23066 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 4.11 prior to 6.18.8 and 6.19-rc1 through 6.19-c6 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -2735,7 +2768,8 @@
       "title": "CVE-2026-33814 Golang Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. Golang versions prior to 1.25.10 and 1.26.0 prior to 1.26.3 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "Astra Trident"
+        "Astra Trident",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -2762,7 +2796,7 @@
       "title": "CVE-2026-61466 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2785,7 +2819,7 @@
       "title": "CVE-2026-68481 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2808,7 +2842,8 @@
       "title": "CVE-2026-15308 CPython Vulnerability in NetApp Products",
       "description": "CPython versions prior to 3.15.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2831,7 +2866,7 @@
       "title": "CVE-2026-42496 Archive-Tar Vulnerability in NetApp Products",
       "description": "Archive-Tar versions prior to 3.08 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2854,7 +2889,7 @@
       "title": "CVE-2026-57817 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions 4.2.0 prior to 4.2.3, 4.0.0 prior to 4.1.8, prior to 3.6.12 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2877,7 +2912,8 @@
       "title": "CVE-2026-3644 Python Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Python. Certain versions of Python are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2900,7 +2936,7 @@
       "title": "CVE-2026-22741 Spring Framework Vulnerability in NetApp Products",
       "description": "Spring Framework versions 7.0.0 through 7.0.6, 6.2.0 through 6.2.17, 6.1.0 through 6.1.26, and 5.3.0 through 5.3.47 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2923,7 +2959,7 @@
       "title": "CVE-2026-65432 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2946,7 +2982,7 @@
       "title": "CVE-2026-14456 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, and 3.5 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2969,7 +3005,7 @@
       "title": "CVE-2026-65583 Apache CXF Vulnerability in NetApp Products",
       "description": "Apache CXF versions prior to 3.6.12, 4.0.0 prior to 4.1.8, and 4.2.0 prior to 4.2.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -2992,7 +3028,7 @@
       "title": "CVE-2026-68763 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.39 through 9.0.120, and 8.5.59 through 8.5.100 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3016,7 +3052,8 @@
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "SANtricity/E-Series"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -3043,7 +3080,9 @@
       "title": "CVE-2025-37997 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux Kernel. Linux Kernel version 5.6-rc4 is susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "SANtricity/E-Series",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -3074,7 +3113,10 @@
       "title": "March 2026 GNU C Library (glibc) Vulnerabilities in NetApp Products",
       "description": "Multiple NetApp products incorporate GNU C Library. GNU C Library (glibc) versions 2.34 through 2.43 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "SANtricity/E-Series",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -3101,7 +3143,7 @@
       "title": "CVE-2026-46304 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 4.9.68 through 4.9.337, 4.10-rc6 through 5.10.257, 5.11-rc1 through 5.15.208, 5.16-rc1 through 6.1.174, 6.2-rc1 through 6.6.139, 6.7-rc1 through 6.12.87, 6.13-rc1 through 6.18.29, 6.19-rc1 through 7.0.6, and 7.1-rc1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3124,7 +3166,7 @@
       "title": "CVE-2026-53362 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 6.0-rc1 through 6.1.176, 6.13-rc1 through 6.18.37, 6.19-rc1 through 7.1.2, 6.2-rc1 through 6.6.143, and 6.7-rc1 through 6.12.94 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3151,7 +3193,9 @@
       "title": "CVE-2026-35387 OpenSSH Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSH. OpenSSH versions prior to 10.3 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "SANtricity/E-Series",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -3181,7 +3225,7 @@
       "title": "CVE-2026-63072 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, and 1.1.1 are susceptible to a vulnerability which when successfully exploited could allow an attacker who supplies a crafted CMS message to trigger a deterministic 8-byte out-of-bounds heap write when the victim decrypts it with CMS_decrypt(), corrupting the heap and typically resulting in a Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3204,7 +3248,7 @@
       "title": "CVE-2026-63075 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, and 3.4 are susceptible to a vulnerability which when successfully exploited could allow a remote peer that can complete a QUIC handshake to cause connection-scoped memory growth which may lead to Denial of Service (DoS). ",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3228,7 +3272,7 @@
       "title": "June 2026 Apache Tomcat Vulnerabilities in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.22, 10.1.0-M1 through 10.1.55, 9.0.0.M1 through 9.0.118, 8.5.0 through 8.5.100, 7.0.0 through 7.0.109 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3251,7 +3295,7 @@
       "title": "CVE-2026-18798 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, and 3.5 are susceptible to a vulnerability which when successfully exploited could lead to a double free resulting in heap corruption, which typically results in termination of QUIC server process, leading to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3274,7 +3318,7 @@
       "title": "CVE-2026-75803 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, 3.4, and 3.0 are susceptible to a vulnerability which when successfully exploited could lead to applications calling EVP_Cipher() accepting forged messages.\r\n",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3297,7 +3341,7 @@
       "title": "CVE-2026-63076 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, 3.4, and 3.0 are susceptible to a vulnerability which when successfully exploited could allow a remote, unauthenticated attacker to crash an application acting as a CMP server that accepts PBM-protected messages, or a CMP client talking to a malicious or intercepted CMP server, resulting in a Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3320,7 +3364,7 @@
       "title": "CVE-2026-54513 FasterXML Jackson Databind Vulnerability in NetApp Products",
       "description": "FasterXML Jackson Databind versions 2.10.0-pr1 through 2.18.7, 2.10.0-pr1 through 2.18.7, 2.19.0-rc2 through 2.21.3, 2.19.0-rc2 through 2.21.3, 3.0.0-rc1 through 3.1.3, and 3.0.0-rc1 through 3.1.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3343,7 +3387,8 @@
       "title": "CVE-2026-63074 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, 3.4, and 3.0 are susceptible to a vulnerability which when successfully exploited could lead to users utilizing a CMP server that reuses a single OSSL_CMP_CTX for the lifetime of a server process observing unbounded memory growth in the event that a malicious client repeatedly sends requests containing unique extra certificates, potentially leading to OOM conditions.",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3394,7 +3439,8 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, and 3.5 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3417,7 +3463,7 @@
       "title": "CVE-2026-63073 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, and 3.4 are susceptible to a vulnerability which when successfully exploited could allow a malicious or intercepted CMP endpoint to crash a CMP client that enforces an expected sender or uses a pinned server certificate whose subject becomes the default expected sender.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3464,7 +3510,7 @@
       "title": "CVE-2026-54512 FasterXML Jackson Databind Vulnerability in NetApp Products",
       "description": "FasterXML Jackson Databind versions 2.10.0-pr1 through 2.18.7, 2.10.0-pr1 through 2.18.7, 2.19.0-rc2 through 2.21.3, 2.19.0-rc2 through 2.21.3, 3.0.0-rc1 through 3.1.3, and 3.0.0-rc1 through 3.1.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3487,7 +3533,7 @@
       "title": "CVE-2026-59888 FasterXML Jackson Databind Vulnerability in NetApp Products",
       "description": "FasterXML Jackson Databind versions 2.15.0-rc1 through 2.18.7, 2.19.0-rc2 through 2.21.3, and 3.0.0-rc1 through 3.1.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3510,7 +3556,7 @@
       "title": "CVE-2026-14457 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, and 3.4 are susceptible to a vulnerability which when successfully exploited could cause an application abort leading to a Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3533,7 +3579,7 @@
       "title": "CVE-2026-59889 FasterXML Jackson Databind Vulnerability in NetApp Products",
       "description": "FasterXML Jackson Databind versions 2.18.0-rc1 through 2.18.8, 2.18.0-rc1 through 2.18.8, 2.21.0 through 2.21.4, 2.21.0 through 2.21.4, 2.22.0 through 2.22.0, 2.22.0 through 2.22.0, 3.0.0-rc1 through 3.1.4, 3.0.0-rc1 through 3.1.4, 3.2.0 through 3.2.0, and 3.2.0 through 3.2.0 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3556,7 +3602,7 @@
       "title": "CVE-2026-60311 MySQL Server Vulnerability in NetApp Products",
       "description": "MySQL Server versions 9.0.0 through 9.7.1 are susceptible to a vulnerability which when successfully exploited could allow a low privileged attacker with network access via multiple protocols to compromise MySQL Server. Refer to “Oracle Critical Patch Update Advisory - July 2026” for additional details.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3579,7 +3625,7 @@
       "title": "CVE-2026-66422 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 1.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.25 through 9.0.120, 8.5.46 through 8.5.100 (EOL), and 7.0.97 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3602,7 +3648,7 @@
       "title": "CVE-2026-4800 Lodash Vulnerability in NetApp Products",
       "description": "Lodash versions 1.0.0 through 4.17.23 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3625,7 +3671,7 @@
       "title": "CVE-2026-31589 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 5.15 through 6.18.39 and 6.19.0 through 7.1.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3672,7 +3718,7 @@
       "title": "CVE-2026-64391 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 5.15 through 6.12.95, 6.13 through 6.18.38, and 6.19.0 through 7.1.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3695,7 +3741,7 @@
       "title": "CVE-2026-64531 Linux Kernel Vulnerability in NetApp Products",
       "description": "Certain Linux kernel versions are susceptible to a vulnerability referred to as OVSwrap which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3741,7 +3787,7 @@
       "title": "CVE-2026-26143 Microsoft PowerShell Vulnerability in NetApp Products",
       "description": "Microsoft PowerShell versions 7.2.0-preview2 through 7.4.13, 7.5.0-preview1 through 7.5.4 and 7.6.0-preview1 through 7.6.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3764,7 +3810,7 @@
       "title": "CVE-2026-41839 Spring Framework Vulnerability in NetApp Products",
       "description": "Spring Framework versions 7.0.0 through 7.0.7, 6.2.0 through 6.2.18, 6.1.0 through 6.1.27, and 5.3.0 through 5.3.48 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3797,7 +3843,7 @@
       "title": "July 2026 MySQL Server 9.7.0 Vulnerabilities in NetApp Products",
       "description": "MySQL Server versions 9.7.0 through 9.7.1 are susceptible to vulnerabilities that allow low or high privileged attackers with network access via multiple protocols to compromise MySQL Server or low privileged attackers with logon to the infrastructure where MySQL Server executes to compromise MySQL Server. Refer to “Oracle Critical Patch Update Advisory - July 2026” for additional details.\r\n",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3880,7 +3926,9 @@
       "description": "GnuTLS versions prior to 3.8.13 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -3908,7 +3956,8 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, and 3.4 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3931,7 +3980,8 @@
       "title": "CVE-2026-28389 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3954,7 +4004,9 @@
       "title": "CVE-2026-0915 Glibc Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Glibc. Glibc versions 2.0 through 2.42 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -3977,7 +4029,7 @@
       "title": "CVE-2026-23231 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
+        "ONTAP Tools for VMware vSphere",
         "Active IQ Unified Manager"
       ],
       "affectedVersions": {},
@@ -4005,7 +4057,7 @@
       "title": "CVE-2026-46307 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 3.0-rc1 through 5.10.257, 5.11-rc1 through 5.15.208, 5.16-rc1 through 6.1.174, 6.2-rc1 through 6.6.139, 6.7-rc1 through 6.12.87, 6.13-rc1 through 6.18.29, 6.19-rc1 through 7.0.6, and 7.1-rc1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4028,8 +4080,10 @@
       "title": "CVE-2026-4046 GNU C Library (glibc) Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate GNU C Library (glibc). Glibc versions through 2.43 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
-        "Active IQ Unified Manager"
+        "ONTAP Tools for VMware vSphere",
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4056,7 +4110,7 @@
       "title": "CVE-2026-46303 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 3.18.2 through 5.10.257, 5.11 through 5.15.208, 5.16 through 6.1.174, 6.2 through 6.6.139, 6.7 through 6.12.87, 6.13 through 6.18.29, 6.19 through 7.0.6 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4079,7 +4133,7 @@
       "title": "CVE-2026-23098 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4106,7 +4160,7 @@
       "title": "CVE-2026-66035 Libssh2 Vulnerability in NetApp Products",
       "description": "Libssh2 versions through 1.11.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4129,7 +4183,7 @@
       "title": "CVE-2026-66034 Libssh2 Vulnerability in NetApp Products",
       "description": "Libssh2 versions through 1.11.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4152,7 +4206,7 @@
       "title": "CVE-2026-35386 OpenSSH Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSH. OpenSSH versions prior to 10.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4176,7 +4230,9 @@
       "description": "Multiple NetApp products incorporate Libcurl. Libcurl versions 7.10.6 prior to 8.19.0 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4209,7 +4265,7 @@
       "title": "CVE-2026-58089 FreeBSD Vulnerability in NetApp Products",
       "description": "All supported versions of FreeBSD are susceptible to a vulnerability which when successfully exploited could allow an unprivileged local user who has attached PMCs to a process to continue monitoring it after the process executes a setuid or setgid binary.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4233,7 +4289,9 @@
       "description": "Multiple NetApp products incorporate Libcurl. Libcurl versions 7.7 prior to 8.19.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4291,7 +4349,9 @@
       "description": "Multiple NetApp products incorporate Libcurl. Libcurl versions 7.33.0 prior to 8.19.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4324,7 +4384,7 @@
       "title": "CVE-2026-3805 Libcurl Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Libcurl. Libcurl versions 8.13.0 prior to 8.19.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4384,7 +4444,7 @@
       "title": "CVE-2026-8927 Libcurl Vulnerability in NetApp Products",
       "description": "Libcurl versions 7.12.0 prior to 8.21.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4408,7 +4468,9 @@
       "description": "Multiple NetApp products incorporate Libcurl. Libcurl versions 7.31.0 through 8.15.0 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4469,7 +4531,9 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1, and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4492,7 +4556,8 @@
       "title": "CVE-2026-43503 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 3.9-rc1 through 5.10.256, 5.11-rc1 through 5.15.207, 5.16-rc1 through 6.1.173, 6.13-rc1 through 6.18.32, 6.19-rc1 through 7.0.9, 6.2-rc1 through 6.6.140, 6.7-rc1 through 6.12.90 and 7.1-rc1 through 7.1-rc4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4515,7 +4580,7 @@
       "title": "CVE-2026-58092 FreeBSD Vulnerability in NetApp Products",
       "description": "FreeBSD versions 15.0 and later are susceptible to a vulnerability which when successfully exploited could allow certain mac_do rules to be abused to set a process' group ID to 0.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4538,7 +4603,8 @@
       "title": "CVE-2026-31789 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4562,7 +4628,9 @@
       "description": "Multiple NetApp products incorporate GNU C. GNU C Library (aka glibc) versions 2.30 through 2.42 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "Astra Trident",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4589,7 +4657,7 @@
       "title": "CVE-2026-24051 OpenTelemetry-Go Vulnerability in NetApp Products",
       "description": "OpenTelemetry-Go versions 1.21.0 through 1.39.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4617,7 +4685,9 @@
       "description": "Multiple NetApp products incorporate libcurl. Libcurl versions 7.33.0 through 8.17.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.\r\n\r\n",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4650,7 +4720,7 @@
       "title": "CVE-2026-31402 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain Linux kernel versions are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4677,7 +4747,7 @@
       "title": "CVE-2026-39883 OpenTelemetry-Go Vulnerability in NetApp Products",
       "description": "OpenTelemetry-Go versions 1.15.0 through 1.42.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -4704,7 +4774,7 @@
       "title": "CVE-2026-1485 GLib Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate GLib. GLib versions through 2.86.3 and 2.87.0 through 2.87.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4727,7 +4797,7 @@
       "title": "CVE-2026-13321 ISC BIND Vulnerability in NetApp Products",
       "description": "ISC BIND versions 9.11.0 through 9.18.50, 9.20.0 through 9.20.24, and 9.21.0 through 9.21.23 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4837,7 +4907,7 @@
       "title": "CVE-2026-27141 Golang Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. golang.org/x/net/http2 versions 0.50.0 prior to 0.51.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4860,7 +4930,7 @@
       "title": "CVE-2026-8924 Libcurl Vulnerability in NetApp Products",
       "description": "Libcurl versions 7.46.0 prior to 8.21.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4883,7 +4953,7 @@
       "title": "CVE-2026-58224 Samba Vulnerability in NetApp Products",
       "description": "Samba versions 4.2 and higher are susceptible to a vulnerability which when successfully exploited could result in Denial of Service (DoS) and possible limited disclosure of adjacent memory allocations.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4916,7 +4986,7 @@
       "title": "April 2026 Apache Thrift Vulnerabilities in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Thrift. Apache Thrift versions prior to 0.23.0 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -4980,8 +5050,9 @@
       "title": "April 2026 Golang Vulnerabilities in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. Golang versions prior to 1.25.9 and 1.26.0-0 prior to 1.26.2 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
-        "Astra Trident"
+        "ONTAP Tools for VMware vSphere",
+        "Astra Trident",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5011,7 +5082,8 @@
       "title": "CVE-2026-53359 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 2.6.36-rc1 through 6.1.176, 6.13-rc1 through 6.18.37, 6.19-rc1 through 7.1.2, 6.2-rc1 through 6.6.143 and 6.7-rc1 through 6.12.94 are susceptible to a vulnerability referred to as Januscape which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5065,7 +5137,7 @@
       "title": "CVE-2026-66299 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M20 through 11.0.24, 10.1.24 through 10.1.57, and 9.0.89 through 9.0.120 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5088,7 +5160,7 @@
       "title": "CVE-2026-65927 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, and 9.0.0.M1 through 9.0.120 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5111,7 +5183,7 @@
       "title": "CVE-2026-65183 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, and 9.0.42 through 9.0.120 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5134,7 +5206,7 @@
       "title": "CVE-2026-68525 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.0 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5157,7 +5229,7 @@
       "title": "CVE-2026-65905 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57,  9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.30 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5180,7 +5252,7 @@
       "title": "CVE-2026-65637 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.20 through 11.0.24, 10.1.53 through 10.1.57, and 9.0.115 through 9.0.120 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5208,7 +5280,7 @@
       "title": "June 2026 Golang.Org/X/Net Vulnerabilities in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. Golang.Org/X/Net versions prior to 0.55.0 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5231,7 +5303,7 @@
       "title": "CVE-2026-25639 Axios Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Axios. Axios versions prior to 0.30.3 prior and to 1.13.5 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5262,7 +5334,9 @@
       "description": "Multiple NetApp products incorporate GNU C. Certain versions of GNU C Library (glibc) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5316,7 +5390,9 @@
       "title": "CVE-2023-4911 GNU C Library (glibc) Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate GNU C. GNU C Library (glibc) is susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5353,7 +5429,8 @@
       "title": "July 2026 Java Platform Standard Edition 8u491, 8u491-perf, 11.0.31, 17.0.19, 21.0.11, 25.0.3, 26.0.1 Vulnerabilities in NetApp Products",
       "description": "Java SE versions 8u491, 8u491-perf, 11.0.31, 17.0.19, 21.0.11, 25.0.3, and 26.0.1 are susceptible to vulnerabilities that could allow an unauthenticated attacker with network access via multiple protocols including TLS to compromise Oracle Java SE. Refer to “Oracle Critical Patch Update Advisory - July 2026” for additional details.",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5376,7 +5453,9 @@
       "title": "CVE-2025-69420 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3, 3.0 and 1.1.1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI",
+        "Brocade SAN Navigator"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5409,7 +5488,7 @@
       "title": "CVE-2025-39839 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5432,7 +5511,7 @@
       "title": "CVE-2026-55953 Erlang/OTP Vulnerability in NetApp Products",
       "description": "Erlang/OTP versions R13B03 prior to 27.3.4.15, from 28.0 prior to 28.5.0.4, and from 29.0 prior to 29.0.4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5455,7 +5534,7 @@
       "title": "CVE-2026-64534 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions prior to 5.10.261, 5.11.0 prior to 5.15.212, 5.16.0 prior to 6.1.178, 6.2.0 prior to 6.6.145, 6.7.0 prior to 6.12.97, 6.13.0 prior to 6.18.40, and 6.19.0 prior to 7.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5478,7 +5557,8 @@
       "title": "CVE-2025-7783 Form-Data Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate form-data. Form-data versions prior to 4.0.4, prior to 3.0.4 and prior to 2.5.4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5539,7 +5619,9 @@
       "title": "CVE-2024-33599 GNU C Library (glibc) Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate GNU C. GNU C Library (glibc) versions 2.15 through 2.39.9000 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5625,7 +5707,7 @@
       "title": "CVE-2026-64535 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 5.10.20 prior to 5.11, 5.11.3 prior to 5.12, 5.12 prior to 6.1.178, 6.2.0 prior to 6.6.145, 6.7.0 prior to 6.12.97, 6.13.0 prior to 6.18.40, and 6.19.0 prior to 7.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5705,7 +5787,7 @@
       "title": "CVE-2023-5156 Glibc Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Glibc. Glibc versions 2.34 prior to 2.39 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5728,7 +5810,9 @@
       "title": "CVE-2023-4806 GNU C Library (glibc) Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate GNU. GNU C Library (glibc) version 2.33 is susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5751,7 +5835,8 @@
       "title": "CVE-2025-3277 SQLite Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate SQLite. Certain versions of SQLite are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5828,7 +5913,9 @@
       "title": "CVE-2025-4802 GNU C Library (glibc) Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate GNU C Library. GNU C Library versions 2.27 through 2.38 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -5855,7 +5942,7 @@
       "title": "CVE-2026-73283 OpenSSH Vulnerability in NetApp Products",
       "description": "OpenSSH versions through 10.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5880,7 +5967,8 @@
       "title": "August 2026 Java SE Vulnerabilities in NetApp Products",
       "description": "Java SE versions 8u501, 11.0.32, 17.0.20, 21.0.12, 25.0.4, and 26.0.2 are susceptible to vulnerabilities that allow unauthenticated attackers with network access via multiple protocols (including HTTP and TLS) to compromise Oracle Java SE. Refer to “Oracle Critical Security Patch Update Advisory - August 2026” for additional details.",
       "affectedProducts": [
-        "ONTAP"
+        "SANtricity/E-Series",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5903,7 +5991,7 @@
       "title": "CVE-2026-22990 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Linux kernel versions through 5.10.247, 5.11-rc1 through 5.15.197, 5.16-rc1 through 6.1.160, 6.13-rc1 through 6.18.5, 6.19-rc1 through 6.19-rc4, 6.2-rc1 through 6.6.120 and 6.7-rc1 through 6.12.65 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5926,7 +6014,7 @@
       "title": "CVE-2026-44604 RPM Vulnerability in NetApp Products",
       "description": "RPM versions through 6.1.0-RC1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5949,7 +6037,10 @@
       "title": "CVE-2026-22796 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3, 3.0, 1.1.1 and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware",
+        "Brocade SAN Navigator"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -5972,7 +6063,7 @@
       "title": "CVE-2026-45292 OpenTelemetry Java Vulnerability in NetApp Products",
       "description": "OpenTelemetry Java versions through 1.61.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6001,7 +6092,8 @@
       "description": "Multiple NetApp products incorporate Java SE. Java SE versions 8u481, 8u481-b50, 8u481-perf, 11.0.30, 17.0.18, 21.0.10, 25.0.2 and 26 are susceptible to a vulnerability that could allow unauthenticated attacker with network access via HTTPS or multiple protocols or with logon to the infrastructure where Oracle Java SE executes to compromise Oracle Java SE. Successful attacks require human interaction from a person other than the attacker for CVE-2026-22013. Refer to “Oracle Critical Patch Update Advisory - April 2026” for additional details.\r\n\r\n",
       "affectedProducts": [
         "SnapCenter",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6051,7 +6143,7 @@
       "title": "CVE-2026-58222 Samba Vulnerability in NetApp Products",
       "description": "Samba Active Directory Domain Controller versions 4.0.0 and higher are susceptible to a vulnerability which when successfully exploited permits an ordinary authenticated domain user to bypass access checks and query confidential Active Directory attributes (such as KDS root keys) via LDAP Compare requests. Due to a filter injection flaw and trusted execution context, the LDAP Compare operation can be turned into a protected-attribute disclosure oracle.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6074,7 +6166,9 @@
       "title": "CVE-2026-28390 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -6101,7 +6195,7 @@
       "title": "CVE-2026-12617 ISC BIND Vulnerability in NetApp Products",
       "description": "ISC BIND versions 9.18.0 through 9.18.50 and 9.20.0 through 9.20.24 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6124,7 +6218,7 @@
       "title": "CVE-2026-59250 Erlang/OTP Vulnerability in NetApp Products",
       "description": "Erlang/OTP versions 17.0 prior to 29.0.4 and 28.5.0.4 prior to 27.3.4.15 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6147,7 +6241,7 @@
       "title": "CVE-2026-2391 Qs Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate qs. Qs versions 6.7.0 through 6.14.1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6170,7 +6264,7 @@
       "title": "CVE-2026-15571 Keycloak Vulnerability in NetApp Products",
       "description": "Keycloak versions prior to 26.7.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6195,7 +6289,7 @@
       "title": "June 2026 FreeBSD ZFS Vulnerabilities in NetApp Products",
       "description": "All supported versions of FreeBSD are susceptible to vulnerabilities in ZFS which when successfully exploited could allow local users with various permissions to trigger a kernel heap overflow, trigger kernel memory corruption or set the internal ZFS metadata flag \"$hasrecvd\" on datasets.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6242,7 +6336,7 @@
       "title": "CVE-2026-18963 Keycloak Vulnerability in NetApp Products",
       "description": "Keycloak versions prior to 26.7.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6297,7 +6391,7 @@
       "title": "CVE-2026-59873 Tar Vulnerability in NetApp Products",
       "description": "Tar versions prior to 7.5.19 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6320,7 +6414,7 @@
       "title": "CVE-2026-59874 Tar Vulnerability in NetApp Products",
       "description": "Tar versions prior to 7.5.18 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6343,7 +6437,7 @@
       "title": "CVE-2026-23949 Jaraco.Context Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Jaraco.Context. Jaraco.context versions 5.2.0 prior to 6.1.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -6373,7 +6467,8 @@
       "title": "January 2026 Java Platform Standard Edition Vulnerabilities in NetApp Products",
       "description": "Multiple NetApp products incorporate the Oracle Java Platform, Standard Edition (Java SE). Java SE versions 8u471, 8u471-b50, 8u471-perf, 11.0.29, 17.0.17, 21.0.9, and 25.0.1 are susceptible to vulnerabilities that could allow an unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE. Refer to “Oracle Critical Patch Update Advisory - January 2026” for additional details.\r\n",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6396,7 +6491,8 @@
       "title": "CVE-2026-59871 Tar Vulnerability in NetApp Products",
       "description": "Tar versions prior to 7.5.18 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6419,7 +6515,7 @@
       "title": "CVE-2026-8926 Libcurl Vulnerability in NetApp Products",
       "description": "Libcurl versions 8.11.1 prior to 8.21.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6442,7 +6538,8 @@
       "title": "CVE-2026-23095 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6465,7 +6562,7 @@
       "title": "CVE-2026-9079 Libcurl Vulnerability in NetApp Products",
       "description": "Libcurl versions 8.8.0 prior to 8.21.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6488,7 +6585,7 @@
       "title": "CVE-2026-11605 ISC BIND Vulnerability in NetApp Products",
       "description": "ISC BIND versions 9.20.0 through 9.20.24 and 9.21.0 through 9.21.23 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6511,7 +6608,7 @@
       "title": "CVE-2026-8925 Libcurl Vulnerability in NetApp Products",
       "description": "Libcurl versions 8.15.0 prior to 8.21.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6534,7 +6631,8 @@
       "title": "CVE-2026-59875 Tar Vulnerability in NetApp Products",
       "description": "Tar versions prior to 7.5.17 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6557,7 +6655,7 @@
       "title": "CVE-2026-44432 Urllib3 Vulnerability in NetApp Products",
       "description": "Urllib3 versions 2.6.0 prior to 2.7.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6580,7 +6678,7 @@
       "title": "CVE-2026-34282 Java Platform Standard Edition Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Oracle Java Platform, Standard Edition (Java SE). Java SE versions 8u481-perf, 11.0.30, 17.0.18, 21.0.10, 25.0.2 and 26 are susceptible to a vulnerability which when successfully exploited could allow unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE. Refer to “Oracle Critical Patch Update Advisory - April 2026” for additional details.",
       "affectedProducts": [
-        "ONTAP"
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6603,7 +6701,7 @@
       "title": "CVE-2026-42533 NGINX Vulnerability in NetApp Products",
       "description": "NGINX versions 1.15.8 through 1.30.3 and 1.31 through 1.31.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -6630,7 +6728,7 @@
       "title": "CVE-2026-27448 pyOpenSSL Vulnerability in NetApp Products",
       "description": "pyOpenSSL versions 0.14 prior to 26.0.0 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp Data Classification"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -6657,7 +6755,7 @@
       "title": "CVE-2026-60005 NGINX Vulnerability in NetApp Products",
       "description": "NGINX versions 1.15.8 prior to 1.30.4 and 1.31 prior to 1.31.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -6684,7 +6782,7 @@
       "title": "CVE-2026-42945 NGINX Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate NGINX. NGINX versions 0.6.27 through 0.9.7 and 1.0.0 through 1.30.0 are susceptible to a vulnerability referred to as NGINX Rift which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6707,7 +6805,7 @@
       "title": "CVE-2026-22801 Libpng Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate libpng. Libpng versions 1.6.26 prior to 1.6.54 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6730,7 +6828,7 @@
       "title": "CVE-2025-64506 Libpng Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate libpng. Libpng versions 1.6.0 prior to 1.6.51 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
+        "ONTAP Tools for VMware vSphere",
         "Active IQ Unified Manager"
       ],
       "affectedVersions": {},
@@ -6758,7 +6856,7 @@
       "title": "CVE-2026-2303 MongoDB Drivers Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate MongoDB Drivers. MongoDB Drivers versions prior to 1.17.7 and 2.0.0-alpha1 prior to 2.4.2 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6781,7 +6879,7 @@
       "title": "CVE-2026-42505 Golang Vulnerability in NetApp Products",
       "description": "Golang versions prior to 1.25.12, 1.26.0-0 prior to 1.26.5, and 1.27.0-0 prior to 1.27.0-rc.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6827,7 +6925,8 @@
       "title": "CVE-2026-23950 Node-Tar Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Node-Tar. Node-Tar versions through 7.5.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6850,7 +6949,7 @@
       "title": "CVE-2026-58218 Samba Vulnerability in NetApp Products",
       "description": "Samba versions 4.0 and higher are susceptible to a vulnerability which when successfully exploited could allow an unauthenticated user to practically block the use of DNS TSIG signing by repeatedly registering TKEY names, flooding a cache and causing legitimate TKEYs to be expunged.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6873,8 +6972,9 @@
       "title": "CVE-2025-8885 Bouncy Castle Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Bouncy Castle. Certain versions of Bouncy Castle are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
-        "Active IQ Unified Manager"
+        "ONTAP Tools for VMware vSphere",
+        "Active IQ Unified Manager",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -6901,7 +7001,7 @@
       "title": "CVE-2026-22695 Libpng Vulnerability in NetApp Products",
       "description": "Libpng versions 1.6.51 prior to 1.6.54 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -6970,7 +7070,7 @@
       "title": "CVE-2026-9256 NGINX Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate NGINX. NGINX versions prior to 1.30.2 and 1.31.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7016,7 +7116,8 @@
       "title": "CVE-2025-52565 Runc Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate runc. Runc versions prior to 1.2.8, prior to 1.3.3, and prior to 1.4.0-rc.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7043,7 +7144,7 @@
       "title": "CVE-2026-22988 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7066,7 +7167,7 @@
       "title": "CVE-2026-24842 Node-tar Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate node-tar. Node-tar versions prior to 7.5.7 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7089,7 +7190,7 @@
       "title": "CVE-2026-26007 pyca/cryptography Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate pyca/cryptography. Cryptography versions prior to 46.0.5 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7136,7 +7237,8 @@
       "title": "CVE-2026-42765 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0 and 3.6 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7159,7 +7261,7 @@
       "title": "CVE-2026-11564 Libcurl Vulnerability in NetApp Products",
       "description": "Libcurl versions 8.17.0 prior to 8.21.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7237,7 +7339,7 @@
       "title": "CVE-2026-33186 gRPC-Go Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate gRPC-Go. gRPC-Go versions prior to 1.79.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7287,7 +7389,7 @@
       "title": "CVE-2026-46306 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 6.0-rc1 through 6.1.174, 6.2-rc1 through 6.6.139, 6.7-rc1 through 6.12.87, 6.13-rc1 through 6.18.29, and 6.19-rc1 through 7.0.6 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7310,7 +7412,7 @@
       "title": "CVE-2026-11331 ISC BIND Vulnerability in NetApp Products",
       "description": "ISC BIND versions 9.16.0 through 9.18.50, 9.20.0 through 9.20.24, and 9.21.0 through 9.21.23 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7334,7 +7436,8 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, and 3.4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7357,7 +7460,8 @@
       "title": "CVE-2026-53655 Tar Vulnerability in NetApp Products",
       "description": "Tar (node-tar) versions prior to 7.5.16 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7380,7 +7484,10 @@
       "title": "CVE-2022-40735 Diffie-Hellman Key Exchange Protocol Vulnerability in NetApp Products",
       "description": "The Diffie-Hellman Key Exchange Protocol is susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "SANtricity/E-Series",
+        "Hardware BMC/Firmware",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7410,7 +7517,8 @@
       "title": "CVE-2026-3276 Python Vulnerability in NetApp Products",
       "description": "Python versions through 3.13.13, 3.14.0 through 3.14.5, and 3.15.0a1 through 3.15.0b1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7433,7 +7541,10 @@
       "title": "CVE-2024-41996 Diffie-Hellman Key Exchange Protocol Vulnerability in NetApp Products",
       "description": "The Diffie-Hellman Key Exchange Protocol is susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "SANtricity/E-Series",
+        "Hardware BMC/Firmware",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7463,7 +7574,10 @@
       "title": "CVE-2002-20001 Diffie-Hellman Key Exchange Protocol Vulnerability in NetApp Products",
       "description": "The Diffie-Hellman Key Exchange Protocol is susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "SANtricity/E-Series",
+        "Hardware BMC/Firmware",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7493,7 +7607,7 @@
       "title": "CVE-2026-49844 Apache Log4j Vulnerability in NetApp Products",
       "description": "Apache Log4j versions 2.13.1 through 2.25.4 and version 2.26.0 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7551,7 +7665,8 @@
       "description": "Multiple NetApp products incorporate the Linux kernel. Certain Linux kernel versions are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "StorageGRID"
+        "StorageGRID",
+        "SANtricity/E-Series"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7625,7 +7740,7 @@
       "title": "CVE-2025-68161 Apache Log4j Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Log4j. Apache Log4j versions 2.0-beta9 through 2.25.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7652,7 +7767,7 @@
       "title": "CVE-2025-22040 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7712,7 +7827,7 @@
       "title": "CVE-2026-35388 OpenSSH Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSH. OpenSSH versions prior to 10.3 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7735,7 +7850,7 @@
       "title": "CVE-2025-21947 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7762,7 +7877,7 @@
       "title": "CVE-2025-66614 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Tomcat. Certain versions of Apache Tomcat are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7785,7 +7900,7 @@
       "title": "CVE-2026-40701 NGINX Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate NGINX. NGINX versions 1.19.0 through 1.30.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7808,7 +7923,7 @@
       "title": "CVE-2026-24733 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Tomcat. Certain versions of Apache Tomcat are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7831,7 +7946,7 @@
       "title": "CVE-2025-37924 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel versions are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7885,7 +8000,8 @@
       "title": "CVE-2026-6253 Libcurl Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Libcurl. Libcurl versions 7.14.1 through 8.19.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7908,8 +8024,10 @@
       "title": "CVE-2026-22992 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
-        "Active IQ Unified Manager"
+        "ONTAP Tools for VMware vSphere",
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -7932,7 +8050,7 @@
       "title": "CVE-2025-68263 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -7959,7 +8077,7 @@
       "title": "CVE-2026-42934 NGINX Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate NGINX. NGINX versions 0.3.50 through 0.9.7 and 1.0.0 through 1.30.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8009,7 +8127,7 @@
       "title": "CVE-2026-34477 Apache Log4j Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Log4j. Apache Log4j versions 2.12.0 through 2.25.3 and 3.0.0-alpha1 through 3.0.0-beta3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8037,7 +8155,7 @@
       "title": "July 2026 Java Platform Standard Edition 8u491 Vulnerabilities in NetApp Products",
       "description": "Java SE version 8u491 is susceptible to vulnerabilities that could allow an unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE. Refer to “Oracle Critical Patch Update Advisory - July 2026” for additional details.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8060,7 +8178,7 @@
       "title": "CVE-2026-34480 Apache Log4j Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Log4j. Apache Log4j versions 2.0-alpha1 through 2.25.3 and 3.0.0-alpha1 through 3.0.0-beta3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8084,7 +8202,8 @@
       "description": "Multiple NetApp products incorporate zlib. Zlib versions prior to 1.3.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
         "Astra Trident",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8111,7 +8230,7 @@
       "title": "CVE-2026-60526 Java Platform Standard Edition Vulnerability in NetApp Products",
       "description": "Java SE versions 8u491 and 8u491-perf are susceptible to a vulnerability which when successfully exploited could allow a low privileged attacker with logon to the infrastructure where Oracle Java SE executes to compromise Oracle Java SE. Refer to “Oracle Critical Patch Update Advisory - July 2026” for additional details.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8157,7 +8276,7 @@
       "title": "CVE-2025-22041 Linux Kernel Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8240,7 +8359,9 @@
       "title": "CVE-2026-27137 Golang Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. Golang versions 1.26.0-0 prior to 1.26.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere",
+        "Astra Control",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8267,8 +8388,10 @@
       "title": "CVE-2025-61729 Golang Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. Golang versions prior to 1.24.11 and 1.25.0 prior to 1.25.5 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
-        "Astra Trident"
+        "ONTAP Tools for VMware vSphere",
+        "Astra Trident",
+        "Astra Control",
+        "Data Infrastructure Insights"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8298,7 +8421,7 @@
       "title": "CVE-2025-23015 Apache Cassandra Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Cassandra. Apache Cassandra versions 3.0.0 through 3.0.30, 3.1.0 through 3.11.17, 4.0.0 through 4.0.15, Apache Cassandra 4.1.0 through 4.1.7 and 5.0.0 through 5.0.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8321,7 +8444,8 @@
       "title": "CVE-2025-49794 Libxml2 Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate libxml2. Libxml2 versions through 2.14.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8351,7 +8475,7 @@
       "title": "CVE-2025-27818 Apache Kafka Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Kafka. Apache Kafka versions 2.3.0 through 3.9.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8374,7 +8498,7 @@
       "title": "CVE-2025-5372 Libssh Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate libssh. Libssh versions built with OpenSSL versions older than 3.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8397,7 +8521,7 @@
       "title": "CVE-2025-27819 Apache Kafka Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Kafka. Apache Kafka versions  2.0.0 through 3.3.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8420,7 +8544,9 @@
       "title": "CVE-2025-15467 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3 and 3.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI",
+        "Brocade SAN Navigator"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8466,7 +8592,7 @@
       "title": "CVE-2025-32463 Sudo Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate sudo. Sudo versions 1.9.14 prior to 1.9.17p1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8493,7 +8619,7 @@
       "title": "CVE-2026-54369 Acl Vulnerability in NetApp Products",
       "description": "Acl versions prior to 2.4.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8516,7 +8642,7 @@
       "title": "CVE-2025-54988 Apache Tika Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Tika. Apache Tika versions 1.13 prior to 3.2.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8539,7 +8665,9 @@
       "title": "CVE-2026-43499 Linux Kernel Vulnerability in NetApp Products",
       "description": "Linux kernel versions 2.6.39-rc1 through 6.6.139, 6.13-rc1 through 6.18.26, 6.19-rc1 through 7.0.3, and 6.7-rc1 through 6.12.85 are susceptible to a vulnerability referred to as GhostLock which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8566,7 +8694,8 @@
       "title": "CVE-2026-0672 Python Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Python. Certain versions of Python are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data.",
       "affectedProducts": [
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8589,7 +8718,7 @@
       "title": "CVE-2025-66516 Apache Tika Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Tika. Certain versions of Apache Tika are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8612,7 +8741,7 @@
       "title": "CVE-2025-66293 Libpng Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate libpng. Libpng versions prior to 1.6.52 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8635,8 +8764,9 @@
       "title": "CVE-2026-25679 Golang Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Golang. Golang versions prior to 1.25.8 and 1.26.0-0 prior to go1.26.1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
-        "Astra Trident"
+        "ONTAP Tools for VMware vSphere",
+        "Astra Trident",
+        "Astra Control"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8677,7 +8807,8 @@
       "description": "OpenSSH versions prior to 10.4 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "SANtricity/E-Series"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8700,7 +8831,7 @@
       "title": "CVE-2026-54876 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 3.6.0 prior to 3.6.4 and 4.0.0 prior to 4.0.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8723,7 +8854,7 @@
       "title": "CVE-2026-73180 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.43 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8747,7 +8878,9 @@
       "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8770,7 +8903,7 @@
       "title": "CVE-2026-68569 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.0 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8793,7 +8926,7 @@
       "title": "CVE-2026-54874 OpenSSL Vulnerability in NetApp Products",
       "description": "OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1 and 1.0.2 are susceptible to a vulnerability which when successfully exploited could allow a peer to use a small amount of network traffic to make an OpenSSL DTLS endpoint retain a disproportionately large amount of memory, which may lead to a Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8895,7 +9028,7 @@
       "title": "CVE-2026-24880 Apache Tomcat Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate Apache Tomcat. Certain versions of Apache Tomcat are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP Tools for VMware vSphere"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8918,7 +9051,9 @@
       "title": "CVE-2026-31790 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
       "affectedProducts": [
-        "ONTAP"
+        "SANtricity/E-Series",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -8946,7 +9081,9 @@
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1, and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
         "ONTAP",
-        "Active IQ Unified Manager"
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -8969,7 +9106,7 @@
       "title": "CVE-2026-35385 OpenSSH Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSH. OpenSSH versions prior to 10.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP",
+        "ONTAP Tools for VMware vSphere",
         "Active IQ Unified Manager"
       ],
       "affectedVersions": {},
@@ -9000,7 +9137,8 @@
       "title": "CVE-2026-28388 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9046,7 +9184,8 @@
       "title": "CVE-2026-28387 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9069,7 +9208,7 @@
       "title": "CVE-2026-54370 Acl Vulnerability in NetApp Products",
       "description": "Acl versions prior to 2.4.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9092,7 +9231,7 @@
       "title": "CVE-2026-73282 OpenSSH Vulnerability in NetApp Products",
       "description": "OpenSSH versions through 10.4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9115,7 +9254,7 @@
       "title": "CVE-2026-73281 OpenSSH Vulnerability in NetApp Products",
       "description": "OpenSSH versions through 10.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9138,7 +9277,7 @@
       "title": "CVE-2026-70906 Java SE Vulnerability in NetApp Products",
       "description": "Java SE versions 25.0.4 and 26.0.2 are susceptible to a vulnerability which when successfully exploited could allow an unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE. Refer to “Oracle Critical Security Patch Update Advisory - August 2026” for additional details.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9161,7 +9300,10 @@
       "title": "CVE-2026-22795 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3, 3.0 and 1.1.1. are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "ONTAP",
+        "Element Software / NetApp HCI",
+        "Hardware BMC/Firmware",
+        "Brocade SAN Navigator"
       ],
       "affectedVersions": {},
       "fixedVersions": {
@@ -9194,7 +9336,7 @@
       "title": "CVE-2026-40976 Spring Boot Vulnerability in NetApp Products",
       "description": "Spring Boot versions 4.0.0 through 4.0.5 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
       "affectedProducts": [
-        "ONTAP"
+        "Unknown"
       ],
       "affectedVersions": {},
       "fixedVersions": {},
@@ -9240,7 +9382,8 @@
       "title": "CVE-2026-28386 OpenSSL Vulnerability in NetApp Products",
       "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
       "affectedProducts": [
-        "ONTAP"
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
       ],
       "affectedVersions": {},
       "fixedVersions": {},

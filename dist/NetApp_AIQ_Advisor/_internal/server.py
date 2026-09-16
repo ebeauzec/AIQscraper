@@ -1203,6 +1203,13 @@ _MERGE_LIST_FIELDS = [
     # discarded whenever it wasn't the single largest account by system
     # count, even though it had genuine (non-empty) recommendation data.
     "tamRecommendations",
+    # Same bug class as tamRecommendations above, found in the same audit:
+    # tamSustainability is one score PER ACCOUNT (Active IQ has no per-customer
+    # sustainability query -- see sustainabilityScorePercentage on the systems
+    # query for the one field that actually is per-customer), so leaving it
+    # out of this list meant a 2nd/3rd configured account's real sustainability
+    # score was silently discarded whenever it wasn't the largest account.
+    "tamSustainability",
 ]
 
 
@@ -3392,7 +3399,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _acct_label = account.get("label") or _acct_id
             result["accountId"] = _acct_id
             result["accountLabel"] = _acct_label
-            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations"):
+            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations", "tamSustainability"):
                 for _item in (result.get(_field) or []):
                     if isinstance(_item, dict):
                         _item.setdefault("accountId", _acct_id)
@@ -3995,7 +4002,11 @@ def scan_and_persist_advisories(nvd_api_key=None):
             if scoring_calc:
                 cvss_score = scoring_calc[0].get('score')
                 severity = (scoring_calc[0].get('range') or 'UNKNOWN').upper()
-            affected_text = ' '.join(adv.get('kb_affected_list') or [])
+            # kb_affected_list is NetApp's own structured "Affected Products"
+            # list -- authoritative when present. Some advisories (usually
+            # ones still "Under Investigation") ship it empty; only then
+            # fall back to guessing from the title text.
+            affected_text = ' '.join(adv.get('kb_affected_list') or []) or (adv.get('kb_title') or '')
             fixes = adv.get('kb_fixes') or []
             fixed_versions = {}
             for fx in fixes:
@@ -6526,16 +6537,68 @@ class EnrichmentScheduler:
 
 
 def _infer_affected_products(adv_id, title):
-    """Heuristic: infer which products an advisory affects from its ID and title."""
-    title_l = title.lower()
+    """Classify which products an advisory affects from NetApp's own text
+    (ideally the structured kb_affected_list joined into a string -- see the
+    two call sites -- falling back to the advisory title when that's empty).
+
+    Previously defaulted unmatched advisories to ['ONTAP'], on the theory
+    that ONTAP was the "safe" guess. Live-verified this was badly wrong:
+    of the 341 bulletins in data/security_bulletins.json, 185 (54%) had
+    been silently defaulted to ONTAP -- confirmed via NetApp's own API that
+    their real kb_affected_list was things like 'Management Services for
+    Element Software and NetApp HCI', 'NetApp Data Classification', 'NetApp
+    HCI Baseboard Management Controller (BMC) - H610S', or 'Active IQ
+    Unified Manager for Microsoft Windows' -- none of which are ONTAP, none
+    of which run on a customer's storage array. That default meant every
+    such advisory was misapplied as a CVE against every ONTAP system in
+    every fleet, inflating CVE Exposure / Cost of Inaction / risk scores
+    fleet-wide with false positives. Also fixed: 'ONTAP tools for VMware
+    vSphere' (a vCenter plugin) was matching the bare 'ontap' substring as
+    if it were the storage OS itself -- now checked and excluded first.
+    New default is 'Unknown' -- which getApplicableSecurityBulletins() in
+    app.js does not match against any system type, so an advisory we can't
+    confidently classify is excluded from every system's CVE list instead
+    of being force-fit onto ONTAP. Under-counting an unclassifiable
+    advisory is honest; over-counting it as a false ONTAP finding is not."""
+    text_l = (title or '').lower()
     products = []
-    if 'ontap'      in title_l: products.append('ONTAP')
-    if 'storagegrid' in title_l or 'storage grid' in title_l: products.append('StorageGRID')
-    if 'snapcenter'  in title_l or 'snap center' in title_l:  products.append('SnapCenter')
-    if 'trident'     in title_l: products.append('Astra Trident')
-    if 'active iq'   in title_l or 'activeiq' in title_l:     products.append('Active IQ Unified Manager')
-    if 'sanhost'     in title_l or 'san host' in title_l:     products.append('SAN Host Utilities')
-    return products or ['ONTAP']  # default to ONTAP if nothing matched
+    if 'ontap tools for vmware' in text_l or 'ontap tools 10' in text_l:
+        products.append('ONTAP Tools for VMware vSphere')
+    elif 'ontap' in text_l:
+        products.append('ONTAP')
+    if 'storagegrid' in text_l or 'storage grid' in text_l:
+        products.append('StorageGRID')
+    if 'snapcenter' in text_l or 'snap center' in text_l:
+        products.append('SnapCenter')
+    if 'trident' in text_l:
+        products.append('Astra Trident')
+    if 'active iq' in text_l or 'activeiq' in text_l or 'oncommand unified manager' in text_l:
+        products.append('Active IQ Unified Manager')
+    if 'sanhost' in text_l or 'san host' in text_l:
+        products.append('SAN Host Utilities')
+    if 'santricity' in text_l or 'e-series' in text_l or 'eseries' in text_l:
+        products.append('SANtricity/E-Series')
+    if ('element software' in text_l or 'solidfire' in text_l) and 'netapp hci' in text_l:
+        products.append('Element Software / NetApp HCI')
+    elif 'element software' in text_l or 'solidfire' in text_l:
+        products.append('Element Software')
+    if 'netapp hci' in text_l and 'element software' not in text_l:
+        products.append('NetApp HCI')
+    if 'baseboard management controller' in text_l or re.search(r'\bbmc\b', text_l):
+        products.append('Hardware BMC/Firmware')
+    if 'data classification' in text_l:
+        products.append('NetApp Data Classification')
+    if 'sannav' in text_l or 'san navigator' in text_l:
+        products.append('Brocade SAN Navigator')
+    if 'bluexp' in text_l or 'cloud manager' in text_l:
+        products.append('BlueXP / Cloud Manager')
+    if 'astra control' in text_l:
+        products.append('Astra Control')
+    if 'cloud insights' in text_l or 'data infrastructure insights' in text_l:
+        products.append('Data Infrastructure Insights')
+    if 'harvest' in text_l:
+        products.append('NetApp Harvest')
+    return products or ['Unknown']  # honest "can't classify" -- excluded from every system, not force-fit onto ONTAP
 
 
 

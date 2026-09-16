@@ -27,16 +27,55 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.54";
+const APP_VERSION = "5.6.55";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.55",
+    date: "16 September 2026",
+    title: "Fixed: CVE-Product Misclassification, Support Contract Data Restored, Deliverable Accuracy Audit",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Security Advisory Product Classification",
+        color: "#f87171",
+        items: [
+          "Found live (a real NetApp advisory affecting only Active IQ Unified Manager was showing up tagged against storage arrays): the PSIRT scanner's product classifier defaulted any advisory it couldn't recognize by keyword to 'ONTAP'. Re-checked the actual data and found 185 of 341 bulletins (54%) had been silently defaulted this way -- real affected products included Element Software/NetApp HCI, NetApp Data Classification, HCI hardware/BMC, and Active IQ Unified Manager, none of which run on a customer's storage array, but all had been misapplied as ONTAP CVEs fleet-wide.",
+          "Classifier now reads NetApp's own structured 'Affected Products' list (kb_affected_list) directly instead of guessing from title keywords, covers many more real product categories (SANtricity/E-Series, BlueXP, Astra Control, Brocade SAN Navigator, hardware BMC, Data Infrastructure Insights, and more), and no longer force-fits an unrecognized advisory onto ONTAP -- it's now honestly excluded from every system instead. Also fixed 'ONTAP Tools for VMware vSphere' (a vCenter plugin) matching the bare 'ontap' substring as if it were the storage OS.",
+          "Backfilled all 341 existing bulletins against live NetApp API data with the corrected classifier: 249 changed (129 now correctly excluded as unclassifiable, 120 reclassified to their real non-ONTAP product).",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Changed -- Support Contract Data Restored",
+        color: "#22c55e",
+        items: [
+          "A prior fix (v5.6.40) found Active IQ's contract{} fields (isContractActive, overallContractEndDate) were null for the entire fleet on 2026-08-20 and switched every 'Contract Coverage' display to warranty data instead, since that was the only real per-system entitlement-adjacent data available. Re-verified live on 2026-09-16 against the raw harvested data: isContractActive is now populated for 475/484 systems and overallContractEndDate for 324/484, with real dates that differ from warrantyEndDate on the same systems -- NetApp appears to have started syncing real support-contract data for this tenant sometime in between.",
+          "Support Contract Coverage and hardware Warranty Coverage are now tracked as two separate, correctly-labeled real metrics again across the Overview KPI tile, Needs Attention, the SAM tab, system detail view, CSV exports, the Account Health Score's 13% weight, and every deliverable (QBR Pack, MSP Service Report, TAM Success Plan, SLA reports, Extended Deliverables, Customer Value Report PPTX, Remediation Tracker auto-import) -- roughly 25 call sites that had been showing real contract data under a 'Warranty' label, or in one case (the Cost of Inaction box) showing contract-based counts under a genuinely warranty-labeled line. Systems still missing a reported contract end date show an honest 'unknown', not a silent warranty substitution.",
+        ],
+      },
+      {
+        icon: "🔍",
+        label: "Fixed -- Deliverable Accuracy Audit",
+        color: "#f87171",
+        items: [
+          "CVE counts now agree across every surface: the Security Posture Brief, Customer Value Report PPTX, and the on-screen Account Intelligence widget each computed 'CVE Exposure' from only one of the two real data sources (securityBulletins or risks[].cveDetails), disagreeing with each other and with the correctly-computed Cost of Inaction box for the same fleet. All four now use the same union.",
+          "DR Coverage % could exceed 100% -- a system that's both MetroCluster and has SnapMirror to a third site (a real, common architecture) was counted twice. Now counted once per system across the QBR Pack, MSP Service Report, Risk & Remediation Brief, Account Handover Brief, Security Brief, and Extended Deliverables.",
+          "MSP Service Report showed two different, disagreeing 'Health' numbers in the same document: the real 8-factor Account Health Score at the header, and an unweighted 3-factor average (ASUP+ARP+Contract only) in the per-customer table two sections down. The table now uses the same canonical score.",
+          "Account Handover Brief presented the fleet-wide (all Active IQ tenants on the account) sustainability score as this customer's own achievement. Now uses the real per-customer score (customers[].sustainabilityScorePercentage.overall) when the brief is scoped to one customer, falling back to an honestly-labeled fleet figure otherwise. Also found and fixed the underlying cause of why that per-customer field wasn't reliably available in a multi-account setup: tamSustainability (unlike tamRecommendations, fixed for the same reason in v5.6.12) was excluded from the multi-account merge and silently reflected only the largest configured account.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.54",
     date: "16 September 2026",
     title: "Added: Success Plans (CSP) Tracker, Matching NetApp Digital Advisor's Success Plans List",
     sections: [
       {
-        heading: "New",
+        icon: "✨",
+        label: "New",
+        color: "#22c55e",
         items: [
           "New 'Success Plans' tab: a TAM-authored list of Success Plans (CSPs) mirroring NetApp Digital Advisor's own Success Plans view -- CSP name, TAM owner, Linked to (customer scope), Status, and TAM risk assessment, with a Lifecycle Stage taxonomy (Onboard & Implement, Operate & Optimize, Prevent & Solve, Expand & Evolve) matching Digital Advisor's own filter exactly.",
           "KPI row: Health Score (reuses the same fleet health computation as the Value Insights card so it's consistent across tabs), Linked/Unlinked CSP counts, and distinct TAM Owner count. 'Outcomes Lift' is shown as 'Coming soon' and honestly labeled -- Active IQ has no API for outcome tracking, so this can't be computed, only Digital Advisor's own internal system has it.",
@@ -7003,7 +7042,7 @@ function downloadPortfolioCSV() {
   const rows = state._portfolioRows || [];
   if (!rows.length) { alert('No portfolio data to export.'); return; }
   let csv = 'data:text/csv;charset=utf-8,';
-  csv += 'Customer,Systems,Critical Risks,High Risks,Warranties Expiring <90d,EOS Systems,SLA Compliance %,Health Score\n';
+  csv += 'Customer,Systems,Critical Risks,High Risks,Support Contracts Expiring <90d,EOS Systems,SLA Compliance %,Health Score\n';
   rows.forEach(r => {
     csv += `"${r.cust.replace(/"/g, '""')}",${r.systemCount},${r.critRisks},${r.highRisks},${r.expiring90},${r.eosCount},${r.slaCompliance == null ? '' : r.slaCompliance},${r.healthScore}\n`;
   });
@@ -7051,7 +7090,7 @@ function renderNeedsAttention() {
         const parts = [];
         if (r.critCount > 0) parts.push(`<span style="color: var(--status-critical); font-weight: 600;">${r.critCount} critical</span>`);
         if (r.highCount > 0) parts.push(`<span style="color: var(--status-warning); font-weight: 600;">${r.highCount} high</span>`);
-        if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">warranty expires in ${r.daysRemaining}d</span>`);
+        if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">contract expires in ${r.daysRemaining}d</span>`);
         return `
           <div onclick="focusOnSystem('${r.sys.serialNumber}'); switchTab('tam');" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
             <div>
@@ -9373,9 +9412,18 @@ function getApplicableSecurityBulletins(ontapVersion, platformType) {
     if (isStorageGrid && !prods.some(p => p.toLowerCase().includes('storagegrid'))) continue;
     if (isSnapCenter  && !prods.some(p => p.toLowerCase().includes('snapcenter'))) continue;
     if (isTrident     && !prods.some(p => p.toLowerCase().includes('trident'))) continue;
-    // For ONTAP systems, skip StorageGRID/SnapCenter-only entries
+    // For ONTAP systems, skip StorageGRID/SnapCenter-only entries. "ONTAP
+    // Tools for VMware vSphere" is a vCenter plugin (OTV), not the storage
+    // OS -- its name contains "ontap" as a substring but it doesn't run on
+    // the array, so it's excluded here even though the generic .includes()
+    // check below would otherwise match it.
     if (!isStorageGrid && !isSnapCenter && !isTrident) {
-      if (prods.length > 0 && !prods.some(p => p.toLowerCase().includes('ontap') || p.toLowerCase().includes('netapp products'))) continue;
+      const isOntapRelevant = prods.some(p => {
+        const pl = p.toLowerCase();
+        if (pl.includes('tools for vmware') || pl.includes('tools 10')) return false;
+        return pl.includes('ontap') || pl.includes('netapp products');
+      });
+      if (prods.length > 0 && !isOntapRelevant) continue;
     }
 
     // Check version ranges
@@ -12069,11 +12117,11 @@ function renderSAMTab() {
     }
     document.getElementById("samContractCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Warranty Summary</h4>
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Support Contract Summary</h4>
         ${cBadge}
       </div>
       <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; color: ${cColor};">
-        ${targetSAMSystems.length} Monitored Warranties
+        ${targetSAMSystems.length} Monitored Support Contracts
       </div>
       <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 8px;">
         <span style="color: var(--status-normal);">Active: ${activeCount}</span> | 
@@ -12440,7 +12488,7 @@ function renderSAMTab() {
 
   document.getElementById("samContractCard").innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Warranty Status</h4>
+      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Support Contract Status</h4>
       ${contractBadge}
     </div>
     <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; color: ${expiryColor};">
@@ -12450,7 +12498,7 @@ function renderSAMTab() {
       Expires: <strong>${sys.contracts.endDate ? new Date(sys.contracts.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}</strong>
     </div>
     <div style="font-size: 0.8rem; color: var(--text-muted);">
-      ${sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining < 0 ? `Warranty ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`) : 'Days remaining unknown.'}
+      ${sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining < 0 ? `Contract ended ${Math.abs(sys.contracts.daysRemaining)} days ago.` : `${sys.contracts.daysRemaining} days remaining.`) : 'Days remaining unknown.'}
     </div>
   `;
 
@@ -13007,7 +13055,12 @@ function renderCSMTab() {
     const _mAdoptTotal = _mFeat.perSystem.reduce((s, p) => s + p.total, 0);
     const _mCritRisks = targetCSMSystems.reduce((sum, s) => sum + (s.risks || []).filter(r => (r.severity || '').toLowerCase() === 'critical').length, 0);
     const _mExpiring90 = targetCSMSystems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90).length;
-    const _mCveCount = targetCSMSystems.reduce((sum, s) => sum + (s.securityBulletins || []).filter(b => /CVE-[0-9]{4}-[0-9]+/.test(b.description || b.cve || '')).length, 0);
+    // Unique CVE count via the same union as computeCostOfInaction() (securityBulletins
+    // UNION risks[].cveDetails, deduped by CVE ID) -- this widget used to count only raw
+    // securityBulletins matches (even double-counting a bulletin with 2 CVE mentions),
+    // which disagreed with the Security Brief and Customer Value Report PPTX's own counts
+    // for the same fleet.
+    const _mCveCount = computeCostOfInaction(targetCSMSystems).cves;
     const _mEosaCount = _realRecommendationCount('EOS_AND_PLAT_AND_HW', targetCSMSystems) || 0;
     const _mAllCases = targetCSMSystems.reduce((arr, s) => arr.concat(s.supportCases || []), []);
     const _mCaseHealth = computeSupportCaseHealth({ supportCases: _mAllCases });
@@ -13037,11 +13090,17 @@ function renderCSMTab() {
       return !isNaN(d) && (Date.now() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
     }).length;
     const _viTelemetryPct = targetCSMSystems.length > 0 ? Math.round(_viTelemetryConnected / targetCSMSystems.length * 100) : 0;
-    const _viThreatsNeutralized = new Set();
-    targetCSMSystems.forEach(s => (s.securityBulletins || []).forEach(b => {
-      const m = (b.description || b.cve || '').match(/CVE-[0-9]{4}-[0-9]+/);
-      if (m) _viThreatsNeutralized.add(m[0]);
-    }));
+    // Same union as computeCostOfInaction()/the Security Brief/Customer Value
+    // Report PPTX -- this tile used to read securityBulletins only, which
+    // disagreed with every other CVE count on this exact tab (the intelligence
+    // bar a few lines up, via _mCveCount, and the Cost of Inaction box below).
+    const _viThreatsNeutralized = new Set(
+      targetCSMSystems.flatMap(s => (s.securityBulletins || [])
+        .map(b => b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]))
+        .filter(Boolean)
+        .concat((s.risks || []).flatMap(r => (r.cveDetails || []).map(c => c && c.id).filter(Boolean)))
+      )
+    );
     const _viSavedPiB = _mCap.savedTB / 1024;
     const _viHealthLabel = healthScore >= 90 ? 'Health is excellent'
       : healthScore >= 80 ? 'Health is good'
@@ -13110,7 +13169,7 @@ function renderCSMTab() {
 
         <div style="display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap;">
           <div style="display: flex; flex-direction: column; align-items: center; min-width: 140px;">
-            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), warranty coverage (13%, proxy for support-contract status which Active IQ does not report for this tenant), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Health Score</span>
+            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), support contract coverage (13%, real isContractActive status from Active IQ), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Health Score</span>
             <div style="position: relative; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
               <span style="font-size: 1.9rem; font-weight: 800; color: ${healthColor};">${healthScore}%</span>
             </div>
@@ -13176,7 +13235,7 @@ function renderCSMTab() {
             </div>
             <div style="margin-bottom: 10px;">
               <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Security &amp; Future Planning</div>
-              <div>${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''} &middot; ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''} &middot; ${_mExpiring90} warrant${_mExpiring90 !== 1 ? 'ies' : 'y'} expiring &lt;90d</div>
+              <div>${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''} &middot; ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''} &middot; ${_mExpiring90} contract${_mExpiring90 !== 1 ? 's' : ''} expiring &lt;90d</div>
             </div>
             <div>
               <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Maximize Infrastructure Value</div>
@@ -13498,7 +13557,7 @@ function renderCSMTab() {
       { name: 'No Config Drift (unassigned ports \u2264 2)',              completedCount: _configDriftPass,    detail: '', tip: 'Systems with 2 or fewer network ports lacking a broadcast domain assignment. Unassigned ports beyond that are typically a sign of incomplete or drifted network configuration.' },
       { name: 'MTTR Posture (no stale cases \u003e 90 days)',             completedCount: _mttrPass,           detail: '', tip: 'Systems with no support case open longer than 90 days. Cases open that long usually indicate a stuck escalation, a resourcing gap, or a fix waiting on the customer.' },
       // — Contracts & Lifecycle —
-      { cat: 'CONTRACTS \u0026 LIFECYCLE', name: 'Warranty Active (\u003e 90 days remaining)',   completedCount: _contractPass,  detail: '', tip: 'Systems with more than 90 days remaining on their hardware warranty, i.e. not yet in the renewal-urgency window.' },
+      { cat: 'CONTRACTS \u0026 LIFECYCLE', name: 'Support Contract Active (\u003e 90 days remaining)',   completedCount: _contractPass,  detail: '', tip: 'Systems with more than 90 days remaining on their support contract (real isContractActive/overallContractEndDate from Active IQ), i.e. not yet in the renewal-urgency window.' },
       { name: 'Warranty Co-Term Alignment',                            completedCount: _cotermOk ? _n : Math.max(_n - _cotermGroups.reduce((s, g) => s + g.length, 0), 0), detail: _cotermDetails.join(' | '), tip: 'Whether this account systems share a common warranty end date. Staggered (non-co-termed) end dates across a fleet create renewal admin overhead and forfeit bundling/volume-discount opportunities -- co-terming them onto one renewal date simplifies procurement for both sides.' },
     ];
 
@@ -13972,11 +14031,11 @@ function renderCSMTab() {
     },
     // CONTRACTS & LIFECYCLE
     { cat: 'CONTRACTS \u0026 LIFECYCLE',
-      name: 'Warranty Active (\u003e 90 days remaining)',
+      name: 'Support Contract Active (\u003e 90 days remaining)',
       ok: !!(sys.contracts && sys.contracts.daysRemaining > 90),
       detail: sys.contracts
         ? (sys.contracts.daysRemaining != null ? (sys.contracts.daysRemaining > 0 ? `${sys.contracts.daysRemaining} days remaining \u2014 ${sys.contracts.supportLevel || 'N/A'}` : `Expired ${Math.abs(sys.contracts.daysRemaining)}d ago \u2014 renew immediately`) : `Coverage Level: ${sys.contracts.supportLevel || 'N/A'}`)
-        : 'No warranty data available'
+        : 'No support contract data available'
     },
     { name: 'Warranty Co-Term Alignment',
       ok: true, // Single-system context — fleet-level check always passes
@@ -15178,30 +15237,37 @@ function enrichSystemTelemetry(s) {
     }
   }
 
-  // 2. Dynamic Contracts -- SOURCED FROM WARRANTY, NOT SUPPORT CONTRACT DATA.
-  // Confirmed live (2026-08-20) by logging Active IQ's raw contract{} object
-  // straight off the GraphQL response for every system across both accounts:
-  // softwareContractId, hardwareContractId, overallContractEndDate,
-  // hardwareContractEndDate are ALL null for the entire fleet (450/450
-  // systems), and the separate contract-renewals/lifecycle-events API also
-  // returned 0 for both accounts -- two independent Active IQ surfaces
-  // agreeing there is no support-contract linkage data for this tenant.
-  // hardwareWarrantyEndDate on that SAME contract{} object IS populated with
-  // real dates for every system, proving this isn't a broken query or a
-  // permission gap. Per explicit instruction: stop referencing support
-  // contract data (which this tenant's Active IQ simply doesn't have) and
-  // use warranty end date as the single date shown everywhere a
-  // contract/support renewal date used to be.
+  // 2. Dynamic Contracts -- SOURCED FROM REAL SUPPORT-CONTRACT DATA.
+  // Historical note: on 2026-08-20, logging Active IQ's raw contract{} object
+  // straight off the GraphQL response found softwareContractId,
+  // hardwareContractId, overallContractEndDate, hardwareContractEndDate ALL
+  // null for the entire fleet (450/450 systems) -- correct at the time, and
+  // the reason this used to fall back to warranty data unconditionally.
+  // Re-verified live on 2026-09-16 against the current 484-system fleet:
+  // isContractActive is now populated for 475/484 systems, and
+  // overallContractEndDate for 324/484 -- with real, varied dates that
+  // differ from warrantyEndDate on the same systems (not warranty data
+  // under another name). NetApp appears to have started syncing real
+  // support-contract data for this tenant sometime after the original
+  // finding. Support Contract Coverage and hardware Warranty Coverage are
+  // now tracked as two separate real metrics again (see
+  // computeFleetWarrantyStatus() for the warranty side).
   let contracts = s.contracts;
   if ((!contracts || contracts.daysRemaining == null) && isLiveData) {
-    // Live API path: build from the real, reliably-populated warranty field
-    const endDate = s.warrantyEndDate || '';
-    // null (not 0) when there's no warranty data at all -- 0 means "expires
+    // Live API path: build from the real contract fields when Active IQ
+    // reports them for this system. Deliberately does NOT fall back to
+    // warrantyEndDate when contract data is missing for a specific system --
+    // that would silently re-conflate two different real metrics. A system
+    // with no reported contract end date just shows 'unknown' here; its
+    // warranty status is a separate, correctly-labeled figure elsewhere.
+    const endDate = s.contractEndDate || '';
+    // null (not 0) when there's no end date at all -- 0 means "expires
     // today", a real and urgent state, and must not be indistinguishable
-    // from "Active IQ has no warranty data for this system".
+    // from "Active IQ has no contract end date for this system".
     const daysRem = endDate ? Math.max(0, Math.floor((new Date(endDate) - new Date()) / 86400000)) : null;
     let status;
-    if (!endDate) status = 'unknown';
+    if (s.contractActive === false) status = 'expired';
+    else if (!endDate) status = 'unknown';
     else status = daysRem < 90 ? 'warning' : 'normal';
     contracts = {
       status,
@@ -16214,7 +16280,7 @@ function enrichSystemTelemetry(s) {
 
   // ── Backfill contractActive for mock/non-live systems ──────────────────────
   // contractActive: derived from contracts object; real API provides it as a boolean.
-  // Without this, Warranty Coverage in CSM/reports shows 0/N (undefined !== true).
+  // Without this, Support Contract Coverage in CSM/reports shows 0/N (undefined !== true).
   const _contractActive = s.contractActive != null
     ? s.contractActive
     : (contracts ? contracts.daysRemaining > 0 && contracts.status !== 'expired' : false);
@@ -19109,7 +19175,7 @@ ${platformLines}
   - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < systemCount ? ' *' : ''}
   - OS Currency:             ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
-  - Warranty Coverage:       ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — within hardware warranty (Active IQ does not report support-contract status for this tenant)
+  - Support Contract Coverage: ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active per Active IQ's contract data
 
 * FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
   Feature                       Enabled     Total    Coverage    CLI Command
@@ -19176,8 +19242,8 @@ to prevent support SLA deviations and customer satisfaction impacts.
 * ACTIVE SUPPORT TICKETS:
 ${allSupportCases.length > 0 ? casesText : "✓ No active open support cases detected."}
 
-* WARRANTY COVERAGE & LIFECYCLE RISKS:
-${expiringContracts.length > 0 ? contractsText : "✓ All warranties have > 90 days remaining. SupportEdge Premium SLA active."}
+* SUPPORT CONTRACT COVERAGE & LIFECYCLE RISKS:
+${expiringContracts.length > 0 ? contractsText : "✓ All support contracts have > 90 days remaining. SupportEdge Premium SLA active."}
 
 * AUTOSUPPORT TELEMETRY STATUS:
 ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — ${a.detail}`).join('\n') : "✓ All systems reporting AutoSupport telemetry within 7-day SLA window."}
@@ -19220,8 +19286,8 @@ ${formatCostOfInactionText(targetSystems)}
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
   Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at $${state.costPerTiB}/TB/month)
   Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
-  Warranty Coverage Gap Risk:          ${systemCount - contractActive} systems past hardware warranty end date
-  Support Premium Increase (EOSA):     ~45% increase for ${systemCount - contractActive} out-of-warranty systems (illustrative rate; confirm actual renewal pricing with NetApp)
+  Warranty Coverage Gap Risk:          ${computeFleetWarrantyStatus(targetSystems).warrantyExpired} systems past hardware warranty end date
+  Support Premium Increase (EOSA):     ~45% increase for ${computeFleetWarrantyStatus(targetSystems).warrantyExpired} out-of-warranty systems (illustrative rate; confirm actual renewal pricing with NetApp)
 
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
@@ -19329,12 +19395,12 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Add rules for destructive operations: 'security multi-admin-verify rule create -operation <op>'
   - Reference: docs.netapp.com/us-en/ontap/multi-admin-verify/
 
-PHASE 5: WARRANTY RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
+PHASE 5: SUPPORT CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
 ---------------------------------------------------------------------
 Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
 
-* ACTION 5.1: Warranty Renewals
-${expiringContracts.length > 0 ? contractsText : "  ✓ No warranties expiring within 90 days."}
+* ACTION 5.1: Support Contract Renewals
+${expiringContracts.length > 0 ? contractsText : "  ✓ No support contracts expiring within 90 days."}
   - Portal: https://mysupport.netapp.com/
 
 * ACTION 5.2: Hardware Refresh Planning
@@ -19402,7 +19468,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
-  // ── Warranty Coverage (proxy for support-contract status) ──
+  // ── Support Contract Coverage (real: isContractActive from Active IQ) ──
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
   const contractPct = total > 0 ? ((contractActive / total) * 100).toFixed(0) : 0;
 
@@ -19665,7 +19731,7 @@ Prepared: ${salesRep}
   ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < total ? ' *' : ''}
   OS Currency:              ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
-  Warranty Coverage:        ${contractActive}/${total} systems (${contractPct}%) — within hardware warranty (Active IQ does not report support-contract status for this tenant)
+  Support Contract Coverage: ${contractActive}/${total} systems (${contractPct}%) — active per Active IQ's contract data
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
 
@@ -19722,8 +19788,8 @@ ${sustainSection}
 --------------------------------------------------------------------------------
 6. LIFECYCLE & RENEWAL PIPELINE [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
-  Warranties Expiring < 90 Days:  ${exp90}
-  Warranties Expiring < 180 Days: ${exp180}
+  Support Contracts Expiring < 90 Days:  ${exp90}
+  Support Contracts Expiring < 180 Days: ${exp180}
   Systems Near EOS:              ${nearEos}
 
 ${contractLines}
@@ -19783,7 +19849,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const thirtyAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const total = targetSystems.length;
 
-  // ── Warranty Coverage (proxy for support-contract status) ──
+  // ── Support Contract Coverage (real: isContractActive from Active IQ) ──
   const activeContracts  = targetSystems.filter(s => s.contractActive === true).length;
   const expiredContracts = targetSystems.filter(s => s.contractActive === false).length;
   const unknownContracts = targetSystems.filter(s => s.contractActive == null).length;
@@ -19831,7 +19897,13 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   const dashboardLines = Object.entries(mspCustomers).map(([name, data]) => {
     const tot = data.systems.length;
-    const hlth = tot > 0 ? Math.round(((data.asup + data.arp + data.contract) / (tot * 3)) * 100) : 0;
+    // Same canonical 8-factor computeAccountHealthScore() used everywhere else
+    // in this document (and every other deliverable) -- this table used to run
+    // its own unweighted 3-factor average (ASUP+ARP+Contract only, no risk/
+    // firmware/efficiency/case-health), which meant the document's own header
+    // "Account Health Score" and this per-customer "Health" column could show
+    // two different numbers for the same customer with nothing explaining why.
+    const hlth = tot > 0 ? computeAccountHealthScore(data.systems) : 0;
     const asupP = tot > 0 ? Math.round(data.asup / tot * 100) : 0;
     const contractP = tot > 0 ? Math.round(data.contract / tot * 100) : 0;
     const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
@@ -19952,7 +20024,7 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
 1. SERVICE SUMMARY [METRICS]
 --------------------------------------------------------------------------------
   Systems Under Management:  ${total}
-  Warranty Coverage:         ${activeContracts}/${total} (${contractPct}%) within HW warranty (proxy -- Active IQ reports no support-contract status for this tenant)
+  Support Contract Coverage: ${activeContracts}/${total} (${contractPct}%) active per Active IQ's contract data
   ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Average System Age:        ${avgAge} years
@@ -19972,7 +20044,7 @@ ${dashboardLines}
   ASUP Compliance           ${String(slaThresholds.asup).padEnd(3)}%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, slaThresholds.asup)}
   ARP Enablement            ${String(slaThresholds.arp).padEnd(3)}%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, slaThresholds.arp)}
   OS Currency               ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
-  Warranty Coverage (proxy) ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
+  Support Contract Coverage ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
   Case MTTR (<=${mttrTarget}d)        ${String(mttrTarget).padEnd(3)}d      ${mttrDays != null ? String(mttrDays).padStart(3) + 'd' : ' N/A'}      ${mttrDays != null ? (parseFloat(mttrDays) <= mttrTarget ? 'MET' : 'MISSED') : 'NO DATA'}
 
@@ -20210,7 +20282,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
     Capacity Runway:          ${runway} days to 90% (average)
     Sustainability Score:     ${avgSust}/100
     Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
-    Warranty Coverage:        ${contractPct}% (proxy -- Active IQ reports no support-contract status for this tenant)
+    Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
 ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 ? ` [Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}]` : ''}
     HA Configured:            ${dr.haSystems}/${total}
     Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
@@ -20454,11 +20526,24 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
     talkingPoints.push(`${eosCount} system${eosCount > 1 ? 's' : ''} approaching End-of-Support — hardware refresh planning recommended.`);
   }
 
-  // Sustainability
-  const scores = state.tamSustainability || [];
-  const latestScore = scores[0] || {};
-  if (latestScore.scorePercentage != null) {
-    talkingPoints.push(`Fleet sustainability score: ${latestScore.scorePercentage}%. Highlight environmental efficiency achievements with incoming account team.`);
+  // Sustainability -- prefer the real PER-CUSTOMER score (customers[].
+  // sustainabilityScorePercentage.overall, the same field _renderSustainabilitySection()
+  // uses) over the account/fleet-wide tamSustainability figure. This brief used to
+  // present the unscoped fleet number as if it were this account's own achievement;
+  // if multiple customers are in scope or no per-customer match exists, fall back to
+  // the fleet figure but label it honestly as fleet-wide, not this account's.
+  const _custIdsSeen = new Set(targetSystems.map(s => s.customerId).filter(Boolean));
+  const _custNamesSeen = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+  const _matchedCustomers = (state.customers || []).filter(c => _custIdsSeen.has(c.id) || _custNamesSeen.has(c.name));
+  const _custScores = _matchedCustomers.map(c => (c.sustainabilityScorePercentage || {}).overall).filter(v => v != null);
+  if (_matchedCustomers.length === 1 && _custScores.length === 1) {
+    talkingPoints.push(`Sustainability score: ${_custScores[0]}%. Highlight environmental efficiency achievements with incoming account team.`);
+  } else {
+    const scores = state.tamSustainability || [];
+    const latestScore = scores[0] || {};
+    if (latestScore.scorePercentage != null) {
+      talkingPoints.push(`Fleet sustainability score (all tenants on this Active IQ account, not this customer alone): ${latestScore.scorePercentage}%.`);
+    }
   }
 
   const talkingPointsText = talkingPoints.length > 0
@@ -20513,7 +20598,7 @@ ${compileSvmLifInventoryText(targetSystems)}
   Open Support Cases:   ${allSupportCases.length}
   ASUP Compliance:      ${asupPct}%
   ARP Coverage:         ${arpPct}%
-  Warranty Coverage:    ${contractPct}% (proxy -- Active IQ reports no support-contract status for this tenant)
+  Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 
   Top Issues Requiring Attention:
@@ -20621,6 +20706,18 @@ ${_kevAckLines}
     // a firmware update, even when none did. swRecMin/osVersion + versionLt()
     // is the real OS-currency check used consistently everywhere else.
     if (s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)) fwCurrent++;
+
+    // securityBulletins (OS-version-matched advisories) is the other half of
+    // the real CVE union -- computeCostOfInaction() already unions this with
+    // risks[].cveDetails below; this loop used to only read the latter, so
+    // this brief's own "CVE Exposure" count silently disagreed with the Cost
+    // of Inaction box a few lines down in the SAME document, and with the
+    // Customer Value Report PPTX and on-screen widget, which each read only
+    // one of the two sources. All four now match.
+    (s.securityBulletins || []).forEach(b => {
+      const _id = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
+      if (_id) { cveExposures.add(_id); systemsWithCve.add(s.systemName); }
+    });
 
     (s.risks || []).forEach(r => {
       const _sev = (r.severity || '').toLowerCase();
@@ -20907,6 +21004,11 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
 function computeFleetDRSummary(targetSystems) {
   let smSystems = 0, smRelCount = 0, smAsync = 0, smSync = 0;
   let mcSystems = 0, syncMirrorSystems = 0, haSystems = 0;
+  // Counts systems with SnapMirror OR MetroCluster, once each -- a system can
+  // legitimately be both (MetroCluster site-local HA plus SnapMirror to a
+  // third DR site, a common real architecture), and summing smSystems +
+  // mcSystems double-counted those, letting drCoveragePct exceed 100%.
+  let drProtectedSystems = 0;
   const unprotected = [];
   const lagWarnings = [];
   // MetroCluster health signals (Mediator/AUSO), same detection used by the
@@ -20934,6 +21036,7 @@ function computeFleetDRSummary(targetSystems) {
     if (hasCfg) haSystems++;
     if (isMC) mcSystems++;
     if (isSM) syncMirrorSystems++;
+    if (smCount > 0 || isMC) drProtectedSystems++;
     // Unprotected: no SnapMirror, no MetroCluster, no HA
     if (smCount === 0 && !isMC && !hasCfg) {
       unprotected.push(s.systemName || s.serialNumber || 'Unknown');
@@ -20958,7 +21061,7 @@ function computeFleetDRSummary(targetSystems) {
     unprotected, lagWarnings,
     mcMediatorIssues: [...new Set(mcMediatorIssues)],
     mcAusoDisabled: [...new Set(mcAusoDisabled)],
-    drCoveragePct: total > 0 ? Math.round((smSystems + mcSystems) / total * 100) : 0,
+    drCoveragePct: total > 0 ? Math.round(drProtectedSystems / total * 100) : 0,
     haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0
   };
 }
@@ -21515,13 +21618,13 @@ ACCOUNT TEAM
 RISK SUMMARY
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
   Security: ${secRisksCount}   AutoSupport: ${asupIssues.length}   Cases: ${allSupportCases.length}
-  Upgrades: ${allUpgrades.length}   Warranties: ${expiringContracts.length}
+  Upgrades: ${allUpgrades.length}   Contracts Expiring: ${expiringContracts.length}
 
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
   ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
   OS Currency:        ${fwCurrentCount}/${sysCount} (${pctFw}%)
-  Warranty Coverage:  ${contractActiveCount}/${sysCount} (${pctContract}%) (proxy -- no support-contract status reported for this tenant)
+  Support Contract Coverage: ${contractActiveCount}/${sysCount} (${pctContract}%) (active per Active IQ's contract data)
 
 HARDWARE FIRMWARE CURRENCY (Detailed)
   SP/BMC:             ${fw.spCurrent}/${sysCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
@@ -21601,7 +21704,7 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
   }
 
   if (expiringContracts.length > 0) {
-    problemStatements += `EXPIRING WARRANTIES (${expiringContracts.length})
+    problemStatements += `EXPIRING SUPPORT CONTRACTS (${expiringContracts.length})
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
@@ -21646,7 +21749,7 @@ OPERATIONAL HEALTH SNAPSHOT:
   ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
   OS Currency:        ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
   HW Firmware Score:  ${fw.overallFwScore}% (SP: ${fw.spPct}%, MB: ${fw.mbPct}%, DQP: ${fw.dqpPct}%, Drives: ${fw.drivePct}%)
-  Warranty Coverage:  ${pctContract}% (${contractActiveCount}/${sysCount} within HW warranty; proxy -- no support-contract status reported for this tenant)
+  Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} active per Active IQ's contract data)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity, ${coi.noArp} without ransomware protection
@@ -21661,7 +21764,7 @@ ${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • $
 
 ${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}] ${c.title}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
 
-${exp90.length > 0 ? 'WARRANTIES EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
+${exp90.length > 0 ? 'SUPPORT CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
@@ -21688,7 +21791,7 @@ HEALTH METRICS:
   ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
   OS Currency:        ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
   HW Firmware:        ${fw.overallFwScore}% ${fw.overallFwScore < 80 ? '⚠' : '✓'} (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
-  Warranty Coverage:  ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'} (proxy -- no support-contract status reported for this tenant)
+  Support Contract Coverage: ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'} (active per Active IQ's contract data)
   Feature Adoption:   ${fm.fleetAvgScore}% fleet average
   DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
   Capacity:           ${cap.utilPct}% fleet (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)
@@ -21702,7 +21805,7 @@ ${sustLatest.scorePercentage ? `\nSUSTAINABILITY (fleet, all tenants): ${sustLat
 PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
-${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring warranty(ies)` : ''}
+${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring support contract(s)` : ''}
 ${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}
 ${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (sysCount - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}
 ${imtFindings.length > 0 ? `\nINTEROPERABILITY POSTURE (IMT CHECK):\n${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ') + ' ' + f.message).join('\n')}` : ''}`;
@@ -21859,7 +21962,7 @@ OPERATIONAL HEALTH BASELINE:
   ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
   OS Currency:            ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
   HW Firmware Score:      ${fw.overallFwScore}% (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
-  Warranty Coverage:      ${pctContract}% (${contractActiveCount}/${sysCount} systems; proxy -- no support-contract status reported for this tenant)
+  Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} systems; active per Active IQ's contract data)
 
 PRIORITISED CORRECTIVE ACTIONS
 --------------------------------------------------------------------------------
@@ -22129,7 +22232,7 @@ OPPORTUNITY INTELLIGENCE:
 
   // Contract renewals
   if (expiringContracts.length > 0) {
-    salesProposals += `WARRANTY RENEWALS (${expiringContracts.length}) [CONTRACTS & ENTITLEMENTS]
+    salesProposals += `SUPPORT CONTRACT RENEWALS (${expiringContracts.length}) [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
 `;
     expiringContracts.forEach((e, i) => {
@@ -24593,8 +24696,14 @@ function _renderAsBuiltSection(systems) {
         // uses the one field on that same object (hardwareWarrantyEndDate) that
         // Active IQ actually populates. Merged into one honest section using
         // only real fields.
-        const con = s.contracts || {};  // now warranty-sourced, see enrichSystemTelemetry
-        const wStatus = con.status === 'unknown' ? 'Unknown' : (con.status === 'warning' ? 'Expiring Soon' : (con.daysRemaining != null && con.daysRemaining < 0 ? 'Expired' : 'Active'));
+        // Warranty status/dates computed directly from warrantyStartDate/warrantyEndDate
+        // -- NOT from s.contracts, which is real support-contract data again as of
+        // 2026-09-16 (see enrichSystemTelemetry) and would otherwise show a contract
+        // status badge sitting right above genuine warranty dates in the same row group.
+        const _wEnd = s.warrantyEndDate ? new Date(s.warrantyEndDate) : null;
+        const _wDaysRem = _wEnd && !isNaN(_wEnd) ? Math.floor((_wEnd - new Date()) / 86400000) : null;
+        const wStatus = _wDaysRem == null ? 'Unknown' : (_wDaysRem < 0 ? 'Expired' : (_wDaysRem <= 90 ? 'Expiring Soon' : 'Active'));
+        const con = s.contracts || {};
         const cases = s.supportCases || [];
 
         html += `
@@ -24604,7 +24713,8 @@ function _renderAsBuiltSection(systems) {
                     <table style="${tblStyle} flex:1; min-width:280px;">
                         <tr><th style="${thStyle} width:40%;">Warranty Status</th><td style="${tdStyle}"><span style="${getBadgeStyle(wStatus)}">${valOrDash(wStatus)}</span></td></tr>
                         <tr><th style="${thStyle}">Warranty Start</th><td style="${tdStyle}">${valOrDash((s.warrantyStartDate || '').substring(0, 10))}</td></tr>
-                        <tr><th style="${thStyle}">Warranty End</th><td style="${tdStyle}">${valOrDash(((s.warrantyEndDate || con.endDate || '') + '').substring(0, 10))}${con.daysRemaining != null ? ' (' + con.daysRemaining + ' days)' : ''}</td></tr>
+                        <tr><th style="${thStyle}">Warranty End</th><td style="${tdStyle}">${valOrDash((s.warrantyEndDate || '').substring(0, 10))}${_wDaysRem != null ? ' (' + _wDaysRem + ' days)' : ''}</td></tr>
+                        <tr><th style="${thStyle}">Support Contract Status</th><td style="${tdStyle}">${con.status ? valOrDash(con.status === 'expired' ? 'Expired' : con.status === 'warning' ? 'Expiring Soon' : con.status === 'unknown' ? 'Unknown' : 'Active') : 'Unknown'}${con.endDate ? ' (ends ' + (con.endDate + '').substring(0, 10) + ')' : ''}</td></tr>
                         <tr><th style="${thStyle}">ASP</th><td style="${tdStyle}">${valOrDash(s.aspName)}${s.aspEndDate ? ' (Ends: ' + (s.aspEndDate + '').substring(0, 10) + ')' : ''}</td></tr>
                     </table>
                     <div style="flex:1; min-width:280px;">
@@ -25414,8 +25524,8 @@ function generateActionPlan() {
             <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Support Cases</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${allSupportCases.filter(c => c._isActive).length > 0 ? "var(--status-warning)" : "var(--status-normal)"}">${allSupportCases.filter(c => c._isActive).length}<span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400;"> / ${allSupportCases.length}</span></div>
           </div>
-          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Systems whose hardware warranty expires within 90 days. Requires proactive renewal engagement to avoid service coverage gaps.">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Warranty Expiring</div>
+          <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="Systems whose support contract (real isContractActive/overallContractEndDate from Active IQ) expires within 90 days. Requires proactive renewal engagement to avoid service coverage gaps.">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Contract Expiring</div>
             <div style="font-size: 1.3rem; font-weight: 700; color: ${expiringContracts.length > 0 ? "var(--status-critical)" : "var(--status-normal)"}">${expiringContracts.length}</div>
           </div>
           <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: var(--radius-sm); text-align: center; border: 1px solid var(--border-color); cursor: help;" title="NetApp-issued field actions (FAs) requiring customer action — typically proactive hardware replacements, firmware updates, or configuration changes mandated by engineering.">
@@ -26560,7 +26670,7 @@ METRICS SUMMARY:
 - Technical Risks: ${allRisks.length}
 - Security Advisories: ${allSecurityAdvisories.length}
 - Open Support Cases: ${allSupportCases.length}
-- Expiring Warranties: ${expiringContracts.length}
+- Expiring Support Contracts: ${expiringContracts.length}
 - Active Field Actions: ${activeFAs.length}
 
 This document compiles the high-level metrics generated from telemetry data analyzed by NetApp Active IQ Digital Advisor.`;
@@ -26848,9 +26958,9 @@ ${sepThin}
   SnapMirror Count:   ${_v(sys.snapMirrorCount)}
   Shelves:            ${(sys.shelves || []).length}
 
-5. WARRANTY & LIFECYCLE
+5. SUPPORT CONTRACT & LIFECYCLE
 ${sepThin}
-  Warranty Status:    ${sys.contracts ? _v(sys.contracts.status) : '—'}
+  Contract Status:    ${sys.contracts ? _v(sys.contracts.status) : '—'}
   HW End Date:        ${sys.contracts ? _v(sys.contracts.hwEndDate) : '—'}
   SW End Date:        ${sys.contracts ? _v(sys.contracts.swEndDate) : '—'}
   Days Remaining:     ${sys.contracts ? _v(sys.contracts.daysRemaining) : '—'}
@@ -27051,7 +27161,7 @@ function downloadDeliverable(type) {
   } else if (type === 'SUSTAINABILITY_REPORT') {
     triggerFileDownload(`sustainability_report_${cleanScope}.txt`, docs.sustainabilityReport || compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CSV') {
-    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Warranty End Date", "TAM Owner"];
+    const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Support Contract End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
       sys.customerName,
       sys.systemName,
@@ -27124,7 +27234,7 @@ function _cvrAddValueInsightsSlide(pptx, health, uptime, cap, feat, security) {
     ['Category', 'Finding'],
     ['Overall Health', `${health.score}/100 (Grade ${health.grade})`],
     ['NetApp-Delivered Savings & Stability', `${cap.savedTB.toFixed(1)} TB saved${cap.projectedMonthlySavings > 0 ? ` (~$${Math.round(cap.projectedMonthlySavings).toLocaleString()}/mo)` : ''}; ${uptime.systemsWithEvents > 0 ? `${uptime.totalOutageMinutes} outage min across ${uptime.systemsWithEvents} system(s)` : 'no downtime events recorded'}`],
-    ['Security & Future Planning', `${security.cveCount} critical/high CVE bulletin(s); ${security.eosCount} system(s) approaching end-of-support; ${security.expiring90} warrant(y/ies) expiring <90 days`],
+    ['Security & Future Planning', `${security.cveCount} critical/high CVE bulletin(s); ${security.eosCount} system(s) approaching end-of-support; ${security.expiring90} support contract(s) expiring <90 days`],
     ['Maximize Infrastructure Value', `Feature adoption ${feat.fleetAvgScore}% fleet average (ARP, FabricPool, SnapMirror, HA)`]
   ];
   slide.addTable(rows, {
@@ -27165,12 +27275,12 @@ function _cvrAddOptimizationSlide(pptx, targetSystems, topRisks, security) {
 function _cvrAddRenewalSlide(pptx, expiringContracts) {
   const slide = pptx.addSlide();
   slide.addText('Renewal Value Highlights', { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 24, bold: true, color: CVR_BRAND.ink });
-  slide.addText('Warranty coverage is used here, not support-contract data — Active IQ does not expose per-system support contract dates for this tenant, but hardware warranty end dates are real and populated.', { x: 0.5, y: 0.85, w: 9, h: 0.4, fontSize: 9, italic: true, color: CVR_BRAND.muted });
+  slide.addText('Real support-contract data from Active IQ (isContractActive / overallContractEndDate).', { x: 0.5, y: 0.85, w: 9, h: 0.4, fontSize: 9, italic: true, color: CVR_BRAND.muted });
   if (expiringContracts.length === 0) {
-    slide.addText('No systems with warranty coverage expiring within 90 days.', { x: 0.5, y: 1.4, w: 9, h: 0.5, fontSize: 14, color: CVR_BRAND.green });
+    slide.addText('No systems with a support contract expiring within 90 days.', { x: 0.5, y: 1.4, w: 9, h: 0.5, fontSize: 14, color: CVR_BRAND.green });
   } else {
     const sorted = [...expiringContracts].sort((a, b) => (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999));
-    const rows = [['System', 'Warranty End Date', 'Days Remaining']].concat(
+    const rows = [['System', 'Contract End Date', 'Days Remaining']].concat(
       sorted.slice(0, 10).map(c => [c.systemName || c.serialNumber || '', c.endDate || 'N/A', c.daysRemaining != null ? String(c.daysRemaining) : 'N/A'])
     );
     slide.addTable(rows, {
@@ -27207,7 +27317,9 @@ async function generateCVRPptx(targetSystems, cleanScope) {
   const cap = computeFleetCapacitySummary(targetSystems);
   const feat = computeFleetFeatureMatrix(targetSystems);
   const security = {
-    cveCount: targetSystems.reduce((sum, s) => sum + (s.securityBulletins || []).filter(b => /CVE-[0-9]{4}-[0-9]+/.test(b.description || b.cve || '')).length, 0),
+    // Same union as computeCostOfInaction()/the Security Brief -- see the comment
+    // on _mCveCount in renderCSMTab() for why this must not count securityBulletins alone.
+    cveCount: computeCostOfInaction(targetSystems).cves,
     eosCount: _realRecommendationCount('EOS_AND_PLAT_AND_HW', targetSystems) || 0,
     expiring90: targetSystems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90).length
   };
@@ -29880,7 +29992,7 @@ async function importTrackerItemsFromScope() {
       });
     });
     if (s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90) {
-      const title = `Warranty expiring in ${s.contracts.daysRemaining} day(s)`;
+      const title = `Support contract expiring in ${s.contracts.daysRemaining} day(s)`;
       items.push({
         itemKey: _trackerItemKey('contract', s.serialNumber, title),
         accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
@@ -30557,7 +30669,7 @@ function switchTab(tabId) {
 
 function exportCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Warranty Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\n";
+  csvContent += "System Name,Serial Number,Cluster Name,Customer Name,Model,Platform Type,Status,ONTAP Version,Efficiency Ratio,Support Contract Expiry,Risks Count,Delivery Address,Primary Contact,Case Health,Daily Growth (GB),Days to Limit\n";
 
   state.systems.forEach(s => {
     const risksCount = s.risks.length;

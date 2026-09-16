@@ -1,8 +1,8 @@
 {
-  "version": "5.6.54",
+  "version": "5.6.55",
   "major": 5,
   "minor": 6,
-  "patch": 54,
+  "patch": 55,
   "date": "2026-09-16",
-  "notes": "Added a new Success Plans tab -- a TAM-authored CSP tracker mirroring NetApp Digital Advisor's own Success Plans list one-to-one (CSP name, TAM owner, Linked to (scope), Status, TAM risk assessment, Lifecycle Stage taxonomy). KPI row: Health Score, Linked/Unlinked CSP counts, TAM Owner count; Outcomes Lift honestly labeled 'Coming soon' since Active IQ exposes no API for it. Persisted server-side in SQLite; unlike the Remediation Tracker, this has no telemetry source -- it's a pure TAM workflow object."
+  "notes": "Fixed a severe PSIRT product-misclassification bug (54% of bulletins were defaulting to ONTAP when unrecognized, mistagging non-storage CVEs against every array in the fleet) and backfilled all 341 existing bulletins against live data. Restored real Support Contract Coverage as its own metric, separate from hardware Warranty Coverage -- Active IQ's contract data, null in August, is now populated for most of the fleet. Fixed a deliverable-accuracy audit: CVE count union consistency, DR Coverage % exceeding 100%, MSP Service Report's two disagreeing Health numbers, and Account Handover Brief's fleet-wide sustainability score being presented as one customer's own achievement (plus the underlying multi-account merge bug that caused it)."
 }
