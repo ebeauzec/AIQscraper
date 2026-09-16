@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.58] - 2026-09-16
+
+### Fixed
+- **Switch card showing "Latest Supported: ONTAP 9.19.1"** for a Cisco Nexus switch (found live) — the vendor lookup used the switch's model field, often a generic classification like "OTHER (Cluster Interconnect)" for real switches, instead of also checking the firmware string that reliably identifies the real vendor.
+- **"Feature Adoption Score" was silently blending 10 unrelated health checks** (OS currency, risk count, contract status, ASUP compliance, EOS lifecycle, CVE count, capacity %, support cases, field actions) into a score for a table whose columns only ever showed 4 real features. Rescoped to the 5 actual feature checks — ARP, FabricPool, SnapMirror, HA, and QoS (added as a new column; a real tracked field missing from this table entirely).
+- A hardcoded `/15` denominator in the Risk & Remediation Brief's fleet-average Feature Adoption line, disconnected from the real per-system totals being averaged.
+
+### Changed
+- **SVM & Network Health section deduplicated** — previously pasted at full, identical detail into 6 deliverables. Full detail now stays only in the Risk & Remediation Brief; QBR Pack, MSP Report, TAM Success Plan, Account Handover Brief, and Security Posture Brief get a concise summary with a pointer to the full breakdown.
+- **Action Planner's 19 sub-tabs regrouped** into a logical order: Summary, then every fleet-analysis/detail tab together, then Logistics, then Guidelines, then the two customer-facing output tabs (Deliverables Suite, As-Built Document) last as the capstone step. Every tab's visible number and in-panel heading renumbered to match; verified all existing internal "jump to section" links still resolve correctly.
+
+---
+
 ## [5.6.57] - 2026-09-16
 
 ### Fixed

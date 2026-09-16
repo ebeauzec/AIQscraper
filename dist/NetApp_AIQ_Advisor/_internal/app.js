@@ -27,9 +27,51 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.57";
+const APP_VERSION = "5.6.58";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.58",
+    date: "16 September 2026",
+    title: "Fixed: Switch Firmware Nonsense, SVM Section Deduplicated, Action Planner Reorganized",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Switch Cards Showing \"Latest Supported: ONTAP 9.19.1\"",
+        color: "#f87171",
+        items: [
+          "Found live: a Cisco Nexus switch's card read 'Latest Supported: ONTAP 9.19.1' -- a switch doesn't run ONTAP. Root cause: getLatestSupportedVersion() was called with the switch's model field, which for many real switches is a generic classification like 'OTHER (Cluster Interconnect)' rather than an actual vendor string; none of the function's vendor checks matched 'other', so it fell through to the function's ONTAP-platform default.",
+          "New getSwitchLatestSupportedVersion() checks both the model AND the firmware string (which reliably says 'Cisco Nexus...'/'NX-OS'/'Fabric OS' even when the model doesn't) for a known switch vendor, and honestly says 'vendor/model not identified' instead of guessing ONTAP when neither does.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- \"Feature Adoption Score\" Wasn't Scoring Features",
+        color: "#f87171",
+        items: [
+          "The Per-System Feature Matrix showed 4 columns (ARP, FabricPool, SnapMirror, HA) next to a 'Score' column reading e.g. '7/14' -- 10 of those 14 points came from unrelated checks never shown as columns at all (OS currency, risk count, contract status, ASUP compliance, EOS lifecycle, CVE count, capacity %, support cases, field actions), making the number a second, differently-weighted copy of the account health score wearing a 'Feature Adoption' label. Used in 10+ places across the app.",
+          "Rescoped to the 5 things actually about feature adoption -- ARP, FabricPool, SnapMirror, HA, and QoS (a real per-system field that was tracked elsewhere in the app but missing from this table entirely, now added as its own column). A system with no data reported for the extra checks now correctly shows e.g. '1/4', not a diluted '1/14'.",
+          "Also fixed a separate, unrelated bug this surfaced: the Risk & Remediation Brief's fleet-average 'Feature Adoption Score' was hardcoded against a literal '/15' denominator that had nothing to do with the actual per-system totals being averaged -- now shows the real average percentage.",
+        ],
+      },
+      {
+        icon: "✂️",
+        label: "Changed -- SVM & Network Health No Longer Duplicated 4x Per Customer",
+        color: "#22c55e",
+        items: [
+          "The SVM & Logical Interface Inventory section (per-system LIF down/degraded table) was pasted at full, identical detail into 6 different deliverables -- same content, same length, every time. Now stays in full in the Risk & Remediation Brief (the technical/ops document it fits); everywhere else (QBR Pack, MSP Report, TAM Success Plan, Account Handover Brief, Security Posture Brief) shows a 1-2 line summary with a pointer to the full breakdown.",
+        ],
+      },
+      {
+        icon: "📋",
+        label: "Changed -- Action Planner Regrouped Into a Logical Order",
+        color: "#22c55e",
+        items: [
+          "The Action Planner's 19 sub-tabs (not 12 -- the true count) went Summary, then a scattered mix of detail tabs, the Deliverables Suite sandwiched in the middle, then MORE detail tabs after it (a leftover 'FLEET ANALYSIS (CONT'D)' label admitted as much). Regrouped: Summary, then every fleet-analysis/detail tab together (Risks, Security, Upgrades, Switches, Cases, Contracts & Lifecycle, Contract Compliance, Sustainability, Recommendations, Account Intelligence, Operational Health, DR & Replication, Feature Adoption, Firmware Currency), then Logistics, then Guidelines, then the two customer-facing output tabs (Deliverables Suite, As-Built Document) last as the capstone step. Renumbered every tab's visible label and matching in-panel heading to the new sequential order 1-19; the underlying tab-switching logic matches by a stable internal index (unaffected by visual position), so every existing 'jump to this section' link in the app still lands on the correct, now-renumbered tab -- verified live across all 19.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.57",
     date: "16 September 2026",
@@ -10503,6 +10545,22 @@ function calculateUpgradePath(platform, currentVersion, targetVersion) {
   return hops;
 }
 
+// Switch cards call this with sw.model, which for many real switches is a
+// generic classification like "OTHER (Cluster Interconnect)" rather than an
+// actual vendor/model string -- none of getLatestSupportedVersion()'s
+// vendor branches match "other", so it fell through to the function's
+// ONTAP default, showing "Latest Supported: ONTAP 9.19.1" on a Cisco
+// switch. Live-confirmed: the real vendor is still identifiable from
+// sw.firmware ("Cisco Nexus Operating System (NX-OS) Software, ...") even
+// when sw.model isn't. Tries model first, then firmware string; if neither
+// identifies a known switch vendor, says so honestly instead of guessing.
+function getSwitchLatestSupportedVersion(sw) {
+  const hay = `${sw.model || ''} ${sw.firmware || ''}`.toLowerCase();
+  if (hay.includes('cisco') || hay.includes('mds') || hay.includes('nexus') || hay.includes('nx-os')) return 'NX-OS 9.3(12)';
+  if (hay.includes('brocade') || hay.includes('fabric os') || hay.includes('fos ')) return 'Fabric OS (FOS) 9.2.1';
+  return 'N/A — switch vendor/model not identified';
+}
+
 function getLatestSupportedVersion(platform) {
   const p = (platform || "").toLowerCase();
   if (p.includes("storagegrid")) {
@@ -14953,62 +15011,37 @@ function computeCapacityRAG(sys) {
 
 
 function computeFeatureAdoptionScore(sys) {
-  // Returns {passed, total, pct} based on a checklist that only counts features
-  // where we have confirmed data. Unknown features (null) are excluded from scoring.
+  // Returns {passed, total, pct} for actual OPTIONAL ONTAP FEATURE adoption
+  // only -- ARP, FabricPool, SnapMirror, HA, QoS. This used to also count 10
+  // unrelated operational/health checks (OS currency, risk count, contract
+  // status, ASUP compliance, EOS lifecycle, CVE count, capacity %, support
+  // cases, field actions) toward the same "/14" total, so every deliverable
+  // that shows this as a "Feature Adoption Score" -- including a table whose
+  // own columns only ever displayed 4 of the 14 things being scored -- was
+  // really showing a second, differently-weighted copy of the account
+  // health score under a label that promised something else. Unknown
+  // features (API didn't report them) are excluded from scoring, not
+  // counted as failing.
   let passed = 0;
   let total = 0;
 
-  // ── Operational items (always known from API) ──
-  // 1. OS Currency
-  total++;
-  if (sys.swRecMin && sys.osVersion && !versionLt(sys.osVersion, sys.swRecMin)) passed++;
-  // 2. Data Reduction ratio ≥ 1.5:1
-  total++;
-  const dr = sys.efficiency ? parseFloat(String(sys.efficiency.dataReductionRatio || '1').split(':')[0]) : 1;
-  if (dr >= 1.5) passed++;
-  // 3. Zero critical/high risks
-  total++;
-  const critHigh = (sys.risks || []).filter(r => ['critical','high'].includes(r.severity)).length;
-  if (critHigh === 0) passed++;
-  // 4. Active contract
-  total++;
-  if (sys.contractActive === true) passed++;
-  // 5. ASUP compliance (received within 7 days)
-  total++;
-  const now = Date.now();
-  const asupOk = sys.latestAsupDate && (now - new Date(sys.latestAsupDate).getTime()) <= 7 * 86400000;
-  if (asupOk) passed++;
-  // 6. Lifecycle health (not near EoS)
-  total++;
-  if (sys.lifecycle && !sys.lifecycle.isNearEos) passed++;
-  // 7. Zero CVEs / security bulletins
-  total++;
-  const secBulletins = (sys.securityBulletins || []).length;
-  if (secBulletins === 0) passed++;
-  // 8. Capacity ≤ 80%
-  total++;
-  const utilPct = sys.efficiency ? (sys.efficiency.physicalUsedTB / Math.max(sys.efficiency.rawCapacityTB || 1, 1)) * 100 : 50;
-  if (utilPct <= 80) passed++;
-  // 9. Zero P1/P2 support cases
-  total++;
-  const critCases = (sys.supportCases || []).filter(c => c.severity && ['1','2','S1','S2','P1','P2'].includes(String(c.severity).replace(/[^0-9]/g, '') ? 'P' + String(c.severity).replace(/[^0-9]/g, '') : c.severity)).length;
-  if (critCases === 0) passed++;
-  // 10. Zero field actions
-  total++;
-  const fsas = (sys.risks || []).filter(r => (r.category || '').toLowerCase().includes('field') || (r.description || '').toLowerCase().includes('field action')).length;
-  if (fsas === 0) passed++;
-
-  // ── Feature flags (only counted if API reports them — null = excluded) ──
-  // 11. FabricPool
+  // FabricPool
   if (sys.isFabricPool != null) { total++; if (sys.isFabricPool === true) passed++; }
-  // 12. SnapMirror (always known — 0 relationships = no SM)
+  // SnapMirror (always known — 0 relationships = no SM)
   total++;
   if ((sys.snapmirrorCount || sys.snapMirrorCount || (sys.snapmirror && sys.snapmirror.totalCount) || 0) > 0) passed++;
-  // 13. HA configured
+  // HA configured
   const haVal = sys.haConfigured != null ? sys.haConfigured : (sys.isHAConfigured != null ? sys.isHAConfigured : (sys.snapmirror && sys.snapmirror.isHAConfigured));
   if (haVal != null) { total++; if (haVal === true) passed++; }
-  // 14. ARP
+  // ARP
   if (sys.isARPEnabled != null) { total++; if (sys.isARPEnabled === true) passed++; }
+  // QoS
+  if (sys.isQoSConfigured != null) {
+    total++;
+    if (sys.isQoSConfigured === true || sys.qosPolicies > 0) passed++;
+  } else if (sys.qosPolicies > 0) {
+    total++; passed++;
+  }
 
   return { passed, total: total || 1, pct: Math.round((passed / (total || 1)) * 100) };
 }
@@ -18942,6 +18975,40 @@ function compileSvmLifInventoryText(targetSystems) {
   return out;
 }
 
+// One-line SVM/LIF health summary for deliverables that reference network
+// health as one of several risk factors (QBR Pack, Security Brief, MSP
+// Report) rather than as their primary subject. The full per-system table
+// (compileSvmLifInventoryText above) used to be pasted verbatim into all 4
+// of those documents identically -- same content, same length, every time.
+// It now stays in the Risk & Remediation Brief (the technical/ops document
+// it actually fits) and everywhere else gets this summary plus a pointer.
+function compileSvmLifSummaryText(targetSystems) {
+  let totalSvms = 0, totalLifs = 0, totalMigratedLifs = 0, totalDownLifs = 0;
+  let systemsWithData = 0, systemsWithIssues = 0;
+  for (const sys of targetSystems) {
+    if (!sys) continue;
+    const svms = getSystemSvms(sys);
+    if (!svms || svms.length === 0) continue;
+    systemsWithData++;
+    let sysDown = 0, sysMigrated = 0;
+    for (const svm of svms) {
+      totalSvms++;
+      totalLifs += (svm.lifsCount || 0);
+      sysMigrated += (svm.migratedLifs || 0);
+      totalMigratedLifs += (svm.migratedLifs || 0);
+      (svm.lifs || []).forEach(lif => {
+        if ((lif.operStatus || 'UP').toUpperCase() !== 'UP') { sysDown++; totalDownLifs++; }
+      });
+    }
+    if (sysDown > 0 || sysMigrated > 0) systemsWithIssues++;
+  }
+  if (systemsWithData === 0) return '* SVM & LIF NETWORK: No ONTAP SVM/LIF data available for this scope.\n';
+  if (totalDownLifs === 0 && totalMigratedLifs === 0) {
+    return `* SVM & LIF NETWORK: ${totalSvms} SVMs across ${systemsWithData} system${systemsWithData !== 1 ? 's' : ''}, ${totalLifs} LIFs -- all homed and operational.\n`;
+  }
+  return `* SVM & LIF NETWORK: ${totalSvms} SVMs across ${systemsWithData} system${systemsWithData !== 1 ? 's' : ''}, ${totalLifs} LIFs. ${totalDownLifs} LIF${totalDownLifs !== 1 ? 's' : ''} down/degraded and ${totalMigratedLifs} non-homed across ${systemsWithIssues} system${systemsWithIssues !== 1 ? 's' : ''} -- see the Risk & Remediation Brief for the full per-system breakdown.\n`;
+}
+
 function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases, fw) {
   let totalCapTB = 0;
   let logicalCapTB = 0;
@@ -19276,7 +19343,7 @@ ${platformLines}
   - AutoSupport Issues: ${asupIssues.length}
   - Open Support Cases: ${allSupportCases.length}
 
-${compileSvmLifInventoryText(targetSystems)}
+${compileSvmLifSummaryText(targetSystems)}
 
 * WORKLOAD EFFICIENCY HYGIENE:
   - Total Physical Used Capacity: ${totalCapTB.toFixed(1)} TB
@@ -19882,9 +19949,9 @@ ${(() => {
 ${formatCostOfInactionText(targetSystems)}
 
 --------------------------------------------------------------------------------
-4. SVM & LOGICAL INTERFACE INVENTORY [RISK EXPOSURE]
+4. SVM & NETWORK HEALTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-${compileSvmLifInventoryText(targetSystems)}
+${compileSvmLifSummaryText(targetSystems)}
 --------------------------------------------------------------------------------
 5. SUSTAINABILITY & EFFICIENCY [RISK EXPOSURE]
 --------------------------------------------------------------------------------
@@ -20194,9 +20261,9 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
-8. SVM & LOGICAL INTERFACE INVENTORY [RISK EXPOSURE]
+8. SVM & NETWORK HEALTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-${compileSvmLifInventoryText(targetSystems)}
+${compileSvmLifSummaryText(targetSystems)}
 --------------------------------------------------------------------------------
 9. CAPACITY & EFFICIENCY [RISK EXPOSURE]
 --------------------------------------------------------------------------------
@@ -20411,7 +20478,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
 
   STANDARDS & ADOPTION (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
-    Feature Adoption Score:   ${avgFeaturePassed}/15 (${avgFeaturePct}%)
+    Feature Adoption Score:   ${avgFeaturePct}% fleet average (ARP/FabricPool/SnapMirror/HA/QoS, ~${avgFeaturePassed} of 5 features per system)
     ARP Enablement:           ${arpCount}/${total}${arpKnownSys.length < total ? ' *' : ''}
     FabricPool Adoption:      ${fpAdopted}/${total}
 
@@ -20706,9 +20773,9 @@ ${invSep}
 ${invRows}
 
 --------------------------------------------------------------------------------
-4. SVM & LOGICAL INTERFACE INVENTORY
+4. SVM & NETWORK HEALTH
 --------------------------------------------------------------------------------
-${compileSvmLifInventoryText(targetSystems)}
+${compileSvmLifSummaryText(targetSystems)}
 --------------------------------------------------------------------------------
 5. RISK & COMPLIANCE POSTURE
 --------------------------------------------------------------------------------
@@ -20996,9 +21063,9 @@ ${kevAckBlock}
   4. FEATURE GAP ANALYSIS
   ────────────────────────────────────────────────────────────────────────────
 ${featureLines}
-  5. SVM & LOGICAL INTERFACE INVENTORY
+  5. SVM & NETWORK HEALTH
   ────────────────────────────────────────────────────────────────────────────
-${compileSvmLifInventoryText(targetSystems)}
+${compileSvmLifSummaryText(targetSystems)}
   6. DATA PROTECTION POSTURE
   ────────────────────────────────────────────────────────────────────────────
     DR Coverage:       ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)
@@ -24211,7 +24278,8 @@ function _renderFeatureAdoptionSection(systems) {
     { name: 'ARP',       get: (s) => s.isARPEnabled != null ? s.isARPEnabled : null },
     { name: 'FabricPool', get: (s) => s.isFabricPool != null ? s.isFabricPool : null },
     { name: 'SnapMirror', get: (s) => _smCount(s) > 0 },  // always known (0 = no relationships)
-    { name: 'HA',         get: (s) => _hasHA(s) }
+    { name: 'HA',         get: (s) => _hasHA(s) },
+    { name: 'QoS',        get: (s) => s.isQoSConfigured != null ? s.isQoSConfigured : (s.qosPolicies > 0 ? true : null) }
   ];
 
   const featureStats = featureDefs.map(f => {
@@ -24260,6 +24328,7 @@ function _renderFeatureAdoptionSection(systems) {
         <td style="${tdStyle}">${_icon(s.isFabricPool != null ? s.isFabricPool : null)}</td>
         <td style="${tdStyle}">${_icon(_smCount(s) > 0)}</td>
         <td style="${tdStyle}">${_icon(_hasHA(s))}</td>
+        <td style="${tdStyle}">${_icon(s.isQoSConfigured != null ? s.isQoSConfigured : (s.qosPolicies > 0 ? true : null))}</td>
         <td style="${tdStyle}">${scoreText}</td>
       </tr>
     `;
@@ -24270,6 +24339,7 @@ function _renderFeatureAdoptionSection(systems) {
     const missing = [];
     if (s.isARPEnabled === false) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
     if (s.isFabricPool === false) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
+    if (s.isQoSConfigured === false) missing.push('QoS (Adaptive QoS policies prevent noisy-neighbor workloads from starving others of IOPS/throughput. `qos adaptive-policy-group create`)');
     
     if (missing.length === 0) return '';
     return `<li><strong>${s.systemName || s.serialNumber}:</strong> Enable ${missing.join(', ')}</li>`;
@@ -24319,6 +24389,7 @@ function _renderFeatureAdoptionSection(systems) {
             ${_sth(thStyle, 'FabricPool')}
             ${_sth(thStyle, 'SnapMirror')}
             ${_sth(thStyle, 'HA')}
+            ${_sth(thStyle, 'QoS')}
             ${_sth(thStyle, 'Score')}
           </tr>
         </thead>
@@ -25970,7 +26041,7 @@ function generateActionPlan() {
     <!-- Open Support Cases Section -->
     <div class="plan-section" data-section-index="4" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Support Cases & Service Activity</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">6. Support Cases & Service Activity</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 support cases report as a TXT file.">Download Cases (TXT)</button>
       </div>
   `;
@@ -26057,7 +26128,7 @@ function generateActionPlan() {
     <!-- OS/Firmware Upgrades Section -->
     <div class="plan-section" data-section-index="5" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">5. Recommended OS Upgrade Roadmaps</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Recommended OS Upgrade Roadmaps</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps (TXT)</button>
       </div>
   `;
@@ -26170,7 +26241,7 @@ function generateActionPlan() {
     <!-- Network Switch & Fabric Infrastructure Remediation Section -->
     <div class="plan-section" data-section-index="6" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">6. Network Switch & Fabric Infrastructure Remediation</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">5. Network Switch & Fabric Infrastructure Remediation</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(6)" data-tooltip="Download Section 6 switch validation roadmap as a TXT file.">Download Switch Report (TXT)</button>
       </div>
   `;
@@ -26229,7 +26300,7 @@ function generateActionPlan() {
             ${sw.isDiscovered ? `<span style="font-size: 0.72rem; background: rgba(0,200,255,0.08); color: var(--accent-cyan); border: 1px solid rgba(0,200,255,0.2); border-radius: 4px; padding: 1px 6px; margin-left: 4px; font-weight: 600;">🔍 Discovered</span>` : ''}
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
-            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Min. Required (To Fix): <strong style="color: ${sw.targetFirmware ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${sw.targetFirmware || 'N/A — no RCF recommendation from Active IQ'}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getLatestSupportedVersion(sw.model)}</strong>
+            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Min. Required (To Fix): <strong style="color: ${sw.targetFirmware ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${sw.targetFirmware || 'N/A — no RCF recommendation from Active IQ'}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getSwitchLatestSupportedVersion(sw)}</strong>
           </div>
           <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
             <strong>Validation Drift:</strong> ${sw.validationDetails}
@@ -26248,7 +26319,7 @@ function generateActionPlan() {
     <!-- Site Logistics, Contacts & Health Details Section -->
     <div class="plan-section" data-section-index="7" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">7. Site Logistics, Contacts, & Customer Health</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. Site Logistics, Contacts, & Customer Health</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(7)" data-tooltip="Download Section 7 logistics and contacts catalog as a TXT file.">Download Logistics (TXT)</button>
       </div>
   `;
@@ -26304,7 +26375,7 @@ function generateActionPlan() {
     <!-- Guidelines and Proceeding Steps Section -->
     <div class="plan-section" data-section-index="8" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">8. Operational Guidelines & Proceeding Steps</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">17. Operational Guidelines & Proceeding Steps</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(8)" data-tooltip="Download Section 8 change control guidelines as a TXT file.">Download Guidelines (TXT)</button>
       </div>
       
@@ -26583,7 +26654,7 @@ function generateActionPlan() {
     <!-- ═══ SECTION 10: Contracts & Lifecycle ═══ -->
     <div class="plan-section" data-section-index="10" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">10. Contracts & Lifecycle Events</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">7. Contracts & Lifecycle Events</h2>
       </div>
       ${_renderContractsLifecycleSection(targetSystems)}
     </div>
@@ -26591,7 +26662,7 @@ function generateActionPlan() {
     <!-- ═══ SECTION 11: Sustainability & ESG ═══ -->
     <div class="plan-section" data-section-index="11" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">11. Sustainability & ESG Report</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">9. Sustainability & ESG Report</h2>
       </div>
       ${_renderSustainabilitySection(targetSystems)}
     </div>
@@ -26599,7 +26670,7 @@ function generateActionPlan() {
     <!-- ═══ SECTION 12: Recommendations ═══ -->
     <div class="plan-section" data-section-index="12" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">12. TAM Recommendations</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">10. TAM Recommendations</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(12)" data-tooltip="Download Section 12 TAM recommendations report as a TXT file.">Download Recommendations (TXT)</button>
       </div>
       ${_renderRecommendationsSection(targetSystems)}
@@ -26616,7 +26687,7 @@ function generateActionPlan() {
   sec13.style.marginTop = '32px';
   sec13.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">13. Account Intelligence</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">11. Account Intelligence</h2>
     </div>
     ${_renderAccountIntelligenceSection(targetSystems)}`;
   planBody.appendChild(sec13);
@@ -26628,7 +26699,7 @@ function generateActionPlan() {
   sec14.style.marginTop = '32px';
   sec14.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">14. Contract Compliance</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">8. Contract Compliance</h2>
     </div>
     ${_renderLicenseComplianceSection(targetSystems)}`;
   planBody.appendChild(sec14);
@@ -26640,7 +26711,7 @@ function generateActionPlan() {
   sec15.style.marginTop = '32px';
   sec15.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">15. Operational Health</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">12. Operational Health</h2>
     </div>
     ${_renderMonthlySLASection(targetSystems)}`;
   planBody.appendChild(sec15);
@@ -26652,7 +26723,7 @@ function generateActionPlan() {
   sec16.style.marginTop = '32px';
   sec16.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. DR & Replication Health</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">13. DR & Replication Health</h2>
     </div>
     ${_renderDRReplicationSection(targetSystems)}`;
   planBody.appendChild(sec16);
@@ -26664,7 +26735,7 @@ function generateActionPlan() {
   sec17.style.marginTop = '32px';
   sec17.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">17. Feature Adoption</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">14. Feature Adoption</h2>
     </div>
     ${_renderFeatureAdoptionSection(targetSystems)}`;
   planBody.appendChild(sec17);
@@ -26676,7 +26747,7 @@ function generateActionPlan() {
   sec18.style.marginTop = '32px';
   sec18.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">18. Firmware Currency</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">15. Firmware Currency</h2>
     </div>
     ${_renderFirmwareCurrencySection(targetSystems)}`;
   planBody.appendChild(sec18);
@@ -26707,24 +26778,22 @@ function generateActionPlan() {
       <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
       <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">4. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">5. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">6. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">7. Logistics &amp; Health</button>
-      <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">8. Guidelines</button>
-      <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before and after this point is fleet analysis, not exportable deliverables.">★ CUSTOMER DELIVERABLES</span>
-      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">9. Deliverables Suite (13)</button>
-      <span class="plan-tab-group-label">FLEET ANALYSIS (CONT'D)</span>
-      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">10. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">11. Sustainability</button>
-      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Prioritised recommendations for capacity planning, performance optimisation, security hardening, and tech refresh across the fleet.">12. Recommendations</button>
-      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account-level intelligence — sales rep, TAM, SAM contacts, parent account hierarchy, reseller details, and engagement history.">13. Account Intelligence</button>
-      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract compliance audit — validates service levels, NRD coverage, hardware vs. software contract alignment, and renewal gaps.">14. Contract Compliance</button>
-      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational health dashboard — uptime statistics, downtime events, AutoSupport health, reboot history, and system availability trends.">15. Operational Health</button>
-      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationships, replication status, HA pair configuration, and MetroCluster health per system.">🔄 16. DR &amp; Replication Health</button>
-      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, FabricPool, encryption, etc.) are enabled or missing per system.">✅ 17. Feature Adoption</button>
-      <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 18. Firmware Currency</button>
-      <span class="plan-tab-group-label" title="Another customer-facing document — kept separate from the Deliverables Suite since it's typically generated on its own, not part of the standard 13-doc set.">★ AS-BUILT DOCUMENT</span>
+      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">4. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
+      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract compliance audit — validates service levels, NRD coverage, hardware vs. software contract alignment, and renewal gaps.">8. Contract Compliance</button>
+      <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
+      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Prioritised recommendations for capacity planning, performance optimisation, security hardening, and tech refresh across the fleet.">10. Recommendations</button>
+      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account-level intelligence — sales rep, TAM, SAM contacts, parent account hierarchy, reseller details, and engagement history.">11. Account Intelligence</button>
+      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational health dashboard — uptime statistics, downtime events, AutoSupport health, reboot history, and system availability trends.">12. Operational Health</button>
+      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationships, replication status, HA pair configuration, and MetroCluster health per system.">🔄 13. DR &amp; Replication Health</button>
+      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, FabricPool, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
+      <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
+      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
+      <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
+      <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before this point is fleet analysis used to build them, not itself an exportable deliverable.">★ CUSTOMER DELIVERABLES</span>
+      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">18. Deliverables Suite (13)</button>
       <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
     `;
 
@@ -26950,7 +27019,7 @@ Scope: ${scopeTitle}
 ${switchAlerts.length === 0 ? "✓ All interconnect and storage network fabric switches match validated firmware baselines." :
   switchAlerts.map(sw => `System: ${sw.systemName} | Switch: ${sw.model} (${sw.type}) [Status: ${sw.status}]
 - Switch S/N: ${sw.serialNumber} | IP: ${sw.ipAddress}
-- Current Firmware: ${sw.firmware} | Target Firmware: ${sw.targetFirmware} | Latest Supported: ${getLatestSupportedVersion(sw.model)}
+- Current Firmware: ${sw.firmware} | Target Firmware: ${sw.targetFirmware} | Latest Supported: ${getSwitchLatestSupportedVersion(sw)}
 - Validation Drift Details: ${sw.validationDetails}
 `).join("\n\n")}`;
   } else if (index === 7) {

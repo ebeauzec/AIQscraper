@@ -1,8 +1,8 @@
 {
-  "version": "5.6.57",
+  "version": "5.6.58",
   "major": 5,
   "minor": 6,
-  "patch": 57,
+  "patch": 58,
   "date": "2026-09-16",
-  "notes": "Full deliverables cleanup: read every generated document end-to-end against real live data and fixed what was actually wrong. Real bugs: doubled 'Customer: Customer:' scope headers, a verbatim-duplicated Architecture Roadmap paragraph, near-duplicate corrective-action entries grouped by cluster instead of by fix, a CVE Priority Matrix that could contradict its own document's CVE count, raw HTML leaking into plain-text output, and a Sustainability Report defaulting to a fabricated '0/100' instead of falling back to a real score. Conciseness: the TAM Success Plan's CVE section (82% of the document, 504 individually-listed bulletin rows) is now a real summary plus top 5, cut from 137KB to 37KB with no information silently dropped -- the full list stays in the dedicated Security Posture Brief."
+  "notes": "Fixed a switch card showing 'Latest Supported: ONTAP 9.19.1' for a Cisco Nexus switch (found live) -- the vendor lookup used the switch's often-generic model field instead of also checking the firmware string. Deduplicated the SVM & Network Health section, previously pasted at full identical detail into 6 deliverables -- now full detail stays in the Risk & Remediation Brief, everywhere else gets a concise summary. Regrouped the Action Planner's 19 sub-tabs (not 12) into a logical order: all fleet-analysis/detail tabs together, then Logistics, then Guidelines, then the two customer-facing output tabs (Deliverables Suite, As-Built Document) last. Fixed the 'Feature Adoption Score' silently blending 10 unrelated health checks into what was supposed to be a 4-column feature table's score -- rescoped to the 5 real feature checks (added QoS, a real tracked field that was missing from the table) and fixed a separate hardcoded '/15' denominator bug it surfaced in the Risk & Remediation Brief."
 }
