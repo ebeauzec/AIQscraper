@@ -27,9 +27,40 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.56";
+const APP_VERSION = "5.6.57";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.57",
+    date: "16 September 2026",
+    title: "Deliverables Cleanup: Concise, No Duplicate Content, No Fabricated Numbers",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Real Bugs Found Reading Every Deliverable End-to-End",
+        color: "#f87171",
+        items: [
+          "\"Customer: Customer: Acme Inc.\" -- every field-labeled scope header (Customer:/Account:/CUSTOMER SCOPE:) across all 7 main deliverables printed the scope's own type prefix a second time, since scopeTitle already carries it for the Action Planner's internal selector. Now stripped wherever a field already has its own label.",
+          "QBR Pack's Architecture Roadmap section printed one full, verbatim-identical paragraph per system on the same platform (e.g. two systems on FAS8200 produced two copy-pasted blocks) -- now grouped by platform+OS+date with the affected systems listed once.",
+          "\"Top Corrective Actions\" / \"Improvement Backlog\" grouped fixes by cluster, not by the fix itself -- 4 clusters all needing the identical \"Upgrade to ONTAP 9.19.1P2\" produced 4 near-duplicate entries with the same root-cause paragraph repeated 4 times. Now one entry per real fix, covering every affected system account-wide.",
+          "Security Posture Brief's \"CVE Remediation Priority Matrix\" only read risks[].cveDetails, never securityBulletins -- for a fleet whose CVEs came entirely from the (more common) bulletin match, it printed \"No specific CVEs detected\" directly under a summary line reporting dozens of real CVEs a few lines up. Now unions both sources, same as the CVE Exposure count already did.",
+          "Recommendation/finding text could carry raw HTML (<a href=...>, <b>) from Active IQ meant for an on-screen render -- in a plain-text deliverable this showed literal tag markup, sometimes cut off mid-tag by truncation. Now stripped before truncating.",
+          "Sustainability Report defaulted to a literal \"0/100\" when no system in scope had a per-system score -- read as a real, alarming measurement rather than \"no data.\" Now falls back to the real per-customer score, then the honestly-labeled fleet-wide figure, before finally admitting no score exists at all.",
+          "Two broken ASCII box-drawing blocks (hardcoded padding that only aligned for one specific number width) replaced with plain dashed dividers that can't misalign. Also fixed a redundant \"None\" line printing directly under a count that already said 0, an internal \"professional services upsell\" annotation baked into a metric label, a support-case owner name field with a doubled internal space, and Active IQ's 9999-12-31 \"no end date\" sentinel showing as a literal raw date instead of \"No end date (indefinite)\".",
+        ],
+      },
+      {
+        icon: "✂️",
+        label: "Changed -- Concise by Default",
+        color: "#22c55e",
+        items: [
+          "TAM Success Plan's CVE section used to list all 504 individual (system, bulletin) pairs in full detail for a 13-system customer -- 82% of the entire document's length. Now shows a real count (unique CVEs, critical/high split, affected systems) plus the top 5 by severity, with a pointer to the Security Posture Brief for the complete list -- 137KB down to 37KB for the same customer, same real data, no information silently dropped.",
+          "Security Posture Brief's CVE Remediation Priority Matrix caps at the top 15 by severity/breadth instead of printing every CVE unbounded, with a count of how many more aren't shown and where to find them.",
+          "Ambiguous \"Security Advisories: N\" labels (a risk-finding count, easily mistaken for the different unique-CVE count shown elsewhere in the same document) relabeled to \"Security-Related Risk Findings\" with a pointer to where the CVE count actually lives.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.56",
     date: "16 September 2026",
@@ -17602,7 +17633,12 @@ function filterActiveCases(cases) {
  *
  * Also exposes .asFlat() to return a flat risk array for legacy consumers.
  */
-const _truncate = (s, n = 300) => { const t = (s || '').replace(/\\n/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : t.substring(0, n).replace(/\s\S*$/, '') + '…'; };
+// Active IQ recommendation/risk text sometimes carries raw HTML (<a href=...>,
+// <b>) meant for an on-screen render -- every caller of this feeds a plain-
+// text deliverable, where an un-stripped tag either shows up literally or,
+// worse, gets cut off mid-tag by the length truncation below (e.g. an <a
+// href="..."> with no visible text or closing bracket). Strip tags first.
+const _truncate = (s, n = 300) => { const t = (s || '').replace(/<[^>]+>/g, '').replace(/\\n/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : t.substring(0, n).replace(/\s\S*$/, '') + '…'; };
 
 function _filterAndDeduplicateRisks(risks, targetSystems) {
   const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -17635,9 +17671,6 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
     let fixKey = '';
     let fixLabel = '';
     if (isUpgradeAvailable) {
-      // Group all findings on the same cluster/version together
-      const clusterKey = sys.clusterName || sys.systemName || '';
-      fixKey = `upgrade:${clusterKey}:${targetVer}`;
       // StorageGRID and E-Series/SANtricity have their own version schemes —
       // labeling their recommended upgrade as "ONTAP" produces version
       // numbers (e.g. StorageGRID 12.0.0) that don't exist as ONTAP releases.
@@ -17647,6 +17680,12 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
         (sys.platform || '').toLowerCase().includes('ef5') || (sys.platform || '').toLowerCase().includes('ef8') ||
         /^(28|29|57|40)\d{2}$/.test((sys.platform || '').trim()));
       const _productLabel = _isSG ? 'StorageGRID' : _isES ? 'SANtricity' : 'ONTAP';
+      // Group by product+target version account-wide, NOT per-cluster -- this
+      // used to key on clusterName too, so 4 separate clusters all needing
+      // the identical "Upgrade to ONTAP 9.19.1P2" fix produced 4 separate,
+      // near-verbatim entries in Top Corrective Actions instead of one entry
+      // covering every affected system.
+      fixKey = `upgrade:${_productLabel}:${targetVer}`;
       fixLabel = `Upgrade to ${_productLabel} ${targetVer}`;
     } else if (r.advisoryUrl) {
       fixKey = `advisory:${r.advisoryUrl}`;
@@ -19064,14 +19103,31 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     });
   });
 
-  // ── Security bulletins ──
-  const secBulletins = [];
+  // ── Security bulletins -- unique CVEs, not one row per (system, bulletin) ──
+  // This used to push one full-detail entry per system a bulletin applied to,
+  // so a single CVE affecting all 13 systems in a fleet printed 13 near-
+  // identical entries -- a 484-line CVE dump for a 13-system customer, most
+  // of it repeated fix text. Grouped by CVE instead, same pattern as the
+  // Security Posture Brief's CVE Remediation Priority Matrix, so this
+  // strategic/relationship document gets a concise summary and points to
+  // that dedicated technical document for the full list, rather than
+  // duplicating it.
+  const secBulletinMap = new Map();
   targetSystems.forEach(sys => {
     (sys.securityBulletins || []).forEach(b => {
-      if ((b.severity || '').toLowerCase() === 'critical' || (b.severity || '').toLowerCase() === 'high') {
-        secBulletins.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, ...b });
+      const sev = (b.severity || '').toLowerCase();
+      if (sev !== 'critical' && sev !== 'high') return;
+      const key = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]) || b.title;
+      if (!key) return;
+      if (!secBulletinMap.has(key)) {
+        secBulletinMap.set(key, { ...b, systems: new Set() });
       }
+      secBulletinMap.get(key).systems.add(sys.systemName);
     });
+  });
+  const secBulletins = Array.from(secBulletinMap.values()).sort((a, b) => {
+    const sevRank = { critical: 0, high: 1 };
+    return (sevRank[(a.severity || '').toLowerCase()] ?? 2) - (sevRank[(b.severity || '').toLowerCase()] ?? 2) || b.systems.size - a.systems.size;
   });
 
   // ── AutoSupport issues ──
@@ -19167,7 +19223,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   return `================================================================================
 TAM SUCCESS PLAN (CSP) & ENVIRONMENTAL POSTURE OPTIMIZATION
 ================================================================================
-CUSTOMER SCOPE       : ${scopeTitle}
+CUSTOMER SCOPE       : ${scopeTitle.replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '')}
 DATE GENERATED       : ${new Date().toISOString().split('T')[0]}
 ACCOUNT TEAM         : TAM: ${activeTAMOwner} | Account Manager: ${activeAMOwner}
 SUPPORT CASE HEALTH  : ${avgCsat} / 10.0 (Support & Account Hygiene)
@@ -19214,7 +19270,7 @@ ${platformLines}
 
 * RISK POSTURE SUMMARY:
   - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
-  - Security Advisories: ${secCount}
+  - Security-Related Risk Findings: ${secCount} (distinct from the unique CVE count in Section 3 below -- one CVE can produce multiple findings across systems)
   - Switch Firmware Drift: ${switchDrift.length} switch${switchDrift.length !== 1 ? 'es' : ''} below validated baseline
   - Shelf Firmware Drift: ${shelfDrift.length} shelf module${shelfDrift.length !== 1 ? 's' : ''} below recommended version
   - AutoSupport Issues: ${asupIssues.length}
@@ -19278,8 +19334,15 @@ ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — $
 --------------------------------------------------------------------------------
 3. SECURITY POSTURE & CVE REMEDIATION [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-${secBulletins.length > 0 ? `ACTIVE SECURITY ADVISORIES (Critical/High — ${secBulletins.length} total):
-${secBulletins.map((b, i) => `  ${i+1}. [${(b.severity||'').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     System: ${b.systemName}\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n')}` : "✓ No critical or high-severity security advisories active."}
+${secBulletins.length > 0 ? (() => {
+    const critCount = secBulletins.filter(b => (b.severity || '').toLowerCase() === 'critical').length;
+    const highCount = secBulletins.length - critCount;
+    const affectedSystems = new Set(secBulletins.flatMap(b => Array.from(b.systems))).size;
+    const SHOWN = 5;
+    const top = secBulletins.slice(0, SHOWN).map((b, i) => `  ${i + 1}. [${(b.severity || '').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     Affects: ${b.systems.size} system${b.systems.size !== 1 ? 's' : ''} (${Array.from(b.systems).slice(0, 3).join(', ')}${b.systems.size > 3 ? ', ...' : ''})\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n');
+    const more = secBulletins.length > SHOWN ? `\n\n  + ${secBulletins.length - SHOWN} more -- see the Security Posture Brief for the complete CVE Remediation Priority Matrix.` : '';
+    return `ACTIVE SECURITY ADVISORIES: ${secBulletins.length} unique CVE${secBulletins.length !== 1 ? 's' : ''} (${critCount} critical, ${highCount} high) affecting ${affectedSystems} system${affectedSystems !== 1 ? 's' : ''}. Top priorities:\n\n${top}${more}`;
+  })() : "✓ No critical or high-severity security advisories active."}
 
 ${(() => {
     // ARP status IS reliably known from Active IQ (s.isARPEnabled) -- show it
@@ -19463,7 +19526,12 @@ All operations under this plan must comply with standard ITIL Change Control pro
 
 
 function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
   const total = targetSystems.length;
 
@@ -19629,18 +19697,27 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   // eosDate are the real, correctly-populated fields used everywhere else
   // in the app for this exact purpose.
   const eoaEosSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos);
-  const techRefreshLines = eoaEosSystems.length > 0 ? eoaEosSystems.map(s => {
+  // Grouped by platform+OS+EOA/EOS date, not one block per system -- this used
+  // to print one full paragraph per system, so 2 systems on the same platform
+  // (a common case: HA pairs, MetroCluster sites) produced two verbatim-
+  // identical paragraphs with no system name in either one, reading as a
+  // copy-paste duplicate rather than two distinct findings.
+  const _refreshGroups = new Map();
+  eoaEosSystems.forEach(s => {
     const eoaDate = s.lifecycle.eoaDate ? s.lifecycle.eoaDate.split('T')[0] : 'Unknown';
     const eosDate = s.lifecycle.eosDate ? s.lifecycle.eosDate.split('T')[0] : 'Unknown';
+    const key = `${s.platform || 'Unknown'}|${s.osVersion || 'Unknown'}|${eoaDate}|${eosDate}`;
+    if (!_refreshGroups.has(key)) _refreshGroups.set(key, { platform: s.platform || 'Unknown', osVersion: s.osVersion || 'Unknown', eoaDate, eosDate, systems: [] });
+    _refreshGroups.get(key).systems.push(s.systemName);
+  });
+  const techRefreshLines = eoaEosSystems.length > 0 ? Array.from(_refreshGroups.values()).map(g => {
     const est = 'TBD (not available via Active IQ API)';
-    return `  Current: ${s.platform || 'Unknown'} (${s.osVersion || 'Unknown'}) — EOA: ${eoaDate}, EOS: ${eosDate}
+    return `  Current: ${g.platform} (${g.osVersion}) — EOA: ${g.eoaDate}, EOS: ${g.eosDate}
+  Affected: ${g.systems.join(', ')}
   Proposed: AFF A-Series / C-Series / ASA — ONTAP 9.16+
   Financial Case: Current maintenance ${est} → Modern platform: Lower power, higher DRR, NVMe perf
-  Timeline: Q${Math.floor((new Date().getMonth() + 3) / 3)} FY${new Date().getFullYear() + 1} (aligned to contract renewal)
-
-  Keystone/OPEX Alternative:
-  Available as consumption model, capacity on-demand.`;
-  }).join('\n\n') : '  No immediate tech refresh candidates identified.';
+  Timeline: Q${Math.floor((new Date().getMonth() + 3) / 3)} FY${new Date().getFullYear() + 1} (aligned to contract renewal)`;
+  }).join('\n\n') + '\n\n  Keystone/OPEX Alternative: Available as consumption model, capacity on-demand.' : '  No immediate tech refresh candidates identified.';
 
   // ── Action Items ──
   const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -19770,7 +19847,7 @@ ${trendSection}
 3. RISK POSTURE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
-  Security Advisories: ${secCount}
+  Security-Related Risk Findings: ${secCount} (see Cost of Inaction below for the unique CVE count)
   Open Support Cases:  ${allSupportCases.length}
 
   TOP CORRECTIVE ACTIONS (with root cause context):
@@ -19868,7 +19945,12 @@ ${priorActionsText}
 
 
 function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const slaDefaults = { asup: 100, arp: 100, fw: 100, contract: 100, critRisks: 0, mttrDays: 5 };
   const slaThresholds = JSON.parse(localStorage.getItem('aria_msp_sla_thresholds') || JSON.stringify(slaDefaults));
   const today = new Date();
@@ -19993,7 +20075,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
         (() => {
           const sys = targetSystems.find(s => s.systemName === c.systemName);
           const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-          return `    • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}\n      Title: ${c.title}\n      Next Action: ${c.nextActionBy || 'Under Review'}`;
+          return `    • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}\n      Title: ${c.title}\n      Next Action: ${(c.nextActionBy || 'Under Review').replace(/\s+/g, ' ').trim()}`;
         })()
       ).join('\n')
     : '    No open support cases.';
@@ -20157,7 +20239,12 @@ ${backlogLines}
 
 
 function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
   let tamName = 'Not Assigned';
   let salesRep = 'Not Assigned';
@@ -20356,15 +20443,14 @@ ${tierLines}
     Critical Risks:           ${coi.critRisks}
     High Risks:               ${coi.highRisks}
     Unpatched CVEs:           ${coi.cves} security advisories
-  HW Firmware Gap:     ${(fw || {}).overallFwScore < 80 ? 'AT RISK (' + ((fw || {}).overallFwScore || 0) + '%) — professional services upsell' : 'CURRENT (' + ((fw || {}).overallFwScore || 0) + '%)'}
+    HW Firmware Gap:          ${(fw || {}).overallFwScore < 80 ? 'AT RISK (' + ((fw || {}).overallFwScore || 0) + '%)' : 'CURRENT (' + ((fw || {}).overallFwScore || 0) + '%)'}
     EOSA < 12 Months:         ${coi.eosaSystems} systems
     Capacity < 60 Days:       ${coi.capacityRed} systems
     Open P1/P2 Cases:         ${openP1P2}
 
-    ╔═══════════════════════════════════════════════════════════════════════╗
-    ║  COST OF INACTION SUMMARY (Score: ${coi.score})                              ║
+    COST OF INACTION SUMMARY (Score: ${coi.score})
+    ─────────────────────────────────────────────────────────────────────────
 ${coiText}
-    ╚═══════════════════════════════════════════════════════════════════════╝
 
   PRIMARY CONTACTS (Internal Advocate)
   ─────────────────────────────────────────────────────────────────────────────
@@ -20377,15 +20463,19 @@ ${coiText}
   ─────────────────────────────────────────────────────────────────────────────
     Tech Refresh Flagged:     ${refreshFlagged} systems
     Platform Age > 5 Years:   ${ageOver5} systems
-    EOA Hardware:             ${eoaSystems.length} systems
-${eoaSystems.length > 0 ? eoaLines : '    None'}
+    EOA Hardware:             ${eoaSystems.length} systems${eoaSystems.length > 0 ? '\n' + eoaLines : ''}
     ONTAP Differentiators:    Unified SAN/NAS/S3, ARP, FabricPool,
                               NDU upgrades, SnapLock, native DR
 `;
 }
 
 function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
   const total = targetSystems.length;
 
@@ -20421,7 +20511,9 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   const samName       = samSys.samName || '—';
   const samEmail      = samSys.samEmail || '—';
   const aspName       = aspSys.aspName || '—';
-  const aspEndDate    = aspSys.aspEndDate || '—';
+  // Active IQ uses 9999-12-31 as a sentinel for "no end date" (indefinite/
+  // evergreen), not a real future date -- shown raw it reads as a data error.
+  const aspEndDate    = (aspSys.aspEndDate || '').startsWith('9999') ? 'No end date (indefinite)' : (aspSys.aspEndDate || '—');
 
   // ── Propensity ──
   const propSystems = targetSystems.filter(s => s.propensityCategory);
@@ -20498,7 +20590,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
         (() => {
           const sys = targetSystems.find(s => s.systemName === c.systemName);
           const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-          return `  • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}: ${c.title}\n    Next Action: ${c.nextActionBy || 'Under Review'}`;
+          return `  • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}: ${c.title}\n    Next Action: ${(c.nextActionBy || 'Under Review').replace(/\s+/g, ' ').trim()}`;
         })()
       ).join('\n')
     : '  No open support cases.';
@@ -20682,7 +20774,12 @@ ${talkingPointsText}
 }
 
 function compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
   const count = targetSystems.length;
   let tamName = 'Not Assigned';
@@ -20810,6 +20907,24 @@ ${_kevAckLines}
       c.systems.add(r.system);
     });
   });
+  // OS-version-matched securityBulletins -- the other real CVE source, same
+  // union already used for the "CVE Exposure" headline count above. Without
+  // this, the matrix only ever saw native risk-linked CVEs, so a fleet whose
+  // CVEs came entirely from the bulletin match (common -- most fleets have
+  // none of their risks natively CVE-linked) printed "No specific CVEs
+  // detected" directly under a summary line reporting dozens of real CVEs.
+  targetSystems.forEach(s => {
+    (s.securityBulletins || []).forEach(b => {
+      const key = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
+      if (!key) return;
+      if (!cveMap.has(key)) {
+        cveMap.set(key, { severity: b.severity, cvss: b.cvss, count: 0, systems: new Set(), advisory: b.link || 'N/A', recommended: b.mitigation || 'Upgrade firmware' });
+      }
+      let c = cveMap.get(key);
+      c.count++;
+      c.systems.add(s.systemName);
+    });
+  });
 
   let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
   cveArray.sort((a, b) => {
@@ -20820,15 +20935,27 @@ ${_kevAckLines}
     return b.count - a.count;
   });
 
-  let matrixLines = cveArray.map((c, i) => `    Priority ${i + 1}: ${c.title}${c.cvss != null ? ` (CVSS ${c.cvss})` : ''}
+  // Cap at the top 15 by severity/breadth -- this is a priority matrix for an
+  // executive brief, not an exhaustive CVE dump (that's what the CVE Exposure
+  // count above already summarizes, and the Remediation Tracker has the full
+  // per-item list for actually working a backlog).
+  const CVE_MATRIX_CAP = 15;
+  const cveArrayShown = cveArray.slice(0, CVE_MATRIX_CAP);
+  let matrixLines = cveArrayShown.map((c, i) => `    Priority ${i + 1}: ${c.title}${c.cvss != null ? ` (CVSS ${c.cvss})` : ''}
       Severity:     ${c.severity}
       Affected:     ${c.count} system(s)
       Systems:      ${Array.from(c.systems).join(', ')}
       Advisory:     ${c.advisory}
       Remediation:  ${c.recommended}`).join('\n');
 
-  if (matrixLines.trim() === '') matrixLines = '    No specific CVEs detected.\n';
-  else matrixLines = '\n' + matrixLines + '\n';
+  if (matrixLines.trim() === '') {
+    matrixLines = '    No specific CVEs detected.\n';
+  } else {
+    matrixLines = '\n' + matrixLines + '\n';
+    if (cveArray.length > CVE_MATRIX_CAP) {
+      matrixLines += `\n    + ${cveArray.length - CVE_MATRIX_CAP} more CVE(s) not shown -- see the Remediation Tracker for the complete list.\n`;
+    }
+  }
 
   // Helper: show gap as N/A when no systems report the feature, or actual gap when data exists
   const _fGap = (enabled, known) => known > 0 ? String(known - enabled).padEnd(8) : 'N/A     ';
@@ -20859,12 +20986,10 @@ ${kevAckBlock}
 
   2. COST OF INACTION — SECURITY
   ────────────────────────────────────────────────────────────────────────────
-    ╔══════════════════════════════════════════════════════════════════════╗
-    ║  ${cveExposures.size} CVEs expose ${systemsWithCve.size} systems to known exploit vectors              ║
-    ║  ${count - arpEnabled} systems lack ARP → vulnerable to ransomware                   ║
-    ║  ${count - fwCurrent} systems on unsupported firmware → no security patches          ║
-    ║  Exposure window (oldest tracked CVE): ${exposureWindowText}  ║
-    ╚══════════════════════════════════════════════════════════════════════╝
+    - ${cveExposures.size} CVE${cveExposures.size !== 1 ? 's' : ''} expose ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''} to known exploit vectors
+    - ${count - arpEnabled} system${count - arpEnabled !== 1 ? 's' : ''} lack ARP -> vulnerable to ransomware
+    - ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} on unsupported firmware -> no security patches
+    - Exposure window (oldest tracked CVE): ${exposureWindowText}
 
   3. CVE REMEDIATION PRIORITY MATRIX
   ────────────────────────────────────────────────────────────────────────────${matrixLines}
@@ -20900,7 +21025,12 @@ ${(() => {
 }
 
 function compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
   const count = targetSystems.length;
 
@@ -20954,8 +21084,36 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     }
   });
 
-  const avgScore = systemsWithScore > 0 ? Math.round(overallScoreSum / systemsWithScore) : 0;
-  const avgTrend = systemsWithScore > 0 ? (weekOverWeekChangeSum / systemsWithScore).toFixed(1) : 0;
+  // When NO system in scope has a per-system score, this used to default to
+  // a literal 0 -- "Overall Sustainability Score: 0/100" reads as a real,
+  // alarming measurement, not "no data." Fall back to the real per-customer
+  // score (customers[].sustainabilityScorePercentage.overall, same field
+  // _renderSustainabilitySection() uses) when exactly one customer is in
+  // scope, then the fleet-wide figure (honestly labeled), before finally
+  // admitting there's no score at all.
+  let avgScore, avgScoreLabel, avgTrend = systemsWithScore > 0 ? (weekOverWeekChangeSum / systemsWithScore).toFixed(1) : 0;
+  if (systemsWithScore > 0) {
+    avgScore = Math.round(overallScoreSum / systemsWithScore);
+    avgScoreLabel = `${avgScore}/100`;
+  } else {
+    const _custIds = new Set(targetSystems.map(s => s.customerId).filter(Boolean));
+    const _custNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+    const _matched = (state.customers || []).filter(c => _custIds.has(c.id) || _custNames.has(c.name));
+    const _custScores = _matched.map(c => (c.sustainabilityScorePercentage || {}).overall).filter(v => v != null);
+    if (_matched.length === 1 && _custScores.length === 1) {
+      avgScore = Math.round(_custScores[0]);
+      avgScoreLabel = `${avgScore}/100`;
+    } else {
+      const _fleet = (state.tamSustainability || [])[0];
+      if (_fleet && _fleet.scorePercentage != null) {
+        avgScore = Math.round(_fleet.scorePercentage);
+        avgScoreLabel = `${avgScore}/100 (fleet-wide, all tenants on this Active IQ account -- no per-system or per-customer score available for this scope)`;
+      } else {
+        avgScore = null;
+        avgScoreLabel = 'N/A -- not scored by Active IQ at any level (system, customer, or fleet)';
+      }
+    }
+  }
   
   const totalDrRatio = totalPhysical > 0 ? (totalLogical / totalPhysical).toFixed(1) : 1;
   const powerAvoided = Math.round(spaceSaved * 0.5); // 0.5 kW/TB
@@ -20972,7 +21130,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
 
   1. FLEET SUSTAINABILITY SUMMARY
   ────────────────────────────────────────────────────────────────────────────
-    Overall Sustainability Score:  ${avgScore}/100
+    Overall Sustainability Score:  ${avgScoreLabel}
     Week-over-Week Trend:          ${avgTrend > 0 ? '+'+avgTrend : avgTrend}%
     Systems Assessed:              ${systemsWithScore}/${count}${noScoreDataCount > 0 ? ` (${noScoreDataCount} system${noScoreDataCount > 1 ? 's' : ''} have no sustainability score reported by Active IQ)` : ''}
 
@@ -21458,7 +21616,12 @@ function estimateEffort(fixOrDesc) {
 }
 
 function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
-  const cleanScope = scopeTitle.replace(/_/g, ' ');
+  // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
+  // scope-type prefix -- scopeTitle carries it to distinguish scope types in
+  // the Action Planner's own selector, but every display site below already
+  // has its own field label ("Customer:", "Account:", "Scope:"), so printing
+  // scopeTitle verbatim doubled it up as "Customer:       Customer: Acme Inc."
+  const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
 
   // Counts from ALL risks (for summary header)

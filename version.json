@@ -1,8 +1,8 @@
 {
-  "version": "5.6.56",
+  "version": "5.6.57",
   "major": 5,
   "minor": 6,
-  "patch": 56,
+  "patch": 57,
   "date": "2026-09-16",
-  "notes": "Live GraphQL schema introspection against the real Active IQ API found that Success Plans (shipped last release as a local-only SQLite workflow object) is actually real, queryable, and writable Active IQ data -- lifecycleStage enum values match Digital Advisor's own UI exactly. Rebuilt the tab to harvest real CustomerSuccessPlan records and write creates/updates back via createSuccessPlan/updateSuccessPlan mutations, same confirmation-gated write-back pattern as risk acknowledgement, so a plan created here becomes a real Digital Advisor plan visible to the whole team."
+  "notes": "Full deliverables cleanup: read every generated document end-to-end against real live data and fixed what was actually wrong. Real bugs: doubled 'Customer: Customer:' scope headers, a verbatim-duplicated Architecture Roadmap paragraph, near-duplicate corrective-action entries grouped by cluster instead of by fix, a CVE Priority Matrix that could contradict its own document's CVE count, raw HTML leaking into plain-text output, and a Sustainability Report defaulting to a fabricated '0/100' instead of falling back to a real score. Conciseness: the TAM Success Plan's CVE section (82% of the document, 504 individually-listed bulletin rows) is now a real summary plus top 5, cut from 137KB to 37KB with no information silently dropped -- the full list stays in the dedicated Security Posture Brief."
 }

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.57] - 2026-09-16
+
+### Fixed
+- **"Customer: Customer: Acme Inc." doubled scope headers** across every field-labeled header (Customer:/Account:/CUSTOMER SCOPE:) in all 7 main deliverables.
+- **QBR Pack's Architecture Roadmap printed a verbatim-duplicated paragraph** for each system sharing a platform — now grouped by platform+OS+date.
+- **"Top Corrective Actions"/"Improvement Backlog" grouped by cluster instead of by fix** — 4 clusters needing the identical upgrade produced 4 near-duplicate entries with the same root-cause text repeated 4 times. Now one entry per real fix, account-wide.
+- **Security Posture Brief's CVE Priority Matrix could contradict the document's own CVE count** — it only read `risks[].cveDetails`, never `securityBulletins`, so it could print "No specific CVEs detected" directly under a summary reporting dozens of real CVEs. Now unions both sources.
+- **Raw HTML leaking into plain-text deliverables**, sometimes cut off mid-tag by truncation. Stripped before truncating.
+- **Sustainability Report defaulted to a fabricated "0/100"** when no system had a per-system score, instead of falling back to the real per-customer or fleet-wide figure.
+- Two ASCII box-drawing blocks with hardcoded padding (misaligned for any number of a different width) replaced with plain dividers. Also fixed: a redundant "None" line under an already-zero count, an internal "professional services upsell" annotation in a customer-facing metric label, a doubled space in support-case owner names, and Active IQ's `9999-12-31` "no end date" sentinel showing as a literal raw date.
+
+### Changed
+- **TAM Success Plan's CVE section cut from 137KB to 37KB** for the same real data — it listed all 504 individual (system, bulletin) pairs in full detail (82% of the document); now a real summary (unique CVE count, severity split, affected systems) plus the top 5, pointing to the Security Posture Brief for the complete list.
+- Security Posture Brief's CVE Priority Matrix caps at the top 15 by severity/breadth instead of printing every CVE unbounded.
+- Ambiguous "Security Advisories: N" labels (easily confused with the different unique-CVE count shown elsewhere in the same document) relabeled "Security-Related Risk Findings."
+
+---
+
 ## [5.6.56] - 2026-09-16
 
 ### Discovered
