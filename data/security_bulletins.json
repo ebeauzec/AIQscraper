@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "lastUpdated": "2026-09-14",
-  "lastScanned": "2026-09-14",
+  "lastUpdated": "2026-09-16",
+  "lastScanned": "2026-09-16",
   "source": "dynamic — authoritative store, updated by scan",
-  "bulletinCount": 303,
+  "bulletinCount": 341,
   "bulletins": [
     {
       "id": "NTAP-20260112-0001",
@@ -8286,6 +8286,967 @@
       "_source": "scan",
       "epssScore": 0.00457,
       "epssPercentile": 0.38427
+    },
+    {
+      "id": "ntap-20250214-0006",
+      "cve": [
+        "CVE-2025-23015"
+      ],
+      "cvss": 8.8,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-23015 Apache Cassandra Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache Cassandra. Apache Cassandra versions 3.0.0 through 3.0.30, 3.1.0 through 3.11.17, 4.0.0 through 4.0.15, Apache Cassandra 4.1.0 through 4.1.7 and 5.0.0 through 5.0.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-02-14",
+      "link": "https://security.netapp.com/advisory/ntap-20250214-0006/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.01001,
+      "epssPercentile": 0.60997
+    },
+    {
+      "id": "ntap-20250718-0003",
+      "cve": [
+        "CVE-2025-49794"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2025-49794 Libxml2 Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate libxml2. Libxml2 versions through 2.14.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.18"
+        ],
+        "NetApp Manageability SDK": [
+          "https://mysupport.netapp.com/site/products/all/details/netapp-manageability-sdk/downloads-tab/download/60427/9.8P11"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-07-18",
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0003/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00776,
+      "epssPercentile": 0.53869
+    },
+    {
+      "id": "ntap-20251024-0007",
+      "cve": [
+        "CVE-2025-27818"
+      ],
+      "cvss": 8.7,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-27818 Apache Kafka Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache Kafka. Apache Kafka versions 2.3.0 through 3.9.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-10-24",
+      "link": "https://security.netapp.com/advisory/ntap-20251024-0007/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.01041,
+      "epssPercentile": 0.62158
+    },
+    {
+      "id": "ntap-20250801-0005",
+      "cve": [
+        "CVE-2025-5372"
+      ],
+      "cvss": 5.0,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-5372 Libssh Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate libssh. Libssh versions built with OpenSSL versions older than 3.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-08-01",
+      "link": "https://security.netapp.com/advisory/ntap-20250801-0005/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00432,
+      "epssPercentile": 0.36616
+    },
+    {
+      "id": "ntap-20251024-0008",
+      "cve": [
+        "CVE-2025-27819"
+      ],
+      "cvss": 8.7,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-27819 Apache Kafka Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache Kafka. Apache Kafka versions  2.0.0 through 3.3.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-10-24",
+      "link": "https://security.netapp.com/advisory/ntap-20251024-0008/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.0103,
+      "epssPercentile": 0.61845
+    },
+    {
+      "id": "ntap-20260204-0011",
+      "cve": [
+        "CVE-2025-15467"
+      ],
+      "cvss": 9.8,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2025-15467 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3 and 3.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-04",
+      "link": "https://security.netapp.com/advisory/ntap-20260204-0011/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.48211,
+      "epssPercentile": 0.98792
+    },
+    {
+      "id": "ntap-20251017-0007",
+      "cve": [
+        "CVE-2025-47273"
+      ],
+      "cvss": 8.7,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-47273 Pypi/Setuptools Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Pypi/Setuptools. Pypi/Setuptools versions prior to 78.1.1 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-10-17",
+      "link": "https://security.netapp.com/advisory/ntap-20251017-0007/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.01503,
+      "epssPercentile": 0.72924
+    },
+    {
+      "id": "ntap-20250704-0010",
+      "cve": [
+        "CVE-2025-32463"
+      ],
+      "cvss": 9.3,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2025-32463 Sudo Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate sudo. Sudo versions 1.9.14 prior to 1.9.17p1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-07-04",
+      "link": "https://security.netapp.com/advisory/ntap-20250704-0010/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.59417,
+      "epssPercentile": 0.99069
+    },
+    {
+      "id": "ntap-20260828-0010",
+      "cve": [
+        "CVE-2026-54369"
+      ],
+      "cvss": 8.4,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-54369 Acl Vulnerability in NetApp Products",
+      "description": "Acl versions prior to 2.4.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-28",
+      "link": "https://security.netapp.com/advisory/ntap-20260828-0010/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00153,
+      "epssPercentile": 0.04792
+    },
+    {
+      "id": "ntap-20260618-0005",
+      "cve": [
+        "CVE-2025-54988"
+      ],
+      "cvss": 8.4,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-54988 Apache Tika Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache Tika. Apache Tika versions 1.13 prior to 3.2.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-06-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260618-0005/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.37713,
+      "epssPercentile": 0.98456
+    },
+    {
+      "id": "ntap-20260710-0018",
+      "cve": [
+        "CVE-2026-43499"
+      ],
+      "cvss": 7.0,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-43499 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 2.6.39-rc1 through 6.6.139, 6.13-rc1 through 6.18.26, 6.19-rc1 through 7.0.3, and 6.7-rc1 through 6.12.85 are susceptible to a vulnerability referred to as GhostLock which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.18P2"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-07-10",
+      "link": "https://security.netapp.com/advisory/ntap-20260710-0018/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00789,
+      "epssPercentile": 0.54293
+    },
+    {
+      "id": "ntap-20260130-0007",
+      "cve": [
+        "CVE-2026-0672"
+      ],
+      "cvss": 6.0,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-0672 Python Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Python. Certain versions of Python are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data.",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-01-30",
+      "link": "https://security.netapp.com/advisory/ntap-20260130-0007/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00425,
+      "epssPercentile": 0.36033
+    },
+    {
+      "id": "ntap-20260227-0004",
+      "cve": [
+        "CVE-2025-66516"
+      ],
+      "cvss": 9.8,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2025-66516 Apache Tika Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache Tika. Certain versions of Apache Tika are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-27",
+      "link": "https://security.netapp.com/advisory/ntap-20260227-0004/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.87688,
+      "epssPercentile": 0.9975
+    },
+    {
+      "id": "ntap-20260116-0006",
+      "cve": [
+        "CVE-2025-66293"
+      ],
+      "cvss": 7.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-66293 Libpng Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate libpng. Libpng versions prior to 1.6.52 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-01-16",
+      "link": "https://security.netapp.com/advisory/ntap-20260116-0006/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00354,
+      "epssPercentile": 0.28803
+    },
+    {
+      "id": "ntap-20260422-0007",
+      "cve": [
+        "CVE-2026-25679"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-25679 Golang Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Golang. Golang versions prior to 1.25.8 and 1.26.0-0 prior to go1.26.1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Astra Trident"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "ONTAP tools for VMware vSphere 10": [
+          "https://mysupport.netapp.com/site/products/all/details/otv10/downloads-tab/download/65001/10.5P2"
+        ],
+        "Trident": [
+          "https://github.com/NetApp/trident/releases/tag/v26.02.1"
+        ],
+        "Trident Protect": [
+          "https://docs.netapp.com/us-en/trident/trident-protect/trident-protect-installation.html"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-04-22",
+      "link": "https://security.netapp.com/advisory/ntap-20260422-0007/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00728,
+      "epssPercentile": 0.523
+    },
+    {
+      "id": "ntap-20260717-0012",
+      "cve": [
+        "CVE-2026-59995",
+        "CVE-2026-59996",
+        "CVE-2026-59997",
+        "CVE-2026-59998",
+        "CVE-2026-59999",
+        "CVE-2026-60000",
+        "CVE-2026-60001",
+        "CVE-2026-60002"
+      ],
+      "cvss": 4.2,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "July 2026 OpenSSH Vulnerabilities in NetApp Products",
+      "description": "OpenSSH versions prior to 10.4 are susceptible to vulnerabilities which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-07-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260717-0012/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.003,
+      "epssPercentile": 0.2257
+    },
+    {
+      "id": "ntap-20260814-0019",
+      "cve": [
+        "CVE-2026-54876"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-54876 OpenSSL Vulnerability in NetApp Products",
+      "description": "OpenSSL versions 3.6.0 prior to 3.6.4 and 4.0.0 prior to 4.0.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-14",
+      "link": "https://security.netapp.com/advisory/ntap-20260814-0019/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00261,
+      "epssPercentile": 0.17989
+    },
+    {
+      "id": "ntap-20260902-0020",
+      "cve": [
+        "CVE-2026-73180"
+      ],
+      "cvss": 6.8,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-73180 Apache Tomcat Vulnerability in NetApp Products",
+      "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.43 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-02",
+      "link": "https://security.netapp.com/advisory/ntap-20260902-0020/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00536,
+      "epssPercentile": 0.43676
+    },
+    {
+      "id": "ntap-20260424-0019",
+      "cve": [
+        "CVE-2026-22998"
+      ],
+      "cvss": 6.4,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-22998 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-04-24",
+      "link": "https://security.netapp.com/advisory/ntap-20260424-0019/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00739,
+      "epssPercentile": 0.52667
+    },
+    {
+      "id": "ntap-20260902-0016",
+      "cve": [
+        "CVE-2026-68569"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-68569 Apache Tomcat Vulnerability in NetApp Products",
+      "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.0 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-02",
+      "link": "https://security.netapp.com/advisory/ntap-20260902-0016/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00525,
+      "epssPercentile": 0.43052
+    },
+    {
+      "id": "ntap-20260902-0005",
+      "cve": [
+        "CVE-2026-54874"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-54874 OpenSSL Vulnerability in NetApp Products",
+      "description": "OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1 and 1.0.2 are susceptible to a vulnerability which when successfully exploited could allow a peer to use a small amount of network traffic to make an OpenSSL DTLS endpoint retain a disproportionately large amount of memory, which may lead to a Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-02",
+      "link": "https://security.netapp.com/advisory/ntap-20260902-0005/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00524,
+      "epssPercentile": 0.42949
+    },
+    {
+      "id": "ntap-20260529-0001",
+      "cve": [
+        "CVE-2026-3039"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-3039 ISC BIND Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate ISC BIND. ISC BIND versions 9.0.0 through 9.16.50, 9.18.0 through 9.18.48, 9.20.0 through 9.20.22, and 9.21.0 through 9.21.21 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.18P2"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-05-29",
+      "link": "https://security.netapp.com/advisory/ntap-20260529-0001/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.01047,
+      "epssPercentile": 0.6236
+    },
+    {
+      "id": "ntap-20260731-0017",
+      "cve": [
+        "CVE-2026-60332",
+        "CVE-2026-61094",
+        "CVE-2026-60188",
+        "CVE-2026-60163",
+        "CVE-2026-47064",
+        "CVE-2026-47023",
+        "CVE-2026-60331",
+        "CVE-2026-46936",
+        "CVE-2026-60184",
+        "CVE-2026-61096",
+        "CVE-2026-61081",
+        "CVE-2026-60185",
+        "CVE-2026-60187",
+        "CVE-2026-60183",
+        "CVE-2026-47012",
+        "CVE-2026-60189",
+        "CVE-2026-47052",
+        "CVE-2026-61109",
+        "CVE-2026-60315",
+        "CVE-2026-60182",
+        "CVE-2026-60191",
+        "CVE-2026-60190",
+        "CVE-2026-60145",
+        "CVE-2026-60747",
+        "CVE-2026-60177",
+        "CVE-2026-60585",
+        "CVE-2026-60178",
+        "CVE-2026-60316",
+        "CVE-2026-60186"
+      ],
+      "cvss": 4.4,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "July 2026 MySQL Server 8.4.0 and 9.7.0 Vulnerabilities in NetApp Products",
+      "description": "MySQL Server versions 8.4.0 through 8.4.10 and 9.7.0 through 9.7.1 are susceptible to vulnerabilities that allow unauthenticated, high and low privileged attackers with network access via multiple protocols to compromise MySQL Server and unauthenticated and high privileged attackers with logon to the infrastructure where MySQL Server executes to compromise MySQL Server. Refer to “Oracle Critical Patch Update Advisory - July 2026” for additional details.",
+      "affectedProducts": [
+        "SnapCenter",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "Full Support versions of SnapCenter Server allow MySQL software to be upgraded within documented constraints. Consult the product documentation for supported MySQL versions and other information related to the upgrade.\r\n<br><br>\r\nIn Full Support versions of OnCommand Insight the MySQL software can be upgraded after acquiring updated OnCommand Insight binaries via technical support.",
+      "published": "2026-07-31",
+      "link": "https://security.netapp.com/advisory/ntap-20260731-0017/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00353,
+      "epssPercentile": 0.28678
+    },
+    {
+      "id": "ntap-20260501-0014",
+      "cve": [
+        "CVE-2026-24880"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-24880 Apache Tomcat Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache Tomcat. Certain versions of Apache Tomcat are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-05-01",
+      "link": "https://security.netapp.com/advisory/ntap-20260501-0014/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.0052,
+      "epssPercentile": 0.42718
+    },
+    {
+      "id": "ntap-20260417-0017",
+      "cve": [
+        "CVE-2026-31790"
+      ],
+      "cvss": 5.9,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-31790 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "E-Series SANtricity OS Controller Software": [
+          "https://mysupport.netapp.com/site/products/all/details/eseries-santricityos/downloads-tab/download/62735/11.90R6"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-04-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260417-0017/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.0103,
+      "epssPercentile": 0.61866
+    },
+    {
+      "id": "ntap-20260617-0003",
+      "cve": [
+        "CVE-2026-7383"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-7383 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 4.0, 3.6, 3.5, 3.4, 3.0, 1.1.1, and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-06-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260617-0003/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00804,
+      "epssPercentile": 0.54787
+    },
+    {
+      "id": "ntap-20260417-0018",
+      "cve": [
+        "CVE-2026-35385"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-35385 OpenSSH Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSH. OpenSSH versions prior to 10.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.18P2"
+        ],
+        "ONTAP tools for VMware vSphere 10": [
+          "https://mysupport.netapp.com/site/products/all/details/otv10/downloads-tab/download/65001/10.5P2"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-04-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260417-0018/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00563,
+      "epssPercentile": 0.45165
+    },
+    {
+      "id": "ntap-20260417-0014",
+      "cve": [
+        "CVE-2026-28388"
+      ],
+      "cvss": 5.9,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-28388 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-04-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260417-0014/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00885,
+      "epssPercentile": 0.57299
+    },
+    {
+      "id": "ntap-20260320-0003",
+      "cve": [
+        "CVE-2026-1484"
+      ],
+      "cvss": 4.2,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-1484 GLib Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate GLib. GLib versions 2.87.0 through 2.87.3 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-03-20",
+      "link": "https://security.netapp.com/advisory/ntap-20260320-0003/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00316,
+      "epssPercentile": 0.2441
+    },
+    {
+      "id": "ntap-20260417-0015",
+      "cve": [
+        "CVE-2026-28387"
+      ],
+      "cvss": 3.7,
+      "severity": "low",
+      "category": "PSIRT",
+      "title": "CVE-2026-28387 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-04-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260417-0015/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00671,
+      "epssPercentile": 0.50139
+    },
+    {
+      "id": "ntap-20260828-0011",
+      "cve": [
+        "CVE-2026-54370"
+      ],
+      "cvss": 7.2,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-54370 Acl Vulnerability in NetApp Products",
+      "description": "Acl versions prior to 2.4.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-28",
+      "link": "https://security.netapp.com/advisory/ntap-20260828-0011/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00088,
+      "epssPercentile": 0.00445
+    },
+    {
+      "id": "ntap-20260821-0011",
+      "cve": [
+        "CVE-2026-73282"
+      ],
+      "cvss": 4.8,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-73282 OpenSSH Vulnerability in NetApp Products",
+      "description": "OpenSSH versions through 10.4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260821-0011/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00163,
+      "epssPercentile": 0.05833
+    },
+    {
+      "id": "ntap-20260821-0010",
+      "cve": [
+        "CVE-2026-73281"
+      ],
+      "cvss": 3.5,
+      "severity": "low",
+      "category": "PSIRT",
+      "title": "CVE-2026-73281 OpenSSH Vulnerability in NetApp Products",
+      "description": "OpenSSH versions through 10.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260821-0010/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00158,
+      "epssPercentile": 0.05348
+    },
+    {
+      "id": "ntap-20260821-0008",
+      "cve": [
+        "CVE-2026-70906"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-70906 Java SE Vulnerability in NetApp Products",
+      "description": "Java SE versions 25.0.4 and 26.0.2 are susceptible to a vulnerability which when successfully exploited could allow an unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE. Refer to “Oracle Critical Security Patch Update Advisory - August 2026” for additional details.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260821-0008/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00453,
+      "epssPercentile": 0.3828
+    },
+    {
+      "id": "ntap-20260204-0005",
+      "cve": [
+        "CVE-2026-22795"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-22795 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3, 3.0 and 1.1.1. are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "ONTAP 9": [
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.13.1P21",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.14.1P18",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.15.1P19",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.16.1P13",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.17.1P6",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.18.1P2",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.19.1"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-02-04",
+      "link": "https://security.netapp.com/advisory/ntap-20260204-0005/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00149,
+      "epssPercentile": 0.04463
+    },
+    {
+      "id": "ntap-20260821-0005",
+      "cve": [
+        "CVE-2026-40976"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2026-40976 Spring Boot Vulnerability in NetApp Products",
+      "description": "Spring Boot versions 4.0.0 through 4.0.5 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-08-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260821-0005/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00489,
+      "epssPercentile": 0.407
+    },
+    {
+      "id": "ntap-20260618-0002",
+      "cve": [
+        "CVE-2026-44417"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-44417 Apache CXF Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Apache CXF. Apache CXF versions 4.2.0 prior to 4.2.1, 4.0.0 prior to 4.1.6, and prior to 3.6.11 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-06-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260618-0002/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.0064,
+      "epssPercentile": 0.48801
+    },
+    {
+      "id": "ntap-20260417-0016",
+      "cve": [
+        "CVE-2026-28386"
+      ],
+      "cvss": 4.7,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-28386 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. Certain versions of OpenSSL are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-04-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260417-0016/",
+      "_addedAt": "2026-09-16",
+      "_source": "scan",
+      "epssScore": 0.00313,
+      "epssPercentile": 0.24127
     }
   ]
 }

@@ -8691,7 +8691,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # templates -- every org's actual storage cost differs, so
                 # this is now editable in Settings instead of a guessed
                 # constant baked into the report text.
-                "costPerTiB": cfg.get("costPerTiB") or 50,
+                "costPerTiB": cfg.get("costPerTiB") or 1000,
                 # Multi-account (multi-customer) support — never return raw tokens,
                 # only enough for the Settings UI to list/edit accounts safely.
                 "accounts": [

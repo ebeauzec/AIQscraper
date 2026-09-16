@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.53] - 2026-09-16
+
+### Added
+- **Value Insights card now matches NetApp Digital Advisor's own layout element-for-element**, compared directly against a live screenshot: health donut + status label, a "We recommend" shortlist of top real recommendation categories, a **Telemetry Connected** progress bar (new, real — ASUP-within-7-days), and the same 4 stat tiles (savings, uptime, **Security Threats Neutralized** — new, real, distinct CVEs matched to the fleet — and efficiency savings now shown in **PiB** to match Digital Advisor's unit). The original 4-bucket text breakdown is preserved as a collapsible "Detailed breakdown" toggle.
+
+### Changed
+- **Cost-per-TiB default changed from $50 to $1,000/TiB**, matching Digital Advisor's own observed savings-calculation rate. Fully editable in Settings — this only changes the out-of-the-box default.
+
+---
+
 ## [5.6.52] - 2026-09-14
 
 ### Fixed

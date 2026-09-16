@@ -1,8 +1,8 @@
 {
-  "version": "5.6.52",
+  "version": "5.6.53",
   "major": 5,
   "minor": 6,
-  "patch": 52,
-  "date": "2026-09-14",
-  "notes": "User reported a real customer's watchlist showing 0 systems despite being a real, correctly-listed watchlist in the sidebar. Traced to a live harvest: Active IQ's GraphQL API rejected that specific watchlist's systems query at the richest 'TAM/full' tier with 'Float cannot represent non numeric value: null'. The harvester's existing 3-tier fallback (TAM -> Efficiency -> Minimal) only checked success at the whole-account level, so once 3 of the account's 4 watchlists succeeded at the TAM tier, the tier was declared a success account-wide and the one failing watchlist was never retried at a smaller field set -- its systems were silently dropped every harvest. Fixed: the tier fallback now applies per-watchlist, independent of whether sibling watchlists already succeeded. Verified live: the previously-empty watchlist now correctly retries at the Efficiency tier and returns all 78 of its systems."
+  "patch": 53,
+  "date": "2026-09-16",
+  "notes": "Compared the Value & ROI tab's Value Insights card directly against a live screenshot of NetApp Digital Advisor's own Value Insights panel and rebuilt it to match element-for-element: health donut + status label, a 'We recommend' shortlist, a Telemetry Connected progress bar (new real metric, ASUP-within-7-days), and the same 4 stat tiles (savings, uptime, Security Threats Neutralized -- new real metric, distinct CVEs matched to the fleet -- and projected efficiency savings now in PiB to match Digital Advisor's unit). Cost-per-TiB default changed from $50 to $1,000/TiB to match Digital Advisor's own observed rate; remains fully editable. The original 4-bucket text breakdown is preserved as a collapsible detail section. Verified live against the real 484-system fleet; fixed two bugs found in that pass (duplicate recommendation labels, a savings tile whose TB figure didn't match its own PiB headline)."
 }

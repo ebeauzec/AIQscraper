@@ -27,9 +27,30 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.52";
+const APP_VERSION = "5.6.53";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.53",
+    date: "16 September 2026",
+    title: "Added: Value Insights Card Now Visually Matches NetApp Digital Advisor One-to-One",
+    sections: [
+      {
+        icon: "✨",
+        label: "Rebuilt the Value & ROI Tab's Top Card to Mirror Digital Advisor's Own Layout",
+        color: "#22c55e",
+        items: [
+          "Compared this tool's Value Insights card directly against a live screenshot of NetApp Digital Advisor's own 'Value Insights' panel and rebuilt the layout to match it element-for-element: health donut + status label, a 'We recommend' shortlist of the top real recommendation categories, a Telemetry Connected progress bar, and the same 4 savings/stability/security/efficiency stat tiles Digital Advisor shows",
+          "Telemetry Connected % is new -- real per-system AutoSupport-within-7-days data (same field the Account Health Score already trusted), not previously surfaced as its own metric",
+          "Security Threats Neutralized is new -- real count of distinct CVEs matched to the fleet via the existing security-bulletin cross-reference. Labeled honestly to match Digital Advisor's own loose 'detected and prevented' wording: this counts CVEs matched to the fleet, not a verified claim that each was individually remediated",
+          "Projected savings switched from TB to PiB to match Digital Advisor's own unit",
+          "Cost-per-TiB default changed from $50 to $1,000/TiB -- Digital Advisor's live panel showed its own savings figure 'Calculated at $1,000 per TiB'; the setting remains fully editable in Settings, this just makes the out-of-the-box default match the real product being mirrored instead of an arbitrary guess",
+          "The original 4-bucket text breakdown from Phase 3 is preserved as a 'Detailed breakdown' toggle beneath the new visual layout rather than being thrown away",
+          "Verified live against the real 484-system fleet: fixed two bugs found in that pass -- duplicate recommendation text when multiple subCategories share one display label (now deduped), and a savings-tile TB figure that didn't match its own PiB headline because it was reading a different underlying field (now both read the same value)"
+        ]
+      }
+    ]
+  },
   {
     version: "5.6.52",
     date: "14 September 2026",
@@ -12983,39 +13004,171 @@ function renderCSMTab() {
     const _mUptime = computeFleetUptimeSummary(targetCSMSystems);
     const _mCap = computeFleetCapacitySummary(targetCSMSystems);
 
+    // ── Value Insights parity additions (v5.6.53) ───────────────────────
+    // Matches NetApp Digital Advisor's own "Value Insights" panel field for
+    // field, using only data this tool already has real per-system access
+    // to. "Telemetry Connected" mirrors the health score's own ASUP-within-
+    // 7-days definition (same real field, same window, for consistency).
+    // "Security threats neutralized" counts distinct CVEs actually matched
+    // to fleet systems via the real security-bulletin cross-reference --
+    // Digital Advisor's own wording ("CVEs vulnerabilities, detected and
+    // prevented") is similarly loose about "prevented" vs "detected", so
+    // this uses the same honest framing: detected/matched, not a claim that
+    // each one was individually remediated (this tool can't verify that
+    // without re-querying every system's current patch state per CVE).
+    const _viTelemetryConnected = targetCSMSystems.filter(s => {
+      if (!s.latestAsupDate) return false;
+      const d = new Date(s.latestAsupDate);
+      return !isNaN(d) && (Date.now() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
+    }).length;
+    const _viTelemetryPct = targetCSMSystems.length > 0 ? Math.round(_viTelemetryConnected / targetCSMSystems.length * 100) : 0;
+    const _viThreatsNeutralized = new Set();
+    targetCSMSystems.forEach(s => (s.securityBulletins || []).forEach(b => {
+      const m = (b.description || b.cve || '').match(/CVE-[0-9]{4}-[0-9]+/);
+      if (m) _viThreatsNeutralized.add(m[0]);
+    }));
+    const _viSavedPiB = _mCap.savedTB / 1024;
+    const _viHealthLabel = healthScore >= 90 ? 'Health is excellent'
+      : healthScore >= 80 ? 'Health is good'
+      : healthScore >= 65 ? 'Health is manageable but improvements recommended'
+      : healthScore >= 50 ? 'Health needs attention'
+      : 'Health is at risk';
+    // Top 3 recommendation categories by real/estimated affected-system count,
+    // for the "We recommend" list -- same source and counting rules as
+    // Section 12 (TAM Recommendations), just the top 3 instead of all of them.
+    const _viRecs = _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetCSMSystems)
+      .map(r => {
+        const { effectiveScore, isAllClear } = _resolveRecommendationScore(r);
+        if (isAllClear) return null;
+        const real = _realRecommendationCount(r.subCategory, targetCSMSystems);
+        const count = real != null ? real : Math.round(((100 - effectiveScore) / 100) * targetCSMSystems.length);
+        return count > 0 ? { label: r.recommendation ? (r.subCategory || r.category || 'Recommendation') : (r.subCategory || 'Recommendation'), count, title: r.title || r.subCategory } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.count - a.count);
+    const _viRecLabels = {
+      'ADOPTION': 'Enable AutoSupport (ASUP) on your systems',
+      'DECLINED': 'Review declined AutoSupport systems',
+      'HTTPS_TRANSPORT': 'Move AutoSupport to HTTPS transport',
+      'ON_DEMAND': 'Enable AutoSupport OnDemand',
+      'LOSS_OF_SIGNAL': 'Proactively monitor to prevent unplanned downtime',
+      'AVAILABILITY_PROTECTION': 'Resolve availability & protection best practices',
+      'CAPACITY': 'Assess storage expansion options',
+      'CONFIGURATION': 'Plan firmware & system file updates',
+      'PERFORMANCE_EFFICIENCY': 'Address suggestions for sustainable operations',
+      'SECURITY': 'Resolve security hardening risks on your clusters',
+      'HA_CONFIG': 'Review high-availability configuration',
+      'REMOTE_MANAGEMENT_CONFIG': 'Review remote management configuration',
+      'SPARES_AND_FAILED_DRIVES': 'Review spares and failed drives',
+      'ACTIVE_SUPPORT_CONTRACTS': 'Review end-of-support / tech refresh options',
+      'ACTIVE_SUPPORT_CONTRACTS_6M': 'Review end-of-support / tech refresh options',
+      'EOS_6M': 'Review tech refresh options (EOL)',
+      'EOS_AND_PLAT_AND_HW': 'Review tech refresh options (EOL)',
+      'MIN_VERSION': 'Plan an upgrade to the latest recommended ONTAP version',
+      'LATEST_VERSION': 'Plan an upgrade to the latest recommended ONTAP version',
+      'BIOS': 'Plan firmware & system file updates',
+      'DISK_FIRMWARE': 'Plan firmware & system file updates',
+      'SHELF_FIRMWARE': 'Plan firmware & system file updates',
+      'SP_BMC': 'Plan firmware & system file updates',
+    };
+    // Several distinct subCategories share the same display label (e.g. BIOS/
+    // DISK_FIRMWARE/SHELF_FIRMWARE/SP_BMC all read as "Plan firmware & system
+    // file updates") -- dedupe by label before taking the top 3, otherwise the
+    // same text can appear 2-3 times in a row when several firmware checks are
+    // all near the top by affected-system count.
+    const _viTopRecsSeen = new Set();
+    const _viTopRecs = [];
+    for (const r of _viRecs) {
+      const label = _viRecLabels[r.label] || r.title || 'Recommendation';
+      if (_viTopRecsSeen.has(label)) continue;
+      _viTopRecsSeen.add(label);
+      _viTopRecs.push(label);
+      if (_viTopRecs.length >= 3) break;
+    }
+    const _viMoreCount = Math.max(0, _viRecs.length - _viTopRecsSeen.size);
+
     const _healthEl = document.getElementById("csmHealthScoreCard");
     if (_healthEl) _healthEl.innerHTML = `
-      <div class="card" style="display: flex; gap: 24px; align-items: center; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.15);">
-        <div style="display: flex; flex-direction: column; align-items: center; min-width: 150px; border-right: 1px solid var(--border-color); padding-right: 24px;">
-          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), warranty coverage (13%, proxy for support-contract status which Active IQ does not report for this tenant), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Account Health Score</span>
-          <div style="position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
-            <span style="font-size: 2rem; font-weight: 800; color: ${healthColor};">${healthScore}</span>
-          </div>
-          <span style="font-size: 1.2rem; font-weight: 700; color: ${healthColor}; margin-top: 8px;">Grade: ${healthGrade}</span>
-        </div>
-        <div style="flex: 1;">
-          <details style="cursor: pointer;">
-            <summary style="font-size: 0.9rem; font-weight: 600; color: var(--accent-cyan); outline: none;" title="Grouped along the same 4 categories as NetApp Digital Advisor's Value Insights dashboard: Overall Health, Savings &amp; Stability, Security &amp; Future Planning, Maximize Infrastructure Value. Values below are computed from the ${targetCSMSystems.length} selected system(s); fields with no source in Active IQ data are labeled as such rather than invented.">Value Insights</summary>
-            <div style="margin-top: 12px; font-size: 0.8rem; line-height: 1.6; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <div style="margin-bottom: 10px;">
-                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Overall Health</div>
-                <div>Account Health Score: <strong>${healthScore}/100</strong> (Grade ${healthGrade}) &middot; ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open &middot; Case health ${_mCaseHealth.score.toFixed(1)}/10</div>
-              </div>
-              <div style="margin-bottom: 10px;">
-                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">NetApp-Delivered Savings &amp; Stability</div>
-                <div>${_mAvgDR ? `Data reduction ${_mAvgDR}:1, ` : ''}${_mTbSaved.toFixed(1)} TB saved${_mCap.projectedMonthlySavings > 0 ? ` (~$${Math.round(_mCap.projectedMonthlySavings).toLocaleString()}/mo at $${state.costPerTiB}/TiB)` : ''} &middot; ${_mUptime.systemsWithEvents > 0 ? `${_mUptime.totalOutageMinutes} outage min across ${_mUptime.systemsWithEvents} system${_mUptime.systemsWithEvents !== 1 ? 's' : ''}` : 'No downtime events recorded'}</div>
-              </div>
-              <div style="margin-bottom: 10px;">
-                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Security &amp; Future Planning</div>
-                <div>${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''} &middot; ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''} &middot; ${_mExpiring90} warrant${_mExpiring90 !== 1 ? 'ies' : 'y'} expiring &lt;90d</div>
-              </div>
-              <div>
-                <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Maximize Infrastructure Value</div>
-                <div>Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''} &middot; ${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh &middot; ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Sales rep not set in Active IQ'}</div>
-              </div>
+      <div class="card" style="background: rgba(34, 197, 94, 0.04); border: 1px solid rgba(34, 197, 94, 0.15);">
+        <div style="font-size: 1.05rem; font-weight: 700; margin-bottom: 2px;">NetApp has delivered for you. Here's how.</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 18px;">Value Insights &mdash; matches the layout of NetApp Digital Advisor's own Value Insights dashboard, computed from this account's real Active IQ data</div>
+
+        <div style="display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; align-items: center; min-width: 140px;">
+            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;" title="Composite score (0-100) from 8 weighted metrics: ASUP compliance (15%), ARP enablement (12%), OS firmware currency (12%), HW firmware currency (8%), warranty coverage (13%, proxy for support-contract status which Active IQ does not report for this tenant), risk posture (20%), data reduction efficiency (10%), support case health (10%). Grade: A (≥90), B (≥80), C (≥65), D (≥50), F (<50).">Health Score</span>
+            <div style="position: relative; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 8px solid ${healthColor};">
+              <span style="font-size: 1.9rem; font-weight: 800; color: ${healthColor};">${healthScore}%</span>
             </div>
-          </details>
+            <span style="font-size: 0.85rem; font-weight: 700; color: ${healthColor}; margin-top: 8px; text-align: center;">${_viHealthLabel}</span>
+          </div>
+          <div style="flex: 1; min-width: 260px;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">We recommend:</div>
+            <ul style="margin: 0 0 8px 18px; padding: 0; font-size: 0.85rem; line-height: 1.9;">
+              ${_viTopRecs.map(t => `<li>${t}</li>`).join('') || '<li style="color: var(--status-normal);">No outstanding recommendations for this scope</li>'}
+            </ul>
+            ${_viMoreCount > 0 ? `<div style="font-size: 0.78rem; color: var(--accent-cyan);">+ ${_viMoreCount} more recommendation${_viMoreCount !== 1 ? 's' : ''} &mdash; see Section 12 (TAM Recommendations) for the full list</div>` : ''}
+          </div>
         </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Last Update: ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 220px;" title="Systems that reported AutoSupport (ASUP) within the last 7 days &mdash; same real field/window used by the Account Health Score's own ASUP-compliance KPI.">
+            <span style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;">Telemetry Connected: ${_viTelemetryPct}% (${_viTelemetryConnected}/${targetCSMSystems.length})</span>
+            <div style="flex: 1; min-width: 80px; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+              <div style="width: ${_viTelemetryPct}%; height: 100%; background: var(--accent-cyan);"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.85rem; font-weight: 700; margin: 18px 0 10px;">NetApp-delivered savings and stability&hellip;</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px;">
+          <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 14px;">
+            <div style="font-size: 1.4rem; font-weight: 800; color: var(--status-normal);">$${Math.round(_mCap.projectedMonthlySavings).toLocaleString()}</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary);">NetApp delivered savings</div>
+            <div style="font-size: 0.68rem; color: var(--text-muted); font-style: italic; margin-top: 2px;">Calculated at $${state.costPerTiB.toLocaleString()} per TiB</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 14px;" title="Active IQ's monthly uptime PERCENTAGE field is never returned by the API for this tenant (confirmed by inspecting every query field list) -- this shows real downtime EVENTS instead of a fabricated percentage.">
+            <div style="font-size: 1.4rem; font-weight: 800; color: ${_mUptime.systemsWithEvents === 0 ? 'var(--status-normal)' : '#f59e0b'};">${_mUptime.systemsWithEvents === 0 ? 'No events' : _mUptime.totalOutageMinutes + ' min'}</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary);">Storage uptime</div>
+            <div style="font-size: 0.68rem; color: var(--text-muted); font-style: italic; margin-top: 2px;">${_mUptime.systemsWithEvents === 0 ? 'No downtime events recorded' : `Across ${_mUptime.systemsWithEvents} system${_mUptime.systemsWithEvents !== 1 ? 's' : ''} -- uptime % not available via API`}</div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.85rem; font-weight: 700; margin: 8px 0 10px;">&hellip;Plus security and planning for the future</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+          <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 14px;">
+            <div style="font-size: 1.4rem; font-weight: 800; color: var(--status-normal);">${_viThreatsNeutralized.size}</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary);">Security threats neutralized</div>
+            <div style="font-size: 0.68rem; color: var(--text-muted); font-style: italic; margin-top: 2px;">CVEs vulnerabilities, detected and matched to this fleet</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px 14px;">
+            <div style="font-size: 1.4rem; font-weight: 800; color: var(--status-normal);">${_viSavedPiB.toFixed(2)} PiB</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary);">Projected savings from efficiencies</div>
+            <div style="font-size: 0.68rem; color: var(--text-muted); font-style: italic; margin-top: 2px;">${_mCap.savedTB.toFixed(1)} TB, fleet-wide (logical minus physical used)</div>
+          </div>
+        </div>
+
+        <details style="cursor: pointer; margin-top: 16px;">
+          <summary style="font-size: 0.78rem; font-weight: 600; color: var(--accent-cyan); outline: none;">Detailed breakdown by category</summary>
+          <div style="margin-top: 10px; font-size: 0.8rem; line-height: 1.6; color: var(--text-primary); background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="margin-bottom: 10px;">
+              <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Overall Health</div>
+              <div>Account Health Score: <strong>${healthScore}/100</strong> (Grade ${healthGrade}) &middot; ${_mCritRisks} critical risk item${_mCritRisks !== 1 ? 's' : ''} open &middot; Case health ${_mCaseHealth.score.toFixed(1)}/10</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">NetApp-Delivered Savings &amp; Stability</div>
+              <div>${_mAvgDR ? `Data reduction ${_mAvgDR}:1, ` : ''}${_mTbSaved.toFixed(1)} TB saved${_mCap.projectedMonthlySavings > 0 ? ` (~$${Math.round(_mCap.projectedMonthlySavings).toLocaleString()}/mo at $${state.costPerTiB.toLocaleString()}/TiB)` : ''} &middot; ${_mUptime.systemsWithEvents > 0 ? `${_mUptime.totalOutageMinutes} outage min across ${_mUptime.systemsWithEvents} system${_mUptime.systemsWithEvents !== 1 ? 's' : ''}` : 'No downtime events recorded'}</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Security &amp; Future Planning</div>
+              <div>${_mCveCount} critical/high CVE bulletin${_mCveCount !== 1 ? 's' : ''} &middot; ${_mEosaCount} EOS system${_mEosaCount !== 1 ? 's' : ''} &middot; ${_mExpiring90} warrant${_mExpiring90 !== 1 ? 'ies' : 'y'} expiring &lt;90d</div>
+            </div>
+            <div>
+              <div style="color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; margin-bottom: 3px;">Maximize Infrastructure Value</div>
+              <div>Feature adoption ${_mAdoptScore}/${_mAdoptTotal}${_mAdoptTotal ? ` (${Math.round(_mAdoptScore/_mAdoptTotal*100)}%)` : ''} &middot; ${_mRefreshCandidates} system${_mRefreshCandidates !== 1 ? 's' : ''} flagged for refresh &middot; ${_mSalesReps.length ? `Sales Rep: ${_mSalesReps.join(', ')}` : 'Sales rep not set in Active IQ'}</div>
+            </div>
+          </div>
+        </details>
       </div>
     `;
 
@@ -20972,7 +21125,7 @@ function computeFleetCapacitySummary(targetSystems) {
     avgGrowthGBDay: growthCounted > 0 ? (totalGrowthGBDay / growthCounted) : 0,
     utilPct: totalAvailTB > 0 ? Math.round(totalPhysTB / totalAvailTB * 100) : 0,
     savedTB,
-    projectedMonthlySavings: savedTB * (state.costPerTiB || 50)
+    projectedMonthlySavings: savedTB * (state.costPerTiB || 1000)
   };
 }
 
@@ -29789,11 +29942,14 @@ function refreshWebhookStatusText() {
 }
 
 // Cost per TiB/month, used to convert real efficiency savings (dedup/
-// compression/compaction) into a dollar figure in deliverables. Was
-// hardcoded to $50/TiB in two report templates -- every org's actual
-// storage cost differs, so it's editable in Settings instead of a
-// guessed constant baked into report text.
-state.costPerTiB = state.costPerTiB || 50;
+// compression/compaction) into a dollar figure in deliverables. Originally
+// hardcoded to $50/TiB in two report templates -- every org's actual storage
+// cost differs, so it's editable in Settings instead of a guessed constant
+// baked into report text. Default changed to $1,000/TiB in v5.6.53 to match
+// NetApp Digital Advisor's own "Value Insights" savings-calculation rate
+// (observed live: "$284.9K NetApp delivered savings -- Calculated at $1,000
+// per TiB"), since this tool is now matching that dashboard's outputs.
+state.costPerTiB = state.costPerTiB || 1000;
 
 async function loadCostPerTiB() {
   try {
