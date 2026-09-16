@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.59] - 2026-09-16
+
+### Discovered
+- **Real per-system EOA/EOS data already exists in Active IQ's API** — `hardwareModel.endOfAvailability`/`endOfSupport` on the real `systems` query, live and precise. Confirmed live: 371 of 484 real systems (77%) already have it, already correctly harvested into `s.hwEndOfAvailability`/`hwEndOfSupport`. Live-tested `GetProductMilestones` (a schema field that looked like a possible live EOA/EOS-by-part-number source) against 4 real part numbers — every one returned `403 Forbidden` from the underlying service, an access restriction rather than a data problem, ruling it out.
+
+### Fixed
+- **The "Risk 504: EOA Platform Detection" finding never checked the real per-system field** — it always fuzzy-matched the platform name against a separate, frozen manual snapshot and showed a generic staleness-caveated warning, even on systems that already had a real, live, exact EOA/EOS date. Now prefers the real date when Active IQ reports one; only falls back to the snapshot (with its existing caveat) for systems it doesn't report a date for.
+
+---
+
 ## [5.6.58] - 2026-09-16
 
 ### Fixed

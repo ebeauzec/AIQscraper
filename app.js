@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.58";
+const APP_VERSION = "5.6.59";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.59",
+    date: "16 September 2026",
+    title: "EOA/EOS Now Uses the Real Live Active IQ Field, Not Just the Stale Snapshot",
+    sections: [
+      {
+        icon: "🔍",
+        label: "Discovered -- Real Per-System EOA/EOS Data Was Already in the API, Unused by This Finding",
+        color: "#f87171",
+        items: [
+          "Asked directly whether EOA/EOS data exists anywhere in the Active IQ API. It does: hardwareModel.endOfAvailability/endOfSupport on the real systems query -- live, precise, per-system dates. Confirmed live: 371 of 484 real systems (77%) already have a real EOA date populated, and this tool already reads it correctly into s.hwEndOfAvailability/hwEndOfSupport and the Lifecycle section.",
+          "But the 'Risk 504: EOA Platform Detection' finding never checked that real field at all -- it always fuzzy-matched the platform name against a separate, admittedly-frozen manual snapshot and showed a generic staleness-caveated warning, even on systems that already had a real, live, exact date sitting on the same system object.",
+          "Also checked GetProductMilestones, a real field in Active IQ's schema that looked like it might restore live EOA/EOS by hardware part number. Tested live against 4 real part numbers: every single one returned '403 Forbidden' from the underlying EPIC-ProductMilestone service -- an access restriction, not a data problem, and not fixable by finding a 'correct' part number. Ruled out as a viable source.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Fixed -- EOA Finding Now Prefers the Real Date",
+        color: "#22c55e",
+        items: [
+          "Risk 504 now checks hwEndOfAvailability first. When Active IQ reports a real date for that system, the finding shows the exact EOA and EOS dates with no staleness caveat -- it's real, live data. Only falls back to the platform-name snapshot match (with its existing honest caveat) for the systems Active IQ doesn't report a date for.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.58",
     date: "16 September 2026",
@@ -15990,24 +16015,41 @@ function enrichSystemTelemetry(s) {
   }
 
   // D. EOA Platform Detection (risk 504)
-  // Sourced from 2026-07-10 Reference Library: Platforms-Hardware/README.md
+  // Real per-system source FIRST: hwEndOfAvailability/hwEndOfSupport come
+  // straight from Active IQ's own systems query (hardwareModel.endOfAvailability/
+  // endOfSupport) -- live, precise, populated for ~77% of a real fleet
+  // (confirmed live 2026-09-16: 371/484 real systems). This used to be
+  // skipped entirely in favor of always fuzzy-matching the platform name
+  // against a static, admittedly-stale reference-library snapshot and
+  // showing a generic staleness-caveated warning, even on systems that
+  // already had a real, live, exact date sitting on the same object. Only
+  // falls back to the static snapshot (with its honest caveat) for the
+  // remaining systems Active IQ doesn't report a date for.
   if (!isStorageGrid && !isEseries) {
+    const _hasRealEoa = !!s.hwEndOfAvailability;
     const platformStr = (s.platform || s.model || s.platformModel || name || "").toUpperCase();
-    const matchedEOA = _getEoaPlatforms().find(eoa => {
+    const matchedEOA = !_hasRealEoa && _getEoaPlatforms().find(eoa => {
       const eoaUpper = eoa.toUpperCase();
       // Match "A700" in "AFF A700", "FAS9000" in "FAS9000 (SAS)", etc.
       return platformStr.includes(eoaUpper) || (name || "").toUpperCase().includes(eoaUpper);
     });
-    if (matchedEOA && !risks.some(r => r.id === 504)) {
+    if ((_hasRealEoa || matchedEOA) && !risks.some(r => r.id === 504)) {
+      const platformLabel = s.platform || s.model || matchedEOA || 'this platform';
+      const eoaDateStr = _hasRealEoa ? new Date(s.hwEndOfAvailability).toISOString().split('T')[0] : null;
+      const eosDateStr = (_hasRealEoa && s.hwEndOfSupport) ? new Date(s.hwEndOfSupport).toISOString().split('T')[0] : null;
       risks.push({
         id: 504,
         severity: "high",
         category: "Lifecycle",
-        description: `Platform ${matchedEOA} has reached End-of-Availability (EOA). EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA. ⚠ This platform's EOA/EOS dates are from a manually-maintained snapshot, not a live feed -- NetApp's public EOA page stopped publishing per-model dates in a machine-readable form as of Sep 2026 (moved off the page this tool used to scrape, and not present in the PDF it now links to). Confirm the current date with your NetApp account team or Hardware Universe before acting on it.`,
+        description: _hasRealEoa
+          ? `Platform ${platformLabel} reached End-of-Availability (EOA) on ${eoaDateStr}${eosDateStr ? `, with End-of-Support (EOS) on ${eosDateStr}` : ''}. Real date reported directly by Active IQ for this system.`
+          : `Platform ${matchedEOA} has reached End-of-Availability (EOA). EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA. ⚠ This platform's EOA/EOS dates are from a manually-maintained snapshot, not a live feed -- NetApp's public EOA page stopped publishing per-model dates in a machine-readable form as of Sep 2026 (moved off the page this tool used to scrape, and not present in the PDF it now links to). Confirm the current date with your NetApp account team or Hardware Universe before acting on it.`,
         recommendation: `Initiate tech-refresh evaluation. Current generation replacements: AFF A-Series (A20/A30/A50/A70/A90/A1K), AFF C-Series (C30/C60/C80), or ASA A-Series for SAN-only workloads.`,
         kbLink: "https://docs.netapp.com/us-en/ontap-systems/endofavail/",
         remediationPlan: {
-          cause: `The ${matchedEOA} platform is listed on NetApp's official End-of-Availability page (as last confirmed by this tool). No new orders can be placed, and the EOS clock is ticking. NetApp's own public page no longer publishes per-model dates in a scrapeable form, so this tool's automated refresh cannot currently verify this date is still current -- treat it as a starting point, not a live status.`,
+          cause: _hasRealEoa
+            ? `Active IQ reports ${platformLabel} reached End-of-Availability on ${eoaDateStr}${eosDateStr ? ` and reaches End-of-Support on ${eosDateStr}` : ''}. No new orders can be placed for this hardware.`
+            : `The ${matchedEOA} platform is listed on NetApp's official End-of-Availability page (as last confirmed by this tool). No new orders can be placed, and the EOS clock is ticking. NetApp's own public page no longer publishes per-model dates in a scrapeable form, so this tool's automated refresh cannot currently verify this date is still current -- treat it as a starting point, not a live status.`,
           impact: "Post-EOS, no further security patches or bug fixes will ship. Any CVE affecting this platform may have no vendor-supplied remediation path other than hardware refresh.",
           steps: [
             "1. Verify EOA/EOS dates for this specific serial: check Hardware Universe (hwu.netapp.com) or NetApp Support Site.",

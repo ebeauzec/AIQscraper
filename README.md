@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.58-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.59-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -26,7 +26,7 @@
 3. [Use Cases](#3-use-cases)
 4. [Getting Started](#4-getting-started)
 5. [Dashboard Guide](#5-dashboard-guide)
-6. [Action Planner — All 18 Sections](#6-action-planner--all-18-sections)
+6. [Action Planner — All 19 Sections](#6-action-planner--all-19-sections)
 7. [Downloadable Deliverables](#7-downloadable-deliverables)
 8. [Scores, KPIs & Metrics Reference](#8-scores-kpis--metrics-reference)
 9. [Security & Data Privacy](#9-security--data-privacy)
@@ -108,7 +108,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - **SVM & LIF Inventory** — harvests vserver data (SVM name, type, LIFs with IPs, service policies, failover configuration) from the Active IQ GraphQL API and displays per-node LIF tables in the cabling audit view.
 
 **Added by the Reference Library (not in Active IQ):**
-- **EOA hardware flags** — detects End-of-Availability controllers, shelves, and switches across all NetApp product families: ONTAP (AFF, ASA, FAS), StorageGRID appliances, and E-Series/EF-Series arrays. ⚠️ **This database is a manually-maintained snapshot, not a live feed, as of September 2026** — NetApp stopped publishing per-model EOA/EOS dates in a machine-readable form on the page this tool used to scrape; the automated refresh has no working source to pull from until that changes. The app surfaces this honestly wherever an EOA finding is shown. Confirm current dates against Hardware Universe or your NetApp account team before acting on one.
+- **EOA hardware flags** — for a real system in your fleet, EOA/EOS dates come directly from Active IQ's own `systems` query (`hardwareModel.endOfAvailability`/`endOfSupport`) — live, precise, populated for the large majority of a real fleet (confirmed live: 371/484 systems on a real 484-system fleet). This is the primary source and needs no scraping. A separate, manually-maintained platform-name snapshot exists as a fallback only for the minority of systems Active IQ doesn't report a date for (or platforms not yet in your fleet at all) — ⚠️ **that fallback is a frozen snapshot as of September 2026**, since NetApp stopped publishing per-model EOA/EOS dates in a machine-readable form on the page this tool used to scrape it from. The app clearly labels which source a given finding came from, and the fallback carries an explicit staleness caveat; the live per-system finding does not, because it's real.
 - **CVE cross-referencing** — advisory entries sourced from MITRE, NVD/NIST, CISA KEV, NetApp PSIRT, GitHub, and threat intelligence feeds. Per-system applicability matched by ONTAP/StorageGRID/SANtricity version range. The database grows continuously as new advisories are published.
 - **CISA KEV integration** — CVEs confirmed as actively exploited by CISA are flagged with 🚨 priority. Updated on each Reference Library sync.
 - Firmware baseline checks for shelves and switches
@@ -130,7 +130,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 1. Select the customer from the sidebar filter dropdown
 2. Click **Sync** (or use today's cached data)
 3. Go to **Action Planner** → click **Generate**
-4. Navigate to **Tab 9 → QBR Pack** → click **Generate QBR Pack**
+4. Navigate to **Tab 18 → QBR Pack** → click **Generate QBR Pack**
 
 **Output:** A QBR Pack containing KPI scorecard, risk trend, resolved cases, open action items, and upgrade roadmap — ready for the customer presentation.
 
@@ -169,10 +169,10 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Goal:** Surface all expiring contracts and EOA hardware across the portfolio to build a proactive renewal and tech refresh pipeline.
 
 **Workflow:**
-1. Go to **Action Planner → Tab 10** (Contracts & Lifecycle) for the full expiry view
-2. Cross-reference with **Tab 14** (Contract Compliance) for hardware warranty and service tier status
+1. Go to **Action Planner → Tab 7** (Contracts & Lifecycle) for the full expiry view
+2. Cross-reference with **Tab 8** (Contract Compliance) for hardware warranty and service tier status
 3. Filter by customer or by urgency (expiring within 30/60/90 days)
-4. Generate an **Account Handover Brief** or **Extended Deliverables** from Tab 9 for formal documentation
+4. Generate an **Account Handover Brief** or **Extended Deliverables** from Tab 18 for formal documentation
 
 **Output:** A ranked contract renewal pipeline with EOA/EOS milestones, tech refresh status, and service tier breakdown.
 
@@ -183,10 +183,10 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Goal:** For every system running a non-current ONTAP release, determine the exact upgrade path — including any required intermediate versions.
 
 **Workflow:**
-1. Go to **Action Planner → Tab 5** (OS Upgrades)
+1. Go to **Action Planner → Tab 4** (OS Upgrades)
 2. Each system shows its current version and the recommended target
 3. Multi-hop paths display all intermediate versions with version-specific notes and pre/post checks
-4. Use the **CLI Runbook** deliverable (Tab 9) to extract upgrade commands for change management submission
+4. Use the **CLI Runbook** deliverable (Tab 18) to extract upgrade commands for change management submission
 
 **Output:** A system-by-system upgrade roadmap with hop sequences, version notes, and ITIL-classified CLI steps.
 
@@ -198,7 +198,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 **Workflow:**
 1. Select the customer from the sidebar filter
-2. Go to **Action Planner → Tab 9 → MSP Service Report**
+2. Go to **Action Planner → Tab 18 → MSP Service Report**
 3. Click **Generate MSP Service Report**
 
 **Output:** A monthly service report with SLA metrics, case resolution summary, proactive actions taken, and risk posture change — one per customer, all client-side.
@@ -212,8 +212,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Workflow:**
 1. Sync the portfolio (all accounts come in together — no per-account setup)
 2. Select the customer in the sidebar filter
-3. Review **Tab 13** (Account Intelligence) for the personnel map and site inventory
-4. Generate an **Account Handover Brief** from **Tab 9**
+3. Review **Tab 11** (Account Intelligence) for the personnel map and site inventory
+4. Generate an **Account Handover Brief** from **Tab 18**
 
 **Output:** A structured handover document covering fleet health, open risks, contract status, key contacts, and pending actions.
 
@@ -226,8 +226,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Workflow:**
 1. The Reference Library automatically flags EOA hardware across all systems during enrichment
 2. Go to **Technical Audit** — EOA systems appear as Medium/High enrichment risks
-3. Cross-reference with **Tab 10** for lifecycle milestones and EOS dates
-4. Use **Tab 14** for warranty status and remaining support coverage
+3. Cross-reference with **Tab 7** for lifecycle milestones and EOS dates
+4. Use **Tab 8** for warranty status and remaining support coverage
 
 **EOA Coverage:**
 
@@ -240,7 +240,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Goal:** Validate MetroCluster switch configurations, firmware, and ISL parameters against NetApp requirements.
 
 **Workflow:**
-1. Go to **Action Planner → Tab 6** (Switch Validation)
+1. Go to **Action Planner → Tab 5** (Switch Validation)
 2. All cluster and MetroCluster switches are inventoried with model and firmware version
 3. ISL parameters (distance, packet loss, jitter, MTU) are validated against Reference Library baselines
 4. Firmware currency is checked against recommended minimums for Cisco NX-OS, Cisco MDS, Brocade FOS, and Broadcom EFOS
@@ -257,7 +257,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 1. Sync once — the entire estate is harvested in a single pass, no per-site or per-cluster setup
 2. Use the **Customer Filter** / account-group scoping to slice the fleet by data center, business unit, or environment (prod/DR/dev) instead of by external customer
 3. Use **Technical Audit** for fleet-wide CVE and risk triage across the whole estate — the same per-system CVE cross-referencing a TAM uses across customers works identically across your own business units
-4. Use **Action Planner → Tab 17** (Feature Adoption) and the **Licensed Feature Adoption** table in the License Compliance deliverable to see which security/data-protection features (ARP, SnapMirror, FabricPool) are licensed but not actually enabled fleet-wide — a common gap in large estates where licensing and configuration drift apart over time
+4. Use **Action Planner → Tab 14** (Feature Adoption) to see which optional features (ARP, FabricPool, SnapMirror, HA, QoS) are actually enabled per system, fleet-wide — a common gap in large estates where licensing and configuration drift apart over time
 5. Generate the **Security Posture Executive Brief** and **Sustainability & ESG Report** for internal security/compliance and ESG reporting cadences — these don't require a "customer" in the TAM sense, just a scope
 6. Use the **Contract Compliance** and **Contracts & Lifecycle** tabs for internal hardware refresh budgeting across the full estate, ranked by urgency, instead of tracking EOA/EOS dates in a separate spreadsheet
 
@@ -323,7 +323,7 @@ Use the **Customer Filter** dropdown in the sidebar to scope all views and deliv
 
 ## 5. Dashboard Guide
 
-The sidebar provides seven primary navigation areas:
+The sidebar provides eight primary navigation areas:
 
 ### Overview
 
@@ -376,42 +376,47 @@ Every open finding across the fleet — risks, security bulletins, best-practice
 </p>
 <p align="center"><sub>A real tracker instance with 6,653 items imported from a live fleet import.</sub></p>
 
+### Success Plans
+
+Mirrors NetApp Digital Advisor's own Success Plans feature — confirmed via live GraphQL schema introspection that this is real, queryable, **and writable** Active IQ data, not a local-only construct. Reads real `CustomerSuccessPlan` records (lifecycle stage, health, TAM owner, status) harvested alongside the rest of the fleet; creating or editing a plan writes back to the customer's live Active IQ account via the same explicit-confirmation write-back pattern used for risk acknowledgement, so a plan created here becomes a real Digital Advisor plan visible to the whole team — not a disconnected local copy. There is no delete API for Success Plans, so "Close Plan" (sets status to Closed) is the closest real equivalent.
+
 ### Settings & Config
 
 API token management, sync interval, custom account groups, watchlist IDs, and state export/import.
 
 ---
 
-## 6. Action Planner — All 18 Sections
+## 6. Action Planner — All 19 Sections
 
-Click **Action Planner** in the sidebar, then **Generate**. All 18 sections are built and the numbered tab row appears above the content area.
+Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are built and the numbered tab row appears above the content area, grouped into **Fleet Analysis** (every detail/audit tab, in one continuous group) followed by **★ Customer Deliverables** (the two output tabs) last — the deliverables are the thing everything before them is building toward, so they're the final step, not buried in the middle of the detail tabs.
 
 | # | Section | What's Inside |
 |---|---|---|
-| **1** | **Executive Summary** | Fleet health KPIs, key findings, critical items needing immediate action |
+| **1** | **Summary** | Fleet health KPIs, key findings, critical items needing immediate action |
 | **2** | **Technical Risks** | All Active IQ risks — severity sorted, fix-grouped to eliminate duplicates, with affected systems and remediation |
 | **3** | **Security Advisories** | CVE-referenced bulletins with CVSS, affected version ranges, fix versions, and specific CLI remediation commands |
-| **4** | **Support Cases** | Active, in-progress, and recently closed cases — priority sorted, with case age and system link |
-| **5** | **OS Upgrades** | Hop-by-hop upgrade paths. Direct where possible; multi-hop with intermediate versions and per-version notes. Covers ONTAP, StorageGRID, SANtricity |
-| **6** | **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
-| **7** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
-| **8** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
-| **9** | **Deliverables** | 13 one-click downloadable report generators — each with KB intelligence badge showing enrichment article count |
-| **10** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
-| **11** | **Sustainability & ESG** | Fleet Sustainability Score with weekly trend, carbon/energy per system, data reduction ratios per customer |
-| **12** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores |
-| **13** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
-| **14** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
-| **15** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
-| **16** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
-| **17** | **Feature Adoption** | Fleet-wide adoption matrix (ARP, FabricPool, MetroCluster, All Flash Optimized, HA, SnapMirror, Operating Mode), tri-state rendering (✅ enabled / ❌ disabled / — unknown), OS diversity analysis, 25-point categorized best-practice score per system (Operations & Security + Data Protection & Lifecycle), CLI enablement commands |
-| **18** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
+| **4** | **OS Upgrades** | Hop-by-hop upgrade paths. Direct where possible; multi-hop with intermediate versions and per-version notes. Covers ONTAP, StorageGRID, SANtricity |
+| **5** | **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
+| **6** | **Support Cases** | Active, in-progress, and recently closed cases — priority sorted, with case age and system link |
+| **7** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
+| **8** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
+| **9** | **Sustainability & ESG** | Fleet Sustainability Score with weekly trend, carbon/energy per system, data reduction ratios per customer |
+| **10** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores |
+| **11** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
+| **12** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
+| **13** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
+| **14** | **Feature Adoption** | Per-system feature matrix — ARP, FabricPool, SnapMirror, HA, and QoS, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 5 real feature checks (e.g. "3/5"), not a blended health score |
+| **15** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
+| **16** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
+| **17** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
+| **18** | **Deliverables Suite** ★ | One-click downloadable report generators — each with KB intelligence badge showing enrichment article count |
+| **19** | **As-Built Document** ★ | Complete as-built configuration document — every parameter needed to audit or rebuild each system from scratch |
 
 ---
 
 ## 7. Downloadable Deliverables
 
-All deliverables are generated in the browser from your local data. Nothing is uploaded or transmitted. Find them in **Action Planner → Tab 9**.
+All deliverables are generated in the browser from your local data. Nothing is uploaded or transmitted. Find them in **Action Planner → Tab 18**.
 
 > **KB Intelligence Enrichment:** Each deliverable is automatically enriched with fleet-relevant articles from the ARIA Knowledge Base Intelligence engine. A badge on each card shows the number of KB references attached (e.g., "★ 5 KB refs"). The Knowledge Base Intelligence summary panel at the top of the deliverables section shows aggregate enrichment statistics and fleet profile context.
 
@@ -453,7 +458,7 @@ Composite index measuring overall customer account posture. Used in: TAM tab gau
 | ARP Enablement | 12% | Autonomous Ransomware Protection enabled | % enabled × 12 |
 | OS Firmware Currency | 12% | ONTAP version ≥ recommended minimum | % current × 12 |
 | HW Firmware Currency | 8% | SP/MB/DQP/Drive firmware composite score | (composite / 100) × 8 |
-| Contract Coverage | 13% | Active support contract | % covered × 13 |
+| Support Contract Coverage | 13% | Real isContractActive status from Active IQ | % covered × 13 |
 | Risk Posture | 20% | Inverse of critical/high risk count | max(0, 1 - (criticals × 0.15 + highs × 0.05)) × 20 |
 | Data Reduction | 10% | Avg DR ratio, capped at 5:1 | (avg ratio / 5) × 10 |
 | Case Health | 10% | Support case health score (computed from real case data) | (avg score / 10) × 10 |
@@ -480,43 +485,18 @@ Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPI
 
 ---
 
-### Feature Adoption Score (0-25, shown as %)
-25-point categorized best-practice checklist scored per system, split into two columns.
+### Feature Adoption Score (per system, shown as X/5 and %)
+Counts only real, optional ONTAP feature toggles — not a general health/compliance blend. A feature the API doesn't report for a given system is excluded from that system's denominator rather than counted as failing, so a system with e.g. 4 of 5 features reported shows "3/4", not a diluted "3/5".
 
-**Left Column — Operations & Security** (15 checks, 1 point each):
+| Feature | What's Checked |
+|---|---|
+| ARP | Anti-Ransomware Protection enabled (`isARPEnabled`) |
+| FabricPool | Cold-data tiering active (`isFabricPool`) |
+| SnapMirror | At least one SnapMirror relationship configured |
+| HA | HA pair configured |
+| QoS | Adaptive QoS policy configured (`isQoSConfigured`) |
 
-| # | Category | Check |
-|---|---|---|
-| 1 | Software & Platform | OS version ≥ recommended minimum |
-| 2 | Software & Platform | Hardware on current platform generation (non-EOA) |
-| 3 | Software & Platform | Firmware & disk qualification current |
-| 4 | Infrastructure Health | Data reduction ratio ≥ 1.5:1 |
-| 5 | Infrastructure Health | Aggregate capacity headroom ≥ 20% |
-| 6 | Infrastructure Health | HA pair configured (no SPOF) |
-| 7 | Infrastructure Health | Network port health (no link-down on active ports) |
-| 8 | Infrastructure Health | QoS adaptive policy coverage |
-| 9 | Security & Compliance | No active security CVEs (PSIRT) |
-| 10 | Security & Compliance | No CISA KEV active exploitation alerts |
-| 11 | Security & Compliance | Anti-Ransomware Protection (ARP) active on all volumes |
-| 12 | Security & Compliance | Anti-Ransomware Protection (ARP) active |
-| 13 | Support & Monitoring | AutoSupport HTTPS reported within 7 days |
-| 14 | Support & Monitoring | No open S1/S2 critical support cases |
-| 15 | Support & Monitoring | No outstanding Field Safety Alerts (FSA) |
-
-**Right Column — Data Protection & Lifecycle** (10 checks, 1 point each):
-
-| # | Category | Check |
-|---|---|---|
-| 16 | Data Protection | SnapMirror async/sync replication configured |
-| 17 | Data Protection | FabricPool cold-data tiering active |
-| 18 | Data Protection | SVM/LIF inventory mapped |
-| 19 | Data Protection | No excessive FlexClone sprawl (≤10 clones) |
-| 20 | Risk & Remediation | Zero high/critical risks outstanding |
-| 21 | Risk & Remediation | Feature adoption score ≥ 60% |
-| 22 | Risk & Remediation | No config drift (unassigned ports ≤ 2) |
-| 23 | Risk & Remediation | MTTR posture (no stale cases > 90 days) |
-| 24 | Contracts & Lifecycle | Active support contract (> 90 days remaining) |
-| 25 | Contracts & Lifecycle | Contract co-term alignment |
+Shown in **Action Planner → Tab 14** as a per-system matrix (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API), with a fleet-wide adoption-rate tile per feature above the table.
 
 ---
 
@@ -727,7 +707,7 @@ AIQscraper/
 | File | Size | Role |
 |---|---|---|
 | `server.py` | ~400 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery |
-| `app.js` | ~1.50 MB | ~26,500 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 18-tab Action Planner renderer, 13 deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library |
+| `app.js` | ~2.0 MB | ~33,500 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 19-tab Action Planner renderer, deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library, Success Plans (real Active IQ read/write) |
 | `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
 | `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
 | `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
@@ -808,7 +788,7 @@ The dashboard uses `dataReductionRatio` from `ONTAPSystemEfficiency.ratio.dataRe
 
 ### Reference Library — Firmware Baselines
 
-> **These are stored in [`data/firmware_baselines.json`](data/firmware_baselines.json), differentiated by switch model/generation (not a single flat value per vendor), and are the authoritative live values — the table below is a snapshot and will drift as NetApp ships new qualified releases. Check the dashboard's Switch Validation tab (Action Planner → Tab 6) for the current value.**
+> **These are stored in [`data/firmware_baselines.json`](data/firmware_baselines.json), differentiated by switch model/generation (not a single flat value per vendor), and are the authoritative live values — the table below is a snapshot and will drift as NetApp ships new qualified releases. Check the dashboard's Switch Validation tab (Action Planner → Tab 5) for the current value.**
 
 | Component | Recommended Min |
 |---|---|
