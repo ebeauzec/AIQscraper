@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.56] - 2026-09-16
+
+### Discovered
+- **Active IQ's Success Plans feature is real, queryable, and writable data** — found via live GraphQL schema introspection against the real API, not documentation. `successPlan` returns real `CustomerSuccessPlan` records; the `lifecycleStage` enum is an exact match for the 4 stages this tool already mirrors from Digital Advisor's UI. Checked the real data: 0 plans exist for any configured customer today, so read-only support would add nothing on its own.
+
+### Changed
+- **Success Plans now reads and writes real Active IQ data** instead of a local SQLite workflow object. Harvests real `CustomerSuccessPlan` records server-side; creating/editing a plan calls Active IQ's real `createSuccessPlan`/`updateSuccessPlan` mutations, gated by the same explicit write-back confirmation already used for risk acknowledgement. A plan created in this tool is now a real Digital Advisor plan, visible to the whole team — not a disconnected local copy. Status/Health use Active IQ's own real enums; "Close Plan" replaces delete (no delete API exists); "Linked to" selects a real customer by its Active IQ `nagpId`.
+
+---
+
 ## [5.6.55] - 2026-09-16
 
 ### Fixed

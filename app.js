@@ -27,9 +27,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.55";
+const APP_VERSION = "5.6.56";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.56",
+    date: "16 September 2026",
+    title: "Success Plans Now Read/Write Real Active IQ Data, Not a Local Workflow Object",
+    sections: [
+      {
+        icon: "🔍",
+        label: "Discovered: Active IQ Has a Real, Writable Success Plans API",
+        color: "#f87171",
+        items: [
+          "A full audit of the Active IQ GraphQL schema (live introspection, not documentation) to look for unused fields worth harvesting found that 'Success Plans' -- shipped last release as a local-only SQLite workflow object because Active IQ was assumed to have no telemetry source for it -- is actually a real, queryable AND writable API. The successPlan query returns real CustomerSuccessPlan records; its lifecycleStage enum (ONBOARD_AND_IMPLEMENT / OPERATE_AND_OPTIMIZE / PREVENT_AND_SOLVE / EXPAND_AND_EVOLVE) is an exact match for the 4 stages this tool already mirrors from Digital Advisor's own UI.",
+          "Checked the real data for the configured accounts: 0 Success Plans currently exist for any customer. So reading alone would add nothing -- value only comes from also writing real plans back, so a plan created in this tool becomes a real Digital Advisor plan visible to the whole team, not a disconnected local copy only this tool can see.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Changed -- Success Plans Now Read and Write Real Active IQ Data",
+        color: "#22c55e",
+        items: [
+          "The Success Plans tab now harvests real CustomerSuccessPlan records server-side (same account-scoped GraphQL pattern as tamRecommendations/tamSustainability) instead of a local SQLite table. The old /api/success-plans REST endpoints and table are removed.",
+          "Creating or editing a plan now calls Active IQ's real createSuccessPlan/updateSuccessPlan mutations directly -- same write-back pattern and explicit confirmation dialog already used for risk acknowledgement ('this will write back to the customer's live Active IQ account'). Every plan created here is a real Digital Advisor Success Plan.",
+          "Status and Health now use Active IQ's own real enums (Active/Inactive/Closed; On Track/At Risk/Critical) instead of an invented 6-status vocabulary that had no real backing. Active IQ has no delete API for Success Plans, so 'Close Plan' (sets status to Closed) replaces the old delete button -- the closest real equivalent.",
+          "'Linked to' now selects a real customer by its nagpId (the same NetApp Account Group Profile key already harvested per-system) instead of a free-text scope value, so a plan is genuinely linked the same way Active IQ links it internally.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.55",
     date: "16 September 2026",
@@ -29536,6 +29563,7 @@ async function loadProductionData(forceRefresh = false) {
     state.tamRecommendations = result.tamRecommendations || [];
     state.tamSites = result.tamSites || [];
     state.tamSustainability = result.tamSustainability || [];
+    state.tamSuccessPlans = result.tamSuccessPlans || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
     // Risks a TAM acknowledged (accepted/deferred) that have since appeared in
@@ -29666,8 +29694,10 @@ function executeSearchGo() {
 
 state.trackerItems = state.trackerItems || [];
 state.trackerLoaded = false;
-state.successPlans = state.successPlans || [];
-state.successPlansLoaded = false;
+// state.tamSuccessPlans is populated directly from the harvest result (see
+// syncFromActiveIQ), same as tamSustainability/tamRecommendations -- no
+// separate load call needed, unlike trackerItems which is a local SQLite table.
+state.tamSuccessPlans = state.tamSuccessPlans || [];
 
 // Small deterministic string hash (djb2 variant) -- good enough for a stable
 // dedup key, not for cryptographic use. Same input always yields same key,
@@ -29752,42 +29782,59 @@ async function deleteTrackerItem(id) {
   }
 }
 
-// ── Success Plans (CSP) tracker ─────────────────────────────────────────
-// TAM-authored workflow object mirroring NetApp Digital Advisor's own
-// Success Plans list -- unlike the Remediation Tracker, there is no
-// telemetry source for this; it exists purely because a TAM created it.
-const SUCCESS_PLAN_STAGES = ['Onboard & Implement', 'Operate & Optimize', 'Prevent & Solve', 'Expand & Evolve'];
-const SUCCESS_PLAN_STATUS_COLORS = { 'Draft': '#94a3b8', 'Active': '#3b82f6', 'On Track': '#22c55e', 'At Risk': '#ef4444', 'Completed': '#22c55e', 'Archived': '#64748b' };
-
-async function loadSuccessPlans() {
-  try {
-    const res = await fetch('/api/success-plans', { cache: 'no-store' });
-    const data = await res.json();
-    if (data.ok) {
-      state.successPlans = data.plans || [];
-      state.successPlansLoaded = true;
-    }
-  } catch (e) {
-    console.error('Failed to load success plans:', e);
-  }
-}
+// ── Success Plans (CSP) ──────────────────────────────────────────────────
+// Mirrors NetApp Digital Advisor's own "Success Plans" feature -- confirmed
+// via live GraphQL schema introspection (2026-09-16) that this is REAL,
+// queryable AND writable Active IQ data (successPlan query,
+// createSuccessPlan/updateSuccessPlan mutations), not a workflow-only
+// concept as first assumed when this tab was built (v5.6.54). Reads
+// state.tamSuccessPlans (populated server-side at harvest time, same as
+// tamRecommendations/tamSustainability); creates/updates write back to the
+// customer's live Active IQ account via _callAIQMutation, same pattern and
+// same explicit-confirmation gate as risk acknowledgement. There is no
+// delete mutation in the real API -- "Close Plan" sets status to CLOSED
+// instead, the closest real equivalent Active IQ actually offers.
+const SUCCESS_PLAN_STAGE_LABELS = {
+  'ONBOARD_AND_IMPLEMENT': 'Onboard & Implement',
+  'OPERATE_AND_OPTIMIZE': 'Operate & Optimize',
+  'PREVENT_AND_SOLVE': 'Prevent & Solve',
+  'EXPAND_AND_EVOLVE': 'Expand & Evolve',
+};
+const SUCCESS_PLAN_STATUS_LABELS = { 'ACTIVE': 'Active', 'INACTIVE': 'Inactive', 'CLOSED': 'Closed' };
+const SUCCESS_PLAN_STATUS_COLORS = { 'ACTIVE': '#22c55e', 'INACTIVE': '#94a3b8', 'CLOSED': '#64748b' };
+const SUCCESS_PLAN_HEALTH_LABELS = { 'GREEN': 'On Track', 'YELLOW': 'At Risk', 'RED': 'Critical' };
+const SUCCESS_PLAN_HEALTH_COLORS = { 'GREEN': '#22c55e', 'YELLOW': '#f59e0b', 'RED': '#ef4444' };
 
 function openSuccessPlanModal(id) {
   const scopeSelect = document.getElementById('successPlanScope');
-  const customers = [...new Set(state.systems.map(s => s.customerName))].filter(Boolean).sort((a, b) => a.localeCompare(b));
-  scopeSelect.innerHTML = customers.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+  // Option value is the real nagpId (NetApp Account Group Profile) required
+  // by the successPlan query and createSuccessPlan mutation -- already
+  // harvested per-system as s.nagpId, the same grouping key Active IQ's own
+  // Success Plans feature uses internally.
+  const custMap = new Map();
+  state.systems.forEach(s => {
+    if (s.customerName && s.nagpId && !custMap.has(s.customerName)) custMap.set(s.customerName, s.nagpId);
+  });
+  const customers = [...custMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  scopeSelect.innerHTML = customers.map(([name, nagpId]) => `<option value="${nagpId}">${name.replace(/</g, '&lt;')}</option>`).join('');
 
-  const plan = id ? (state.successPlans || []).find(p => p.id === id) : null;
+  const plan = id ? (state.tamSuccessPlans || []).find(p => String(p.id) === String(id)) : null;
   document.getElementById('successPlanModalTitle').textContent = plan ? 'Edit Success Plan' : 'New Success Plan';
   document.getElementById('successPlanId').value = plan ? plan.id : '';
-  document.getElementById('successPlanName').value = plan ? plan.cspName : '';
-  document.getElementById('successPlanOwner').value = plan ? plan.tamOwner : '';
-  if (plan && plan.scopeValue) scopeSelect.value = plan.scopeValue;
-  document.getElementById('successPlanStage').value = plan ? plan.lifecycleStage : 'Onboard & Implement';
-  document.getElementById('successPlanStatus').value = plan ? plan.status : 'Draft';
-  document.getElementById('successPlanRisk').value = plan ? plan.riskAssessment : 'Not assessed';
-  document.getElementById('successPlanNotes').value = plan ? plan.notes : '';
-  document.getElementById('successPlanDeleteBtn').style.display = plan ? '' : 'none';
+  document.getElementById('successPlanName').value = plan ? (plan.name || '') : '';
+  const ownerInput = document.getElementById('successPlanOwner');
+  ownerInput.value = plan ? (plan.tamOwnerEmail || '') : '';
+  ownerInput.disabled = !plan; // not settable on create -- Active IQ assigns the creating user as owner
+  ownerInput.placeholder = plan ? 'Owner email' : "Assigned by Active IQ on create";
+  if (plan && plan.nagpId) scopeSelect.value = plan.nagpId;
+  document.getElementById('successPlanStage').value = plan ? (plan.lifecycleStage || 'ONBOARD_AND_IMPLEMENT') : 'ONBOARD_AND_IMPLEMENT';
+  document.getElementById('successPlanStatus').value = plan ? (plan.status || 'ACTIVE') : 'ACTIVE';
+  document.getElementById('successPlanRisk').value = plan ? (plan.health || 'GREEN') : 'GREEN';
+  document.getElementById('successPlanNotes').value = plan ? (plan.tamNotes || '') : '';
+  const closeBtn = document.getElementById('successPlanDeleteBtn');
+  closeBtn.textContent = 'Close Plan';
+  closeBtn.style.display = plan ? '' : 'none';
+  closeBtn.title = "Active IQ has no delete API for Success Plans -- this sets status to Closed, the closest real equivalent.";
   document.getElementById('successPlanModal').style.display = 'flex';
 }
 
@@ -29797,54 +29844,89 @@ function closeSuccessPlanModal() {
 
 async function saveSuccessPlanFromModal() {
   const id = document.getElementById('successPlanId').value;
-  const cspName = document.getElementById('successPlanName').value.trim();
-  if (!cspName) { alert('CSP name is required.'); return; }
-  const payload = {
-    cspName,
-    tamOwner: document.getElementById('successPlanOwner').value.trim(),
-    scopeType: 'CUSTOMER',
-    scopeValue: document.getElementById('successPlanScope').value,
-    lifecycleStage: document.getElementById('successPlanStage').value,
-    status: document.getElementById('successPlanStatus').value,
-    riskAssessment: document.getElementById('successPlanRisk').value,
-    notes: document.getElementById('successPlanNotes').value.trim(),
-  };
+  const name = document.getElementById('successPlanName').value.trim();
+  if (!name) { alert('CSP name is required.'); return; }
+  const scopeSelect = document.getElementById('successPlanScope');
+  const nagpId = scopeSelect.value;
+  const scopeName = scopeSelect.selectedOptions[0] ? scopeSelect.selectedOptions[0].textContent : '';
+  const lifecycleStage = document.getElementById('successPlanStage').value;
+  const status = document.getElementById('successPlanStatus').value;
+  const health = document.getElementById('successPlanRisk').value;
+  const tamNotes = document.getElementById('successPlanNotes').value.trim();
+  const tamOwnerEmail = document.getElementById('successPlanOwner').value.trim();
+
+  if (!confirm(`⚠ This will WRITE BACK to the customer's live Active IQ account.\n\n${id ? 'Update' : 'Create'} Success Plan "${name}"${id ? '' : ` for ${scopeName}`}?`)) return;
+
   try {
-    const res = id
-      ? await fetch('/api/success-plans/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(id), ...payload }) })
-      : await fetch('/api/success-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await res.json();
-    if (data.ok) {
-      closeSuccessPlanModal();
-      await loadSuccessPlans();
-      renderSuccessPlansTab();
+    if (id) {
+      const plan = (state.tamSuccessPlans || []).find(p => String(p.id) === String(id));
+      const mutation = `mutation UpdateCSP($nagpId: String!, $accountPlanId: String!, $accountPlan: AccountPlanUpdateInput) {
+        updateSuccessPlan(nagpId: $nagpId, accountPlanId: $accountPlanId, accountPlan: $accountPlan) { success results }
+      }`;
+      const variables = {
+        nagpId: (plan && plan.nagpId) || nagpId,
+        accountPlanId: id,
+        accountPlan: {
+          id, name,
+          tamOwnerEmail: tamOwnerEmail || undefined,
+          status, lifecycleStage, health, tamNotes,
+          scope: { id: nagpId, name: scopeName },
+        },
+      };
+      const data = await _callAIQMutation(mutation, variables);
+      if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) throw new Error('Active IQ reported the update did not succeed.');
+      // Optimistic local merge -- the mutation doesn't return the full
+      // updated record; the next real harvest is the authoritative refresh.
+      if (plan) Object.assign(plan, { name, status, lifecycleStage, health, tamNotes, nagpId, nagpName: scopeName, scope: { id: nagpId, name: scopeName }, tamOwnerEmail: tamOwnerEmail || plan.tamOwnerEmail });
     } else {
-      alert(data.error || 'Failed to save success plan.');
+      const mutation = `mutation CreateCSP($accountPlan: AccountPlanCreateInput!) {
+        createSuccessPlan(accountPlan: $accountPlan) { success id accountId errors }
+      }`;
+      const variables = {
+        accountPlan: {
+          nagpId, name, source: 'MANUAL', title: name,
+          templateUsed: 'ESSENTIAL', planStatus: status, lifecycleStage,
+          health, tamNotes, scope: { id: nagpId, name: scopeName },
+        },
+      };
+      const data = await _callAIQMutation(mutation, variables);
+      const result = data.createSuccessPlan;
+      if (!result || !result.success) throw new Error((result && result.errors && result.errors.join('; ')) || 'Active IQ reported the create did not succeed.');
+      state.tamSuccessPlans = state.tamSuccessPlans || [];
+      state.tamSuccessPlans.push({
+        id: result.id, name, title: name, status, lifecycleStage, health,
+        tamOwnerEmail: '', source: 'MANUAL', templateUsed: 'ESSENTIAL',
+        tamNotes, nagpId, nagpName: scopeName, scope: { id: nagpId, name: scopeName },
+        lastUpdated: new Date().toISOString(),
+      });
     }
+    closeSuccessPlanModal();
+    renderSuccessPlansTab();
   } catch (e) {
     console.error('Failed to save success plan:', e);
-    alert('Failed to save success plan.');
+    alert('Failed to save success plan to Active IQ: ' + e.message);
   }
 }
 
-async function deleteSuccessPlanFromModal() {
+async function closeSuccessPlanFromModal() {
   const id = document.getElementById('successPlanId').value;
   if (!id) return;
-  await deleteSuccessPlan(Number(id));
-  closeSuccessPlanModal();
-}
-
-async function deleteSuccessPlan(id) {
-  if (!confirm('Delete this Success Plan? This cannot be undone.')) return;
+  const plan = (state.tamSuccessPlans || []).find(p => String(p.id) === String(id));
+  if (!plan) return;
+  if (!confirm(`⚠ This will WRITE BACK to the customer's live Active IQ account.\n\nClose Success Plan "${plan.name}"? Active IQ has no delete API for Success Plans -- this sets its status to Closed, the closest real equivalent.`)) return;
   try {
-    const res = await fetch(`/api/success-plans?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.ok) {
-      await loadSuccessPlans();
-      renderSuccessPlansTab();
-    }
+    const mutation = `mutation CloseCSP($nagpId: String!, $accountPlanId: String!, $accountPlan: AccountPlanUpdateInput) {
+      updateSuccessPlan(nagpId: $nagpId, accountPlanId: $accountPlanId, accountPlan: $accountPlan) { success results }
+    }`;
+    const variables = { nagpId: plan.nagpId, accountPlanId: id, accountPlan: { id, status: 'CLOSED' } };
+    const data = await _callAIQMutation(mutation, variables);
+    if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) throw new Error('Active IQ reported the update did not succeed.');
+    plan.status = 'CLOSED';
+    closeSuccessPlanModal();
+    renderSuccessPlansTab();
   } catch (e) {
-    console.error('Failed to delete success plan:', e);
+    console.error('Failed to close success plan:', e);
+    alert('Failed to close success plan in Active IQ: ' + e.message);
   }
 }
 
@@ -29855,11 +29937,11 @@ function renderSuccessPlansTab() {
   const countHeader = document.getElementById('successPlansCountHeader');
   if (!body) return;
 
-  const plans = state.successPlans || [];
+  const plans = state.tamSuccessPlans || [];
 
   const ownerSelect = document.getElementById('successOwnerFilter');
   if (ownerSelect) {
-    const owners = [...new Set(plans.map(p => p.tamOwner).filter(Boolean))].sort();
+    const owners = [...new Set(plans.map(p => p.tamOwnerEmail).filter(Boolean))].sort();
     const current = ownerSelect.value;
     ownerSelect.innerHTML = '<option value="">TAM owner: All</option>' + owners.map(o => `<option value="${o.replace(/"/g, '&quot;')}">${o}</option>`).join('');
     ownerSelect.value = owners.includes(current) ? current : '';
@@ -29868,7 +29950,7 @@ function renderSuccessPlansTab() {
   const stageFilter = (document.getElementById('successStageFilter') || {}).value || '';
 
   const filtered = plans.filter(p => {
-    if (ownerFilter && p.tamOwner !== ownerFilter) return false;
+    if (ownerFilter && p.tamOwnerEmail !== ownerFilter) return false;
     if (stageFilter && p.lifecycleStage !== stageFilter) return false;
     return true;
   });
@@ -29877,9 +29959,9 @@ function renderSuccessPlansTab() {
 
   // KPIs -- health score reuses the same fleet-wide computation as the
   // Value Insights card so this number stays consistent across tabs.
-  const linkedCount = plans.filter(p => p.scopeValue).length;
+  const linkedCount = plans.filter(p => p.nagpId).length;
   const unlinkedCount = plans.length - linkedCount;
-  const ownerCount = new Set(plans.map(p => p.tamOwner).filter(Boolean)).size;
+  const ownerCount = new Set(plans.map(p => p.tamOwnerEmail).filter(Boolean)).size;
   const healthScore = state.systems.length ? computeAccountHealthScore(state.systems) : null;
   if (kpiRow) {
     kpiRow.innerHTML = `
@@ -29900,14 +29982,14 @@ function renderSuccessPlansTab() {
 
   body.innerHTML = filtered.map(p => {
     const color = SUCCESS_PLAN_STATUS_COLORS[p.status] || '#94a3b8';
+    const healthColor = SUCCESS_PLAN_HEALTH_COLORS[p.health] || '#94a3b8';
     return `
     <tr style="border-bottom:1px solid var(--border-color);">
-      <td style="padding:8px 10px;"><a href="#" onclick="openSuccessPlanModal(${p.id});return false;" style="color:var(--accent-cyan);text-decoration:none;">${(p.cspName || '').replace(/</g, '&lt;')}</a></td>
-      <td style="padding:8px 10px;font-size:0.8rem;">${(p.tamOwner || '—').replace(/</g, '&lt;')}</td>
-      <td style="padding:8px 10px;font-size:0.8rem;">${(p.scopeValue || '—').replace(/</g, '&lt;')}</td>
-      <td style="padding:8px 10px;"><span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${p.status}</span></td>
-      <td style="padding:8px 10px;font-size:0.8rem;">${p.riskAssessment}</td>
-      <td style="padding:8px 10px;"><button onclick="deleteSuccessPlan(${p.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Delete success plan">✕</button></td>
+      <td style="padding:8px 10px;"><a href="#" onclick="openSuccessPlanModal('${p.id}');return false;" style="color:var(--accent-cyan);text-decoration:none;">${(p.name || p.title || '').replace(/</g, '&lt;')}</a></td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${(p.tamOwnerEmail || '—').replace(/</g, '&lt;')}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${(p.nagpName || (p.scope && p.scope.name) || '—').replace(/</g, '&lt;')}</td>
+      <td style="padding:8px 10px;"><span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status || '—'}</span></td>
+      <td style="padding:8px 10px;"><span style="background:${healthColor}22;color:${healthColor};border:1px solid ${healthColor}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'}</span></td>
     </tr>`;
   }).join('');
 }
@@ -30623,7 +30705,7 @@ function switchTab(tabId) {
   } else if (tabId === "tracker") {
     Promise.all([loadTrackerItems(), loadSlaPolicy()]).then(renderTrackerTab);
   } else if (tabId === "success") {
-    loadSuccessPlans().then(renderSuccessPlansTab);
+    renderSuccessPlansTab();
   } else if (tabId === "settings") {
     populateGroupManagerSystems();
     populateLogisticsEditor();

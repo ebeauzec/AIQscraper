@@ -754,10 +754,10 @@
           </select>
           <select id="successStageFilter" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 220px; background-color: var(--bg-card); cursor: pointer;" onchange="renderSuccessPlansTab()">
             <option value="">Lifecycle Stage to: All</option>
-            <option value="Onboard & Implement">Onboard &amp; Implement</option>
-            <option value="Operate & Optimize">Operate &amp; Optimize</option>
-            <option value="Prevent & Solve">Prevent &amp; Solve</option>
-            <option value="Expand & Evolve">Expand &amp; Evolve</option>
+            <option value="ONBOARD_AND_IMPLEMENT">Onboard &amp; Implement</option>
+            <option value="OPERATE_AND_OPTIMIZE">Operate &amp; Optimize</option>
+            <option value="PREVENT_AND_SOLVE">Prevent &amp; Solve</option>
+            <option value="EXPAND_AND_EVOLVE">Expand &amp; Evolve</option>
           </select>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px;" onclick="document.getElementById('successOwnerFilter').value='';document.getElementById('successStageFilter').value='';renderSuccessPlansTab()">Clear Filters</button>
         </div>
@@ -771,15 +771,14 @@
                 <th style="padding: 10px;">TAM owner</th>
                 <th style="padding: 10px;">Linked to (scope)</th>
                 <th style="padding: 10px;">Status</th>
-                <th style="padding: 10px;">TAM risk assessment</th>
-                <th style="padding: 10px;"></th>
+                <th style="padding: 10px;">Health</th>
               </tr>
             </thead>
             <tbody id="successTableBody">
             </tbody>
           </table>
           <div id="successEmptyState" style="display: none; text-align: center; color: var(--text-muted); padding: 32px;">
-            No Data &mdash; click "+ New Success Plan" to create one. Unlike the Remediation Tracker, Active IQ has no telemetry source for success plans; this is a workflow object you create and maintain, same as it is in NetApp Digital Advisor.
+            No Data &mdash; click "+ New Success Plan" to create one. This mirrors NetApp Digital Advisor's own Success Plans feature: real, queryable and writable Active IQ data (confirmed via live schema introspection) &mdash; a plan you create here becomes a real Success Plan visible to your whole team in Digital Advisor, not a local-only record.
           </div>
         </div>
       </div>
@@ -790,46 +789,43 @@
             <h3 id="successPlanModalTitle" style="margin:0; font-size:1.1rem;">New Success Plan</h3>
             <button class="action-btn secondary" style="padding:4px 10px;" onclick="closeSuccessPlanModal()">✕</button>
           </div>
+          <div style="font-size:0.72rem; color:var(--text-muted); background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:var(--radius-sm); padding:8px 10px; margin-bottom:14px;">⚠ Saving writes back to the customer's live Active IQ account -- this becomes a real Success Plan in NetApp Digital Advisor, visible to your whole team.</div>
           <input type="hidden" id="successPlanId">
           <div class="form-group">
             <label class="form-label" for="successPlanName">CSP name</label>
             <input type="text" id="successPlanName" class="form-input" placeholder="e.g. FY27 Renewal & Expansion Plan">
           </div>
           <div class="form-group">
-            <label class="form-label" for="successPlanOwner">TAM owner</label>
-            <input type="text" id="successPlanOwner" class="form-input" placeholder="Owner name">
+            <label class="form-label" for="successPlanOwner">TAM owner (email)</label>
+            <input type="text" id="successPlanOwner" class="form-input" placeholder="Assigned by Active IQ on create">
           </div>
           <div class="form-group">
-            <label class="form-label" for="successPlanScope">Linked to (scope)</label>
+            <label class="form-label" for="successPlanScope">Linked to (customer)</label>
             <select id="successPlanScope" class="form-input"></select>
           </div>
           <div class="form-group">
             <label class="form-label" for="successPlanStage">Lifecycle stage</label>
             <select id="successPlanStage" class="form-input">
-              <option value="Onboard & Implement">Onboard &amp; Implement</option>
-              <option value="Operate & Optimize">Operate &amp; Optimize</option>
-              <option value="Prevent & Solve">Prevent &amp; Solve</option>
-              <option value="Expand & Evolve">Expand &amp; Evolve</option>
+              <option value="ONBOARD_AND_IMPLEMENT">Onboard &amp; Implement</option>
+              <option value="OPERATE_AND_OPTIMIZE">Operate &amp; Optimize</option>
+              <option value="PREVENT_AND_SOLVE">Prevent &amp; Solve</option>
+              <option value="EXPAND_AND_EVOLVE">Expand &amp; Evolve</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="successPlanStatus">Status</label>
             <select id="successPlanStatus" class="form-input">
-              <option value="Draft">Draft</option>
-              <option value="Active">Active</option>
-              <option value="On Track">On Track</option>
-              <option value="At Risk">At Risk</option>
-              <option value="Completed">Completed</option>
-              <option value="Archived">Archived</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="CLOSED">Closed</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label" for="successPlanRisk">TAM risk assessment</label>
+            <label class="form-label" for="successPlanRisk">Health</label>
             <select id="successPlanRisk" class="form-input">
-              <option value="Not assessed">Not assessed</option>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
+              <option value="GREEN">On Track</option>
+              <option value="YELLOW">At Risk</option>
+              <option value="RED">Critical</option>
             </select>
           </div>
           <div class="form-group">
@@ -837,7 +833,7 @@
             <textarea id="successPlanNotes" class="form-input" style="min-height:70px;"></textarea>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
-            <button class="action-btn secondary" id="successPlanDeleteBtn" style="display:none; border-color:rgba(239,68,68,0.4); color:#ef4444;" onclick="deleteSuccessPlanFromModal()">Delete</button>
+            <button class="action-btn secondary" id="successPlanDeleteBtn" style="display:none; border-color:rgba(239,68,68,0.4); color:#ef4444;" onclick="closeSuccessPlanFromModal()">Close Plan</button>
             <div style="display:flex; gap:10px; margin-left:auto;">
               <button class="action-btn secondary" onclick="closeSuccessPlanModal()">Cancel</button>
               <button class="action-btn" onclick="saveSuccessPlanFromModal()">Save</button>

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.55",
+  "version": "5.6.56",
   "major": 5,
   "minor": 6,
-  "patch": 55,
+  "patch": 56,
   "date": "2026-09-16",
-  "notes": "Fixed a severe PSIRT product-misclassification bug (54% of bulletins were defaulting to ONTAP when unrecognized, mistagging non-storage CVEs against every array in the fleet) and backfilled all 341 existing bulletins against live data. Restored real Support Contract Coverage as its own metric, separate from hardware Warranty Coverage -- Active IQ's contract data, null in August, is now populated for most of the fleet. Fixed a deliverable-accuracy audit: CVE count union consistency, DR Coverage % exceeding 100%, MSP Service Report's two disagreeing Health numbers, and Account Handover Brief's fleet-wide sustainability score being presented as one customer's own achievement (plus the underlying multi-account merge bug that caused it)."
+  "notes": "Live GraphQL schema introspection against the real Active IQ API found that Success Plans (shipped last release as a local-only SQLite workflow object) is actually real, queryable, and writable Active IQ data -- lifecycleStage enum values match Digital Advisor's own UI exactly. Rebuilt the tab to harvest real CustomerSuccessPlan records and write creates/updates back via createSuccessPlan/updateSuccessPlan mutations, same confirmation-gated write-back pattern as risk acknowledgement, so a plan created here becomes a real Digital Advisor plan visible to the whole team."
 }
