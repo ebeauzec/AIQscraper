@@ -656,6 +656,22 @@ def _run_db_schema_setup(db):
         );
         CREATE INDEX IF NOT EXISTS idx_tracked_items_status ON tracked_items(status);
         CREATE INDEX IF NOT EXISTS idx_tracked_items_account ON tracked_items(account_id);
+
+        CREATE TABLE IF NOT EXISTS success_plans (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            csp_name        TEXT NOT NULL,
+            tam_owner       TEXT DEFAULT '',
+            scope_type      TEXT DEFAULT '',
+            scope_value     TEXT DEFAULT '',
+            lifecycle_stage TEXT NOT NULL DEFAULT 'Onboard & Implement',
+            status          TEXT NOT NULL DEFAULT 'Draft',
+            risk_assessment TEXT NOT NULL DEFAULT 'Not assessed',
+            notes           TEXT DEFAULT '',
+            created_at      TEXT NOT NULL,
+            updated_at      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_success_plans_owner ON success_plans(tam_owner);
+        CREATE INDEX IF NOT EXISTS idx_success_plans_stage ON success_plans(lifecycle_stage);
     """)
     # Migrate existing tracked_items rows created before advisory_url existed
     # (safe no-op if the column is already present).
@@ -7540,6 +7556,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_firmware_probe()
         elif self.path.startswith('/api/tracker'):
             self.handle_tracker_list()
+        elif self.path.startswith('/api/success-plans'):
+            self.handle_success_plans_list()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -7888,6 +7906,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_update()
         elif self.path == '/api/tracker':
             self.handle_tracker_upsert()
+        elif self.path == '/api/success-plans/update':
+            self.handle_success_plans_update()
+        elif self.path == '/api/success-plans':
+            self.handle_success_plans_create()
         elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
@@ -7896,6 +7918,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         if self.path.startswith('/api/asup/imports'):
             self.handle_asup_delete()
+        elif self.path.startswith('/api/success-plans'):
+            self.handle_success_plans_delete()
         elif self.path.startswith('/api/tracker'):
             self.handle_tracker_delete()
         else:
@@ -8656,6 +8680,155 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._json_response(200, {"ok": True, "deleted": item_id})
         except Exception as e:
             print(f"  [TRACKER] Delete error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    # ── Success Plans (CSP) ──────────────────────────────────────────────
+    # Mirrors NetApp Digital Advisor's "Success Plans" list view. Unlike the
+    # Remediation Tracker (which mirrors real findings from a sync), a
+    # Success Plan is a TAM-authored workflow object -- Active IQ has no
+    # telemetry source for it. Same SQLite CRUD pattern as tracked_items
+    # above, own table, own endpoints.
+    _SUCCESS_PLAN_STAGES = {"Onboard & Implement", "Operate & Optimize", "Prevent & Solve", "Expand & Evolve"}
+    _SUCCESS_PLAN_STATUSES = {"Draft", "Active", "On Track", "At Risk", "Completed", "Archived"}
+    _SUCCESS_PLAN_RISKS = {"Not assessed", "Low", "Medium", "High"}
+
+    def handle_success_plans_list(self):
+        """GET /api/success-plans — return every success plan."""
+        try:
+            db = _init_db()
+            try:
+                rows = db.execute("""
+                    SELECT id, csp_name, tam_owner, scope_type, scope_value, lifecycle_stage,
+                           status, risk_assessment, notes, created_at, updated_at
+                    FROM success_plans ORDER BY updated_at DESC
+                """).fetchall()
+            finally:
+                db.close()
+            cols = ["id", "cspName", "tamOwner", "scopeType", "scopeValue", "lifecycleStage",
+                    "status", "riskAssessment", "notes", "createdAt", "updatedAt"]
+            plans = [dict(zip(cols, r)) for r in rows]
+            self._json_response(200, {"ok": True, "plans": plans})
+        except Exception as e:
+            print(f"  [SUCCESS-PLANS] List error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_success_plans_create(self):
+        """POST /api/success-plans
+        Body: { cspName, tamOwner?, scopeType?, scopeValue?, lifecycleStage?, status?, riskAssessment?, notes? }
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            csp_name = (body.get("cspName") or "").strip()
+            if not csp_name:
+                self._json_response(400, {"ok": False, "error": "cspName is required"})
+                return
+            stage = body.get("lifecycleStage") or "Onboard & Implement"
+            if stage not in self._SUCCESS_PLAN_STAGES:
+                self._json_response(400, {"ok": False, "error": f"invalid lifecycleStage, must be one of {sorted(self._SUCCESS_PLAN_STAGES)}"})
+                return
+            status = body.get("status") or "Draft"
+            if status not in self._SUCCESS_PLAN_STATUSES:
+                self._json_response(400, {"ok": False, "error": f"invalid status, must be one of {sorted(self._SUCCESS_PLAN_STATUSES)}"})
+                return
+            risk = body.get("riskAssessment") or "Not assessed"
+            if risk not in self._SUCCESS_PLAN_RISKS:
+                self._json_response(400, {"ok": False, "error": f"invalid riskAssessment, must be one of {sorted(self._SUCCESS_PLAN_RISKS)}"})
+                return
+            now = datetime.now(timezone.utc).isoformat()
+            db = _init_db()
+            try:
+                cur = db.execute("""
+                    INSERT INTO success_plans
+                        (csp_name, tam_owner, scope_type, scope_value, lifecycle_stage, status, risk_assessment, notes, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (csp_name, body.get("tamOwner", ""), body.get("scopeType", ""), body.get("scopeValue", ""),
+                      stage, status, risk, body.get("notes", ""), now, now))
+                db.commit()
+                new_id = cur.lastrowid
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "id": new_id})
+        except Exception as e:
+            print(f"  [SUCCESS-PLANS] Create error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_success_plans_update(self):
+        """POST /api/success-plans/update
+        Body: { id, cspName?, tamOwner?, scopeType?, scopeValue?, lifecycleStage?, status?, riskAssessment?, notes? }
+        Updates only the fields present in the body.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            plan_id = body.get("id")
+            if not plan_id:
+                self._json_response(400, {"ok": False, "error": "id is required"})
+                return
+            fields, params = [], []
+            if "cspName" in body:
+                name = (body["cspName"] or "").strip()
+                if not name:
+                    self._json_response(400, {"ok": False, "error": "cspName cannot be empty"})
+                    return
+                fields.append("csp_name = ?"); params.append(name)
+            if "tamOwner" in body:
+                fields.append("tam_owner = ?"); params.append(body["tamOwner"] or "")
+            if "scopeType" in body:
+                fields.append("scope_type = ?"); params.append(body["scopeType"] or "")
+            if "scopeValue" in body:
+                fields.append("scope_value = ?"); params.append(body["scopeValue"] or "")
+            if "lifecycleStage" in body:
+                if body["lifecycleStage"] not in self._SUCCESS_PLAN_STAGES:
+                    self._json_response(400, {"ok": False, "error": f"invalid lifecycleStage, must be one of {sorted(self._SUCCESS_PLAN_STAGES)}"})
+                    return
+                fields.append("lifecycle_stage = ?"); params.append(body["lifecycleStage"])
+            if "status" in body:
+                if body["status"] not in self._SUCCESS_PLAN_STATUSES:
+                    self._json_response(400, {"ok": False, "error": f"invalid status, must be one of {sorted(self._SUCCESS_PLAN_STATUSES)}"})
+                    return
+                fields.append("status = ?"); params.append(body["status"])
+            if "riskAssessment" in body:
+                if body["riskAssessment"] not in self._SUCCESS_PLAN_RISKS:
+                    self._json_response(400, {"ok": False, "error": f"invalid riskAssessment, must be one of {sorted(self._SUCCESS_PLAN_RISKS)}"})
+                    return
+                fields.append("risk_assessment = ?"); params.append(body["riskAssessment"])
+            if "notes" in body:
+                fields.append("notes = ?"); params.append(body["notes"] or "")
+            if not fields:
+                self._json_response(400, {"ok": False, "error": "no updatable fields provided"})
+                return
+            fields.append("updated_at = ?"); params.append(datetime.now(timezone.utc).isoformat())
+            params.append(plan_id)
+            db = _init_db()
+            try:
+                db.execute(f"UPDATE success_plans SET {', '.join(fields)} WHERE id = ?", params)
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True})
+        except Exception as e:
+            print(f"  [SUCCESS-PLANS] Update error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_success_plans_delete(self):
+        """DELETE /api/success-plans?id=NNN — permanently remove a success plan."""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            params = parse_qs(urlparse(self.path).query)
+            plan_id = params.get("id", [None])[0]
+            if not plan_id:
+                self._json_response(400, {"ok": False, "error": "id parameter required"})
+                return
+            db = _init_db()
+            try:
+                db.execute("DELETE FROM success_plans WHERE id = ?", (plan_id,))
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "deleted": plan_id})
+        except Exception as e:
+            print(f"  [SUCCESS-PLANS] Delete error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e)})
 
     def handle_config_get(self):

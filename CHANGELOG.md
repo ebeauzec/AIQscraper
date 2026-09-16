@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.54] - 2026-09-16
+
+### Added
+- **New "Success Plans" tab** — a TAM-authored CSP tracker mirroring NetApp Digital Advisor's own Success Plans list one-to-one: CSP name, TAM owner, Linked to (customer scope), Status, and TAM risk assessment, with the same Lifecycle Stage taxonomy (Onboard & Implement, Operate & Optimize, Prevent & Solve, Expand & Evolve). KPI row shows Health Score, Linked/Unlinked CSP counts, and distinct TAM Owner count; "Outcomes Lift" is honestly labeled "Coming soon" since Active IQ has no API for it. Persisted server-side in SQLite, same pattern as the Remediation Tracker — but unlike the Tracker, Success Plans have no telemetry source; they're a pure TAM workflow object you create and maintain.
+
+---
+
 ## [5.6.53] - 2026-09-16
 
 ### Added

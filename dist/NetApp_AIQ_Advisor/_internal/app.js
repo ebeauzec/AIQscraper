@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.53";
+const APP_VERSION = "5.6.54";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.54",
+    date: "16 September 2026",
+    title: "Added: Success Plans (CSP) Tracker, Matching NetApp Digital Advisor's Success Plans List",
+    sections: [
+      {
+        heading: "New",
+        items: [
+          "New 'Success Plans' tab: a TAM-authored list of Success Plans (CSPs) mirroring NetApp Digital Advisor's own Success Plans view -- CSP name, TAM owner, Linked to (customer scope), Status, and TAM risk assessment, with a Lifecycle Stage taxonomy (Onboard & Implement, Operate & Optimize, Prevent & Solve, Expand & Evolve) matching Digital Advisor's own filter exactly.",
+          "KPI row: Health Score (reuses the same fleet health computation as the Value Insights card so it's consistent across tabs), Linked/Unlinked CSP counts, and distinct TAM Owner count. 'Outcomes Lift' is shown as 'Coming soon' and honestly labeled -- Active IQ has no API for outcome tracking, so this can't be computed, only Digital Advisor's own internal system has it.",
+          "Unlike the Remediation Tracker (which imports real findings from Active IQ telemetry), Success Plans have no telemetry source at all -- they're a pure TAM workflow object, same as in Digital Advisor. Create/edit/delete via a modal; persisted server-side in SQLite so plans survive re-harvests.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.53",
     date: "16 September 2026",
@@ -29539,6 +29554,8 @@ function executeSearchGo() {
 
 state.trackerItems = state.trackerItems || [];
 state.trackerLoaded = false;
+state.successPlans = state.successPlans || [];
+state.successPlansLoaded = false;
 
 // Small deterministic string hash (djb2 variant) -- good enough for a stable
 // dedup key, not for cryptographic use. Same input always yields same key,
@@ -29621,6 +29638,166 @@ async function deleteTrackerItem(id) {
   } catch (e) {
     console.error('Failed to delete tracker item:', e);
   }
+}
+
+// ── Success Plans (CSP) tracker ─────────────────────────────────────────
+// TAM-authored workflow object mirroring NetApp Digital Advisor's own
+// Success Plans list -- unlike the Remediation Tracker, there is no
+// telemetry source for this; it exists purely because a TAM created it.
+const SUCCESS_PLAN_STAGES = ['Onboard & Implement', 'Operate & Optimize', 'Prevent & Solve', 'Expand & Evolve'];
+const SUCCESS_PLAN_STATUS_COLORS = { 'Draft': '#94a3b8', 'Active': '#3b82f6', 'On Track': '#22c55e', 'At Risk': '#ef4444', 'Completed': '#22c55e', 'Archived': '#64748b' };
+
+async function loadSuccessPlans() {
+  try {
+    const res = await fetch('/api/success-plans', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.ok) {
+      state.successPlans = data.plans || [];
+      state.successPlansLoaded = true;
+    }
+  } catch (e) {
+    console.error('Failed to load success plans:', e);
+  }
+}
+
+function openSuccessPlanModal(id) {
+  const scopeSelect = document.getElementById('successPlanScope');
+  const customers = [...new Set(state.systems.map(s => s.customerName))].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  scopeSelect.innerHTML = customers.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+
+  const plan = id ? (state.successPlans || []).find(p => p.id === id) : null;
+  document.getElementById('successPlanModalTitle').textContent = plan ? 'Edit Success Plan' : 'New Success Plan';
+  document.getElementById('successPlanId').value = plan ? plan.id : '';
+  document.getElementById('successPlanName').value = plan ? plan.cspName : '';
+  document.getElementById('successPlanOwner').value = plan ? plan.tamOwner : '';
+  if (plan && plan.scopeValue) scopeSelect.value = plan.scopeValue;
+  document.getElementById('successPlanStage').value = plan ? plan.lifecycleStage : 'Onboard & Implement';
+  document.getElementById('successPlanStatus').value = plan ? plan.status : 'Draft';
+  document.getElementById('successPlanRisk').value = plan ? plan.riskAssessment : 'Not assessed';
+  document.getElementById('successPlanNotes').value = plan ? plan.notes : '';
+  document.getElementById('successPlanDeleteBtn').style.display = plan ? '' : 'none';
+  document.getElementById('successPlanModal').style.display = 'flex';
+}
+
+function closeSuccessPlanModal() {
+  document.getElementById('successPlanModal').style.display = 'none';
+}
+
+async function saveSuccessPlanFromModal() {
+  const id = document.getElementById('successPlanId').value;
+  const cspName = document.getElementById('successPlanName').value.trim();
+  if (!cspName) { alert('CSP name is required.'); return; }
+  const payload = {
+    cspName,
+    tamOwner: document.getElementById('successPlanOwner').value.trim(),
+    scopeType: 'CUSTOMER',
+    scopeValue: document.getElementById('successPlanScope').value,
+    lifecycleStage: document.getElementById('successPlanStage').value,
+    status: document.getElementById('successPlanStatus').value,
+    riskAssessment: document.getElementById('successPlanRisk').value,
+    notes: document.getElementById('successPlanNotes').value.trim(),
+  };
+  try {
+    const res = id
+      ? await fetch('/api/success-plans/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(id), ...payload }) })
+      : await fetch('/api/success-plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.ok) {
+      closeSuccessPlanModal();
+      await loadSuccessPlans();
+      renderSuccessPlansTab();
+    } else {
+      alert(data.error || 'Failed to save success plan.');
+    }
+  } catch (e) {
+    console.error('Failed to save success plan:', e);
+    alert('Failed to save success plan.');
+  }
+}
+
+async function deleteSuccessPlanFromModal() {
+  const id = document.getElementById('successPlanId').value;
+  if (!id) return;
+  await deleteSuccessPlan(Number(id));
+  closeSuccessPlanModal();
+}
+
+async function deleteSuccessPlan(id) {
+  if (!confirm('Delete this Success Plan? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`/api/success-plans?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) {
+      await loadSuccessPlans();
+      renderSuccessPlansTab();
+    }
+  } catch (e) {
+    console.error('Failed to delete success plan:', e);
+  }
+}
+
+function renderSuccessPlansTab() {
+  const body = document.getElementById('successTableBody');
+  const kpiRow = document.getElementById('successKpiRow');
+  const emptyState = document.getElementById('successEmptyState');
+  const countHeader = document.getElementById('successPlansCountHeader');
+  if (!body) return;
+
+  const plans = state.successPlans || [];
+
+  const ownerSelect = document.getElementById('successOwnerFilter');
+  if (ownerSelect) {
+    const owners = [...new Set(plans.map(p => p.tamOwner).filter(Boolean))].sort();
+    const current = ownerSelect.value;
+    ownerSelect.innerHTML = '<option value="">TAM owner: All</option>' + owners.map(o => `<option value="${o.replace(/"/g, '&quot;')}">${o}</option>`).join('');
+    ownerSelect.value = owners.includes(current) ? current : '';
+  }
+  const ownerFilter = ownerSelect ? ownerSelect.value : '';
+  const stageFilter = (document.getElementById('successStageFilter') || {}).value || '';
+
+  const filtered = plans.filter(p => {
+    if (ownerFilter && p.tamOwner !== ownerFilter) return false;
+    if (stageFilter && p.lifecycleStage !== stageFilter) return false;
+    return true;
+  });
+
+  if (countHeader) countHeader.textContent = `Success plans (${filtered.length})`;
+
+  // KPIs -- health score reuses the same fleet-wide computation as the
+  // Value Insights card so this number stays consistent across tabs.
+  const linkedCount = plans.filter(p => p.scopeValue).length;
+  const unlinkedCount = plans.length - linkedCount;
+  const ownerCount = new Set(plans.map(p => p.tamOwner).filter(Boolean)).size;
+  const healthScore = state.systems.length ? computeAccountHealthScore(state.systems) : null;
+  if (kpiRow) {
+    kpiRow.innerHTML = `
+      <div class="card kpi-card"><div class="card-title">Health Score</div><div class="card-value">${healthScore != null ? healthScore : '—'}</div></div>
+      <div class="card kpi-card" data-tooltip="Not available via the Active IQ API -- NetApp Digital Advisor computes this from outcome tracking not exposed to partners/TAMs."><div class="card-title">Outcomes Lift</div><div class="card-value" style="font-size:0.95rem;color:var(--text-muted);">Coming soon</div></div>
+      <div class="card kpi-card"><div class="card-title">Linked CSPs</div><div class="card-value">${linkedCount}</div></div>
+      <div class="card kpi-card"><div class="card-title">Unlinked CSPs</div><div class="card-value">${unlinkedCount}</div></div>
+      <div class="card kpi-card"><div class="card-title">TAM Owners</div><div class="card-value">${ownerCount}</div></div>
+    `;
+  }
+
+  if (filtered.length === 0) {
+    body.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'block';
+    return;
+  }
+  if (emptyState) emptyState.style.display = 'none';
+
+  body.innerHTML = filtered.map(p => {
+    const color = SUCCESS_PLAN_STATUS_COLORS[p.status] || '#94a3b8';
+    return `
+    <tr style="border-bottom:1px solid var(--border-color);">
+      <td style="padding:8px 10px;"><a href="#" onclick="openSuccessPlanModal(${p.id});return false;" style="color:var(--accent-cyan);text-decoration:none;">${(p.cspName || '').replace(/</g, '&lt;')}</a></td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${(p.tamOwner || '—').replace(/</g, '&lt;')}</td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${(p.scopeValue || '—').replace(/</g, '&lt;')}</td>
+      <td style="padding:8px 10px;"><span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${p.status}</span></td>
+      <td style="padding:8px 10px;font-size:0.8rem;">${p.riskAssessment}</td>
+      <td style="padding:8px 10px;"><button onclick="deleteSuccessPlan(${p.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Delete success plan">✕</button></td>
+    </tr>`;
+  }).join('');
 }
 
 // Bulk-imports EVERY customer's real, already-computed findings (critical/
@@ -30333,6 +30510,8 @@ function switchTab(tabId) {
     generateActionPlan();
   } else if (tabId === "tracker") {
     Promise.all([loadTrackerItems(), loadSlaPolicy()]).then(renderTrackerTab);
+  } else if (tabId === "success") {
+    loadSuccessPlans().then(renderSuccessPlansTab);
   } else if (tabId === "settings") {
     populateGroupManagerSystems();
     populateLogisticsEditor();
