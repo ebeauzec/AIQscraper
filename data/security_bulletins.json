@@ -8476,7 +8476,11 @@
       "_addedAt": "2026-09-16",
       "_source": "scan",
       "epssScore": 0.59417,
-      "epssPercentile": 0.99069
+      "epssPercentile": 0.99069,
+      "cisaKev": true,
+      "cisaKevDateAdded": "2025-09-29",
+      "cisaKevDueDate": "2025-10-20",
+      "cisaKevAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable."
     },
     {
       "id": "ntap-20260828-0010",

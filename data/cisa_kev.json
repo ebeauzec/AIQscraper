@@ -3,7 +3,7 @@
   "lastUpdated": "2026-09-16",
   "catalogVersion": "2026.09.14",
   "totalKevEntries": 1710,
-  "matchedToFleet": 6,
+  "matchedToFleet": 7,
   "vulnerabilities": [
     {
       "cveID": "CVE-2026-76461",
