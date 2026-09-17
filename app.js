@@ -27,9 +27,46 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.59";
+const APP_VERSION = "5.6.60";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.60",
+    date: "17 September 2026",
+    title: "New Active IQ Data, Deliverable Audit Fixes, and Suggested Success Plans",
+    sections: [
+      {
+        icon: "🔍",
+        label: "New -- Two More Real, Verified Active IQ Data Sources",
+        color: "#22c55e",
+        items: [
+          "Exhaustively scanned all 44 GraphQL query root fields for unused, valuable data. Found and live-verified two: Active IQ's own official Health Score (summary.healthScore -- a real 0-100 score with a 9-factor KPI breakdown, distinct from this tool's own risk-based score) and per-aggregate storage detail (efficiency ratio, FabricPool status, dedup/compression-disabled volume counts -- populated on 130/484 real systems tested).",
+          "Both are schema-confirmed AND live-data-confirmed populated -- not just present in the schema, following this session's standing rule that schema presence alone isn't enough evidence (GetProductMilestones existed in schema but was 403 Forbidden for every real input).",
+          "Official Health Score now shows on the Overview KPI row and in the QBR Pack, alongside (not replacing) this tool's own computed grade -- the two can genuinely diverge and that's useful TAM context, not a bug. Per-aggregate detail now feeds a new 'Storage Efficiency Opportunities' section in the Risk & Remediation Brief.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Deliverable Audit: Fabricated Score, Mislabeled Metric, Missing Success Plan Alignment",
+        color: "#f87171",
+        items: [
+          "Risk & Remediation Brief's Sustainability Score had its own separate, undocumented fallback -- a DRR-derived heuristic (dataReductionRatio / 5 * 100) shown as a bare '/100' figure with no indication it wasn't a real Active IQ score. Replaced with the same honest real-score-first, fleet-wide-labeled, then-N/A fallback chain already used by the Sustainability Report, extracted into one shared function so both stay in sync going forward.",
+          "MSP Service Report's Partner Value Statement listed 'Risk Incidents Prevented: N critical issues identified proactively' -- N is currently open critical risks, not prevented/resolved incidents. Relabeled to 'Critical Risks Identified' so it can't be read as a resolved-incident count.",
+          "None of the 7 deliverable generators referenced Success Plans at all, despite Success Plans being real, populated data in this tool since v5.6.54. QBR Pack, Risk & Remediation Brief, and Account Handover Brief now each show the account's real active Success Plan(s) (name/stage/status/health/owner) or an honest 'no active plan on file' note -- the Handover Brief shows it prominently since an incoming TAM/SAM needs it most.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "New -- Suggested Success Plans, Adopt Any Number, Real Progress Tracking",
+        color: "#22c55e",
+        items: [
+          "6 suggestion templates (Critical Risk Remediation, Ransomware & Security Hardening, EOL/EOS Tech Refresh Planning, Support Contract Renewal & Expansion, Operational Health & Feature Optimization, New Deployment Onboarding) evaluate every real customer's real harvested data (risks, ARP status, hardware EOS dates, contract expiry, computed health score, ship dates) and surface a suggestion only when the real trigger condition is met -- nothing is generated speculatively.",
+          "Suggestions appear on the Success Plans tab with the specific real numbers that triggered each one; select any number and 'Adopt' creates real Success Plans via the same createSuccessPlan write-back used by manual creation, with the same explicit confirmation gate.",
+          "Progress tracking: since Active IQ's Success Plan object has no percentage/progress field, adopting a suggestion records the real trigger metric's value locally (new success_plan_progress table, purely local bookkeeping about a real plan id -- never written back to Active IQ). The Success Plans table now shows a Progress column with the real baseline-to-current delta, recomputed from the live harvest on every view.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.59",
     date: "16 September 2026",
@@ -7025,11 +7062,30 @@ function updateOverviewKpis() {
   document.getElementById("kpiCriticalRisks").innerText = criticalRisksCount;
   document.getElementById("kpiWarningRisks").innerText = warningRisksCount;
   document.getElementById("kpiContracts").innerText = expiringContracts;
-  
+
   document.getElementById("kpiTotalSystems").style.color = "var(--text-primary)";
   document.getElementById("kpiCriticalRisks").style.color = criticalRisksCount > 0 ? "var(--status-critical)" : "var(--status-normal)";
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
+
+  // Official Active IQ health score -- one number per watchlist/account scope
+  // (not per-filtered-system), same "first entry" pattern already used for
+  // tamSustainability elsewhere in the app.
+  const _officialHs = (state.tamOfficialHealthScore || [])[0];
+  const kpiHsEl = document.getElementById("kpiHealthScore");
+  const kpiHsSubEl = document.getElementById("kpiHealthScoreSubtitle");
+  if (kpiHsEl && kpiHsSubEl) {
+    if (_officialHs && _officialHs.overallHealthScore != null) {
+      const _score = _officialHs.overallHealthScore;
+      kpiHsEl.innerText = `${_score}/100`;
+      kpiHsEl.style.color = _score >= 80 ? "var(--status-normal)" : (_score >= 60 ? "var(--status-warning)" : "var(--status-critical)");
+      kpiHsSubEl.innerText = _officialHs.calculatedAt ? `As of ${new Date(_officialHs.calculatedAt).toLocaleDateString()}` : "Reported by Active IQ";
+    } else {
+      kpiHsEl.innerText = "--";
+      kpiHsEl.style.color = "var(--text-secondary)";
+      kpiHsSubEl.innerText = "Not yet reported";
+    }
+  }
 }
 
 // ── Risk Trend (Overview) ───────────────────────────────────────────────────
@@ -16629,6 +16685,10 @@ function enrichSystemTelemetry(s) {
     // ── Identity markers (used by isLiveData detection on reload) ──
     customerId:        s.customerId || '',
     nagpId:            s.nagpId || '',
+    // Real per-aggregate efficiency/FabricPool detail from server.py's
+    // aggregates() enrichment -- only present for ONTAP systems that report
+    // aggregate-level ASUP data (see the harvest-side comment in server.py).
+    aggregateDetail:   s.aggregateDetail || null,
     // ── As-Built: Additional Identity & Site ──
     siteState:         s.siteState || '',
     systemId:          s.systemId || '',
@@ -17714,6 +17774,19 @@ function filterActiveCases(cases) {
 // worse, gets cut off mid-tag by the length truncation below (e.g. an <a
 // href="..."> with no visible text or closing bracket). Strip tags first.
 const _truncate = (s, n = 300) => { const t = (s || '').replace(/<[^>]+>/g, '').replace(/\\n/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : t.substring(0, n).replace(/\s\S*$/, '') + '…'; };
+
+// Cross-references a deliverable's account/scope against real Active IQ
+// Success Plans (state.tamSuccessPlans, matched by the same real nagpId
+// already tagged on both systems and plans) so QBR/Risk/Handover documents
+// tie back to the account's actual plan instead of never mentioning it.
+function getSuccessPlanAlignmentText(targetSystems) {
+  const nagpIds = new Set(targetSystems.map(s => s.nagpId).filter(Boolean));
+  const plans = (state.tamSuccessPlans || []).filter(p => nagpIds.has(p.nagpId) && p.status !== 'CLOSED');
+  if (!plans.length) {
+    return '  No active Success Plan on file for this account -- see the Success Plans tab to create or adopt a suggested one.\n';
+  }
+  return plans.map(p => `  • ${(p.name || p.title || 'Untitled Plan')} -- Stage: ${SUCCESS_PLAN_STAGE_LABELS[p.lifecycleStage] || p.lifecycleStage || 'Unspecified'}, Status: ${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status}, Health: ${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'}${p.tamOwnerEmail ? ` (Owner: ${p.tamOwnerEmail})` : ''}`).join('\n') + '\n';
+}
 
 function _filterAndDeduplicateRisks(risks, targetSystems) {
   const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -19684,6 +19757,12 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const avgPct = computeAccountHealthScore(targetSystems);
   const grade = getHealthGrade(avgPct);
 
+  // ── Official Active IQ Health Score (vendor-issued, distinct from the above) ──
+  const officialHs = (state.tamOfficialHealthScore || [])[0];
+  const officialHsLine = officialHs && officialHs.overallHealthScore != null
+    ? `  Active IQ Official Health Score: ${officialHs.overallHealthScore}/100 (NetApp-calculated${officialHs.calculatedAt ? `, as of ${officialHs.calculatedAt.slice(0, 10)}` : ''} -- factors in AutoSupport freshness, firmware, security hardening, uptime, EOS exposure, sustainability, tech refresh, add-on adoption)\n`
+    : '';
+
   // ── Risks ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
   const highCount = allRisks.filter(r => r.severity === 'high').length;
@@ -19947,7 +20026,7 @@ Prepared: ${salesRep}
   Support Contract Coverage: ${contractActive}/${total} systems (${contractPct}%) — active per Active IQ's contract data
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
-
+${officialHsLine}
 --------------------------------------------------------------------------------
 2b. HISTORICAL TREND (30-DAY AND 90-DAY VIEWS)
 --------------------------------------------------------------------------------
@@ -20030,6 +20109,10 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fl
 9. RECOMMENDATIONS (Active IQ) [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
 ${recsSection}
+--------------------------------------------------------------------------------
+9b. SUCCESS PLAN ALIGNMENT
+--------------------------------------------------------------------------------
+${getSuccessPlanAlignmentText(targetSystems)}
 --------------------------------------------------------------------------------
 10. ARCHITECTURE ROADMAP & TECH REFRESH [REMEDIATION PLAN + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
@@ -20339,7 +20422,7 @@ ${backlogLines}
 --------------------------------------------------------------------------------
   Total Data Managed:       ${logTotal.toFixed(1)} TB
   Storage Cost Avoidance:   $${(savedTotal * state.costPerTiB).toLocaleString()} / month (at $${state.costPerTiB}/TB)
-  Risk Incidents Prevented: ${critCount} critical issues identified proactively
+  Critical Risks Identified: ${critCount} critical issue${critCount !== 1 ? 's' : ''} flagged proactively before customer impact
   Admin Time Saved:         ~${total * 2} hours/month via automated telemetry and monitoring
                             (ESTIMATE: 2 hrs/system/month manual-monitoring offset, not a measured value — do not cite externally)
   Next Quarter Focus:       Expand ARP coverage to 100% and initiate tech refresh for ${ages.filter(a=>a>5).length} aged systems.
@@ -20392,15 +20475,11 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0';
   const runway = capacityRunwayCount > 0 ? Math.round(daysToLimitSum / capacityRunwayCount) : '—';
   
-  const sustScores = targetSystems.map(s => {
-    if (s.sustainability && s.sustainability.overallScore) return s.sustainability.overallScore;
-    if (s.efficiency && s.efficiency.dataReductionRatio) {
-      const r = parseFloat(String(s.efficiency.dataReductionRatio).split(':')[0]) || 1;
-      return Math.min(100, Math.round((r / 5) * 100));
-    }
-    return 0;
-  });
-  const avgSust = sustScores.length > 0 ? Math.round(sustScores.reduce((a,b)=>a+b,0)/sustScores.length) : '—';
+  // Reuses the same honest fallback chain as compileSustainabilityReport
+  // (real per-system -> real per-customer -> real fleet-wide, honestly
+  // labeled -> N/A) instead of a separate DRR-derived heuristic that read as
+  // a real Active IQ score with no data-availability caveat.
+  const { avgScoreLabel: avgSustLabel } = computeHonestSustainabilityScore(targetSystems);
 
   const total = targetSystems.length;
   const now = Date.now();
@@ -20430,6 +20509,21 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const featureScores = targetSystems.map(s => computeFeatureAdoptionScore(s));
   const avgFeaturePassed = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.passed,0)/featureScores.length) : 0;
   const avgFeaturePct = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.pct,0)/featureScores.length) : 0;
+
+  // ── Per-aggregate efficiency opportunities (real Active IQ aggregate detail) ──
+  const _aggReporting = targetSystems.filter(s => s.aggregateDetail);
+  const _aggSisDisabledSys = _aggReporting.filter(s => s.aggregateDetail.aggregatesWithSisDisabledVolumes > 0);
+  const _aggNoFabricPoolSys = _aggReporting.filter(s => s.aggregateDetail.aggregatesWithoutFabricPool > 0);
+  const _aggRatios = _aggReporting.map(s => s.aggregateDetail.avgEfficiencyRatioWithoutSnapshot).filter(v => v != null);
+  const _aggAvgRatio = _aggRatios.length > 0 ? (_aggRatios.reduce((a,b)=>a+b,0) / _aggRatios.length).toFixed(2) : null;
+  const aggEfficiencySection = _aggReporting.length > 0 ? `
+  STORAGE EFFICIENCY OPPORTUNITIES (Per-Aggregate, Real Active IQ Data)
+  ─────────────────────────────────────────────────────────────────────────────
+    Systems with Aggregate Detail:   ${_aggReporting.length}/${total}
+    Avg Storage Efficiency Ratio:    ${_aggAvgRatio != null ? `${_aggAvgRatio}:1 (without snapshots)` : 'N/A'}
+    Systems w/ Dedup/Compression Disabled on ≥1 Aggregate: ${_aggSisDisabledSys.length}
+    Systems w/ Non-FabricPool Aggregates:                  ${_aggNoFabricPoolSys.length}
+` : '';
 
   const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
   const ontapCount = ontapSystems.length;
@@ -20503,7 +20597,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
     Data Reduction Ratio:     ${drr}:1 (dedupe + compression, excl. snapshots)
     Space Saved:              ${savedTotal.toFixed(1)} TB
     Capacity Runway:          ${runway} days to 90% (average)
-    Sustainability Score:     ${avgSust}/100
+    Sustainability Score:     ${avgSustLabel}
     Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
     Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
 ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 ? ` [Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}]` : ''}
@@ -20529,7 +20623,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
     OS Currency:              ${fwCurrent}/${total} on recommended version
     Software Currency Index:  ${swIndex} versions behind GA (avg)
     Fleet Diversity:          ${uniqueOntapVersions} unique ONTAP versions across ${total} systems
-
+${aggEfficiencySection}
 ${compileSvmLifInventoryText(targetSystems)}
   REMEDIATION PLAN (Recommended Governance & Gates)
   ─────────────────────────────────────────────────────────────────────────────
@@ -20538,6 +20632,9 @@ ${compileSvmLifInventoryText(targetSystems)}
     Phase 3 (Days 31-90):  Feature enablement & optimization
     Phase 4 (90+ days):    Tech refresh & architecture evolution
 
+  SUCCESS PLAN ALIGNMENT
+  ─────────────────────────────────────────────────────────────────────────────
+${getSuccessPlanAlignmentText(targetSystems)}
   CONTRACTS & ENTITLEMENTS (Contracts & Procurement)
   ─────────────────────────────────────────────────────────────────────────────
     Active Contracts:         ${activeContracts}/${total} systems (${contractPct}%)
@@ -20873,6 +20970,10 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fl
   Procurement Alert:     ${cap.atRisk.length > 0 ? 'Yes — capacity procurement discussions may be in progress' : 'No immediate procurement needed'}`; })()}
 
 --------------------------------------------------------------------------------
+9b. SUCCESS PLAN STATUS (for the incoming owner)
+--------------------------------------------------------------------------------
+${getSuccessPlanAlignmentText(targetSystems)}
+--------------------------------------------------------------------------------
 10. KEY TALKING POINTS & CONTEXT
 --------------------------------------------------------------------------------
 ${talkingPointsText}
@@ -21133,6 +21234,40 @@ ${(() => {
 ================================================================================`;
 }
 
+// Honest sustainability score with fallback chain: real per-system average
+// -> real per-customer score (single-customer scope only) -> real fleet-wide
+// score (honestly labeled as fleet-wide, not this scope's) -> N/A. Shared by
+// compileSustainabilityReport and compileRiskRemediationBrief so both
+// deliverables report the identical honest number instead of the Brief
+// separately inventing a DRR-derived score with no data-availability caveat.
+function computeHonestSustainabilityScore(targetSystems) {
+  let overallScoreSum = 0, systemsWithScore = 0;
+  targetSystems.forEach(s => {
+    if (s.sustainability && s.sustainability.overallScore != null) {
+      overallScoreSum += s.sustainability.overallScore;
+      systemsWithScore++;
+    }
+  });
+  if (systemsWithScore > 0) {
+    const avgScore = Math.round(overallScoreSum / systemsWithScore);
+    return { avgScore, avgScoreLabel: `${avgScore}/100` };
+  }
+  const _custIds = new Set(targetSystems.map(s => s.customerId).filter(Boolean));
+  const _custNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+  const _matched = (state.customers || []).filter(c => _custIds.has(c.id) || _custNames.has(c.name));
+  const _custScores = _matched.map(c => (c.sustainabilityScorePercentage || {}).overall).filter(v => v != null);
+  if (_matched.length === 1 && _custScores.length === 1) {
+    const avgScore = Math.round(_custScores[0]);
+    return { avgScore, avgScoreLabel: `${avgScore}/100` };
+  }
+  const _fleet = (state.tamSustainability || [])[0];
+  if (_fleet && _fleet.scorePercentage != null) {
+    const avgScore = Math.round(_fleet.scorePercentage);
+    return { avgScore, avgScoreLabel: `${avgScore}/100 (fleet-wide, all tenants on this Active IQ account -- no per-system or per-customer score available for this scope)` };
+  }
+  return { avgScore: null, avgScoreLabel: 'N/A -- not scored by Active IQ at any level (system, customer, or fleet)' };
+}
+
 function compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
   // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
   // scope-type prefix -- scopeTitle carries it to distinguish scope types in
@@ -21195,34 +21330,12 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
 
   // When NO system in scope has a per-system score, this used to default to
   // a literal 0 -- "Overall Sustainability Score: 0/100" reads as a real,
-  // alarming measurement, not "no data." Fall back to the real per-customer
-  // score (customers[].sustainabilityScorePercentage.overall, same field
-  // _renderSustainabilitySection() uses) when exactly one customer is in
-  // scope, then the fleet-wide figure (honestly labeled), before finally
-  // admitting there's no score at all.
-  let avgScore, avgScoreLabel, avgTrend = systemsWithScore > 0 ? (weekOverWeekChangeSum / systemsWithScore).toFixed(1) : 0;
-  if (systemsWithScore > 0) {
-    avgScore = Math.round(overallScoreSum / systemsWithScore);
-    avgScoreLabel = `${avgScore}/100`;
-  } else {
-    const _custIds = new Set(targetSystems.map(s => s.customerId).filter(Boolean));
-    const _custNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
-    const _matched = (state.customers || []).filter(c => _custIds.has(c.id) || _custNames.has(c.name));
-    const _custScores = _matched.map(c => (c.sustainabilityScorePercentage || {}).overall).filter(v => v != null);
-    if (_matched.length === 1 && _custScores.length === 1) {
-      avgScore = Math.round(_custScores[0]);
-      avgScoreLabel = `${avgScore}/100`;
-    } else {
-      const _fleet = (state.tamSustainability || [])[0];
-      if (_fleet && _fleet.scorePercentage != null) {
-        avgScore = Math.round(_fleet.scorePercentage);
-        avgScoreLabel = `${avgScore}/100 (fleet-wide, all tenants on this Active IQ account -- no per-system or per-customer score available for this scope)`;
-      } else {
-        avgScore = null;
-        avgScoreLabel = 'N/A -- not scored by Active IQ at any level (system, customer, or fleet)';
-      }
-    }
-  }
+  // alarming measurement, not "no data." computeHonestSustainabilityScore()
+  // falls back to the real per-customer score, then the fleet-wide figure
+  // (honestly labeled), before finally admitting there's no score at all --
+  // shared with compileRiskRemediationBrief so both report the same number.
+  const avgTrend = systemsWithScore > 0 ? (weekOverWeekChangeSum / systemsWithScore).toFixed(1) : 0;
+  const { avgScore, avgScoreLabel } = computeHonestSustainabilityScore(targetSystems);
   
   const totalDrRatio = totalPhysical > 0 ? (totalLogical / totalPhysical).toFixed(1) : 1;
   const powerAvoided = Math.round(spaceSaved * 0.5); // 0.5 kW/TB
@@ -29837,6 +29950,7 @@ async function loadProductionData(forceRefresh = false) {
     state.tamRecommendations = result.tamRecommendations || [];
     state.tamSites = result.tamSites || [];
     state.tamSustainability = result.tamSustainability || [];
+    state.tamOfficialHealthScore = result.tamOfficialHealthScore || [];
     state.tamSuccessPlans = result.tamSuccessPlans || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
@@ -30002,6 +30116,18 @@ async function loadTrackerItems() {
   }
 }
 
+// Local progress baselines for Success Plans adopted from a suggestion --
+// see success_plan_progress table / handle_plan_progress_* in server.py.
+async function loadPlanProgress() {
+  try {
+    const res = await fetch('/api/plan-progress', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.ok) state.planProgress = data.items || [];
+  } catch (e) {
+    console.error('Failed to load plan progress baselines:', e);
+  }
+}
+
 // Track a single finding from anywhere in the app (Technical Audit risk
 // cards, TAM Recommendations, etc.) -- POSTs one item, refreshes local
 // cache, and re-renders the tracker tab if it's currently visible.
@@ -30078,6 +30204,268 @@ const SUCCESS_PLAN_STATUS_LABELS = { 'ACTIVE': 'Active', 'INACTIVE': 'Inactive',
 const SUCCESS_PLAN_STATUS_COLORS = { 'ACTIVE': '#22c55e', 'INACTIVE': '#94a3b8', 'CLOSED': '#64748b' };
 const SUCCESS_PLAN_HEALTH_LABELS = { 'GREEN': 'On Track', 'YELLOW': 'At Risk', 'RED': 'Critical' };
 const SUCCESS_PLAN_HEALTH_COLORS = { 'GREEN': '#22c55e', 'YELLOW': '#f59e0b', 'RED': '#ef4444' };
+
+// ── Suggested Success Plan templates ────────────────────────────────────────
+// Each template's `evaluate()` looks ONLY at real, already-harvested fields
+// (s.risks, s.isARPEnabled, s.hwEndOfSupport, s.contracts.daysRemaining,
+// s.ageInYears, computeAccountHealthScore) -- there is no invented/estimated
+// trigger data. `stage` and `metrics` are real SuccessPlanLifecycleStage /
+// SuccessMetric enum values confirmed via live GraphQL introspection
+// (2026-09-17), so an adopted suggestion is indistinguishable from a plan a
+// TAM created by hand, just pre-populated from the account's real state.
+const SUCCESS_PLAN_TEMPLATES = [
+  {
+    key: 'critical_risk', title: 'Critical Risk Remediation', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK', 'REDUCED_CRITICAL_ALERTS'],
+    evaluate(systems) {
+      const crit = systems.reduce((n, s) => n + (s.risks || []).filter(r => r.severity === 'critical').length, 0);
+      const high = systems.reduce((n, s) => n + (s.risks || []).filter(r => r.severity === 'high').length, 0);
+      if (crit === 0 && high < 3) return null;
+      return {
+        metricLabel: 'Open critical/high risk findings', metricValue: crit + high, targetDirection: 'down',
+        challenges: `${crit} critical and ${high} high-severity risk finding(s) are currently open across this account's fleet, per Active IQ predictive analytics.`,
+        objectives: [
+          crit > 0 ? `Remediate all ${crit} critical-severity risk finding(s)` : `Reduce open high-severity findings (currently ${high})`,
+          'Establish a recurring risk-review cadence with the account team',
+        ],
+      };
+    },
+  },
+  {
+    key: 'security_hardening', title: 'Ransomware & Security Hardening', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_RANSOMWARE_RISK_EXPOSURE', 'REDUCED_VULNERABILITY_RESOLUTION_RATE'],
+    evaluate(systems) {
+      const noArp = systems.filter(s => s.isARPEnabled === false).length;
+      const secRisks = systems.reduce((n, s) => n + (s.risks || []).filter(r => (r.category || '').toLowerCase() === 'security').length, 0);
+      if (noArp === 0 && secRisks === 0) return null;
+      return {
+        metricLabel: 'Systems without Anti-Ransomware Protection', metricValue: noArp, targetDirection: 'down',
+        challenges: `${noArp} system(s) do not have Autonomous Ransomware Protection enabled, and ${secRisks} open security-related risk finding(s) exist across the fleet.`,
+        objectives: [
+          noArp > 0 ? `Enable Anti-Ransomware Protection on the remaining ${noArp} system(s)` : 'Maintain full Anti-Ransomware Protection coverage',
+          `Close out ${secRisks} open security advisory finding(s)`,
+        ],
+      };
+    },
+  },
+  {
+    key: 'tech_refresh', title: 'EOL/EOS Tech Refresh Planning', stage: 'EXPAND_AND_EVOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      const now = Date.now(), yearMs = 365 * 24 * 60 * 60 * 1000;
+      const nearEos = systems.filter(s => {
+        if (!s.hwEndOfSupport) return false;
+        const d = new Date(s.hwEndOfSupport);
+        return !isNaN(d) && (d.getTime() - now) <= yearMs;
+      });
+      if (nearEos.length === 0) return null;
+      return {
+        metricLabel: 'Systems within 12 months of hardware End of Support', metricValue: nearEos.length, targetDirection: 'down',
+        challenges: `${nearEos.length} system(s) reach hardware End of Support within the next 12 months, per Active IQ's real per-system EOA/EOS data.`,
+        objectives: [
+          `Build and approve a tech refresh plan for ${nearEos.length} system(s) before their EOS date`,
+          'Align replacement sizing to current + forecasted capacity needs',
+        ],
+      };
+    },
+  },
+  {
+    key: 'contract_renewal', title: 'Support Contract Renewal & Expansion', stage: 'EXPAND_AND_EVOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      const expiring = systems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining <= 90);
+      if (expiring.length === 0) return null;
+      return {
+        metricLabel: 'Systems with support contracts expiring <=90 days', metricValue: expiring.length, targetDirection: 'down',
+        challenges: `${expiring.length} system(s) have a support contract expiring within 90 days, per Active IQ's real contract data.`,
+        objectives: [
+          `Secure renewal on ${expiring.length} expiring contract(s) before lapse`,
+          'Review service-tier fit against current fleet criticality',
+        ],
+      };
+    },
+  },
+  {
+    key: 'operational_health', title: 'Operational Health & Feature Optimization', stage: 'OPERATE_AND_OPTIMIZE',
+    metrics: ['REDUCED_CRITICAL_ALERTS', 'CAPACITY_UTILIZATION_WITHIN_LIMITS'],
+    evaluate(systems) {
+      const score = typeof computeAccountHealthScore === 'function' ? computeAccountHealthScore(systems) : null;
+      if (score == null || score >= 70) return null;
+      return {
+        metricLabel: 'Account health score', metricValue: score, targetDirection: 'up',
+        challenges: `This account's computed health score is ${score}/100, below the 70-point target, driven by open risk findings, feature adoption gaps, and/or contract coverage.`,
+        objectives: [
+          `Raise the account health score from ${score} toward 80+`,
+          'Close the top feature-adoption gaps (ARP/FabricPool/SnapMirror/HA/QoS)',
+        ],
+      };
+    },
+  },
+  {
+    key: 'onboarding', title: 'New Deployment Onboarding', stage: 'ONBOARD_AND_IMPLEMENT',
+    metrics: ['DECREASED_STORAGE_PROVISIONING_TIME', 'UPTIME_99_9'],
+    evaluate(systems) {
+      // originalShipDate (real Active IQ field) rather than ageInYears -- the
+      // latter is read in several display templates but is never actually
+      // populated on a real system object, so it would silently never trigger.
+      const sixMonthsMs = 183 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const newSystems = systems.filter(s => {
+        if (!s.originalShipDate) return false;
+        const d = new Date(s.originalShipDate);
+        return !isNaN(d) && (now - d.getTime()) <= sixMonthsMs;
+      });
+      if (newSystems.length === 0) return null;
+      return {
+        metricLabel: 'Recently shipped systems (<6 months old)', metricValue: newSystems.length, targetDirection: 'down',
+        challenges: `${newSystems.length} system(s) shipped within the last 6 months, per Active IQ's real shipment data, and have no active onboarding plan.`,
+        objectives: [
+          'Confirm AutoSupport, monitoring, and best-practice configuration on all newly deployed systems',
+          'Schedule a 30/60/90-day onboarding review with the account team',
+        ],
+      };
+    },
+  },
+];
+
+// Groups real harvested systems by nagpId (the same real customer-scoping
+// key already used by Active IQ's own Success Plans), evaluates every
+// template against each customer's real data, and skips any customer/
+// template combination that already has a non-closed plan (tagged via a
+// `[template:KEY]` marker embedded in tamNotes at adoption time -- there is
+// no dedicated "suggestion source" field in the real API, so this is the
+// least-invasive way to avoid re-suggesting the same thing forever).
+function computeSuggestedSuccessPlans() {
+  const existing = new Set(
+    (state.tamSuccessPlans || [])
+      .filter(p => p.status !== 'CLOSED')
+      .map(p => {
+        const m = /\[template:(\w+)\]/.exec(p.tamNotes || '');
+        return m ? `${p.nagpId}::${m[1]}` : null;
+      })
+      .filter(Boolean)
+  );
+  const groups = new Map();
+  (state.systems || []).forEach(s => {
+    if (!s.nagpId) return;
+    if (!groups.has(s.nagpId)) groups.set(s.nagpId, { nagpId: s.nagpId, nagpName: s.nagpName || s.customerName || s.nagpId, systems: [] });
+    groups.get(s.nagpId).systems.push(s);
+  });
+  const suggestions = [];
+  groups.forEach(g => {
+    SUCCESS_PLAN_TEMPLATES.forEach(tmpl => {
+      if (existing.has(`${g.nagpId}::${tmpl.key}`)) return;
+      const result = tmpl.evaluate(g.systems);
+      if (!result) return;
+      suggestions.push({
+        id: `${g.nagpId}::${tmpl.key}`, nagpId: g.nagpId, nagpName: g.nagpName,
+        templateKey: tmpl.key, title: tmpl.title, stage: tmpl.stage, metrics: tmpl.metrics,
+        ...result,
+      });
+    });
+  });
+  return suggestions;
+}
+
+function renderSuggestedPlans() {
+  const card = document.getElementById('suggestedPlansCard');
+  const list = document.getElementById('suggestedPlansList');
+  if (!card || !list) return;
+  const suggestions = computeSuggestedSuccessPlans();
+  state._suggestedPlans = suggestions;
+  if (!suggestions.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = suggestions.map((s, i) => `
+    <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; border:1px solid var(--border-color); border-radius:8px; margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" class="suggested-plan-checkbox" data-idx="${i}" onchange="updateSuggestedPlansSelection()" style="margin-top:3px;">
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:0.88rem;">${s.title.replace(/</g, '&lt;')} <span style="color:var(--text-muted); font-weight:500;">— ${s.nagpName.replace(/</g, '&lt;')}</span></div>
+        <div style="font-size:0.78rem; color:var(--text-secondary); margin:4px 0;">${s.challenges.replace(/</g, '&lt;')}</div>
+        <div style="font-size:0.72rem; color:var(--text-muted);">Stage: ${SUCCESS_PLAN_STAGE_LABELS[s.stage] || s.stage} &middot; Trigger: ${s.metricLabel.replace(/</g, '&lt;')} = ${s.metricValue}</div>
+      </div>
+    </label>`).join('');
+  updateSuggestedPlansSelection();
+}
+
+function updateSuggestedPlansSelection() {
+  const checked = [...document.querySelectorAll('.suggested-plan-checkbox:checked')];
+  const countEl = document.getElementById('suggestedPlansSelectedCount');
+  const btnEl = document.getElementById('adoptSuggestedPlansBtn');
+  if (countEl) countEl.textContent = checked.length;
+  if (btnEl) btnEl.disabled = checked.length === 0;
+}
+
+// Adopts any number of checked suggestions -- each becomes a real
+// createSuccessPlan mutation (same write-back mechanism and confirmation
+// gate as a manually created plan), then records a local progress baseline
+// so the delta on the trigger metric can be shown later.
+async function adoptSelectedSuggestedPlans() {
+  const checkedIdx = [...document.querySelectorAll('.suggested-plan-checkbox:checked')].map(cb => parseInt(cb.dataset.idx, 10));
+  const suggestions = state._suggestedPlans || [];
+  const toAdopt = checkedIdx.map(i => suggestions[i]).filter(Boolean);
+  if (!toAdopt.length) return;
+  if (!confirm(`⚠ This will WRITE BACK to the customer's live Active IQ account.\n\nCreate ${toAdopt.length} Success Plan(s) from the selected suggestion(s)?`)) return;
+
+  let ok = 0, fail = 0;
+  for (const s of toAdopt) {
+    try {
+      const tamNotes = `Auto-suggested from real fleet data at adoption time (${s.metricLabel}: ${s.metricValue}). [template:${s.templateKey}]`;
+      const mutation = `mutation CreateCSP($accountPlan: AccountPlanCreateInput!) {
+        createSuccessPlan(accountPlan: $accountPlan) { success id accountId errors }
+      }`;
+      const variables = {
+        accountPlan: {
+          nagpId: s.nagpId, name: s.title, source: 'MANUAL', title: s.title,
+          templateUsed: 'ESSENTIAL', planStatus: 'ACTIVE', lifecycleStage: s.stage,
+          health: 'YELLOW', customerChallengesAndGoals: s.challenges,
+          objectives: s.objectives, successMetrics: s.metrics, tamNotes,
+          scope: { id: s.nagpId, name: s.nagpName },
+        },
+      };
+      const data = await _callAIQMutation(mutation, variables);
+      const result = data.createSuccessPlan;
+      if (!result || !result.success) throw new Error((result && result.errors && result.errors.join('; ')) || 'Active IQ reported the create did not succeed.');
+      state.tamSuccessPlans = state.tamSuccessPlans || [];
+      state.tamSuccessPlans.push({
+        id: result.id, name: s.title, title: s.title, status: 'ACTIVE', lifecycleStage: s.stage, health: 'YELLOW',
+        tamOwnerEmail: '', source: 'MANUAL', templateUsed: 'ESSENTIAL', tamNotes,
+        nagpId: s.nagpId, nagpName: s.nagpName, scope: { id: s.nagpId, name: s.nagpName },
+        lastUpdated: new Date().toISOString(),
+      });
+      try {
+        await fetch('/api/plan-progress', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: result.id, nagpId: s.nagpId, templateKey: s.templateKey, metricLabel: s.metricLabel, baselineValue: s.metricValue, targetDirection: s.targetDirection }),
+        });
+      } catch (e) { console.warn('Progress baseline save failed (non-fatal):', e); }
+      ok++;
+    } catch (e) {
+      console.error('Failed to adopt suggested plan:', s, e);
+      fail++;
+    }
+  }
+  await loadPlanProgress();
+  alert(`Adopted ${ok} Success Plan(s)${fail ? `, ${fail} failed -- see console` : ''}.`);
+  renderSuccessPlansTab();
+}
+
+// Recomputes a suggestion's own trigger metric from the CURRENT live harvest
+// for a given plan's customer, so progress can be shown as a real delta
+// against the baseline captured at adoption time -- not a fabricated
+// percentage. Returns null if the plan wasn't adopted from a suggestion
+// (no local baseline) or its template/customer can no longer be resolved.
+function computePlanProgressDelta(plan) {
+  const baseline = (state.planProgress || []).find(b => String(b.planId) === String(plan.id));
+  if (!baseline || baseline.baselineValue == null) return null;
+  const tmpl = SUCCESS_PLAN_TEMPLATES.find(t => t.key === baseline.templateKey);
+  if (!tmpl) return null;
+  const custSystems = (state.systems || []).filter(s => s.nagpId === baseline.nagpId);
+  if (!custSystems.length) return null;
+  const current = tmpl.evaluate(custSystems);
+  const currentValue = current ? current.metricValue : (baseline.targetDirection === 'down' ? 0 : baseline.baselineValue);
+  const improved = baseline.targetDirection === 'down' ? currentValue <= baseline.baselineValue : currentValue >= baseline.baselineValue;
+  return { metricLabel: baseline.metricLabel, baselineValue: baseline.baselineValue, currentValue, improved };
+}
 
 function openSuccessPlanModal(id) {
   const scopeSelect = document.getElementById('successPlanScope');
@@ -30196,6 +30584,10 @@ async function closeSuccessPlanFromModal() {
     const data = await _callAIQMutation(mutation, variables);
     if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) throw new Error('Active IQ reported the update did not succeed.');
     plan.status = 'CLOSED';
+    // Best-effort: drop the local progress baseline (if this plan was
+    // adopted from a suggestion) now that the plan is closed. Non-fatal --
+    // an orphaned baseline just stops showing progress, nothing breaks.
+    try { await fetch(`/api/plan-progress?planId=${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch (e) {}
     closeSuccessPlanModal();
     renderSuccessPlansTab();
   } catch (e) {
@@ -30230,6 +30622,7 @@ function renderSuccessPlansTab() {
   });
 
   if (countHeader) countHeader.textContent = `Success plans (${filtered.length})`;
+  renderSuggestedPlans();
 
   // KPIs -- health score reuses the same fleet-wide computation as the
   // Value Insights card so this number stays consistent across tabs.
@@ -30257,6 +30650,10 @@ function renderSuccessPlansTab() {
   body.innerHTML = filtered.map(p => {
     const color = SUCCESS_PLAN_STATUS_COLORS[p.status] || '#94a3b8';
     const healthColor = SUCCESS_PLAN_HEALTH_COLORS[p.health] || '#94a3b8';
+    const delta = computePlanProgressDelta(p);
+    const progressCell = delta
+      ? `<span style="color:${delta.improved ? 'var(--status-normal)' : 'var(--status-warning)'};font-weight:600;">${delta.baselineValue} → ${delta.currentValue}</span> <span style="color:var(--text-muted);">${delta.metricLabel}</span>`
+      : '<span style="color:var(--text-muted);">—</span>';
     return `
     <tr style="border-bottom:1px solid var(--border-color);">
       <td style="padding:8px 10px;"><a href="#" onclick="openSuccessPlanModal('${p.id}');return false;" style="color:var(--accent-cyan);text-decoration:none;">${(p.name || p.title || '').replace(/</g, '&lt;')}</a></td>
@@ -30264,6 +30661,7 @@ function renderSuccessPlansTab() {
       <td style="padding:8px 10px;font-size:0.8rem;">${(p.nagpName || (p.scope && p.scope.name) || '—').replace(/</g, '&lt;')}</td>
       <td style="padding:8px 10px;"><span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status || '—'}</span></td>
       <td style="padding:8px 10px;"><span style="background:${healthColor}22;color:${healthColor};border:1px solid ${healthColor}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'}</span></td>
+      <td style="padding:8px 10px;font-size:0.78rem;">${progressCell}</td>
     </tr>`;
   }).join('');
 }
@@ -30980,6 +31378,7 @@ function switchTab(tabId) {
     Promise.all([loadTrackerItems(), loadSlaPolicy()]).then(renderTrackerTab);
   } else if (tabId === "success") {
     renderSuccessPlansTab();
+    loadPlanProgress().then(() => { if (state.currentTab === 'success') renderSuccessPlansTab(); });
   } else if (tabId === "settings") {
     populateGroupManagerSystems();
     populateLogisticsEditor();

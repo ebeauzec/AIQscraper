@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.60] - 2026-09-17
+
+### Added
+- **Two new, live-verified Active IQ data sources**, found via an exhaustive scan of all 44 GraphQL query root fields: Active IQ's own official Health Score (`summary.healthScore` — a real 0-100 score with a 9-factor KPI breakdown: AutoSupport freshness, OS freshness, firmware, security hardening, sustainability, uptime, EOS exposure, add-on adoption, tech refresh) and per-aggregate storage detail (efficiency ratio, FabricPool tiering status, dedup/compression-disabled volume counts). Both confirmed populated against real data (health score: 68/100; aggregate detail: 130/484 systems tested), not just present in the schema.
+- Official Health Score now shown on the Overview KPI row and in the QBR Pack, alongside this tool's own computed health grade — the two can genuinely diverge, which is real TAM-relevant context.
+- New "Storage Efficiency Opportunities" section in the Risk & Remediation Brief, built from the new per-aggregate data.
+- **Suggested Success Plans**: 6 templates (Critical Risk Remediation, Ransomware & Security Hardening, EOL/EOS Tech Refresh Planning, Support Contract Renewal & Expansion, Operational Health & Feature Optimization, New Deployment Onboarding) evaluate every real customer's harvested data and surface a suggestion only when its real trigger condition is met. Select any number and adopt them in bulk — each becomes a real Success Plan via the existing `createSuccessPlan` write-back.
+- **Real progress tracking for adopted plans** — the real trigger metric's value is recorded locally at adoption time (new `success_plan_progress` table; purely local bookkeeping about a real Active IQ plan id, never written back to Active IQ) and recomputed from the live harvest on every view, shown as a baseline-to-current delta in a new Progress column.
+
+### Fixed
+- **Risk & Remediation Brief's Sustainability Score used a separate, undocumented fallback** — a DRR-derived heuristic (`dataReductionRatio / 5 * 100`) shown as a bare score with no data-availability caveat, duplicating logic already fixed honestly in the Sustainability Report. Extracted into one shared function (`computeHonestSustainabilityScore`) so both deliverables report the identical, honestly-labeled number.
+- **MSP Service Report's "Risk Incidents Prevented" metric** counted currently-open critical risks, not resolved/prevented incidents — overstated delivered value. Relabeled to "Critical Risks Identified."
+- **No deliverable referenced Success Plans**, despite Success Plans being real, populated data since v5.6.54. QBR Pack, Risk & Remediation Brief, and Account Handover Brief now cross-reference the account's real active Success Plan(s) or an honest "no active plan" note.
+- New Deployment Onboarding suggestion template initially keyed off `ageInYears`, a field read in several display templates but never actually populated by the real harvest — switched to the real `originalShipDate` field, caught via live verification before shipping.
+
+---
+
 ## [5.6.59] - 2026-09-16
 
 ### Discovered

@@ -218,6 +218,12 @@
             <div class="card-subtitle">Expires within 90 days</div>
             <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           </div>
+          <div class="card kpi-card" id="kpiCardHealthScore" style="cursor: default;" data-tooltip="Active IQ's own official health score for this scope (0-100), computed by NetApp from AutoSupport freshness, firmware currency, security hardening, uptime, EOS exposure, sustainability, tech refresh status, and add-on adoption. Distinct from this tool's own risk-based scoring below -- shown here as the authoritative, vendor-issued number.">
+            <div class="card-title">Official AIQ Health Score</div>
+            <div class="card-value" id="kpiHealthScore">--</div>
+            <div class="card-subtitle" id="kpiHealthScoreSubtitle">Not yet reported</div>
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+          </div>
         </div>
 
         <!-- Charts Grid Row -->
@@ -776,6 +782,20 @@
           <!-- Injected dynamically by JS -->
         </div>
 
+        <!-- Suggested Success Plans -- auto-generated from each customer's real
+             harvested data (risks, contracts, EOS, ARP, health score), not
+             fabricated. Hidden entirely when no suggestions apply. -->
+        <div id="suggestedPlansCard" class="card" style="margin-bottom: 20px; display: none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-weight: 700; font-size: 1rem;">Suggested Success Plans</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Generated from each customer's real risk, contract, EOS, and health data. Review and adopt any number -- adopted plans write back to Active IQ like any manually created plan.</div>
+            </div>
+            <button class="action-btn" id="adoptSuggestedPlansBtn" onclick="adoptSelectedSuggestedPlans()" disabled>Adopt Selected (<span id="suggestedPlansSelectedCount">0</span>)</button>
+          </div>
+          <div id="suggestedPlansList"></div>
+        </div>
+
         <div class="card" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
           <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">Filters:</span>
           <select id="successOwnerFilter" class="form-input" style="padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 200px; background-color: var(--bg-card); cursor: pointer;" onchange="renderSuccessPlansTab()">
@@ -801,6 +821,7 @@
                 <th style="padding: 10px;">Linked to (scope)</th>
                 <th style="padding: 10px;">Status</th>
                 <th style="padding: 10px;">Health</th>
+                <th style="padding: 10px;">Progress</th>
               </tr>
             </thead>
             <tbody id="successTableBody">

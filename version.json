@@ -1,8 +1,8 @@
 {
-  "version": "5.6.59",
+  "version": "5.6.60",
   "major": 5,
   "minor": 6,
-  "patch": 59,
-  "date": "2026-09-16",
-  "notes": "Found that real, live, per-system EOA/EOS data already exists in Active IQ's API (hardwareModel.endOfAvailability/endOfSupport) and is already correctly harvested -- 371/484 real systems (77%) have it -- but the 'Risk 504' EOA finding never used it, always falling back to a separate, frozen manual snapshot with a generic staleness caveat even when a real date was available on the same system. Fixed to prefer the real date when Active IQ reports one. Also live-tested GetProductMilestones (a schema field that looked like it might restore a live EOA/EOS-by-part-number lookup) against 4 real part numbers -- every one returned 403 Forbidden from the underlying service, confirming it's not accessible with a partner-level token and ruling it out as a source."
+  "patch": 60,
+  "date": "2026-09-17",
+  "notes": "Exhaustive GraphQL API scan found and live-verified two new real data sources: Active IQ's own official Health Score (summary.healthScore, 0-100 with a 9-factor KPI breakdown) and per-aggregate storage detail (efficiency, FabricPool, dedup-disabled volumes -- populated on 130/484 systems tested). Both now integrated (Overview KPI, QBR Pack, Risk & Remediation Brief). A follow-up deliverables audit for fabricated/irrelevant data found and fixed a duplicate undocumented sustainability-score heuristic in the Risk & Remediation Brief, a mislabeled 'incidents prevented' metric in the MSP Service Report, and added real Success Plan alignment references to the QBR Pack, Risk & Remediation Brief, and Account Handover Brief (previously none of the 7 deliverables mentioned Success Plans at all). Also added a Success Plan suggestion system: 6 templates evaluate each real customer's real data and surface only genuinely-triggered suggestions, adoptable in bulk via the real createSuccessPlan write-back, with real progress tracking (local baseline-to-current delta on the real trigger metric, since Active IQ's Success Plan object has no progress field of its own)."
 }

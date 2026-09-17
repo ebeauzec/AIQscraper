@@ -664,6 +664,27 @@ def _run_db_schema_setup(db):
         db.commit()
     except Exception:
         pass  # column already exists
+
+    # Local-only progress baselines for Success Plans adopted from a
+    # suggestion. Active IQ's real Success Plan object has no progress/
+    # percentage field beyond status+health, so "tracked and measured"
+    # progress is implemented here: record the real trigger metric's value
+    # at adoption time (e.g. "3 critical risks"), and the frontend recomputes
+    # the same metric from the live harvest on every view to show the delta.
+    # This is purely local bookkeeping about a real Active IQ plan (keyed by
+    # its real plan_id) -- it never writes anything back to Active IQ itself.
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS success_plan_progress (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id         TEXT UNIQUE NOT NULL,
+            nagp_id         TEXT DEFAULT '',
+            template_key    TEXT DEFAULT '',
+            metric_label    TEXT DEFAULT '',
+            baseline_value  REAL,
+            target_direction TEXT DEFAULT 'down',
+            created_at      TEXT NOT NULL
+        );
+    """)
     # enrich_cache purge now happens in _maybe_purge_enrich_cache(), rate-
     # limited to once/hour rather than on every _init_db() call -- see there.
     # One-time migration: copy the legacy singleton harvest (id=1) into the
@@ -1196,6 +1217,10 @@ _MERGE_LIST_FIELDS = [
     "tamSustainability",
     # Real per-customer Success Plan records -- same reasoning as tamRecommendations.
     "tamSuccessPlans",
+    # Active IQ's own official Health Score is one score PER ACCOUNT/scope
+    # (queried via `summary(watchlistId: ...) { healthScore }`, same shape as
+    # tamSustainability above) -- must be merged per-account, not overwritten.
+    "tamOfficialHealthScore",
 ]
 
 
@@ -2240,6 +2265,40 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
 
+        # ── TAM: Official Active IQ Health Score ──────────────────────────
+        # Active IQ's own authoritative 0-100 health score for this account/
+        # scope (distinct from this tool's own risk-based scoring), confirmed
+        # live via GraphQL introspection (2026-09-17) as `summary { healthScore
+        # { overallHealthScore kpis { ... } } }`. Returned as a single object
+        # per watchlist scope -- stored as a one-element list (matching the
+        # tamSustainability shape) so the existing per-account merge logic
+        # (_MERGE_LIST_FIELDS) applies unchanged.
+        tam_official_health_score = []
+        try:
+            print("  [HARVEST] Fetching official Active IQ health score...", flush=True)
+            _, hs_resp = _gql(token, '{ summary(pageSize: 1' + _wl_scope_arg + ''') { healthScore {
+                overallHealthScore calculatedAt
+                kpis {
+                    asup { gainedPercentage improvementPercentage }
+                    osFreshness { gainedPercentage improvementPercentage }
+                    firmware { gainedPercentage improvementPercentage }
+                    securityHardening { gainedPercentage improvementPercentage }
+                    sustainability { gainedPercentage improvementPercentage }
+                    uptime { gainedPercentage improvementPercentage }
+                    eos { gainedPercentage improvementPercentage }
+                    addon { gainedPercentage improvementPercentage }
+                    techRefresh { gainedPercentage improvementPercentage }
+                }
+            } } }''')
+            _hs = (((hs_resp.get("data") or {}).get("summary") or {}).get("healthScore")) if isinstance(hs_resp, dict) else None
+            if _hs and _hs.get("overallHealthScore") is not None:
+                tam_official_health_score = [_hs]
+                print(f"  [HARVEST] Official health score: {_hs.get('overallHealthScore')}/100", flush=True)
+            else:
+                print("  [HARVEST] Official health score: not reported for this scope", flush=True)
+        except Exception as e:
+            print(f"  [HARVEST] WARNING: Official health score failed: {e}", flush=True)
+
         # ── TAM: Success Plans (real Active IQ CSP data) ──────────────────────
         # Digital Advisor's own Success Plans feature -- confirmed live via
         # GraphQL schema introspection (2026-09-16) that this is a real,
@@ -3224,6 +3283,56 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         if _fw_derived:
             print(f"  [HARVEST] Firmware derived from osVersions catalog for {_fw_derived}/{len(systems_out)} systems", flush=True)
 
+        # ── Per-aggregate efficiency/FabricPool detail ─────────────────────
+        # Confirmed live via GraphQL introspection (2026-09-17) that the
+        # `aggregates(systemSerialNumber: ...)` query returns real, populated
+        # per-aggregate data (efficiency ratio, FabricPool tiering status,
+        # SIS-disabled volume counts) that isn't visible in the system-level
+        # rollup already harvested above (`localTierCount` is just a count).
+        # There is no account/watchlist-level scope for this query -- only
+        # per-system -- so it's fetched with a bounded thread pool, ONTAP-only
+        # (E-Series/StorageGRID have no WAFL aggregates), and reduced to a
+        # compact per-system summary rather than storing every raw aggregate
+        # (keeps the harvest payload and per-account API load reasonable
+        # across a fleet this size).
+        _agg_targets = [s for s in systems_out if "ONTAP" in (s.get("platform") or "").upper() and s.get("serialNumber")]
+        if _agg_targets:
+            print(f"  [HARVEST] Fetching per-aggregate detail for {len(_agg_targets)} ONTAP system(s)...", flush=True)
+            _agg_ok = 0
+
+            def _fetch_aggregates(_sys):
+                _serial = _sys.get("serialNumber")
+                try:
+                    _, _resp = _gql(token, (
+                        '{ aggregates(pageSize: 50, systemSerialNumber: "' + _serial + '") { '
+                        'aggregates { isRoot isFabricPoolEnabled sisDisabledVolumesCount '
+                        'storageEfficiencyRatio { withoutSnapshot } } } }'
+                    ))
+                    _aggs = (((_resp.get("data") or {}).get("aggregates") or {}).get("aggregates")) or [] if isinstance(_resp, dict) else []
+                    _data_aggs = [a for a in _aggs if not a.get("isRoot")]
+                    if not _data_aggs:
+                        return _serial, None
+                    _ratios = [a["storageEfficiencyRatio"]["withoutSnapshot"] for a in _data_aggs
+                               if (a.get("storageEfficiencyRatio") or {}).get("withoutSnapshot") is not None]
+                    return _serial, {
+                        "aggregateCount": len(_data_aggs),
+                        "aggregatesWithoutFabricPool": sum(1 for a in _data_aggs if a.get("isFabricPoolEnabled") is False),
+                        "aggregatesWithSisDisabledVolumes": sum(1 for a in _data_aggs if (a.get("sisDisabledVolumesCount") or 0) > 0),
+                        "avgEfficiencyRatioWithoutSnapshot": round(sum(_ratios) / len(_ratios), 2) if _ratios else None,
+                    }
+                except Exception:
+                    return _serial, None
+
+            with ThreadPoolExecutor(max_workers=10, thread_name_prefix='aggregates') as _pool:
+                for _serial, _summary in _pool.map(_fetch_aggregates, _agg_targets):
+                    if _summary:
+                        _agg_ok += 1
+                        for _s in systems_out:
+                            if _s.get("serialNumber") == _serial:
+                                _s["aggregateDetail"] = _summary
+                                break
+            print(f"  [HARVEST] Per-aggregate detail: {_agg_ok}/{len(_agg_targets)} systems reported aggregate data", flush=True)
+
         # 14. Try fetching watchlists from REST API
         watchlists_out = []
         try:
@@ -3406,6 +3515,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             "tamRecommendations": tam_recommendations,
             "tamSites": tam_sites,
             "tamSustainability": tam_sustainability,
+            "tamOfficialHealthScore": tam_official_health_score,
             "tamSuccessPlans": tam_success_plans,
             "tamOsVersions": tam_os_versions,
             "acknowledgedRisksNowExploited": acknowledged_risks_now_exploited,
@@ -3422,7 +3532,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _acct_label = account.get("label") or _acct_id
             result["accountId"] = _acct_id
             result["accountLabel"] = _acct_label
-            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations", "tamSustainability", "tamSuccessPlans"):
+            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations", "tamSustainability", "tamOfficialHealthScore", "tamSuccessPlans"):
                 for _item in (result.get(_field) or []):
                     if isinstance(_item, dict):
                         _item.setdefault("accountId", _acct_id)
@@ -7642,6 +7752,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_firmware_probe()
         elif self.path.startswith('/api/tracker'):
             self.handle_tracker_list()
+        elif self.path.startswith('/api/plan-progress'):
+            self.handle_plan_progress_list()
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -7990,6 +8102,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_update()
         elif self.path == '/api/tracker':
             self.handle_tracker_upsert()
+        elif self.path == '/api/plan-progress':
+            self.handle_plan_progress_create()
         elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
@@ -8000,6 +8114,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_delete()
         elif self.path.startswith('/api/tracker'):
             self.handle_tracker_delete()
+        elif self.path.startswith('/api/plan-progress'):
+            self.handle_plan_progress_delete()
         else:
             self.send_error(404, "Not Found")
 
@@ -8758,6 +8874,77 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._json_response(200, {"ok": True, "deleted": item_id})
         except Exception as e:
             print(f"  [TRACKER] Delete error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_plan_progress_list(self):
+        """GET /api/plan-progress — local baselines for adopted Success Plan
+        suggestions (see success_plan_progress table comment). Purely local
+        bookkeeping about a real Active IQ plan id; never touches Active IQ."""
+        try:
+            db = _init_db()
+            try:
+                rows = db.execute("""
+                    SELECT plan_id, nagp_id, template_key, metric_label, baseline_value, target_direction, created_at
+                    FROM success_plan_progress
+                """).fetchall()
+            finally:
+                db.close()
+            cols = ["planId", "nagpId", "templateKey", "metricLabel", "baselineValue", "targetDirection", "createdAt"]
+            self._json_response(200, {"ok": True, "items": [dict(zip(cols, r)) for r in rows]})
+        except Exception as e:
+            print(f"  [PLAN-PROGRESS] List error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_plan_progress_create(self):
+        """POST /api/plan-progress
+        Body: { planId, nagpId, templateKey, metricLabel, baselineValue, targetDirection }
+        Records the real trigger metric's value at the moment a suggested
+        Success Plan was adopted, so progress can be shown as a delta against
+        the same metric recomputed from the live harvest later."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            plan_id = (body.get("planId") or "").strip()
+            if not plan_id:
+                self._json_response(400, {"ok": False, "error": "planId required"})
+                return
+            now = datetime.now(timezone.utc).isoformat()
+            db = _init_db()
+            try:
+                db.execute("""
+                    INSERT OR REPLACE INTO success_plan_progress
+                        (plan_id, nagp_id, template_key, metric_label, baseline_value, target_direction, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (plan_id, body.get("nagpId", ""), body.get("templateKey", ""),
+                      body.get("metricLabel", ""), body.get("baselineValue"),
+                      body.get("targetDirection", "down"), now))
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True})
+        except Exception as e:
+            print(f"  [PLAN-PROGRESS] Create error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
+    def handle_plan_progress_delete(self):
+        """DELETE /api/plan-progress?planId=NNN — remove a local baseline
+        (e.g. when its Success Plan is closed)."""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            params = parse_qs(urlparse(self.path).query)
+            plan_id = params.get("planId", [None])[0]
+            if not plan_id:
+                self._json_response(400, {"ok": False, "error": "planId parameter required"})
+                return
+            db = _init_db()
+            try:
+                db.execute("DELETE FROM success_plan_progress WHERE plan_id = ?", (plan_id,))
+                db.commit()
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "deleted": plan_id})
+        except Exception as e:
+            print(f"  [PLAN-PROGRESS] Delete error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e)})
 
     def handle_config_get(self):
