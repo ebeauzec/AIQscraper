@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.69] - 2026-09-17
+
+### Fixed
+- **v5.6.68 missed a second spot reading the same fake field.** The SAM tab's top-row KPI tile (`samHypervisorCard`, labeled "Integrations Overview" / "3rd-Party Integrations") still called `getSystemIntegrations()` in the fleet view (always "Workload Types: Not Reported by Active IQ") and read `sys.hypervisors` in the single-system view — a field the harvester never populates — so it always fell through to "No hypervisor integrations tracked on this appliance."
+- **Repurposed both branches** to use the same real per-SVM LIF protocol data (`getSystemProtocolProfile()`) as the "Storage Protocol & Data Protection Profile" card below it. Fleet view now shows a distinct-protocol count plus SAN/NAS system coverage; single-system view lists the system's actual protocols, SAN/NAS split, and SVM count, with honest "No SVM concept" / "Not Reported" states for StorageGRID/E-Series or systems with no LIF data. Verified live in both views.
+
+---
+
 ## [5.6.68] - 2026-09-17
 
 ### Fixed

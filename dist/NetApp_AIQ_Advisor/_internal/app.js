@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.68";
+const APP_VERSION = "5.6.69";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.69",
+    date: "17 September 2026",
+    title: "SAM Tab: \"Integrations Overview\" KPI Tile Was Still Reading the Fake Hypervisor Field",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Top-Row \"Integrations Overview\" / \"3rd-Party Integrations\" Tile Still Showed Fake/Empty Data",
+        color: "#f87171",
+        items: [
+          "v5.6.68 replaced the always-\"Not Reported\" hypervisor/database/backup detection in the big 'Storage Protocol & Data Protection Profile' card, but missed the small top-row KPI tile (samHypervisorCard) feeding the same fake data: the fleet view called getSystemIntegrations(s) and always rendered 'Workload Types: Not Reported by Active IQ', and the single-system view read sys.hypervisors -- a field the harvester never populates -- so it always fell through to 'No hypervisor integrations tracked on this appliance.'",
+          "Repurposed both branches to use the same real per-SVM LIF protocol data (getSystemProtocolProfile()) as the card below it. Fleet view now shows a distinct-protocol count plus SAN/NAS system coverage (e.g. 'SAN: 222/484 | NAS: 238/484'); single-system view lists the system's actual protocols, SAN/NAS split, and SVM count, with honest 'No SVM concept' / 'Not Reported' states for StorageGRID/E-Series or systems with no LIF data. Verified live in both the fleet-aggregate and single-system views.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.68",
     date: "17 September 2026",
@@ -12539,26 +12555,31 @@ function renderSAMTab() {
       </div>
     `;
 
-    // 3. Hypervisors / Integrations Summary
-    const virtTypes = {};
+    // 3. Storage Protocol Overview -- real per-SVM LIF protocol data (see
+    // getSystemProtocolProfile()), replacing the old hypervisor/database/
+    // backup vendor-detection summary, which getSystemIntegrations() can
+    // never actually populate (no such field exists in Active IQ's API).
+    const protocolCoverageCounts = {};
+    let sanCoverageCount = 0, nasCoverageCount = 0, noProtoCoverageCount = 0;
     targetSAMSystems.forEach(s => {
-      const ints = getSystemIntegrations(s);
-      const vt = ints.virtualization.type.split(" (")[0]; // Clean version suffix
-      virtTypes[vt] = (virtTypes[vt] || 0) + 1;
+      const prof = getSystemProtocolProfile(s);
+      if (!prof || !prof.hasData) { noProtoCoverageCount++; return; }
+      prof.protocols.forEach(p => protocolCoverageCounts[p] = (protocolCoverageCounts[p] || 0) + 1);
+      if (prof.san.length > 0) sanCoverageCount++;
+      if (prof.nas.length > 0) nasCoverageCount++;
     });
-    
-    let virtHtml = "";
-    Object.entries(virtTypes).forEach(([type, count]) => {
-      virtHtml += `<div>• ${type}: <strong>${count}</strong> system${count > 1 ? 's' : ''}</div>`;
-    });
-    
+    const distinctProtoCount = Object.keys(protocolCoverageCounts).length;
+
     document.getElementById("samHypervisorCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Integrations Overview</h4>
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Storage Protocols</h4>
+        ${noProtoCoverageCount > 0 ? `<span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;">${noProtoCoverageCount} Not Reported</span>` : ''}
       </div>
-      <div style="font-size: 1.15rem; font-weight: 700; margin-bottom: 8px;">Workload Types</div>
-      <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45;">
-        ${virtHtml || "<div>No workloads active.</div>"}
+      <div style="font-size: 1.3rem; font-weight: 700; margin-bottom: 6px;">
+        ${distinctProtoCount} Protocol${distinctProtoCount !== 1 ? 's' : ''} In Use
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">
+        SAN: <strong style="color: var(--text-secondary);">${sanCoverageCount}/${targetSAMSystems.length}</strong> | NAS: <strong style="color: var(--text-secondary);">${nasCoverageCount}/${targetSAMSystems.length}</strong>
       </div>
     `;
 
@@ -12919,31 +12940,39 @@ function renderSAMTab() {
     </div>
   `;
 
-  // Hypervisors
+  // Storage Protocols -- real per-SVM LIF protocol data (see
+  // getSystemProtocolProfile()), replacing a hypervisor/database/backup
+  // vendor-detection card that read from sys.hypervisors, a field Active IQ
+  // never populates (no such field exists in its API).
   const hypContainer = document.getElementById("samHypervisorCard");
-  if (hypContainer && sys.hypervisors && sys.hypervisors.length > 0) {
-    const hyp = sys.hypervisors[0];
-    let hBadge = `<span class="badge normal">${hyp.health}</span>`;
-    if (hyp.health === "Warning" || hyp.health === "Critical") {
-      hBadge = `<span class="badge warning">${hyp.health}</span>`;
+  if (hypContainer) {
+    const hypProtoProf = getSystemProtocolProfile(sys);
+    if (hypProtoProf === null) {
+      hypContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding-top: 12px;">No SVM concept for this platform (StorageGRID/E-Series).</div>`;
+    } else if (!hypProtoProf.hasData) {
+      hypContainer.innerHTML = `
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Storage Protocols</h4>
+          <span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;">Not Reported</span>
+        </div>
+        <div style="color: var(--text-muted); font-size: 0.85rem;">No LIF/protocol data reported by Active IQ for this system.</div>
+      `;
+    } else {
+      hypContainer.innerHTML = `
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="font-size: 0.9rem; color: var(--text-secondary);">Storage Protocols</h4>
+        </div>
+        <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">
+          ${hypProtoProf.protocols.join(', ') || 'None'}
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+          SAN: <strong>${hypProtoProf.san.length > 0 ? hypProtoProf.san.join(', ') : 'None'}</strong>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary);">
+          NAS: <strong>${hypProtoProf.nas.length > 0 ? hypProtoProf.nas.join(', ') : 'None'}</strong> &middot; ${hypProtoProf.svmCount} SVM${hypProtoProf.svmCount !== 1 ? 's' : ''}
+        </div>
+      `;
     }
-    hypContainer.innerHTML = `
-      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">3rd-Party Integrations</h4>
-        ${hBadge}
-      </div>
-      <div style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">
-        ${hyp.type} (v${hyp.version})
-      </div>
-      <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-        Plugin: <strong>${hyp.plugin}</strong>
-      </div>
-      <div style="font-size: 0.8rem; color: var(--text-secondary);">
-        Multipathing: <strong>${hyp.multipathing}</strong>
-      </div>
-    `;
-  } else if (hypContainer) {
-    hypContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding-top: 12px;">No hypervisor integrations tracked on this appliance.</div>`;
   }
 
   // AutoSupport Details
