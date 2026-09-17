@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.70] - 2026-09-17
+
+### Fixed
+- **Section 12 (Operational Health)'s "ARP Not Enabled" tile silently merged confirmed-disabled with never-reported systems.** It computed `systems.length - arpEnabled`, which is `arpDisabled + arpUnknown` combined — `arpUnknown` was already computed one line above but never displayed. A system Active IQ never reported an ARP status for was counted identically to one confirmed disabled, overstating a real security finding with unconfirmed ones.
+- **Same gap on the ASUP side**: `asupHealthy + asupStale` only covers systems with a `latestAsupDate` at all — systems with no ASUP date whatsoever had no tile and were silently absent from both counts.
+- **Split both into real tri-state buckets**: ASUP Healthy / ASUP Stale / ASUP Not Reported, and ARP Enabled / ARP Disabled (confirmed) / ARP Not Reported — 6 tiles instead of 4, each set now sums exactly to the scope's real system count. Added an "ASUP Never Reported" systems table alongside the existing "Stale AutoSupport Systems" one.
+- Verified live against the real 484-system fleet: ARP Disabled (confirmed) is 305 systems — a materially different, more actionable number than the old merged 448, since 143 of those were never actually confirmed disabled.
+
+---
+
 ## [5.6.69] - 2026-09-17
 
 ### Fixed

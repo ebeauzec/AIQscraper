@@ -1,8 +1,8 @@
 {
-  "version": "5.6.69",
+  "version": "5.6.70",
   "major": 5,
   "minor": 6,
-  "patch": 69,
+  "patch": 70,
   "date": "2026-09-17",
-  "notes": "v5.6.68 replaced the fake hypervisor/database/backup detection in the SAM tab's big 'Storage Protocol & Data Protection Profile' card, but missed the small top-row KPI tile (samHypervisorCard) feeding the same fake data: the fleet view called getSystemIntegrations() (always 'Not Reported'), and the single-system view read sys.hypervisors, a field the harvester never populates. Repurposed both branches to use the same real per-SVM LIF protocol data (getSystemProtocolProfile()): fleet view shows a distinct-protocol count plus SAN/NAS system coverage, single-system view lists the system's actual protocols, SAN/NAS split, and SVM count."
+  "notes": "Section 12 (Operational Health)'s 'ARP Not Enabled' tile computed systems.length - arpEnabled, silently merging systems confirmed to have ARP disabled with systems Active IQ never reported an ARP status for at all -- overstating a real security finding with unconfirmed ones. Same gap existed on the ASUP side (never-reported systems had no tile at all). Split both into real tri-state buckets: ASUP Healthy/Stale/Not Reported and ARP Enabled/Disabled/Not Reported -- 6 tiles instead of 4, each set now sums exactly to the real system count. Added an 'ASUP Never Reported' systems table alongside the existing stale one. Verified live: ARP Disabled (confirmed) is 305 systems, not the old merged 448 -- 143 of those were never actually confirmed disabled."
 }

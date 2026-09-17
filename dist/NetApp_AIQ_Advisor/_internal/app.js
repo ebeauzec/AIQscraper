@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.69";
+const APP_VERSION = "5.6.70";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.70",
+    date: "17 September 2026",
+    title: "Section 12 (Operational Health): ARP/ASUP Tiles Were Merging \"Confirmed Off\" with \"Never Reported\"",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- \"ARP Not Enabled\" Silently Included Systems Active IQ Never Reported ARP Status For",
+        color: "#f87171",
+        items: [
+          "User asked whether more could be done with Section 12's 4-tile Operational Health summary. Found a real bug on inspection: the 'ARP Not Enabled' tile computed systems.length - arpEnabled, which is arpDisabled + arpUnknown combined -- arpUnknown was already computed one line above but never used anywhere. A system Active IQ never reported an ARP status for was being counted identically to one confirmed to have ARP disabled, overstating a real security finding with unconfirmed ones.",
+          "Found the same gap on the ASUP side: asupHealthy + asupStale only covers systems with a latestAsupDate at all -- systems with no ASUP date whatsoever (never reported, not just stale) had no tile and were silently absent from both counts.",
+          "Split both into their real tri-state buckets: ASUP Healthy / ASUP Stale / ASUP Not Reported, and ARP Enabled / ARP Disabled (confirmed) / ARP Not Reported -- 6 tiles instead of 4, each pair now sums exactly to the scope's total system count (verified live: 354+43+87=484 ASUP, 36+305+143=484 ARP). Also added an 'ASUP Never Reported' systems table alongside the existing 'Stale AutoSupport Systems' one, so TAMs can see which specific systems have zero telemetry rather than just a count.",
+          "Verified live against the real 484-system fleet: ARP Disabled (confirmed) is 305 systems -- a materially different, more actionable number than the old merged 448, since 143 of those were never actually confirmed disabled at all.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.69",
     date: "17 September 2026",
@@ -24168,6 +24186,9 @@ function _renderMonthlySLASection(systems) {
   });
   const asupHealthy = asupSystems.filter(s => s._asupHealthy).length;
   const asupStale = asupSystems.filter(s => !s._asupHealthy).length;
+  // Systems with no latestAsupDate at all -- Active IQ never reported ASUP
+  // telemetry for them. Distinct from "stale" (reported, but >7 days old).
+  const asupNeverReported = systems.length - asupSystems.length;
 
   // ARP (Anti-Ransomware Protection) status
   const arpEnabled = systems.filter(s => s.isARPEnabled === true).length;
@@ -24185,27 +24206,25 @@ function _renderMonthlySLASection(systems) {
     return {...s, _rebootDaysAgo: daysAgo};
   }).sort((a,b) => a._rebootDaysAgo - b._rebootDaysAgo);
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
-    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems that sent an AutoSupport (ASUP) telemetry message to NetApp within the last 7 days. A healthy ASUP confirms the system is reachable and monitored.">
-      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${asupHealthy}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ASUP Healthy (7d)</div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">AutoSupport received within 7 days</div>
-    </div>
-    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems whose last AutoSupport message is older than 7 days. This may indicate network issues, disabled ASUP, or the system being offline.">
-      <div style="font-size:1.8rem;font-weight:700;color:#ef4444;">${asupStale}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ASUP Stale</div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No ASUP received in over 7 days</div>
-    </div>
-    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems with ONTAP Autonomous Ransomware Protection (ARP) enabled. ARP uses machine learning to detect and block ransomware attacks on NAS volumes.">
-      <div style="font-size:1.8rem;font-weight:700;color:#10b981;">${arpEnabled}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ARP Enabled</div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Anti-Ransomware Protection active</div>
-    </div>
-    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Systems without ARP enabled. Enabling ARP is recommended for all NAS workloads to detect abnormal file encryption patterns.">
-      <div style="font-size:1.8rem;font-weight:700;color:#f59e0b;">${systems.length - arpEnabled}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">ARP Not Enabled</div>
-      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">No ransomware protection detected</div>
-    </div>
+  // Tri-state tiles: a system Active IQ never reported ASUP/ARP status for
+  // is neither "healthy"/"enabled" nor "stale"/"disabled" -- collapsing it
+  // into the negative bucket (the previous "ARP Not Enabled" tile computed
+  // systems.length - arpEnabled, silently merging confirmed-disabled with
+  // never-reported) overstates a real risk finding with unconfirmed ones.
+  const _opHealthTile = (count, color, bg, label, sub, title) => `
+    <div style="background:${bg};border:1px solid ${color}4d;border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="${title}">
+      <div style="font-size:1.8rem;font-weight:700;color:${color};">${count}</div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">${label}</div>
+      <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">${sub}</div>
+    </div>`;
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+    ${_opHealthTile(asupHealthy, '#10b981', 'rgba(16,185,129,0.08)', 'ASUP Healthy (7d)', 'AutoSupport received within 7 days', 'Systems that sent an AutoSupport (ASUP) telemetry message to NetApp within the last 7 days. A healthy ASUP confirms the system is reachable and monitored.')}
+    ${_opHealthTile(asupStale, '#ef4444', 'rgba(239,68,68,0.08)', 'ASUP Stale', 'No ASUP received in over 7 days', 'Systems whose last AutoSupport message is older than 7 days. This may indicate network issues, disabled ASUP, or the system being offline.')}
+    ${_opHealthTile(asupNeverReported, '#6b7280', 'rgba(107,114,128,0.08)', 'ASUP Not Reported', 'Active IQ has no ASUP date for these systems', 'Systems with no latestAsupDate at all -- Active IQ has never returned ASUP telemetry for these, distinct from "stale" (reported, but over 7 days old).')}
+    ${_opHealthTile(arpEnabled, '#10b981', 'rgba(16,185,129,0.08)', 'ARP Enabled', 'Anti-Ransomware Protection active', 'Systems with ONTAP Autonomous Ransomware Protection (ARP) confirmed enabled. ARP uses machine learning to detect and block ransomware attacks on NAS volumes.')}
+    ${_opHealthTile(arpDisabled, '#f59e0b', 'rgba(245,158,11,0.08)', 'ARP Disabled', 'Confirmed no ransomware protection', 'Systems with ARP confirmed disabled by Active IQ. Enabling ARP is recommended for all NAS workloads to detect abnormal file encryption patterns.')}
+    ${_opHealthTile(arpUnknown, '#6b7280', 'rgba(107,114,128,0.08)', 'ARP Not Reported', 'Active IQ has no ARP status for these systems', 'Systems where Active IQ never reported an ARP status either way -- not the same as confirmed-disabled; verify on-cluster.')}
   </div>`;
 
   // ASUP Recency Table
@@ -24235,6 +24254,31 @@ function _renderMonthlySLASection(systems) {
       });
       html += `</tbody></table></div>`;
     }
+  }
+
+  // Systems Active IQ has never reported ASUP telemetry for at all --
+  // distinct from "stale" (reported, just >7 days old). Grouping these two
+  // together previously understated how many systems have zero confirmed
+  // telemetry, versus systems that are merely behind.
+  const neverReportedSystems = systems.filter(s => !s.latestAsupDate);
+  if (neverReportedSystems.length > 0) {
+    html += `<h4 style="color:var(--accent-cyan);margin:24px 0 8px;font-size:0.95rem;">ASUP Never Reported - ${neverReportedSystems.length} system${neverReportedSystems.length !== 1 ? 's' : ''}</h4>
+    <div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);overflow-x:auto;background:rgba(15,22,38,0.3);">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr>
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','System')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','OS Version')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','Model')}
+        ${_sth('text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;','ARP')}
+      </tr></thead><tbody>`;
+    neverReportedSystems.slice(0, 50).forEach(s => {
+      html += `<tr>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName || s.serialNumber}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.model || s.platform || ''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled === true ? '<span style="color:#10b981;">Yes</span>' : s.isARPEnabled === false ? '<span style="color:#ef4444;">No</span>' : '<span style="color:#6b7280;">—</span>'}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
   }
 
   // Recent Reboots

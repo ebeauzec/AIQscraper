@@ -68,6 +68,10 @@
           "version": "21.16.0",
           "namespace": ""
         },
+        "netapp.um_info": {
+          "version": "21.8.1",
+          "namespace": ""
+        },
         "netapp.cloudmanager": {
           "version": "21.24.0",
           "namespace": ""
