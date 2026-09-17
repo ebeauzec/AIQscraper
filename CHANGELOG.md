@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.66] - 2026-09-17
+
+### Changed
+- **Value Insights card now lists every recommendation, not just the top 3.** The "We recommend:" list previously capped at 3 items with a "+N more — see Section 12" link. It now shows every distinct recommendation directly in the tile, ordered by real affected-system count (highest impact first), with the existing dedup-by-label logic (e.g. BIOS/DISK_FIRMWARE/SHELF_FIRMWARE/SP_BMC collapsing to one "Plan firmware & system file updates" entry) preserved so nothing repeats.
+
+---
+
 ## [5.6.65] - 2026-09-17
 
 ### Fixed

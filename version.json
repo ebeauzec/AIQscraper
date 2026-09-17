@@ -1,8 +1,8 @@
 {
-  "version": "5.6.65",
+  "version": "5.6.66",
   "major": 5,
   "minor": 6,
-  "patch": 65,
+  "patch": 66,
   "date": "2026-09-17",
-  "notes": "Found live that the Feature Adoption Matrix's QoS column always showed '-' for every system -- confirmed via live GraphQL schema introspection that Active IQ's API has no QoS field at all. Replaced QoS everywhere with AutoSupport configuration status, a real field populated on 99.8% of a real fleet with genuine variance. Also fixed a real accuracy bug where HA and SnapMirror defaulted to false/0 (not null) when a system wasn't part of any cluster Active IQ returned, making 'not reported' indistinguishable from 'confirmed disabled' -- StorageGRID/E-Series and ungrouped systems were showing a false negative. Added 6 more Success Plan templates explicitly framed around TAM (AutoSupport Connectivity Restoration, MetroCluster Health Remediation, Hardware Firmware Currency), SAM (Contract Co-Termination Opportunity, Licensed Feature Utilization Gap), and MSP (Remediation SLA Compliance Recovery) account-planning angles, for 18 total."
+  "notes": "The Value Insights card's 'We recommend:' list was capped at 3 items with a '+N more -- see Section 12' link. It now lists every distinct recommendation directly in the tile, already ordered by real affected-system count (highest impact first), with the existing dedup-by-label logic (e.g. BIOS/DISK_FIRMWARE/SHELF_FIRMWARE/SP_BMC collapsing to one 'Plan firmware & system file updates' entry) preserved so nothing repeats."
 }

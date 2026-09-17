@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.65";
+const APP_VERSION = "5.6.66";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.66",
+    date: "17 September 2026",
+    title: "Value Insights: Show Every Recommendation, Not Just the Top 3",
+    sections: [
+      {
+        icon: "✨",
+        label: "Changed -- Full Recommendation List, Highest-Impact First",
+        color: "#22c55e",
+        items: [
+          "The Value Insights card's 'We recommend:' list previously capped at 3 items with a '+N more -- see Section 12' link. It now lists every distinct recommendation directly in the tile, already ordered by real affected-system count (highest impact first) -- no more clicking away to Section 12 to see the rest. Dedup-by-label is unchanged (BIOS/DISK_FIRMWARE/SHELF_FIRMWARE/SP_BMC still collapse to a single 'Plan firmware & system file updates' entry), so nothing repeats.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.65",
     date: "17 September 2026",
@@ -13493,19 +13508,18 @@ function renderCSMTab() {
     };
     // Several distinct subCategories share the same display label (e.g. BIOS/
     // DISK_FIRMWARE/SHELF_FIRMWARE/SP_BMC all read as "Plan firmware & system
-    // file updates") -- dedupe by label before taking the top 3, otherwise the
-    // same text can appear 2-3 times in a row when several firmware checks are
-    // all near the top by affected-system count.
-    const _viTopRecsSeen = new Set();
-    const _viTopRecs = [];
+    // file updates") -- dedupe by label (keeping the highest real
+    // affected-system count among the merged subCategories) so the same text
+    // doesn't repeat, but list every distinct recommendation rather than
+    // capping at 3, since _viRecs is already sorted highest-impact-first.
+    const _viTopRecsSeen = new Map(); // label -> highest count seen
     for (const r of _viRecs) {
       const label = _viRecLabels[r.label] || r.title || 'Recommendation';
-      if (_viTopRecsSeen.has(label)) continue;
-      _viTopRecsSeen.add(label);
-      _viTopRecs.push(label);
-      if (_viTopRecs.length >= 3) break;
+      if (!_viTopRecsSeen.has(label) || r.count > _viTopRecsSeen.get(label)) {
+        _viTopRecsSeen.set(label, r.count);
+      }
     }
-    const _viMoreCount = Math.max(0, _viRecs.length - _viTopRecsSeen.size);
+    const _viTopRecs = [..._viTopRecsSeen.entries()].sort((a, b) => b[1] - a[1]);
 
     const _healthEl = document.getElementById("csmHealthScoreCard");
     if (_healthEl) _healthEl.innerHTML = `
@@ -13524,9 +13538,8 @@ function renderCSMTab() {
           <div style="flex: 1; min-width: 260px;">
             <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">We recommend:</div>
             <ul style="margin: 0 0 8px 18px; padding: 0; font-size: 0.85rem; line-height: 1.9;">
-              ${_viTopRecs.map(t => `<li>${t}</li>`).join('') || '<li style="color: var(--status-normal);">No outstanding recommendations for this scope</li>'}
+              ${_viTopRecs.map(([label]) => `<li>${label}</li>`).join('') || '<li style="color: var(--status-normal);">No outstanding recommendations for this scope</li>'}
             </ul>
-            ${_viMoreCount > 0 ? `<div style="font-size: 0.78rem; color: var(--accent-cyan);">+ ${_viMoreCount} more recommendation${_viMoreCount !== 1 ? 's' : ''} &mdash; see Section 12 (TAM Recommendations) for the full list</div>` : ''}
           </div>
         </div>
 

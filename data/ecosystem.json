@@ -7,6 +7,9 @@
       "lastChecked": "2026-09-17",
       "repos": [
         {
+          "description": "Terrafrom ONTAP provider"
+        },
+        {
           "description": "Storage orchestrator for containers"
         },
         {
@@ -17,9 +20,6 @@
         },
         {
           "description": "Ansible collection for configuring and maintaining NetApp optimized Lustre with NetApp E-Series block storage."
-        },
-        {
-          "description": "Terrafrom ONTAP provider"
         },
         {
           "description": "Ansible collection that facilitates host related tasks for NetApp E-Series storage."
