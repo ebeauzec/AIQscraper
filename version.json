@@ -1,8 +1,8 @@
 {
-  "version": "5.6.70",
+  "version": "5.6.71",
   "major": 5,
   "minor": 6,
-  "patch": 70,
+  "patch": 71,
   "date": "2026-09-17",
-  "notes": "Section 12 (Operational Health)'s 'ARP Not Enabled' tile computed systems.length - arpEnabled, silently merging systems confirmed to have ARP disabled with systems Active IQ never reported an ARP status for at all -- overstating a real security finding with unconfirmed ones. Same gap existed on the ASUP side (never-reported systems had no tile at all). Split both into real tri-state buckets: ASUP Healthy/Stale/Not Reported and ARP Enabled/Disabled/Not Reported -- 6 tiles instead of 4, each set now sums exactly to the real system count. Added an 'ASUP Never Reported' systems table alongside the existing stale one. Verified live: ARP Disabled (confirmed) is 305 systems, not the old merged 448 -- 143 of those were never actually confirmed disabled."
+  "notes": "Fleet Weekly Score Trend's Change column showed Active IQ's own percentageChange field, which is documented as 'percentage change vs. previous week' but doesn't reconcile with the adjacent scorePercentage values in the same list (e.g. 57.1% -> 56.9% showed '+1.5%' instead of the visible -0.2 point move). Replaced with a value computed directly from the two adjacent weekly scores, formatted in percentage points, so every Change cell is now self-evidently correct against the Score column next to it. Applied the same fix to the Week-over-Week Change stat card above the table."
 }

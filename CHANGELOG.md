@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.71] - 2026-09-17
+
+### Fixed
+- **Fleet Weekly Score Trend's "Change" column contradicted the "Score" column right next to it.** E.g. the score moved 57.1% → 56.9% (a -0.2 point change) but Change showed "+1.5%"; 57% → 55.8% (-1.2 points) showed "-31.2%". The column displayed Active IQ's own `percentageChange` field — documented as "percentage change in score compared to the previous week" — but its real values don't reconcile with the adjacent `scorePercentage` entries in the same list, suggesting it tracks a different underlying metric than what's displayed.
+- Replaced it with a value computed directly from the two adjacent weekly scores shown in the table (this week's score minus last week's), formatted in percentage points ("+0.2 pts") to avoid the point-vs-relative-percent ambiguity. Verified live: the 56.9% row now shows -0.2 pts, matching 57.1% → 56.9%. Applied the same fix to the "Week-over-Week Change" stat card above the table, which now matches the table's first row exactly.
+
+---
+
 ## [5.6.70] - 2026-09-17
 
 ### Fixed

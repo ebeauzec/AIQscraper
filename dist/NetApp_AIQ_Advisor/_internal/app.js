@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.70";
+const APP_VERSION = "5.6.71";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.71",
+    date: "17 September 2026",
+    title: "Fleet Weekly Score Trend: \"Change\" Column No Longer Contradicts the Score Column Next to It",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- \"Change\" Values Didn't Reconcile with the Adjacent Week-over-Week Scores",
+        color: "#f87171",
+        items: [
+          "User flagged the Fleet Weekly Score Trend table as unintuitive: e.g. the score moved 57.1% -> 56.9% (a -0.2 point change) but the Change column showed '+1.5%', and 57% -> 55.8% (-1.2 points) showed '-31.2%'. The Change column was Active IQ's own percentageChange field -- confirmed via live GraphQL schema introspection it's documented as 'percentage change in score when compared to the previous week', but its real values don't reconcile with the adjacent scorePercentage entries in the same list, suggesting it tracks a different underlying (possibly unrounded or differently-scoped) metric than what's displayed.",
+          "Replaced it with a value computed directly from the two adjacent weekly scores shown in the same table (this week's scorePercentage minus last week's), so every Change cell is now self-evidently correct against what's right next to it -- verified live: 56.9% row now shows -0.2 pts (matching 57.1% -> 56.9%), not the old +1.5%. Formatted as percentage points ('+0.2 pts') instead of a bare '%' to avoid the point-vs-relative-percent ambiguity. Applied the same fix to the 'Week-over-Week Change' stat card above the table, which pulled from the same unreliable field and now matches the table's first row exactly.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.70",
     date: "17 September 2026",
@@ -23458,6 +23474,17 @@ function _renderSustainabilitySection(systems) {
     ? (withReduction.reduce((a, s) => a + s.dataReductionRatio, 0) / withReduction.length).toFixed(1)
     : '—';
 
+  // Active IQ's own percentageChange field is documented as "percentage
+  // change in score compared to the previous week", but its real values
+  // don't reconcile with the adjacent scorePercentage entries in this same
+  // list (e.g. 57.1% -> 56.9% showing "+1.5%" instead of the visible -0.2
+  // point move) -- it appears to track a different underlying metric.
+  // Compute the displayed change directly from the two adjacent scores
+  // instead, so it always matches what the reader can see and verify.
+  const wowChange = scores.length > 1 && scores[0].scorePercentage != null && scores[1].scorePercentage != null
+    ? scores[0].scorePercentage - scores[1].scorePercentage
+    : null;
+
   let html = '';
 
   // ── Per-customer scorecard ────────────────────────────────────────────────────
@@ -23532,8 +23559,8 @@ function _renderSustainabilitySection(systems) {
         <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Fleet Sustainability Score</div>
         <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">AIQ environmental efficiency rating</div>
       </div>
-      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Change in fleet sustainability score vs. the previous week.">
-        <div style="font-size:2.2rem;font-weight:700;color:${(latest.percentageChange||0) >= 0 ? '#10b981':'#ef4444'};">${(latest.percentageChange||0) >= 0 ? '+':''}${latest.percentageChange || '0'}%</div>
+      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:var(--radius-sm);padding:18px;text-align:center;cursor:help;" title="Fleet Sustainability Score this week minus last week, in percentage points -- computed directly from the two scores above so it always reconciles with what's shown. Active IQ's own percentageChange field measures something else internally and doesn't match adjacent weekly scores, so it isn't used here.">
+        <div style="font-size:2.2rem;font-weight:700;color:${wowChange === null ? 'var(--text-muted)' : wowChange >= 0 ? '#10b981':'#ef4444'};">${wowChange === null ? '—' : (wowChange >= 0 ? '+':'') + wowChange.toFixed(1) + ' pts'}</div>
         <div style="font-size:0.75rem;color:var(--text-secondary);font-weight:600;">Week-over-Week Change</div>
         <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Score delta vs. previous week</div>
       </div>
@@ -23558,12 +23585,16 @@ function _renderSustainabilitySection(systems) {
         <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Score</th>
         <th style="text-align:left;padding:6px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;">Change</th>
       </tr></thead><tbody>`;
-    scores.slice(0, 12).forEach(s => {
-      const change = s.percentageChange || 0;
+    scores.slice(0, 13).forEach((s, i, arr) => {
+      if (i >= 12) return; // only render 12 rows; arr[12] exists purely to compute row 11's change
+      const prev = arr[i + 1];
+      const change = (prev && s.scorePercentage != null && prev.scorePercentage != null)
+        ? s.scorePercentage - prev.scorePercentage
+        : null;
       html += `<tr>
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${(s.generatedDate || '').substring(0,10)}</td>
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${s.scorePercentage || '—'}%</td>
-        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);color:${change >= 0 ? '#10b981' : '#ef4444'};font-weight:600;">${change >= 0 ? '+' : ''}${change}%</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);color:${change === null ? 'var(--text-muted)' : change >= 0 ? '#10b981' : '#ef4444'};font-weight:600;">${change === null ? '—' : (change >= 0 ? '+' : '') + change.toFixed(1) + ' pts'}</td>
       </tr>`;
     });
     html += `</tbody></table></div>`;
