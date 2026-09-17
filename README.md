@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.63-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.64-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -219,8 +219,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Workflow:**
 1. Select the customer from the sidebar filter (or view "All" to see suggestions across the whole portfolio)
 2. Go to **Success Plans** — the **Suggested Success Plans** card lists any of the 12 templates whose real trigger condition is currently met for that customer (e.g. open critical risks, systems without ARP, contracts expiring, capacity runway under 60 days)
-3. Review the specific finding and metric shown on each suggestion card, check the ones to adopt, and click **Adopt Selected**
-4. Confirm the write-back — each adopted suggestion becomes a real Active IQ Success Plan, pre-filled with the actual affected system names/serials, the real finding text (risk descriptions, CVE IDs, EOS dates, case numbers), and the real Active IQ remediation text for each, not a generic summary
+3. Click **Preview full plan** on any suggestion to review the exact content before adopting — the full challenges/goals text with affected systems, every remediation objective, and the TAM notes, built from the same function that constructs the real write-back so nothing differs between preview and post
+4. Check the ones to adopt and click **Adopt Selected**, then confirm the write-back — each adopted suggestion becomes a real Active IQ Success Plan, pre-filled with the actual affected system names/serials, the real finding text (risk descriptions, CVE IDs, EOS dates, case numbers), and the real Active IQ remediation text for each, not a generic summary
 5. The Success Plans table's **Progress** column tracks the real trigger metric from adoption baseline to current value on every view
 
 **Output:** A set of customer-specific, fully-populated Success Plans visible to the whole team in Digital Advisor — created in minutes instead of drafted by hand per customer.

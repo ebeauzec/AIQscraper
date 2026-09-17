@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.63";
+const APP_VERSION = "5.6.64";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.64",
+    date: "17 September 2026",
+    title: "New -- Preview a Suggested Success Plan's Full Content Before Adopting",
+    sections: [
+      {
+        icon: "✨",
+        label: "New -- Expandable Preview on Every Suggested Success Plan",
+        color: "#22c55e",
+        items: [
+          "Each card in Suggested Success Plans now has a 'Preview full plan' toggle that expands to show exactly what will be written to Active IQ if adopted: the full Customer Challenges & Goals text (including the affected-systems list), every Objective, the Success Metrics, and the full TAM Notes -- reviewable before checking the box and clicking Adopt, not just an inline one-line summary.",
+          "The preview is built from the exact same function that constructs the real write-back payload (_buildSuccessPlanPayload), so there is no risk of the preview drifting from what actually gets posted -- refactored adoptSelectedSuggestedPlans() to call the same shared builder instead of duplicating the formatting logic.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.63",
     date: "17 September 2026",
@@ -30872,6 +30888,32 @@ function computeSuggestedSuccessPlans() {
   return suggestions;
 }
 
+// Builds the exact real-content payload a suggestion will write to Active
+// IQ (challenges + affected-systems list, remediation objectives, TAM
+// notes) -- shared by the expandable preview and the actual adopt call, so
+// what a TAM reviews before adopting is guaranteed to match what gets
+// posted, not a separate approximation of it.
+function _buildSuccessPlanPayload(s) {
+  const affectedBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 12);
+  const challengesFull = affectedBlock
+    ? `${s.challenges}\n\nAffected systems:\n${affectedBlock}`
+    : s.challenges;
+  const objectives = (s.remediationSteps && s.remediationSteps.length > 0) ? s.remediationSteps : s.objectives;
+  const tamNotesBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 25);
+  const tamNotes = `Auto-suggested from real fleet data at adoption time (${s.metricLabel}: ${s.metricValue}). [template:${s.templateKey}]`
+    + (tamNotesBlock ? `\n\nFull affected-system list at adoption time:\n${tamNotesBlock}` : '');
+  return { challengesFull, objectives, tamNotes };
+}
+
+function toggleSuggestedPlanPreview(idx) {
+  const row = document.getElementById(`suggestedPlanPreview-${idx}`);
+  const toggleBtn = document.getElementById(`suggestedPlanToggle-${idx}`);
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : 'block';
+  if (toggleBtn) toggleBtn.textContent = isOpen ? '▸ Preview full plan' : '▾ Hide preview';
+}
+
 function renderSuggestedPlans() {
   const card = document.getElementById('suggestedPlansCard');
   const list = document.getElementById('suggestedPlansList');
@@ -30880,15 +30922,46 @@ function renderSuggestedPlans() {
   state._suggestedPlans = suggestions;
   if (!suggestions.length) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  list.innerHTML = suggestions.map((s, i) => `
-    <label style="display:flex; align-items:flex-start; gap:10px; padding:10px; border:1px solid var(--border-color); border-radius:8px; margin-bottom:8px; cursor:pointer;">
-      <input type="checkbox" class="suggested-plan-checkbox" data-idx="${i}" onchange="updateSuggestedPlansSelection()" style="margin-top:3px;">
-      <div style="flex:1;">
-        <div style="font-weight:700; font-size:0.88rem;">${s.title.replace(/</g, '&lt;')} <span style="color:var(--text-muted); font-weight:500;">— ${s.nagpName.replace(/</g, '&lt;')}</span></div>
-        <div style="font-size:0.78rem; color:var(--text-secondary); margin:4px 0;">${s.challenges.replace(/</g, '&lt;')}</div>
-        <div style="font-size:0.72rem; color:var(--text-muted);">Stage: ${SUCCESS_PLAN_STAGE_LABELS[s.stage] || s.stage} &middot; Trigger: ${s.metricLabel.replace(/</g, '&lt;')} = ${s.metricValue}${(s.affectedSystems && s.affectedSystems.length) ? ` &middot; Adopting will pre-fill ${s.affectedSystems.length} specific finding(s) and ${(s.remediationSteps||[]).length} remediation step(s)` : ''}</div>
+  const esc = (t) => (t || '').replace(/</g, '&lt;');
+  list.innerHTML = suggestions.map((s, i) => {
+    const payload = _buildSuccessPlanPayload(s);
+    const metricLabels = (s.metrics || []).map(m => m.replace(/_/g, ' ')).join(', ');
+    const preview = `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:0.4px; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Customer Challenges &amp; Goals</div>
+        <div style="font-size:0.78rem; color:var(--text-secondary); white-space:pre-wrap; background:rgba(0,0,0,0.2); border-radius:6px; padding:10px; font-family:var(--font-mono, monospace);">${esc(payload.challengesFull)}</div>
       </div>
-    </label>`).join('');
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:0.4px; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Objectives</div>
+        <ul style="margin:0; padding-left:18px; font-size:0.78rem; color:var(--text-secondary);">
+          ${payload.objectives.map(o => `<li style="margin-bottom:3px;">${esc(o)}</li>`).join('')}
+        </ul>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:0.4px; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Success Metrics</div>
+        <div style="font-size:0.78rem; color:var(--text-secondary);">${esc(metricLabels)}</div>
+      </div>
+      <div>
+        <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:0.4px; color:var(--text-muted); font-weight:700; margin-bottom:4px;">TAM Notes</div>
+        <div style="font-size:0.76rem; color:var(--text-muted); white-space:pre-wrap; background:rgba(0,0,0,0.2); border-radius:6px; padding:10px; font-family:var(--font-mono, monospace); max-height:220px; overflow-y:auto;">${esc(payload.tamNotes)}</div>
+      </div>
+      <div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px; font-style:italic;">This is exactly what will be written to Active IQ if adopted -- nothing changes between this preview and the actual write-back.</div>`;
+    return `
+    <div style="border:1px solid var(--border-color); border-radius:8px; margin-bottom:8px; overflow:hidden;">
+      <div style="display:flex; align-items:flex-start; gap:10px; padding:10px;">
+        <input type="checkbox" class="suggested-plan-checkbox" data-idx="${i}" onchange="updateSuggestedPlansSelection()" style="margin-top:4px; cursor:pointer;">
+        <div style="flex:1; cursor:pointer;" onclick="const cb=this.parentElement.querySelector('.suggested-plan-checkbox'); cb.checked=!cb.checked; updateSuggestedPlansSelection();">
+          <div style="font-weight:700; font-size:0.88rem;">${esc(s.title)} <span style="color:var(--text-muted); font-weight:500;">— ${esc(s.nagpName)}</span></div>
+          <div style="font-size:0.78rem; color:var(--text-secondary); margin:4px 0;">${esc(s.challenges)}</div>
+          <div style="font-size:0.72rem; color:var(--text-muted);">Stage: ${SUCCESS_PLAN_STAGE_LABELS[s.stage] || s.stage} &middot; Trigger: ${esc(s.metricLabel)} = ${s.metricValue}${(s.affectedSystems && s.affectedSystems.length) ? ` &middot; Adopting will pre-fill ${s.affectedSystems.length} specific finding(s) and ${(s.remediationSteps||[]).length} remediation step(s)` : ''}</div>
+        </div>
+        <button id="suggestedPlanToggle-${i}" onclick="event.stopPropagation(); toggleSuggestedPlanPreview(${i})" class="action-btn secondary" style="font-size:0.7rem; padding:5px 10px; flex-shrink:0; white-space:nowrap;">▸ Preview full plan</button>
+      </div>
+      <div id="suggestedPlanPreview-${i}" style="display:none; padding:12px 14px 14px 40px; border-top:1px solid var(--border-color); background:rgba(255,255,255,0.02);">
+        ${preview}
+      </div>
+    </div>`;
+  }).join('');
   updateSuggestedPlansSelection();
 }
 
@@ -30918,14 +30991,9 @@ async function adoptSelectedSuggestedPlans() {
       // this suggestion (system names/serials + the actual finding text and
       // remediation from Active IQ), not just the summary count -- so the
       // plan is trackable in Active IQ itself without needing this tool open.
-      const affectedBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 12);
-      const challengesFull = affectedBlock
-        ? `${s.challenges}\n\nAffected systems:\n${affectedBlock}`
-        : s.challenges;
-      const objectives = (s.remediationSteps && s.remediationSteps.length > 0) ? s.remediationSteps : s.objectives;
-      const tamNotesBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 25);
-      const tamNotes = `Auto-suggested from real fleet data at adoption time (${s.metricLabel}: ${s.metricValue}). [template:${s.templateKey}]`
-        + (tamNotesBlock ? `\n\nFull affected-system list at adoption time:\n${tamNotesBlock}` : '');
+      // Same builder the expandable preview uses, so what a TAM reviewed
+      // before adopting is guaranteed to match what's actually posted.
+      const { challengesFull, objectives, tamNotes } = _buildSuccessPlanPayload(s);
       const mutation = `mutation CreateCSP($accountPlan: AccountPlanCreateInput!) {
         createSuccessPlan(accountPlan: $accountPlan) { success id accountId errors }
       }`;

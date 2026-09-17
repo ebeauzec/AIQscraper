@@ -1,8 +1,8 @@
 {
-  "version": "5.6.63",
+  "version": "5.6.64",
   "major": 5,
   "minor": 6,
-  "patch": 63,
+  "patch": 64,
   "date": "2026-09-17",
-  "notes": "Added a real, independent background scheduler (HarvestScheduler, threading.Timer-based, same pattern as the existing EnrichmentScheduler for reference data) that re-syncs live Active IQ fleet data -- systems, risks, cases, TAM data, and every real configuration field -- on its own timer (default 4h), regardless of whether anyone has the app open. Previously only reference/ground-truth data (CVE feeds, version catalogs, firmware baselines) had a true background refresh; the actual customer harvest only ever ran as a side effect of an incoming browser request, so the tool could go stale indefinitely if left running unattended. New 'Auto-Refresh Fleet Data' card in Settings & Config with an enable/disable toggle, interval selector, live status, and manual 'Refresh Now' trigger."
+  "notes": "Each Suggested Success Plan card now has a 'Preview full plan' toggle showing exactly what will be written to Active IQ if adopted -- the full challenges/goals text with affected systems, every remediation objective, the success metrics, and the TAM notes -- before checking the box and adopting. The preview is built from the same shared function that constructs the real write-back payload, so it can never drift from what actually gets posted."
 }

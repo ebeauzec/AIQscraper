@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.64] - 2026-09-17
+
+### Added
+- **Expandable "Preview full plan" toggle on every Suggested Success Plan card.** Shows exactly what will be written to Active IQ if adopted -- the full Customer Challenges & Goals text (with the affected-systems list), every Objective, the Success Metrics, and the full TAM Notes -- reviewable before checking the box and adopting. Built from the same `_buildSuccessPlanPayload()` function used by the actual write-back, so the preview can never drift from what gets posted.
+
+---
+
 ## [5.6.63] - 2026-09-17
 
 ### Added
