@@ -27,9 +27,36 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.64";
+const APP_VERSION = "5.6.65";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.65",
+    date: "17 September 2026",
+    title: "Feature Matrix: Dead QoS Column Replaced, HA/SnapMirror False-Default Bug Fixed, 6 New TAM/SAM/MSP Success Plan Templates",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- QoS Was a Structurally Dead Column, HA/SnapMirror Had a Real False-Positive Bug",
+        color: "#f87171",
+        items: [
+          "Found live: the Feature Adoption Matrix's QoS column showed '—' for every system, on every account, with no exceptions. Confirmed via live GraphQL schema introspection that Active IQ's System type has no QoS/adaptive-policy field at all -- not a harvesting gap, a genuine API limitation. Replaced QoS everywhere it was tracked (Feature Matrix, computeFeatureAdoptionScore, the CSM checklist, optimization recommendations, Success Plan templates) with AutoSupport configuration status -- a real field (AutoSupportStatus enum) populated on 483/484 systems (99.8%) in a real fleet, with genuine variance (355 ON, 123 OFF, 3 RSS, 2 DECLINE), not a dead one.",
+          "Separately found and fixed a real accuracy bug: HA and SnapMirror both defaulted to false/0 in server.py when a system wasn't part of any cluster Active IQ returned (StorageGRID, E-Series, or an ungrouped system) -- 'not reported' was indistinguishable from 'confirmed disabled', rendering a hard ❌ in the Feature Matrix for systems Active IQ never actually assessed. Both now correctly default to null/not-reported (renders as '—'), matching the tri-state design already used correctly for ARP and FabricPool. Fixed the same class of bug in three separate client-side duplicates of the SnapMirror check that had the identical 'unreported defaults to 0' pattern.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "New -- 6 More Success Plan Templates, Explicitly TAM/SAM/MSP-Focused (18 Total)",
+        color: "#22c55e",
+        items: [
+          "TAM angle: AutoSupport Connectivity Restoration (systems silent for 7+ days -- invisible to proactive monitoring), MetroCluster Health Remediation (real Mediator-unreachable/AUSO-disabled findings), Hardware Firmware Currency (SP/BMC/motherboard behind baseline, using the same P-release-aware version comparison as the Firmware Currency tab).",
+          "SAM angle: Contract Co-Termination Opportunity (real grouped-by-90-days contract clusters, a genuine renewal-consolidation talking point), Licensed Feature Utilization Gap (systems licensed for ARP or SnapMirror but not confirmed using it -- entitlement the customer is already paying for).",
+          "MSP angle: Remediation SLA Compliance Recovery (real Remediation Tracker SLA breach rate per customer, below the 80% target used elsewhere in the app).",
+          "All 6 follow the same discipline as the existing 12: real trigger fields only, real affected-system detail, and real remediation text pre-filled on adopt.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.64",
     date: "17 September 2026",
@@ -13685,7 +13712,7 @@ function renderCSMTab() {
     let _verPass = 0, _effPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
     let _capPass = 0, _haPass = 0, _casePass = 0, _arpPass = 0, _fsaPass = 0;
     // New ops checks
-    let _portHealthPass = 0, _fwCurrPass = 0, _cisaKevPass = 0, _qosPass = 0;
+    let _portHealthPass = 0, _fwCurrPass = 0, _cisaKevPass = 0, _asupCfgPass = 0;
     // ── RIGHT COLUMN: Data Protection & Lifecycle ───────────────────────────────
     let _cloudPass = 0, _drPass = 0, _riskPass = 0, _contractPass = 0;
     // New DP/lifecycle checks
@@ -13765,11 +13792,11 @@ function renderCSMTab() {
       const _cisaHits = _sec.filter(b => b.cisaKEV === true || b.cisaKev === true || (b.tags || []).includes('CISA-KEV'));
       if (_cisaHits.length === 0) _cisaKevPass++;
 
-      // 15. QoS policy coverage (if available)
-      // Systems with adaptive QoS or floor/ceiling policies configured pass.
-      // If data is unavailable (null), don't penalise.
-      const _hasQos = s.isQoSConfigured === true || s.qosPolicies > 0;
-      if (_hasQos || s.isQoSConfigured == null) _qosPass++;
+      // 15. AutoSupport configured (real AutoSupportStatus enum -- QoS was
+      // here before, but Active IQ's schema has no QoS field at all;
+      // confirmed via live introspection, not a harvesting gap)
+      const _asupCfgState = _getAsupConfiguredState(s);
+      if (_asupCfgState === true || _asupCfgState == null) _asupCfgPass++;
 
       // ── Data Protection & Lifecycle checks ──────────────────────────────────
       // 16. FabricPool tiering active
@@ -13854,7 +13881,7 @@ function renderCSMTab() {
       { name: 'Aggregate Capacity Headroom \u2265 20%',                    completedCount: _capPass,         detail: _capDetail, tip: 'Systems with at least 20% free aggregate capacity -- the generally recommended buffer to avoid performance degradation and leave room for snapshot and unplanned data growth.' },
       { name: 'HA Pair Configured (No Single Point of Failure)',       completedCount: _haPass,          detail: _haDetail, tip: 'Systems configured in a high-availability (HA) controller pair, so a single controller failure does not take the system offline.' },
       { name: 'Network Port Health (no link-down on active ports)',    completedCount: _portHealthPass,  detail: _portDetail, tip: 'Systems with no in-use network port currently reporting a link-down state -- a down port on an active path can mean reduced redundancy or an active outage.' },
-      { name: 'QoS Adaptive Policy Coverage',                         completedCount: _qosPass,         detail: '', tip: 'Systems using Adaptive QoS policies, which scale IOPS limits automatically with allocated or used capacity, instead of fixed policies that can throttle workloads as they grow.' },
+      { name: 'AutoSupport Configured',                               completedCount: _asupCfgPass,     detail: '', tip: 'Systems with AutoSupport turned on (real Active IQ AutoSupportStatus). Without it, a system is invisible to proactive risk detection and this tool\'s own health scoring.' },
       // — Security & Compliance —
       { cat: 'SECURITY \u0026 COMPLIANCE', name: 'No Active Security CVEs Applicable (PSIRT)',            completedCount: _secPass,         detail: '', tip: 'Systems with zero NetApp PSIRT-published CVEs applicable to their current OS version.' },
       { name: 'No CISA KEV Active Exploitation Alerts',               completedCount: _cisaKevPass,     detail: '', tip: 'Systems with no CVEs matching CISA Known Exploited Vulnerabilities (KEV) catalog -- confirmed active real-world exploitation, not just theoretical risk.' },
@@ -14250,12 +14277,13 @@ function renderCSMTab() {
       ok: _sDownPorts.length === 0,
       detail: _sDownPorts.length > 0 ? `${_sDownPorts.length} port(s) link-down \u2014 check cabling` : 'All active ports operational'
     },
-    { name: 'QoS Adaptive Policy Coverage',
-      ok: sys.isQoSConfigured === true || sys.qosPolicies > 0 || sys.isQoSConfigured == null,
+    { name: 'AutoSupport Configured',
+      ok: _getAsupConfiguredState(sys) !== false,
       detail: (() => {
-        if (sys.isQoSConfigured === true || sys.qosPolicies > 0) return 'Adaptive QoS policies configured';
-        if (sys.isQoSConfigured === false) return 'No QoS policies \u2014 noisy-neighbor risk';
-        return 'QoS data unavailable \u2014 verify on-cluster';
+        const st = _getAsupConfiguredState(sys);
+        if (st === true) return 'AutoSupport is ON';
+        if (st === false) return 'AutoSupport is OFF/declined \u2014 system invisible to proactive monitoring';
+        return 'AutoSupport status not reported \u2014 verify on-cluster';
       })()
     },
     // SECURITY & COMPLIANCE
@@ -15217,38 +15245,52 @@ function computeCapacityRAG(sys) {
 }
 
 
+// AutoSupport configuration status as a tri-state true/false/null, matching
+// ARP/FabricPool/HA -- confirmed live against Active IQ's real
+// AutoSupportStatus enum (ON/OFF/DECLINE/RSS/NA), populated on 483/484
+// systems (99.8%) in a real fleet, with genuine variance (not a dead field).
+// Replaced QoS (confirmed via live GraphQL schema introspection that Active
+// IQ's System type has NO QoS/adaptive-policy field at all -- the QoS
+// column could never show real data for any customer, ever) as the 5th
+// tracked feature.
+function _getAsupConfiguredState(sys) {
+  const st = (sys.asupStatus || '').toUpperCase();
+  if (st === 'ON') return true;
+  if (st === 'OFF' || st === 'DECLINE') return false;
+  return null; // RSS, NA, or not reported
+}
+
 function computeFeatureAdoptionScore(sys) {
   // Returns {passed, total, pct} for actual OPTIONAL ONTAP FEATURE adoption
-  // only -- ARP, FabricPool, SnapMirror, HA, QoS. This used to also count 10
-  // unrelated operational/health checks (OS currency, risk count, contract
-  // status, ASUP compliance, EOS lifecycle, CVE count, capacity %, support
-  // cases, field actions) toward the same "/14" total, so every deliverable
-  // that shows this as a "Feature Adoption Score" -- including a table whose
-  // own columns only ever displayed 4 of the 14 things being scored -- was
-  // really showing a second, differently-weighted copy of the account
-  // health score under a label that promised something else. Unknown
-  // features (API didn't report them) are excluded from scoring, not
-  // counted as failing.
+  // only -- ARP, FabricPool, SnapMirror, HA, AutoSupport configured. This
+  // used to also count 10 unrelated operational/health checks (OS
+  // currency, risk count, contract status, ASUP compliance, EOS lifecycle,
+  // CVE count, capacity %, support cases, field actions) toward the same
+  // "/14" total, so every deliverable that shows this as a "Feature
+  // Adoption Score" -- including a table whose own columns only ever
+  // displayed 4 of the 14 things being scored -- was really showing a
+  // second, differently-weighted copy of the account health score under a
+  // label that promised something else. Unknown features (API didn't
+  // report them) are excluded from scoring, not counted as failing.
   let passed = 0;
   let total = 0;
 
   // FabricPool
   if (sys.isFabricPool != null) { total++; if (sys.isFabricPool === true) passed++; }
-  // SnapMirror (always known — 0 relationships = no SM)
-  total++;
-  if ((sys.snapmirrorCount || sys.snapMirrorCount || (sys.snapmirror && sys.snapmirror.totalCount) || 0) > 0) passed++;
+  // SnapMirror -- real per-cluster relationship count when this system is
+  // part of a cluster Active IQ returned; null (excluded, not "0 = no SM")
+  // when it isn't, e.g. StorageGRID/E-Series or an ungrouped system.
+  const smCount = sys.snapmirrorCount != null ? sys.snapmirrorCount : sys.snapMirrorCount;
+  const smKnown = smCount != null || (sys.snapmirror && sys.snapmirror.totalCount != null);
+  if (smKnown) { total++; if ((smCount || (sys.snapmirror && sys.snapmirror.totalCount) || 0) > 0) passed++; }
   // HA configured
   const haVal = sys.haConfigured != null ? sys.haConfigured : (sys.isHAConfigured != null ? sys.isHAConfigured : (sys.snapmirror && sys.snapmirror.isHAConfigured));
   if (haVal != null) { total++; if (haVal === true) passed++; }
   // ARP
   if (sys.isARPEnabled != null) { total++; if (sys.isARPEnabled === true) passed++; }
-  // QoS
-  if (sys.isQoSConfigured != null) {
-    total++;
-    if (sys.isQoSConfigured === true || sys.qosPolicies > 0) passed++;
-  } else if (sys.qosPolicies > 0) {
-    total++; passed++;
-  }
+  // AutoSupport configured
+  const asupVal = _getAsupConfiguredState(sys);
+  if (asupVal != null) { total++; if (asupVal === true) passed++; }
 
   return { passed, total: total || 1, pct: Math.round((passed / (total || 1)) * 100) };
 }
@@ -20760,7 +20802,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
 
   STANDARDS & ADOPTION (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
-    Feature Adoption Score:   ${avgFeaturePct}% fleet average (ARP/FabricPool/SnapMirror/HA/QoS, ~${avgFeaturePassed} of 5 features per system)
+    Feature Adoption Score:   ${avgFeaturePct}% fleet average (ARP/FabricPool/SnapMirror/HA/AutoSupport, ~${avgFeaturePassed} of 5 features per system)
     ARP Enablement:           ${arpCount}/${total}${arpKnownSys.length < total ? ' *' : ''}
     FabricPool Adoption:      ${fpAdopted}/${total}
 
@@ -24588,6 +24630,12 @@ function _renderFeatureAdoptionSection(systems) {
     if (s.haConfigured === false) return false;
     return null;
   };
+  // Real per-cluster relationship count when reported; null (not 0) when
+  // this system isn't part of any cluster Active IQ returned -- confirmed
+  // live that treating "not reported" as "0 = no relationships" was
+  // rendering a hard "confirmed disabled" for StorageGRID/E-Series/
+  // ungrouped systems that Active IQ never actually assessed for SnapMirror.
+  const _smCountKnown = (s) => (s.snapmirrorCount != null) || (s.snapMirrorCount != null) || !!(s.snapmirror && s.snapmirror.totalCount != null);
   const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
 
   // Tri-state icon renderer: ✅ = confirmed on, ❌ = confirmed off, — = unknown/not reported
@@ -24602,9 +24650,9 @@ function _renderFeatureAdoptionSection(systems) {
   const featureDefs = [
     { name: 'ARP',       get: (s) => s.isARPEnabled != null ? s.isARPEnabled : null },
     { name: 'FabricPool', get: (s) => s.isFabricPool != null ? s.isFabricPool : null },
-    { name: 'SnapMirror', get: (s) => _smCount(s) > 0 },  // always known (0 = no relationships)
+    { name: 'SnapMirror', get: (s) => _smCountKnown(s) ? (_smCount(s) > 0) : null },
     { name: 'HA',         get: (s) => _hasHA(s) },
-    { name: 'QoS',        get: (s) => s.isQoSConfigured != null ? s.isQoSConfigured : (s.qosPolicies > 0 ? true : null) }
+    { name: 'AutoSupport', get: (s) => _getAsupConfiguredState(s) },
   ];
 
   const featureStats = featureDefs.map(f => {
@@ -24651,9 +24699,9 @@ function _renderFeatureAdoptionSection(systems) {
         <td style="${tdLeft}font-family:monospace;">${s.systemName || s.serialNumber}</td>
         <td style="${tdStyle}">${_icon(s.isARPEnabled != null ? s.isARPEnabled : null)}</td>
         <td style="${tdStyle}">${_icon(s.isFabricPool != null ? s.isFabricPool : null)}</td>
-        <td style="${tdStyle}">${_icon(_smCount(s) > 0)}</td>
+        <td style="${tdStyle}">${_icon(_smCountKnown(s) ? (_smCount(s) > 0) : null)}</td>
         <td style="${tdStyle}">${_icon(_hasHA(s))}</td>
-        <td style="${tdStyle}">${_icon(s.isQoSConfigured != null ? s.isQoSConfigured : (s.qosPolicies > 0 ? true : null))}</td>
+        <td style="${tdStyle}">${_icon(_getAsupConfiguredState(s))}</td>
         <td style="${tdStyle}">${scoreText}</td>
       </tr>
     `;
@@ -24664,7 +24712,7 @@ function _renderFeatureAdoptionSection(systems) {
     const missing = [];
     if (s.isARPEnabled === false) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
     if (s.isFabricPool === false) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
-    if (s.isQoSConfigured === false) missing.push('QoS (Adaptive QoS policies prevent noisy-neighbor workloads from starving others of IOPS/throughput. `qos adaptive-policy-group create`)');
+    if (_getAsupConfiguredState(s) === false) missing.push('AutoSupport (Proactive risk detection, upgrade recommendations, and this tool\'s own health scoring all depend on it. `system node autosupport modify -node * -state enable`)');
     
     if (missing.length === 0) return '';
     return `<li><strong>${s.systemName || s.serialNumber}:</strong> Enable ${missing.join(', ')}</li>`;
@@ -24714,7 +24762,7 @@ function _renderFeatureAdoptionSection(systems) {
             ${_sth(thStyle, 'FabricPool')}
             ${_sth(thStyle, 'SnapMirror')}
             ${_sth(thStyle, 'HA')}
-            ${_sth(thStyle, 'QoS')}
+            ${_sth(thStyle, 'AutoSupport')}
             ${_sth(thStyle, 'Score')}
           </tr>
         </thead>
@@ -30643,16 +30691,17 @@ const SUCCESS_PLAN_TEMPLATES = [
       const score = typeof computeAccountHealthScore === 'function' ? computeAccountHealthScore(systems) : null;
       if (score == null || score >= 70) return null;
       // Surface the specific systems missing the most of the 5 real tracked
-      // features (ARP/FabricPool/SnapMirror/HA/QoS) -- the actual real
+      // features (ARP/FabricPool/SnapMirror/HA/AutoSupport) -- the actual real
       // contributors to a low score, not a restatement of the score itself.
+      const _smCountKnown = (s) => (s.snapmirrorCount != null) || (s.snapMirrorCount != null) || !!(s.snapmirror && s.snapmirror.totalCount != null);
       const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
       const featureGaps = systems.map(s => {
         const missing = [];
         if (s.isARPEnabled === false) missing.push('ARP');
         if (s.isFabricPool === false) missing.push('FabricPool');
-        if (_smCount(s) === 0) missing.push('SnapMirror');
+        if (_smCountKnown(s) && _smCount(s) === 0) missing.push('SnapMirror');
         if (s.isHAConfigured === false || s.haConfigured === false) missing.push('HA');
-        if (s.isQoSConfigured === false) missing.push('QoS');
+        if (_getAsupConfiguredState(s) === false) missing.push('AutoSupport');
         return { name: s.systemName, serial: s.serialNumber, missing };
       }).filter(x => x.missing.length > 0).sort((a, b) => b.missing.length - a.missing.length);
       return {
@@ -30660,7 +30709,7 @@ const SUCCESS_PLAN_TEMPLATES = [
         challenges: `This account's computed health score is ${score}/100, below the 70-point target, driven by open risk findings, feature adoption gaps, and/or contract coverage.`,
         objectives: [
           `Raise the account health score from ${score} toward 80+`,
-          'Close the top feature-adoption gaps (ARP/FabricPool/SnapMirror/HA/QoS)',
+          'Close the top feature-adoption gaps (ARP/FabricPool/SnapMirror/HA/AutoSupport)',
         ],
         affectedSystems: featureGaps.slice(0, 12).map(x => ({ name: x.name, serial: x.serial, detail: `Missing: ${x.missing.join(', ')}` })),
         remediationSteps: _uniqueSteps(featureGaps.slice(0, 20).flatMap(x => x.missing.map(m => `Enable ${m} on systems currently missing it`))),
@@ -30836,6 +30885,199 @@ const SUCCESS_PLAN_TEMPLATES = [
         remediationSteps: [
           `Issue reinstatement quotes for ${expired.length} uncovered system(s)`,
           'Confirm current owner/billing contact before initiating renewal',
+        ],
+      };
+    },
+  },
+  // ── TAM-focused: technical relationship health, adoption, visibility ──
+  {
+    key: 'asup_silence', title: 'AutoSupport Connectivity Restoration', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK', 'REDUCED_CRITICAL_ALERTS'],
+    evaluate(systems) {
+      const now = Date.now(), sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      const silent = systems.filter(s => {
+        if (!s.latestAsupDate) return true;
+        const d = new Date(s.latestAsupDate);
+        return isNaN(d) || (now - d.getTime()) > sevenDaysMs;
+      });
+      if (silent.length === 0) return null;
+      return {
+        metricLabel: 'Systems with no AutoSupport in the last 7 days', metricValue: silent.length, targetDirection: 'down',
+        challenges: `${silent.length} system(s) have not sent AutoSupport within the last 7 days (or have never reported one) -- these systems are effectively invisible to proactive risk detection, upgrade recommendations, and this account's own health scoring until connectivity is restored.`,
+        objectives: [
+          `Restore AutoSupport connectivity on ${silent.length} silent system(s)`,
+          'Confirm transport method (HTTPS/SMTP) and outbound firewall/proxy rules are still valid',
+        ],
+        affectedSystems: silent.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: s.latestAsupDate ? `Last AutoSupport: ${String(s.latestAsupDate).slice(0, 10)}` : 'No AutoSupport ever recorded by Active IQ' })),
+        remediationSteps: [
+          'Verify AutoSupport is enabled: `system node autosupport show`',
+          'Test connectivity: `system node autosupport invoke -node * -type test`',
+          'Check outbound network/proxy/firewall rules for the configured transport',
+        ],
+      };
+    },
+  },
+  {
+    key: 'metrocluster_health', title: 'MetroCluster Health Remediation', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK', 'REDUCED_RECOVERY_TIME_OBJECTIVE'],
+    evaluate(systems) {
+      const mcSystems = systems.filter(s => s.isMetroCluster);
+      if (mcSystems.length === 0) return null;
+      const findings = [];
+      mcSystems.forEach(s => (s.risks || []).forEach(r => {
+        const desc = (r.description || '').toLowerCase();
+        if (desc.includes('mediator unreachable') || desc.includes('mauso disabled')) {
+          findings.push({ name: s.systemName, serial: s.serialNumber, detail: r.description, fix: r.recommendation });
+        }
+      }));
+      if (findings.length === 0) return null;
+      return {
+        metricLabel: 'MetroCluster Mediator/AUSO findings', metricValue: findings.length, targetDirection: 'down',
+        challenges: `${findings.length} MetroCluster health finding(s) (Mediator unreachable and/or Automatic Unplanned Switchover disabled) are open across this account's ${mcSystems.length} MetroCluster system(s) -- these directly reduce automatic failover protection during a site outage.`,
+        objectives: [
+          `Restore Mediator connectivity and/or re-enable AUSO on ${findings.length} affected finding(s)`,
+          'Validate MetroCluster switchover readiness after remediation',
+        ],
+        affectedSystems: findings.map(f => ({ name: f.name, serial: f.serial, detail: f.detail })),
+        remediationSteps: _uniqueSteps(findings.map(f => f.fix)),
+      };
+    },
+  },
+  {
+    key: 'hw_firmware_currency', title: 'Hardware Firmware Currency', stage: 'OPERATE_AND_OPTIMIZE',
+    metrics: ['REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      // Same version-comparison logic as computeFleetFirmwareSummary() --
+      // handles P-release suffixes correctly (a naive string !== check
+      // flagged 9.8P21 as "behind" 9.8P20, backwards, earlier this session).
+      const _fwCmp = (cur, rec) => {
+        if (!cur || !rec) return null;
+        if (cur === rec) return true;
+        const _pv = (v) => v.replace(/[Pp](\d)/g, '.$1').split(/[.\-_]+/).map(s => { const n = parseInt(s, 10); return isNaN(n) ? s : n; });
+        const a = _pv(cur), b = _pv(rec);
+        const len = Math.max(a.length, b.length);
+        for (let i = 0; i < len; i++) {
+          const ai = i < a.length ? a[i] : 0, bi = i < b.length ? b[i] : 0;
+          if (typeof ai === 'number' && typeof bi === 'number') { if (ai > bi) return true; if (ai < bi) return false; }
+          else { const sa = String(ai), sb = String(bi); if (sa > sb) return true; if (sa < sb) return false; }
+        }
+        return true;
+      };
+      const behind = [];
+      systems.forEach(s => {
+        const sfw = (Array.isArray(s.systemFirmware) ? s.systemFirmware[0] : s.systemFirmware) || {};
+        const mbfw = s.motherboardFirmware || {};
+        const spBehind = _fwCmp(sfw.currentVersion, sfw.recommendedVersion) === false;
+        const mbBehind = _fwCmp(mbfw.currentVersion, mbfw.recommendedVersion) === false;
+        if (spBehind || mbBehind) {
+          const parts = [];
+          if (spBehind) parts.push(`SP/BMC ${sfw.currentVersion} (recommended ${sfw.recommendedVersion})`);
+          if (mbBehind) parts.push(`Motherboard BIOS ${mbfw.currentVersion} (recommended ${mbfw.recommendedVersion})`);
+          behind.push({ name: s.systemName, serial: s.serialNumber, detail: parts.join('; ') });
+        }
+      });
+      if (behind.length < 2) return null;
+      return {
+        metricLabel: 'Systems behind on SP/BMC or motherboard firmware', metricValue: behind.length, targetDirection: 'down',
+        challenges: `${behind.length} system(s) are running SP/BMC or motherboard firmware below Active IQ's recommended version, per real per-system firmware telemetry.`,
+        objectives: [
+          `Schedule SP/BMC and motherboard firmware updates for ${behind.length} system(s)`,
+          'Sequence with next available maintenance window per site',
+        ],
+        affectedSystems: behind,
+        remediationSteps: [
+          'Update Service Processor firmware: `system service-processor image update`',
+          'Verify post-update SP/BMC version: `system service-processor show`',
+        ],
+      };
+    },
+  },
+  // ── SAM-focused: commercial value, entitlement, renewal efficiency ──
+  {
+    key: 'coterm_opportunity', title: 'Contract Co-Termination Opportunity', stage: 'EXPAND_AND_EVOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      const groups = typeof computeCoTermOpportunities === 'function' ? computeCoTermOpportunities(systems) : [];
+      if (!groups || groups.length === 0) return null;
+      const totalSystems = groups.reduce((n, g) => n + g.length, 0);
+      const biggest = groups.reduce((a, b) => (b.length > a.length ? b : a), groups[0]);
+      return {
+        metricLabel: 'Systems in a contract co-termination window', metricValue: totalSystems, targetDirection: 'down',
+        challenges: `${totalSystems} system(s) across ${groups.length} group(s) have support contracts expiring within 90 days of each other -- the largest group is ${biggest.length} system(s) ending within days of each other, a real opportunity to consolidate into one renewal event instead of ${groups.length} separate ones.`,
+        objectives: [
+          `Propose a single co-termed renewal covering ${biggest.length} system(s) in the largest group`,
+          'Quote all co-term groups together for procurement efficiency',
+        ],
+        affectedSystems: biggest.map(g => ({ name: g.name, serial: g.serial, detail: `Contract ends ${g.end.toISOString().slice(0, 10)}` })),
+        remediationSteps: [
+          'Confirm renewal term length that aligns the group to a single future co-term date',
+          'Issue one consolidated renewal quote instead of per-system quotes',
+        ],
+      };
+    },
+  },
+  {
+    key: 'license_utilization', title: 'Licensed Feature Utilization Gap', stage: 'EXPAND_AND_EVOLVE',
+    metrics: ['REDUCED_COST_PER_TB', 'REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      // Same real licensed-vs-active cross-check already used in the
+      // Feature Adoption tab's Licensed Feature Adoption table -- only the
+      // two packages with a direct telemetry signal (ARP, async SnapMirror)
+      // are checkable; everything else is skipped rather than guessed.
+      const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+      const gaps = [];
+      systems.forEach(s => {
+        (s.licenses || []).forEach(l => {
+          if (!l || !l.package) return;
+          const p = l.package.toLowerCase();
+          if (p.includes('ransomware') && s.isARPEnabled !== true) {
+            gaps.push({ name: s.systemName, serial: s.serialNumber, detail: `Licensed for ${l.package} but Anti-Ransomware Protection is not enabled` });
+          } else if (p.includes('snapmirror') && !p.includes('sync') && _smCount(s) === 0) {
+            gaps.push({ name: s.systemName, serial: s.serialNumber, detail: `Licensed for ${l.package} but no SnapMirror relationship is configured` });
+          }
+        });
+      });
+      if (gaps.length === 0) return null;
+      return {
+        metricLabel: 'Systems licensed for a feature but not using it', metricValue: gaps.length, targetDirection: 'down',
+        challenges: `${gaps.length} system(s) are licensed for a feature (Anti-Ransomware Protection or SnapMirror) that isn't confirmed active, per real Active IQ license and telemetry data -- this is entitlement the customer is already paying for but not realizing value from.`,
+        objectives: [
+          `Enable the licensed-but-unused feature on ${gaps.length} system(s)`,
+          'Use this as a value-realization talking point, not just a technical gap',
+        ],
+        affectedSystems: gaps,
+        remediationSteps: [
+          'Confirm the license is genuinely active (not expired/demo) before enabling',
+          'Enable the corresponding feature and validate it reports active on the next sync',
+        ],
+      };
+    },
+  },
+  // ── MSP-focused: service delivery, SLA, operational consistency ──
+  {
+    key: 'sla_recovery', title: 'Remediation SLA Compliance Recovery', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK', 'REDUCED_CRITICAL_ALERTS'],
+    evaluate(systems) {
+      if (typeof state === 'undefined' || !state.trackerItems || !state.trackerItems.length) return null;
+      const custNames = new Set(systems.map(s => s.customerName).filter(Boolean));
+      if (custNames.size === 0) return null;
+      const items = state.trackerItems.filter(i => custNames.has(i.customerName) && TRACKER_ACTIVE_STATUSES.includes(i.status));
+      if (items.length < 3) return null;
+      const breached = items.filter(_trackerIsOverdue);
+      if (breached.length === 0) return null;
+      const compliancePct = Math.round(((items.length - breached.length) / items.length) * 100);
+      if (compliancePct >= 80) return null;
+      return {
+        metricLabel: 'Remediation Tracker SLA compliance', metricValue: compliancePct, targetDirection: 'up',
+        challenges: `This account's Remediation Tracker shows ${breached.length} of ${items.length} open items past their SLA due date (${compliancePct}% compliance), per this tool's own tracked findings -- below the 80% target used elsewhere in the Customer Portfolio view.`,
+        objectives: [
+          `Bring SLA compliance from ${compliancePct}% back above 80%`,
+          `Triage and assign owners to the ${breached.length} currently-breached item(s)`,
+        ],
+        affectedSystems: breached.slice(0, 20).map(i => ({ name: i.systemName || i.customerName, serial: i.systemSerial || '', detail: `${i.title || 'Tracked item'} -- overdue (${i.severity || 'unspecified'} severity)` })),
+        remediationSteps: [
+          'Assign an owner and realistic due date to each breached item',
+          'Review whether the default SLA policy (Settings) still matches this account\'s real remediation capacity',
         ],
       };
     },

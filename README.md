@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.64-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.65-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -68,7 +68,7 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 | **No account handover support** — transitioning an account means extensive manual documentation | **Account Handover Brief** — structured briefing generated in one click covering fleet context, open risks, contracts, contacts, and pending actions |
 | **No official health score visible per customer** — Active IQ computes one, but a partner-facing view only ever shows an account-wide figure, identical for every customer on that account | **Real per-customer Official Health Score** — `summary(nagpId: ...)` queried once per real customer at harvest time, so the Overview KPI tile, QBR Pack, and Risk & Remediation Brief show each customer's own genuine score (confirmed live: 28 real customers, 28 different scores) alongside this tool's own risk-based score — not the same account-wide number restated for everyone |
 | **Recommendation "Score %" is account-wide** — the same percentage shows for every customer under one Active IQ account, with no way to isolate one customer's own figure | **Real per-customer Recommendation scoring** — `recommendations(customerId: ...)` queried once per real customer, so the TAM Recommendations tab, its export, the QBR Pack, and the CSM tab show each customer's own real Score %, not the account-wide figure |
-| **No suggested next actions for account planning** — a TAM has to manually decide what a customer's Success Plan should say | **12 auto-suggested Success Plan templates** — evaluated against each customer's real risk, security, EOS, contract, capacity, and support-case data; adopting one pre-fills the real Active IQ plan with the actual affected systems, findings, and remediation text behind the trigger — not a generic summary |
+| **No suggested next actions for account planning** — a TAM has to manually decide what a customer's Success Plan should say | **18 auto-suggested Success Plan templates (TAM, SAM, and MSP-focused)** — evaluated against each customer's real risk, security, EOS, contract, capacity, and support-case data; adopting one pre-fills the real Active IQ plan with the actual affected systems, findings, and remediation text behind the trigger — not a generic summary |
 | **Data only refreshes when someone is looking** — Active IQ (and most tools built on it) has no independent "keep this current" mechanism of its own | **Independent auto-refresh scheduler** — a real background timer (default every 4 hours) re-syncs the full fleet from Active IQ even with no browser tab open, so the tool reflects current data at all times, not just when last manually synced |
 | **ARP and ASUP health require individual system checks** — no fleet-wide audit | **Fleet-wide operational health** — ARP enablement, AutoSupport recency, firmware currency, and reboot timeline across all systems at once |
 | **Sustainability requires per-customer navigation** | **Cross-customer ESG dashboard** — fleet sustainability score, carbon/energy data, and data reduction ratios all in one view |
@@ -218,7 +218,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 **Workflow:**
 1. Select the customer from the sidebar filter (or view "All" to see suggestions across the whole portfolio)
-2. Go to **Success Plans** — the **Suggested Success Plans** card lists any of the 12 templates whose real trigger condition is currently met for that customer (e.g. open critical risks, systems without ARP, contracts expiring, capacity runway under 60 days)
+2. Go to **Success Plans** — the **Suggested Success Plans** card lists any of the 18 templates whose real trigger condition is currently met for that customer (e.g. open critical risks, systems without ARP, contracts expiring, capacity runway under 60 days)
 3. Click **Preview full plan** on any suggestion to review the exact content before adopting — the full challenges/goals text with affected systems, every remediation objective, and the TAM notes, built from the same function that constructs the real write-back so nothing differs between preview and post
 4. Check the ones to adopt and click **Adopt Selected**, then confirm the write-back — each adopted suggestion becomes a real Active IQ Success Plan, pre-filled with the actual affected system names/serials, the real finding text (risk descriptions, CVE IDs, EOS dates, case numbers), and the real Active IQ remediation text for each, not a generic summary
 5. The Success Plans table's **Progress** column tracks the real trigger metric from adoption baseline to current value on every view
@@ -293,7 +293,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 1. Sync once — the entire estate is harvested in a single pass, no per-site or per-cluster setup
 2. Use the **Customer Filter** / account-group scoping to slice the fleet by data center, business unit, or environment (prod/DR/dev) instead of by external customer
 3. Use **Technical Audit** for fleet-wide CVE and risk triage across the whole estate — the same per-system CVE cross-referencing a TAM uses across customers works identically across your own business units
-4. Use **Action Planner → Tab 14** (Feature Adoption) to see which optional features (ARP, FabricPool, SnapMirror, HA, QoS) are actually enabled per system, fleet-wide — a common gap in large estates where licensing and configuration drift apart over time
+4. Use **Action Planner → Tab 14** (Feature Adoption) to see which optional features (ARP, FabricPool, SnapMirror, HA, AutoSupport) are actually enabled per system, fleet-wide — a common gap in large estates where licensing and configuration drift apart over time
 5. Generate the **Security Posture Executive Brief** and **Sustainability & ESG Report** for internal security/compliance and ESG reporting cadences — these don't require a "customer" in the TAM sense, just a scope
 6. Use the **Contract Compliance** and **Contracts & Lifecycle** tabs for internal hardware refresh budgeting across the full estate, ranked by urgency, instead of tracking EOA/EOS dates in a separate spreadsheet
 
@@ -418,7 +418,7 @@ Every open finding across the fleet — risks, security bulletins, best-practice
 
 Mirrors NetApp Digital Advisor's own Success Plans feature — confirmed via live GraphQL schema introspection that this is real, queryable, **and writable** Active IQ data, not a local-only construct. Reads real `CustomerSuccessPlan` records (lifecycle stage, health, TAM owner, status) harvested alongside the rest of the fleet; creating or editing a plan writes back to the customer's live Active IQ account via the same explicit-confirmation write-back pattern used for risk acknowledgement, so a plan created here becomes a real Digital Advisor plan visible to the whole team — not a disconnected local copy. There is no delete API for Success Plans, so "Close Plan" (sets status to Closed) is the closest real equivalent.
 
-**Suggested plans**: 12 templates — Critical Risk Remediation, Ransomware & Security Hardening, EOL/EOS Tech Refresh Planning, Support Contract Renewal & Expansion, Operational Health & Feature Optimization, New Deployment Onboarding, Storage Efficiency & Cost Optimization, Disaster Recovery Readiness, OS & Firmware Currency Improvement, Support Case Escalation Review, Capacity Planning & Growth, and Expired Contract Recovery — each evaluates every real customer's harvested data and surfaces a suggestion only when its real trigger condition is met, nothing is generated speculatively. Suggestions are scoped to whichever customer is currently selected in the sidebar (or shown across the whole portfolio when no single customer is selected).
+**Suggested plans**: 18 templates spanning TAM (technical relationship/adoption), SAM (commercial/entitlement value), and MSP (service delivery/SLA) angles — Critical Risk Remediation, Ransomware & Security Hardening, EOL/EOS Tech Refresh Planning, Support Contract Renewal & Expansion, Operational Health & Feature Optimization, New Deployment Onboarding, Storage Efficiency & Cost Optimization, Disaster Recovery Readiness, OS & Firmware Currency Improvement, Support Case Escalation Review, Capacity Planning & Growth, Expired Contract Recovery, AutoSupport Connectivity Restoration, MetroCluster Health Remediation, Hardware Firmware Currency, Contract Co-Termination Opportunity, Licensed Feature Utilization Gap, and Remediation SLA Compliance Recovery — each evaluates every real customer's harvested data and surfaces a suggestion only when its real trigger condition is met, nothing is generated speculatively. Suggestions are scoped to whichever customer is currently selected in the sidebar (or shown across the whole portfolio when no single customer is selected).
 
 Select any number and adopt them in one action; each becomes a real Success Plan via the same write-back. Every template also carries the **specific findings behind its trigger** — real affected system names and serial numbers, real finding text (risk descriptions, CVE IDs, EOS dates, support case numbers), and the real Active IQ remediation text for each. Adopting a suggestion writes this detail into the created plan's challenges/goals, objectives, and TAM notes fields instead of a generic count summary, so the plan is fully actionable from inside Active IQ itself.
 
@@ -449,7 +449,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are 
 | **11** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
 | **12** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **13** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
-| **14** | **Feature Adoption** | Per-system feature matrix — ARP, FabricPool, SnapMirror, HA, and QoS, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 5 real feature checks (e.g. "3/5"), not a blended health score |
+| **14** | **Feature Adoption** | Per-system feature matrix — ARP, FabricPool, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 5 real feature checks (e.g. "3/5"), not a blended health score |
 | **15** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
 | **16** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
 | **17** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
@@ -546,9 +546,9 @@ Counts only real, optional ONTAP feature toggles — not a general health/compli
 |---|---|
 | ARP | Anti-Ransomware Protection enabled (`isARPEnabled`) |
 | FabricPool | Cold-data tiering active (`isFabricPool`) |
-| SnapMirror | At least one SnapMirror relationship configured |
+| SnapMirror | At least one SnapMirror relationship configured (real per-cluster count; excluded from the denominator, not counted as failing, when a system isn't part of any cluster Active IQ returned) |
 | HA | HA pair configured |
-| QoS | Adaptive QoS policy configured (`isQoSConfigured`) |
+| AutoSupport | AutoSupport turned on (real `AutoSupportStatus` enum: ON counts as adopted, OFF/DECLINE as not) — replaced QoS, which was removed after confirming live via GraphQL schema introspection that Active IQ's API has no QoS/adaptive-policy field at all, so that column could never show real data for any customer |
 
 Shown in **Action Planner → Tab 14** as a per-system matrix (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API), with a fleet-wide adoption-rate tile per feature above the table.
 
@@ -556,7 +556,7 @@ Shown in **Action Planner → Tab 14** as a per-system matrix (✅ confirmed ena
 
 ### Success Plan Suggestion Triggers
 
-Each of the 12 templates in **Success Plans → Suggested Success Plans** fires only when its real trigger condition is met against a specific customer's harvested data — never speculatively.
+Each of the 18 templates in **Success Plans → Suggested Success Plans** fires only when its real trigger condition is met against a specific customer's harvested data — never speculatively. Grouped by which role's account-planning angle each one targets.
 
 | Template | Real Trigger | Lifecycle Stage |
 |---|---|---|
@@ -572,6 +572,12 @@ Each of the 12 templates in **Success Plans → Suggested Success Plans** fires 
 | Support Case Escalation Review | ≥2 open Severity 1/2 support cases | Prevent & Solve |
 | Capacity Planning & Growth | ≥1 system with ≤60 days of projected capacity runway | Operate & Optimize |
 | Expired Contract Recovery | ≥1 system with no active support contract | Expand & Evolve |
+| **AutoSupport Connectivity Restoration** *(TAM)* | ≥1 system with no AutoSupport transmission in 7+ days | Prevent & Solve |
+| **MetroCluster Health Remediation** *(TAM)* | ≥1 MetroCluster system with a Mediator-unreachable or AUSO-disabled risk finding | Prevent & Solve |
+| **Hardware Firmware Currency** *(TAM)* | ≥2 systems behind on SP/BMC or motherboard firmware | Operate & Optimize |
+| **Contract Co-Termination Opportunity** *(SAM)* | ≥2 systems with contracts expiring within 90 days of each other | Expand & Evolve |
+| **Licensed Feature Utilization Gap** *(SAM)* | ≥1 system licensed for ARP or SnapMirror but not confirmed using it | Expand & Evolve |
+| **Remediation SLA Compliance Recovery** *(MSP)* | Remediation Tracker SLA compliance below 80% (≥3 open items) | Prevent & Solve |
 
 Adopting a suggestion pre-fills the created Active IQ Success Plan with the specific systems, findings, and remediation text behind that trigger — see [Success Plan Management](#success-plan-management) in Use Cases.
 

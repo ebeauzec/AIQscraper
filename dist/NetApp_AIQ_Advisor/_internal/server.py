@@ -3263,8 +3263,17 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "savedKiB": _saved_kib,
                 "dedupSavedKiB": _dedup_kib,
                 "compactionSavedKiB": _compact_kib,
-                "snapMirrorCount": serial_to_cluster_sm.get(serial, 0),
-                "isHAConfigured": serial_to_cluster_ha.get(serial, False),
+                # Both default to None (not 0/False) when this serial isn't
+                # part of any cluster Active IQ returned -- e.g. StorageGRID/
+                # E-Series systems, or a real ONTAP system with no cluster
+                # object in this harvest. A hardcoded 0/False default made
+                # "Active IQ never reported this" indistinguishable from a
+                # genuine "0 SnapMirror relationships" / "HA not configured"
+                # on a real ONTAP cluster -- confirmed live: systems with
+                # zero cluster data were rendering a hard "confirmed
+                # disabled" in the Feature Matrix instead of "not reported".
+                "snapMirrorCount": serial_to_cluster_sm.get(serial),
+                "isHAConfigured": serial_to_cluster_ha.get(serial),
                 # ── Aggregate / Volume / SVM topology counts ──
                 "localTierCount": (s.get("storageAggregates") or {}).get("totalCount", 0) or 0,
                 "volumeCount": (s.get("storageVolumes") or {}).get("totalCount", 0) or 0,

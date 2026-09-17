@@ -1,8 +1,8 @@
 {
-  "version": "5.6.64",
+  "version": "5.6.65",
   "major": 5,
   "minor": 6,
-  "patch": 64,
+  "patch": 65,
   "date": "2026-09-17",
-  "notes": "Each Suggested Success Plan card now has a 'Preview full plan' toggle showing exactly what will be written to Active IQ if adopted -- the full challenges/goals text with affected systems, every remediation objective, the success metrics, and the TAM notes -- before checking the box and adopting. The preview is built from the same shared function that constructs the real write-back payload, so it can never drift from what actually gets posted."
+  "notes": "Found live that the Feature Adoption Matrix's QoS column always showed '-' for every system -- confirmed via live GraphQL schema introspection that Active IQ's API has no QoS field at all. Replaced QoS everywhere with AutoSupport configuration status, a real field populated on 99.8% of a real fleet with genuine variance. Also fixed a real accuracy bug where HA and SnapMirror defaulted to false/0 (not null) when a system wasn't part of any cluster Active IQ returned, making 'not reported' indistinguishable from 'confirmed disabled' -- StorageGRID/E-Series and ungrouped systems were showing a false negative. Added 6 more Success Plan templates explicitly framed around TAM (AutoSupport Connectivity Restoration, MetroCluster Health Remediation, Hardware Firmware Currency), SAM (Contract Co-Termination Opportunity, Licensed Feature Utilization Gap), and MSP (Remediation SLA Compliance Recovery) account-planning angles, for 18 total."
 }

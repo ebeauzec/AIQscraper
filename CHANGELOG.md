@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.65] - 2026-09-17
+
+### Fixed
+- **QoS was a structurally dead Feature Matrix column** — confirmed via live GraphQL schema introspection that Active IQ's `System` type has no QoS/adaptive-policy field at all (not a harvesting gap, a real API limitation). Replaced with AutoSupport configuration status everywhere QoS was tracked (Feature Matrix, `computeFeatureAdoptionScore`, the CSM checklist, optimization recommendations, Success Plan templates) — a real field (`AutoSupportStatus` enum) populated on 483/484 systems (99.8%) with genuine variance.
+- **HA and SnapMirror false-positive bug**: both defaulted to `false`/`0` in `server.py` when a system wasn't part of any cluster Active IQ returned (StorageGRID, E-Series, or an ungrouped system), making "not reported" indistinguishable from "confirmed disabled" and rendering a hard ❌ for systems Active IQ never assessed. Both now correctly default to `null` (renders as "—"), matching ARP/FabricPool's existing tri-state behavior. Fixed the same "unreported defaults to 0" pattern in three client-side duplicates of the SnapMirror check.
+
+### Added
+- **6 more Success Plan templates (18 total)**, explicitly framed around TAM/SAM/MSP account-planning angles: AutoSupport Connectivity Restoration, MetroCluster Health Remediation, Hardware Firmware Currency (TAM); Contract Co-Termination Opportunity, Licensed Feature Utilization Gap (SAM); Remediation SLA Compliance Recovery (MSP). All follow the same discipline as the existing 12 — real trigger fields, real affected-system detail, real remediation text pre-filled on adopt.
+
+---
+
 ## [5.6.64] - 2026-09-17
 
 ### Added
