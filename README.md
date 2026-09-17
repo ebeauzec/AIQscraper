@@ -66,6 +66,10 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 | **No Reference Library enrichment** — you must manually cross-reference EOA lists, firmware baselines, and MetroCluster ISL specs | **Automatic enrichment from 268+ live sources** — fleet-aware scanner crawls `docs.netapp.com` indexes and `kb.netapp.com` JSON-LD category trees to discover best practices, upgrade guides, troubleshooting procedures, security hardening docs, configuration guides, and 3rd-party integration references. All 13 deliverables receive fleet-relevant references scored by ONTAP version, platform family, and hardware model. |
 | **Version database is static** — you must manually track which ONTAP/StorageGRID/SANtricity versions are current | **Version catalog auto-detection** — scrapes docs.netapp.com during each sync to discover newly released product versions. The upgrade path calculator and latest-version recommendations update automatically without code changes. |
 | **No account handover support** — transitioning an account means extensive manual documentation | **Account Handover Brief** — structured briefing generated in one click covering fleet context, open risks, contracts, contacts, and pending actions |
+| **No official health score visible per customer** — Active IQ computes one, but a partner-facing view only ever shows an account-wide figure, identical for every customer on that account | **Real per-customer Official Health Score** — `summary(nagpId: ...)` queried once per real customer at harvest time, so the Overview KPI tile, QBR Pack, and Risk & Remediation Brief show each customer's own genuine score (confirmed live: 28 real customers, 28 different scores) alongside this tool's own risk-based score — not the same account-wide number restated for everyone |
+| **Recommendation "Score %" is account-wide** — the same percentage shows for every customer under one Active IQ account, with no way to isolate one customer's own figure | **Real per-customer Recommendation scoring** — `recommendations(customerId: ...)` queried once per real customer, so the TAM Recommendations tab, its export, the QBR Pack, and the CSM tab show each customer's own real Score %, not the account-wide figure |
+| **No suggested next actions for account planning** — a TAM has to manually decide what a customer's Success Plan should say | **12 auto-suggested Success Plan templates** — evaluated against each customer's real risk, security, EOS, contract, capacity, and support-case data; adopting one pre-fills the real Active IQ plan with the actual affected systems, findings, and remediation text behind the trigger — not a generic summary |
+| **Data only refreshes when someone is looking** — Active IQ (and most tools built on it) has no independent "keep this current" mechanism of its own | **Independent auto-refresh scheduler** — a real background timer (default every 4 hours) re-syncs the full fleet from Active IQ even with no browser tab open, so the tool reflects current data at all times, not just when last manually synced |
 | **ARP and ASUP health require individual system checks** — no fleet-wide audit | **Fleet-wide operational health** — ARP enablement, AutoSupport recency, firmware currency, and reboot timeline across all systems at once |
 | **Sustainability requires per-customer navigation** | **Cross-customer ESG dashboard** — fleet sustainability score, carbon/energy data, and data reduction ratios all in one view |
 | **Cluster identity gaps** — systems not mapped to a cluster in the API appear unnamed | **Automatic cluster name derivation** — when the API cluster lookup returns empty, the hostname is used with node suffixes stripped (e.g. `A150-CLUSTER-01` → `A150-CLUSTER`) to produce meaningful labels in tables and charts |
@@ -106,6 +110,9 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - OS version catalog for upgrade path calculation
 - Account personnel (Sales Rep, TAM, SAM, ASP, Propensity)
 - **SVM & LIF Inventory** — harvests vserver data (SVM name, type, LIFs with IPs, service policies, failover configuration) from the Active IQ GraphQL API and displays per-node LIF tables in the cabling audit view.
+- **Official Active IQ Health Score** — NetApp's own 0–100 score with a 9-factor breakdown (AutoSupport freshness, OS freshness, firmware, security hardening, sustainability, uptime, EOS exposure, add-on adoption, tech refresh), fetched **per real customer** (not one account-wide figure restated for everyone) via `summary(nagpId: ...)`. Distinct from this tool's own risk-based Account Health Score — both are shown, never conflated.
+- **Per-aggregate storage detail** — real per-aggregate efficiency ratio, FabricPool tiering status, and dedup/compression-disabled volume counts, harvested for every ONTAP system Active IQ reports aggregate telemetry for. Feeds the Risk & Remediation Brief's Storage Efficiency Opportunities section and the Storage Efficiency & Cost Optimization Success Plan template.
+- **Per-customer TAM Recommendation scoring** — Active IQ's `recommendations` Score % fetched once per real customer via `recommendations(customerId: ...)`, so every customer sees their own genuine percentage instead of the account-wide figure.
 
 **Added by the Reference Library (not in Active IQ):**
 - **EOA hardware flags** — for a real system in your fleet, EOA/EOS dates come directly from Active IQ's own `systems` query (`hardwareModel.endOfAvailability`/`endOfSupport`) — live, precise, populated for the large majority of a real fleet (confirmed live: 371/484 systems on a real 484-system fleet). This is the primary source and needs no scraping. A separate, manually-maintained platform-name snapshot exists as a fallback only for the minority of systems Active IQ doesn't report a date for (or platforms not yet in your fleet at all) — ⚠️ **that fallback is a frozen snapshot as of September 2026**, since NetApp stopped publishing per-model EOA/EOS dates in a machine-readable form on the page this tool used to scrape it from. The app clearly labels which source a given finding came from, and the fallback carries an explicit staleness caveat; the live per-system finding does not, because it's real.
@@ -155,7 +162,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 **Goal:** Know which systems are approaching capacity limits — per node, with actual growth rates, not just a percentage bar.
 
 **Workflow:**
-1. Go to **Value & ROI (TAM)** in the sidebar
+1. Go to **Value & ROI** in the sidebar
 2. The capacity chart defaults to **Aggregate** (fleet-wide). Click **Per Node** to see individual node trend lines
 3. The **Capacity Breakdown by Node** table shows: Used TB, Raw TB, Utilisation %, Growth/day, and Runway per node
 4. Nodes approaching limits are colour-coded amber (>70%) and red (>85%)
@@ -205,6 +212,21 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 ---
 
+### Success Plan Management
+
+**Goal:** Give every customer a real, trackable Success Plan in Active IQ Digital Advisor — grounded in that customer's actual data, not a blank template a TAM has to fill in from scratch.
+
+**Workflow:**
+1. Select the customer from the sidebar filter (or view "All" to see suggestions across the whole portfolio)
+2. Go to **Success Plans** — the **Suggested Success Plans** card lists any of the 12 templates whose real trigger condition is currently met for that customer (e.g. open critical risks, systems without ARP, contracts expiring, capacity runway under 60 days)
+3. Review the specific finding and metric shown on each suggestion card, check the ones to adopt, and click **Adopt Selected**
+4. Confirm the write-back — each adopted suggestion becomes a real Active IQ Success Plan, pre-filled with the actual affected system names/serials, the real finding text (risk descriptions, CVE IDs, EOS dates, case numbers), and the real Active IQ remediation text for each, not a generic summary
+5. The Success Plans table's **Progress** column tracks the real trigger metric from adoption baseline to current value on every view
+
+**Output:** A set of customer-specific, fully-populated Success Plans visible to the whole team in Digital Advisor — created in minutes instead of drafted by hand per customer.
+
+---
+
 ### New Account Onboarding / Handover
 
 **Goal:** When assigned a new account, rapidly understand the full fleet context. When handing off, produce a structured briefing.
@@ -244,6 +266,20 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 2. All cluster and MetroCluster switches are inventoried with model and firmware version
 3. ISL parameters (distance, packet loss, jitter, MTU) are validated against Reference Library baselines
 4. Firmware currency is checked against recommended minimums for Cisco NX-OS, Cisco MDS, Brocade FOS, and Broadcom EFOS
+
+---
+
+### Always-Current, Unattended Operation
+
+**Goal:** Have the dashboard reflect genuinely current fleet data at any moment — including first thing in the morning, before anyone has manually synced — without relying on someone remembering to click Sync.
+
+**Workflow:**
+1. In **Settings & Config**, confirm **Auto-Refresh Fleet Data** is enabled (it is by default) and set the interval that matches how often your fleet actually changes (every 1–24 hours; 4 hours is the default)
+2. Leave the server running (`start_dashboard.bat`, a scheduled task, or a persistent service) — no browser tab needs to stay open
+3. The background scheduler re-syncs the full fleet from Active IQ on its own timer, independent of any browser or API traffic, using the same logic as a manual force-sync
+4. Check the status panel any time — it shows the last successful refresh time and any error — or click **Refresh Now** to trigger one immediately
+
+**Output:** Systems, risks, cases, contracts, and every real configuration field (ARP/FabricPool/HA status, firmware, aggregate detail) stay current on their own schedule — the same guarantee the tool already gave reference data (CVE feeds, version catalogs, firmware baselines) via its independent Enrichment Scanner, now extended to the live customer harvest itself.
 
 ---
 
@@ -329,6 +365,8 @@ The sidebar provides eight primary navigation areas:
 
 Fleet-wide KPI cards (systems, clusters, critical risks, open cases), interactive charts (capacity trend, risk distribution, platform mix), and a sortable/filterable system inventory table.
 
+The **Official AIQ Health Score** KPI tile shows Active IQ's own real score — scoped to whichever single customer is selected in the sidebar (falling back to an honestly-labeled fleet-wide figure when no single customer is in scope) — displayed alongside, never in place of, this tool's own risk-based scoring elsewhere in the app.
+
 ### Technical Audit
 
 The risk and security intelligence hub. Displays all Active IQ risks sorted by severity, security advisories with CVE cross-referencing, and Reference Library enrichment checks (Kerberos, SnapMirror, Varonis, firewall deprecation). Each advisory links to the NetApp Security Advisory portal.
@@ -344,7 +382,7 @@ The Controller Node Port Assignments card now includes a **platform-specific rea
 
 Contract status pipeline (Active / Expiring / Expired cards), EOS/EOA lifecycle timeline sorted by urgency, and a filterable support case view (Open / Processing / Closed) with case age and system attachment.
 
-### Value & ROI (TAM)
+### Value & ROI
 
 Storage efficiency and capacity intelligence:
 
@@ -380,7 +418,11 @@ Every open finding across the fleet — risks, security bulletins, best-practice
 
 Mirrors NetApp Digital Advisor's own Success Plans feature — confirmed via live GraphQL schema introspection that this is real, queryable, **and writable** Active IQ data, not a local-only construct. Reads real `CustomerSuccessPlan` records (lifecycle stage, health, TAM owner, status) harvested alongside the rest of the fleet; creating or editing a plan writes back to the customer's live Active IQ account via the same explicit-confirmation write-back pattern used for risk acknowledgement, so a plan created here becomes a real Digital Advisor plan visible to the whole team — not a disconnected local copy. There is no delete API for Success Plans, so "Close Plan" (sets status to Closed) is the closest real equivalent.
 
-**Suggested plans**: 6 templates (Critical Risk Remediation, Ransomware & Security Hardening, EOL/EOS Tech Refresh Planning, Support Contract Renewal & Expansion, Operational Health & Feature Optimization, New Deployment Onboarding) evaluate every real customer's harvested data and surface a suggestion only when its real trigger condition is met — nothing is generated speculatively. Select any number and adopt them in one action; each becomes a real Success Plan via the same write-back. Since Active IQ's Success Plan object has no progress/percentage field, adopting a suggestion records the real trigger metric's value locally (purely local bookkeeping about a real plan id, never written back to Active IQ) and the Success Plans table shows a Progress column with the live baseline-to-current delta on every view.
+**Suggested plans**: 12 templates — Critical Risk Remediation, Ransomware & Security Hardening, EOL/EOS Tech Refresh Planning, Support Contract Renewal & Expansion, Operational Health & Feature Optimization, New Deployment Onboarding, Storage Efficiency & Cost Optimization, Disaster Recovery Readiness, OS & Firmware Currency Improvement, Support Case Escalation Review, Capacity Planning & Growth, and Expired Contract Recovery — each evaluates every real customer's harvested data and surfaces a suggestion only when its real trigger condition is met, nothing is generated speculatively. Suggestions are scoped to whichever customer is currently selected in the sidebar (or shown across the whole portfolio when no single customer is selected).
+
+Select any number and adopt them in one action; each becomes a real Success Plan via the same write-back. Every template also carries the **specific findings behind its trigger** — real affected system names and serial numbers, real finding text (risk descriptions, CVE IDs, EOS dates, support case numbers), and the real Active IQ remediation text for each. Adopting a suggestion writes this detail into the created plan's challenges/goals, objectives, and TAM notes fields instead of a generic count summary, so the plan is fully actionable from inside Active IQ itself.
+
+Since Active IQ's Success Plan object has no progress/percentage field, adopting a suggestion records the real trigger metric's value locally (purely local bookkeeping about a real plan id, never written back to Active IQ) and the Success Plans table shows a Progress column with the live baseline-to-current delta on every view.
 
 ### Settings & Config
 
@@ -403,7 +445,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are 
 | **7** | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
 | **8** | **Contract Compliance** | Compliance posture cards, service tier distribution, per-system HW/SW service levels and EOA/EOS dates |
 | **9** | **Sustainability & ESG** | Fleet Sustainability Score with weekly trend, carbon/energy per system, data reduction ratios per customer |
-| **10** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores |
+| **10** | **Recommendations** | Active IQ key recommendations by category (VERSION, AUTO_SUPPORT, BEST_PRACTICES, CONFIG, ENTITLEMENTS) with rank scores. Score % is each customer's own real figure (`recommendations(customerId: ...)`) when scoped to one customer, not an account-wide number shared across every customer |
 | **11** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
 | **12** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **13** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
@@ -469,6 +511,16 @@ Composite index measuring overall customer account posture. Used in: TAM tab gau
 
 ---
 
+### Official Active IQ Health Score (0-100) — distinct from the Account Health Score above
+
+NetApp's own vendor-issued score, computed by Active IQ itself from AutoSupport freshness, OS freshness, firmware, security hardening, sustainability, uptime, EOS exposure, add-on adoption, and tech refresh. Fetched **per real customer** (`summary(nagpId: ...) { healthScore }`), not derived or re-weighted by this tool — the raw figure Active IQ reports.
+
+**Why two scores exist:** this tool's own Account Health Score (above) is a locally-computed, fully transparent 8-factor blend so a TAM can see and explain exactly why a score is what it is. Active IQ's Official Health Score is the authoritative number NetApp itself publishes, using a real methodology this tool doesn't control or fully see inside. The two can and do genuinely diverge for the same account — that's expected, not a bug, and both are shown side by side (Overview KPI tile, QBR Pack) rather than one silently overwriting the other.
+
+Shown alongside this tool's Account Health Score, never merged with it. Falls back to an honestly-labeled fleet-wide figure only when the current scope spans more than one customer (Active IQ has no single real score for a multi-customer selection).
+
+---
+
 ### Cost of Inaction Score
 Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPICC element "I — Implicate the Pain". Higher = more urgent.
 
@@ -499,6 +551,29 @@ Counts only real, optional ONTAP feature toggles — not a general health/compli
 | QoS | Adaptive QoS policy configured (`isQoSConfigured`) |
 
 Shown in **Action Planner → Tab 14** as a per-system matrix (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API), with a fleet-wide adoption-rate tile per feature above the table.
+
+---
+
+### Success Plan Suggestion Triggers
+
+Each of the 12 templates in **Success Plans → Suggested Success Plans** fires only when its real trigger condition is met against a specific customer's harvested data — never speculatively.
+
+| Template | Real Trigger | Lifecycle Stage |
+|---|---|---|
+| Critical Risk Remediation | ≥1 open critical risk, or ≥3 open high-severity risks | Prevent & Solve |
+| Ransomware & Security Hardening | ≥1 system without ARP enabled, or ≥1 open security-category risk | Prevent & Solve |
+| EOL/EOS Tech Refresh Planning | ≥1 system reaching hardware End of Support within 12 months (real per-system EOA/EOS date) | Expand & Evolve |
+| Support Contract Renewal & Expansion | ≥1 system with a support contract expiring within 90 days | Expand & Evolve |
+| Operational Health & Feature Optimization | Account Health Score below 70 | Operate & Optimize |
+| New Deployment Onboarding | ≥1 system shipped within the last 6 months (real `originalShipDate`) | Onboard & Implement |
+| Storage Efficiency & Cost Optimization | ≥1 aggregate not using FabricPool tiering, or ≥1 aggregate with dedup/compression disabled | Operate & Optimize |
+| Disaster Recovery Readiness | ≥1 system with no SnapMirror, MetroCluster, or SyncMirror protection | Prevent & Solve |
+| OS & Firmware Currency Improvement | ≥3 systems below Active IQ's minimum recommended OS version | Operate & Optimize |
+| Support Case Escalation Review | ≥2 open Severity 1/2 support cases | Prevent & Solve |
+| Capacity Planning & Growth | ≥1 system with ≤60 days of projected capacity runway | Operate & Optimize |
+| Expired Contract Recovery | ≥1 system with no active support contract | Expand & Evolve |
+
+Adopting a suggestion pre-fills the created Active IQ Success Plan with the specific systems, findings, and remediation text behind that trigger — see [Success Plan Management](#success-plan-management) in Use Cases.
 
 ---
 
@@ -598,8 +673,8 @@ The tool maintains a **live security advisory database** in [`security_bulletins
 
 | Metric | Value |
 |--------|-------|
-| **Current advisory entries** | **70+** (grows with each daily scan) |
-| **CISA KEV confirmed** | **3** (actively exploited in the wild) |
+| **Current advisory entries** | **359** (grows with each scheduled scan — check `data/security_bulletins.json`'s `bulletinCount` for the live figure) |
+| **CISA KEV confirmed** | **7** (actively exploited in the wild) |
 | **Coverage period** | 2024 – 2026 |
 | **Products covered** | ONTAP 9, StorageGRID, SnapCenter, Astra Trident, SAN Host Utilities, Active IQ Unified Manager |
 | **Database file** | `data/security_bulletins.json` — single source of truth |
@@ -607,12 +682,13 @@ The tool maintains a **live security advisory database** in [`security_bulletins
 #### How the Database Grows
 
 ```
-Daily scan (08:00)  →  POST /api/bulletins  →  data/security_bulletins.json
+EnrichmentScheduler (background timer, default 6h)  →  scans CISA KEV, NetApp PSIRT,
+NVD, EPSS  →  merges into data/security_bulletins.json (dedup by id)
                                                          ↓
-App startup / Refresh button  →  GET /api/bulletins  →  in-memory DB  →  enriches all systems
+App startup / harvest / Refresh button  →  GET /api/bulletins  →  in-memory DB  →  enriches all systems
 ```
 
-The daily 08:00 background scan reads the NetApp Reference Library, checks `security.netapp.com` and NVD for new advisories, and POSTs any new entries to the running server. The server merges them (deduplicating by `id`) and writes to `data/security_bulletins.json`. **No code edits to `app.js` are ever needed.**
+A real, independent `EnrichmentScheduler` background thread — started automatically when `server.py` launches, and running regardless of whether a browser tab is open — scans CISA KEV, NetApp PSIRT, NVD, and EPSS on a configurable interval (default every 6 hours; **Settings & Config → Enrichment Scanner**) and merges any new entries into `data/security_bulletins.json`, deduplicated by `id`. Every completed fleet harvest (manual or from the separate **Auto-Refresh Fleet Data** scheduler) also triggers a scan if one isn't already running. **No code edits to `app.js` are ever needed.**
 
 #### Adding a New Advisory Manually
 
@@ -676,7 +752,13 @@ Browser (app.js + styles.css + chart.js)
 server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
   │
   ├── NetApp OAuth (api.activeiq.netapp.com) — token exchange
-  └── Active IQ GraphQL (gql.aiq.netapp.com) — 8+ queries
+  ├── Active IQ GraphQL (gql.aiq.netapp.com) — systems/risks/cases/TAM queries,
+  │     plus per-customer summary{healthScore}, per-customer
+  │     recommendations(customerId:...), and per-system aggregates(...)
+  ├── EnrichmentScheduler (background timer) — CVE/PSIRT/NVD/EPSS/version
+  │     catalog/firmware baselines/EOA-EOS/IMT, independent of browser traffic
+  └── HarvestScheduler (background timer) — re-syncs the live fleet itself
+        on its own interval, independent of browser traffic
 ```
 
 <p align="center">
@@ -693,8 +775,8 @@ AIQscraper/
 ├── tools/           ← Developer utilities, diagnostic & probe scripts
 │   └── firmware_harvester.py  ← Multi-source firmware version harvester
 │   └── reference_harvester.py  ← IMT interop version harvester (9 vendor scrapers)
-├── server.py        ← Python HTTP server + API harvester + firmware auto-discovery
-├── app.js           ← Frontend application (~26K lines)
+├── server.py        ← Python HTTP server + API harvester + firmware auto-discovery + background schedulers
+├── app.js           ← Frontend application (~34.5K lines)
 ├── index.html       ← Compiled single-file build
 ├── index_src.html   ← Dev HTML shell (loads external app.js + styles.css)
 ├── styles.css       ← Dark-theme CSS
@@ -708,16 +790,16 @@ AIQscraper/
 
 | File | Size | Role |
 |---|---|---|
-| `server.py` | ~400 KB | Python HTTP server. OAuth exchange, 8+ GQL queries, normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery |
-| `app.js` | ~2.0 MB | ~33,500 lines JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 19-tab Action Planner renderer, deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library, Success Plans (real Active IQ read/write) |
-| `index_src.html` | ~86 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
-| `index.html` | ~90 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
-| `styles.css` | ~28 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
-| `chart.js` | ~209 KB | Local copy of Chart.js library (vendored) |
-| `data/security_bulletins.json` | ~83 KB | Live CVE/NTAP advisory database for offline security matching |
-| `data/firmware_baselines.json` | ~10 KB | Ground-truth firmware recommendations |
-| `data/imt_interop.json` | ~25 KB | IMT interoperability matrix — version compatibility for 20+ third-party integrations (Veeam, Commvault, VMware, Hyper-V, etc.) |
-| `tools/reference_harvester.py` | ~25 KB | Reference data harvester — ecosystem docs, firmware baselines, IMT vendor version scraping |
+| `server.py` | ~560 KB / ~10,000 lines | Python HTTP server. OAuth exchange, GraphQL queries (systems/risks/cases/TAM data, per-customer health score, per-customer recommendations, per-aggregate detail), normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery, `EnrichmentScheduler` (reference data) and `HarvestScheduler` (live fleet data) background timers |
+| `app.js` | ~2.0 MB / ~34,500 lines | JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 19-tab Action Planner renderer, deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library, Success Plans (real Active IQ read/write, 12 auto-suggestion templates) |
+| `index_src.html` | ~128 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
+| `index.html` | ~125 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
+| `styles.css` | ~31 KB | Dark-theme CSS, glassmorphism effects, responsive layout |
+| `chart.js` | ~204 KB | Local copy of Chart.js library (vendored) |
+| `data/security_bulletins.json` | ~400 KB | Live CVE/NTAP advisory database for offline security matching (359 entries as of last sync) |
+| `data/firmware_baselines.json` | ~15 KB | Ground-truth firmware recommendations, auto-refreshed by the firmware harvester |
+| `data/imt_interop.json` | ~21 KB | IMT interoperability matrix — version compatibility for 20+ third-party integrations (Veeam, Commvault, VMware, Hyper-V, etc.) |
+| `tools/reference_harvester.py` | ~60 KB | Reference data harvester — ecosystem docs, firmware baselines, IMT vendor version scraping |
 | `start_dashboard.bat` | ~1 KB | Windows batch launcher |
 | `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher with Python version check |
 | `launcher.py` | ~8 KB | Desktop app wrapper (pywebview) |
@@ -726,10 +808,14 @@ AIQscraper/
 
 ```
 1. User pastes Refresh Token → Settings → Sync Now
+   (or: HarvestScheduler fires on its own timer — no user action needed)
 2. server.py: exchange Refresh Token → Access Token (NetApp OAuth, TLS 1.2+)
-3. server.py: 8+ GraphQL queries to gql.aiq.netapp.com
+3. server.py: GraphQL queries to gql.aiq.netapp.com
       Systems · Clusters · Risks · Cases · Watchlists
-      Recommendations · Sustainability · Sites · Contracts · OS Catalog
+      Recommendations (account-wide) · Sustainability · Sites · Contracts · OS Catalog
+      Official Health Score — summary(nagpId: ...) { healthScore }, once per real customer
+      TAM Recommendation scores — recommendations(customerId: ...), once per real customer
+      Per-aggregate detail — aggregates(systemSerialNumber: ...), per ONTAP system
 4. server.py: normalize response
       – Flatten nested objects
       – Map HA partners
@@ -738,6 +824,8 @@ AIQscraper/
       – Extract switches from port connectivity data
 5. server.py: cache full result to SQLite (aiq_cache.db)
 6. server.py: return normalized JSON to browser
+      – After every harvest, triggers the EnrichmentScheduler's fast scan if
+        one isn't already due (CVE/PSIRT/NVD/EPSS/version catalog)
 7. app.js: enrichSystemTelemetry() runs on each system
       – Reference Library: EOA flags, CVE version-range matching,
         Kerberos AES detection, SnapMirror policy alignment,
@@ -749,7 +837,22 @@ AIQscraper/
         Space saved: deDuplicationSavedKiB + compactionSavedKiB
 8. app.js: store enriched systems in localStorage
 9. app.js: render across sidebar tabs, charts, Action Planner
+      – Official Health Score / TAM Recommendation Score % resolve to the
+        selected customer's own real figure when one customer is in scope
 ```
+
+**Independent of the request/response flow above:** `EnrichmentScheduler` and `HarvestScheduler` are both real background `threading.Timer` loops started when `server.py` launches. Neither depends on a browser request to fire — see [Background Schedulers](#background-schedulers) below.
+
+### Background Schedulers
+
+Two independent background timers run inside `server.py`, both started automatically at launch and both continuing to run whether or not a browser tab is open:
+
+| Scheduler | Class | Default Interval | Refreshes |
+|---|---|---|---|
+| **Harvest Scheduler** | `HarvestScheduler` | 4 hours (configurable 1–24h) | The live fleet itself — systems, clusters, risks, cases, TAM data, and every real configuration field. Calls the same `_background_sync()` logic a manual force-sync uses. Controlled from **Settings & Config → Auto-Refresh Fleet Data**; status/trigger via `GET /api/auto-harvest/status` and `POST /api/auto-harvest/run` |
+| **Enrichment Scheduler** | `EnrichmentScheduler` | 6 hours (fast group), 7 days (KB crawl) | Reference/ground-truth data — CISA KEV, NetApp PSIRT, NVD, EPSS, ONTAP/StorageGRID/SANtricity version catalog, firmware baselines, EOA/EOS, IMT interop, KB articles. Controlled from **Settings & Config → Enrichment Scanner**; status/trigger via `GET /api/enrich/status` and `POST /api/enrich/scan` |
+
+Both use the same pattern: a self-rescheduling `threading.Timer` (daemon thread), a `status()` method the UI polls, an `update_config()` method for live interval changes from Settings without a server restart, and a `run_now()` method for the manual "Refresh Now" / "Scan Now" buttons. A standalone 48-hour loop (`_firmware_harvest_loop`) also re-checks `data/firmware_baselines.json` against NetApp's published firmware as a fallback, independent of both schedulers above.
 
 ### Efficiency Calculation
 
