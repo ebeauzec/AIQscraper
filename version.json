@@ -1,8 +1,8 @@
 {
-  "version": "5.6.66",
+  "version": "5.6.67",
   "major": 5,
   "minor": 6,
-  "patch": 66,
+  "patch": 67,
   "date": "2026-09-17",
-  "notes": "The Value Insights card's 'We recommend:' list was capped at 3 items with a '+N more -- see Section 12' link. It now lists every distinct recommendation directly in the tile, already ordered by real affected-system count (highest impact first), with the existing dedup-by-label logic (e.g. BIOS/DISK_FIRMWARE/SHELF_FIRMWARE/SP_BMC collapsing to one 'Plan firmware & system file updates' entry) preserved so nothing repeats."
+  "notes": "Deliverables were referencing features and vendors a customer's fleet doesn't actually have -- e.g. a customer with zero MetroCluster nodes had 'MetroCluster Issues' listed as a corrective action. Root cause: the enrichment KB matching engine scored articles as fleet-relevant from a title-text match against the fleet's ONTAP version/platform alone, never checking whether the customer's own systems have that feature. Added feature gates: MetroCluster/FabricPool/SnapMirror/ARP require confirmed presence on the customer's own systems; SnapLock, Zero Trust, MAV, Antivirus, Encryption, Audit, and every third-party vendor (Veeam, Commvault, VMware, Oracle, Cisco, Kubernetes/Trident, etc.) have no backing field in Active IQ's API at all, so none of them can earn fleet-specific relevance anymore. Also fixed a redundant IMT interoperability signal pass that leaked one customer's vendor evidence into another's findings, a dormant bug rendering literal 'NVE: undefined%' and fabricating NVE/Audit/SnapLock/MAV as top gaps in every deliverable, and unreliable MetroCluster/StorageGRID detection that could miss real systems."
 }

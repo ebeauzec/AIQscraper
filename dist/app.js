@@ -27,9 +27,28 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.66";
+const APP_VERSION = "5.6.67";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.67",
+    date: "17 September 2026",
+    title: "Deliverables Are Now Customer-Specific: No More MetroCluster/SnapLock/Vendor References for Fleets That Don't Have Them",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Deliverables Referenced Features and Vendors a Customer's Fleet Doesn't Actually Have",
+        color: "#f87171",
+        items: [
+          "Found live: a customer with zero MetroCluster nodes had 'MetroCluster Issues'/'MetroCluster KBs' listed as corrective actions in their Executive Risk Assessment. Root cause: the enrichment KB matching engine (getFleetRelevantArticles) scored a MetroCluster/SnapLock/Veeam/Oracle/Cisco/etc. article as 'fleet-relevant' purely from a title-text match against the fleet's ONTAP version or platform -- never checking whether THIS customer's systems actually have that feature or vendor. Since this engine feeds all 13 deliverable types (Risk Assessment, Success Plan, QBR Pack, MSP Report, Handover Brief, Security Brief, Sustainability Report, and more), the pollution was fleet-wide.",
+          "Added explicit feature gates: MetroCluster, FabricPool, SnapMirror, and ARP are real, reliably-populated Active IQ fields, so those now require actual confirmed presence on the customer's own systems before their KB content is included. Every other item on the old title-match list -- SnapLock, Zero Trust, Multi-Admin Verification, Antivirus/VSCAN, Encryption (NVE/NAE), Audit logging, and every third-party product (Veeam, Commvault, Rubrik, Cohesity, HYCU, VMware, Cisco, Brocade, Broadcom, Oracle, SQL Server, SAP HANA, Kubernetes/Trident, Hyper-V, Proxmox, Nutanix, CrowdStrike, Splunk, Varonis, SnapCenter) -- has no backing field anywhere in Active IQ's API, so none of it can ever be confirmed per customer and none of it earns fleet-specific relevance anymore. Verified live: a real 171-system customer account with no MetroCluster now shows zero MetroCluster/SnapLock/vendor mentions, while an 8-system real MetroCluster fleet still surfaces its MetroCluster content correctly.",
+          "Fixed the same class of bug feeding IMT Interoperability Validation: a second, redundant signal-detection pass scanned the whole account's ~800-article KB library (harvested across every customer) rather than the customer's own systems, so one customer's VMware/Veeam/etc. evidence could fabricate an interoperability finding for a completely different customer with no such evidence. Removed it -- the primary per-system detection pass was already correct and is now the only source.",
+          "Fixed a dormant bug in the Feature Adoption line of every Executive Risk Assessment and the Sales Proposal's 'Bottom Performers' gap list: NVE, Audit, SnapLock, and MAV were tracked as feature-matrix fields that were never actually populated, so they always evaluated to 'not present' -- rendering a literal 'NVE: undefined%' in every deliverable, and fabricating NVE/Audit/SnapLock/MAV as top gaps for every underperforming system regardless of their real configuration. Removed the four dead fields; the Feature Adoption line and gap list now only report the four real, confirmable metrics (ARP, FabricPool, SnapMirror, HA).",
+          "Fixed MetroCluster/StorageGRID/E-Series detection in the TAM Success Plan text to use the same reliable fields used elsewhere (isMetroCluster; the _isPlatformStorageGRID helper, since live StorageGRID nodes report platform as 'SG6160'/'SG100' with no literal 'StorageGRID' string) instead of a weaker platform-string substring match that could miss real MetroCluster/StorageGRID systems and silently omit a section that should have been there.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.66",
     date: "17 September 2026",
@@ -18209,6 +18228,57 @@ function getFleetRelevantArticles(targetSystems) {
     (s.protocols || []).forEach(p => fleetProtocols.add(p.toLowerCase()));
   });
 
+  // ── Feature-specific gates ────────────────────────────────────────────
+  // KB content about an optional, per-system feature (MetroCluster,
+  // FabricPool, SnapLock, a third-party integration, etc.) is only relevant
+  // if THIS customer's fleet actually has it -- a generic ONTAP-version or
+  // platform-name match elsewhere in scoreArticle() is not evidence of that.
+  // Without this gate, e.g. a "MetroCluster IP ISL troubleshooting" KB shows
+  // up for every fleet whose ONTAP version happens to appear in the title,
+  // even fleets with zero MetroCluster nodes -- deliverables need to be
+  // tailored to what's actually deployed, not polluted with content about
+  // features the customer doesn't run.
+  // MetroCluster/FabricPool/SnapMirror/ARP are real, reliably-populated
+  // Active IQ fields, so those are gated on the fleet's actual data. Every
+  // other entry below has NO backing field anywhere in this app's data
+  // model -- isSnapLockEnabled/isMAVEnabled/isAuditEnabled/nvEncryptionEnabled
+  // were removed earlier as fields the Active IQ schema doesn't expose, and
+  // third-party products (backup software, hypervisors, databases, SAN
+  // switch vendors, container platforms) were never visible to Active IQ at
+  // all -- there is no way to confirm any of them per customer, so a title
+  // match alone must never grant fleet-specific relevance.
+  const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+  const hasMetroCluster = targetSystems.some(s => s.isMetroCluster || (s.platformType || '').includes('MetroCluster'));
+  const hasFabricPool = targetSystems.some(s => s.isFabricPool === true || s.fabricPoolEnabled === true);
+  const hasSnapMirror = targetSystems.some(s => _smCount(s) > 0);
+  // ARP is a configurable toggle any modern ONTAP system can turn on, not an
+  // infra prerequisite like MetroCluster -- gate on the status being KNOWN
+  // (confirmed true or false) rather than already-enabled, so fleets that
+  // have it confirmed disabled still get adoption guidance, not just fleets
+  // that already use it.
+  const hasARP = targetSystems.some(s => s.isARPEnabled != null);
+  const featureGates = [
+    { keywords: ['metrocluster'], present: hasMetroCluster },
+    { keywords: ['fabricpool'], present: hasFabricPool },
+    { keywords: ['snapmirror', 'sync mirror', 'syncmirror'], present: hasSnapMirror },
+    { keywords: ['anti-ransomware', 'antiransomware', 'ransomware', ' arp '], present: hasARP },
+    // No backing field anywhere in this app's data model -- never confirmable per customer.
+    { keywords: ['snaplock', 'worm storage', 'compliance clock'], present: false },
+    { keywords: ['zero trust'], present: false },
+    { keywords: ['multi-admin', ' mav'], present: false },
+    { keywords: ['antivirus', 'vscan'], present: false },
+    { keywords: ['encryption', ' nve', ' nae', 'key manager', 'key-manager'], present: false },
+    { keywords: ['audit logging', 'audit log'], present: false },
+    { keywords: ['veeam', 'commvault', 'rubrik', 'cohesity', 'hycu'], present: false },
+    { keywords: ['vmware', 'vsphere', 'esxi', 'vvols', 'srm ', 'site recovery manager'], present: false },
+    { keywords: ['cisco', 'brocade', 'broadcom'], present: false },
+    { keywords: ['oracle', 'sql server', 'mssql', 'sap hana', 'sap '], present: false },
+    { keywords: ['kubernetes', 'trident', 'astra'], present: false },
+    { keywords: ['hyper-v', 'proxmox', 'nutanix'], present: false },
+    { keywords: ['crowdstrike', 'splunk', 'varonis'], present: false },
+    { keywords: ['snapcenter'], present: false },
+  ];
+
   // ── Pre-filter: reject generic landing/index pages ─────────────────────
   // These are category indexes with very short titles and no actionable content.
   // Examples: "Cloud", "Legacy", "All Products", "ONTAP", "Upgrade", "Videos"
@@ -18266,6 +18336,21 @@ function getFleetRelevantArticles(targetSystems) {
     const cat = (a.category || '').toLowerCase();
     const relevance = (a.relevance || '').toLowerCase();
 
+    // Feature-gated content: an article about an optional/configurable
+    // feature or third-party product must be confirmed present on THIS
+    // fleet before it can be treated as relevant. Checked first and short-
+    // circuits to 0 so no other anchor below (ONTAP version, platform,
+    // model) can smuggle an absent-feature article in on a coincidental
+    // match -- e.g. a MetroCluster KB whose title also happens to mention
+    // this fleet's ONTAP version.
+    for (const gate of featureGates) {
+      if (gate.keywords.some(kw => title.includes(kw))) {
+        if (!gate.present) return 0;
+        score += 40;
+        hasFleetAnchor = true;
+      }
+    }
+
     // Fleet-specific articles get highest score
     if (a._fleetRelevant) { score += 50; hasFleetAnchor = true; }
 
@@ -18318,16 +18403,6 @@ function getFleetRelevantArticles(targetSystems) {
       for (const kw of opsKeywords) {
         if (title.includes(kw)) { score += 5; break; }
       }
-    }
-
-    // Integration vendor keyword boosts — these are specific enough to count
-    // as fleet-relevant IF the fleet actually uses the protocol/product
-    const vendorKeywords = ['veeam', 'commvault', 'rubrik', 'cohesity', 'hycu', 'vmware', 'vsphere',
-                            'cisco', 'brocade', 'broadcom', 'oracle', 'sql server', 'sap hana',
-                            'kubernetes', 'trident', 'hyper-v', 'proxmox', 'nutanix', 'crowdstrike',
-                            'splunk', 'varonis', 'snapcenter', 'metrocluster', 'fabricpool'];
-    for (const kw of vendorKeywords) {
-      if (title.includes(kw)) { score += 8; hasFleetAnchor = true; break; }
     }
 
     // If relevance field mentions fleet
@@ -19521,13 +19596,22 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   });
 
   // ── MetroCluster systems ──
-  const mccSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('metrocluster') || (s.platform || '').toLowerCase().includes('mcc'));
+  // isMetroCluster is the real, reliably-populated Active IQ field -- a
+  // platform-string match alone misses real MC systems whose platform is
+  // just e.g. "AFF-A700" (the MC role isn't part of the platform name).
+  const mccSystems = targetSystems.filter(s => s.isMetroCluster || (s.platformType || '').toLowerCase().includes('metrocluster') || (s.platform || '').toLowerCase().includes('metrocluster') || (s.platform || '').toLowerCase().includes('mcc'));
 
   // ── StorageGRID systems ──
-  const sgSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('storagegrid') || (s.osType || '') === 'StorageGRID');
+  // Live API StorageGRID nodes report platform as "SG6160"/"SG100" etc. --
+  // no literal "StorageGRID" string -- so reuse the broader helper used
+  // elsewhere instead of a plain substring match that would miss them.
+  const sgSystems = targetSystems.filter(s => _isPlatformStorageGRID(s));
 
   // ── SANtricity/E-Series systems ──
-  const sanSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('e-series') || (s.platform || '').toLowerCase().includes('ef') || s.santricityVersion);
+  const sanSystems = targetSystems.filter(s => !_isPlatformStorageGRID(s) && (!!s.santricityVersion ||
+    (s.platform || '').toLowerCase().includes('e-series') || (s.platform || '').toLowerCase().includes('ef6') ||
+    (s.platform || '').toLowerCase().includes('ef3') || (s.platform || '').toLowerCase().includes('ef5') ||
+    (s.platform || '').toLowerCase().includes('ef8') || /^(28|29|57|40)\d{2}$/.test((s.platform || '').trim())));
 
   // ── Upgrade text with full hop details ──
   const upgradesText = allUpgrades.map(u => {
@@ -21785,7 +21869,7 @@ function renderFleetUptimeCard(targetSystems) {
 }
 
 function computeFleetFeatureMatrix(targetSystems) {
-  const features = { arp: 0, fabricPool: 0, nve: 0, snapMirror: 0, ha: 0, audit: 0, snapLock: 0, mav: 0 };
+  const features = { arp: 0, fabricPool: 0, snapMirror: 0, ha: 0 };
   const perSystem = [];
   const total = targetSystems.length;
   targetSystems.forEach(s => {
@@ -22183,26 +22267,15 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
     if (!_fleetSignals.rhev && (allText.includes('rhev') || allText.includes('ovirt') || allText.includes('red hat virtualization'))) _fleetSignals.rhev = true;
     if (!_fleetSignals.docker && (allText.includes('docker') || allText.includes('podman') || allText.includes('container'))) _fleetSignals.docker = true;
     if (!_fleetSignals.vmware_vsphere && (allText.includes('vsphere') || allText.includes('vcenter') || allText.includes('vvol'))) _fleetSignals.vmware_vsphere = true;
-    // Also detect from enrichment KB articles if available
-    const kbArts = (state.enrichmentKB && state.enrichmentKB.articles) || [];
-    kbArts.forEach(a => {
-      const at = ((a.title || '') + ' ' + (a.url || '')).toLowerCase();
-      if (at.includes('vmware') || at.includes('esxi')) _fleetSignals.vmware = true;
-      if (at.includes('vsphere') || at.includes('vcenter')) _fleetSignals.vmware_vsphere = true;
-      if (at.includes('trident') || at.includes('kubernetes')) _fleetSignals.kubernetes = true;
-      if (at.includes('snapcenter')) _fleetSignals.snapcenter = true;
-      if (at.includes('veeam')) _fleetSignals.veeam = true;
-      if (at.includes('commvault')) _fleetSignals.commvault = true;
-      if (at.includes('netbackup') || at.includes('veritas')) _fleetSignals.veritas = true;
-      if (at.includes('openstack') || at.includes('manila') || at.includes('cinder')) _fleetSignals.openstack = true;
-      if (at.includes('citrix') || at.includes('xenserver')) _fleetSignals.citrix = true;
-      if (at.includes('proxmox')) _fleetSignals.proxmox = true;
-      if (at.includes('nutanix') || at.includes('ahv')) _fleetSignals.nutanix = true;
-      if (at.includes('rhev') || at.includes('ovirt') || at.includes('red hat virtualization')) _fleetSignals.rhev = true;
-      if (at.includes('hyper-v') || at.includes('hyperv')) _fleetSignals.hyperv = true;
-      if (at.includes('docker') || at.includes('podman')) _fleetSignals.docker = true;
-    });
   });
+  // NOTE: signals are intentionally derived only from targetSystems above --
+  // an earlier version also scanned state.enrichmentKB.articles (the whole
+  // account's ~800-article KB library, harvested across every customer) and
+  // OR'd its vendor mentions into _fleetSignals. That meant any customer
+  // could inherit e.g. "vmware" or "veeam" just because some OTHER customer
+  // in the account had that KB article persisted, which then fabricated
+  // IMT interoperability findings (runIMTInteropCheck below) claiming THIS
+  // customer runs a vendor integration they have no evidence of.
 
   // Map targetSystems to format expected by runIMTInteropCheck
   const _imtSystems = targetSystems.map(s => ({
@@ -22262,8 +22335,7 @@ CAPACITY RISK
   Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : ''}
 
 FEATURE ADOPTION:     ${fm.fleetAvgScore}% fleet average (${fm.perSystem.length > 0 ? fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + (fm.perSystem.length * 15) + ' best-practice criteria met' : 'N/A'})
-  ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  NVE: ${fm.pct.nve}%  SnapMirror: ${fm.pct.snapMirror}%
-  HA: ${fm.pct.ha}%  Audit: ${fm.pct.audit}%  SnapLock: ${fm.pct.snapLock}%  MAV: ${fm.pct.mav}%
+  ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
   Integrations Checked: ${Object.keys(_fleetSignals).filter(k => _fleetSignals[k]).length}
@@ -22936,7 +23008,7 @@ ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remai
     salesProposals += `\nFEATURE ADOPTION UPLIFT [STANDARDS & ADOPTION + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
   Fleet Average: ${fm.fleetAvgScore}%  |  Bottom Performers:
-${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; if (!s.arp) gaps.push('ARP'); if (!s.fabricPool) gaps.push('FabricPool'); if (!s.nve) gaps.push('NVE'); if (!s.snapMirror) gaps.push('SnapMirror'); if (!s.ha) gaps.push('HA'); if (!s.audit) gaps.push('Audit'); if (!s.snapLock) gaps.push('SnapLock'); if (!s.mav) gaps.push('MAV'); return `    • ${s.name}: ${s.score}/${s.total} (${s.pct}%) — gaps: ${gaps.slice(0, 3).join(', ')}`; }).join('\n')}
+${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; if (!s.arp) gaps.push('ARP'); if (!s.fabricPool) gaps.push('FabricPool'); if (!s.snapMirror) gaps.push('SnapMirror'); if (!s.ha) gaps.push('HA'); return `    • ${s.name}: ${s.score}/${s.total} (${s.pct}%) — gaps: ${gaps.slice(0, 3).join(', ')}`; }).join('\n')}
   → Professional Services enablement engagement
   → NetApp Learning Services training credits
 `;

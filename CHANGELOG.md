@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.67] - 2026-09-17
+
+### Fixed
+- **Deliverables referenced features and vendors a customer's fleet doesn't actually have.** A customer with zero MetroCluster nodes had "MetroCluster Issues"/"MetroCluster KBs" listed as corrective actions in their Executive Risk Assessment. Root cause: `getFleetRelevantArticles`'s relevance scoring matched KB article titles against the fleet's ONTAP version/platform alone, with no check on whether the customer's own systems actually have the feature or vendor product the article is about. Since this engine feeds all 13 deliverable types, the pollution was fleet-wide.
+- **Added feature gates**: MetroCluster, FabricPool, SnapMirror, and ARP are real, reliably-populated Active IQ fields, so those now require confirmed presence on the customer's own systems. SnapLock, Zero Trust, Multi-Admin Verification, Antivirus/VSCAN, Encryption (NVE/NAE), Audit logging, and every third-party product (Veeam, Commvault, Rubrik, Cohesity, HYCU, VMware, Cisco, Brocade, Broadcom, Oracle, SQL Server, SAP HANA, Kubernetes/Trident, Hyper-V, Proxmox, Nutanix, CrowdStrike, Splunk, Varonis, SnapCenter) have no backing field anywhere in Active IQ's API — none of them can be confirmed per customer, so none of them earn fleet-specific relevance anymore. Verified live: a real 171-system customer account with no MetroCluster now shows zero MetroCluster/SnapLock/vendor mentions in its deliverables, while a real 8-system MetroCluster fleet still surfaces its MetroCluster content correctly.
+- **IMT Interoperability Validation false positives**: removed a redundant signal-detection pass that scanned the whole account's ~800-article KB library (harvested across every customer) instead of the customer's own systems — one customer's VMware/Veeam evidence could fabricate an interoperability finding for a completely different customer with no such evidence.
+- **Dormant "undefined%" bug**: the Feature Adoption line of every Executive Risk Assessment, and the Sales Proposal's "Bottom Performers" gap list, tracked NVE/Audit/SnapLock/MAV fields that were never actually populated by `computeFleetFeatureMatrix` — always evaluating to "not present" and rendering a literal `NVE: undefined%`, while fabricating NVE/Audit/SnapLock/MAV as top gaps for every underperforming system regardless of real configuration. Removed the four dead fields; both now report only the four real, confirmable metrics (ARP, FabricPool, SnapMirror, HA).
+- **Unreliable MetroCluster/StorageGRID/E-Series detection** in the TAM Success Plan text: switched to the same reliable fields used elsewhere (`isMetroCluster`; the `_isPlatformStorageGRID` helper, since live StorageGRID nodes report platform as "SG6160"/"SG100" with no literal "StorageGRID" string) instead of a weaker platform-string substring match that could silently miss real systems and omit a section that should have been shown.
+
+---
+
 ## [5.6.66] - 2026-09-17
 
 ### Changed

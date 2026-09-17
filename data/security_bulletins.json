@@ -3,7 +3,7 @@
   "lastUpdated": "2026-09-17",
   "lastScanned": "2026-09-17",
   "source": "dynamic — authoritative store, updated by scan",
-  "bulletinCount": 359,
+  "bulletinCount": 374,
   "bulletins": [
     {
       "id": "NTAP-20260112-0001",
@@ -9857,6 +9857,436 @@
       "_source": "scan",
       "epssScore": 0.00218,
       "epssPercentile": 0.12426
+    },
+    {
+      "id": "ntap-20250711-0009",
+      "cve": [
+        "CVE-2025-6021"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-6021 Libxml2 Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate libxml2. Libxml2 versions through 2.14.3 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Element Software"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "NetApp Manageability SDK": [
+          "https://mysupport.netapp.com/site/products/all/details/netapp-manageability-sdk/downloads-tab/download/60427/9.8P10"
+        ],
+        "ONTAP 9": [
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.12.1P20",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.13.1P19",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.14.1P15",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.15.1P16",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.16.1P9",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.17.1P2",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.18.1"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-07-11",
+      "link": "https://security.netapp.com/advisory/ntap-20250711-0009/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.01367,
+      "epssPercentile": 0.70451
+    },
+    {
+      "id": "ntap-20250718-0004",
+      "cve": [
+        "CVE-2025-49796"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2025-49796 Libxml2 Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate libxml2. Libxml2 versions through 2.14.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager",
+        "Element Software"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.18"
+        ],
+        "NetApp Manageability SDK": [
+          "https://mysupport.netapp.com/site/products/all/details/netapp-manageability-sdk/downloads-tab/download/60427/9.8P11"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-07-18",
+      "link": "https://security.netapp.com/advisory/ntap-20250718-0004/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.0149,
+      "epssPercentile": 0.72792
+    },
+    {
+      "id": "ntap-20260121-0009",
+      "cve": [
+        "CVE-2025-38181"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-38181 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-01-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260121-0009/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00485,
+      "epssPercentile": 0.40635
+    },
+    {
+      "id": "ntap-20260123-0004",
+      "cve": [
+        "CVE-2025-39942"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-39942 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-01-23",
+      "link": "https://security.netapp.com/advisory/ntap-20260123-0004/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00282,
+      "epssPercentile": 0.20782
+    },
+    {
+      "id": "ntap-20260121-0003",
+      "cve": [
+        "CVE-2025-38249"
+      ],
+      "cvss": 7.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-38249 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-01-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260121-0003/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00164,
+      "epssPercentile": 0.05998
+    },
+    {
+      "id": "ntap-20250724-0013",
+      "cve": [
+        "CVE-2025-30754",
+        "CVE-2025-50106",
+        "CVE-2025-30749"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "July 2025 Java Platform Standard Edition Vulnerabilities in NetApp Products",
+      "description": "Multiple NetApp products incorporate the Oracle Java Platform, Standard Edition (Java SE). Java SE versions 8u451, 8u451-perf, 11.0.27, 17.0.15, 21.0.7, 24.0.1 are susceptible to vulnerabilities which when successfully exploited could allow an unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE. Refer to “Oracle Critical Patch Update Advisory - July 2025” for additional details.",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.18P2"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-07-24",
+      "link": "https://security.netapp.com/advisory/ntap-20250724-0013/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.01095,
+      "epssPercentile": 0.63876
+    },
+    {
+      "id": "ntap-20250530-0001",
+      "cve": [
+        "CVE-2025-31115"
+      ],
+      "cvss": 8.7,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-31115 XZ Utils Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate XZ Utils. XZ Utils versions 5.3.3alpha through 5.8.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-05-30",
+      "link": "https://security.netapp.com/advisory/ntap-20250530-0001/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00651,
+      "epssPercentile": 0.49499
+    },
+    {
+      "id": "ntap-20250321-0006",
+      "cve": [
+        "CVE-2025-24928"
+      ],
+      "cvss": 7.8,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-24928 Libxml2 Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate libxml2. libxml2 versions prior to 2.12.10 and 2.13.x prior to 2.13.6 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager",
+        "Element Software / NetApp HCI",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "NetApp Manageability SDK": [
+          "https://mysupport.netapp.com/site/products/all/details/netapp-manageability-sdk/downloads-tab/download/60427/9.8P10"
+        ],
+        "ONTAP 9": [
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.11.1P20",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.12.1P18",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.13.1P17",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.14.1P14",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.15.1P10",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.16.1P4",
+          "https://mysupport.netapp.com/site/products/all/details/ontap9/downloads-tab/download/62286/9.17.1"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-03-21",
+      "link": "https://security.netapp.com/advisory/ntap-20250321-0006/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00385,
+      "epssPercentile": 0.32171
+    },
+    {
+      "id": "ntap-20250613-0008",
+      "cve": [
+        "CVE-2025-27363"
+      ],
+      "cvss": 8.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-27363 Freetype Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Freetype. Freetype versions through 2.13.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP Tools for VMware vSphere",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.16P2"
+        ],
+        "ONTAP tools for VMware vSphere 10": [
+          "https://mysupport.netapp.com/site/products/all/details/otv10/downloads-tab/download/65001/10.5"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-06-13",
+      "link": "https://security.netapp.com/advisory/ntap-20250613-0008/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.27775,
+      "epssPercentile": 0.9799,
+      "cisaKev": true,
+      "cisaKevDateAdded": "2025-05-06",
+      "cisaKevDueDate": "2025-05-27",
+      "cisaKevAction": "Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue use of the product if mitigations are unavailable."
+    },
+    {
+      "id": "ntap-20251010-0011",
+      "cve": [
+        "CVE-2025-7709"
+      ],
+      "cvss": 6.9,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-7709 SQLite Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate SQLite. SQLite version 3.49.1 is susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.13",
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.14"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-10-10",
+      "link": "https://security.netapp.com/advisory/ntap-20251010-0011/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00345,
+      "epssPercentile": 0.27866
+    },
+    {
+      "id": "ntap-20251003-0011",
+      "cve": [
+        "CVE-2025-9230"
+      ],
+      "cvss": 5.6,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-9230 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.5, 3.4, 3.3, 3.2, 3.0, 1.1.1 and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager",
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-10-03",
+      "link": "https://security.netapp.com/advisory/ntap-20251003-0011/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.01554,
+      "epssPercentile": 0.73893
+    },
+    {
+      "id": "ntap-20250919-0009",
+      "cve": [
+        "CVE-2025-4373"
+      ],
+      "cvss": 4.8,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-4373 Glib Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate glib. Glib versions prior to 2.84.2 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Active IQ Unified Manager for VMware vSphere": [
+          "https://mysupport.netapp.com/site/products/all/details/activeiq-unified-manager/downloads-tab/download/62791/9.16"
+        ],
+        "AFF/ASA/FAS Baseboard Management Controller (BMC) - A1K/A90/A70/C80/FAS90/FAS70": [
+          "https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics/download/SYSTEM/30810575_ontap/SP_FW_308-10575_18.6.zip"
+        ],
+        "FAS/AFF Baseboard Management Controller (BMC) - C190/A150/A220/FAS2720/FAS2750": [
+          "https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics/download/SYSTEM/30810472_ontap/SP_FW_308-10472_11.13.zip"
+        ],
+        "AFF/ASA/FAS Baseboard Management Controller (BMC) - A50/A30/A20/C60/C30/FAS50": [
+          "https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics/download/SYSTEM/30810577_ontap/SP_FW_308-10577_19.4.zip"
+        ],
+        "FAS/AFF Baseboard Management Controller (BMC) - A800/C800": [
+          "https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics/download/SYSTEM/30810470_ontap/SP_FW_308-10470_10.11.zip"
+        ],
+        "FAS/AFF Baseboard Management Controller (BMC) - FAS2820": [
+          "https://mysupport.netapp.com/site/downloads/firmware/system-firmware-diagnostics/download/SYSTEM/30810471_ontap/SP_FW_308-10471_17.5.zip"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-09-19",
+      "link": "https://security.netapp.com/advisory/ntap-20250919-0009/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.0053,
+      "epssPercentile": 0.43498
+    },
+    {
+      "id": "ntap-20260417-0010",
+      "cve": [
+        "CVE-2026-32597"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-32597 PyJWT Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate PyJWT. PyJWT versions prior to 2.12.0 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-04-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260417-0010/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00269,
+      "epssPercentile": 0.19107
+    },
+    {
+      "id": "ntap-20260204-0002",
+      "cve": [
+        "CVE-2025-68813"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-68813 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-04",
+      "link": "https://security.netapp.com/advisory/ntap-20260204-0002/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00202,
+      "epssPercentile": 0.10341
+    },
+    {
+      "id": "ntap-20260902-0012",
+      "cve": [
+        "CVE-2026-65182"
+      ],
+      "cvss": 9.1,
+      "severity": "critical",
+      "category": "PSIRT",
+      "title": "CVE-2026-65182 Apache Tomcat Vulnerability in NetApp Products",
+      "description": "Apache Tomcat versions 11.0.0-M1 through 11.0.24, 10.1.0-M1 through 10.1.57, 9.0.0.M1 through 9.0.120, 8.5.0 through 8.5.100 (EOL), and 7.0.0 through 7.0.109 (EOL) are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-02",
+      "link": "https://security.netapp.com/advisory/ntap-20260902-0012/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.0059,
+      "epssPercentile": 0.46641
     }
   ]
 }
