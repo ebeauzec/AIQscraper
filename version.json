@@ -1,8 +1,8 @@
 {
-  "version": "5.6.62",
+  "version": "5.6.63",
   "major": 5,
   "minor": 6,
-  "patch": 62,
+  "patch": 63,
   "date": "2026-09-17",
-  "notes": "Fixed a live-found bug where Suggested Success Plans always showed every customer's suggestions regardless of the sidebar's selected customer -- now correctly scoped via getFilteredSystems(), same as every other tab. Added 6 more suggestion templates (12 total): Storage Efficiency & Cost Optimization, Disaster Recovery Readiness, OS & Firmware Currency Improvement, Support Case Escalation Review, Capacity Planning & Growth, and Expired Contract Recovery. Every template now also returns the real specific system names/serials/findings (real risk descriptions, CVE IDs, EOS dates, case numbers) and the real Active IQ remediation text behind each trigger, not just a summary count -- adopting a suggestion now pre-fills the real Success Plan's customerChallengesAndGoals, objectives, and tamNotes with this detail, so the plan is fully actionable and trackable from inside Active IQ itself."
+  "notes": "Added a real, independent background scheduler (HarvestScheduler, threading.Timer-based, same pattern as the existing EnrichmentScheduler for reference data) that re-syncs live Active IQ fleet data -- systems, risks, cases, TAM data, and every real configuration field -- on its own timer (default 4h), regardless of whether anyone has the app open. Previously only reference/ground-truth data (CVE feeds, version catalogs, firmware baselines) had a true background refresh; the actual customer harvest only ever ran as a side effect of an incoming browser request, so the tool could go stale indefinitely if left running unattended. New 'Auto-Refresh Fleet Data' card in Settings & Config with an enable/disable toggle, interval selector, live status, and manual 'Refresh Now' trigger."
 }

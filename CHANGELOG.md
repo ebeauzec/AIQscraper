@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.63] - 2026-09-17
+
+### Added
+- **Auto-refresh for live Active IQ fleet data.** Reference/ground-truth data (CVE/PSIRT bulletins, version catalogs, firmware baselines, EOA/EOS, IMT interop) already refreshed on its own independent background timer; the actual per-customer harvest (systems, risks, cases, TAM data, real configuration fields) did not -- it only refreshed as a side effect of an incoming browser request, so the tool could go stale indefinitely if left running unattended. New `HarvestScheduler` (same `threading.Timer` pattern as the existing `EnrichmentScheduler`) re-syncs on its own timer, default every 4 hours, enabled by default.
+- **New "Auto-Refresh Fleet Data" card in Settings & Config**: enable/disable toggle, interval selector (1-24h), live status panel (last successful refresh, any error), and a manual "Refresh Now" button.
+
+---
+
 ## [5.6.62] - 2026-09-17
 
 ### Fixed

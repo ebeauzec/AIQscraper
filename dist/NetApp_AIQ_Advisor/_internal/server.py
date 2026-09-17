@@ -135,6 +135,7 @@ def _get_accounts(cfg=None):
 
 # Enrichment scanner state
 _enrichment_scheduler = None  # Set during server startup
+_harvest_scheduler = None  # Set during server startup -- see HarvestScheduler
 # Guards concurrent read-modify-write access to BULLETINS_PATH — scanners 1-4
 # (CISA KEV, PSIRT, NVD, EPSS) all upsert into the same security_bulletins.json
 # and now run concurrently via a thread pool, so each must hold this lock for
@@ -4297,6 +4298,102 @@ def scan_and_persist_advisories(nvd_api_key=None):
     }
 
 # ─────────────────────────────────────────────────────────────────────
+# Harvest Scheduler — Scheduled Background Auto-Refresh of Live Fleet Data
+# The EnrichmentScheduler below (and the standalone 48h firmware-baseline
+# loop, and the one-shot startup advisory scan) already keep REFERENCE data
+# fresh -- CVE/PSIRT bulletins, ONTAP/StorageGRID/SANtricity version
+# catalogs, firmware baselines, EOA/EOS, IMT interop -- purely on their own
+# wall-clock timers, independent of any browser/API traffic.
+#
+# What none of that touches is the actual per-customer Active IQ harvest
+# itself (systems, clusters, risks, cases, TAM data, and every real
+# per-system configuration field -- ARP/FabricPool/HA status, contract
+# state, firmware versions, aggregate detail, etc.). That only ever
+# refreshed as a side effect of an incoming /api/harvest request (see
+# handle_harvest's background re-sync trigger) -- if the app is left
+# running with no browser tab open, this data goes stale indefinitely.
+# HarvestScheduler closes that gap: a real, independent timer that calls
+# the exact same _background_sync() used by a manual force-sync, so the
+# cached data /api/harvest serves is always recently refreshed even with
+# zero UI traffic.
+# ─────────────────────────────────────────────────────────────────────
+
+class HarvestScheduler:
+    """Background scheduler that periodically re-syncs live Active IQ
+    harvest data (systems/risks/cases/config), independent of any browser
+    or API traffic, on a configurable interval."""
+
+    def __init__(self, interval_hours=4):
+        self._interval = max(1, interval_hours) * 3600
+        self._timer = None
+        self._running = False
+        self._last_sync = None
+        self._last_error = None
+
+    def start(self):
+        # First run 3 minutes after startup -- long enough that a manual
+        # sync the user kicks off right after launching isn't immediately
+        # duplicated by this timer.
+        self._timer = threading.Timer(180, self._do_sync)
+        self._timer.daemon = True
+        self._timer.start()
+        print(f'  [AUTO-HARVEST] Scheduler started (interval: {self._interval // 3600}h)', flush=True)
+
+    def stop(self):
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
+    def update_config(self, interval_hours=None):
+        if interval_hours is not None:
+            new_interval = max(1, interval_hours) * 3600
+            if new_interval != self._interval:
+                self._interval = new_interval
+                if self._timer:
+                    self._timer.cancel()
+                self._schedule_next()
+                print(f'  [AUTO-HARVEST] Interval updated to {interval_hours}h', flush=True)
+
+    def run_now(self):
+        """Manual trigger (from /api/auto-harvest/run POST)."""
+        if self._running:
+            return {'status': 'already_running'}
+        threading.Thread(target=self._do_sync, daemon=True, name='auto-harvest-manual').start()
+        return {'status': 'started'}
+
+    def status(self):
+        return {
+            'enabled': True,
+            'intervalHours': self._interval // 3600,
+            'lastSync': self._last_sync,
+            'lastError': self._last_error,
+            'isRunning': self._running,
+        }
+
+    def _schedule_next(self):
+        self._timer = threading.Timer(self._interval, self._do_sync)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def _do_sync(self):
+        self._running = True
+        try:
+            # _background_sync() catches its own exceptions and no-ops
+            # harmlessly (logs "Sync already in progress") if a manual sync
+            # is already running -- safe to call unconditionally here.
+            print('  [AUTO-HARVEST] Scheduled auto-refresh starting...', flush=True)
+            _background_sync()
+            self._last_sync = datetime.now(timezone.utc).isoformat()
+            self._last_error = None
+        except Exception as e:
+            self._last_error = str(e)
+            print(f'  [AUTO-HARVEST] Scheduled auto-refresh failed: {e}', flush=True)
+        finally:
+            self._running = False
+            self._schedule_next()
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Enrichment Scanner — Scheduled Background Auto-Enrichment
 # Scans 6 free public sources on a configurable interval:
 #   1. CISA KEV (Known Exploited Vulnerabilities catalog)
@@ -7823,6 +7920,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_enrich_status()
         elif self.path.startswith('/api/enrich'):
             self.handle_enrich()
+        elif self.path == '/api/auto-harvest/status':
+            self.handle_auto_harvest_status()
         elif self.path.startswith('/api/bulletins/scan'):
             self.handle_bulletins_scan()
         elif self.path.startswith('/api/bulletins'):
@@ -8179,6 +8278,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_bulletins_post()
         elif self.path == '/api/enrich/scan':
             self.handle_enrich_scan()
+        elif self.path == '/api/auto-harvest/run':
+            self.handle_auto_harvest_run()
         elif self.path == '/api/asup/import':
             self.handle_asup_import()
         elif self.path == '/api/asup/associate':
@@ -8771,6 +8872,34 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(result).encode('utf-8'))
 
+    def handle_auto_harvest_status(self):
+        """GET /api/auto-harvest/status — Return the harvest scheduler's status."""
+        global _harvest_scheduler
+        if _harvest_scheduler:
+            status = _harvest_scheduler.status()
+        else:
+            status = {'enabled': False, 'lastSync': None, 'isRunning': False}
+        res = json.dumps(status).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(res)
+
+    def handle_auto_harvest_run(self):
+        """POST /api/auto-harvest/run — Manually trigger a scheduled-style auto-refresh."""
+        global _harvest_scheduler
+        if not _harvest_scheduler:
+            self.send_response(503)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'error': 'Harvest scheduler not running'}).encode('utf-8'))
+            return
+        result = _harvest_scheduler.run_now()
+        self.send_response(202)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(result).encode('utf-8'))
+
     def handle_asup_delete(self):
         """DELETE /api/asup/imports?serial=XXX — remove an ASUP import."""
         try:
@@ -9048,6 +9177,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "hasToken": bool(cfg.get("refreshToken") or cfg.get("refresh_token")),
                 "enrichEnabled": cfg.get("enrichEnabled", True),
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
+                "autoHarvestEnabled": cfg.get("autoHarvestEnabled", True),
+                "autoHarvestIntervalHours": cfg.get("autoHarvestIntervalHours", 4),
                 "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
                 "hasGithubToken": bool(cfg.get("githubToken", "")),
                 # Remediation SLA policy: days-to-remediate by severity, used by
@@ -9126,6 +9257,10 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "autoHarvestEnabled" in body:
+                cfg["autoHarvestEnabled"] = bool(body["autoHarvestEnabled"])
+            if "autoHarvestIntervalHours" in body:
+                cfg["autoHarvestIntervalHours"] = max(1, int(body["autoHarvestIntervalHours"]))
             if "costPerTiB" in body:
                 try:
                     cfg["costPerTiB"] = max(0, float(body["costPerTiB"]))
@@ -9180,6 +9315,19 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     interval_hours=cfg.get('enrichIntervalHours', 12),
                     nvd_api_key=cfg.get('nvdApiKey') or None
                 )
+            # Update (or start/stop) the harvest scheduler if its config changed
+            global _harvest_scheduler
+            _auto_harvest_enabled = cfg.get('autoHarvestEnabled', True)
+            if _auto_harvest_enabled and not _harvest_scheduler:
+                _harvest_scheduler = HarvestScheduler(interval_hours=cfg.get('autoHarvestIntervalHours', 4))
+                _harvest_scheduler.start()
+                print('  [AUTO-HARVEST] Scheduler enabled via Settings', flush=True)
+            elif not _auto_harvest_enabled and _harvest_scheduler:
+                _harvest_scheduler.stop()
+                _harvest_scheduler = None
+                print('  [AUTO-HARVEST] Scheduler disabled via Settings', flush=True)
+            elif _harvest_scheduler:
+                _harvest_scheduler.update_config(interval_hours=cfg.get('autoHarvestIntervalHours', 4))
             # Write back
             CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             has_token = bool(cfg.get("refreshToken") or cfg.get("refresh_token"))
@@ -9746,6 +9894,19 @@ if __name__ == '__main__':
             _enrichment_scheduler.start()
     except Exception as _sched_err:
         print(f'  [STARTUP] Enrichment scheduler failed to start: {_sched_err}', flush=True)
+
+    # Start harvest scheduler -- keeps live Active IQ fleet data (systems,
+    # risks, cases, config) fresh on its own timer, independent of whether
+    # anyone has the app open. Defaults on: this is the gap the reference-
+    # data schedulers above don't cover.
+    try:
+        _cfg2 = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.exists() else {}
+        if _cfg2.get('autoHarvestEnabled', True):
+            _auto_harvest_interval = int(_cfg2.get('autoHarvestIntervalHours', 4))
+            _harvest_scheduler = HarvestScheduler(interval_hours=_auto_harvest_interval)
+            _harvest_scheduler.start()
+    except Exception as _hsched_err:
+        print(f'  [STARTUP] Harvest scheduler failed to start: {_hsched_err}', flush=True)
 
     # Start firmware baselines harvester (runs every 48h in background as fallback)
     def _firmware_harvest_loop():

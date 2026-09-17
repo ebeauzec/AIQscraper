@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.62-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.63-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -384,7 +384,7 @@ Mirrors NetApp Digital Advisor's own Success Plans feature — confirmed via liv
 
 ### Settings & Config
 
-API token management, sync interval, custom account groups, watchlist IDs, and state export/import.
+API token management, sync interval, custom account groups, watchlist IDs, and state export/import. Includes an **Auto-Refresh Fleet Data** control: a real, independent background scheduler (default every 4 hours, toggle on/off) that keeps systems/risks/cases/configuration data current even when nobody has the app open -- distinct from the separate Enrichment Scanner, which refreshes reference data (CVE feeds, version catalogs, firmware baselines) on its own schedule.
 
 ---
 

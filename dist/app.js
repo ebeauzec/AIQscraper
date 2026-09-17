@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.62";
+const APP_VERSION = "5.6.63";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.63",
+    date: "17 September 2026",
+    title: "New -- Auto-Refresh: Live Fleet Data Now Stays Current With No One Watching",
+    sections: [
+      {
+        icon: "✨",
+        label: "New -- Independent Background Scheduler for Live Active IQ Data",
+        color: "#22c55e",
+        items: [
+          "Found on investigation: reference/ground-truth data (CVE/PSIRT bulletins, ONTAP/StorageGRID/SANtricity version catalogs, firmware baselines, EOA/EOS, IMT interop) already refreshes on its own real background timer, independent of the app being open. The actual per-customer Active IQ harvest -- systems, risks, cases, TAM data, and every real configuration field (ARP/FabricPool/HA status, contracts, firmware, aggregate detail) -- did not: it only ever refreshed as a side effect of an incoming browser request.",
+          "New HarvestScheduler runs on its own threading.Timer, completely independent of any browser tab or API call, calling the exact same sync logic a manual force-refresh uses. Defaults to every 4 hours and starts automatically -- left running unattended, the tool now stays current on its own.",
+          "New 'Auto-Refresh Fleet Data' card in Settings & Config: enable/disable toggle, interval selector (1-24h), live status (last successful refresh, any error), and a manual 'Refresh Now' button -- mirrors the existing Enrichment Scanner card's UX.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.62",
     date: "17 September 2026",
@@ -29299,6 +29316,8 @@ async function saveSettings() {
 
   // Persist enrichment scanner settings to server
   await saveEnrichmentConfig();
+  // Persist auto-refresh (harvest scheduler) settings to server
+  await saveAutoHarvestConfig();
 
   if (!mockToggle) {
     // Switching to live API mode: clear all mock data from state and localStorage
@@ -29430,6 +29449,87 @@ async function saveEnrichmentConfig() {
     console.log("[ENRICH] Config saved to server.");
   } catch (err) {
     console.warn("[ENRICH] Could not save enrichment config:", err);
+  }
+}
+
+async function triggerAutoHarvestNow() {
+  const statusText = document.getElementById("autoHarvestStatusText");
+  const statusLed = document.getElementById("autoHarvestStatusLed");
+  if (statusText) statusText.textContent = "Starting refresh...";
+  if (statusLed) statusLed.style.background = "#fbbf24";
+
+  try {
+    const res = await fetch("/api/auto-harvest/run", { method: "POST" });
+    const data = await res.json();
+    if (data.status === "started") {
+      if (statusText) statusText.textContent = "Refresh in progress — this can take a couple of minutes...";
+      if (statusLed) { statusLed.style.background = "#fbbf24"; statusLed.style.animation = "pulse 1.5s infinite"; }
+      setTimeout(() => refreshAutoHarvestStatus(), 15000);
+      setTimeout(() => refreshAutoHarvestStatus(), 60000);
+      setTimeout(() => refreshAutoHarvestStatus(), 150000);
+    } else if (data.status === "already_running") {
+      if (statusText) statusText.textContent = "Refresh already in progress...";
+    }
+  } catch (err) {
+    console.warn("[AUTO-HARVEST] Trigger failed:", err);
+    if (statusText) statusText.textContent = "Trigger failed — is the server running?";
+    if (statusLed) statusLed.style.background = "#ef4444";
+  }
+}
+
+async function refreshAutoHarvestStatus() {
+  const statusText = document.getElementById("autoHarvestStatusText");
+  const statusLed = document.getElementById("autoHarvestStatusLed");
+  const statusTime = document.getElementById("autoHarvestStatusTime");
+
+  try {
+    const res = await fetch("/api/auto-harvest/status");
+    const data = await res.json();
+
+    if (data.isRunning) {
+      if (statusText) statusText.textContent = "Refresh in progress...";
+      if (statusLed) { statusLed.style.background = "#fbbf24"; statusLed.style.animation = "pulse 1.5s infinite"; }
+      if (statusTime) statusTime.textContent = "";
+    } else if (data.lastSync) {
+      const lastDt = new Date(data.lastSync);
+      const ageMs = Date.now() - lastDt.getTime();
+      const ageH = Math.round(ageMs / 3600000);
+      const failed = !!data.lastError;
+      if (statusText) statusText.innerHTML = failed
+        ? `<span style="color: var(--status-critical);">⚠</span> Last scheduled refresh failed: ${(data.lastError || '').replace(/</g, '&lt;')}`
+        : `<span style="color: var(--accent-green);">✓</span> Last auto-refresh completed`;
+      if (statusLed) {
+        statusLed.style.animation = "none";
+        statusLed.style.background = failed ? "#ef4444" : (ageH < (data.intervalHours || 4) * 2 ? "#2dd4bf" : "#fbbf24");
+      }
+      if (statusTime) statusTime.textContent = ageH < 1 ? "< 1h ago" : `${ageH}h ago`;
+      if (data.intervalHours) {
+        const sel = document.getElementById("settingsAutoHarvestInterval");
+        if (sel) sel.value = data.intervalHours.toString();
+      }
+    } else {
+      if (statusText) statusText.textContent = data.enabled ? "Scheduler active — waiting for first refresh..." : "Auto-refresh disabled";
+      if (statusLed) { statusLed.style.background = data.enabled ? "#fbbf24" : "var(--text-muted)"; statusLed.style.animation = "none"; }
+    }
+  } catch (err) {
+    if (statusText) statusText.textContent = "Server not connected — start server.py for auto-refresh";
+    if (statusLed) { statusLed.style.background = "var(--text-muted)"; statusLed.style.animation = "none"; }
+  }
+}
+
+async function saveAutoHarvestConfig() {
+  if (!state.isRunningViaProxy) return;
+  try {
+    const autoHarvestEnabled = document.getElementById("settingsAutoHarvestEnabled")?.checked ?? true;
+    const autoHarvestIntervalHours = parseInt(document.getElementById("settingsAutoHarvestInterval")?.value) || 4;
+    await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ autoHarvestEnabled, autoHarvestIntervalHours })
+    });
+    console.log("[AUTO-HARVEST] Config saved to server.");
+  } catch (err) {
+    console.warn("[AUTO-HARVEST] Could not save config:", err);
   }
 }
 
@@ -31826,13 +31926,19 @@ function switchTab(tabId) {
 
     // Load and display enrichment scanner status
     refreshEnrichmentStatus();
-    // Load enrichment config from server
+    // Load and display auto-refresh (harvest scheduler) status
+    refreshAutoHarvestStatus();
+    // Load enrichment + auto-refresh config from server
     if (state.isRunningViaProxy) {
       fetch("/api/config").then(r => r.json()).then(cfg => {
         const enrichToggle = document.getElementById("settingsEnrichEnabled");
         const enrichInterval = document.getElementById("settingsEnrichInterval");
         if (enrichToggle && cfg.enrichEnabled !== undefined) enrichToggle.checked = cfg.enrichEnabled;
         if (enrichInterval && cfg.enrichIntervalHours) enrichInterval.value = cfg.enrichIntervalHours.toString();
+        const autoHarvestToggle = document.getElementById("settingsAutoHarvestEnabled");
+        const autoHarvestInterval = document.getElementById("settingsAutoHarvestInterval");
+        if (autoHarvestToggle && cfg.autoHarvestEnabled !== undefined) autoHarvestToggle.checked = cfg.autoHarvestEnabled;
+        if (autoHarvestInterval && cfg.autoHarvestIntervalHours) autoHarvestInterval.value = cfg.autoHarvestIntervalHours.toString();
       }).catch(() => {});
     }
   }
