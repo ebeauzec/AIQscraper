@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.67";
+const APP_VERSION = "5.6.68";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.68",
+    date: "17 September 2026",
+    title: "SAM Tab: Replaced Fake Hypervisor/Database/Backup Detection with Real Protocol Data",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- \"Enterprise Workload Alignments & 3rd-Party Integrations\" Always Showed \"Not Reported\"",
+        color: "#f87171",
+        items: [
+          "User asked whether anything could be done with a card that permanently showed 'Not reported by Active IQ API for these systems' for Orchestration & Hypervisors, Database & Workload, and Data Protection & Backup. Investigated live via GraphQL schema introspection: Active IQ has a CloudInsightsHost type with real operatingSystem/isHypervisor fields, but it's unreachable from System, Cluster, Vserver, or the query root -- there is no path to real hypervisor/database/backup vendor identification anywhere in the API. Confirmed structurally: Active IQ is storage-side-only telemetry with no visibility into what's connecting to the storage.",
+          "Found a real, already-harvested and already-wired substitute one level down: Cluster.vservers[].logicalInterfaces[].serviceConfiguration.dataProtocols -- genuine per-LIF protocol data (NFS/CIFS/iSCSI/FCP/S3), already flowing end-to-end from server.py's cluster query through to sys.vservers on every system, and already used elsewhere in the app via getSystemSvms(). Retired getSystemIntegrations()'s workload-card usage and the now-fully-dead getSystemWorkloadRecommendations() (its one real line -- a MetroCluster AUSO check gated on the genuine isMetroCluster field -- was preserved).",
+          "Replaced the three sub-cards with SAN Protocols (Block), NAS Protocols (File/Object), and Storage-Native Data Protection -- real per-scope protocol counts, real SnapMirror/HA/MetroCluster coverage, and an honest coverage note for systems with no SVM concept (StorageGRID/E-Series) or no LIF data reported. Recommendations are now generic, vendor-neutral, protocol-grounded tips (e.g. 'Verify FC switch zoning...', 'Verify SMBv1 is disabled...') instead of fabricated vendor-specific ones. Verified live: SAN Protocols correctly shows FCP: 222 systems / iSCSI: 74 systems, NAS Protocols shows NFS: 192 / CIFS: 146 / S3: 44, and Data Protection shows the real SnapMirror (60/484), HA (369/484), and MetroCluster (28) counts -- both the fleet-aggregate and single-system views confirmed working.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.67",
     date: "17 September 2026",
@@ -12380,61 +12397,56 @@ function getSystemIntegrations(sys) {
   };
 }
 
-function getSystemWorkloadRecommendations(sys) {
-  const ints = getSystemIntegrations(sys);
-  const recs = [];
-  
-  if (sys.isMetroCluster || (sys.platformType || '').includes("MetroCluster")) {
-    recs.push(`<strong>[MetroCluster]</strong> Active-Active stretch cluster detected. Best Practice: Configure VMware vSphere HA Admission Control with 50% CPU and memory reservations to ensure failover capacity.`);
-    recs.push(`<strong>[MetroCluster]</strong> Best Practice: Verify that automatic unplanned switchover (AUSO) is enabled via ONTAP command: <code>metrocluster operation show</code> to protect against sudden power loss.`);
-  }
+// Real, per-system protocol profile from Active IQ's per-SVM LIF data
+// (serviceConfiguration.dataProtocols via getSystemSvms()) -- replaces the
+// hypervisor/database/backup vendor guesses above, which getSystemIntegrations()
+// can never actually populate (no such field exists in Active IQ's API).
+// Protocol mix is real telemetry; it can't name a specific hypervisor or
+// database vendor, but it's honest and still useful for a SAM/TAM audit.
+function getSystemProtocolProfile(sys) {
+  const svms = getSystemSvms(sys);
+  if (svms === null) return null; // StorageGRID/E-Series -- no SVM concept
+  const protocols = new Set();
+  svms.forEach(v => (v.protocols || []).forEach(p => protocols.add(p)));
+  const sanSet = ['iSCSI', 'FCP', 'NVMe/FC'];
+  const nasSet = ['NFS', 'CIFS', 'S3'];
+  return {
+    svmCount: svms.length,
+    protocols: [...protocols],
+    san: [...protocols].filter(p => sanSet.includes(p)),
+    nas: [...protocols].filter(p => nasSet.includes(p)),
+    hasData: protocols.size > 0,
+  };
+}
 
-  // Virtualization Recommendations
-  if (ints.virtualization.type.includes("VMware vSphere")) {
-    recs.push(`<strong>[VMware]</strong> ONTAP Tools VASA Provider is active. Best Practice: Ensure VAAI (vStorage APIs for Array Integration) is enabled on ESXi hosts to offload copy operations.`);
-    recs.push(`<strong>[VMware]</strong> Multipathing is set to Round Robin (VMW_PSP_RR). Best Practice: Modify default path switching from 1000 IOPS to 1 IOPS for optimal performance on SAN LUNs.`);
-  } else if (ints.virtualization.type.includes("Microsoft Hyper-V")) {
-    recs.push(`<strong>[Hyper-V]</strong> Windows Server MPIO with NetApp DSM/MPIO driver detected. Best Practice: Configure Path Verification Period to 30 seconds to prevent premature path failovers.`);
-    recs.push(`<strong>[Hyper-V]</strong> Best Practice: Store virtual machines on SMB3 Continuous Availability (CA) shares with <code>OdxEnabled</code> set to true to offload VM cloning operations.`);
-  } else if (ints.virtualization.type.includes("Kubernetes")) {
-    recs.push(`<strong>[Kubernetes]</strong> Astra Trident CSI driver is active. Best Practice: Configure storage classes with <code>spaceReserve: none</code> (Thin Provisioning) to utilize ONTAP storage savings.`);
-    recs.push(`<strong>[Kubernetes]</strong> Pods mount PVs via NFS. Best Practice: Increase Trident's mount options to use <code>nfsvers=4.1</code> for better locking performance.`);
-  } else if (ints.virtualization.type.includes("OpenStack")) {
-    recs.push(`<strong>[OpenStack]</strong> ONTAP Cinder driver is configured. Best Practice: Enable Cinder volume multi-attach only for clustered filesystems to prevent partition corruption.`);
-    recs.push(`<strong>[OpenStack]</strong> StorageGRID Swift API identity integration. Best Practice: Enable SSL/TLS encryption for all Keystone endpoints to prevent session token sniffing.`);
-  } else if (ints.virtualization.type.includes("NVIDIA AI")) {
-    recs.push(`<strong>[NVIDIA AI]</strong> GPUDirect Storage (GDS) with NFS over RDMA enabled. Best Practice: Set <code>mount -o rdma,port=20049</code> and ensure RoCEv2 flow control (PFC/ECN) is configured on network switches.`);
-    recs.push(`<strong>[NVIDIA AI]</strong> Large scale datasets. Best Practice: Enable ONTAP FlexGroup volumes to distribute unstructured training data across all controller nodes in the cluster.`);
+// Generic, vendor-neutral best-practice tips keyed off real protocol
+// presence -- never claims a specific hypervisor/database/backup product,
+// since Active IQ has no field that could confirm one.
+function getSystemProtocolRecommendations(sys) {
+  const recs = [];
+  if (sys.isMetroCluster) {
+    recs.push(`<strong>[MetroCluster]</strong> Verify Automatic Unplanned Switchover (AUSO) is enabled to protect against sudden site loss: <code>metrocluster operation show</code>.`);
   }
-  
-  // Database Recommendations
-  if (ints.database.type.includes("Oracle Database")) {
-    recs.push(`<strong>[Oracle]</strong> Direct NFS (dNFS) is enabled. Best Practice: Configure <code>filesystemio_options=SETALL</code> in init.ora parameter file to enable asynchronous I/O.`);
-    recs.push(`<strong>[Oracle]</strong> Best Practice: Distribute data files and redo log files across separate ONTAP aggregates to prevent disk contention.`);
-  } else if (ints.database.type.includes("MS SQL Server")) {
-    recs.push(`<strong>[MS SQL]</strong> SnapCenter MSSQL plugin is active. Best Practice: Configure SnapCenter policies to perform transaction log backups every 15 minutes, with storage-level verification.`);
-    recs.push(`<strong>[MS SQL]</strong> Best Practice: Format SAN LUNs hosting database files with a 64KB NTFS allocation unit size to align with SQL Server's extent architecture.`);
-  } else if (ints.database.type.includes("SAP HANA")) {
-    recs.push(`<strong>[SAP HANA]</strong> NFSv4 mount detected. Best Practice: Tune mount options to <code>rw,bg,hard,timeo=600,rsize=262144,wsize=262144</code> for optimal latency performance.`);
-  } else if (ints.database.type.includes("Spark") || ints.database.type.includes("Hadoop")) {
-    recs.push(`<strong>[Hadoop/Spark]</strong> S3A connector detected. Best Practice: Configure the S3A client to use <code>fs.s3a.fast.upload=true</code> to leverage StorageGRID's high-speed uploads.`);
-  } else if (ints.database.type.includes("AI/ML Training")) {
-    recs.push(`<strong>[AI Workloads]</strong> PyTorch/TensorFlow dataset loading. Best Practice: Configure local read cache on GPU nodes using NFS CacheFilesd (FS-Cache) to reduce redundant network transfers.`);
+  const prof = getSystemProtocolProfile(sys);
+  if (!prof) return recs;
+  if (prof.protocols.includes('iSCSI')) {
+    recs.push(`<strong>[iSCSI]</strong> Verify host-side MPIO/multipathing is configured with the ONTAP-recommended round-robin policy for connected iSCSI initiators.`);
   }
-  
-  // Backup Recommendations
-  if (ints.backup.type.includes("Veeam")) {
-    recs.push(`<strong>[Veeam]</strong> ONTAP Hardware Snapshot Integration is active. Best Practice: Limit the number of concurrent storage snapshots to 5 per volume to prevent ONTAP metadata lock contention.`);
-  } else if (ints.backup.type.includes("Commvault IntelliSnap")) {
-    recs.push(`<strong>[Commvault]</strong> IntelliSnap NetApp engine is active. Best Practice: Ensure NetApp OCUM/AIQUM portal credentials are up-to-date in Commvault's Array Management.`);
-  } else if (ints.backup.type.includes("Veritas")) {
-    recs.push(`<strong>[Veritas]</strong> NetBackup Snapshot Manager is active. Best Practice: Create snapshot policies that clean up deleted or orphaned snapshots older than 7 days using the NetApp REST API.`);
-  } else if (ints.backup.type.includes("SnapCenter")) {
-    recs.push(`<strong>[SnapCenter]</strong> Native application-consistent backups. Best Practice: Schedule backup jobs outside of ONTAP system background processes (such as deduplication or scrub schedules).`);
-  } else if (ints.backup.type.includes("Commvault Metallic")) {
-    recs.push(`<strong>[Metallic SaaS]</strong> SaaS backup to cloud storage. Best Practice: Enable ONTAP S3 Object Lock (WORM) on bucket destination to protect against ransomware injection.`);
+  if (prof.protocols.includes('FCP')) {
+    recs.push(`<strong>[FC]</strong> Verify FC switch zoning follows single-initiator/single-target best practice: <code>network fcp topology show</code>.`);
   }
-  
+  if (prof.protocols.includes('NVMe/FC')) {
+    recs.push(`<strong>[NVMe]</strong> Verify NVMe host multipathing (ANA) is enabled on connected hosts.`);
+  }
+  if (prof.protocols.includes('NFS')) {
+    recs.push(`<strong>[NFS]</strong> Verify export policies enforce appropriate client access and no-root-squash is scoped correctly: <code>vserver export-policy rule show</code>.`);
+  }
+  if (prof.protocols.includes('CIFS')) {
+    recs.push(`<strong>[CIFS/SMB]</strong> Verify SMB signing/encryption is enabled and legacy SMBv1 is disabled: <code>vserver cifs options show -fields smb1-enabled,is-signing-required</code>.`);
+  }
+  if (prof.protocols.includes('S3')) {
+    recs.push(`<strong>[S3]</strong> Verify Object Lock (WORM) is enabled on ransomware-sensitive buckets: <code>vserver object-store-server bucket show</code>.`);
+  }
   return recs;
 }
 
@@ -12580,50 +12592,54 @@ function renderSAMTab() {
       </div>
     `;
 
-    // 4. 3rd-party Workload Alignment cards
-    let hypervisorAgg = {}, databaseAgg = {}, backupAgg = {};
+    // 4. Storage Protocol & Data Protection Profile -- real per-SVM LIF
+    // protocol data (see getSystemProtocolProfile()), replacing a previous
+    // hypervisor/database/backup vendor-detection card that had no backing
+    // field anywhere in Active IQ's API and always showed "Not Reported".
+    let sanAgg = {}, nasAgg = {}, sanSysCount = 0, nasSysCount = 0, noSvmConceptCount = 0, noProtoDataCount = 0;
     targetSAMSystems.forEach(s => {
-      const ints = getSystemIntegrations(s);
-      hypervisorAgg[ints.virtualization.type] = (hypervisorAgg[ints.virtualization.type] || 0) + 1;
-      databaseAgg[ints.database.type] = (databaseAgg[ints.database.type] || 0) + 1;
-      backupAgg[ints.backup.type] = (backupAgg[ints.backup.type] || 0) + 1;
+      const prof = getSystemProtocolProfile(s);
+      if (prof === null) { noSvmConceptCount++; return; }
+      if (!prof.hasData) { noProtoDataCount++; return; }
+      if (prof.san.length > 0) { sanSysCount++; prof.san.forEach(p => sanAgg[p] = (sanAgg[p] || 0) + 1); }
+      if (prof.nas.length > 0) { nasSysCount++; prof.nas.forEach(p => nasAgg[p] = (nasAgg[p] || 0) + 1); }
     });
-    
-    // Active IQ's API doesn't expose per-system hypervisor/database/backup-software
-    // detection (see getSystemIntegrations()) — render an honest notice instead of
-    // a breakdown table when every system aggregates to "Not Reported by Active IQ".
-    const _aggFmt = (agg, label) => {
-      const keys = Object.keys(agg);
-      if (keys.length === 1 && keys[0] === 'Not Reported by Active IQ') {
-        return `<div style="color: var(--text-muted); font-style: italic;">Not reported by Active IQ API for these systems — verify on-cluster via CLI.</div>`;
-      }
-      return Object.entries(agg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} system${v !== 1 ? 's' : ''}</div>`).join("");
-    };
+    const _samSmCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+    const _samHasHA = (s) => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured);
+    const smSysCount = targetSAMSystems.filter(s => _samSmCount(s) > 0).length;
+    const haSysCount = targetSAMSystems.filter(s => _samHasHA(s)).length;
+    const mcSysCount = targetSAMSystems.filter(s => s.isMetroCluster).length;
+    const _noCoverageNote = (noSvmConceptCount + noProtoDataCount) > 0
+      ? `<div style="margin-top: 8px; font-size: 0.72rem; color: var(--text-muted); font-style: italic;">${noSvmConceptCount > 0 ? `${noSvmConceptCount} system(s) have no SVM concept (StorageGRID/E-Series). ` : ''}${noProtoDataCount > 0 ? `${noProtoDataCount} system(s): no LIF/protocol data reported by Active IQ.` : ''}</div>`
+      : '';
 
     document.getElementById("samWorkloadVirtualization").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Orchestration & Hypervisors</h5>
+        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">SAN Protocols (Block)</h5>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-        ${_aggFmt(hypervisorAgg)}
+        ${sanSysCount > 0 ? Object.entries(sanAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} system${v !== 1 ? 's' : ''}</div>`).join('') : '<div style="color: var(--text-muted); font-style: italic;">No SAN protocol LIFs reported across this scope.</div>'}
       </div>
     `;
 
     document.getElementById("samWorkloadDatabase").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Database & Workload</h5>
+        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">NAS Protocols (File/Object)</h5>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-        ${_aggFmt(databaseAgg)}
+        ${nasSysCount > 0 ? Object.entries(nasAgg).map(([k, v]) => `<div><strong>${k}</strong>: ${v} system${v !== 1 ? 's' : ''}</div>`).join('') : '<div style="color: var(--text-muted); font-style: italic;">No NAS protocol LIFs reported across this scope.</div>'}
+        ${_noCoverageNote}
       </div>
     `;
 
     document.getElementById("samWorkloadBackup").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Data Protection & Backup</h5>
+        <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Storage-Native Data Protection</h5>
       </div>
       <div style="font-size: 0.8rem; color: var(--text-primary); line-height: 1.5;">
-        ${_aggFmt(backupAgg)}
+        <div>SnapMirror: <strong>${smSysCount}/${targetSAMSystems.length}</strong> system${targetSAMSystems.length !== 1 ? 's' : ''}</div>
+        <div>HA Configured: <strong>${haSysCount}/${targetSAMSystems.length}</strong> system${targetSAMSystems.length !== 1 ? 's' : ''}</div>
+        ${mcSysCount > 0 ? `<div>MetroCluster: <strong>${mcSysCount}</strong> system${mcSysCount !== 1 ? 's' : ''}</div>` : ''}
       </div>
     `;
 
@@ -12779,10 +12795,10 @@ function renderSAMTab() {
     }
     document.getElementById("samSupportCasesBody").innerHTML = caseRows;
     
-    // Virtualized workload recommendations
+    // Protocol-grounded workload recommendations (real data -- see getSystemProtocolRecommendations())
     const recMap = new Map();
     targetSAMSystems.forEach(s => {
-      const list = getSystemWorkloadRecommendations(s);
+      const list = getSystemProtocolRecommendations(s);
       list.forEach(rec => {
         const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
         if (match) {
@@ -12806,18 +12822,21 @@ function renderSAMTab() {
     if (recsContainer) {
       recsContainer.innerHTML = "";
       if (recMap.size === 0) {
-        // getSystemWorkloadRecommendations() derives entirely from
-        // getSystemIntegrations(), which Active IQ never actually populates
-        // (no hypervisor/database/backup field in the API) -- an empty list
-        // here means "not available," not "checked and found nothing."
-        recsContainer.innerHTML = `<li style="color:var(--text-muted);">Not reported by Active IQ -- there is no API field for hypervisor/database/backup software attached to a system, so workload-specific optimization recommendations cannot be generated.</li>`;
+        // Real protocol data was checked (getSystemProtocolProfile) and
+        // either found nothing to flag, or Active IQ reported no LIF/
+        // protocol data at all for this scope -- distinguish the two so
+        // this doesn't read as "no issues" when it's really "no data".
+        const anyRealData = targetSAMSystems.some(s => { const p = getSystemProtocolProfile(s); return p && p.hasData; });
+        recsContainer.innerHTML = anyRealData
+          ? `<li style="color:var(--status-normal);">No protocol-specific configuration flags for this scope.</li>`
+          : `<li style="color:var(--text-muted);">No LIF/protocol data reported by Active IQ for this scope (StorageGRID/E-Series systems have no SVM concept, or Active IQ returned no LIF data for these systems).</li>`;
       } else {
         recMap.forEach((sysNames, key) => {
           const li = document.createElement("li");
           if (key.includes("||")) {
             const [category, body] = key.split("||");
-            const systemsStr = sysNames.length === targetSAMSystems.length 
-              ? "All Systems" 
+            const systemsStr = sysNames.length === targetSAMSystems.length
+              ? "All Systems"
               : (sysNames.length > 3 ? `${sysNames.length} Systems` : sysNames.join(", "));
             li.innerHTML = `<strong>[${category}]</strong> <span style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600; margin-right: 6px;">(${systemsStr})</span> ${body}`;
           } else {
@@ -12958,66 +12977,49 @@ function renderSAMTab() {
     </div>
   `;
 
-  // 3rd-Party Integrations & Workloads Audit
-  const ints = getSystemIntegrations(sys);
-  
-  let virtBadge = `<span class="badge normal">${ints.virtualization.status}</span>`;
-  if (ints.virtualization.status === "Warning" || ints.virtualization.status === "Out of Date") {
-    virtBadge = `<span class="badge warning">${ints.virtualization.status}</span>`;
-  }
+  // Storage Protocol & Data Protection Audit -- real per-SVM LIF protocol
+  // data (see getSystemProtocolProfile()), replacing a hypervisor/database/
+  // backup vendor-detection card with no backing field in Active IQ's API.
+  const protoProf = getSystemProtocolProfile(sys);
+  const _samSmCountSingle = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+  const _samHasHASingle = (s) => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured);
+
   document.getElementById("samWorkloadVirtualization").innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Orchestration & Hypervisor</h5>
-      ${virtBadge}
+      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">SAN Protocols (Block)</h5>
     </div>
-    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
-      ${ints.virtualization.type}
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-      Version: <strong>${ints.virtualization.version || "N/A"}</strong>
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-      Plugin: <strong>${ints.virtualization.plugin}</strong>
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary);">
-      Multipathing: <strong>${ints.virtualization.multipathing}</strong>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+      ${protoProf === null ? '<div style="color: var(--text-muted); font-style: italic;">No SVM concept for this platform (StorageGRID/E-Series).</div>'
+        : protoProf.san.length > 0 ? protoProf.san.map(p => `<div><strong>${p}</strong></div>`).join('')
+        : '<div style="color: var(--text-muted); font-style: italic;">' + (protoProf.hasData ? 'No SAN protocol LIFs on this system.' : 'No LIF/protocol data reported by Active IQ.') + '</div>'}
     </div>
   `;
 
   document.getElementById("samWorkloadDatabase").innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Database & Workload</h5>
-      <span class="badge normal">${ints.database.status}</span>
+      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">NAS Protocols (File/Object)</h5>
     </div>
-    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
-      ${ints.database.type}
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-      Version: <strong>${ints.database.version || "N/A"}</strong>
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">
-      Details: <strong>${ints.database.details}</strong>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+      ${protoProf === null ? '<div style="color: var(--text-muted); font-style: italic;">No SVM concept for this platform (StorageGRID/E-Series).</div>'
+        : protoProf.nas.length > 0 ? protoProf.nas.map(p => `<div><strong>${p}</strong></div>`).join('')
+        : '<div style="color: var(--text-muted); font-style: italic;">' + (protoProf.hasData ? 'No NAS protocol LIFs on this system.' : 'No LIF/protocol data reported by Active IQ.') + '</div>'}
+      ${protoProf !== null ? `<div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">${protoProf.svmCount} SVM(s)</div>` : ''}
     </div>
   `;
 
   document.getElementById("samWorkloadBackup").innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Data Protection & Backup</h5>
-      <span class="badge normal">${ints.backup.status}</span>
+      <h5 style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin: 0;">Storage-Native Data Protection</h5>
     </div>
-    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
-      ${ints.backup.type}
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-      Version: <strong>${ints.backup.version || "N/A"}</strong>
-    </div>
-    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">
-      Details: <strong>${ints.backup.details}</strong>
+    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+      <div>SnapMirror: <strong>${_samSmCountSingle(sys) > 0 ? `${_samSmCountSingle(sys)} relationship(s)` : 'None'}</strong></div>
+      <div>HA Configured: <strong>${_samHasHASingle(sys) ? 'Yes' : 'No'}</strong></div>
+      ${sys.isMetroCluster ? `<div>MetroCluster: <strong>Yes</strong></div>` : ''}
     </div>
   `;
 
   const recMap = new Map();
-  const list = getSystemWorkloadRecommendations(sys);
+  const list = getSystemProtocolRecommendations(sys);
   list.forEach(rec => {
     const match = rec.match(/^<strong>\[(.*?)\]<\/strong> (.*)$/);
     if (match) {
@@ -13040,10 +13042,9 @@ function renderSAMTab() {
   if (recsContainer) {
     recsContainer.innerHTML = "";
     if (recMap.size === 0) {
-      // Same reasoning as the fleet-aggregate view above: this is always
-      // empty because getSystemIntegrations() has no real backing field,
-      // not because the system was checked and found optimal.
-      recsContainer.innerHTML = `<li style="color:var(--text-muted);">Not reported by Active IQ -- there is no API field for hypervisor/database/backup software attached to a system, so workload-specific optimization recommendations cannot be generated.</li>`;
+      recsContainer.innerHTML = (protoProf && protoProf.hasData)
+        ? `<li style="color:var(--status-normal);">No protocol-specific configuration flags for this system.</li>`
+        : `<li style="color:var(--text-muted);">No LIF/protocol data reported by Active IQ for this system (StorageGRID/E-Series has no SVM concept, or Active IQ returned no LIF data).</li>`;
     } else {
       recMap.forEach((sysNames, key) => {
         const li = document.createElement("li");

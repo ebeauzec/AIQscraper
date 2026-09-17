@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.68] - 2026-09-17
+
+### Fixed
+- **SAM tab's "Enterprise Workload Alignments & 3rd-Party Integrations" card always showed "Not reported by Active IQ API".** Confirmed live via GraphQL schema introspection that hypervisor/database/backup vendor identification is genuinely unreachable anywhere in Active IQ's API — a `CloudInsightsHost` type exists with the right fields (`operatingSystem`, `isHypervisor`) but isn't connected to `System`, `Cluster`, `Vserver`, or the query root.
+- **Replaced with real data**: found per-LIF protocol data (`Cluster.vservers[].logicalInterfaces[].serviceConfiguration.dataProtocols`) already harvested and wired end-to-end, already used elsewhere via `getSystemSvms()`. The card now shows real SAN Protocols (FCP/iSCSI counts), real NAS Protocols (NFS/CIFS/S3 counts), and real Storage-Native Data Protection (SnapMirror/HA/MetroCluster coverage), with an honest note for systems with no SVM concept or no LIF data. Recommendations are now generic, protocol-grounded tips instead of fabricated vendor-specific ones. Retired `getSystemIntegrations()`'s use here and the now fully-dead `getSystemWorkloadRecommendations()` (its one real line — a MetroCluster AUSO check — was preserved in the new function).
+- Verified live: SAN Protocols shows FCP: 222 systems / iSCSI: 74 systems, NAS Protocols shows NFS: 192 / CIFS: 146 / S3: 44, Data Protection shows SnapMirror 60/484, HA 369/484, MetroCluster 28 — both fleet-aggregate and single-system views confirmed working, no console errors.
+
+---
+
 ## [5.6.67] - 2026-09-17
 
 ### Fixed

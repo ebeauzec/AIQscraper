@@ -1,8 +1,8 @@
 {
-  "version": "5.6.67",
+  "version": "5.6.68",
   "major": 5,
   "minor": 6,
-  "patch": 67,
+  "patch": 68,
   "date": "2026-09-17",
-  "notes": "Deliverables were referencing features and vendors a customer's fleet doesn't actually have -- e.g. a customer with zero MetroCluster nodes had 'MetroCluster Issues' listed as a corrective action. Root cause: the enrichment KB matching engine scored articles as fleet-relevant from a title-text match against the fleet's ONTAP version/platform alone, never checking whether the customer's own systems have that feature. Added feature gates: MetroCluster/FabricPool/SnapMirror/ARP require confirmed presence on the customer's own systems; SnapLock, Zero Trust, MAV, Antivirus, Encryption, Audit, and every third-party vendor (Veeam, Commvault, VMware, Oracle, Cisco, Kubernetes/Trident, etc.) have no backing field in Active IQ's API at all, so none of them can earn fleet-specific relevance anymore. Also fixed a redundant IMT interoperability signal pass that leaked one customer's vendor evidence into another's findings, a dormant bug rendering literal 'NVE: undefined%' and fabricating NVE/Audit/SnapLock/MAV as top gaps in every deliverable, and unreliable MetroCluster/StorageGRID detection that could miss real systems."
+  "notes": "The SAM tab's 'Enterprise Workload Alignments & 3rd-Party Integrations' card always showed 'Not reported by Active IQ API' -- confirmed live via GraphQL schema introspection that hypervisor/database/backup vendor identification is genuinely unreachable anywhere in Active IQ's API (a CloudInsightsHost type with the right fields exists but isn't connected to anything queryable). Found a real substitute already harvested and wired: per-LIF protocol data (NFS/CIFS/iSCSI/FCP/S3) via Cluster.vservers, already used elsewhere via getSystemSvms(). Replaced the fake vendor-detection cards with real SAN/NAS protocol counts and real SnapMirror/HA/MetroCluster coverage, and replaced fabricated vendor-specific recommendations with generic, protocol-grounded ones."
 }
