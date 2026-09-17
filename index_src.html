@@ -309,9 +309,9 @@
                   <th style="padding: 10px; text-align: center;">Critical Risks</th>
                   <th style="padding: 10px; text-align: center;">High Risks</th>
                   <th style="padding: 10px; text-align: center;">Contracts &lt;90d</th>
-                  <th style="padding: 10px; text-align: center;">EOS Systems</th>
-                  <th style="padding: 10px; text-align: center;">SLA Compliance</th>
-                  <th style="padding: 10px; text-align: center;">Health Score</th>
+                  <th style="padding: 10px; text-align: center;" data-tooltip="Systems already past hardware End of Support, plus systems reaching EOS within 6 months.">EOS Systems</th>
+                  <th style="padding: 10px; text-align: center;" data-tooltip="Percentage of this customer's Remediation Tracker items still within their due date or SLA policy default (Settings). This is the tracker's own SLA policy, not a NetApp support-contract SLA.">Tracker SLA %</th>
+                  <th style="padding: 10px; text-align: center;" data-tooltip="This tool's own computed risk-based health score (ASUP freshness, ARP, firmware, contract, risk, efficiency, case health) -- distinct from Active IQ's official vendor-issued Health Score shown on the Overview KPI row.">Risk Health Score</th>
                 </tr>
               </thead>
               <tbody id="overviewPortfolioBody"></tbody>
@@ -1157,7 +1157,7 @@
             </div>
             <div>
               <div class="settings-card-title" style="background: linear-gradient(135deg, #818cf8, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Notifications</div>
-              <div class="settings-card-desc">POST a summary to a webhook (Slack/Teams-compatible) after a harvest finds new critical risks or contracts newly expiring within 30 days</div>
+              <div class="settings-card-desc">POST a summary to a webhook (Slack/Teams-compatible) after a harvest finds a genuine increase in critical risk count -- contracts expiring within 30 days are included as extra context in that alert, but never trigger one on their own</div>
             </div>
           </div>
 

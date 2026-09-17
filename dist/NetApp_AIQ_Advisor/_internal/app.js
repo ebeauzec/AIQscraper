@@ -27,9 +27,50 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.60";
+const APP_VERSION = "5.6.61";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.61",
+    date: "17 September 2026",
+    title: "Fixed: Official Health Score & TAM Recommendations Stuck on Customer Switch, a Switch Validation Crash, and a Tool-Wide Accuracy Audit",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Official Health Score KPI Never Changed When Switching Customers",
+        color: "#f87171",
+        items: [
+          "Found live: the Overview 'Official AIQ Health Score' tile shipped in the last release showed the same 68/100 no matter which customer was selected -- it was only ever fetching ONE score for the whole account/watchlist scope. Fixed properly: the harvest now fetches a real per-customer score (summary(nagpId: ...) { healthScore }) for every real customer on the account -- confirmed live, 28 of 29 real customers reported a real, genuinely different score (64/100, 66/100, 73/100, etc.). The tile, QBR Pack, and Risk & Remediation Brief now show the selected customer's real score, falling back to the fleet-wide figure (honestly labeled as such) only when no single customer is in scope.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- TAM Recommendations Score % Was Account-Wide, Not Per-Customer (Same Root Cause, Different Screen)",
+        color: "#f87171",
+        items: [
+          "Same underlying issue as the Health Score fix above, reported live on the TAM Recommendations tab: every customer on an account saw the identical Score % for each check, because Active IQ's recommendations query was only ever called once per account. Confirmed live that recommendations(customerId: ...) DOES accept a real per-customer filter and returns genuinely different scores (e.g. one real customer's MIN_VERSION check scored 8%, another's scored 0%, the account-wide figure was 44% -- all three real and different). The harvest now fetches this per real customerId (36/36 real customers confirmed live); the TAM Recommendations tab, its TXT export, the QBR Pack, and the CSM tab's Value Insights widget all now show a customer's own real score -- with the honest 'this is account-wide' disclosure kept only for genuinely multi-customer scopes, where no single real per-customer figure applies.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Switch Validation Could Crash the Entire Action Planner",
+        color: "#f87171",
+        items: [
+          "Found via audit: the real switches[] array merges two unrelated Active IQ sources -- per-port connected-device entries (no status/model/firmware at all) and real cluster-level switch validation entries (which do). Every connected-device port was silently treated as a firmware alert (undefined !== \"Optimal\" is true), and rendering that fake alert called sw.model.toLowerCase() on a field that doesn't exist -- crashing Section 6 for any system with connected-device port telemetry, a near-universal field. Fixed at the source (only real validated switches become alerts) plus a defensive null-guard at the render site.",
+        ],
+      },
+      {
+        icon: "🔍",
+        label: "Tool-Wide MSP/SAM/TAM Accuracy Audit (4 Parallel Research Passes)",
+        color: "#f87171",
+        items: [
+          "Overview/Portfolio: the Customer Portfolio's 'Health Score' column was indistinguishable from the new official Active IQ score -- renamed to 'Risk Health Score' with a disambiguating tooltip. 'SLA Compliance' renamed to 'Tracker SLA %' -- it's the Remediation Tracker's own due-date policy, not a NetApp support-contract SLA. 'EOS Systems' now explains its compound definition (already-EOS + reaching EOS within 6 months). The webhook notification description overstated its trigger -- contract expirations never independently fire an alert, only a genuine critical-risk increase does.",
+          "SAM tab: removed three fabricated, unconditional claims that rendered identically for every account regardless of real data -- 'Account is under regular quarterly review,' 'Parts shipping pathways are verified across all locations,' and 'Primary accounts synced with NetApp Support Site (NSS) credentials.' Also stopped the synthesized 'Not Set' placeholder from leaking into the aggregate Account Manager/TAM name lists as if it were a real person, and relabeled the permanently-empty Workload Optimization Recommendations (there's no API field for hypervisor/database/backup software, so it can never populate) to honestly say so instead of 'No active optimization recommendations.'",
+          "Action Planner: Security Advisories no longer silently defaults an unassessed bulletin's severity to 'medium' (now 'Not Reported', distinguishable from a real medium finding). Firmware Currency fixed a baseline-matching bug where 'IOM12G v0270' could silently match the wrong 'IOM12' baseline instead of the correct 'IOM12G' one, due to object-iteration order. DR & Replication Health's 'Unprotected Systems' count no longer double-counts SyncMirror-protected systems as simultaneously protected and unprotected. OS Upgrade recommendations without a real Active IQ target version are now visibly tagged as generic version-based guidance, not presented identically to a confirmed Active IQ recommendation -- one heuristic branch specifically claimed to resolve a named CVE with no way to confirm the system was actually exposed to it. Five tab tooltips (Contract Compliance, Recommendations, Account Intelligence, Operational Health, DR & Replication Health) were rewritten to match what each tab actually shows, after being found to promise data/validation logic that doesn't exist in the current code. As-Built Document fixed a wrong field name that always showed a blank Carbon column, and a table that always rendered a blank Auto-Resolved Cases row instead of its 'Not reported' fallback (an empty array is truthy in JS). Support Cases now caps its initial render to the 30 most relevant (active/processing first) with a one-click 'show all' expansion, instead of always rendering every case ever opened on the account with no limit.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.60",
     date: "17 September 2026",
@@ -7068,10 +7109,22 @@ function updateOverviewKpis() {
   document.getElementById("kpiWarningRisks").style.color = warningRisksCount > 0 ? "var(--status-warning)" : "var(--status-normal)";
   document.getElementById("kpiContracts").style.color = expiringContracts > 0 ? "var(--status-warning)" : "var(--status-normal)";
 
-  // Official Active IQ health score -- one number per watchlist/account scope
-  // (not per-filtered-system), same "first entry" pattern already used for
-  // tamSustainability elsewhere in the app.
-  const _officialHs = (state.tamOfficialHealthScore || [])[0];
+  // Official Active IQ health score. When a single customer is selected
+  // (sidebar CUSTOMER filter), use that customer's real per-nagpId score
+  // (state.tamCustomerHealthScores) instead of the account-wide figure --
+  // found live: the tile showed the same fleet-wide number regardless of
+  // which customer was selected, reading as a stuck/broken KPI next to
+  // every other tile on this row, which IS scoped to the current filter.
+  // Falls back to the fleet-wide score (honestly labeled as such) when no
+  // single customer is selected, or when that customer's real nagpId score
+  // wasn't reported by Active IQ.
+  let _officialHs = null, _officialHsIsFleetWide = true;
+  if (state.activeFilterType === "CUSTOMER" && state.activeFilterValue) {
+    const _custNagpId = (state.systems.find(s => s.customerName === state.activeFilterValue) || {}).nagpId;
+    const _custHs = _custNagpId ? (state.tamCustomerHealthScores || []).find(h => h.nagpId === _custNagpId) : null;
+    if (_custHs) { _officialHs = _custHs; _officialHsIsFleetWide = false; }
+  }
+  if (!_officialHs) _officialHs = (state.tamOfficialHealthScore || [])[0];
   const kpiHsEl = document.getElementById("kpiHealthScore");
   const kpiHsSubEl = document.getElementById("kpiHealthScoreSubtitle");
   if (kpiHsEl && kpiHsSubEl) {
@@ -7079,7 +7132,8 @@ function updateOverviewKpis() {
       const _score = _officialHs.overallHealthScore;
       kpiHsEl.innerText = `${_score}/100`;
       kpiHsEl.style.color = _score >= 80 ? "var(--status-normal)" : (_score >= 60 ? "var(--status-warning)" : "var(--status-critical)");
-      kpiHsSubEl.innerText = _officialHs.calculatedAt ? `As of ${new Date(_officialHs.calculatedAt).toLocaleDateString()}` : "Reported by Active IQ";
+      const _asOf = _officialHs.calculatedAt ? `As of ${new Date(_officialHs.calculatedAt).toLocaleDateString()}` : "Reported by Active IQ";
+      kpiHsSubEl.innerText = _officialHsIsFleetWide ? `${_asOf} (fleet-wide, not this customer)` : _asOf;
     } else {
       kpiHsEl.innerText = "--";
       kpiHsEl.style.color = "var(--text-secondary)";
@@ -12464,11 +12518,9 @@ function renderSAMTab() {
         <div>
           <div style="margin-bottom: 8px;">Unique Sites: <strong>${uniqueAddrs.size} addresses</strong></div>
           <div style="margin-bottom: 8px;">Active logistics alerts: <strong style="color: ${aggAlertsCount > 0 ? "var(--status-critical)" : "var(--status-normal)"};">${aggAlertsCount} alerts</strong></div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary);">Parts shipping pathways are verified across all locations.</div>
         </div>
         <div style="border-left: 1px solid var(--border-color); padding-left: 20px;">
           <div>Key Contacts: <strong>${totalContacts.size} unique users</strong></div>
-          <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">Primary accounts synced with NetApp Support Site (NSS) credentials.</div>
         </div>
       </div>
     `;
@@ -12480,8 +12532,8 @@ function renderSAMTab() {
       if (s.salesHealth) {
         totalScore += s.salesHealth.sentimentScore;
         countScore++;
-        ams.add(s.salesHealth.accountManager);
-        tams.add(s.salesHealth.supportTam);
+        if (s.salesHealth.accountManager && s.salesHealth.accountManager !== 'Not Set') ams.add(s.salesHealth.accountManager);
+        if (s.salesHealth.supportTam && s.salesHealth.supportTam !== 'Not Set') tams.add(s.salesHealth.supportTam);
       }
     });
     const avgScore = countScore > 0 ? (totalScore / countScore) : 7.0;
@@ -12509,8 +12561,6 @@ function renderSAMTab() {
         </div>
         <div style="border-left: 1px solid var(--border-color); padding-left: 20px;">
           <div>Support TAMs: <strong>${[...tams].join(", ") || "Under Review"}</strong></div>
-          <div style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; margin-top: 8px;">Pipeline Status</div>
-          <div style="font-size: 0.78rem; color: var(--text-secondary); font-style: italic;">Account is under regular quarterly review.</div>
         </div>
       </div>
     `;
@@ -12630,7 +12680,11 @@ function renderSAMTab() {
     if (recsContainer) {
       recsContainer.innerHTML = "";
       if (recMap.size === 0) {
-        recsContainer.innerHTML = `<li>No active optimization recommendations for this workload portfolio.</li>`;
+        // getSystemWorkloadRecommendations() derives entirely from
+        // getSystemIntegrations(), which Active IQ never actually populates
+        // (no hypervisor/database/backup field in the API) -- an empty list
+        // here means "not available," not "checked and found nothing."
+        recsContainer.innerHTML = `<li style="color:var(--text-muted);">Not reported by Active IQ -- there is no API field for hypervisor/database/backup software attached to a system, so workload-specific optimization recommendations cannot be generated.</li>`;
       } else {
         recMap.forEach((sysNames, key) => {
           const li = document.createElement("li");
@@ -12860,7 +12914,10 @@ function renderSAMTab() {
   if (recsContainer) {
     recsContainer.innerHTML = "";
     if (recMap.size === 0) {
-      recsContainer.innerHTML = `<li>No active optimization recommendations for this appliance workload.</li>`;
+      // Same reasoning as the fleet-aggregate view above: this is always
+      // empty because getSystemIntegrations() has no real backing field,
+      // not because the system was checked and found optimal.
+      recsContainer.innerHTML = `<li style="color:var(--text-muted);">Not reported by Active IQ -- there is no API field for hypervisor/database/backup software attached to a system, so workload-specific optimization recommendations cannot be generated.</li>`;
     } else {
       recMap.forEach((sysNames, key) => {
         const li = document.createElement("li");
@@ -13307,7 +13364,7 @@ function renderCSMTab() {
     // Top 3 recommendation categories by real/estimated affected-system count,
     // for the "We recommend" list -- same source and counting rules as
     // Section 12 (TAM Recommendations), just the top 3 instead of all of them.
-    const _viRecs = _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetCSMSystems)
+    const _viRecs = _getScopedRecommendations(targetCSMSystems).recs
       .map(r => {
         const { effectiveScore, isAllClear } = _resolveRecommendationScore(r);
         if (isAllClear) return null;
@@ -13554,7 +13611,10 @@ function renderCSMTab() {
     // 3b. Fleet Uptime & Downtime Rollup
     renderFleetUptimeCard(targetCSMSystems);
 
-    // 4. Checklist aggregate — TAM/MSP remediation readiness (25 categorised checks)
+    // 4. Checklist aggregate — remediation readiness (25 categorised checks).
+    // Intentionally shown here, not just in the TAM tab: in this tool's MSP
+    // context the CSM view is where a customer-facing owner needs to know
+    // whether the account is operationally sound before a success conversation.
     // ── LEFT COLUMN: Operations & Security ──────────────────────────────────────
     const _latestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
     let _verPass = 0, _effPass = 0, _asupPass = 0, _hwPass = 0, _secPass = 0;
@@ -14046,7 +14106,8 @@ function renderCSMTab() {
 
   } // end else (ONTAP/standard platform — capacity data available)
 
-  // Single-system checklist — 25 TAM/MSP categorised remediation checks
+  // Single-system checklist — 25 categorised remediation checks (see the
+  // aggregate version above for why this lives in the CSM tab)
   const _sLatestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
   const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
   const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date');
@@ -15337,29 +15398,37 @@ function enrichSystemTelemetry(s) {
     upgrades = {
       targetVersion: isUpToDate ? 'Up to Date' : s.recommendedOSVersion,
       urgency: isUpToDate ? 'None' : 'Recommended',
-      benefits: isUpToDate ? '' : `Upgrade to ${s.recommendedOSVersion} recommended by Active IQ.`
+      benefits: isUpToDate ? '' : `Upgrade to ${s.recommendedOSVersion} recommended by Active IQ.`,
+      source: 'active-iq',
     };
   } else if (!upgrades && isLiveData) {
-    // Live API path: no recommendedOSVersion from AIQ — apply platform-aware fallback
+    // Live API path: no recommendedOSVersion from AIQ — apply platform-aware
+    // fallback. Every branch below is tagged source:'heuristic': it's a
+    // guess from major.minor version alone, not something Active IQ
+    // reported -- callers (Section 5 of the Action Planner) must render a
+    // visible disclaimer rather than presenting it identically to a real
+    // AIQ-sourced recommendation. A heuristic claiming a specific CVE fix
+    // was a real problem here: a customer not exposed to that CVE would be
+    // told the upgrade "resolves" it with no indication it's a guess.
     if (isStorageGrid) {
       upgrades = osVer.startsWith('11.')
-        ? { targetVersion: '12.0.0', urgency: 'Recommended', benefits: 'StorageGRID 11.x end-of-support approaching. Upgrade to 12.0 for security patches, S3 improvements, and extended support.' }
-        : { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+        ? { targetVersion: '12.0.0', urgency: 'Recommended', benefits: 'StorageGRID 11.x end-of-support approaching. Upgrade to 12.0 for security patches, S3 improvements, and extended support.', source: 'heuristic' }
+        : { targetVersion: 'Up to Date', urgency: 'None', benefits: '', source: 'heuristic' };
     } else if (isEseries) {
       if (s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)) {
-        upgrades = { targetVersion: s.swRecMin, urgency: 'Recommended', benefits: `Upgrade to ${s.swRecMin} recommended by Active IQ minimum baseline.` };
+        upgrades = { targetVersion: s.swRecMin, urgency: 'Recommended', benefits: `Upgrade to ${s.swRecMin} recommended by Active IQ minimum baseline.`, source: 'active-iq' };
       } else {
         // SANtricity version-range fallback: 11.7x → 11.80.x, < 11.70 → 11.80.x
         const sanMatch = osVer.match(/^11\.(\d{2})/);
         if (sanMatch) {
           const sanMinor = parseInt(sanMatch[1]);
           if (sanMinor < 80) {
-            upgrades = { targetVersion: '11.80.2', urgency: 'Recommended', benefits: 'SANtricity 11.80 provides critical security fixes, drive firmware updates, and expanded SSD wear-life reporting.' };
+            upgrades = { targetVersion: '11.80.2', urgency: 'Recommended', benefits: 'SANtricity 11.80 provides critical security fixes, drive firmware updates, and expanded SSD wear-life reporting.', source: 'heuristic' };
           } else {
-            upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+            upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '', source: 'heuristic' };
           }
         } else {
-          upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+          upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '', source: 'heuristic' };
         }
       }
     } else {
@@ -15368,14 +15437,14 @@ function enrichSystemTelemetry(s) {
       if (match) {
         const minor = parseInt(match[1]);
         if (minor < 16) {
-          upgrades = { targetVersion: '9.16.1P9', urgency: 'Recommended', benefits: 'Resolves critical Locked Snapshot bypass CVE-2026-22050 vulnerabilities.' };
+          upgrades = { targetVersion: '9.16.1P9', urgency: 'Recommended', benefits: 'Guidance only, not confirmed against this system\'s actual CVE exposure -- resolving to a current P-release is generally recommended for security fixes including the Locked Snapshot bypass (CVE-2026-22050) where applicable.', source: 'heuristic' };
         } else if (minor < 19) {
-          upgrades = { targetVersion: '9.19.1P1', urgency: 'Recommended', benefits: 'Performance enhancements for next-gen block and NVMe-oF data paths.' };
+          upgrades = { targetVersion: '9.19.1P1', urgency: 'Recommended', benefits: 'Performance enhancements for next-gen block and NVMe-oF data paths.', source: 'heuristic' };
         } else {
-          upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+          upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '', source: 'heuristic' };
         }
       } else {
-        upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '' };
+        upgrades = { targetVersion: 'Up to Date', urgency: 'None', benefits: '', source: 'heuristic' };
       }
     }
   } else if (!upgrades) {
@@ -16271,7 +16340,12 @@ function enrichSystemTelemetry(s) {
     cvss:       b.cvss       || b.cvssScore  || null,
     title:      b.title      || b.cveTitle   || b.description || "Security advisory",
     category:   b.category   || '',
-    severity:   (b.severity  || b.cvssScore  || "medium").toString().toLowerCase(),
+    // Forcing an unassessed bulletin to "medium" made it indistinguishable
+    // from a real, confirmed medium-severity finding in every badge/sort/
+    // count that reads .severity -- default to "unknown" instead (every
+    // consumer already falls back to a neutral gray badge / lowest sort
+    // priority for an unrecognized severity string, confirmed safe).
+    severity:   (b.severity || b.cvssScore) ? (b.severity || b.cvssScore).toString().toLowerCase() : "unknown",
     status:     b.status     || "Review Required",
     mitigation: b.mitigation || b.mitigationAction || "Consult NetApp Security Advisory for patch details.",
     fixedIn:    b.fixedIn    || '',
@@ -19758,9 +19832,16 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const grade = getHealthGrade(avgPct);
 
   // ── Official Active IQ Health Score (vendor-issued, distinct from the above) ──
-  const officialHs = (state.tamOfficialHealthScore || [])[0];
+  // Use this scope's real per-customer score when targetSystems belongs to
+  // exactly one real nagpId; otherwise fall back to the fleet-wide figure,
+  // honestly labeled as such (a multi-customer QBR scope has no single real
+  // per-account score to show).
+  const _qbrNagpIds = [...new Set(targetSystems.map(s => s.nagpId).filter(Boolean))];
+  const officialHs = (_qbrNagpIds.length === 1 ? (state.tamCustomerHealthScores || []).find(h => h.nagpId === _qbrNagpIds[0]) : null)
+    || (state.tamOfficialHealthScore || [])[0];
+  const _officialHsIsFleetWide = !(_qbrNagpIds.length === 1 && officialHs && officialHs.nagpId === _qbrNagpIds[0]);
   const officialHsLine = officialHs && officialHs.overallHealthScore != null
-    ? `  Active IQ Official Health Score: ${officialHs.overallHealthScore}/100 (NetApp-calculated${officialHs.calculatedAt ? `, as of ${officialHs.calculatedAt.slice(0, 10)}` : ''} -- factors in AutoSupport freshness, firmware, security hardening, uptime, EOS exposure, sustainability, tech refresh, add-on adoption)\n`
+    ? `  Active IQ Official Health Score: ${officialHs.overallHealthScore}/100 (NetApp-calculated${officialHs.calculatedAt ? `, as of ${officialHs.calculatedAt.slice(0, 10)}` : ''}${_officialHsIsFleetWide ? ', fleet-wide -- no single-customer score available for this scope' : ''} -- factors in AutoSupport freshness, firmware, security hardening, uptime, EOS exposure, sustainability, tech refresh, add-on adoption)\n`
     : '';
 
   // ── Risks ──
@@ -19835,8 +19916,8 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  ${e.daysRemaining != null ? `(${e.daysRemaining} days)` : ''}${trendNote}`;
   }).join('\n') ||  '  No expiring contracts within scope.';
 
-  // ── Recommendations (fleet-wide; scoped count provided as context) ──
-  const recs = _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems);
+  // ── Recommendations (real per-customer score when scope is one customer) ──
+  const recs = _getScopedRecommendations(targetSystems).recs;
   const qbrAcctLabels = {};
   targetSystems.forEach(s => { if (s.accountId) qbrAcctLabels[s.accountId] = s.accountLabel || s.accountId; });
   const qbrMultiAcct = Object.keys(qbrAcctLabels).length > 1;
@@ -23459,9 +23540,24 @@ function _scopeRecommendationsToAccounts(recs, targetSystems) {
   return recs.filter(r => !r.accountId || scopeAccountIds.has(r.accountId));
 }
 
+// Real per-customer recommendations (state.tamCustomerRecommendations, one
+// real Active IQ customerId per entry) when this scope resolves to exactly
+// one real customerId -- see the long comment in _renderRecommendationsSection
+// for how this was confirmed live. Falls back to the account-wide list
+// (still accountId-scoped) for a multi-customer scope, where no single real
+// per-customer score exists.
+function _getScopedRecommendations(targetSystems) {
+  const scopeCustomerIds = [...new Set((targetSystems || []).map(s => s.customerId).filter(Boolean))];
+  const customerRecEntry = scopeCustomerIds.length === 1
+    ? (state.tamCustomerRecommendations || []).find(c => c.customerId === scopeCustomerIds[0])
+    : null;
+  const usingRealCustomerRecs = !!(customerRecEntry && customerRecEntry.recommendations && customerRecEntry.recommendations.length > 0);
+  if (usingRealCustomerRecs) return { recs: customerRecEntry.recommendations, usingRealCustomerRecs: true };
+  return { recs: _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems), usingRealCustomerRecs: false };
+}
+
 function _renderRecommendationsSection(targetSystems) {
-  const allRecs = state.tamRecommendations || [];
-  const recs = _scopeRecommendationsToAccounts(allRecs, targetSystems);
+  const { recs, usingRealCustomerRecs } = _getScopedRecommendations(targetSystems);
   const scopeCount = (targetSystems || []).length;
   // How many distinct accounts remain in scope -- if more than one, any score
   // differences between recs sharing a subCategory are genuinely two different
@@ -23511,11 +23607,13 @@ function _renderRecommendationsSection(targetSystems) {
   const catIcons  = {'VERSION':'🔄','AUTO_SUPPORT':'📡','BEST_PRACTICES':'✅','CONFIG':'⚙️','SUPPORT_AND_ENTITLEMENTS':'🛡️'};
   const catColors = {'VERSION':'#3b82f6','AUTO_SUPPORT':'#8b5cf6','BEST_PRACTICES':'#10b981','CONFIG':'#f59e0b','SUPPORT_AND_ENTITLEMENTS':'#ef4444'};
 
-  const siblingCustomers = _siblingCustomersOnSameAccount(targetSystems);
+  const siblingCustomers = usingRealCustomerRecs ? [] : _siblingCustomersOnSameAccount(targetSystems);
 
   let html = `<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Top ${recs.length} key recommendations from Active IQ — counts rescoped to <strong style="color:var(--accent-cyan)">${scopeCount} selected system${scopeCount !== 1 ? 's' : ''}</strong>.</p>
-    <span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;" title="Active IQ itself only scores these checks per-account, tenant-wide -- it has no API field for a per-customer count. Where this tool has its own real per-system telemetry for the same check (AutoSupport, HA config, OS/firmware currency, EOS, contract expiry), the count is measured directly against this customer's own systems. Only the checks with no equivalent harvested field (mainly the bundled Best Practices categories) fall back to an account-wide-rate estimate, and are marked (est.).">⚠ Counts are measured per-customer where this tool has real per-system data for the check; only counts marked (est.) are extrapolated from Active IQ's account-wide rate.</span>
+    ${usingRealCustomerRecs
+      ? `<span style="background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;" title="recommendations(customerId: ...) -- confirmed live that this Active IQ query returns a genuinely different Score % per real customer, not the account-wide figure.">✓ Score % is this customer's own real Active IQ figure, not an account-wide estimate.</span>`
+      : `<span style="background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:2px 10px;font-size:0.72rem;font-weight:600;" title="Active IQ itself only scores these checks per-account, tenant-wide -- it has no API field for a per-customer count. Where this tool has its own real per-system telemetry for the same check (AutoSupport, HA config, OS/firmware currency, EOS, contract expiry), the count is measured directly against this customer's own systems. Only the checks with no equivalent harvested field (mainly the bundled Best Practices categories) fall back to an account-wide-rate estimate, and are marked (est.).">⚠ Counts are measured per-customer where this tool has real per-system data for the check; only counts marked (est.) are extrapolated from Active IQ's account-wide rate.</span>`}
   </div>
   ${siblingCustomers.length > 0 ? `<div style="margin-bottom:16px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:10px 14px;font-size:0.78rem;color:var(--text-secondary);">
     ℹ️ This scope's systems are billed under the same Active IQ account as <strong style="color:#60a5fa">${siblingCustomers.length} other customer${siblingCustomers.length !== 1 ? 's' : ''}</strong> (${siblingCustomers.slice(0, 6).join(', ')}${siblingCustomers.length > 6 ? `, +${siblingCustomers.length - 6} more` : ''}). Active IQ computes each check's <strong>Score %</strong> for the whole account, so that percentage will be identical across all customers on this account — it is not a per-customer bug. The counts below are still rescoped to this customer's own ${scopeCount} system${scopeCount !== 1 ? 's' : ''} wherever real per-system data exists.
@@ -23955,7 +24053,7 @@ function _renderDRReplicationSection(systems) {
   const metroClusterSys = systems.filter(s => s.isMetroCluster);
   const syncMirrorSys = systems.filter(s => s.isSyncMirror);
   const haSys = systems.filter(s => _hasHA(s));
-  const unprotectedSys = systems.filter(s => _smCount(s) === 0 && !s.isMetroCluster);
+  const unprotectedSys = systems.filter(s => _smCount(s) === 0 && !s.isMetroCluster && !s.isSyncMirror);
 
   let html = `
     <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
@@ -23973,7 +24071,7 @@ function _renderDRReplicationSection(systems) {
       <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
         <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Unprotected Systems</h4>
         <div style="font-size: 1.5rem; color: ${unprotectedSys.length > 0 ? '#f59e0b' : '#10b981'}; margin-bottom: 4px;">${unprotectedSys.length}</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary);">No SnapMirror or MetroCluster</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary);">No SnapMirror, MetroCluster, or SyncMirror</div>
       </div>
     </div>
   `;
@@ -24129,11 +24227,18 @@ function _renderFirmwareCurrencySection(systems) {
     // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
     const baseline = _getRefLibBaselines()[moduleModelName];
     if (baseline) return { recommended: baseline.recommended, label: baseline.label };
-    // Try prefix: "IOM12" from "IOM12 v0260"
-    for (const [key, val] of Object.entries(_getRefLibBaselines())) {
-      if (moduleModelName.startsWith(key) || key.startsWith(moduleModelName)) {
-        return { recommended: val.recommended, label: val.label };
-      }
+    // Try prefix: "IOM12" from "IOM12 v0260". Baseline keys can themselves be
+    // prefixes of one another (e.g. "IOM12" vs "IOM12G"/"IOM12B") -- matching
+    // in object insertion order let the shorter, wrong key win whenever it
+    // happened to be defined first (e.g. "IOM12G v0270" silently matched the
+    // "IOM12" baseline instead of "IOM12G"). Sort candidates longest-first so
+    // the most specific real key always wins.
+    const candidates = Object.entries(_getRefLibBaselines())
+      .filter(([key]) => moduleModelName.startsWith(key) || key.startsWith(moduleModelName))
+      .sort((a, b) => b[0].length - a[0].length);
+    if (candidates.length > 0) {
+      const [, val] = candidates[0];
+      return { recommended: val.recommended, label: val.label };
     }
     return null;
   };
@@ -25520,17 +25625,25 @@ function _renderAsBuiltSection(systems) {
                 + '</table></div>';
         }
 
-        const opHealthEmpty = !s.monthlyAutoResolvedCases && !dtHtml && !uptimeHtml;
+        // s.monthlyAutoResolvedCases/monthlyCarbonStats are array fields --
+        // an empty array is truthy in JS, so `!s.monthlyAutoResolvedCases`
+        // was always false and this section's "Not reported" fallback could
+        // never fire even when every real sub-section below was empty.
+        const _autoResolvedCases = s.monthlyAutoResolvedCases || [];
+        let autoResolvedHtml = '';
+        if (_autoResolvedCases.length > 0) {
+            autoResolvedHtml = '<div style="margin-top:12px; font-size:0.8rem;"><strong>Auto-Resolved Cases:</strong></div>'
+                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Month</th><th style="' + thStyle + '">Count</th></tr>'
+                + _autoResolvedCases.map(a => '<tr><td style="' + tdStyle + '">' + valOrDash(a.month) + '</td><td style="' + tdStyle + '">' + valOrDash(a.count != null ? a.count : a.resolvedCount) + '</td></tr>').join('')
+                + '</table>';
+        }
+        const opHealthEmpty = !autoResolvedHtml && !dtHtml && !uptimeHtml;
         html += `
             <details open style="border:1px solid rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
                 <summary style="padding:10px 16px; background:rgba(255,255,255,0.025); font-weight:600; cursor:pointer; font-size:0.9rem;">Operational Health & Uptime</summary>
                 <div style="padding:16px;">
                     ${opHealthEmpty ? '<div style="font-size:0.8rem; color:var(--text-muted);">Not reported by Active IQ for this system — no auto-resolved case, downtime, or uptime telemetry available.</div>' : `
-                    <table style="${tblStyle}">
-                        <tr>
-                            <th style="${thStyle}">Auto-Resolved Cases</th><td style="${tdStyle}">${valOrDash(s.monthlyAutoResolvedCases)}</td>
-                        </tr>
-                    </table>
+                    ${autoResolvedHtml}
                     ${dtHtml}
                     ${uptimeHtml}`}
                 </div>
@@ -25551,9 +25664,13 @@ function _renderAsBuiltSection(systems) {
         
         let carbonHtml = '';
         if (s.monthlyCarbonStats && s.monthlyCarbonStats.length > 0) {
+            // Real field is carbonEmissionTons (confirmed against the same
+            // per-system data already used correctly in the Sustainability
+            // tab) -- this table read a field name ("carbonEmissions") that
+            // doesn't exist on the real object and always showed a dash.
             carbonHtml = '<div style="margin-top:16px;"><div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Monthly Carbon Stats</div>'
-                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Month</th><th style="' + thStyle + '">Carbon (kgCO2e)</th></tr>'
-                + s.monthlyCarbonStats.map(c => '<tr><td style="' + tdStyle + '">' + valOrDash(c.month) + '</td><td style="' + tdStyle + '">' + valOrDash(c.carbonEmissions) + '</td></tr>').join('')
+                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Month</th><th style="' + thStyle + '">Carbon (metric tons CO2e)</th></tr>'
+                + s.monthlyCarbonStats.map(c => '<tr><td style="' + tdStyle + '">' + valOrDash(c.month) + '</td><td style="' + tdStyle + '">' + valOrDash(c.carbonEmissionTons) + '</td></tr>').join('')
                 + '</table></div>';
         }
 
@@ -25762,7 +25879,15 @@ function generateActionPlan() {
   targetSystems.forEach(sys => {
     const sws = getSystemSwitches(sys);
     sws.forEach(sw => {
-      if (sw.status !== "Optimal") {
+      // s.switches merges two unrelated real Active IQ sources: per-port
+      // connected-device entries (deviceName/connectedPort/portSpeed only --
+      // never assessed by CSHM, so they have no `status`/`model`/`firmware`
+      // at all) and real cluster-level switch validation entries (which do).
+      // `sw.status !== "Optimal"` is true for BOTH an actual warning AND an
+      // unvalidated connectivity entry (undefined !== "Optimal"), so without
+      // this guard every connected-device port became a false switch alert
+      // and crashed downstream rendering that assumes a real `sw.model`.
+      if (sw.status && sw.status !== "Optimal") {
         switchAlerts.push({ systemName: sys.systemName, ...sw });
       }
     });
@@ -26175,7 +26300,7 @@ function generateActionPlan() {
         <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
             <strong>${s.id} — ${s.systemName}</strong>
-            <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity}</span>
+            <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity === 'unknown' ? 'Not Reported' : s.severity}</span>
           </div>
           <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 6px;">${s.title}</div>
           <div style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">
@@ -26230,7 +26355,18 @@ function generateActionPlan() {
       </div>
     `;
 
-    allSupportCases.forEach((c, idx) => {
+    // No date filter exists server-side (server.py fetches every case ever
+    // opened on the account), and this list is already sorted active-first
+    // by filterActiveCases() above -- a mature account can have hundreds of
+    // years-old closed cases burying the handful a TAM actually needs to
+    // triage. Cap the initial render and let a TAM expand to the full list.
+    const _caseRenderCap = 30;
+    const _showAllCases = !!state._showAllSupportCases;
+    const _casesToRender = _showAllCases ? allSupportCases : allSupportCases.slice(0, _caseRenderCap);
+    if (!_showAllCases && allSupportCases.length > _caseRenderCap) {
+      html += `<div style="margin-bottom: 12px; font-size: 0.8rem; color: var(--text-muted);">Showing the ${_caseRenderCap} most relevant of ${allSupportCases.length} cases (active/processing first). <a href="#" onclick="state._showAllSupportCases = true; generateActionPlan(); return false;" style="color: var(--accent-cyan);">Show all ${allSupportCases.length} cases</a></div>`;
+    }
+    _casesToRender.forEach((c, idx) => {
       const isActive = c._isActive;
       const isClosed = c._isClosed;
 
@@ -26374,6 +26510,7 @@ function generateActionPlan() {
           ${hopChainHtml}
           <div style="font-size:0.82rem; color:var(--text-secondary); margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">
             <strong>Expected Upgrade Benefits:</strong> ${u.benefits}
+            ${u.source === 'heuristic' ? '<div style="font-size:0.72rem; color:var(--status-warning); margin-top:6px;">⚠ Active IQ did not report a target version for this platform -- generic version-based guidance shown, not a confirmed Active IQ recommendation.</div>' : ''}
           </div>
           ${u.serialNumber && minVer && minVer !== 'N/A' ? (() => {
             const _sn = u.serialNumber.replace(/'/g, "\\'");
@@ -26409,7 +26546,8 @@ function generateActionPlan() {
       if (sw.status === "Critical") badgeClass = "badge critical";
       
       let stepGuide = "";
-      if (sw.model.toLowerCase().includes("nexus")) {
+      const swModelLower = (sw.model || "").toLowerCase();
+      if (swModelLower.includes("nexus")) {
         stepGuide = `
           <strong>ISSU (In-Service Software Upgrade) Action Steps:</strong>
           <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
@@ -26420,7 +26558,7 @@ function generateActionPlan() {
             <li>5. Verify switch status after reload: <code>show version</code> and check link integrity.</li>
           </ol>
         `;
-      } else if (sw.model.toLowerCase().includes("brocade")) {
+      } else if (swModelLower.includes("brocade")) {
         stepGuide = `
           <strong>Hot Code Load Upgrade Action Steps:</strong>
           <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
@@ -26937,12 +27075,12 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
       <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract compliance audit — validates service levels, NRD coverage, hardware vs. software contract alignment, and renewal gaps.">8. Contract Compliance</button>
+      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">8. Contract Compliance</button>
       <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
-      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Prioritised recommendations for capacity planning, performance optimisation, security hardening, and tech refresh across the fleet.">10. Recommendations</button>
-      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account-level intelligence — sales rep, TAM, SAM contacts, parent account hierarchy, reseller details, and engagement history.">11. Account Intelligence</button>
-      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational health dashboard — uptime statistics, downtime events, AutoSupport health, reboot history, and system availability trends.">12. Operational Health</button>
-      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationships, replication status, HA pair configuration, and MetroCluster health per system.">🔄 13. DR &amp; Replication Health</button>
+      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">10. Recommendations</button>
+      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
+      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
+      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
       <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, FabricPool, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
       <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
@@ -27241,7 +27379,7 @@ B. 3RD-PARTY VIRTUALIZATION COMPLIANCE
 - Astra Trident: Coordinate Trident upgrades alongside Kubernetes API migrations to avoid CSI mount failures.`;
   } else if (index === 12) {
     filename = `tam_recommendations_${cleanScope}.txt`;
-    const recs = _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems);
+    const recs = _getScopedRecommendations(targetSystems).recs;
     const scopeAcctLabels = {};
     targetSystems.forEach(s => { if (s.accountId) scopeAcctLabels[s.accountId] = s.accountLabel || s.accountId; });
     const multiAcct = Object.keys(scopeAcctLabels).length > 1;
@@ -29951,6 +30089,8 @@ async function loadProductionData(forceRefresh = false) {
     state.tamSites = result.tamSites || [];
     state.tamSustainability = result.tamSustainability || [];
     state.tamOfficialHealthScore = result.tamOfficialHealthScore || [];
+    state.tamCustomerHealthScores = result.tamCustomerHealthScores || [];
+    state.tamCustomerRecommendations = result.tamCustomerRecommendations || [];
     state.tamSuccessPlans = result.tamSuccessPlans || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];

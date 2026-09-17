@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.61] - 2026-09-17
+
+### Fixed
+- **Official AIQ Health Score KPI never changed when switching customers** (found live immediately after shipping it) — it only ever fetched one fleet-wide score. Now fetches a real per-customer score via `summary(nagpId: ...) { healthScore }` for every real customer on the account (confirmed live: 28/29 real customers reported genuinely different scores — 64, 66, 73, etc.). The Overview KPI tile, QBR Pack, and Risk & Remediation Brief now use the selected customer's real score, falling back to the fleet-wide figure (honestly labeled as such) only when no single customer is in scope.
+- **TAM Recommendations Score % had the identical root cause** (found live, same session): every customer on an account saw the same Score % per check, because `recommendations` was only ever queried once per account. Confirmed live that `recommendations(customerId: ...)` accepts a real per-customer filter and returns genuinely different scores (one real customer's MIN_VERSION check: 8%; another's: 0%; the account-wide figure: 44% — all three real). Now fetched per real customerId (36/36 real customers confirmed live) and used by the TAM Recommendations tab, its TXT export, the QBR Pack, and the CSM tab's Value Insights widget — the "this is account-wide" disclosure now only shows for genuinely multi-customer scopes.
+- **Switch Validation could crash the entire Action Planner.** The real `switches[]` array merges two unrelated Active IQ sources — per-port connected-device entries (no `status`/`model`/`firmware`) and real cluster-level switch validation entries (which do have those fields). Every connected-device port was silently treated as a firmware alert (`undefined !== "Optimal"` is `true`), and rendering it called `.toLowerCase()` on a field that doesn't exist — crashing for any system with connected-device port telemetry, a near-universal field. Fixed at the source plus a defensive null-guard at the render site.
+- **Tool-wide MSP/SAM/TAM accuracy audit** (4 parallel research passes across every tab, not just the deliverables) found and fixed:
+  - Customer Portfolio's "Health Score" column (renamed "Risk Health Score", now disambiguated from the real Active IQ score) and "SLA Compliance" column (renamed "Tracker SLA %", clarified as the Remediation Tracker's own policy, not a support-contract SLA).
+  - Webhook notification description overstated its trigger condition — contract expirations never independently fire an alert.
+  - Three fabricated, unconditional SAM tab claims removed ("Account is under regular quarterly review," "Parts shipping pathways are verified," "Primary accounts synced with NSS credentials").
+  - The synthesized "Not Set" placeholder no longer leaks into the SAM tab's aggregate Account Manager/TAM name lists as if it were a real person.
+  - The permanently-empty Workload Optimization Recommendations now honestly says "Not reported by Active IQ" instead of "No active optimization recommendations" (there's no API field for hypervisor/database/backup software, so this can never populate).
+  - Security Advisories no longer silently defaults an unassessed bulletin's severity to "medium."
+  - Firmware Currency fixed a baseline-matching bug where `IOM12G v0270` could silently match the wrong `IOM12` baseline due to object-iteration order.
+  - DR & Replication Health's "Unprotected Systems" count no longer double-counts SyncMirror-protected systems.
+  - Five Action Planner tab tooltips (Contract Compliance, Recommendations, Account Intelligence, Operational Health, DR & Replication Health) rewritten to match what each tab actually renders.
+  - As-Built Document: fixed a wrong field name that always showed a blank Carbon column, and a truthy-empty-array bug that meant the Auto-Resolved Cases "Not reported" fallback could never fire.
+  - OS Upgrade recommendations without a real Active IQ target version are now visibly tagged as generic guidance, not presented identically to a confirmed Active IQ recommendation.
+  - Support Cases now caps its initial render to the 30 most relevant cases with a "show all" expansion, instead of always rendering every case ever opened on the account.
+
+---
+
 ## [5.6.60] - 2026-09-17
 
 ### Added

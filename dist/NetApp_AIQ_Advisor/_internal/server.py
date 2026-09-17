@@ -1221,6 +1221,12 @@ _MERGE_LIST_FIELDS = [
     # (queried via `summary(watchlistId: ...) { healthScore }`, same shape as
     # tamSustainability above) -- must be merged per-account, not overwritten.
     "tamOfficialHealthScore",
+    # Per-customer health scores (one entry per real nagpId) -- same
+    # per-account merge reasoning as tamOfficialHealthScore above.
+    "tamCustomerHealthScores",
+    # Per-customer TAM recommendations (one entry per real customerId) --
+    # same per-account merge reasoning as tamRecommendations above.
+    "tamCustomerRecommendations",
 ]
 
 
@@ -3333,6 +3339,87 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                                 break
             print(f"  [HARVEST] Per-aggregate detail: {_agg_ok}/{len(_agg_targets)} systems reported aggregate data", flush=True)
 
+        # ── Per-customer official Active IQ Health Score ───────────────────
+        # The account-wide tam_official_health_score fetched earlier is ONE
+        # score for the whole watchlist/account scope -- it never changes
+        # when a TAM filters the UI down to a single customer, which reads
+        # as a broken/stuck KPI (found live: the Overview tile showed the
+        # same 68/100 regardless of which customer was selected). `summary`
+        # also accepts a real `nagpId` filter, so fetch one score per real
+        # customer (same bounded thread-pool pattern as aggregates, but
+        # scoped to the much smaller set of distinct customers, not systems).
+        _customer_nagps = {}
+        for _s in systems_out:
+            _nid = _s.get("nagpId")
+            if _nid and _nid not in _customer_nagps:
+                _customer_nagps[_nid] = _s.get("nagpName", "")
+        tam_customer_health_scores = []
+        if _customer_nagps:
+            print(f"  [HARVEST] Fetching per-customer health score for {len(_customer_nagps)} customer(s)...", flush=True)
+            _hs_ok = 0
+
+            def _fetch_customer_health_score(_item):
+                _nid, _nname = _item
+                try:
+                    _, _resp = _gql(token, (
+                        '{ summary(pageSize: 1, nagpId: "' + _nid + '") { healthScore { overallHealthScore calculatedAt } } }'
+                    ))
+                    _hs = (((_resp.get("data") or {}).get("summary") or {}).get("healthScore")) if isinstance(_resp, dict) else None
+                    if _hs and _hs.get("overallHealthScore") is not None:
+                        return {"nagpId": _nid, "nagpName": _nname, "overallHealthScore": _hs.get("overallHealthScore"), "calculatedAt": _hs.get("calculatedAt", "")}
+                except Exception:
+                    pass
+                return None
+
+            with ThreadPoolExecutor(max_workers=10, thread_name_prefix='health-score') as _pool:
+                for _result in _pool.map(_fetch_customer_health_score, _customer_nagps.items()):
+                    if _result:
+                        _hs_ok += 1
+                        tam_customer_health_scores.append(_result)
+            print(f"  [HARVEST] Per-customer health score: {_hs_ok}/{len(_customer_nagps)} customers reported", flush=True)
+
+        # ── Per-customer TAM Recommendations ────────────────────────────────
+        # `recommendations` (the account-wide tam_recommendations fetched
+        # earlier) accepts a real `customerId` filter -- confirmed live
+        # (2026-09-17) that scoping by customerId returns genuinely different
+        # Score % values per customer (e.g. one real customer's MIN_VERSION
+        # check scored 8%, another's scored 0%, the unscoped account-wide
+        # figure was 44% -- none of the three match). The UI previously had
+        # to show an honest "this percentage is account-wide, not just this
+        # customer" disclaimer because no per-customer source existed; this
+        # fetches the real thing instead, one call per real customerId
+        # (same bounded thread-pool pattern as the health score fetch above).
+        _customer_ids = {}
+        for _s in systems_out:
+            _cid = _s.get("customerId")
+            if _cid and _cid not in _customer_ids:
+                _customer_ids[_cid] = _s.get("customerName", "")
+        tam_customer_recommendations = []
+        if _customer_ids:
+            print(f"  [HARVEST] Fetching per-customer recommendations for {len(_customer_ids)} customer(s)...", flush=True)
+            _rec_ok = 0
+
+            def _fetch_customer_recommendations(_item):
+                _cid, _cname = _item
+                try:
+                    _, _resp = _gql(token, (
+                        '{ recommendations(isTopKeyRecommendation: true, limit: 50, customerId: "' + _cid + '") { '
+                        'recommendation rank category subCategory score } }'
+                    ))
+                    _recs = (_resp.get("data") or {}).get("recommendations") if isinstance(_resp, dict) else None
+                    if _recs:
+                        return {"customerId": _cid, "customerName": _cname, "recommendations": _recs}
+                except Exception:
+                    pass
+                return None
+
+            with ThreadPoolExecutor(max_workers=10, thread_name_prefix='cust-recs') as _pool:
+                for _result in _pool.map(_fetch_customer_recommendations, _customer_ids.items()):
+                    if _result:
+                        _rec_ok += 1
+                        tam_customer_recommendations.append(_result)
+            print(f"  [HARVEST] Per-customer recommendations: {_rec_ok}/{len(_customer_ids)} customers reported", flush=True)
+
         # 14. Try fetching watchlists from REST API
         watchlists_out = []
         try:
@@ -3516,6 +3603,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             "tamSites": tam_sites,
             "tamSustainability": tam_sustainability,
             "tamOfficialHealthScore": tam_official_health_score,
+            "tamCustomerHealthScores": tam_customer_health_scores,
+            "tamCustomerRecommendations": tam_customer_recommendations,
             "tamSuccessPlans": tam_success_plans,
             "tamOsVersions": tam_os_versions,
             "acknowledgedRisksNowExploited": acknowledged_risks_now_exploited,
@@ -3532,7 +3621,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _acct_label = account.get("label") or _acct_id
             result["accountId"] = _acct_id
             result["accountLabel"] = _acct_label
-            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations", "tamSustainability", "tamOfficialHealthScore", "tamSuccessPlans"):
+            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations", "tamSustainability", "tamOfficialHealthScore", "tamCustomerHealthScores", "tamCustomerRecommendations", "tamSuccessPlans"):
                 for _item in (result.get(_field) or []):
                     if isinstance(_item, dict):
                         _item.setdefault("accountId", _acct_id)
