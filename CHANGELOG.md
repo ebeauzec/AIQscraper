@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.62] - 2026-09-17
+
+### Fixed
+- **Suggested Success Plans showed every customer's suggestions regardless of the sidebar selection** (found live) — the list always grouped every system in `state.systems`, ignoring the active customer/group/watchlist filter. Now built from `getFilteredSystems()`, the same scoping every other tab already respects.
+
+### Added
+- **6 more suggestion templates** (12 total): Storage Efficiency & Cost Optimization (non-FabricPool/dedup-disabled aggregates), Disaster Recovery Readiness (no SnapMirror/MetroCluster/SyncMirror), OS & Firmware Currency Improvement, Support Case Escalation Review (open Sev 1/2 cases), Capacity Planning & Growth (<=60 days runway), and Expired Contract Recovery.
+- **Adopting a suggestion now pre-fills real, specific findings and remediation steps.** Every template returns `affectedSystems` (real system names, serials, and finding text — risk descriptions, CVE IDs, EOS dates, case numbers) and `remediationSteps` (the real Active IQ recommendation text, deduplicated). `customerChallengesAndGoals`, `objectives`, and `tamNotes` on the created Active IQ Success Plan are now built from this real detail instead of a generic 2-bullet summary, so the plan is fully actionable and trackable from inside Active IQ itself.
+
+---
+
 ## [5.6.61] - 2026-09-17
 
 ### Fixed

@@ -27,9 +27,41 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.61";
+const APP_VERSION = "5.6.62";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.62",
+    date: "17 September 2026",
+    title: "Suggested Success Plans: Fixed Cross-Customer Leak, 6 New Templates, Real Findings Pre-Filled on Adopt",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Suggested Plans Showed Every Customer's Suggestions Regardless of Selection",
+        color: "#f87171",
+        items: [
+          "Found live: the Suggested Success Plans list always grouped ALL of state.systems, ignoring the sidebar's customer/group/watchlist filter -- a TAM viewing one customer's Success Plans tab saw suggestions for every other customer on the account mixed in. Now built from getFilteredSystems(), the same scoping every other tab already respects: selecting a customer shows only that customer's suggestions, and only that customer's real nagpId group is evaluated.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "New -- 6 More Suggestion Templates (12 Total)",
+        color: "#22c55e",
+        items: [
+          "Storage Efficiency & Cost Optimization (non-FabricPool or dedup-disabled aggregates, using this session's new per-aggregate data), Disaster Recovery Readiness (no SnapMirror/MetroCluster/SyncMirror), OS & Firmware Currency Improvement (below Active IQ's minimum recommended version), Support Case Escalation Review (open Sev 1/2 cases), Capacity Planning & Growth (<=60 days runway), and Expired Contract Recovery (no active support contract) -- all evaluated against the same real per-system fields already harvested, triggering only when genuinely present.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "New -- Adopting a Suggestion Now Pre-Fills Real, Specific Findings and Remediation Steps",
+        color: "#22c55e",
+        items: [
+          "Every template now returns affectedSystems (the actual system names, serial numbers, and specific finding text -- real risk descriptions, real CVE IDs, real EOS dates, real case numbers) and remediationSteps (the actual Active IQ recommendation text for each finding, deduplicated), not just a summary count.",
+          "Adopting a suggestion now writes these into the real Active IQ Success Plan: customerChallengesAndGoals gets the challenge summary plus a real affected-systems list (up to 12 shown), objectives gets the real deduplicated remediation steps instead of 2 generic bullets, and tamNotes gets the full affected-system list (up to 25) for complete internal tracking -- so the plan is fully actionable from inside Active IQ itself, without this tool open.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.61",
     date: "17 September 2026",
@@ -30353,14 +30385,49 @@ const SUCCESS_PLAN_HEALTH_COLORS = { 'GREEN': '#22c55e', 'YELLOW': '#f59e0b', 'R
 // SuccessMetric enum values confirmed via live GraphQL introspection
 // (2026-09-17), so an adopted suggestion is indistinguishable from a plan a
 // TAM created by hand, just pre-populated from the account's real state.
+// Formats a list of {name, serial, detail} into a plain-text block for
+// tamNotes/customerChallengesAndGoals -- every value in `detail` must come
+// from a real harvested field on that specific system, never a generic
+// restatement, so an adopted plan is traceable back to the actual finding.
+function _fmtAffectedSystemsBlock(items, cap = 12) {
+  if (!items || items.length === 0) return '';
+  const shown = items.slice(0, cap);
+  const lines = shown.map(it => `  - ${it.name || it.serial || 'Unknown system'}${it.serial ? ` (S/N ${it.serial})` : ''}: ${it.detail}`);
+  const more = items.length > cap ? `\n  ...and ${items.length - cap} more (see the tool for the full list)` : '';
+  return lines.join('\n') + more;
+}
+
+// Deduplicated, capped list of real remediation/recommendation strings
+// pulled from actual risk findings -- used as objectives/steps instead of
+// generic advice, so the plan carries THIS account's actual fix text.
+function _uniqueSteps(strings, cap = 6) {
+  const seen = new Set();
+  const out = [];
+  for (const s of (strings || [])) {
+    const t = (s || '').trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 const SUCCESS_PLAN_TEMPLATES = [
   {
     key: 'critical_risk', title: 'Critical Risk Remediation', stage: 'PREVENT_AND_SOLVE',
     metrics: ['REDUCED_OPERATIONAL_RISK', 'REDUCED_CRITICAL_ALERTS'],
     evaluate(systems) {
-      const crit = systems.reduce((n, s) => n + (s.risks || []).filter(r => r.severity === 'critical').length, 0);
-      const high = systems.reduce((n, s) => n + (s.risks || []).filter(r => r.severity === 'high').length, 0);
+      const findings = [];
+      systems.forEach(s => (s.risks || []).forEach(r => {
+        if (r.severity === 'critical' || r.severity === 'high') {
+          findings.push({ name: s.systemName, serial: s.serialNumber, severity: r.severity, detail: `[${r.severity.toUpperCase()}] ${r.description}`, fix: r.recommendation });
+        }
+      }));
+      const crit = findings.filter(f => f.severity === 'critical').length;
+      const high = findings.filter(f => f.severity === 'high').length;
       if (crit === 0 && high < 3) return null;
+      findings.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
       return {
         metricLabel: 'Open critical/high risk findings', metricValue: crit + high, targetDirection: 'down',
         challenges: `${crit} critical and ${high} high-severity risk finding(s) are currently open across this account's fleet, per Active IQ predictive analytics.`,
@@ -30368,6 +30435,8 @@ const SUCCESS_PLAN_TEMPLATES = [
           crit > 0 ? `Remediate all ${crit} critical-severity risk finding(s)` : `Reduce open high-severity findings (currently ${high})`,
           'Establish a recurring risk-review cadence with the account team',
         ],
+        affectedSystems: findings.map(f => ({ name: f.name, serial: f.serial, detail: f.detail })),
+        remediationSteps: _uniqueSteps(findings.map(f => f.fix)),
       };
     },
   },
@@ -30375,9 +30444,17 @@ const SUCCESS_PLAN_TEMPLATES = [
     key: 'security_hardening', title: 'Ransomware & Security Hardening', stage: 'PREVENT_AND_SOLVE',
     metrics: ['REDUCED_RANSOMWARE_RISK_EXPOSURE', 'REDUCED_VULNERABILITY_RESOLUTION_RATE'],
     evaluate(systems) {
-      const noArp = systems.filter(s => s.isARPEnabled === false).length;
-      const secRisks = systems.reduce((n, s) => n + (s.risks || []).filter(r => (r.category || '').toLowerCase() === 'security').length, 0);
+      const noArpSystems = systems.filter(s => s.isARPEnabled === false);
+      const secFindings = [];
+      systems.forEach(s => (s.risks || []).forEach(r => {
+        if ((r.category || '').toLowerCase() === 'security') secFindings.push({ name: s.systemName, serial: s.serialNumber, detail: r.description, fix: r.recommendation });
+      }));
+      const noArp = noArpSystems.length, secRisks = secFindings.length;
       if (noArp === 0 && secRisks === 0) return null;
+      const affectedSystems = [
+        ...noArpSystems.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: 'Autonomous Ransomware Protection is not enabled' })),
+        ...secFindings.map(f => ({ name: f.name, serial: f.serial, detail: f.detail })),
+      ];
       return {
         metricLabel: 'Systems without Anti-Ransomware Protection', metricValue: noArp, targetDirection: 'down',
         challenges: `${noArp} system(s) do not have Autonomous Ransomware Protection enabled, and ${secRisks} open security-related risk finding(s) exist across the fleet.`,
@@ -30385,6 +30462,11 @@ const SUCCESS_PLAN_TEMPLATES = [
           noArp > 0 ? `Enable Anti-Ransomware Protection on the remaining ${noArp} system(s)` : 'Maintain full Anti-Ransomware Protection coverage',
           `Close out ${secRisks} open security advisory finding(s)`,
         ],
+        affectedSystems,
+        remediationSteps: _uniqueSteps([
+          noArp > 0 ? 'Enable Anti-Ransomware Protection: System Manager > Protection > Overview, or `security anti-ransomware enable` per volume' : null,
+          ...secFindings.map(f => f.fix),
+        ].filter(Boolean)),
       };
     },
   },
@@ -30399,12 +30481,19 @@ const SUCCESS_PLAN_TEMPLATES = [
         return !isNaN(d) && (d.getTime() - now) <= yearMs;
       });
       if (nearEos.length === 0) return null;
+      nearEos.sort((a, b) => new Date(a.hwEndOfSupport) - new Date(b.hwEndOfSupport));
       return {
         metricLabel: 'Systems within 12 months of hardware End of Support', metricValue: nearEos.length, targetDirection: 'down',
         challenges: `${nearEos.length} system(s) reach hardware End of Support within the next 12 months, per Active IQ's real per-system EOA/EOS data.`,
         objectives: [
           `Build and approve a tech refresh plan for ${nearEos.length} system(s) before their EOS date`,
           'Align replacement sizing to current + forecasted capacity needs',
+        ],
+        affectedSystems: nearEos.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.model || s.platform || 'System'} -- EOS ${s.hwEndOfSupport.slice(0, 10)}${s.hwEndOfAvailability ? `, EOA ${s.hwEndOfAvailability.slice(0, 10)}` : ''}` })),
+        remediationSteps: [
+          `Prioritize replacement quoting for the ${Math.min(3, nearEos.length)} system(s) reaching EOS soonest`,
+          'Confirm current capacity/performance requirements before sizing replacements',
+          'Schedule data migration and cutover windows with the account team',
         ],
       };
     },
@@ -30415,12 +30504,18 @@ const SUCCESS_PLAN_TEMPLATES = [
     evaluate(systems) {
       const expiring = systems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining <= 90);
       if (expiring.length === 0) return null;
+      expiring.sort((a, b) => a.contracts.daysRemaining - b.contracts.daysRemaining);
       return {
         metricLabel: 'Systems with support contracts expiring <=90 days', metricValue: expiring.length, targetDirection: 'down',
         challenges: `${expiring.length} system(s) have a support contract expiring within 90 days, per Active IQ's real contract data.`,
         objectives: [
           `Secure renewal on ${expiring.length} expiring contract(s) before lapse`,
           'Review service-tier fit against current fleet criticality',
+        ],
+        affectedSystems: expiring.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `Contract expires in ${s.contracts.daysRemaining} day(s)${s.contracts.endDate ? ` (${String(s.contracts.endDate).slice(0, 10)})` : ''}` })),
+        remediationSteps: [
+          `Issue renewal quotes for the ${Math.min(3, expiring.length)} contract(s) expiring soonest`,
+          'Confirm service-tier and entitlement level against current fleet criticality before renewal',
         ],
       };
     },
@@ -30431,6 +30526,19 @@ const SUCCESS_PLAN_TEMPLATES = [
     evaluate(systems) {
       const score = typeof computeAccountHealthScore === 'function' ? computeAccountHealthScore(systems) : null;
       if (score == null || score >= 70) return null;
+      // Surface the specific systems missing the most of the 5 real tracked
+      // features (ARP/FabricPool/SnapMirror/HA/QoS) -- the actual real
+      // contributors to a low score, not a restatement of the score itself.
+      const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+      const featureGaps = systems.map(s => {
+        const missing = [];
+        if (s.isARPEnabled === false) missing.push('ARP');
+        if (s.isFabricPool === false) missing.push('FabricPool');
+        if (_smCount(s) === 0) missing.push('SnapMirror');
+        if (s.isHAConfigured === false || s.haConfigured === false) missing.push('HA');
+        if (s.isQoSConfigured === false) missing.push('QoS');
+        return { name: s.systemName, serial: s.serialNumber, missing };
+      }).filter(x => x.missing.length > 0).sort((a, b) => b.missing.length - a.missing.length);
       return {
         metricLabel: 'Account health score', metricValue: score, targetDirection: 'up',
         challenges: `This account's computed health score is ${score}/100, below the 70-point target, driven by open risk findings, feature adoption gaps, and/or contract coverage.`,
@@ -30438,6 +30546,8 @@ const SUCCESS_PLAN_TEMPLATES = [
           `Raise the account health score from ${score} toward 80+`,
           'Close the top feature-adoption gaps (ARP/FabricPool/SnapMirror/HA/QoS)',
         ],
+        affectedSystems: featureGaps.slice(0, 12).map(x => ({ name: x.name, serial: x.serial, detail: `Missing: ${x.missing.join(', ')}` })),
+        remediationSteps: _uniqueSteps(featureGaps.slice(0, 20).flatMap(x => x.missing.map(m => `Enable ${m} on systems currently missing it`))),
       };
     },
   },
@@ -30463,6 +30573,154 @@ const SUCCESS_PLAN_TEMPLATES = [
           'Confirm AutoSupport, monitoring, and best-practice configuration on all newly deployed systems',
           'Schedule a 30/60/90-day onboarding review with the account team',
         ],
+        affectedSystems: newSystems.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `Shipped ${String(s.originalShipDate).slice(0, 10)}` })),
+        remediationSteps: [
+          'Verify AutoSupport transport and connectivity on each newly deployed system',
+          'Confirm ARP, FabricPool, and HA configuration match best-practice defaults',
+          'Schedule a 30-day check-in to review early telemetry',
+        ],
+      };
+    },
+  },
+  {
+    key: 'storage_efficiency', title: 'Storage Efficiency & Cost Optimization', stage: 'OPERATE_AND_OPTIMIZE',
+    metrics: ['REDUCED_COST_PER_TB', 'CAPACITY_UTILIZATION_WITHIN_LIMITS'],
+    evaluate(systems) {
+      // s.aggregateDetail is real per-aggregate data (efficiency/FabricPool/
+      // dedup) harvested this session -- only populated for ONTAP systems
+      // Active IQ reports aggregate telemetry for, so this only ever
+      // triggers where real data actually backs it.
+      const noFabricPool = systems.filter(s => s.aggregateDetail && s.aggregateDetail.aggregatesWithoutFabricPool > 0);
+      const sisDisabled = systems.filter(s => s.aggregateDetail && s.aggregateDetail.aggregatesWithSisDisabledVolumes > 0);
+      if (noFabricPool.length === 0 && sisDisabled.length === 0) return null;
+      return {
+        metricLabel: 'Systems with efficiency gaps (non-FabricPool or dedup-disabled aggregates)', metricValue: noFabricPool.length + sisDisabled.length, targetDirection: 'down',
+        challenges: `${noFabricPool.length} system(s) have aggregates not using FabricPool tiering, and ${sisDisabled.length} have aggregates with deduplication/compression disabled, per Active IQ's real per-aggregate data.`,
+        objectives: [
+          noFabricPool.length > 0 ? `Enable FabricPool tiering on ${noFabricPool.length} system(s) to reduce primary storage cost` : 'Maintain FabricPool coverage fleet-wide',
+          sisDisabled.length > 0 ? `Re-enable storage efficiency (dedup/compression) on ${sisDisabled.length} system(s)` : 'Maintain storage efficiency coverage fleet-wide',
+        ],
+        affectedSystems: [
+          ...noFabricPool.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.aggregateDetail.aggregatesWithoutFabricPool} aggregate(s) not FabricPool-tiered` })),
+          ...sisDisabled.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.aggregateDetail.aggregatesWithSisDisabledVolumes} aggregate(s) with dedup/compression disabled` })),
+        ],
+        remediationSteps: [
+          noFabricPool.length > 0 ? 'Attach an object-store tier and enable FabricPool on cold-data aggregates' : null,
+          sisDisabled.length > 0 ? 'Re-enable storage efficiency: `volume efficiency on -vserver <vs> -volume <vol>`' : null,
+        ].filter(Boolean),
+      };
+    },
+  },
+  {
+    key: 'dr_readiness', title: 'Disaster Recovery Readiness', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_RECOVERY_TIME_OBJECTIVE', 'REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
+      const unprotected = systems.filter(s => _smCount(s) === 0 && !s.isMetroCluster && !s.isSyncMirror);
+      if (unprotected.length === 0) return null;
+      return {
+        metricLabel: 'Systems with no SnapMirror, MetroCluster, or SyncMirror protection', metricValue: unprotected.length, targetDirection: 'down',
+        challenges: `${unprotected.length} system(s) have no replication or DR protection configured (no SnapMirror, MetroCluster, or SyncMirror relationships reported by Active IQ).`,
+        objectives: [
+          `Establish DR protection for ${unprotected.length} unprotected system(s)`,
+          'Document and validate recovery point/time objectives for critical workloads',
+        ],
+        affectedSystems: unprotected.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: 'No SnapMirror, MetroCluster, or SyncMirror relationship reported' })),
+        remediationSteps: [
+          'Identify critical volumes on unprotected systems and define target RPO/RTO',
+          'Configure SnapMirror relationships to a DR target for critical workloads',
+          'Validate recovery through a test failover once protection is in place',
+        ],
+      };
+    },
+  },
+  {
+    key: 'os_currency', title: 'OS & Firmware Currency Improvement', stage: 'OPERATE_AND_OPTIMIZE',
+    metrics: ['REDUCED_OPERATIONAL_RISK', 'REDUCED_CRITICAL_ALERTS'],
+    evaluate(systems) {
+      const behind = systems.filter(s => s.swRecMin && s.osVersion && typeof versionLt === 'function' && versionLt(s.osVersion, s.swRecMin));
+      if (behind.length < 3) return null;
+      return {
+        metricLabel: 'Systems below Active IQ\'s minimum recommended OS version', metricValue: behind.length, targetDirection: 'down',
+        challenges: `${behind.length} system(s) are running below Active IQ's minimum recommended ONTAP version, per real per-system version data.`,
+        objectives: [
+          `Plan and schedule OS upgrades for ${behind.length} system(s) to the minimum recommended version`,
+          'Establish a recurring OS currency review to prevent future drift',
+        ],
+        affectedSystems: behind.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `Running ${s.osVersion}, minimum recommended is ${s.swRecMin}` })),
+        remediationSteps: [
+          `Schedule OS upgrades for the ${Math.min(3, behind.length)} most-behind system(s) first`,
+          'Review pre-upgrade validation checklist (ONTAP release notes) before each window',
+        ],
+      };
+    },
+  },
+  {
+    key: 'support_escalation', title: 'Support Case Escalation Review', stage: 'PREVENT_AND_SOLVE',
+    metrics: ['REDUCED_CRITICAL_ALERTS', 'REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      const p1p2Cases = [];
+      systems.forEach(s => (s.cases || []).forEach(c => {
+        if (['1', '2'].includes(String(c.severity || '').replace(/[^0-9]/g, ''))) {
+          p1p2Cases.push({ name: s.systemName, serial: s.serialNumber, detail: `Case ${c.id || ''} [Sev ${c.severity}]: ${c.title || 'Support case'}` });
+        }
+      }));
+      if (p1p2Cases.length < 2) return null;
+      return {
+        metricLabel: 'Open Severity 1/2 support cases', metricValue: p1p2Cases.length, targetDirection: 'down',
+        challenges: `${p1p2Cases.length} Severity 1/2 (business-impacting) support case(s) are currently open across this account's fleet, per real NetApp Support case data.`,
+        objectives: [
+          `Drive resolution on ${p1p2Cases.length} open Sev 1/2 case(s) with the account team`,
+          'Review root causes for recurring escalation patterns',
+        ],
+        affectedSystems: p1p2Cases,
+        remediationSteps: [
+          'Schedule a case-review call with NetApp Support to drive Sev 1/2 cases to resolution',
+          'Track root cause per case and flag any recurring pattern for a permanent fix',
+        ],
+      };
+    },
+  },
+  {
+    key: 'capacity_planning', title: 'Capacity Planning & Growth', stage: 'OPERATE_AND_OPTIMIZE',
+    metrics: ['CAPACITY_UTILIZATION_WITHIN_LIMITS', 'DECREASED_STORAGE_PROVISIONING_TIME'],
+    evaluate(systems) {
+      const atRisk = systems.filter(s => s.projections && s.projections.daysToLimit != null && s.projections.daysToLimit <= 60);
+      if (atRisk.length === 0) return null;
+      atRisk.sort((a, b) => a.projections.daysToLimit - b.projections.daysToLimit);
+      return {
+        metricLabel: 'Systems with <=60 days of capacity runway', metricValue: atRisk.length, targetDirection: 'down',
+        challenges: `${atRisk.length} system(s) are projected to reach capacity limits within 60 days, per Active IQ's real growth-rate projections.`,
+        objectives: [
+          `Approve capacity expansion or rebalancing for ${atRisk.length} at-risk system(s)`,
+          'Align procurement lead time to the real projected exhaustion date',
+        ],
+        affectedSystems: atRisk.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.projections.daysToLimit} day(s) of runway remaining${s.projections.limitDate ? ` (projected ${String(s.projections.limitDate).slice(0, 10)})` : ''}` })),
+        remediationSteps: [
+          `Initiate procurement for the ${Math.min(3, atRisk.length)} system(s) with the least runway`,
+          'Review candidates for efficiency gains (FabricPool, dedup) before adding capacity',
+        ],
+      };
+    },
+  },
+  {
+    key: 'expired_contract', title: 'Expired Contract Recovery', stage: 'EXPAND_AND_EVOLVE',
+    metrics: ['REDUCED_OPERATIONAL_RISK'],
+    evaluate(systems) {
+      const expired = systems.filter(s => s.contractActive === false);
+      if (expired.length === 0) return null;
+      return {
+        metricLabel: 'Systems with no active support contract', metricValue: expired.length, targetDirection: 'down',
+        challenges: `${expired.length} system(s) currently have no active support contract per Active IQ's real contract data -- these systems have no entitlement to AutoSupport-driven proactive support or software updates.`,
+        objectives: [
+          `Recover support coverage on ${expired.length} uncovered system(s)`,
+          'Review service-tier fit for the reinstated contracts',
+        ],
+        affectedSystems: expired.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `No active support contract${s.contracts && s.contracts.endDate ? ` (lapsed ${String(s.contracts.endDate).slice(0, 10)})` : ''}` })),
+        remediationSteps: [
+          `Issue reinstatement quotes for ${expired.length} uncovered system(s)`,
+          'Confirm current owner/billing contact before initiating renewal',
+        ],
       };
     },
   },
@@ -30485,8 +30743,15 @@ function computeSuggestedSuccessPlans() {
       })
       .filter(Boolean)
   );
+  // Scoped to the sidebar's current selection (getFilteredSystems() applies
+  // the CUSTOMER/GROUP/WATCHLIST filter and search query the same way every
+  // other tab does) -- found live: this used to always group ALL of
+  // state.systems regardless of which customer was selected, so a TAM
+  // viewing one customer's Success Plans tab saw suggestions for every
+  // other customer on the account mixed in.
+  const scopedSystems = getFilteredSystems(true);
   const groups = new Map();
-  (state.systems || []).forEach(s => {
+  scopedSystems.forEach(s => {
     if (!s.nagpId) return;
     if (!groups.has(s.nagpId)) groups.set(s.nagpId, { nagpId: s.nagpId, nagpName: s.nagpName || s.customerName || s.nagpId, systems: [] });
     groups.get(s.nagpId).systems.push(s);
@@ -30521,7 +30786,7 @@ function renderSuggestedPlans() {
       <div style="flex:1;">
         <div style="font-weight:700; font-size:0.88rem;">${s.title.replace(/</g, '&lt;')} <span style="color:var(--text-muted); font-weight:500;">— ${s.nagpName.replace(/</g, '&lt;')}</span></div>
         <div style="font-size:0.78rem; color:var(--text-secondary); margin:4px 0;">${s.challenges.replace(/</g, '&lt;')}</div>
-        <div style="font-size:0.72rem; color:var(--text-muted);">Stage: ${SUCCESS_PLAN_STAGE_LABELS[s.stage] || s.stage} &middot; Trigger: ${s.metricLabel.replace(/</g, '&lt;')} = ${s.metricValue}</div>
+        <div style="font-size:0.72rem; color:var(--text-muted);">Stage: ${SUCCESS_PLAN_STAGE_LABELS[s.stage] || s.stage} &middot; Trigger: ${s.metricLabel.replace(/</g, '&lt;')} = ${s.metricValue}${(s.affectedSystems && s.affectedSystems.length) ? ` &middot; Adopting will pre-fill ${s.affectedSystems.length} specific finding(s) and ${(s.remediationSteps||[]).length} remediation step(s)` : ''}</div>
       </div>
     </label>`).join('');
   updateSuggestedPlansSelection();
@@ -30549,7 +30814,18 @@ async function adoptSelectedSuggestedPlans() {
   let ok = 0, fail = 0;
   for (const s of toAdopt) {
     try {
-      const tamNotes = `Auto-suggested from real fleet data at adoption time (${s.metricLabel}: ${s.metricValue}). [template:${s.templateKey}]`;
+      // Pre-fill every field with the REAL, specific findings that triggered
+      // this suggestion (system names/serials + the actual finding text and
+      // remediation from Active IQ), not just the summary count -- so the
+      // plan is trackable in Active IQ itself without needing this tool open.
+      const affectedBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 12);
+      const challengesFull = affectedBlock
+        ? `${s.challenges}\n\nAffected systems:\n${affectedBlock}`
+        : s.challenges;
+      const objectives = (s.remediationSteps && s.remediationSteps.length > 0) ? s.remediationSteps : s.objectives;
+      const tamNotesBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 25);
+      const tamNotes = `Auto-suggested from real fleet data at adoption time (${s.metricLabel}: ${s.metricValue}). [template:${s.templateKey}]`
+        + (tamNotesBlock ? `\n\nFull affected-system list at adoption time:\n${tamNotesBlock}` : '');
       const mutation = `mutation CreateCSP($accountPlan: AccountPlanCreateInput!) {
         createSuccessPlan(accountPlan: $accountPlan) { success id accountId errors }
       }`;
@@ -30557,8 +30833,8 @@ async function adoptSelectedSuggestedPlans() {
         accountPlan: {
           nagpId: s.nagpId, name: s.title, source: 'MANUAL', title: s.title,
           templateUsed: 'ESSENTIAL', planStatus: 'ACTIVE', lifecycleStage: s.stage,
-          health: 'YELLOW', customerChallengesAndGoals: s.challenges,
-          objectives: s.objectives, successMetrics: s.metrics, tamNotes,
+          health: 'YELLOW', customerChallengesAndGoals: challengesFull,
+          objectives, successMetrics: s.metrics, tamNotes,
           scope: { id: s.nagpId, name: s.nagpName },
         },
       };
@@ -30569,6 +30845,7 @@ async function adoptSelectedSuggestedPlans() {
       state.tamSuccessPlans.push({
         id: result.id, name: s.title, title: s.title, status: 'ACTIVE', lifecycleStage: s.stage, health: 'YELLOW',
         tamOwnerEmail: '', source: 'MANUAL', templateUsed: 'ESSENTIAL', tamNotes,
+        customerChallengesAndGoals: challengesFull, objectives,
         nagpId: s.nagpId, nagpName: s.nagpName, scope: { id: s.nagpId, name: s.nagpName },
         lastUpdated: new Date().toISOString(),
       });
