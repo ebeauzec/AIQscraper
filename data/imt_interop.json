@@ -111,7 +111,7 @@
   "veeam": {
     "name": "Veeam Backup & Replication",
     "signal": "veeam",
-    "currentRecommended": "8.1",
+    "currentRecommended": "12.3",
     "versions": {
       "12.3": {
         "minOntap": "9.8",
@@ -137,13 +137,12 @@
     },
     "imtProduct": null,
     "upgradeDoc": "https://www.veeam.com/kb2930",
-    "notes": "Veeam not in NetApp IMT -- use Veeam's own support matrix. NetApp Plugin v2 for VBR 12.3+.",
-    "source": "https://helpcenter.veeam.com/docs/backup/vsphere/overview.html"
+    "notes": "Veeam not in NetApp IMT -- use Veeam's own support matrix. NetApp Plugin v2 for VBR 12.3+."
   },
   "commvault": {
     "name": "Commvault (IntelliSnap)",
     "signal": "commvault",
-    "currentRecommended": "2025",
+    "currentRecommended": "2024",
     "versions": {
       "2024": {
         "minOntap": "9.10.1",
@@ -158,8 +157,7 @@
       }
     },
     "imtProduct": null,
-    "upgradeDoc": "https://documentation.commvault.com/",
-    "source": "documentation.commvault.com"
+    "upgradeDoc": "https://documentation.commvault.com/"
   },
   "rubrik": {
     "name": "Rubrik (NAS Cloud Direct)",
@@ -475,8 +473,7 @@
       }
     },
     "imtProduct": null,
-    "upgradeDoc": "https://www.veritas.com/support/en_US/doc-viewer.HOWTO82031.html",
-    "source": "veritas.com"
+    "upgradeDoc": "https://www.veritas.com/support/en_US/doc-viewer.HOWTO82031.html"
   },
   "veritas_backupexec": {
     "name": "Veritas Backup Exec",
@@ -506,7 +503,7 @@
   "vmware_vsphere": {
     "name": "VMware vSphere (ESXi)",
     "signal": "vmware",
-    "currentRecommended": "7.0",
+    "currentRecommended": "8.0 U3",
     "versions": {
       "8.0 U3": {
         "minOntap": "9.12.1",
@@ -538,13 +535,12 @@
       }
     },
     "imtProduct": "Host+Operating+System",
-    "upgradeDoc": "https://docs.vmware.com/en/VMware-vSphere/8.0/rn/vmware-vsphere-80-release-notes/index.html",
-    "source": "https://docs.vmware.com/en/VMware-vSphere/index.html"
+    "upgradeDoc": "https://docs.vmware.com/en/VMware-vSphere/8.0/rn/vmware-vsphere-80-release-notes/index.html"
   },
   "hyperv": {
     "name": "Microsoft Hyper-V (Windows Server)",
     "signal": "hyperv",
-    "currentRecommended": "2022",
+    "currentRecommended": "2025",
     "versions": {
       "2025": {
         "minOntap": "9.14.1",
@@ -571,8 +567,7 @@
       }
     },
     "imtProduct": "Host+Operating+System",
-    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-sanhost/hu_wuhu_71.html",
-    "source": "https://learn.microsoft.com/en-us/windows-server/get-started/whats-new-in-windows-server"
+    "upgradeDoc": "https://docs.netapp.com/us-en/ontap-sanhost/hu_wuhu_71.html"
   },
   "rhev": {
     "name": "Red Hat Virtualization / oVirt",
@@ -598,7 +593,7 @@
   "openstack": {
     "name": "OpenStack (Manila/Cinder NetApp Drivers)",
     "signal": "openstack",
-    "currentRecommended": "2025.1 (Epoxy)",
+    "currentRecommended": "2025.1",
     "versions": {
       "2025.1": {
         "minOntap": "9.12.1",
@@ -630,7 +625,7 @@
   "citrix_hypervisor": {
     "name": "Citrix Hypervisor (XenServer)",
     "signal": "citrix",
-    "currentRecommended": "8.4",
+    "currentRecommended": "8.2 CU1",
     "versions": {
       "8.2 CU1": {
         "minOntap": "9.8",
@@ -646,13 +641,12 @@
     },
     "imtProduct": null,
     "upgradeDoc": "https://docs.citrix.com/en-us/citrix-hypervisor",
-    "notes": "Citrix rebranded to Cloud Software Group. XenServer 8+ is successor.",
-    "source": "https://docs.citrix.com/en-us/citrix-hypervisor"
+    "notes": "Citrix rebranded to Cloud Software Group. XenServer 8+ is successor."
   },
   "proxmox_ve": {
     "name": "Proxmox VE",
     "signal": "proxmox",
-    "currentRecommended": "9.2",
+    "currentRecommended": "8.3",
     "versions": {
       "8.3": {
         "minOntap": "9.10.1",
@@ -673,8 +667,7 @@
     },
     "imtProduct": null,
     "upgradeDoc": "https://pve.proxmox.com/wiki/Upgrade_from_7_to_8",
-    "notes": "Community-driven. No formal NetApp certification — iSCSI and NFS interop validated by community.",
-    "source": "https://pve.proxmox.com/wiki/Roadmap"
+    "notes": "Community-driven. No formal NetApp certification — iSCSI and NFS interop validated by community."
   },
   "nutanix_ahv": {
     "name": "Nutanix AHV",

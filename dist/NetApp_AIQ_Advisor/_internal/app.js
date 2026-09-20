@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.72";
+const APP_VERSION = "5.6.73";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.73",
+    date: "20 September 2026",
+    title: "Removed the Third-Party Vendor Version Scrapers -- They Were Wrong, Blocked, and Silently Disabling Interop Checks",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Scraped Vendor Versions Were Corrupting the Interoperability Checks",
+        color: "#f87171",
+        items: [
+          "The reference harvester fetched Veeam, Commvault, Veritas (x2), vSphere, Hyper-V, Red Hat Virtualization, OpenStack, Citrix, Proxmox, and Nutanix pages every cycle (several returning HTTP 401/403 to bot traffic; RHV is a retired product) and regex-matched the first version-looking number. The results were wrong -- Veeam 'currentRecommended' was scraped as 8.1 (real: 12.3), vSphere as 7.0, Proxmox 9.2, Citrix 8.4 -- and were written over the curated values in imt_interop.json.",
+          "That did real damage: runIMTInteropCheck looks up versions[currentRecommended], and none of those scraped values were valid keys, so the interop check for Veeam, Commvault, vSphere, Citrix, Proxmox and OpenStack was silently skipped, and Hyper-V was downgraded to recommending 2022 over 2025. Removed all eleven third-party scrapes (only NetApp-owned sources -- docs.netapp.com, NetApp GitHub, PyPI -- are harvested now) and repaired the stored values to each vendor's curated 'current' version. Verified live: all eleven vendor checks now evaluate against the ONTAP version table instead of being skipped.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.72",
     date: "20 September 2026",

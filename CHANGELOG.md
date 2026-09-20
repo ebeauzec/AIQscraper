@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.73] - 2026-09-20
+
+### Fixed
+- **Third-party vendor version scrapers removed from the reference harvester.** It fetched Veeam, Commvault, Veritas (x2), vSphere, Hyper-V, Red Hat Virtualization, OpenStack, Citrix, Proxmox and Nutanix pages every cycle (several returning 401/403 to bot traffic; RHV is retired) and regex-matched the first version-looking number — wrongly (Veeam `8.1` vs real `12.3`, vSphere `7.0`, Proxmox `9.2`, Citrix `8.4`) — then wrote it over the curated `currentRecommended` in `imt_interop.json`.
+- **That silently disabled interop checks**: `runIMTInteropCheck` looks up `versions[currentRecommended]`, and none of the scraped values were valid keys, so Veeam, Commvault, vSphere, Citrix, Proxmox and OpenStack checks were skipped; Hyper-V was downgraded to 2022 over 2025. Repaired the stored values to each vendor's curated `current` version. Only NetApp-owned sources (docs.netapp.com, NetApp GitHub, PyPI) are harvested now. Verified live: all eleven vendor checks evaluate again.
+
+---
+
+## [5.6.72] - 2026-09-20
+
+### Fixed
+- **Harvester requested two dead docs.netapp.com doc-sets** (`ontap-security-hardening`, `ontap-ems-reference`), logging an HTTP 404 every cycle. Probed all 38 doc-set slugs live; only those two were dead. EMS is now the `ontap-ems` doc-set; the Security Hardening Guide now lives inside `ontap` at `ontap-security-hardening/security-hardening-overview.html` (found via NetApp's sitemap). Doc-set entries may now point at a specific page.
+
+### Changed
+- **Sitemap discovery no longer waits 168 hours.** It shared the heavy KB crawl's 7-day timer and freshness gate despite being one sitemap fetch plus a diff. The slow-cycle timer now ticks daily and discovery skips only if it already ran today (UTC); the KB crawl and reference library keep their own 168h gates.
+
+---
+
 ## [5.6.71] - 2026-09-17
 
 ### Fixed

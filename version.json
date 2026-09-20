@@ -1,8 +1,8 @@
 {
-  "version": "5.6.71",
+  "version": "5.6.73",
   "major": 5,
   "minor": 6,
-  "patch": 71,
-  "date": "2026-09-17",
-  "notes": "Fleet Weekly Score Trend's Change column showed Active IQ's own percentageChange field, which is documented as 'percentage change vs. previous week' but doesn't reconcile with the adjacent scorePercentage values in the same list (e.g. 57.1% -> 56.9% showed '+1.5%' instead of the visible -0.2 point move). Replaced with a value computed directly from the two adjacent weekly scores, formatted in percentage points, so every Change cell is now self-evidently correct against the Score column next to it. Applied the same fix to the Week-over-Week Change stat card above the table."
+  "patch": 73,
+  "date": "2026-09-20",
+  "notes": "Removed the third-party vendor version scrapers (Veeam, Commvault, Veritas, vSphere, Hyper-V, RHV, OpenStack, Citrix, Proxmox, Nutanix) from the reference harvester: they regex-matched the first number on landing pages (Veeam scraped as 8.1 vs real 12.3), several 401/403 bot traffic, and the bad values overwrote curated versions in imt_interop.json -- silently disabling the interop check for six vendors. Repaired the stored values; only NetApp-owned sources are harvested now."
 }
