@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.79] - 2026-09-20
+
+### Fixed
+- **E-Series arrays were assigned ONTAP CVEs.** Five arrays on SANtricity 11.70/11.80 each matched 79 ONTAP advisories (395 total) because the advisory matcher parsed `11.70.5` as an ONTAP version and it sat above every "affected through current" range. This inflated Cost of Inaction and every CVE table/deliverable. The DB match is skipped for E-Series; only Active IQ's own security risks apply.
+- Active IQ's account-wide wellness recommendations (OS min/latest, SP/BMC, BIOS, disk/shelf firmware, HA config, anything naming ONTAP or a 9.x release) are no longer extrapolated ("~18 (est.) of your 33 systems") onto scopes with no ONTAP system.
+- **"✓ Parts Logistics Hubs Normal"** was an unverified default (`shippingAlert: 'None'`); Active IQ has no depot/shipping status. It now reads "No transit alert recorded - hub status not reported by Active IQ"; the fleet card says "Recorded transit alerts: N (manual entry)".
+
+### Changed
+- **ONTAP-only assumptions removed from summaries and deliverables.** ARP, SnapMirror, MetroCluster, HA pairs, FabricPool, SVM/LIF, FlexClone, data-reduction/efficiency, feature adoption and the SP/BMC+BIOS+DQP+drive-firmware model are computed over ONTAP systems only and print N/A (or are omitted) when a scope has none, instead of "0 of 33", "0% firmware", "33 systems lack ARP" or "SVMs: 0 (None)". Covers the executive/QBR/MSP/handover/security/sustainability/customer-success documents, change tickets, implementation plans, sales/solution proposals, Section 12 tiles, DR & Replication, Feature Matrix, Technical Audit rows, Value & ROI cards and overview savings.
+- Non-ONTAP systems get SANtricity System Manager / Grid Manager verification and rollback guidance in change tickets and runbooks; the customer-success roadmap drops ONTAP-only actions for scopes without ONTAP; mixed fleets keep ONTAP content with a note of which systems it applies to.
+- KB library: ONTAP articles and industry-vertical marketing pages (healthcare, financial services, AI) are no longer surfaced where they can't be confirmed relevant; E-Series/StorageGRID release notes use their own text. OS currency for non-ONTAP systems uses Active IQ's own upgrade recommendation.
+
+---
+
 ## [5.6.78] - 2026-09-20
 
 ### Fixed

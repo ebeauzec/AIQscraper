@@ -1,8 +1,8 @@
 {
-  "version": "5.6.78",
+  "version": "5.6.79",
   "major": 5,
   "minor": 6,
-  "patch": 78,
+  "patch": 79,
   "date": "2026-09-20",
-  "notes": "Value & ROI checklists and the Health Score judged E-Series/StorageGRID by ONTAP rules (target: ONTAP 9.19.1 for a SANtricity upgrade; scored on ARP, SnapMirror, FabricPool, HA...) because the E-Series test was a platform-string match that real bare-number models (2806, 5760) never satisfy. Added a robust platform-family check; ONTAP-only checks are N/A for other families and excluded from counts, PSIRT/CISA are N/A where the advisory engine can't evaluate the version, headroom uses each family's real capacity, and the Health Score scores ARP/efficiency over ONTAP systems only. ONTAP-only scores unchanged; E-Series-only 52 -> 64."
+  "notes": "Full ONTAP-only-assumption audit of summaries and deliverables: ARP/SnapMirror/MetroCluster/HA/FabricPool/SVM/efficiency/firmware are computed over ONTAP systems only (N/A when none), non-ONTAP change tickets and roadmaps use SANtricity/Grid Manager guidance, ONTAP KB and vertical marketing articles are no longer surfaced for customers they can't apply to. Fixed E-Series arrays being matched to 79 ONTAP CVEs each and ONTAP wellness recommendations extrapolated onto E-Series scopes. Replaced the unverified 'Parts Logistics Hubs Normal' badge with an honest not-reported state."
 }

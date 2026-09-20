@@ -27,9 +27,43 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.78";
+const APP_VERSION = "5.6.79";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.79",
+    date: "20 September 2026",
+    title: "Summaries and Deliverables No Longer Assume ONTAP for E-Series and StorageGRID Customers",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- E-Series Arrays Were Being Assigned ONTAP CVEs",
+        color: "#f87171",
+        items: [
+          "Five E-Series arrays running SANtricity 11.70/11.80 were each matched to 79 ONTAP security advisories (395 in total): the advisory DB matcher parsed a SANtricity version like '11.70.5' as an ONTAP version, and being above every 'affected through current' range it flagged everything. That inflated Cost of Inaction ('79 unpatched CVEs') and every CVE table and deliverable for those customers. The DB match is now skipped for E-Series; only Active IQ's own security risks apply.",
+          "Active IQ's account-wide wellness recommendations (OS min/latest version, SP/BMC, BIOS, disk/shelf firmware, HA config, anything naming ONTAP or a 9.x release) are no longer extrapolated onto scopes that contain no ONTAP system, e.g. '~18 (est.) of your 33 systems are running below the minimum recommended ONTAP release' for an all-E-Series customer.",
+        ],
+      },
+      {
+        icon: "🎯",
+        label: "Customer-Specific -- ONTAP-Only Features Are N/A, Not 0%",
+        color: "#38bdf8",
+        items: [
+          "ARP, SnapMirror, MetroCluster, HA pairs, FabricPool, SVM/LIF, FlexClone, efficiency/data-reduction, feature-adoption and the SP/BMC + BIOS + DQP + drive-firmware model are ONTAP concepts. Every summary and deliverable (executive, QBR, MSP, handover, security, sustainability, customer-success plan, change tickets, implementation plans, sales/solution proposals, Section 12 tiles, DR & Replication, Feature Matrix, Value & ROI cards, overview savings) now computes them over ONTAP systems only and prints N/A (or omits the line) when the scope has none, instead of '0 of 33', '0% firmware', '33 systems lack ARP' or 'SVMs: 0 (None)'.",
+          "Change tickets and runbooks give E-Series/StorageGRID systems SANtricity System Manager / Grid Manager verification and rollback guidance instead of 'cluster show', 'storage failover show' and 'system node image modify'. The customer-success roadmap drops ONTAP-only actions (CIFS/NFS hardening, ARP, SnapMirror/FabricPool, SVM auditing, MAV, SnapLock) for scopes without ONTAP. Mixed fleets keep ONTAP content with an explicit note of which systems it applies to.",
+          "The account-wide KB library no longer surfaces ONTAP articles (kb.netapp.com/on-prem/ontap/... and docs ONTAP guides) or industry-vertical marketing pages (healthcare, financial services, AI) for customers where they can't be confirmed relevant; E-Series/StorageGRID release notes are described with their own text instead of ONTAP REST API / SnapMirror wording. OS-currency checks use Active IQ's own upgrade recommendation for non-ONTAP systems (they never have an ONTAP minimum-recommended version).",
+        ],
+      },
+      {
+        icon: "🚚",
+        label: "Fixed -- 'Parts Logistics Hubs Normal' Was an Unverified Default",
+        color: "#fbbf24",
+        items: [
+          "The single-system card showed '✓ Parts Logistics Hubs Normal' for every system. Nothing verified it: the field defaulted to shippingAlert 'None' and Active IQ exposes no depot/shipping status at all (only RMA part records and ship dates). It now shows a muted 'No transit alert recorded - hub status not reported by Active IQ', and the fleet card reads 'Recorded transit alerts: N (manual entry)' because only the manually entered Transit Alert field ever sets it.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.78",
     date: "20 September 2026",
@@ -7102,7 +7136,7 @@ function renderCharts() {
 
   // Fleet-average data reduction ratio — weighted by physical capacity.
   let drrWeightedSum = 0, drrPhysSum = 0;
-  filteredSystems.forEach(s => {
+  filteredSystems.filter(s => _platformFamily(s) === 'ontap').forEach(s => {
     const phys  = s.efficiency.physicalUsedTB || 0;
     let   ratio = s.efficiency.dataReductionRatio || 0;
     if (!ratio) {
@@ -12841,7 +12875,7 @@ function renderSAMTab() {
       <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px;">
         <div>
           <div style="margin-bottom: 8px;">Unique Sites: <strong>${uniqueAddrs.size} addresses</strong></div>
-          <div style="margin-bottom: 8px;">Active logistics alerts: <strong style="color: ${aggAlertsCount > 0 ? "var(--status-critical)" : "var(--status-normal)"};">${aggAlertsCount} alerts</strong></div>
+          <div style="margin-bottom: 8px;" title="Transit alerts entered manually per system. Active IQ has no parts-depot or shipping-status feed, so 0 means none recorded, not verified healthy.">Recorded transit alerts: <strong style="color: ${aggAlertsCount > 0 ? "var(--status-critical)" : "var(--text-muted)"};">${aggAlertsCount}</strong> <span style="font-size:0.7rem;color:var(--text-muted);">(manual entry)</span></div>
         </div>
         <div style="border-left: 1px solid var(--border-color); padding-left: 20px;">
           <div>Key Contacts: <strong>${totalContacts.size} unique users</strong></div>
@@ -13271,8 +13305,8 @@ function renderSAMTab() {
             <strong>⚠️ Logistics Transit Alert:</strong> ${logistics.shippingAlert}
           </div>
         ` : `
-          <div style="background-color: rgba(0, 230, 118, 0.05); border: 1px solid rgba(0, 230, 118, 0.15); padding: 8px 12px; border-radius: var(--radius-sm); color: var(--status-normal); font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px;">
-            <span>✓</span> Parts Logistics Hubs Normal
+          <div style="background-color: rgba(148, 163, 184, 0.06); border: 1px solid rgba(148, 163, 184, 0.2); padding: 8px 12px; border-radius: var(--radius-sm); color: var(--text-muted); font-size: 0.75rem; display: inline-flex; align-items: center; gap: 6px;" title="Active IQ has no parts-depot or shipping-status field. This tile only shows a transit alert someone has typed into this system's Transit Alert field (Edit); with none recorded it can't tell you the hubs are healthy.">
+            <span>&#8212;</span> No transit alert recorded &middot; hub status not reported by Active IQ
           </div>
         `}
       </div>
@@ -13452,7 +13486,7 @@ async function annotateAdoptionScores(systems) {
   if (_adoptionAnnotateInFlight || !systems || !systems.length || typeof computeFeatureAdoptionScore !== 'function') return;
   _adoptionAnnotateInFlight = true;
   try {
-    const entries = systems.filter(s => s.serialNumber).map(s => {
+    const entries = systems.filter(s => s.serialNumber && _platformFamily(s) === 'ontap').map(s => {
       const score = computeFeatureAdoptionScore(s);
       return (score && score.total > 0) ? { serialNumber: s.serialNumber, adoptionScorePct: score.pct } : null;
     }).filter(Boolean);
@@ -13724,7 +13758,8 @@ function renderCSMTab() {
     // capping at 3, since _viRecs is already sorted highest-impact-first.
     const _viTopRecsSeen = new Map(); // label -> highest count seen
     for (const r of _viRecs) {
-      const label = _viRecLabels[r.label] || r.title || 'Recommendation';
+      let label = _viRecLabels[r.label] || r.title || 'Recommendation';
+      if (!targetCSMSystems.some(s => _platformFamily(s) === 'ontap')) label = label.replace('recommended ONTAP version', 'recommended software version');
       if (!_viTopRecsSeen.has(label) || r.count > _viTopRecsSeen.get(label)) {
         _viTopRecsSeen.set(label, r.count);
       }
@@ -13825,7 +13860,10 @@ function renderCSMTab() {
     // efficiency metrics (one uses full snapshot ratio, the other uses pure DR ratio),
     // producing wildly inconsistent numbers (e.g. 1.7:1 ratio but 98,000 TB "saved").
     let totalPhysical = 0, weightedRatioSum = 0, drSystemCount = 0;
-    targetCSMSystems.forEach(s => {
+    const _aggOntap = targetCSMSystems.filter(s => _platformFamily(s) === 'ontap');
+    // Dedupe/compression is an ONTAP metric: E-Series/StorageGRID report logical == physical,
+    // which diluted the weighted ratio and inflated 'physical used'.
+    _aggOntap.forEach(s => {
       const phys  = s.efficiency.physicalUsedTB   || 0;
       // dataReductionRatio is now stored on the efficiency object (numeric, dedup+compression only)
       // Fall back to parsing the ratio string if the numeric field is absent (e.g. older cached data)
@@ -13847,7 +13885,10 @@ function renderCSMTab() {
     // Saved = logical − physical (consistent with ratio shown)
     const totalSaved   = parseFloat(Math.max(0, totalLogical - totalPhysical).toFixed(1));
 
-    document.getElementById("csmSavingsCard").innerHTML = `
+    document.getElementById("csmSavingsCard").innerHTML = _aggOntap.length === 0 ? `
+      <div style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5;">
+        Not applicable &mdash; dedupe/compression data-reduction ratios are reported for ONTAP systems only. No ONTAP systems are in this scope; see the capacity panels for E-Series / StorageGRID utilisation.
+      </div>` : `
       <div style="display: flex; flex-direction: column; gap: 12px;">
         <div>
           <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;" title="Data reduction ratio using dedupe + compression only (excluding snapshot savings). Fallback cascade: dataReductionRatioSys → dedupSaved+compactSaved → logNoSnaps/physNoSnaps → N/A.">Overall Account Data Reduction</span>
@@ -13875,29 +13916,29 @@ function renderCSMTab() {
 
     // 2. FabricPool aggregate
     let totalFP = 0, activeFPCount = 0;
-    targetCSMSystems.forEach(s => {
+    _aggOntap.forEach(s => {
       const fp = s.efficiency.fabricPoolTieredTB || 0;
       totalFP += fp;
       if (fp > 0) activeFPCount++;
     });
-    let fpBadge = activeFPCount > 0 ? `<span class="badge normal">${activeFPCount} active tiering</span>` : `<span class="badge warning">No Cloud Tiering</span>`;
+    let fpBadge = _aggOntap.length === 0 ? `<span class="badge">N/A</span>` : activeFPCount > 0 ? `<span class="badge normal">${activeFPCount} active tiering</span>` : `<span class="badge warning">No Cloud Tiering</span>`;
     document.getElementById("csmCloudCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <h4 style="font-size: 0.9rem; color: var(--text-secondary);" title="FabricPool automatically tiers cold (inactive) data from high-performance SSD to lower-cost object storage (cloud or on-premises S3). Adoption indicates systems actively offloading cold data.">FabricPool Integration</h4>
         ${fpBadge}
       </div>
       <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${totalFP > 0 ? "var(--status-info)" : "var(--status-warning)"};">
-        Cloud Tiered: ${totalFP.toFixed(1)} TB
+        ${_aggOntap.length === 0 ? 'Cloud Tiered: N/A' : 'Cloud Tiered: ' + totalFP.toFixed(1) + ' TB'}
       </div>
       <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-        ${activeFPCount} out of ${targetCSMSystems.length} systems are tiering cold data to public/private cloud object storage.
+        ${_aggOntap.length === 0 ? 'FabricPool is an ONTAP feature; no ONTAP systems are in this scope.' : activeFPCount + ' out of ' + _aggOntap.length + (_aggOntap.length < targetCSMSystems.length ? ' ONTAP' : '') + ' systems are tiering cold data to public/private cloud object storage.'}
       </p>
     `;
 
     // 3. SnapMirror aggregate
     let smEnabledCount = 0;
     let relationshipsHTML = "";
-    targetCSMSystems.forEach(s => {
+    _aggOntap.forEach(s => {
       if (s.snapmirror && s.snapmirror.enabled) {
         smEnabledCount++;
         s.snapmirror.relationships.forEach(rel => {
@@ -13911,12 +13952,12 @@ function renderCSMTab() {
       }
     });
     if (relationshipsHTML === "") {
-      relationshipsHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">No SnapMirror relations mapped.</div>`;
+      relationshipsHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 10px;">${_aggOntap.length === 0 ? 'SnapMirror is an ONTAP feature; no ONTAP systems are in this scope.' : 'No SnapMirror relations mapped.'}</div>`;
     }
     document.getElementById("csmSnapmirrorCard").innerHTML = `
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <h4 style="font-size: 0.9rem; color: var(--text-secondary);" title="SnapMirror provides asynchronous and synchronous data replication for disaster recovery (DR) and data migration. Relationships show source-to-destination mappings with replication lag time.">SnapMirror replication</h4>
-        <span class="badge ${smEnabledCount > 0 ? 'normal' : 'warning'}">${smEnabledCount} Enabled</span>
+        ${_aggOntap.length === 0 ? '<span class="badge">N/A</span>' : `<span class="badge ${smEnabledCount > 0 ? 'normal' : 'warning'}">${smEnabledCount} Enabled</span>`}
       </div>
       <div style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
         ${relationshipsHTML}
@@ -15440,10 +15481,10 @@ function computeAccountHealthScore(targetSystems) {
   // ARP enablement — ONTAP systems as denominator; unknown-status systems count as unprotected
   const arpPct = nOntap > 0 ? ontapSys.filter(s => s.isARPEnabled === true).length / nOntap : 0;
   // Firmware currency
-  const fwPct = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length / total;
+  const fwPct = targetSystems.filter(_osIsCurrent).length / total;
   // Hardware firmware currency (SP/MB/DQP/Drive composite)
   const hwFw = computeFleetFirmwareSummary(targetSystems);
-  const hwFwPct = (hwFw && typeof hwFw.overallFwScore === 'number') ? hwFw.overallFwScore / 100 : fwPct; // fallback to OS fw
+  const hwFwPct = (hwFw && hwFw.ontapCount > 0 && typeof hwFw.overallFwScore === 'number') ? hwFw.overallFwScore / 100 : fwPct; // fallback to OS fw
   // Contract coverage
   const contractPct = targetSystems.filter(s => s.contractActive === true).length / total;
   // Risk score (inverse: fewer critical risks = higher score)
@@ -15637,6 +15678,50 @@ function _platformFamily(s) {
   return 'ontap';
 }
 
+// Post-change verification and rollback guidance for non-ONTAP systems. The
+// change tickets / implementation plans emitted ONTAP CLI ('storage failover
+// show', 'cluster ping-cluster', 'system node image modify') for every system,
+// none of which exists on E-Series or StorageGRID. Deliberately generic: no
+// invented commands, only checks the platforms' own consoles actually provide.
+function _nonOntapVerifyLines(sys) {
+  if (_platformFamily(sys) === 'eseries') {
+    return [
+      'Confirm the array reports Optimal in SANtricity System Manager (Home > Recover from problems: no open failures)',
+      'Confirm both controllers are Optimal and volumes are on their preferred controller/paths',
+      'Confirm no drive, volume group or disk pool is degraded or reconstructing',
+      'Confirm host multipathing shows all paths active before closing the change',
+    ];
+  }
+  return [
+    'Confirm every node shows Connected with no new alerts in Grid Manager (Nodes / Alerts)',
+    'Confirm ILM and object health are normal and no grid alerts are active',
+    'Confirm S3/Swift client access through the load-balancer endpoints',
+  ];
+}
+function _nonOntapRollbackLines(sys) {
+  const nm = _platformFamily(sys) === 'eseries' ? 'SANtricity OS/NVSRAM' : 'StorageGRID software';
+  return [
+    `Do not assume a self-service downgrade path for ${nm}: engage NetApp Support before any rollback.`,
+    'Keep the pre-change configuration backup/recovery package and export it before starting.',
+  ];
+}
+
+// Is this system's OS at the recommended version? ONTAP: compare against the
+// minimum-recommended version (unchanged). E-Series/StorageGRID never have that
+// field populated (it's ONTAP's minRecommendedVersion), so every one was counted
+// as BEHIND (0/33) -- use Active IQ's own upgrade recommendation for them.
+function _osIsCurrent(s) {
+  if (_platformFamily(s) === 'ontap') return !!(s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin));
+  return !!(s.upgrades && s.upgrades.targetVersion === 'Up to Date');
+}
+
+// "n/d (p%)" for an ONTAP-only feature, or an explicit N/A when the scope has no
+// ONTAP systems (E-Series/StorageGRID can't have ARP/SnapMirror/HA-pairs, so a
+// bare "0/33 (0%)" would present an inapplicable feature as a total failure).
+function _covTxt(n, d) {
+  return d > 0 ? `${n}/${d} (${Math.round(n / d * 100)}%)` : 'N/A (no ONTAP systems in scope)';
+}
+
 // Free-capacity percentage, per family, or null when no capacity was reported
 // (null = not applicable/unknown, never a pass). StorageGRID and E-Series use
 // their own breakdowns: a grid's reserved-metadata space is NOT free, and an
@@ -15732,7 +15817,8 @@ function computeCostOfInaction(targetSystems) {
   const eosaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
   const capacityRed = targetSystems.filter(s => computeCapacityRAG(s) === 'red').length;
   // Any system not explicitly ARP-enabled is considered unprotected (catches null/undefined)
-  const noArp = targetSystems.filter(s => s.isARPEnabled !== true).length;
+  // (ONTAP only -- ARP doesn't exist on E-Series/StorageGRID.)
+  const noArp = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled !== true).length;
   score = critRisks * 10 + highRisks * 3 + cves * 5 + eosaSystems * 8 + capacityRed * 7 + noArp * 2;
   return { score, critRisks, highRisks, cves, cveAffectedSystems, eosaSystems, capacityRed, noArp };
 }
@@ -16926,7 +17012,12 @@ function enrichSystemTelemetry(s) {
   // Cross-reference system ONTAP version against the local scrapped advisory DB.
   // Merges with API-provided bulletins; deduplicates by CVE ID so no double-counting.
   {
-    const dbMatches = getApplicableSecurityBulletins(osVer, model);
+    // The advisory DB is ONTAP/StorageGRID/SnapCenter/Trident only. An E-Series
+    // SANtricity OS version ("11.70.5") parses like an ONTAP version and, being past
+    // every affected range's upper bound in the 'through current' entries, was matched
+    // to ~79 ONTAP CVEs per array. E-Series gets only Active IQ's own security risks.
+    const _bulletinFam = _platformFamily({ ...s, model: s.model || model, platform: s.platform || model, osVersion: s.osVersion || osVer });
+    const dbMatches = _bulletinFam === 'eseries' ? [] : getApplicableSecurityBulletins(osVer, model);
     const existingCveIds = new Set(
       securityBulletins.flatMap(b =>
         (b.cve || b.id || '').split(/[,\s]+/).map(x => x.trim()).filter(x => x.startsWith('CVE-'))
@@ -18541,8 +18632,8 @@ function formatCostOfInactionText(systems) {
   • ${coi.critRisks} critical risks remain unaddressed
   • ${coi.cves} security advisories unpatched
   • ${coi.eosaSystems} systems approaching EOSA within 12 months
-  • ${coi.capacityRed} systems reach capacity limit within 60 days
-  • ${coi.noArp} systems lack ransomware protection (ARP)`;
+  • ${coi.capacityRed} systems reach capacity limit within 60 days${systems.some(s => _platformFamily(s) === 'ontap') ? `
+  • ${coi.noArp} systems lack ransomware protection (ARP)` : ''}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -18642,6 +18733,12 @@ function getFleetRelevantArticles(targetSystems) {
   // have it confirmed disabled still get adoption guidance, not just fleets
   // that already use it.
   const hasARP = targetSystems.some(s => s.isARPEnabled != null);
+  // Core NetApp best-practice articles are flagged _vendorGuideline for every fleet
+  // (e.g. "ONTAP Data Protection Overview", "ONTAP Security Hardening Guide"), so
+  // an E-Series- or StorageGRID-only customer was getting ONTAP admin guides and
+  // ONTAP CLI as "fleet-specific intelligence". ONTAP-specific content requires
+  // at least one ONTAP system in scope.
+  const hasOntapSys = targetSystems.some(s => _platformFamily(s) === 'ontap');
   const featureGates = [
     { keywords: ['metrocluster'], present: hasMetroCluster },
     { keywords: ['fabricpool'], present: hasFabricPool },
@@ -18650,6 +18747,9 @@ function getFleetRelevantArticles(targetSystems) {
     // No backing field anywhere in this app's data model -- never confirmable per customer.
     { keywords: ['snaplock', 'worm storage', 'compliance clock'], present: false },
     { keywords: ['zero trust'], present: false },
+    // Industry-vertical solution pages: the customer's industry is not a field
+    // anywhere in this app's data model, so these can never be confirmed relevant.
+    { keywords: ['healthcare solutions', 'financial services solutions', 'ai solutions'], present: false },
     { keywords: ['multi-admin', ' mav'], present: false },
     { keywords: ['antivirus', 'vscan'], present: false },
     { keywords: ['encryption', ' nve', ' nae', 'key manager', 'key-manager'], present: false },
@@ -18728,6 +18828,11 @@ function getFleetRelevantArticles(targetSystems) {
     // model) can smuggle an absent-feature article in on a coincidental
     // match -- e.g. a MetroCluster KB whose title also happens to mention
     // this fleet's ONTAP version.
+    if (!hasOntapSys && (title.includes('ontap') || url.includes('docs.netapp.com/us-en/ontap/') || url.includes('/us-en/ontap-') || url.includes('/on-prem/ontap/'))) {
+      // Exception: E-Series/StorageGRID material that merely mentions ONTAP in passing
+      // is still allowed when it is clearly about those platforms.
+      if (!/e-series|santricity|storagegrid/.test(title + ' ' + url)) return 0;
+    }
     for (const gate of featureGates) {
       if (gate.keywords.some(kw => title.includes(kw))) {
         if (!gate.present) return 0;
@@ -18913,6 +19018,18 @@ function getFleetEnrichmentSections(targetSystems) {
     const t = (a.title || '').toLowerCase();
     const u = (a.url || '').toLowerCase();
     const cat = a.category || '';
+
+    // E-Series / StorageGRID release-feature articles carry their own alignment
+    // note. The keyword branches below are written for ONTAP ("REST API" -> 'ONTAP
+    // REST API', "snapshots" -> SnapMirror/'snapmirror show'), so a SANtricity
+    // article was being described with ONTAP text and ONTAP CLI.
+    if (a._vendorGuideline && a.alignment && /e-series|santricity|storagegrid/.test(t + ' ' + u)) {
+      return {
+        covers: a.alignment,
+        action: a._gapAnalysis ? `⚠ COVERAGE GAP: ${a.alignment}` : `Review vendor alignment: ${a.alignment}`,
+        effort: a._gapAnalysis ? 'Requires assessment' : '1 hour review'
+      };
+    }
 
     // Security articles
     if (t.includes('ransomware') || t.includes('anti-ransomware')) {
@@ -19238,13 +19355,13 @@ function getFleetEnrichmentSections(targetSystems) {
 
     // Fallback: generic context based on category
     const catActions = {
-      'integration': { covers: 'Third-party ecosystem integration with ONTAP storage', action: 'Review integration compatibility with your environment' },
-      'automation': { covers: 'Automation and orchestration for ONTAP operations', action: 'Evaluate automation opportunities for fleet management' },
-      'security': { covers: 'Security hardening and compliance for ONTAP', action: 'Review security posture against vendor recommendations' },
+      'integration': { covers: 'Third-party ecosystem integration with NetApp storage', action: 'Review integration compatibility with your environment' },
+      'automation': { covers: 'Automation and orchestration for NetApp storage operations', action: 'Evaluate automation opportunities for fleet management' },
+      'security': { covers: 'Security hardening and compliance for NetApp storage', action: 'Review security posture against vendor recommendations' },
       'data_protection': { covers: 'Data protection, replication, and disaster recovery', action: 'Audit backup and DR strategy' },
-      'cloud': { covers: 'Hybrid cloud and cloud-native ONTAP services', action: 'Assess cloud integration opportunities' },
+      'cloud': { covers: 'Hybrid cloud and cloud-native NetApp services', action: 'Assess cloud integration opportunities' },
       'performance': { covers: 'Performance tuning and workload optimization', action: 'Review performance configuration against best practices' },
-      'operations': { covers: 'Day-to-day ONTAP administration and management', action: 'Reference for operational procedures' },
+      'operations': { covers: 'Day-to-day administration and management', action: 'Reference for operational procedures' },
       'upgrade': { covers: 'Version upgrade procedures and compatibility', action: `Plan upgrade path from ${versStr}` },
       'configuration': { covers: 'Initial setup and protocol configuration', action: 'Validate configuration against best practices' },
       'troubleshooting': { covers: 'Issue diagnosis and resolution procedures', action: 'Reference for troubleshooting active issues' },
@@ -19344,7 +19461,7 @@ function getFleetEnrichmentSections(targetSystems) {
       if (gapArticles.length > 0) block += `  ⚠ Coverage Gaps: ${gapArticles.length} gap(s) detected — integration or configuration areas requiring attention\n`;
       if (integrationArticles.length > 0) block += `  ■ Ecosystem Integration: ${integrationArticles.length} guide(s) — VMware, Kubernetes, database, and automation platforms\n`;
       if (upgradeArticles.length > 0) block += `  ■ Upgrade Procedures: ${upgradeArticles.length} guide(s) — version-specific to your fleet's ONTAP ${versStr}\n`;
-      if (dpArticles.length > 0) block += `  ■ Data Protection: ${dpArticles.length} guide(s) — SnapMirror, MetroCluster, backup and recovery\n`;
+      if (dpArticles.length > 0) block += `  ■ Data Protection: ${dpArticles.length} guide(s) — ${dpArticles.some(a => /snapmirror|metrocluster|ontap/i.test((a.title || '') + ' ' + (a.url || ''))) ? 'SnapMirror, MetroCluster, backup and recovery' : 'snapshots, backup and recovery'}\n`;
       if (cloudArticles.length > 0) block += `  ■ Cloud Integration: ${cloudArticles.length} guide(s) — hybrid cloud, tiering, and cloud-native services\n`;
       if (troubleArticles.length > 0) block += `  ■ Troubleshooting: ${troubleArticles.length} article(s) — known issues and resolution procedures\n`;
       if (opsArticles.length > 0) block += `  ■ Operations: ${opsArticles.length} guide(s) — administration and configuration references\n`;
@@ -19707,7 +19824,7 @@ function compileSvmLifInventoryText(targetSystems) {
   }
 
   if (!hasData) {
-    return `* SVM & LOGICAL INTERFACE INVENTORY:\n  No ONTAP SVM/LIF data available for this scope.\n`;
+    return `* SVM & LOGICAL INTERFACE INVENTORY:\n  ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'No ONTAP SVM/LIF data available for this scope.' : 'N/A -- SVMs and LIFs are ONTAP constructs; no ONTAP systems are in this scope.'}\n`;
   }
 
   let pDistArr = [];
@@ -19771,6 +19888,7 @@ function compileSvmLifSummaryText(targetSystems) {
     }
     if (sysDown > 0 || sysMigrated > 0) systemsWithIssues++;
   }
+  if (!targetSystems.some(s => _platformFamily(s) === 'ontap')) return '* SVM & LIF NETWORK: N/A -- SVMs and LIFs are ONTAP constructs; no ONTAP systems are in this scope.\n';
   if (systemsWithData === 0) return '* SVM & LIF NETWORK: No ONTAP SVM/LIF data available for this scope.\n';
   if (totalDownLifs === 0 && totalMigratedLifs === 0) {
     return `* SVM & LIF NETWORK: ${totalSvms} SVMs across ${systemsWithData} system${systemsWithData !== 1 ? 's' : ''}, ${totalLifs} LIFs -- all homed and operational.\n`;
@@ -19793,8 +19911,10 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   let totalRunwayDays = 0;
   let runwayDaysCount = 0;
 
+  const _effOntapN = targetSystems.filter(s => _platformFamily(s) === 'ontap').length;
   targetSystems.forEach(sys => {
-    if (sys.efficiency) {
+    // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+    if (sys.efficiency && _platformFamily(sys) === 'ontap') {
       logicalCapTB += sys.efficiency.logicalUsedTB || 0;
       totalCapTB += sys.efficiency.physicalUsedTB || 0;
       totalSavedTB += sys.efficiency.spaceSavedTB || 0;
@@ -19828,12 +19948,12 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
   // ── Features ──
-  const fpKnownSys = targetSystems.filter(s => s.isFabricPool != null || s.fabricPoolEnabled != null);
+  const fpKnownSys = targetSystems.filter(s => _platformFamily(s) === 'ontap' && (s.isFabricPool != null || s.fabricPoolEnabled != null));
   const fabricPoolCount = fpKnownSys.filter(s => s.isFabricPool === true || s.fabricPoolEnabled === true).length;
 
-  const smKnownSys = targetSystems.filter(s => s.snapmirrorCount != null || s.snapMirrorCount != null || (s.snapmirror && s.snapmirror.totalCount != null));
+  const smKnownSys = targetSystems.filter(s => _platformFamily(s) === 'ontap' && (s.snapmirrorCount != null || s.snapMirrorCount != null || (s.snapmirror && s.snapmirror.totalCount != null)));
   const snapMirrorCount = smKnownSys.filter(s => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0).length;
-  const haKnownSys = targetSystems.filter(s => s.haConfigured != null || s.isHAConfigured != null || (s.snapmirror && s.snapmirror.isHAConfigured != null));
+  const haKnownSys = targetSystems.filter(s => _platformFamily(s) === 'ontap' && (s.haConfigured != null || s.isHAConfigured != null || (s.snapmirror && s.snapmirror.isHAConfigured != null)));
   const haCount = haKnownSys.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
 
   // Helper: format ratio as "enabled/known" or "N/A*" when no systems report the feature
@@ -19878,9 +19998,11 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     const d = new Date(s.latestAsupDate);
     return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
   }).length;
-  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const _ontapSys = targetSystems.filter(s => _platformFamily(s) === 'ontap');
+  const _ontapN = _ontapSys.length;
+  const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const fwCurrent = targetSystems.filter(_osIsCurrent).length;
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
 
   // ── Risk groups ──
@@ -20100,7 +20222,7 @@ ${platformLines}
 
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
-  - ARP Coverage:            ${arpCount}/${systemCount} (${systemCount > 0 ? Math.round(arpCount/systemCount*100) : 0}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < systemCount ? ' *' : ''}
+  - ARP Coverage:            ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' *' : ''}
   - OS Currency:             ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Support Contract Coverage: ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active per Active IQ's contract data
@@ -20108,10 +20230,10 @@ ${platformLines}
 * FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
   Feature                       Enabled     Total    Coverage    CLI Command
   ───────────────────────────── ─────────── ──────── ─────────── ──────────────────────────
-  Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, systemCount)}      security anti-ransomware volume ...
-  FabricPool (Cloud Tiering)    ${_fmtAdopt(fabricPoolCount, fpKnownSys.length, systemCount)}      storage aggregate ... -cloud-target
-  SnapMirror DR                 ${_fmtAdopt(snapMirrorCount, smKnownSys.length, systemCount)}      snapmirror show
-  HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, systemCount)}      cluster ha show
+  Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, _ontapN)}      security anti-ransomware volume ...
+  FabricPool (Cloud Tiering)    ${_fmtAdopt(fabricPoolCount, fpKnownSys.length, _ontapN)}      storage aggregate ... -cloud-target
+  SnapMirror DR                 ${_fmtAdopt(snapMirrorCount, smKnownSys.length, _ontapN)}      snapmirror show
+  HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, _ontapN)}      cluster ha show
 
 * RISK POSTURE SUMMARY:
   - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
@@ -20124,9 +20246,9 @@ ${platformLines}
 ${compileSvmLifSummaryText(targetSystems)}
 
 * WORKLOAD EFFICIENCY HYGIENE:
-  - Total Physical Used Capacity: ${totalCapTB.toFixed(1)} TB
+${_effOntapN === 0 ? '  - Storage efficiency (dedupe/compression): N/A -- ONTAP-only metric, no ONTAP systems in scope' : `  - Total Physical Used Capacity${_effOntapN < systemCount ? ' (ONTAP systems)' : ''}: ${totalCapTB.toFixed(1)} TB
   - Total Logical Capacity Represented: ${logicalCapTB.toFixed(1)} TB
-  - Storage Efficiency Ratio: ${spaceSavedRatio}:1 (Saved ${totalSavedTB.toFixed(1)} TB via Deduplication/Compression)
+  - Storage Efficiency Ratio: ${spaceSavedRatio}:1 (Saved ${totalSavedTB.toFixed(1)} TB via Deduplication/Compression)`}
   - Average Capacity Runway: ${avgRunwayDays} days to 90% (fleet average)
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   CAPACITY FORECAST:
@@ -20137,10 +20259,10 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   - Est. 12-Month Growth:   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
 
 * DATA PROTECTION & DR POSTURE:
-${(() => { const dr = computeFleetDRSummary(targetSystems); return `  - SnapMirror Coverage:    ${dr.smSystems}/${systemCount} systems (${dr.drCoveragePct}%)
+${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  - SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   - Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
   - MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
-  - HA Configured:          ${dr.haSystems}/${systemCount} (${dr.haCoveragePct}%)
+  - HA Configured:          ${dr.haSystems}/${dr.ontapCount} (${dr.haCoveragePct}%)
   - Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
   - RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
@@ -20196,7 +20318,8 @@ ${(() => {
     // getSystemSvms: smb1Enabled is hardcoded false / "assume compliant",
     // not a real read), so those stay labeled as generic reference commands
     // rather than implied per-customer findings.
-    const _arpKnown = targetSystems.filter(s => s.isARPEnabled != null);
+    if (!targetSystems.some(s => _platformFamily(s) === 'ontap')) return 'Security hardening reference: not applicable -- the ONTAP hardening commands (SMB/NFS/MAV/TLS/audit/ARP) do not apply to E-Series or StorageGRID; use the SANtricity / Grid Manager hardening guidance for this scope.';
+    const _arpKnown = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled != null);
     const _arpOff = _arpKnown.filter(s => s.isARPEnabled === false).length;
     const arpLine = _arpKnown.length > 0
       ? (_arpOff > 0
@@ -20227,30 +20350,31 @@ ${formatCostOfInactionText(targetSystems)}
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
 --------------------------------------------------------------------------------
-
+${_ontapN < targetSystems.length ? `NOTE: The CLI commands in this roadmap are ONTAP commands. ${_ontapN === 0 ? 'No ONTAP systems are in this scope -- use SANtricity System Manager (E-Series) or Grid Manager (StorageGRID) for the equivalent tasks.' : 'They apply to the ' + _ontapN + ' ONTAP system(s) in scope only; the other ' + (targetSystems.length - _ontapN) + ' (E-Series/StorageGRID) are managed via SANtricity System Manager / Grid Manager.'}
+` : ''}
 PHASE 1: IMMEDIATE CRITICAL MITIGATION & HARDENING (DAYS 1 - 7) [REMEDIATION PLAN]
 --------------------------------------------------------------
 Focus: Address critical security drifts, ASUP failures, single points of failure.
 
-* ACTION 1.1: Security Protocol Hardening (CVE / Ransomware Mitigation)
+${_ontapN === 0 ? '  (ONTAP-specific actions omitted -- no ONTAP systems in this scope; use SANtricity System Manager / Grid Manager.)\n\n' : `* ACTION 1.1: Security Protocol Hardening (CVE / Ransomware Mitigation)
   - Disable legacy SMBv1: 'vserver cifs options modify -vserver <svm> -smb1-enabled false'
   - Enforce NFS root squashing: 'vserver export-policy rule modify -policyname default -ruleindex 1 -superuser none'
   - Apply AES Kerberos enforcement (pre-ONTAP 9.13.1, KB5073381): 'vserver cifs security modify -vserver <svm> -advertised-enc-types aes-128,aes-256'
   - Verification: 'vserver cifs options show -fields smb1-enabled'
   - Reference: security.netapp.com | TR-4569
 
-* ACTION 1.2: Restore AutoSupport Telemetry
-  - Enable HTTPS transport: 'system node autosupport modify -node * -state enable -transport https -support enable'
+`}* ACTION 1.2: Restore AutoSupport Telemetry
+${_ontapN === 0 ? '  - Confirm AutoSupport is enabled and the array/grid can reach NetApp over HTTPS (proxy if required), then confirm a recent message in Active IQ\n' : `  - Enable HTTPS transport: 'system node autosupport modify -node * -state enable -transport https -support enable'
   - Configure proxy (if required): 'system node autosupport modify -node * -proxy-url http://<proxy>:<port>'
   - Test connectivity: 'system node autosupport invoke -node * -type test'
-  - Reference: docs.netapp.com/us-en/active-iq/
+`}  - Reference: docs.netapp.com/us-en/active-iq/
 
-* ACTION 1.3: Restore Physical Path Redundancy
+${_ontapN === 0 ? '' : `* ACTION 1.3: Restore Physical Path Redundancy
   - SAS/NVMe path check: 'storage path show' and 'storage disk show -fields disk-class,container-name,state'
   - Shelf module IOM/NSM LED status inspection
   - Reference: mysupport.netapp.com/site/global/dashboard
 
-* IDENTIFIED PHASE 1 ITEMS IN ACTIVE ENVIRONMENT:
+`}* IDENTIFIED PHASE 1 ITEMS IN ACTIVE ENVIRONMENT:
 ${allRisks.length > 0 ? risksText : "✓ No active high-priority configuration drifts detected."}
 
 PHASE 2: FIRMWARE & SOFTWARE LIFECYCLE ALIGNMENT (DAYS 8 - 30) [REMEDIATION PLAN]
@@ -20261,7 +20385,7 @@ packages to NetApp validated baselines.
 * ACTION 2.1: ONTAP / SANtricity / StorageGRID OS Upgrades
   - Use Upgrade Advisor: https://activeiq.netapp.com/upgrade-advisor
   - Cross-reference NetApp IMT: https://imt.netapp.com/matrix/
-  - Pre-upgrade checklist: cluster show | storage failover show | system health alert show | disk show -fields firmware-revision
+  - Pre-upgrade checklist: ${_ontapN === 0 ? 'confirm Optimal/Connected status in SANtricity System Manager / Grid Manager and review host/client compatibility before each upgrade' : 'cluster show | storage failover show | system health alert show | disk show -fields firmware-revision'}
   - Upgrade Targets:
 ${allUpgrades.length > 0 ? upgradesText : "  ✓ All systems are running recommended stable software baselines."}
 
@@ -20271,7 +20395,7 @@ ${allUpgrades.length > 0 ? upgradesText : "  ✓ All systems are running recomme
   - IMT validation required before ANY switch firmware change.
 ${switchDrift.length > 0 ? '  SWITCH FIRMWARE DRIFT DETECTED:\n' + switchDrift.map(sw => `    ⚠ ${sw.systemName} — ${sw.model}: current=${sw.current}, target=${sw.recommended}`).join('\n') : '  ✓ All switch firmware at validated baseline.'}
 
-* ACTION 2.3: Shelf Module Firmware Updates
+${_ontapN === 0 ? '  (ONTAP-specific actions omitted -- no ONTAP systems in this scope; use SANtricity System Manager / Grid Manager.)\n\n' : `* ACTION 2.3: Shelf Module Firmware Updates
   - Non-disruptive background update: 'storage firmware download' (runs automatically per-node)
   - Download from: mysupport.netapp.com/site/downloads/firmware/disk-shelf-firmware
   - Verify post-update: 'storage shelf firmware show'
@@ -20286,11 +20410,11 @@ ${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(
   - Update: 'system service-processor image update -node * -update-type latest'
   - Verify: 'system service-processor show -fields firmware-version'
 
-PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30) [REMEDIATION PLAN + STANDARDS & ADOPTION]
+`}PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 -----------------------------------------------------------
-Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.
+Focus: ${_ontapN === 0 ? 'replication and AutoSupport remediation (replication is managed outside Active IQ for this scope).' : 'SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.'}
 
-* ACTION 3.1: SnapMirror Relationship Health
+${_ontapN === 0 ? '* SnapMirror / FabricPool actions do not apply (ONTAP-only). Replication for E-Series (Asynchronous/Synchronous Mirroring) and StorageGRID (ILM / cross-grid replication) is configured in their own consoles and is not reported by Active IQ -- review it manually.\n\n' : `* ACTION 3.1: SnapMirror Relationship Health
   - Check all relationships: 'snapmirror show -fields state,lag-time,health'
   - Update lagging relationships: 'snapmirror update -destination-path <dest>'
   - Resync broken relationships: 'snapmirror resync -destination-path <dest>'
@@ -20302,7 +20426,7 @@ Focus: SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediatio
   - FabricPool tiering: 'volume modify -vserver <svm> -volume <vol> -tiering-policy auto'
   - Reference: docs.netapp.com/us-en/ontap/fabricpool/
 
-PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [REMEDIATION PLAN + STANDARDS & ADOPTION]
+`}PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 --------------------------------------------------------------------
 Focus: Drive long-term efficiency, audit logging, and host integration compliance.
 
@@ -20310,7 +20434,7 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - VMware ESXi Round Robin: 'esxcli storage nmp psp roundrobin device config set --device <naa_id> --type iops --iops 1'
   - Nutanix AHV: Verify multipath policy via 'lsblk' and 'multipath -ll' on AHV hosts.
 
-* ACTION 4.2: Enable SVM Configuration Change Auditing
+${_ontapN === 0 ? '' : `* ACTION 4.2: Enable SVM Configuration Change Auditing
   - Create audit policy: 'vserver audit create -vserver <svm_name> -destination /audit_log -format json'
   - Enable: 'vserver audit enable -vserver <svm_name>'
   - Reference: docs.netapp.com/us-en/ontap/audit/
@@ -20318,7 +20442,7 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
 * ACTION 4.3: Anti-Ransomware Protection (ARP/ARP-AI)
   - ONTAP 9.10.1+: enable ARP per volume: 'security anti-ransomware volume enable -vserver <svm> -volume <vol>'
   - ONTAP 9.16.1+: ARP/AI enabled by default on new volumes (zero learning period).
-  - Current coverage: ${arpCount}/${systemCount} systems
+  - Current coverage: ${_covTxt(arpCount, _ontapN)}
 
 * ACTION 4.4: Third-Party Backup Integration Compliance
   - Avoid schedule collision with Veeam/Commvault/Rubrik: 'volume modify -vserver <svm_name> -volume <vol_name> -snapshot-policy none'
@@ -20330,7 +20454,7 @@ Focus: Drive long-term efficiency, audit logging, and host integration complianc
   - Add rules for destructive operations: 'security multi-admin-verify rule create -operation <op>'
   - Reference: docs.netapp.com/us-en/ontap/multi-admin-verify/
 
-PHASE 5: SUPPORT CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
+`}PHASE 5: SUPPORT CONTRACT RENEWALS & HARDWARE REFRESH PLANNING (DAYS 60 - 90) [CONTRACTS & ENTITLEMENTS]
 ---------------------------------------------------------------------
 Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
 
@@ -20339,7 +20463,7 @@ ${expiringContracts.length > 0 ? contractsText : "  ✓ No support contracts exp
   - Portal: https://mysupport.netapp.com/
 
 * ACTION 5.2: Hardware Refresh Planning
-  - Identify near-EOS systems and initiate pre-sales engagement for AFF A-Series or ASA r2 refresh.
+  - Identify near-EOS systems and initiate pre-sales engagement for ${_ontapN === 0 ? 'a current-generation hardware refresh' : 'AFF A-Series or ASA r2 refresh'}.
   - Reference: imt.netapp.com/matrix/ | netapp.com/data-storage/
 
 * COMPETITIVE POSITIONING [MODERNIZATION OUTLOOK]
@@ -20347,18 +20471,18 @@ ${expiringContracts.length > 0 ? contractsText : "  ✓ No support contracts exp
 ${platformAgeLines}
   
   Refresh Candidates:   ${refreshCandidatesCount} systems flagged for tech refresh
-  ONTAP Differentiators: Unified SAN/NAS/S3, ARP, FabricPool, NDU, SnapLock, native DR
-  Recommended Refresh:   AFF A-Series/C-Series for EOS/EOA candidates
+${_ontapN === 0 ? '  Recommended Refresh:   current-generation E-Series / StorageGRID hardware (confirm sizing with NetApp)' : `  ONTAP Differentiators: Unified SAN/NAS/S3, ARP, FabricPool, NDU, SnapLock, native DR
+  Recommended Refresh:   AFF A-Series/C-Series for EOS/EOA candidates`}
 
 --------------------------------------------------------------------------------
 5. ITIL CHANGE MANAGEMENT GOVERNANCE & RUNBOOK GUIDELINES [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
 All operations under this plan must comply with standard ITIL Change Control procedures:
-1. PRE-CHANGE VERIFICATION: Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state.
+1. PRE-CHANGE VERIFICATION: ${_ontapN === 0 ? 'Confirm array/grid health in SANtricity System Manager or Grid Manager (no open failures/alerts; controllers Optimal / nodes Connected).' : "Execute 'cluster show', 'system health alert show', and 'storage failover show' to verify cluster quorum, node health, and SFO state."}
 2. SAFETY CLASSIFICATION: Verify command safety tiers (Non-Disruptive, Disruptive but Data-Safe, Destructive/Irreversible) before execution. For destructive operations, ensure a valid snapshot/backup exists.
 3. MAINTENANCE WINDOWS: Schedule hardware spares replacement and disruptive operations during off-peak hours.
-4. CHANGE ROLLBACK PLAN: Document rollback CLI commands for all upgrades (e.g., revert to fallback boot partition: 'system node image modify -node * -image image1 -isdefault true').
-5. POST-CHANGE VERIFICATION: Run 'system health alert show | storage failover show | network interface show' after every change.
+4. CHANGE ROLLBACK PLAN: ${_ontapN === 0 ? 'Document the rollback approach for every upgrade and engage NetApp Support before any SANtricity/StorageGRID rollback (no self-service downgrade path should be assumed).' : "Document rollback CLI commands for all upgrades (e.g., revert to fallback boot partition: 'system node image modify -node * -image image1 -isdefault true')."}
+5. POST-CHANGE VERIFICATION: ${_ontapN === 0 ? 'Re-check array/grid health in SANtricity System Manager or Grid Manager after every change.' : "Run 'system health alert show | storage failover show | network interface show' after every change."}
 ================================================================================`;
 }
 
@@ -20400,12 +20524,14 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
 
   // ── ARP Coverage ──
-  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const _ontapSys = targetSystems.filter(s => _platformFamily(s) === 'ontap');
+  const _ontapN = _ontapSys.length;
+  const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+  const arpPct = _ontapN > 0 ? ((arpCount / _ontapN) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const fwCurrent = targetSystems.filter(_osIsCurrent).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Support Contract Coverage (real: isContractActive from Active IQ) ──
@@ -20580,7 +20706,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   // ── Action Items ──
   const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = total - arpCount;
+  const unprotectedArp = _ontapN - arpCount;
   const correctiveCount = sortedRisks.length;
   const renewCount = exp90;
 
@@ -20690,7 +20816,7 @@ Prepared: ${salesRep}
 2. OPERATIONAL HEALTH SCORECARD [METRICS]
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
-  ARP Coverage:             ${arpCount}/${total} systems (${arpPct}%) — Anti-Ransomware Protection enabled${arpKnownSys.length < total ? ' *' : ''}
+  ARP Coverage:             ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' *' : ''}
   OS Currency:              ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Support Contract Coverage: ${contractActive}/${total} systems (${contractPct}%) — active per Active IQ's contract data
@@ -20718,7 +20844,8 @@ ${(() => {
     // smb1Enabled is hardcoded false / "assume compliant", not a real read),
     // so those stay labeled as generic reference commands rather than
     // implied per-customer findings.
-    const _arpKnown = targetSystems.filter(s => s.isARPEnabled != null);
+    if (!targetSystems.some(s => _platformFamily(s) === 'ontap')) return 'Security hardening reference: not applicable -- the ONTAP hardening commands (SMB/NFS/MAV/TLS/audit/ARP) do not apply to E-Series or StorageGRID; use the SANtricity / Grid Manager hardening guidance for this scope.';
+    const _arpKnown = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled != null);
     const _arpOff = _arpKnown.filter(s => s.isARPEnabled === false).length;
     const arpLine = _arpKnown.length > 0
       ? (_arpOff > 0
@@ -20759,9 +20886,9 @@ ${contractLines}
 --------------------------------------------------------------------------------
 7. DATA PROTECTION & DR POSTURE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-${(() => { const dr = computeFleetDRSummary(targetSystems); return `  DR Coverage:           ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
+${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  DR Coverage:           ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
   SnapMirror Relations:  ${dr.smRelCount} (${dr.smSync} Sync, ${dr.smAsync} Async)
-  HA Configured:         ${dr.haSystems}/${total}
+  HA Configured:         ${dr.haSystems}/${dr.ontapCount}
   Unprotected Systems:   ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems have DR coverage'}
   RPO Warnings:          ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' — lag ' + w.lag).join('; ') : 'None — replication within SLA'}${dr.mcSystems > 0 ? `
   MetroCluster Health:   Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}`; })()}
@@ -20794,7 +20921,7 @@ ${techRefreshLines}
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
   □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
-  □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}
+${unprotectedArp > 0 ? `  □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}` : '  □ ARP enablement: no unprotected ONTAP systems'}
   □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
   □ Validate ITIL Change Control process for all planned remediation items
 
@@ -20904,12 +21031,14 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
 
   // ── ARP ──
-  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const _ontapSys = targetSystems.filter(s => _platformFamily(s) === 'ontap');
+  const _ontapN = _ontapSys.length;
+  const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+  const arpPct = _ontapN > 0 ? ((arpCount / _ontapN) * 100).toFixed(0) : 0;
 
   // ── Firmware Currency ──
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const fwCurrent = targetSystems.filter(_osIsCurrent).length;
   const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
 
   // ── Critical risk count ──
@@ -20980,7 +21109,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   // ── Next Period ──
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = total - arpCount;
+  const unprotectedArp = _ontapN - arpCount;
   const fwBehind = total - fwCurrent;
 
   return `================================================================================
@@ -21013,7 +21142,7 @@ ${dashboardLines}
   Metric                    Target    Actual    Status
   ─────────────────────────────────────────────────────
   ASUP Compliance           ${String(slaThresholds.asup).padEnd(3)}%      ${String(asupPct).padStart(3)}%      ${slaStatus(asupPct, slaThresholds.asup)}
-  ARP Enablement            ${String(slaThresholds.arp).padEnd(3)}%      ${String(arpPct).padStart(3)}%      ${slaStatus(arpPct, slaThresholds.arp)}
+  ARP Enablement            ${String(slaThresholds.arp).padEnd(3)}%      ${_ontapN > 0 ? String(arpPct).padStart(3) + '%' : ' N/A'}      ${_ontapN > 0 ? slaStatus(arpPct, slaThresholds.arp) : 'N/A (ONTAP only)'}
   OS Currency               ${String(slaThresholds.fw).padEnd(3)}%      ${String(fwPct).padStart(3)}%      ${slaStatus(fwPct, slaThresholds.fw)}
   Support Contract Coverage ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
@@ -21048,10 +21177,10 @@ ${tierLines}
 --------------------------------------------------------------------------------
 7. DATA PROTECTION & DR COVERAGE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
+${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
   MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
-  HA Configured:          ${dr.haSystems}/${total}
+  HA Configured:          ${dr.haSystems}/${dr.ontapCount}
   Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems protected'}
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
@@ -21083,7 +21212,7 @@ ${backlogLines}
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
   □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
-  □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}
+${unprotectedArp > 0 ? `  □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}` : '  □ ARP: no unprotected ONTAP systems'}
   □ Restore ASUP on ${staleAsup} stale system${staleAsup !== 1 ? 's' : ''}
   □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
 
@@ -21095,7 +21224,7 @@ ${backlogLines}
   Critical Risks Identified: ${critCount} critical issue${critCount !== 1 ? 's' : ''} flagged proactively before customer impact
   Admin Time Saved:         ~${total * 2} hours/month via automated telemetry and monitoring
                             (ESTIMATE: 2 hrs/system/month manual-monitoring offset, not a measured value — do not cite externally)
-  Next Quarter Focus:       Expand ARP coverage to 100% and initiate tech refresh for ${ages.filter(a=>a>5).length} aged systems.
+  Next Quarter Focus:       ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'Expand ARP coverage to 100% and initiate' : 'Initiate'} tech refresh for ${ages.filter(a=>a>5).length} aged systems.
 ================================================================================`;
 }
 
@@ -21156,13 +21285,15 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && !isNaN(new Date(s.latestAsupDate)) && (now - new Date(s.latestAsupDate).getTime()) <= sevenDaysMs).length;
-  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const _ontapSys = targetSystems.filter(s => _platformFamily(s) === 'ontap');
+  const _ontapN = _ontapSys.length;
+  const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const fwCurrent = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const fwCurrent = targetSystems.filter(_osIsCurrent).length;
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   
   const asupPct = total > 0 ? Math.round((asupCompliant / total) * 100) : 0;
-  const arpPct = total > 0 ? Math.round((arpCount / total) * 100) : 0;
+  const arpPct = _ontapN > 0 ? Math.round((arpCount / _ontapN) * 100) : 0;
   const fwPct = total > 0 ? Math.round((fwCurrent / total) * 100) : 0;
   const contractPct = total > 0 ? Math.round((activeContracts / total) * 100) : 0;
 
@@ -21176,7 +21307,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const propCategory = _topPropSys ? _topPropSys.propensityCategory : '—';
   const nextBestAction = _topPropSys && _topPropSys.nextBestAction ? _topPropSys.nextBestAction : '—';
 
-  const featureScores = targetSystems.map(s => computeFeatureAdoptionScore(s));
+  const featureScores = targetSystems.filter(s => _platformFamily(s) === 'ontap').map(s => computeFeatureAdoptionScore(s));
   const avgFeaturePassed = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.passed,0)/featureScores.length) : 0;
   const avgFeaturePct = featureScores.length > 0 ? Math.round(featureScores.reduce((a,b)=>a+b.pct,0)/featureScores.length) : 0;
 
@@ -21198,10 +21329,10 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
   const ontapCount = ontapSystems.length;
   
-  const fpAdopted = targetSystems.filter(s => s.isFabricPool === true).length;
+  const fpAdopted = _ontapSys.filter(s => s.isFabricPool === true).length;
 
-  const smAdopted = targetSystems.filter(s => (s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0) > 0).length;
-  const haAdopted = targetSystems.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
+  const smAdopted = _ontapSys.filter(s => (s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0) > 0).length;
+  const haAdopted = _ontapSys.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
 
   const swIndex = computeSoftwareCurrencyIndex(targetSystems);
   const uniqueOntapVersions = new Set(targetSystems.filter(s => s.osVersion).map(s => s.osVersion)).size;
@@ -21268,10 +21399,12 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
     Space Saved:              ${savedTotal.toFixed(1)} TB
     Capacity Runway:          ${runway} days to 90% (average)
     Sustainability Score:     ${avgSustLabel}
-    Operational Compliance:   ASUP ${asupPct}% | ARP ${arpPct}% | FW Current ${fwPct}%
+    Operational Compliance:   ASUP ${asupPct}% | ARP ${_ontapN > 0 ? arpPct + '%' : 'N/A'} | FW Current ${fwPct}%
     Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
-${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 ? ` [Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}]` : ''}
-    HA Configured:            ${dr.haSystems}/${total}
+${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeFleetCapacityForecast(targetSystems); if (dr.ontapCount === 0) return `    DR / HA Coverage:         N/A \u2014 ONTAP-only concepts (no ONTAP systems in scope)
+    Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
+    Capacity at Risk (<60d):  ${cap.atRisk.length} system${cap.atRisk.length !== 1 ? 's' : ''}`; return `    DR Coverage:             ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 ? ` [Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}]` : ''}
+    HA Configured:            ${dr.haSystems}/${dr.ontapCount}
     Fleet Utilization:        ${cap.avgUtilPct}% avg  |  Growth: ${cap.avgGrowthPctMo}%/mo
     Capacity at Risk (<60d):  ${cap.atRisk.length} system${cap.atRisk.length !== 1 ? 's' : ''}`; })()}
 
@@ -21284,15 +21417,15 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
 
   STANDARDS & ADOPTION (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
-    Feature Adoption Score:   ${avgFeaturePct}% fleet average (ARP/FabricPool/SnapMirror/HA/AutoSupport, ~${avgFeaturePassed} of 5 features per system)
-    ARP Enablement:           ${arpCount}/${total}${arpKnownSys.length < total ? ' *' : ''}
-    FabricPool Adoption:      ${fpAdopted}/${total}
+    Feature Adoption Score:   ${featureScores.length > 0 ? avgFeaturePct + '% fleet average (ARP/FabricPool/SnapMirror/HA/AutoSupport, ~' + avgFeaturePassed + ' of 5 features per system)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}
+    ARP Enablement:           ${_ontapN > 0 ? arpCount + '/' + _ontapN : 'N/A (no ONTAP systems)'}${arpKnownSys.length < _ontapN ? ' *' : ''}
+    FabricPool Adoption:      ${_ontapN > 0 ? fpAdopted + '/' + _ontapN : 'N/A'}
 
-    SnapMirror Usage:         ${smAdopted}/${total}
-    HA Configured:            ${haAdopted}/${total}
+    SnapMirror Usage:         ${_ontapN > 0 ? smAdopted + '/' + _ontapN : 'N/A'}
+    HA Configured:            ${_ontapN > 0 ? haAdopted + '/' + _ontapN : 'N/A'}
     OS Currency:              ${fwCurrent}/${total} on recommended version
     Software Currency Index:  ${swIndex} versions behind GA (avg)
-    Fleet Diversity:          ${uniqueOntapVersions} unique ONTAP versions across ${total} systems
+    Fleet Diversity:          ${uniqueOntapVersions} unique ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'ONTAP' : 'OS'} versions across ${total} systems
 ${aggEfficiencySection}
 ${compileSvmLifInventoryText(targetSystems)}
   REMEDIATION PLAN (Recommended Governance & Gates)
@@ -21340,9 +21473,9 @@ ${coiText}
     Tech Refresh Flagged:     ${refreshFlagged} systems
     Platform Age > 5 Years:   ${ageOver5} systems
     EOA Hardware:             ${eoaSystems.length} systems${eoaSystems.length > 0 ? '\n' + eoaLines : ''}
-    ONTAP Differentiators:    Unified SAN/NAS/S3, ARP, FabricPool,
+${targetSystems.some(s => _platformFamily(s) === 'ontap') ? `    ONTAP Differentiators:    Unified SAN/NAS/S3, ARP, FabricPool,
                               NDU upgrades, SnapLock, native DR
-`;
+` : ''}`;
 }
 
 function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw) {
@@ -21428,9 +21561,11 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   }).length;
   const asupPct = total > 0 ? ((asupCompliant / total) * 100).toFixed(0) : 0;
 
-  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
+  const _ontapSys = targetSystems.filter(s => _platformFamily(s) === 'ontap');
+  const _ontapN = _ontapSys.length;
+  const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
-  const arpPct = total > 0 ? ((arpCount / total) * 100).toFixed(0) : 0;
+  const arpPct = _ontapN > 0 ? ((arpCount / _ontapN) * 100).toFixed(0) : 0;
 
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   const contractPct = total > 0 ? ((activeContracts / total) * 100).toFixed(0) : 0;
@@ -21507,7 +21642,7 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
 
   // ASUP / ARP gaps
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = total - arpCount;
+  const unprotectedArp = _ontapN - arpCount;
   if (staleAsup > 0) {
     talkingPoints.push(`${staleAsup} system${staleAsup > 1 ? 's' : ''} with stale or missing AutoSupport telemetry — proactive monitoring gap.`);
   }
@@ -21592,7 +21727,7 @@ ${compileSvmLifSummaryText(targetSystems)}
   Security Advisories:  ${secCount}
   Open Support Cases:   ${allSupportCases.length}
   ASUP Compliance:      ${asupPct}%
-  ARP Coverage:         ${arpPct}%
+  ARP Coverage:         ${_ontapN > 0 ? arpPct + '%' : 'N/A (no ONTAP systems)'}
   Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 
@@ -21624,9 +21759,9 @@ ${faLines}
 --------------------------------------------------------------------------------
 8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
-${(() => { const dr = computeFleetDRSummary(targetSystems); return `  SnapMirror Coverage:    ${dr.smSystems}/${total} systems (${dr.drCoveragePct}%)
+${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
-  HA Configured:          ${dr.haSystems}/${total} (${dr.haCoveragePct}%)
+  HA Configured:          ${dr.haSystems}/${dr.ontapCount} (${dr.haCoveragePct}%)
   Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
@@ -21709,7 +21844,7 @@ ${_kevAckLines}
     // firmware-update action below always claimed every single system needed
     // a firmware update, even when none did. swRecMin/osVersion + versionLt()
     // is the real OS-currency check used consistently everywhere else.
-    if (s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)) fwCurrent++;
+    if (_osIsCurrent(s)) fwCurrent++;
 
     // securityBulletins (OS-version-matched advisories) is the other half of
     // the real CVE union -- computeCostOfInaction() already unions this with
@@ -21764,7 +21899,8 @@ ${_kevAckLines}
   });
 
   const totalRisks = critical + high + medium + low;
-  const arpPct = count > 0 ? Math.round((arpEnabled / count) * 100) : 0;
+  const _ontapCountSec = targetSystems.filter(s => _platformFamily(s) === 'ontap').length;
+  const arpPct = _ontapCountSec > 0 ? Math.round((arpEnabled / _ontapCountSec) * 100) : 0;
   // Real exposure window computed from the oldest native CVE's lastUpdated date;
   // falls back to a labeled estimate only when no native CVE dates are available.
   const daysSinceOldestCVE = oldestCveDate
@@ -21839,7 +21975,7 @@ ${_kevAckLines}
 
   // Helper: show gap as N/A when no systems report the feature, or actual gap when data exists
   const _fGap = (enabled, known) => known > 0 ? String(known - enabled).padEnd(8) : 'N/A     ';
-  const _fRatio = (enabled, known) => known > 0 ? `${enabled}/${known}` : `0/${count}*`;
+  const _fRatio = (enabled, known) => known > 0 ? `${enabled}/${known}` : (_ontapCountSec > 0 ? `0/${_ontapCountSec}*` : 'N/A');
 
   let featureLines = `    Feature                 Enabled    Gap      Action Required
     ─────────────────────── ────────── ──────── ──────────────────────────────
@@ -21857,18 +21993,18 @@ ${kevAckBlock}
     Total Risks:              ${totalRisks} (Critical: ${critical}, High: ${high}, Medium: ${medium}, Low: ${low})
     Security-Specific Risks:  ${securityRisks.length}
     CVE Exposure:             ${cveExposures.size} unique advisories across ${systemsWithCve.size} systems
-    ARP Coverage:             ${arpEnabled}/${count} (${arpPct}%) — Anti-Ransomware Protection
+    ARP Coverage:             ${_covTxt(arpEnabled, _ontapCountSec)} — Anti-Ransomware Protection
     OS Currency:              ${fwCurrent}/${count} on recommended version
-    HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
+${(fw || {}).ontapCount === 0 ? `    HW Firmware Attack Surface: N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)` : `    HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
       SP Firmware: ${(fw || {}).spPct || 0}% current | MB Firmware: ${(fw || {}).mbPct || 0}% current
-      DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current
+      DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current`}
     CISA KEV Exposure:        ${kevExposures}
 
   2. COST OF INACTION — SECURITY
   ────────────────────────────────────────────────────────────────────────────
     - ${cveExposures.size} CVE${cveExposures.size !== 1 ? 's' : ''} expose ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''} to known exploit vectors
-    - ${count - arpEnabled} system${count - arpEnabled !== 1 ? 's' : ''} lack ARP -> vulnerable to ransomware
-    - ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} on unsupported firmware -> no security patches
+${_ontapCountSec > 0 ? `    - ${_ontapCountSec - arpEnabled} ONTAP system${_ontapCountSec - arpEnabled !== 1 ? 's' : ''} lack ARP -> vulnerable to ransomware
+` : ''}    - ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} on unsupported firmware -> no security patches
     - Exposure window (oldest tracked CVE): ${exposureWindowText}
 
   3. CVE REMEDIATION PRIORITY MATRIX
@@ -21881,8 +22017,8 @@ ${featureLines}
 ${compileSvmLifSummaryText(targetSystems)}
   6. DATA PROTECTION POSTURE
   ────────────────────────────────────────────────────────────────────────────
-    DR Coverage:       ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)
-    Unprotected:       ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems protected'}
+    DR Coverage:       ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (ONTAP-only; none in scope)'}
+    Unprotected:       ${dr.ontapCount === 0 ? 'N/A' : dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all ONTAP systems protected'}
     RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}${dr.mcSystems > 0 ? `
     MetroCluster:      Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}
 
@@ -21959,6 +22095,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   let perSystemLines = '';
   let optimizationRecs = [];
   let fabricPoolCount = 0;
+  const _fpOntN = targetSystems.filter(s => _platformFamily(s) === 'ontap').length;
 
   let noScoreDataCount = 0;
   targetSystems.forEach(s => {
@@ -21974,7 +22111,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     let physical = s.efficiency ? (s.efficiency.physicalUsedTB || s.efficiency.physicalCapacity || 0) : 0;
     let saved = s.efficiency ? (s.efficiency.spaceSavedTB || s.efficiency.spaceSaved || 0) : 0;
     let drRatio = s.efficiency ? (parseFloat(String(s.efficiency.dataReductionRatio || s.efficiency.drRatio || '1').split(':')[0]) || 1) : 1;
-    let isFP = s.isFabricPool || false;
+    let isFP = _platformFamily(s) === 'ontap' && (s.isFabricPool || false);
 
     if (hasScoreData) {
       overallScoreSum += score;
@@ -21982,9 +22119,13 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
       systemsWithScore++;
     }
 
-    totalLogical += logical;
-    totalPhysical += physical;
-    spaceSaved += saved;
+    // Data-reduction aggregates are ONTAP-only: E-Series/StorageGRID report logical
+    // == physical, which dilutes the ratio and inflates "physical used".
+    if (_platformFamily(s) === 'ontap') {
+      totalLogical += logical;
+      totalPhysical += physical;
+      spaceSaved += saved;
+    }
     if (isFP) fabricPoolCount++;
 
     perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${hasScoreData ? score.toString().padEnd(6) : 'N/A'.padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)} ${isFP ? 'Yes' : 'No'}\n`;
@@ -22061,11 +22202,11 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
     <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
     Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}
     Environmental Impact: ${cap.totalGrowthTBMo > 0 ? Math.round(cap.totalGrowthTBMo * 12 * 0.5) + ' kW additional power if not tiered *' : 'Minimal'}
-    → FabricPool tiering can offset ${fabricPoolCount < count ? (count - fabricPoolCount) + ' remaining systems' : 'already deployed fleet-wide'}`; })()}
+    → ${_fpOntN === 0 ? 'FabricPool tiering does not apply (ONTAP-only; no ONTAP systems in scope)' : 'FabricPool tiering can offset ' + (fabricPoolCount < _fpOntN ? (_fpOntN - fabricPoolCount) + ' remaining ONTAP systems' : 'already deployed across ONTAP systems')}`; })()}
 
   6. CARBON REDUCTION ROADMAP
   ────────────────────────────────────────────────────────────────────────────
-    Quick Wins:   Enable FabricPool on ${count - fabricPoolCount} systems → est. ${(spaceSaved*0.1).toFixed(1)} TB tiered
+    Quick Wins:   ${_fpOntN === 0 ? 'FabricPool does not apply (no ONTAP systems in scope)' : 'Enable FabricPool on ' + (_fpOntN - fabricPoolCount) + ' ONTAP systems → est. ' + (spaceSaved*0.1).toFixed(1) + ' TB tiered'}
     Medium Term:  Consolidate under-utilized systems → retire aging shelves
     Long Term:    Refresh legacy platforms → modern efficient hardware
 ================================================================================`;
@@ -22078,7 +22219,15 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
 // compilers. These functions expose dashboard-level intelligence
 // (Tabs 14–17) to all 13 downloadable deliverables.
 
-function computeFleetDRSummary(targetSystems) {
+function computeFleetDRSummary(allSystems) {
+  // SnapMirror / MetroCluster / HA pairs are ONTAP concepts. E-Series and
+  // StorageGRID systems were counted here as "unprotected" (no SnapMirror, no
+  // MetroCluster, no HA) and dragged DR/HA coverage down, producing findings
+  // like "Establish DR protection for 24 unprotected systems" for arrays that
+  // cannot have any. Everything below is over the ONTAP systems in scope;
+  // ontapCount lets callers show correct denominators (and N/A when zero).
+  const targetSystems = allSystems.filter(s => _platformFamily(s) === 'ontap');
+  const ontapCount = targetSystems.length;
   let smSystems = 0, smRelCount = 0, smAsync = 0, smSync = 0;
   let mcSystems = 0, syncMirrorSystems = 0, haSystems = 0;
   // Counts systems with SnapMirror OR MetroCluster, once each -- a system can
@@ -22139,7 +22288,9 @@ function computeFleetDRSummary(targetSystems) {
     mcMediatorIssues: [...new Set(mcMediatorIssues)],
     mcAusoDisabled: [...new Set(mcAusoDisabled)],
     drCoveragePct: total > 0 ? Math.round(drProtectedSystems / total * 100) : 0,
-    haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0
+    haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0,
+    ontapCount,
+    nonOntapCount: allSystems.length - ontapCount
   };
 }
 
@@ -22253,7 +22404,12 @@ function renderFleetUptimeCard(targetSystems) {
   `;
 }
 
-function computeFleetFeatureMatrix(targetSystems) {
+function computeFleetFeatureMatrix(allSystems) {
+  // The adoption score is ARP/FabricPool/SnapMirror/HA/AutoSupport -- an ONTAP
+  // feature set. Scoring E-Series/StorageGRID against it made every such
+  // system look ~20% adopted. Score ONTAP systems only; ontapCount is exposed
+  // so callers can render N/A when the scope has none.
+  const targetSystems = allSystems.filter(s => _platformFamily(s) === 'ontap');
   const features = { arp: 0, fabricPool: 0, snapMirror: 0, ha: 0 };
   const perSystem = [];
   const total = targetSystems.length;
@@ -22283,7 +22439,8 @@ function computeFleetFeatureMatrix(targetSystems) {
     features,
     pct: { arp: pct(features.arp), fabricPool: pct(features.fabricPool), snapMirror: pct(features.snapMirror), ha: pct(features.ha) },
     perSystem,
-    fleetAvgScore
+    fleetAvgScore,
+    ontapCount: total
   };
 }
 
@@ -22370,7 +22527,12 @@ function computeFleetWarrantyStatus(targetSystems) {
   return { warrantyActive, warrantyExpired, warrantyUnknown, expiring30, expiring90, active: warrantyActive, expired: warrantyExpired, tierDist, perSystem };
 }
 
-function computeFleetFirmwareSummary(targetSystems) {
+function computeFleetFirmwareSummary(allSystems) {
+  // SP/BMC + motherboard BIOS + DQP + drive firmware is an ONTAP hardware model.
+  // For E-Series the SANtricity OS was being treated as "SP firmware" and BIOS/DQP
+  // as 0/N, so every E-Series array scored 'Behind' regardless of its real state.
+  // OS currency for those platforms is covered by the OS checks instead.
+  const targetSystems = allSystems.filter(s => _platformFamily(s) === 'ontap');
   // Firmware version comparison (reuse logic from _renderFirmwareCurrencySection)
   const _fwCmp = (cur, rec) => {
     if (!cur || !rec) return null;
@@ -22474,7 +22636,8 @@ function computeFleetFirmwareSummary(targetSystems) {
     driveFwCurrent, driveFwBehind, driveFwUnknown,
     totalDrives, totalShelves,
     spPct, mbPct, dqpPct, drivePct, overallFwScore,
-    perSystem
+    perSystem,
+    ontapCount: targetSystems.length
   };
 }
 
@@ -22580,19 +22743,20 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
     }
   });
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
-  const arpEnabledCount = targetSystems.filter(s => s.isARPEnabled === true).length;
-  const fwCurrentCount = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const _ontapNE = targetSystems.filter(s => _platformFamily(s) === 'ontap').length;
+  const arpEnabledCount = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled === true).length;
+  const fwCurrentCount = targetSystems.filter(_osIsCurrent).length;
   const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
   const sysCount = targetSystems.length;
   const pctAsup = sysCount > 0 ? Math.round(asupCompliant / sysCount * 100) : 0;
-  const pctArp = sysCount > 0 ? Math.round(arpEnabledCount / sysCount * 100) : 0;
+  const pctArp = _ontapNE > 0 ? Math.round(arpEnabledCount / _ontapNE * 100) : 0;
   const pctFw = sysCount > 0 ? Math.round(fwCurrentCount / sysCount * 100) : 0;
   const pctContract = sysCount > 0 ? Math.round(contractActiveCount / sysCount * 100) : 0;
   const sustScores = state.tamSustainability || [];
   const sustLatest = sustScores[0] || {};
   let totalPhysTB = 0, totalLogTB = 0, totalSavedTBd = 0;
   targetSystems.forEach(s => {
-    if (s.efficiency) {
+    if (s.efficiency && _platformFamily(s) === 'ontap') {
       totalPhysTB += s.efficiency.physicalUsedTB || 0;
       totalLogTB += s.efficiency.logicalUsedTB || 0;
       totalSavedTBd += s.efficiency.spaceSavedTB || 0;
@@ -22693,34 +22857,35 @@ RISK SUMMARY
 
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
-  ARP Coverage:       ${arpEnabledCount}/${sysCount} (${pctArp}%)
+  ARP Coverage:       ${_covTxt(arpEnabledCount, _ontapNE)}
   OS Currency:        ${fwCurrentCount}/${sysCount} (${pctFw}%)
   Support Contract Coverage: ${contractActiveCount}/${sysCount} (${pctContract}%) (active per Active IQ's contract data)
 
-HARDWARE FIRMWARE CURRENCY (Detailed)
-  SP/BMC:             ${fw.spCurrent}/${sysCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
-  Motherboard BIOS:   ${fw.mbCurrent}/${sysCount} current (${fw.mbPct}%)${fw.mbBehind > 0 ? ' — ' + fw.mbBehind + ' need update' : ''}
-  DQP:                ${fw.dqpCurrent}/${sysCount} current (${fw.dqpPct}%)${fw.dqpBehind > 0 ? ' — ' + fw.dqpBehind + ' need update' : ''}
+HARDWARE FIRMWARE CURRENCY (Detailed)${fw.ontapCount === 0 ? `
+  N/A — SP/BMC, BIOS, DQP and drive-firmware tracking is an ONTAP hardware model (no ONTAP systems in scope); see OS Currency above.` : `
+  SP/BMC:             ${fw.spCurrent}/${fw.ontapCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
+  Motherboard BIOS:   ${fw.mbCurrent}/${fw.ontapCount} current (${fw.mbPct}%)${fw.mbBehind > 0 ? ' — ' + fw.mbBehind + ' need update' : ''}
+  DQP:                ${fw.dqpCurrent}/${fw.ontapCount} current (${fw.dqpPct}%)${fw.dqpBehind > 0 ? ' — ' + fw.dqpBehind + ' need update' : ''}
   Drive Firmware:     ${fw.driveFwCurrent}/${fw.totalDrives} current (${fw.drivePct}%)${fw.driveFwBehind > 0 ? ' — ' + fw.driveFwBehind + ' behind' : ''}
   Disk Shelves:       ${fw.totalShelves} total across fleet
-  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)
+  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)`}
 
 ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
-COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unpatched CVEs, ${coi.capacityRed} capacity-red systems, ${coi.noArp} without ARP
+COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unpatched CVEs, ${coi.capacityRed} capacity-red systems${_ontapNE > 0 ? ', ' + coi.noArp + ' without ARP' : ''}
 
 DATA PROTECTION POSTURE
-  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror + ${dr.mcSystems} MetroCluster of ${sysCount})${dr.mcSystems > 0 ? '\n  MetroCluster:       Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}
-  HA Coverage:        ${dr.haCoveragePct}% (${dr.haSystems}/${sysCount})
+  DR Coverage:        ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SnapMirror + ' + dr.mcSystems + ' MetroCluster of ' + dr.ontapCount + ' ONTAP)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 ? '\n  MetroCluster:       Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}
+  HA Coverage:        ${dr.ontapCount > 0 ? dr.haCoveragePct + '% (' + dr.haSystems + '/' + dr.ontapCount + ')' : 'N/A (HA pairs are an ONTAP concept)'}
   Relationships:      ${dr.smRelCount} total (${dr.smAsync} async / ${dr.smSync} sync)
-  Unprotected:        ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None'}${dr.lagWarnings.length > 0 ? '\n  RPO Risks:          ' + dr.lagWarnings.map(w => w.system + ' → ' + w.dest + ' lag: ' + w.lag).join('; ') : ''}
+  Unprotected:        ${dr.ontapCount === 0 ? 'N/A' : dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None'}${dr.lagWarnings.length > 0 ? '\n  RPO Risks:          ' + dr.lagWarnings.map(w => w.system + ' → ' + w.dest + ' lag: ' + w.lag).join('; ') : ''}
 
 CAPACITY RISK
   Utilisation:        ${cap.utilPct}% fleet-wide (${cap.totalPhysTB.toFixed(1)} / ${cap.totalAvailTB.toFixed(1)} TB)
   RAG Distribution:   ${cap.greenCount} Green / ${cap.amberCount} Amber / ${cap.redCount} Red
   Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : ''}
 
-FEATURE ADOPTION:     ${fm.fleetAvgScore}% fleet average (${fm.perSystem.length > 0 ? fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + (fm.perSystem.length * 15) + ' best-practice criteria met' : 'N/A'})
-  ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%
+FEATURE ADOPTION:     ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average (' + fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + (fm.perSystem.length * 15) + ' best-practice criteria met, ' + fm.ontapCount + ' ONTAP systems)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}${fm.ontapCount > 0 ? `
+  ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%` : ''}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
   Integrations Checked: ${Object.keys(_fleetSignals).filter(k => _fleetSignals[k]).length}
@@ -22816,15 +22981,15 @@ Our Active IQ posture audit identified ${totalDeduped} finding${totalDeduped !==
 
 OPERATIONAL HEALTH SNAPSHOT:
   ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
-  ARP Protection:     ${pctArp}% (${arpEnabledCount}/${sysCount} systems with Anti-Ransomware enabled)
+  ARP Protection:     ${_ontapNE > 0 ? pctArp + '% (' + arpEnabledCount + '/' + _ontapNE + ' ONTAP systems with Anti-Ransomware enabled)' : 'N/A (ARP is an ONTAP feature; no ONTAP systems in scope)'}
   OS Currency:        ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
-  HW Firmware Score:  ${fw.overallFwScore}% (SP: ${fw.spPct}%, MB: ${fw.mbPct}%, DQP: ${fw.dqpPct}%, Drives: ${fw.drivePct}%)
+  HW Firmware Score:  ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP: ' + fw.spPct + '%, MB: ' + fw.mbPct + '%, DQP: ' + fw.dqpPct + '%, Drives: ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} active per Active IQ's contract data)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
-COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity, ${coi.noArp} without ransomware protection
+COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity${_ontapNE > 0 ? ', ' + coi.noArp + ' without ransomware protection' : ''}
 
-DATA PROTECTION: ${dr.drCoveragePct}% DR coverage (${dr.smSystems} SnapMirror / ${dr.mcSystems} MetroCluster)${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ UNPROTECTED: ' + dr.unprotected.join(', ') : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
+DATA PROTECTION: ${dr.ontapCount > 0 ? dr.drCoveragePct + '% DR coverage (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ UNPROTECTED: ' + dr.unprotected.join(', ') : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
 
 CAPACITY: ${cap.utilPct}% fleet utilisation (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)${cap.atRisk.length > 0 ? '\n  ⚠ SYSTEMS AT RISK: ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd runway)').join(', ') : ''}
 
@@ -22858,12 +23023,12 @@ Systems:  ${targetSystems.length}  |  Sites: ${siteDetails.length}
 HEALTH METRICS:
   Account Health:     ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel}
   ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
-  ARP Coverage:       ${pctArp}% ${pctArp < 100 ? '⚠' : '✓'}
+  ARP Coverage:       ${_ontapNE > 0 ? pctArp + '% ' + (pctArp < 100 ? '⚠' : '✓') : 'N/A (no ONTAP systems)'}
   OS Currency:        ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
-  HW Firmware:        ${fw.overallFwScore}% ${fw.overallFwScore < 80 ? '⚠' : '✓'} (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
+  HW Firmware:        ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% ' + (fw.overallFwScore < 80 ? '⚠' : '✓') + ' (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'} (active per Active IQ's contract data)
-  Feature Adoption:   ${fm.fleetAvgScore}% fleet average
-  DR Coverage:        ${dr.drCoveragePct}% (${dr.smSystems} SM / ${dr.mcSystems} MC)${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
+  Feature Adoption:   ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average' : 'N/A (ONTAP feature set)'}
+  DR Coverage:        ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SM / ' + dr.mcSystems + ' MC)' : 'N/A (ONTAP-only)'}${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
   Capacity:           ${cap.utilPct}% fleet (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)
   Warranty:           ${warranty.active}/${sysCount} active${warranty.expired > 0 ? ', ' + warranty.expired + ' EXPIRED' : ''}${warranty.expiring30 > 0 ? ', ' + warranty.expiring30 + ' <30d' : ''}
 
@@ -22876,8 +23041,8 @@ PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
 ${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring support contract(s)` : ''}
-${sysCount - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${sysCount - arpEnabledCount} unprotected system(s)` : ''}
-${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (sysCount - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}
+${_ontapNE - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${_ontapNE - arpEnabledCount} unprotected system(s)` : ''}
+${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (_ontapNE - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}
 ${imtFindings.length > 0 ? `\nINTEROPERABILITY POSTURE (IMT CHECK):\n${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ') + ' ' + f.message).join('\n')}` : ''}`;
   // ===================== 3. CHANGE TICKETS =====================
   let changeTickets = `================================================================================
@@ -22930,20 +23095,20 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
     Warranty:          ${sysWarranty}
     Capacity:          ${sysCapRAG.toUpperCase()} (runway: ${sysRunway === 'N/A' ? 'N/A' : sysRunway + 'd'})
     Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)
-    DR Protection:     ${sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None'}${sysHasHA ? ' | HA configured' : ''}
+    DR Protection:     ${_platformFamily(sys) !== 'ontap' ? 'N/A (SnapMirror/MetroCluster/HA pairs are ONTAP features)' : (sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None') + (sysHasHA ? ' | HA configured' : '')}
     Contract:          ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
     HW Firmware:       ${(() => { const m = fw.perSystem.find(f => f.name === sys.systemName); return m ? m.status + ' (' + m.score + '%)' : 'N/A'; })()}
     Disk Shelves:      ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
-    SVMs:              ${_ctSvms.length} (${_ctSvms.length > 0 ? [...new Set(_ctSvms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None'})
+    SVMs:              ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP construct)' : `${_ctSvms.length} (${_ctSvms.length > 0 ? [...new Set(_ctSvms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None'})`}
 
 --- PRE-CHANGE HEALTH VALIDATION ---
-  cluster show
+${_platformFamily(sys) !== 'ontap' ? _nonOntapVerifyLines(sys).map(l => '  ' + l).join('\n') + '\n  Export/back up the current configuration before starting' : `  cluster show
   system health alert show
   storage failover show
   storage aggregate show -state online
   network interface show -status-oper down
   system configuration backup create -node *
-  event log show -severity EMERGENCY,ALERT -time-range -1h
+  event log show -severity EMERGENCY,ALERT -time-range -1h`}
 
 `;
 
@@ -22998,7 +23163,13 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
       changeTickets += '\n';
     }
 
-    changeTickets += `--- POST-CHANGE VERIFICATION ---
+    changeTickets += _platformFamily(sys) !== 'ontap' ? `--- POST-CHANGE VERIFICATION ---
+${_nonOntapVerifyLines(sys).map(l => '  ' + l).join('\n')}
+
+--- ROLLBACK CRITERIA ---
+${_nonOntapRollbackLines(sys).map(l => '  ' + l).join('\n')}
+
+` : `--- POST-CHANGE VERIFICATION ---
   system health alert show
   storage failover show
   network interface show
@@ -23029,9 +23200,9 @@ Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCoun
 
 OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
-  ARP Coverage:           ${pctArp}% (${arpEnabledCount}/${sysCount} systems)
+  ARP Coverage:           ${_covTxt(arpEnabledCount, _ontapNE)}
   OS Currency:            ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
-  HW Firmware Score:      ${fw.overallFwScore}% (SP ${fw.spPct}% / MB ${fw.mbPct}% / DQP ${fw.dqpPct}% / Drive ${fw.drivePct}%)
+  HW Firmware Score:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} systems; active per Active IQ's contract data)
 
 PRIORITISED CORRECTIVE ACTIONS
@@ -23083,15 +23254,17 @@ PRIORITISED CORRECTIVE ACTIONS
 --------------------------------------------------------------------------------
   Phase 1 (Days 1-7):   CAB approval, pre-change health validation, critical risk remediation
   Phase 2 (Days 8-30):  OS/firmware upgrades, switch firmware, shelf module updates
-  Phase 3 (Days 31-90): ARP enablement, audit logging, hypervisor integration compliance
+  Phase 3 (Days 31-90): ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'ARP enablement, audit logging, hypervisor integration compliance' : 'host/hypervisor integration compliance and configuration review'}
   Phase 4 (Day 90+):    Post-change verification, QBR review, documentation sign-off
 
 CHANGE SAFETY CLASSIFICATION
 --------------------------------------------------------------------------------
-  Non-Disruptive:  ASUP config, ARP enable, audit logging, shelf/disk firmware (background)
+${targetSystems.some(s => _platformFamily(s) === 'ontap') ? `  Non-Disruptive:  ASUP config, ARP enable, audit logging, shelf/disk firmware (background)
   Disruptive/Safe: ONTAP upgrades (rolling HA failover), switch ISSU firmware updates
   Potentially Disruptive: Network interface reconfigurations, aggregate relocation
-  Destructive/Irreversible: Snapshot deletion, volume destroy, LUN unmap — require backup verification
+  Destructive/Irreversible: Snapshot deletion, volume destroy, LUN unmap — require backup verification` : `  Non-Disruptive:  AutoSupport configuration, monitoring changes
+  Disruptive/Safe: SANtricity OS / StorageGRID software upgrades (follow vendor upgrade guidance), switch firmware updates
+  Destructive/Irreversible: volume/LUN deletion, node or drive removal — require backup verification`}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (NetApp IMT)
 --------------------------------------------------------------------------------
@@ -23106,7 +23279,7 @@ ${imtFindings.map((f, i) => {
   Active IQ:         activeiq.netapp.com
   Security:          security.netapp.com
   Knowledge Base:    kb.netapp.com
-  Upgrade Advisor:   docs.netapp.com/us-en/ontap/upgrade/index.html
+  Upgrade Advisor:   ${_ontapNE > 0 ? 'docs.netapp.com/us-en/ontap/upgrade/index.html' : 'activeiq.netapp.com/upgrade-advisor'}
   IMT:               mysupport.netapp.com/matrix
   Support Portal:    mysupport.netapp.com
 `;
@@ -23119,16 +23292,18 @@ Scope:    ${cleanScope}
 Date:     ${today}
 Prepared: ${personnel.sam !== 'Not Assigned' ? personnel.sam : personnel.salesRep}
 Note:     Critical/High severity items only. Best-practice items excluded.
-          All commands must be run in the context of the correct cluster/vserver.
+          ${_ontapNE > 0 ? 'All commands must be run in the context of the correct cluster/vserver.' : 'Use each platform\'s own management console (SANtricity System Manager / Grid Manager); no ONTAP CLI applies.'}
           Obtain CAB approval before executing Disruptive or Destructive commands.
 
-GLOBAL PRE-FLIGHT CHECKS (run before any system):
+GLOBAL PRE-FLIGHT CHECKS (run before any system):${_ontapNE === 0 ? `
+  No ONTAP systems in scope: use the per-system checks below (SANtricity System Manager / Grid Manager).` : `${_ontapNE < targetSystems.length ? `
+  (ONTAP commands -- apply to the ${_ontapNE} ONTAP system(s) only; see per-system checks for E-Series/StorageGRID)` : ''}
   cluster show
   system health alert show
   storage failover show
   storage aggregate show -state online
   network interface show -status-oper down
-  event log show -severity EMERGENCY,ALERT -time-range -1h
+  event log show -severity EMERGENCY,ALERT -time-range -1h`}
 
 `;
 
@@ -23171,8 +23346,8 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   Disk Shelves: ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
   Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
   Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
-  DR Protection: ${rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
-  SVMs:     ${(() => { const _svms = typeof getSystemSvms === 'function' ? (getSystemSvms(sys) || []) : (sys.vservers || []); return _svms.length + ' (' + (_svms.length > 0 ? [...new Set(_svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None') + ')'; })()}
+  DR Protection: ${_platformFamily(sys) !== 'ontap' ? 'N/A \u2014 SnapMirror/MetroCluster are ONTAP features' : rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
+  SVMs:     ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP construct)' : `${(() => { const _svms = typeof getSystemSvms === 'function' ? (getSystemSvms(sys) || []) : (sys.vservers || []); return _svms.length + ' (' + (_svms.length > 0 ? [...new Set(_svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None') + ')'; })()}`}
 `;
 
     if (sysRisks.length > 0) {
@@ -23211,7 +23386,7 @@ ACTION ${rIdx + 1}: [${(r.severity||'').toUpperCase()}] [${itilTier}] ${r.descri
       const hops = calculateUpgradePath(sys.platform, origVer, sys.upgrades.targetVersion);
       implementationPlans += `
 --------------------------------------------------------------------------------
-ONTAP/OS UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
+${_platformFamily(sys) === 'eseries' ? 'SANtricity' : _platformFamily(sys) === 'storagegrid' ? 'StorageGRID' : 'ONTAP/OS'} UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
 --------------------------------------------------------------------------------\n`;
       if (hops.length > 1) {
         implementationPlans += `  Multi-hop upgrade required — do NOT skip intermediate versions.\n`;
@@ -23239,7 +23414,7 @@ ONTAP/OS UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
         implementationPlans += `  Doc: ${h.docLink}\n`;
       } else {
         implementationPlans += `  Download upgrade package from: https://mysupport.netapp.com/site/downloads\n`;
-        implementationPlans += `  Follow: https://docs.netapp.com/us-en/ontap/upgrade/index.html\n`;
+        if (_platformFamily(sys) === 'ontap') implementationPlans += `  Follow: https://docs.netapp.com/us-en/ontap/upgrade/index.html\n`;
       }
     }
 
@@ -23263,7 +23438,10 @@ ONTAP/OS UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
 `;
     }
 
-    implementationPlans += `
+    implementationPlans += _platformFamily(sys) !== 'ontap' ? `
+  [POST-CHANGE VERIFICATION]
+${_nonOntapVerifyLines(sys).map(l => '    ' + l).join('\n')}
+` : `
   [POST-CHANGE VERIFICATION]
     system health alert show
     storage failover show
@@ -23274,8 +23452,8 @@ ${rbSmCount > 0 ? '    snapmirror show -fields state,lag-time,healthy\n' : ''}
 `;
     // Feature gap enablement CLI (best-practice items not yet enabled)
     const featureGaps = [];
-    if (sys.isARPEnabled === false) featureGaps.push('  ARP:        security anti-ransomware volume enable -volume <vol> -vserver <svm>');
-    if (sys.isFabricPool === false) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
+    if (_platformFamily(sys) === 'ontap' && sys.isARPEnabled === false) featureGaps.push('  ARP:        security anti-ransomware volume enable -volume <vol> -vserver <svm>');
+    if (_platformFamily(sys) === 'ontap' && sys.isFabricPool === false) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
     if (featureGaps.length > 0) {
       implementationPlans += `  [FEATURE ENABLEMENT RECOMMENDATIONS (${featureGaps.length} gaps)]\n`;
       featureGaps.forEach(g => { implementationPlans += `  ${g}\n`; });
@@ -23293,10 +23471,10 @@ Account Health: ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel} (${coi.
 
 OPPORTUNITY INTELLIGENCE:
   Capacity:         ${cap.utilPct}% fleet utilisation (${cap.redCount} RED systems${cap.atRisk.length > 0 ? ', ' + cap.atRisk.length + ' with <60d runway' : ''})
-  DR Gaps:          ${dr.unprotected.length} unprotected system${dr.unprotected.length !== 1 ? 's' : ''} (SnapMirror/MC opportunity)
-  Feature Gaps:     ${fm.fleetAvgScore < 60 ? 'LOW (' + fm.fleetAvgScore + '%) \u2014 significant enablement opportunity' : fm.fleetAvgScore < 80 ? 'MODERATE (' + fm.fleetAvgScore + '%)' : 'GOOD (' + fm.fleetAvgScore + '%)'}
+  DR Gaps:          ${dr.ontapCount === 0 ? 'N/A (ONTAP-only)' : dr.unprotected.length + ' unprotected system' + (dr.unprotected.length !== 1 ? 's' : '') + ' (SnapMirror/MC opportunity)'}
+  Feature Gaps:     ${fm.ontapCount === 0 ? 'N/A (ONTAP feature set; no ONTAP systems in scope)' : fm.fleetAvgScore < 60 ? 'LOW (' + fm.fleetAvgScore + '%) \u2014 significant enablement opportunity' : fm.fleetAvgScore < 80 ? 'MODERATE (' + fm.fleetAvgScore + '%)' : 'GOOD (' + fm.fleetAvgScore + '%)'}
   Warranty:         ${warranty.expired} expired, ${warranty.expiring30} <30d, ${warranty.expiring90} <90d
-  HW Firmware:      ${fw.overallFwScore < 80 ? 'AT RISK (' + fw.overallFwScore + '%) — upgrade engagement opportunity' : 'CURRENT (' + fw.overallFwScore + '%)'}
+  HW Firmware:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore < 80 ? 'AT RISK (' + fw.overallFwScore + '%) — upgrade engagement opportunity' : 'CURRENT (' + fw.overallFwScore + '%)'}
 
 `;
 
@@ -23354,7 +23532,7 @@ OPPORTUNITY INTELLIGENCE:
   }
 
   // Security posture upsell
-  const arpGap = sysCount - arpEnabledCount;
+  const arpGap = _ontapNE - arpEnabledCount;
   const fwGap = sysCount - fwCurrentCount;
   if (arpGap > 0 || fwGap > 0) {
     salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES [STANDARDS & ADOPTION]
@@ -23383,13 +23561,12 @@ ${dr.unprotected.map(n => `    • ${n}`).join('\n')}
   ${cap.redCount} system(s) in RED capacity zone, ${cap.atRisk.length} with <60d runway:
 ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remaining`).join('\n')}
   → Additional disk shelves or Flash Cache
-  → FabricPool auto-tiering to object storage (reduce primary cost)
-  → Keystone capacity-on-demand (burst without CAPEX)
+${targetSystems.some(s => _platformFamily(s) === 'ontap') ? '  → FabricPool auto-tiering to object storage (reduce primary cost)\n' : ''}  → Keystone capacity-on-demand (burst without CAPEX)
 `;
   }
 
   // Feature adoption upsell
-  if (fm.fleetAvgScore < 80) {
+  if (fm.ontapCount > 0 && fm.fleetAvgScore < 80) {
     salesProposals += `\nFEATURE ADOPTION UPLIFT [STANDARDS & ADOPTION + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
   Fleet Average: ${fm.fleetAvgScore}%  |  Bottom Performers:
@@ -24138,14 +24315,29 @@ function _scopeRecommendationsToAccounts(recs, targetSystems) {
 // for how this was confirmed live. Falls back to the account-wide list
 // (still accountId-scoped) for a multi-customer scope, where no single real
 // per-customer score exists.
+// Active IQ's wellness recommendations are computed per account across every
+// platform. For a scope with no ONTAP system (E-Series / StorageGRID only) the
+// ONTAP-specific ones (OS min/latest version, SP/BMC, BIOS, disk/shelf firmware,
+// HA config, anything naming ONTAP/SnapMirror/9.x releases) don't apply, and their
+// "N of your systems" counts were being extrapolated onto arrays that can't have
+// the condition at all.
+const _ONTAP_ONLY_REC_SUBCATS = new Set(['MIN_VERSION', 'LATEST_VERSION', 'SP_BMC', 'BIOS', 'DISK_FIRMWARE', 'SHELF_FIRMWARE', 'HA_CONFIG']);
+function _recAppliesToScope(r, targetSystems) {
+  const scope = targetSystems || [];
+  if (scope.length === 0 || scope.some(s => _platformFamily(s) === 'ontap')) return true;
+  if (_ONTAP_ONLY_REC_SUBCATS.has(r.subCategory)) return false;
+  const txt = String(r.recommendation || '') + ' ' + String(r.title || '');
+  return !/\bONTAP\b|SnapMirror|MetroCluster|FabricPool|Service Processor|\bSVM\b|\b9\.\d{1,2}\.\d/i.test(txt);
+}
+
 function _getScopedRecommendations(targetSystems) {
   const scopeCustomerIds = [...new Set((targetSystems || []).map(s => s.customerId).filter(Boolean))];
   const customerRecEntry = scopeCustomerIds.length === 1
     ? (state.tamCustomerRecommendations || []).find(c => c.customerId === scopeCustomerIds[0])
     : null;
   const usingRealCustomerRecs = !!(customerRecEntry && customerRecEntry.recommendations && customerRecEntry.recommendations.length > 0);
-  if (usingRealCustomerRecs) return { recs: customerRecEntry.recommendations, usingRealCustomerRecs: true };
-  return { recs: _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems), usingRealCustomerRecs: false };
+  if (usingRealCustomerRecs) return { recs: customerRecEntry.recommendations.filter(r => _recAppliesToScope(r, targetSystems)), usingRealCustomerRecs: true };
+  return { recs: _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems).filter(r => _recAppliesToScope(r, targetSystems)), usingRealCustomerRecs: false };
 }
 
 function _renderRecommendationsSection(targetSystems) {
@@ -24543,12 +24735,15 @@ function _renderMonthlySLASection(systems) {
   const asupNeverReported = systems.length - asupSystems.length;
 
   // ARP (Anti-Ransomware Protection) status
-  const arpEnabled = systems.filter(s => s.isARPEnabled === true).length;
-  const arpDisabled = systems.filter(s => s.isARPEnabled === false).length;
-  const arpUnknown = systems.length - arpEnabled - arpDisabled;
+  // ARP is an ONTAP feature: E-Series/StorageGRID are excluded rather than counted
+  // as 'Not Reported' (which read as a data gap on a platform that has no ARP).
+  const _arpPool = systems.filter(s => _platformFamily(s) === 'ontap');
+  const arpEnabled = _arpPool.filter(s => s.isARPEnabled === true).length;
+  const arpDisabled = _arpPool.filter(s => s.isARPEnabled === false).length;
+  const arpUnknown = _arpPool.length - arpEnabled - arpDisabled;
 
   // Firmware currency
-  const fwCurrent = systems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length;
+  const fwCurrent = systems.filter(_osIsCurrent).length;
   const fwBehind = systems.filter(s => s.swRecMin && s.osVersion && versionLt(s.osVersion, s.swRecMin)).length;
 
   // Last reboot analysis
@@ -24574,9 +24769,9 @@ function _renderMonthlySLASection(systems) {
     ${_opHealthTile(asupHealthy, '#10b981', 'rgba(16,185,129,0.08)', 'ASUP Healthy (7d)', 'AutoSupport received within 7 days', 'Systems that sent an AutoSupport (ASUP) telemetry message to NetApp within the last 7 days. A healthy ASUP confirms the system is reachable and monitored.')}
     ${_opHealthTile(asupStale, '#ef4444', 'rgba(239,68,68,0.08)', 'ASUP Stale', 'No ASUP received in over 7 days', 'Systems whose last AutoSupport message is older than 7 days. This may indicate network issues, disabled ASUP, or the system being offline.')}
     ${_opHealthTile(asupNeverReported, '#6b7280', 'rgba(107,114,128,0.08)', 'ASUP Not Reported', 'Active IQ has no ASUP date for these systems', 'Systems with no latestAsupDate at all -- Active IQ has never returned ASUP telemetry for these, distinct from "stale" (reported, but over 7 days old).')}
-    ${_opHealthTile(arpEnabled, '#10b981', 'rgba(16,185,129,0.08)', 'ARP Enabled', 'Anti-Ransomware Protection active', 'Systems with ONTAP Autonomous Ransomware Protection (ARP) confirmed enabled. ARP uses machine learning to detect and block ransomware attacks on NAS volumes.')}
+    ${_arpPool.length === 0 ? _opHealthTile('N/A', '#6b7280', 'rgba(107,114,128,0.08)', 'ARP', 'ONTAP-only feature', 'Autonomous Ransomware Protection is an ONTAP feature; no ONTAP systems are in this scope, so there is nothing to report.') : `${_opHealthTile(arpEnabled, '#10b981', 'rgba(16,185,129,0.08)', 'ARP Enabled', 'Anti-Ransomware Protection active', 'Systems with ONTAP Autonomous Ransomware Protection (ARP) confirmed enabled. ARP uses machine learning to detect and block ransomware attacks on NAS volumes.')}
     ${_opHealthTile(arpDisabled, '#f59e0b', 'rgba(245,158,11,0.08)', 'ARP Disabled', 'Confirmed no ransomware protection', 'Systems with ARP confirmed disabled by Active IQ. Enabling ARP is recommended for all NAS workloads to detect abnormal file encryption patterns.')}
-    ${_opHealthTile(arpUnknown, '#6b7280', 'rgba(107,114,128,0.08)', 'ARP Not Reported', 'Active IQ has no ARP status for these systems', 'Systems where Active IQ never reported an ARP status either way -- not the same as confirmed-disabled; verify on-cluster.')}
+    ${_opHealthTile(arpUnknown, '#6b7280', 'rgba(107,114,128,0.08)', 'ARP Not Reported', 'Active IQ has no ARP status for these systems', 'Systems where Active IQ never reported an ARP status either way -- not the same as confirmed-disabled; verify on-cluster.')}`}
   </div>`;
 
   // ASUP Recency Table
@@ -24601,7 +24796,7 @@ function _renderMonthlySLASection(systems) {
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="color:${daysColor};font-weight:600;">${s._asupDaysAgo}</span></td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
           <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.model || s.platform || ''}</td>
-          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled === true ? '<span style="color:#10b981;">Yes</span>' : s.isARPEnabled === false ? '<span style="color:#ef4444;">No</span>' : '<span style="color:#6b7280;">—</span>'}</td>
+          <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${_platformFamily(s) !== 'ontap' ? '<span style="color:#6b7280;" title="ONTAP-only feature">N/A</span>' : s.isARPEnabled === true ? '<span style="color:#10b981;">Yes</span>' : s.isARPEnabled === false ? '<span style="color:#ef4444;">No</span>' : '<span style="color:#6b7280;">—</span>'}</td>
         </tr>`;
       });
       html += `</tbody></table></div>`;
@@ -24627,7 +24822,7 @@ function _renderMonthlySLASection(systems) {
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.systemName || s.serialNumber}</td>
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.osVersion || ''}</td>
         <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.model || s.platform || ''}</td>
-        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${s.isARPEnabled === true ? '<span style="color:#10b981;">Yes</span>' : s.isARPEnabled === false ? '<span style="color:#ef4444;">No</span>' : '<span style="color:#6b7280;">—</span>'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);">${_platformFamily(s) !== 'ontap' ? '<span style="color:#6b7280;" title="ONTAP-only feature">N/A</span>' : s.isARPEnabled === true ? '<span style="color:#10b981;">Yes</span>' : s.isARPEnabled === false ? '<span style="color:#ef4444;">No</span>' : '<span style="color:#6b7280;">—</span>'}</td>
       </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -24660,7 +24855,13 @@ function _renderMonthlySLASection(systems) {
   return html;
 }
 
-function _renderDRReplicationSection(systems) {
+function _renderDRReplicationSection(allSystems) {
+  // SnapMirror / MetroCluster / SyncMirror / HA pairs are ONTAP constructs.
+  const systems = allSystems.filter(s => _platformFamily(s) === 'ontap');
+  if (systems.length === 0) {
+    return `<div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">Not applicable &mdash; SnapMirror, MetroCluster, SyncMirror and HA pairs are ONTAP features and no ONTAP systems are in this scope. Replication for E-Series (Asynchronous/Synchronous Mirroring) and StorageGRID (ILM / cross-grid replication) is configured in their own consoles and is not reported by Active IQ.</div>`;
+  }
+  const _drExcluded = allSystems.length - systems.length;
   const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
   const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
   const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;';
@@ -24673,7 +24874,7 @@ function _renderDRReplicationSection(systems) {
   const haSys = systems.filter(s => _hasHA(s));
   const unprotectedSys = systems.filter(s => _smCount(s) === 0 && !s.isMetroCluster && !s.isSyncMirror);
 
-  let html = `
+  let html = (_drExcluded > 0 ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px;">Showing the ${systems.length} ONTAP system(s); ${_drExcluded} E-Series/StorageGRID system(s) are excluded (these are ONTAP-only features).</div>` : '') + `
     <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
       <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
         <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Protection Coverage</h4>
@@ -25159,16 +25360,18 @@ function _renderFeatureAdoptionSection(systems) {
   // ── Compute fleet-wide feature adoption with tri-state awareness ──
   // Each feature tracks: enabled (confirmed true), disabled (confirmed false), unknown (null)
   const featureDefs = [
-    { name: 'ARP',       get: (s) => s.isARPEnabled != null ? s.isARPEnabled : null },
-    { name: 'FabricPool', get: (s) => s.isFabricPool != null ? s.isFabricPool : null },
-    { name: 'SnapMirror', get: (s) => _smCountKnown(s) ? (_smCount(s) > 0) : null },
-    { name: 'HA',         get: (s) => _hasHA(s) },
+    { name: 'ARP',       ontapOnly: true, get: (s) => s.isARPEnabled != null ? s.isARPEnabled : null },
+    { name: 'FabricPool', ontapOnly: true, get: (s) => s.isFabricPool != null ? s.isFabricPool : null },
+    { name: 'SnapMirror', ontapOnly: true, get: (s) => _smCountKnown(s) ? (_smCount(s) > 0) : null },
+    { name: 'HA',         ontapOnly: true, get: (s) => _hasHA(s) },
     { name: 'AutoSupport', get: (s) => _getAsupConfiguredState(s) },
   ];
 
   const featureStats = featureDefs.map(f => {
     let enabled = 0, disabled = 0, unknown = 0;
-    systems.forEach(s => {
+    // ONTAP-only features are evaluated against ONTAP systems only.
+    const _pool = f.ontapOnly ? systems.filter(s => _platformFamily(s) === 'ontap') : systems;
+    _pool.forEach(s => {
       const v = f.get(s);
       if (v === true) enabled++;
       else if (v === false) disabled++;
@@ -25176,7 +25379,7 @@ function _renderFeatureAdoptionSection(systems) {
     });
     const known = enabled + disabled;
     const pct = known > 0 ? Math.round((enabled / known) * 100) : null;
-    return { name: f.name, enabled, disabled, unknown, known, pct };
+    return { name: f.name, enabled, disabled, unknown, known, pct, poolN: _pool.length };
   });
 
   const versions = {};
@@ -25201,17 +25404,19 @@ function _renderFeatureAdoptionSection(systems) {
     `;
   }).join('');
 
+  const _naCell = '<span title="ONTAP-only feature -- not applicable to this platform" style="color:var(--text-muted);font-size:0.75rem;">N/A</span>';
   const trs = systems.map(s => {
+    const _ont = _platformFamily(s) === 'ontap';
     const scoreObj = computeFeatureAdoptionScore(s);
-    const scoreText = `${scoreObj.passed}/${scoreObj.total} (${scoreObj.pct}%)`;
-    
+    const scoreText = _ont ? `${scoreObj.passed}/${scoreObj.total} (${scoreObj.pct}%)` : 'N/A';
+
     return `
       <tr>
         <td style="${tdLeft}font-family:monospace;">${s.systemName || s.serialNumber}</td>
-        <td style="${tdStyle}">${_icon(s.isARPEnabled != null ? s.isARPEnabled : null)}</td>
-        <td style="${tdStyle}">${_icon(s.isFabricPool != null ? s.isFabricPool : null)}</td>
-        <td style="${tdStyle}">${_icon(_smCountKnown(s) ? (_smCount(s) > 0) : null)}</td>
-        <td style="${tdStyle}">${_icon(_hasHA(s))}</td>
+        <td style="${tdStyle}">${_ont ? _icon(s.isARPEnabled != null ? s.isARPEnabled : null) : _naCell}</td>
+        <td style="${tdStyle}">${_ont ? _icon(s.isFabricPool != null ? s.isFabricPool : null) : _naCell}</td>
+        <td style="${tdStyle}">${_ont ? _icon(_smCountKnown(s) ? (_smCount(s) > 0) : null) : _naCell}</td>
+        <td style="${tdStyle}">${_ont ? _icon(_hasHA(s)) : _naCell}</td>
         <td style="${tdStyle}">${_icon(_getAsupConfiguredState(s))}</td>
         <td style="${tdStyle}">${scoreText}</td>
       </tr>
@@ -25221,8 +25426,8 @@ function _renderFeatureAdoptionSection(systems) {
   // Optimization recommendations — only for CONFIRMED disabled features, not unknown ones
   const recs = systems.map(s => {
     const missing = [];
-    if (s.isARPEnabled === false) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
-    if (s.isFabricPool === false) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
+    if (_platformFamily(s) === 'ontap' && s.isARPEnabled === false) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
+    if (_platformFamily(s) === 'ontap' && s.isFabricPool === false) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
     if (_getAsupConfiguredState(s) === false) missing.push('AutoSupport (Proactive risk detection, upgrade recommendations, and this tool\'s own health scoring all depend on it. `system node autosupport modify -node * -state enable`)');
     
     if (missing.length === 0) return '';
@@ -25230,7 +25435,7 @@ function _renderFeatureAdoptionSection(systems) {
   }).filter(Boolean).slice(0, 10);
 
   // Count how many features have unknown state
-  const unknownFeatureCount = featureStats.filter(f => f.unknown === systems.length).length;
+  const unknownFeatureCount = featureStats.filter(f => f.poolN > 0 && f.unknown === f.poolN).length;
   const unknownNote = unknownFeatureCount > 0
     ? `<div style="margin-top: 10px; font-size: 0.7rem; color: var(--text-muted); font-style: italic;">
         ⚠ ${unknownFeatureCount} feature${unknownFeatureCount > 1 ? 's' : ''} not reported by Active IQ API — verify on-cluster via CLI. Features marked '—' in the matrix below are unknown.
@@ -25243,9 +25448,9 @@ function _renderFeatureAdoptionSection(systems) {
         <h4 style="margin:0 0 12px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;" title="Feature adoption rates based on data confirmed by Active IQ API. Features showing '—' are not reported by the API and must be verified on-cluster.">Fleet-Wide Feature Adoption</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px;">
           ${featureStats.map(f => {
-            const display = f.pct != null ? `${f.pct}%` : '—';
+            const display = f.poolN === 0 ? 'N/A' : f.pct != null ? `${f.pct}%` : '—';
             const color = f.pct != null ? 'var(--accent-cyan)' : 'var(--text-muted)';
-            const subtitle = f.pct != null ? `${f.enabled}/${f.known} confirmed` : 'Not reported';
+            const subtitle = f.poolN === 0 ? 'ONTAP-only' : f.pct != null ? `${f.enabled}/${f.known} confirmed` : 'Not reported';
             return `
             <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center;" title="${f.enabled} enabled, ${f.disabled} disabled, ${f.unknown} unknown">
               <div style="font-size: 1.2rem; color: ${color}; font-weight: bold;">${display}</div>
@@ -25485,8 +25690,8 @@ function _renderAsBuiltSection(systems) {
                         <tr><th style="${thStyle}">Marketing Type</th><td style="${tdStyle}">${valOrDash(s.marketingType)}</td></tr>
                         <tr><th style="${thStyle}">Product Type</th><td style="${tdStyle}">${valOrDash(s.productType)}</td></tr>
                         <tr><th style="${thStyle}">Storage Config</th><td style="${tdStyle}">${valOrDash(s.storageConfiguration)}</td></tr>
-                        <tr><th style="${thStyle}">HA Status</th><td style="${tdStyle}">${s.haConfigured === true ? '<span style="' + badgeGreen + '">Configured</span>' : (s.haConfigured === false ? '<span style="' + badgeAmber + '">Standalone</span>' : emptyDash)}</td></tr>
-                        <tr><th style="${thStyle}">MetroCluster</th><td style="${tdStyle}">${s.isMetroCluster ? '<span style="' + badgeGreen + '">Yes</span>' : 'No'}</td></tr>
+                        <tr><th style="${thStyle}">HA Status</th><td style="${tdStyle}">${_platformFamily(s) !== 'ontap' ? '<span style="color:var(--text-muted);">N/A (ONTAP HA pairs)</span>' : s.haConfigured === true ? '<span style="' + badgeGreen + '">Configured</span>' : (s.haConfigured === false ? '<span style="' + badgeAmber + '">Standalone</span>' : emptyDash)}</td></tr>
+                        <tr><th style="${thStyle}">MetroCluster</th><td style="${tdStyle}">${_platformFamily(s) !== 'ontap' ? '<span style="color:var(--text-muted);">N/A (ONTAP feature)</span>' : s.isMetroCluster ? '<span style="' + badgeGreen + '">Yes</span>' : 'No'}</td></tr>
                         <tr><th style="${thStyle}">All-Flash Optimized</th><td style="${tdStyle}">${s.isAllFlashOptimized ? 'Yes' : 'No'}</td></tr>
                     </table>
                     <table style="${tblStyle} flex:1; min-width:280px;">
@@ -25610,7 +25815,7 @@ function _renderAsBuiltSection(systems) {
                     <table style="${tblStyle}">
                         <tr>
                             <th style="${thStyle}">Data Reduction Ratio</th><td style="${tdStyle}">${valOrDash(eff.dataReductionRatio || s.dataReductionRatio)}</td>
-                            <th style="${thStyle}">FabricPool Tiered</th><td style="${tdStyle}">${s.isFabricPool ? (eff.fabricPoolTieredTB ? parseFloat(eff.fabricPoolTieredTB).toFixed(1) + ' TB' : '<span style="' + badgeGreen + '">Enabled</span>') : 'Not Configured'}</td>
+                            <th style="${thStyle}">FabricPool Tiered</th><td style="${tdStyle}">${_platformFamily(s) !== 'ontap' ? '<span style="color:var(--text-muted);">N/A (ONTAP feature)</span>' : s.isFabricPool ? (eff.fabricPoolTieredTB ? parseFloat(eff.fabricPoolTieredTB).toFixed(1) + ' TB' : '<span style="' + badgeGreen + '">Enabled</span>') : 'Not Configured'}</td>
                         </tr>
                         <tr>
                             <th style="${thStyle}">Cluster Usable</th><td style="${tdStyle}">${_fmtTB(s.clusterUsableCapacityTB)}</td>
@@ -28087,10 +28292,10 @@ ${sepThin}
   Product Type:       ${_v(sys.productType)}
   Operating Mode:     ${_v(sys.operatingMode)}
   Storage Config:     ${_v(sys.storageConfiguration)}
-  HA Status:          ${sys.haConfigured === true ? 'Configured' : (sys.haConfigured === false ? 'Standalone' : '—')}
-  MetroCluster:       ${sys.isMetroCluster ? 'Yes' : 'No'}
+  HA Status:          ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP HA pairs)' : sys.haConfigured === true ? 'Configured' : (sys.haConfigured === false ? 'Standalone' : '—')}
+  MetroCluster:       ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP feature)' : sys.isMetroCluster ? 'Yes' : 'No'}
   All-Flash Optimized:${sys.isAllFlashOptimized ? ' Yes' : ' No'}
-  ASA r2:             ${sys.isAsaR2 ? 'Yes' : 'No'}
+  ASA r2:             ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP platform)' : sys.isAsaR2 ? 'Yes' : 'No'}
   Site:               ${[sys.siteName, sys.siteCity, sys.siteCountry].filter(Boolean).join(', ') || '—'}
   Site ID / State:    ${_v(sys.siteId)} / ${_v(sys.siteState)}
   Original Ship Date: ${_v((sys.originalShipDate || '').substring(0, 10))}
@@ -28122,7 +28327,7 @@ ${sepThin}
   Cluster Usable:     ${_fmtTBv(sys.clusterUsableCapacityTB)}
   Cluster Raw:        ${_fmtTBv(sys.clusterRawCapacityTB)}
   Utilization:        ${_fmtPctv(sys.clusterCapacityUtilPct)}
-  FabricPool:         ${sys.isFabricPool ? 'Enabled' : 'Not Configured'}
+  FabricPool:         ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP feature)' : sys.isFabricPool ? 'Enabled' : 'Not Configured'}
 
 4. TOPOLOGY
 ${sepThin}
