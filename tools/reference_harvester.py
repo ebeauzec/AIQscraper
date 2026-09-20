@@ -80,8 +80,11 @@ DOCS_NETAPP_DOCSETS = {
     'ontap-metrocluster':        'MetroCluster',
     'ontap-sanhost':             'SAN Host OS Config Guides',
     'ontap-apps-dbs':            'Oracle/SQL/SAP Best Practices',
-    'ontap-security-hardening':  'Security Hardening Guide',
-    'ontap-ems-reference':       'EMS Event Catalogue',
+    # The hardening guide is no longer its own doc-set (the old
+    # 'ontap-security-hardening' root now 404s) -- it lives inside 'ontap'.
+    'ontap/ontap-security-hardening/security-hardening-overview.html': 'Security Hardening Guide',
+    # Was 'ontap-ems-reference' (404); the real doc-set is 'ontap-ems'.
+    'ontap-ems':                 'EMS Event Catalogue',
     # StorageGRID
     'storagegrid':               'StorageGRID (current)',
     'storagegrid-appliances':    'StorageGRID Appliances',
@@ -717,7 +720,9 @@ def harvest_docs_netapp_index():
 
     for docset, description in DOCS_NETAPP_DOCSETS.items():
         try:
-            url = f"{doc_base}{docset}/"
+            # Entries that point at a specific page (…/foo.html) are used as-is;
+            # plain doc-set slugs get a trailing slash.
+            url = f"{doc_base}{docset}" if docset.endswith('.html') else f"{doc_base}{docset}/"
             html = _fetch_url(url, timeout=10)
             if not html:
                 continue
@@ -744,7 +749,7 @@ def harvest_docs_netapp_index():
         except Exception as e:
             discovered.append({
                 'docset': docset,
-                'url': f"{doc_base}{docset}/",
+                'url': f"{doc_base}{docset}" if docset.endswith('.html') else f"{doc_base}{docset}/",
                 'description': description,
                 'accessible': False,
                 'error': str(e)[:100],

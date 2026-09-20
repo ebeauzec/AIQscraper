@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.71";
+const APP_VERSION = "5.6.72";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.72",
+    date: "20 September 2026",
+    title: "Reference Crawl: Fixed Two Dead Doc-Set URLs and Cut Sitemap Discovery's Wait From 7 Days to 1",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Harvester Was Requesting Two docs.netapp.com Doc-Sets That No Longer Exist",
+        color: "#f87171",
+        items: [
+          "The reference harvester logged HTTP 404s every cycle for docs.netapp.com/us-en/ontap-security-hardening/ and /ontap-ems-reference/. Probed all 38 doc-set slugs live: only those two were dead. The EMS reference is now the 'ontap-ems' doc-set; the Security Hardening Guide is no longer its own doc-set and now lives inside 'ontap' at ontap-security-hardening/security-hardening-overview.html (found via NetApp's own sitemap). Updated both entries and let doc-set entries point at a specific page. Verified both now resolve.",
+        ],
+      },
+      {
+        icon: "⚡",
+        label: "Changed -- Sitemap Discovery No Longer Waits 168 Hours",
+        color: "#22c55e",
+        items: [
+          "The '[8] discovered_products.json is 150.7h old (< 168h interval) -- skipping' wait existed because discovery shared the 7-day timer and freshness gate of the heavy KB crawl, even though it's just one sitemap fetch plus a diff. The slow-cycle timer now ticks daily, and discovery skips only if it already ran today (UTC); the KB crawl and reference library keep their own 168h freshness gates, so ticking daily costs them nothing.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.71",
     date: "17 September 2026",

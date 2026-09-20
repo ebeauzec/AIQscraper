@@ -4518,8 +4518,16 @@ class EnrichmentScheduler:
         self._timer.daemon = True
         self._timer.start()
 
+    # Sitemap discovery is one sitemap fetch plus a diff (cheap), unlike the KB
+    # crawl / reference library which are 80-150+ requests each. It gets its own
+    # much shorter cadence: the slow-cycle timer ticks at this rate and each
+    # sub-scanner independently skips itself if its own file is still fresh, so
+    # ticking more often costs nothing for the heavy ones.
+    DISCOVERY_TICK_HOURS = 24
+
     def _schedule_next_kb(self):
-        self._kb_timer = threading.Timer(self._kb_interval, self._do_kb_scan)
+        tick = min(self._kb_interval, self.DISCOVERY_TICK_HOURS * 3600)
+        self._kb_timer = threading.Timer(tick, self._do_kb_scan)
         self._kb_timer.daemon = True
         self._kb_timer.start()
 
@@ -4670,10 +4678,16 @@ class EnrichmentScheduler:
                 with _bulletins_lock:
                     results['reference_library'] = self._scan_reference_library()
 
+            # lastUpdated is stored date-only, so "age" is really hours since
+            # 00:00 UTC of that date. A flat hours threshold would skip any
+            # tick landing early in the day; gate on "already ran today (UTC)".
+            _now_utc = datetime.now(timezone.utc)
+            _since_midnight_h = _now_utc.hour + _now_utc.minute / 60 + _now_utc.second / 3600
+            discovery_gate_h = min(interval_h, _since_midnight_h + 0.01)
             discovery_age = self._file_age_hours(DISCOVERED_PRODUCTS_PATH)
-            if discovery_age is not None and discovery_age < interval_h:
-                print(f'  [ENRICH] [8] discovered_products.json is {discovery_age:.1f}h old '
-                      f'(< {interval_h:.0f}h interval) — skipping sitemap discovery', flush=True)
+            if discovery_age is not None and discovery_age < discovery_gate_h:
+                print(f'  [ENRICH] [8] discovered_products.json already refreshed today (UTC) '
+                      f'({discovery_age:.1f}h since its stamp) — skipping sitemap discovery', flush=True)
                 results['sitemap_discovery'] = {'skipped': 'fresh'}
             else:
                 results['sitemap_discovery'] = self._scan_sitemap_discovery()

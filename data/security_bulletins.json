@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "lastUpdated": "2026-09-17",
-  "lastScanned": "2026-09-17",
+  "lastUpdated": "2026-09-20",
+  "lastScanned": "2026-09-20",
   "source": "dynamic — authoritative store, updated by scan",
-  "bulletinCount": 374,
+  "bulletinCount": 413,
   "bulletins": [
     {
       "id": "NTAP-20260112-0001",
@@ -10287,6 +10287,930 @@
       "_source": "scan",
       "epssScore": 0.0059,
       "epssPercentile": 0.46641
+    },
+    {
+      "id": "ntap-20260917-0019",
+      "cve": [
+        "CVE-2026-41989"
+      ],
+      "cvss": 6.7,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-41989 Libgcrypt Vulnerability in NetApp Products",
+      "description": "Libgcrypt versions through 1.8.12, 1.11 through 1.11.2, 1.12.0 through 1.12.1, and 1.9 through 1.10.3 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data or Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0019/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00182,
+      "epssPercentile": 0.08066
+    },
+    {
+      "id": "ntap-20260917-0020",
+      "cve": [
+        "CVE-2026-47888"
+      ],
+      "cvss": 4.3,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-47888 Spring Framework Vulnerability in NetApp Products",
+      "description": "Spring Framework versions 7.0.0 through 7.0.8, 6.2.0 through 6.2.19, 6.1.0 through 6.1.28, 6.0.0 through 6.0.30, 5.3.0 through 5.3.49 and 5.2.0.RELEASE through 5.2.25.RELEASE are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0020/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00324,
+      "epssPercentile": 0.25515
+    },
+    {
+      "id": "ntap-20260917-0016",
+      "cve": [
+        "CVE-2026-43617"
+      ],
+      "cvss": 6.3,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-43617 Rsync Vulnerability in NetApp Products",
+      "description": "Rsync versions through 3.4.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0016/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00282,
+      "epssPercentile": 0.20733
+    },
+    {
+      "id": "ntap-20260917-0018",
+      "cve": [
+        "CVE-2026-45232"
+      ],
+      "cvss": 2.1,
+      "severity": "low",
+      "category": "PSIRT",
+      "title": "CVE-2026-45232 Rsync Vulnerability in NetApp Products",
+      "description": "Rsync versions through 3.4.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0018/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00337,
+      "epssPercentile": 0.2704
+    },
+    {
+      "id": "ntap-20260917-0012",
+      "cve": [
+        "CVE-2026-84445"
+      ],
+      "cvss": 8.7,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-84445 gRPC-Go Vulnerability in NetApp Products",
+      "description": "gRPC-Go versions prior to 1.82.2 and 1.83.2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0012/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00685,
+      "epssPercentile": 0.50906
+    },
+    {
+      "id": "ntap-20260917-0015",
+      "cve": [
+        "CVE-2026-43620"
+      ],
+      "cvss": 6.9,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-43620 Rsync Vulnerability in NetApp Products",
+      "description": "Rsync versions prior to 3.4.3 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0015/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00428,
+      "epssPercentile": 0.36389
+    },
+    {
+      "id": "ntap-20260917-0017",
+      "cve": [
+        "CVE-2026-43618"
+      ],
+      "cvss": 6.1,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-43618 Rsync Vulnerability in NetApp Products",
+      "description": "Rsync versions prior to 3.4.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0017/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.0078,
+      "epssPercentile": 0.54172
+    },
+    {
+      "id": "ntap-20260917-0013",
+      "cve": [
+        "CVE-2026-29518"
+      ],
+      "cvss": 7.3,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-29518 Rsync Vulnerability in NetApp Products",
+      "description": "Rsync versions through 3.4.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0013/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00152,
+      "epssPercentile": 0.0472
+    },
+    {
+      "id": "ntap-20260917-0014",
+      "cve": [
+        "CVE-2026-43619"
+      ],
+      "cvss": 7.2,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-43619 Rsync Vulnerability in NetApp Products",
+      "description": "Rsync versions prior to 3.4.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-17",
+      "link": "https://security.netapp.com/advisory/ntap-20260917-0014/",
+      "_addedAt": "2026-09-17",
+      "_source": "scan",
+      "epssScore": 0.00136,
+      "epssPercentile": 0.03376
+    },
+    {
+      "id": "ntap-20251121-0001",
+      "cve": [
+        "CVE-2025-31133"
+      ],
+      "cvss": 7.3,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-31133 Runc Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate runc. Runc versions prior to 1.2.8, prior to 1.3.3, and prior to 1.4.0-rc.3 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP Tools for VMware vSphere",
+        "Astra Control"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "ONTAP tools for VMware vSphere 10": [
+          "https://mysupport.netapp.com/site/products/all/details/otv10/downloads-tab/download/65001/10.5P2"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2025-11-21",
+      "link": "https://security.netapp.com/advisory/ntap-20251121-0001/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00841,
+      "epssPercentile": 0.56332
+    },
+    {
+      "id": "ntap-20251224-0012",
+      "cve": [
+        "CVE-2025-39823"
+      ],
+      "cvss": 5.1,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-39823 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information or addition or modification of data.",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-12-24",
+      "link": "https://security.netapp.com/advisory/ntap-20251224-0012/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00177,
+      "epssPercentile": 0.07523
+    },
+    {
+      "id": "ntap-20260918-0009",
+      "cve": [
+        "CVE-2026-41256"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-41256 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.1 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0009/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00158,
+      "epssPercentile": 0.05364
+    },
+    {
+      "id": "ntap-20260918-0004",
+      "cve": [
+        "CVE-2026-41257"
+      ],
+      "cvss": 7.3,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-41257 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0004/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00142,
+      "epssPercentile": 0.03855
+    },
+    {
+      "id": "ntap-20260918-0019",
+      "cve": [
+        "CVE-2026-23444"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-23444 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 3.13-rc1 prior to 6.18.19 and 6.19-rc1 prior to 6.19.10 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0019/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00129,
+      "epssPercentile": 0.0294
+    },
+    {
+      "id": "ntap-20260918-0011",
+      "cve": [
+        "CVE-2026-33948"
+      ],
+      "cvss": 6.3,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-33948 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.1 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0011/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00256,
+      "epssPercentile": 0.17554
+    },
+    {
+      "id": "ntap-20260918-0003",
+      "cve": [
+        "CVE-2026-39979"
+      ],
+      "cvss": 6.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-39979 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0003/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00559,
+      "epssPercentile": 0.45368
+    },
+    {
+      "id": "ntap-20260918-0010",
+      "cve": [
+        "CVE-2026-44777"
+      ],
+      "cvss": 6.8,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-44777 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.2-rc1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0010/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00161,
+      "epssPercentile": 0.0573
+    },
+    {
+      "id": "ntap-20251224-0013",
+      "cve": [
+        "CVE-2025-39828"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-39828 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of Linux Kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-12-24",
+      "link": "https://security.netapp.com/advisory/ntap-20251224-0013/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00168,
+      "epssPercentile": 0.0654
+    },
+    {
+      "id": "ntap-20260206-0004",
+      "cve": [
+        "CVE-2025-8177"
+      ],
+      "cvss": 4.8,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-8177 LibTIFF Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate LibTIFF. LibTIFF versions through 4.7.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-06",
+      "link": "https://security.netapp.com/advisory/ntap-20260206-0004/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00273,
+      "epssPercentile": 0.19984
+    },
+    {
+      "id": "ntap-20250605-0010",
+      "cve": [
+        "CVE-2025-29088"
+      ],
+      "cvss": 5.6,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-29088 SQLite Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate SQLite. SQLite versions 3.49.0 prior to 3.49.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).\r\n\r\n",
+      "affectedProducts": [
+        "NetApp HCI"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-06-05",
+      "link": "https://security.netapp.com/advisory/ntap-20250605-0010/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00217,
+      "epssPercentile": 0.12437
+    },
+    {
+      "id": "ntap-20260918-0005",
+      "cve": [
+        "CVE-2026-33947"
+      ],
+      "cvss": 6.2,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-33947 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0005/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00234,
+      "epssPercentile": 0.14624
+    },
+    {
+      "id": "ntap-20260918-0013",
+      "cve": [
+        "CVE-2025-11143"
+      ],
+      "cvss": 3.7,
+      "severity": "low",
+      "category": "PSIRT",
+      "title": "CVE-2025-11143 Jetty Vulnerability in NetApp Products",
+      "description": "Jetty versions 9.4.0 through 9.4.58, 10.0.0 through 10.0.26, 11.0.0 through 11.0.26, 12.0.0 through 12.0.30, and 12.1.0 through 12.1.4 are susceptible to a vulnerability which when successfully exploited could lead to addition or modification of data.",
+      "affectedProducts": [
+        "SnapCenter",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0013/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00159,
+      "epssPercentile": 0.05446
+    },
+    {
+      "id": "ntap-20260918-0012",
+      "cve": [
+        "CVE-2026-43895"
+      ],
+      "cvss": 4.4,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-43895 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.2-rc1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data.",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0012/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00157,
+      "epssPercentile": 0.05312
+    },
+    {
+      "id": "ntap-20260206-0003",
+      "cve": [
+        "CVE-2025-8176"
+      ],
+      "cvss": 4.8,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-8176 LibTIFF Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate LibTIFF. LibTIFF versions through 4.7.0 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-06",
+      "link": "https://security.netapp.com/advisory/ntap-20260206-0003/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00242,
+      "epssPercentile": 0.15645
+    },
+    {
+      "id": "ntap-20260918-0014",
+      "cve": [
+        "CVE-2026-31407"
+      ],
+      "cvss": 7.1,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2026-31407 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 2.6.27-rc1 through 6.19.9 and 6.20-rc1 through 7.0-rc4 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0014/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00169,
+      "epssPercentile": 0.06663
+    },
+    {
+      "id": "ntap-20260121-0010",
+      "cve": [
+        "CVE-2025-39946"
+      ],
+      "cvss": 6.4,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-39946 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux kernel. Certain versions of Linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "ONTAP",
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {
+        "Cloud Volumes ONTAP Mediator": [
+          "https://cloudmanager.netapp.com"
+        ]
+      },
+      "mitigation": "None at this time.",
+      "published": "2026-01-21",
+      "link": "https://security.netapp.com/advisory/ntap-20260121-0010/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.09567,
+      "epssPercentile": 0.95237
+    },
+    {
+      "id": "ntap-20260918-0006",
+      "cve": [
+        "CVE-2026-43894"
+      ],
+      "cvss": 6.2,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-43894 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.2-rc1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0006/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00158,
+      "epssPercentile": 0.05373
+    },
+    {
+      "id": "ntap-20260918-0007",
+      "cve": [
+        "CVE-2026-43896"
+      ],
+      "cvss": 6.2,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-43896 jq Vulnerability in NetApp Products",
+      "description": "jq versions through 1.8.2-rc1 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0007/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00154,
+      "epssPercentile": 0.04955
+    },
+    {
+      "id": "ntap-20260204-0010",
+      "cve": [
+        "CVE-2025-68160"
+      ],
+      "cvss": 4.7,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-68160 OpenSSL Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate OpenSSL. OpenSSL versions 3.6, 3.5, 3.4, 3.3, 3.0, 1.1.1 and 1.0.2 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware",
+        "Brocade SAN Navigator"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-04",
+      "link": "https://security.netapp.com/advisory/ntap-20260204-0010/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00162,
+      "epssPercentile": 0.05832
+    },
+    {
+      "id": "ntap-20260116-0001",
+      "cve": [
+        "CVE-2025-13151"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-13151 GNU Libtasn1 Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate GNU libtasn1. GNU libtasn1 versions through 4.21.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-01-16",
+      "link": "https://security.netapp.com/advisory/ntap-20260116-0001/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.01149,
+      "epssPercentile": 0.65428
+    },
+    {
+      "id": "ntap-20260918-0016",
+      "cve": [
+        "CVE-2026-23389"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-23389 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 4.17-rc1 through 6.19.6 and 6.20-rc1 through 7.0-rc2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0016/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00117,
+      "epssPercentile": 0.01863
+    },
+    {
+      "id": "ntap-20260918-0017",
+      "cve": [
+        "CVE-2026-23399"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-23399 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 5.11-rc1 prior to 6.12.78, 6.13-rc1 prior to 6.18.20, 6.19-rc1 prior to 6.19.10 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0017/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00121,
+      "epssPercentile": 0.02205
+    },
+    {
+      "id": "ntap-20260213-0019",
+      "cve": [
+        "CVE-2025-38666"
+      ],
+      "cvss": 7.8,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-38666 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate Linux Kernel. Certain versions of linux kernel are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-02-13",
+      "link": "https://security.netapp.com/advisory/ntap-20260213-0019/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00167,
+      "epssPercentile": 0.06404
+    },
+    {
+      "id": "ntap-20250704-0003",
+      "cve": [
+        "CVE-2025-29087"
+      ],
+      "cvss": 7.5,
+      "severity": "high",
+      "category": "PSIRT",
+      "title": "CVE-2025-29087 SQLite Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate SQLite. SQLite versions 3.44.0 through 3.49.0 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "Active IQ Unified Manager",
+        "NetApp HCI"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-07-04",
+      "link": "https://security.netapp.com/advisory/ntap-20250704-0003/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00508,
+      "epssPercentile": 0.42395
+    },
+    {
+      "id": "ntap-20260918-0020",
+      "cve": [
+        "CVE-2026-23468"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-23468 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions through 6.18.19, 6.19-rc1 through 6.19.9, and 6.20-rc1 through 7.0-rc4 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0020/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00123,
+      "epssPercentile": 0.02408
+    },
+    {
+      "id": "ntap-20260918-0018",
+      "cve": [
+        "CVE-2026-23442"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-23442 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 4.10-rc1 through 6.19.9 and 6.20-rc1 through 7.0-rc4 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0018/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00123,
+      "epssPercentile": 0.02347
+    },
+    {
+      "id": "ntap-20260918-0015",
+      "cve": [
+        "CVE-2026-23310"
+      ],
+      "cvss": 5.5,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-23310 Linux Kernel Vulnerability in NetApp Products",
+      "description": "Linux kernel versions 5.15-rc1 through 6.6.129, 6.7-rc1 through 6.12.76,6.13-rc1 through 6.18.16, 6.19-rc1 through 6.19.6, and 6.20-rc1 through 7.0-rc2 are susceptible to a vulnerability which when successfully exploited could lead to Denial of Service (DoS).",
+      "affectedProducts": [
+        "NetApp HCI",
+        "Hardware BMC/Firmware"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0015/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00123,
+      "epssPercentile": 0.02335
+    },
+    {
+      "id": "ntap-20260918-0008",
+      "cve": [
+        "CVE-2026-39956"
+      ],
+      "cvss": 6.1,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2026-39956 jq Vulnerability in NetApp Products",
+      "description": "jq versions 1.6-rc2 through 1.8.1 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2026-09-18",
+      "link": "https://security.netapp.com/advisory/ntap-20260918-0008/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00174,
+      "epssPercentile": 0.07185
+    },
+    {
+      "id": "ntap-20250904-0005",
+      "cve": [
+        "CVE-2025-5244"
+      ],
+      "cvss": 5.3,
+      "severity": "medium",
+      "category": "PSIRT",
+      "title": "CVE-2025-5244 GNU Binutils Vulnerability in NetApp Products",
+      "description": "Multiple NetApp products incorporate GNU Binutils. GNU Binutils versions through 2.44 are susceptible to a vulnerability which when successfully exploited could lead to disclosure of sensitive information, addition or modification of data, or Denial of Service (DoS).",
+      "affectedProducts": [
+        "Unknown"
+      ],
+      "affectedVersions": {},
+      "fixedVersions": {},
+      "mitigation": "None at this time.",
+      "published": "2025-09-04",
+      "link": "https://security.netapp.com/advisory/ntap-20250904-0005/",
+      "_addedAt": "2026-09-20",
+      "_source": "scan",
+      "epssScore": 0.00279,
+      "epssPercentile": 0.20623
     }
   ]
 }
