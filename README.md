@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.74-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.75-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -776,7 +776,7 @@ server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
 ```
 AIQscraper/
 ├── build/           ← Packaging, installers, build scripts
-├── data/            ← Reference data (security bulletins, firmware baselines, imt_interop.json, ecosystem.json, version_catalog.json, eoa_database.json)
+├── data/            ← Reference data (security bulletins, firmware baselines, imt_interop.json, version_catalog.json, eoa_database.json)
 ├── dist/            ← Pre-built desktop app (PyInstaller output)
 ├── tools/           ← Developer utilities, diagnostic & probe scripts
 │   └── firmware_harvester.py  ← Multi-source firmware version harvester

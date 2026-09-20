@@ -8,9 +8,7 @@ from all public NetApp data sources using fuzzy-logic matching and structured AP
 Data Source Tiers:
   Tier 1: docs.netapp.com, github.com/NetAppDocs, kb.netapp.com,
           security.netapp.com, community.netapp.com, devnet.netapp.com
-  Tier 2: github.com/NetApp, PyPI, Ansible Galaxy, Terraform Registry, Helm
-  Tier 3: AWS FSx ONTAP, Azure NetApp Files, Google Cloud NetApp Volumes,
-          Cisco FlexPod CVDs
+  Also: NetApp GitHub releases and PyPI (SDK versions, via the IMT harvest)
 
 Usage:
   python reference_harvester.py                  # full harvest
@@ -19,7 +17,6 @@ Usage:
   python reference_harvester.py --imt-only       # IMT versions only
   python reference_harvester.py --advisory-only  # advisories only
   python reference_harvester.py --docs-only      # documentation discovery only
-  python reference_harvester.py --ecosystem-only # PyPI/Galaxy/Terraform/Helm only
 """
 
 import os
@@ -121,50 +118,11 @@ ONTAP_RESTAPI_VERSIONS = [
 ]
 
 # ============================================================================
-# Tier 2 Source Registry: GitHub, PyPI, Ansible, Terraform
+# Tier 2 Source Registry: PyPI (used by harvest_imt_versions for SDK versions)
 # ============================================================================
-GITHUB_ORGS = {
-    'NetApp':            'NetApp Core SDKs & Tools',
-    'NetApp-Automation': 'Ansible/Terraform Reference Automation',
-    'NetAppDocs':        'Documentation Source (AsciiDoc)',
-}
-
 PYPI_PACKAGES = {
     'netapp-ontap':          {'product': 'ONTAP Python SDK', 'signal': 'ontap_sdk'},
     'solidfire-sdk-python':  {'product': 'SolidFire Python SDK', 'signal': 'solidfire'},
-}
-
-ANSIBLE_COLLECTIONS = {
-    'netapp.ontap':         {'product': 'ONTAP Ansible Collection'},
-    'netapp.storagegrid':   {'product': 'StorageGRID Ansible Collection'},
-    'netapp.um_info':       {'product': 'Unified Manager Ansible Collection'},
-    'netapp.cloudmanager':  {'product': 'Cloud Manager Ansible Collection'},
-}
-
-TERRAFORM_PROVIDERS = {
-    'NetApp/netapp-ontap':       {'product': 'ONTAP Terraform Provider'},
-    'NetApp/netapp-cloudmanager':{'product': 'Cloud Manager Terraform Provider'},
-}
-
-# ============================================================================
-# Tier 3 Source Registry: Cloud Provider Docs
-# ============================================================================
-CLOUD_DOCS = {
-    'aws_fsx_ontap': {
-        'name': 'Amazon FSx for NetApp ONTAP',
-        'url': 'https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/',
-        'pattern': r'FSx.*?ONTAP.*?(\d+\.\d+)',
-    },
-    'azure_anf': {
-        'name': 'Azure NetApp Files',
-        'url': 'https://learn.microsoft.com/en-us/azure/azure-netapp-files/',
-        'pattern': r'Azure NetApp Files',
-    },
-    'gcp_gcnv': {
-        'name': 'Google Cloud NetApp Volumes',
-        'url': 'https://cloud.google.com/netapp/volumes/docs',
-        'pattern': r'NetApp Volumes',
-    },
 }
 
 # ============================================================================
@@ -774,175 +732,18 @@ def harvest_kb_netapp(categories=None):
 
 
 # ============================================================================
-# TIER 2 HARVESTERS
-# ============================================================================
-
-def harvest_github_org_repos(org='NetApp'):
-    """Discover repositories and latest releases from a GitHub organization."""
-    logger.info(f"Starting GitHub org harvest for {org}...")
-    repos_with_releases = []
-
-    try:
-        url = f"https://api.github.com/orgs/{org}/repos?type=public&sort=updated&per_page=50"
-        data = _fetch_url(url, is_json=True, ua=GITHUB_UA)
-        if not data or not isinstance(data, list):
-            return repos_with_releases
-
-        for repo in data:
-            name = repo.get('name', '')
-            desc = (repo.get('description') or '')[:200]
-
-            # Check for releases on repos that look relevant
-            relevant_keywords = [
-                'ontap', 'trident', 'harvest', 'ansible', 'terraform',
-                'snapcenter', 'storagegrid', 'solidfire', 'astra',
-            ]
-            if any(kw in name.lower() or kw in desc.lower() for kw in relevant_keywords):
-                try:
-                    rel_url = f"https://api.github.com/repos/{org}/{name}/releases?per_page=3"
-                    releases = _fetch_url(rel_url, is_json=True, ua=GITHUB_UA)
-                    if releases and isinstance(releases, list) and releases:
-                        latest = releases[0]
-                        repos_with_releases.append({
-                            'repo': f"{org}/{name}",
-                            'description': desc,
-                            'latest_release': {
-                                'tag': latest.get('tag_name', ''),
-                                'name': latest.get('name', ''),
-                                'published': (latest.get('published_at') or '')[:10],
-                                'prerelease': latest.get('prerelease', False),
-                            },
-                            'url': repo.get('html_url', ''),
-                        })
-                except Exception:
-                    pass
-    except Exception as e:
-        logger.warning(f"GitHub org harvest failed for {org}: {e}")
-
-    return repos_with_releases
-
-
-def harvest_pypi_packages():
-    """Check latest versions of all tracked PyPI packages."""
-    logger.info("Starting PyPI package harvest...")
-    results = {}
-
-    for pkg_name, pkg_info in PYPI_PACKAGES.items():
-        try:
-            data = _fetch_url(f"https://pypi.org/pypi/{pkg_name}/json", is_json=True)
-            if data and 'info' in data:
-                info = data['info']
-                results[pkg_name] = {
-                    'version': info.get('version'),
-                    'summary': (info.get('summary') or '')[:200],
-                    'requires_python': info.get('requires_python'),
-                    'project_url': info.get('project_url'),
-                    'product': pkg_info['product'],
-                }
-        except Exception as e:
-            logger.warning(f"PyPI harvest failed for {pkg_name}: {e}")
-
-    return results
-
-
-def harvest_ansible_galaxy():
-    """Check latest versions of NetApp Ansible Galaxy collections."""
-    logger.info("Starting Ansible Galaxy harvest...")
-    results = {}
-
-    for collection, info in ANSIBLE_COLLECTIONS.items():
-        try:
-            # Galaxy API v3
-            namespace, name = collection.split('.')
-            url = f"https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/index/{namespace}/{name}/"
-            data = _fetch_url(url, is_json=True)
-            if data:
-                results[collection] = {
-                    'version': data.get('highest_version', {}).get('version') if isinstance(data.get('highest_version'), dict)
-                               else data.get('highest_version'),
-                    'product': info['product'],
-                    'source': 'galaxy.ansible.com',
-                }
-        except Exception as e:
-            logger.warning(f"Galaxy harvest failed for {collection}: {e}")
-
-    return results
-
-
-def harvest_terraform_registry():
-    """Check latest versions of NetApp Terraform providers."""
-    logger.info("Starting Terraform Registry harvest...")
-    results = {}
-
-    for provider_path, info in TERRAFORM_PROVIDERS.items():
-        try:
-            namespace, name = provider_path.split('/')
-            url = f"https://registry.terraform.io/v1/providers/{namespace}/{name}"
-            data = _fetch_url(url, is_json=True)
-            if data:
-                results[provider_path] = {
-                    'version': data.get('version'),
-                    'product': info['product'],
-                    'source': 'registry.terraform.io',
-                }
-        except Exception as e:
-            logger.warning(f"Terraform harvest failed for {provider_path}: {e}")
-
-    return results
-
-
-# ============================================================================
-# TIER 3 HARVESTERS
-# ============================================================================
-
-def harvest_cloud_provider_docs():
-    """Check cloud provider documentation for NetApp service updates.
-
-    Sources: AWS FSx for ONTAP, Azure NetApp Files, Google Cloud NetApp Volumes.
-    """
-    logger.info("Starting cloud provider docs harvest...")
-    results = {}
-
-    for key, cfg in CLOUD_DOCS.items():
-        try:
-            html = _fetch_url(cfg['url'], timeout=12)
-            if html:
-                # Extract what's-new or release notes links
-                whatsnew_links = []
-                links = _extract_links(html)
-                for href, text in links:
-                    text_lower = text.lower()
-                    if any(kw in text_lower for kw in ['what\'s new', 'release note', 'changelog', 'new feature']):
-                        whatsnew_links.append({'href': href, 'text': text.strip()[:150]})
-
-                results[key] = {
-                    'name': cfg['name'],
-                    'url': cfg['url'],
-                    'accessible': True,
-                    'whatsnew_links': whatsnew_links[:5],
-                }
-            else:
-                results[key] = {'name': cfg['name'], 'accessible': False}
-        except Exception as e:
-            results[key] = {'name': cfg['name'], 'accessible': False, 'error': str(e)[:100]}
-
-    return results
-
-
-# ============================================================================
 # ORCHESTRATOR
 # ============================================================================
 
 def run_reference_harvest(data_dir=None, dry_run=False,
                           eoa_only=False, imt_only=False,
-                          advisory_only=False, docs_only=False,
-                          ecosystem_only=False):
+                          advisory_only=False, docs_only=False):
     """Run all reference data harvesters and update data files.
 
     Args:
         data_dir: Path to the data/ directory containing JSON files
         dry_run: If True, don't write any files
-        eoa_only, imt_only, advisory_only, docs_only, ecosystem_only:
+        eoa_only, imt_only, advisory_only, docs_only:
             If any is True, only run that specific harvester
     """
     if not data_dir:
@@ -978,7 +779,7 @@ def run_reference_harvest(data_dir=None, dry_run=False,
             logger.error(f"Error writing {filename}: {e}")
 
     changes = {}
-    run_all = not (eoa_only or imt_only or advisory_only or docs_only or ecosystem_only)
+    run_all = not (eoa_only or imt_only or advisory_only or docs_only)
 
     # ── EOA ──
     if run_all or eoa_only:
@@ -1152,95 +953,6 @@ def run_reference_harvest(data_dir=None, dry_run=False,
                 changes['docs_persisted'] = added
                 logger.info(f"Docs: +{added} new entries persisted to knowledge_base.json")
 
-    # ── Ecosystem (Tier 2) ──
-    if run_all or ecosystem_only:
-        eco_db = load_json('ecosystem.json', {'version': 1, '_lastUpdated': '', 'sources': {}})
-        eco_sources = eco_db.get('sources', {})
-        eco_changed = False
-
-        # GitHub org repos
-        for org in ['NetApp', 'NetApp-Automation']:
-            try:
-                repos = harvest_github_org_repos(org)
-                if repos:
-                    changes[f'github_{org.lower()}_repos'] = len(repos)
-                    eco_sources[f'github_{org.lower()}'] = {
-                        'totalRepos': len(repos),
-                        'lastChecked': date.today().isoformat(),
-                        'repos': [{k: v for k, v in r.items()
-                                   if k in ('name', 'html_url', 'description', 'pushed_at',
-                                            'stargazers_count', 'language')}
-                                  for r in repos[:50]],  # Cap at 50 repos
-                    }
-                    eco_changed = True
-            except Exception as e:
-                logger.warning(f"GitHub {org} harvest failed: {e}")
-
-        # PyPI
-        try:
-            pypi = harvest_pypi_packages()
-            if pypi:
-                changes['pypi_packages'] = {k: v.get('version') for k, v in pypi.items()}
-                eco_sources['pypi'] = {
-                    'lastChecked': date.today().isoformat(),
-                    'packages': {k: {'version': v.get('version'), 'summary': v.get('summary', '')}
-                                 for k, v in pypi.items()},
-                }
-                eco_changed = True
-        except Exception as e:
-            logger.warning(f"PyPI harvest failed: {e}")
-
-        # Ansible Galaxy
-        try:
-            galaxy = harvest_ansible_galaxy()
-            if galaxy:
-                changes['ansible_collections'] = {k: v.get('version') for k, v in galaxy.items()}
-                eco_sources['ansible_galaxy'] = {
-                    'lastChecked': date.today().isoformat(),
-                    'collections': {k: {'version': v.get('version'), 'namespace': v.get('namespace', '')}
-                                    for k, v in galaxy.items()},
-                }
-                eco_changed = True
-        except Exception as e:
-            logger.warning(f"Ansible Galaxy harvest failed: {e}")
-
-        # Terraform Registry
-        try:
-            tf = harvest_terraform_registry()
-            if tf:
-                changes['terraform_providers'] = {k: v.get('version') for k, v in tf.items()}
-                eco_sources['terraform'] = {
-                    'lastChecked': date.today().isoformat(),
-                    'providers': {k: {'version': v.get('version'), 'source': v.get('source', '')}
-                                  for k, v in tf.items()},
-                }
-                eco_changed = True
-        except Exception as e:
-            logger.warning(f"Terraform Registry harvest failed: {e}")
-
-        # Cloud provider docs
-        try:
-            cloud = harvest_cloud_provider_docs()
-            if cloud:
-                changes['cloud_docs'] = {k: v.get('accessible', False) for k, v in cloud.items()}
-                eco_sources['cloud_providers'] = {
-                    'lastChecked': date.today().isoformat(),
-                    'providers': cloud,
-                }
-                eco_changed = True
-        except Exception as e:
-            logger.warning(f"Cloud docs harvest failed: {e}")
-
-        # (FlexPod CVD harvest removed: the Cisco page fails TLS verification
-        # every cycle and had never written a result to ecosystem.json.)
-
-        # Persist ecosystem data
-        if eco_changed:
-            eco_db['sources'] = eco_sources
-            eco_db['_lastUpdated'] = date.today().isoformat()
-            save_json('ecosystem.json', eco_db)
-            logger.info(f"Ecosystem: {len(eco_sources)} sources persisted")
-
     logger.info(f"Harvest complete. Changes: {json.dumps(changes, default=str)}")
     return changes
 
@@ -1269,8 +981,7 @@ if __name__ == "__main__":
 Data Source Tiers:
   Tier 1: docs.netapp.com, github.com/NetAppDocs, kb.netapp.com,
           security.netapp.com
-  Tier 2: github.com/NetApp, PyPI, Ansible Galaxy, Terraform Registry
-  Tier 3: AWS FSx ONTAP, Azure NetApp Files, Google Cloud, Cisco FlexPod
+  Also: NetApp GitHub releases and PyPI (SDK versions, via the IMT harvest)
         """
     )
     parser.add_argument("--data-dir", type=str,
@@ -1281,8 +992,6 @@ Data Source Tiers:
     parser.add_argument("--imt-only", action="store_true", help="Harvest only IMT versions")
     parser.add_argument("--advisory-only", action="store_true", help="Harvest only advisories")
     parser.add_argument("--docs-only", action="store_true", help="Documentation discovery only")
-    parser.add_argument("--ecosystem-only", action="store_true",
-                        help="PyPI/Galaxy/Terraform/GitHub ecosystem only")
     parser.add_argument("--github-token", type=str, default="",
                         help="GitHub PAT for higher API rate limits (5,000 req/hr vs 60)")
     args = parser.parse_args()
@@ -1297,5 +1006,4 @@ Data Source Tiers:
         imt_only=args.imt_only,
         advisory_only=args.advisory_only,
         docs_only=args.docs_only,
-        ecosystem_only=args.ecosystem_only,
     )

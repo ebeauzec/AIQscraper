@@ -144,7 +144,6 @@ _bulletins_lock = threading.Lock()
 KEV_PATH = SCRIPT_DIR / "data" / "cisa_kev.json"
 KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
 VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
-ECOSYSTEM_PATH = SCRIPT_DIR / "data" / "ecosystem.json"
 DISCOVERED_PRODUCTS_PATH = SCRIPT_DIR / "data" / "discovered_products.json"
 EOA_DATABASE_PATH = SCRIPT_DIR / "data" / "eoa_database.json"
 

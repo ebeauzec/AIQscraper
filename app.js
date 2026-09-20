@@ -27,9 +27,47 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.73";
+const APP_VERSION = "5.6.75";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.75",
+    date: "20 September 2026",
+    title: "Removed the Unused Ecosystem Harvest",
+    sections: [
+      {
+        icon: "🧹",
+        label: "Removed -- A Harvest Nothing Read",
+        color: "#22c55e",
+        items: [
+          "The reference harvester crawled NetApp's GitHub orgs, PyPI, Ansible Galaxy, the Terraform registry and cloud-provider docs every cycle (dozens of rate-limited requests) and wrote the results to data/ecosystem.json -- but nothing in the app, server or UI ever read that file (only an unused path constant), and it dirtied the file in every commit. Removed the harvesters, their source registries, the --ecosystem-only flag, the constant and the data file. PyPI stays only where it is used: the IMT harvest's SDK-version lookup. Verified with a full harvester dry run (docs, EOA, IMT, advisories, KB all complete).",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.74",
+    date: "20 September 2026",
+    title: "Harvest: One Bad Field No Longer Drops a Whole Account to a Thinner Data Tier",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Partial GraphQL Errors Were Treated as Total Failure",
+        color: "#f87171",
+        items: [
+          "The harvest log showed 'GraphQL errors: Float cannot represent non numeric value: null' followed by a fallback to a thinner query tier. Active IQ answers these queries with HTTP 200 carrying both data and an errors array: when one or two systems have a null/NaN numeric field (or a sub-resolver times out), only that field is nulled for those systems. The harvester treated any page-1 error as fatal, discarded ~100 valid systems, and re-queried without monthlyCapacity and utilization percentages for EVERY system in the account. Compared live on 100 systems: the partial TAM response matched the fallback tier on every field and additionally carried monthlyCapacity for 81 systems and utilization % for 79. It now keeps the returned systems and logs a one-line partial-error notice; it only falls back when no systems come back. Verified live: 'TAM (full) query succeeded: 167 systems' with 2 partial errors.",
+        ],
+      },
+      {
+        icon: "🧹",
+        label: "Removed -- FlexPod CVD Harvest",
+        color: "#22c55e",
+        items: [
+          "The Cisco FlexPod design-guide fetch failed TLS verification every cycle and had never written a result (ecosystem.json has no flexpod entry). Removed. Forced a full crawl after the fixes: reference library, sitemap discovery (267 sections) and knowledge base (839 articles) all completed with zero HTTP errors.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.73",
     date: "20 September 2026",

@@ -101,7 +101,6 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 | `data/firmware_baselines.json` | Ground-truth firmware recommendations (ONTAP, SP/BMC, shelf, disk, StorageGRID, SANtricity) |
 | `data/security_bulletins.json` | Local CVE/NTAP advisory database for offline security matching |
 | `data/imt_interop.json` | Interoperability matrix database covering 20+ vendors (was ~11) |
-| `data/ecosystem.json` | Ecosystem vendor integration specs and reference mappings |
 | `data/version_catalog.json` | Scraped version catalog data for OS/software updates |
 | `data/eoa_database.json` | End-of-Availability (EOA) & End-of-Support (EOS) hardware/software lifecycle database |
 | `aiq_cache.db` | SQLite cache database (~22MB, stores all harvested data) |
@@ -195,7 +194,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - Capacity data with per-aggregate trend charts and runway forecasting
 - 8-component Account Health Score engine (including HW Firmware Currency at 8%, was 7 components)
 - IMT interoperability engine covering 20+ vendors (expanded from ~11)
-- Reference harvester tool (`reference_harvester.py`) and offline data catalogs (`data/imt_interop.json`, `data/ecosystem.json`, `data/version_catalog.json`, `data/eoa_database.json`)
+- Reference harvester tool (`reference_harvester.py`) and offline data catalogs (`data/imt_interop.json`, `data/version_catalog.json`, `data/eoa_database.json`)
 - Firmware currency comparison against `data/firmware_baselines.json` (ONTAP, SP/BMC, disk, shelf)
 - Security bulletin matching (77+ entries, 82+ CVEs, CISA KEV integration)
 - MetroCluster health monitoring (config, partner status, mirror state)

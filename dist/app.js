@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.74";
+const APP_VERSION = "5.6.75";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.75",
+    date: "20 September 2026",
+    title: "Removed the Unused Ecosystem Harvest",
+    sections: [
+      {
+        icon: "🧹",
+        label: "Removed -- A Harvest Nothing Read",
+        color: "#22c55e",
+        items: [
+          "The reference harvester crawled NetApp's GitHub orgs, PyPI, Ansible Galaxy, the Terraform registry and cloud-provider docs every cycle (dozens of rate-limited requests) and wrote the results to data/ecosystem.json -- but nothing in the app, server or UI ever read that file (only an unused path constant), and it dirtied the file in every commit. Removed the harvesters, their source registries, the --ecosystem-only flag, the constant and the data file. PyPI stays only where it is used: the IMT harvest's SDK-version lookup. Verified with a full harvester dry run (docs, EOA, IMT, advisories, KB all complete).",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.74",
     date: "20 September 2026",

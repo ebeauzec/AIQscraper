@@ -1,8 +1,8 @@
 {
-  "version": "5.6.74",
+  "version": "5.6.75",
   "major": 5,
   "minor": 6,
-  "patch": 74,
+  "patch": 75,
   "date": "2026-09-20",
-  "notes": "Harvest no longer discards valid data when Active IQ returns partial GraphQL errors (a null/NaN field on one or two systems): it kept treating them as total failure and dropped the whole account to a thinner query tier, losing monthlyCapacity and utilization % for every system. Now keeps the returned systems (verified: TAM tier succeeds, 167 systems). Also removed the always-failing Cisco FlexPod CVD fetch."
+  "notes": "Removed the unused ecosystem harvest (GitHub orgs, PyPI, Ansible Galaxy, Terraform, cloud docs -> data/ecosystem.json): nothing in the app read the file, and it cost dozens of rate-limited requests per cycle plus a dirty file in every commit. Removed harvesters, registries, the --ecosystem-only flag, the path constant and the data file; PyPI stays only for the IMT SDK-version lookup."
 }

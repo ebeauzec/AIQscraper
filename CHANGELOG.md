@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.75] - 2026-09-20
+
+### Removed
+- **Unused ecosystem harvest.** The reference harvester crawled NetApp's GitHub orgs, PyPI, Ansible Galaxy, the Terraform registry and cloud-provider docs every cycle and wrote `data/ecosystem.json`, which nothing in the app, server or UI ever read (only an unused path constant) — while dirtying the file in every commit. Removed the harvesters, source registries, the `--ecosystem-only` flag, the constant and the data file. PyPI remains only for the IMT harvest's SDK-version lookup. Verified with a full harvester dry run.
+
+---
+
 ## [5.6.74] - 2026-09-20
 
 ### Fixed
