@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.76";
+const APP_VERSION = "5.6.77";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.77",
+    date: "20 September 2026",
+    title: "StorageGRID Capacity Is Available From Active IQ -- And One Grid Is 96% Full",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- StorageGRID Showed \"Capacity Not Reported\" Despite Real Grid Data",
+        color: "#f87171",
+        items: [
+          "The Value & ROI card said StorageGRID node capacity 'is not reported via the Active IQ GraphQL API'. The schema has StorageGrid.gridCapacity (usable, used data, used metadata, reserved metadata, raw/actual physical, quarter- and year-over-year change). It is per grid, carried by the grid's own admin-node system -- 4 of your 6 grids return it. Verified the field semantics before labelling anything: usableKiB is the REMAINING usable space (usable + used data + used metadata + reserved metadata reconciles to the actual total on every grid).",
+          "Fetched with the same small dedicated query as E-Series capacity (merged by serial), mapped into the standard capacity fields, and shown as a grid panel: percent used, total, object data used, remaining usable, metadata used + reserved, license capacity as reported, and growth trend when present. Nodes and grids with no report say so accurately. Fleet capacity totals and RAG now include grids, so a real capacity risk that was invisible now surfaces: the Salasala grid is 96% used (300.3 of 313.8 TiB, only 2.0 TiB remaining); the other grids are at 55% (STC), 29% (NETAPP_SG) and 4% (UWC).",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.76",
     date: "20 September 2026",
@@ -14263,7 +14279,47 @@ function renderCSMTab() {
   // When _capacityUnavailable is true the efficiency object is all-zeros.
   // Render a platform-appropriate informational note instead of the standard
   // efficiency ratio / capacity panel so no misleading "0.0 TB" numbers show.
-  if (sys.efficiency && sys.efficiency._eseriesCapacity && sys.eseriesCapacity) {
+  if (sys.efficiency && sys.efficiency._storagegridCapacity && sys.storagegridCapacity) {
+    // StorageGRID grid capacity: object-store breakdown (no data reduction, no FabricPool).
+    const _g = sys.storagegridCapacity;
+    const _gt = _g.totalTB || 0;
+    const _gp = (v) => _gt > 0 ? Math.max(0, Math.min(100, (v / _gt) * 100)) : 0;
+    const _dataPct = _gp(_g.usedDataTB), _metaPct = _gp((_g.usedMetadataTB || 0) + (_g.reservedMetadataTB || 0)), _remPct = _gp(_g.remainingTB);
+    const _gf = (v) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' TiB';
+    const _usedPct = _g.usedPct != null ? _g.usedPct : (100 - _remPct);
+    const _gc = _usedPct >= 90 ? '#ef4444' : _usedPct >= 75 ? '#f59e0b' : '#a855f7';
+    const _gAsOf = _g.reportedOn ? String(_g.reportedOn).substring(0, 10) : 'unknown';
+    const _trend = (label, v) => (v == null ? '' : `<div><span style="font-size: 0.75rem; color: var(--text-muted);">${label}</span><div style="font-weight: 600;">${v > 0 ? '+' : ''}${Number(v).toFixed(1)}%</div></div>`);
+    document.getElementById("csmSavingsCard").innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">StorageGRID Grid Capacity${_g.gridName ? ' &middot; ' + _g.gridName : ''}</span>
+          <div style="font-size: 2.2rem; font-weight: 800; color: ${_gc};">${_usedPct.toFixed(0)}% used</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${_gf(_gt)} total &middot; ${_g.installedNodeCount != null ? _g.installedNodeCount + ' nodes &middot; ' : ''}reported ${_gAsOf}</div>
+        </div>
+        <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,0.06);" title="Object data / metadata & reserved / remaining usable, as a share of total">
+          <div style="width:${_dataPct}%;background:${_gc};"></div>
+          <div style="width:${_metaPct}%;background:#6b7280;"></div>
+          <div style="width:${_remPct}%;background:#10b981;"></div>
+        </div>
+        <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div><span style="font-size: 0.75rem; color: ${_gc};">&#9632; Object data used</span><div style="font-weight: 600;">${_gf(_g.usedDataTB)}</div></div>
+          <div><span style="font-size: 0.75rem; color: #10b981;">&#9632; Remaining usable</span><div style="font-weight: 600;">${_gf(_g.remainingTB)}</div></div>
+          <div><span style="font-size: 0.75rem; color: #9ca3af;">&#9632; Metadata used + reserved</span><div style="font-weight: 600;">${_gf((_g.usedMetadataTB || 0) + (_g.reservedMetadataTB || 0))}</div></div>
+          ${_g.licenseCapacity ? `<div><span style="font-size: 0.75rem; color: var(--text-muted);">License capacity (as reported)</span><div style="font-weight: 600;">${_g.licenseCapacity}</div></div>` : ''}
+          ${_trend('Quarter-over-quarter', _g.qoqPct)}${_trend('Year-over-year', _g.yoyPct)}
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">${sys.efficiency.platformNote || ''}</div>
+      </div>
+    `;
+    document.getElementById("csmCloudCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
+        <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-color);">N/A</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">FabricPool tiering is an ONTAP feature and does not apply to StorageGRID.</div>
+    `;
+  } else if (sys.efficiency && sys.efficiency._eseriesCapacity && sys.eseriesCapacity) {
     // E-Series with real SANtricity capacity: block-array breakdown, not the
     // ONTAP data-reduction panel (no dedupe/compression, no FabricPool).
     const _ec = sys.eseriesCapacity;
@@ -15990,9 +16046,11 @@ function enrichSystemTelemetry(s) {
       // instead of misleading zero-value capacity bars and donut charts.
       _capacityUnavailable: _sgEseriesCapGap || false,
       _eseriesCapacity: !!(isEseries && s.eseriesCapacity),
+      _storagegridCapacity: !!(isStorageGrid && s.storagegridCapacity),
       platformNote: isASAr2 ? 'ASA r2 — capacity via Storage Availability Zone (SAZ). 4:1 efficiency SLA guaranteed by NetApp.' :
                    isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' :
-                   _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — node-level capacity is not reported via the Active IQ GraphQL API. Capacity data is managed at the grid level through the StorageGRID Grid Manager.' :
+                   _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — capacity is reported per grid, on the admin-node system of each grid; Active IQ returned none for this system (an individual node, or a grid with no recent AutoSupport capacity report). Check the StorageGRID Grid Manager for current figures.' :
+                   (isStorageGrid && s.storagegridCapacity) ? 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.' :
                    _sgEseriesCapGap && isEseries    ? 'E-Series — Active IQ returned no SANtricity capacity for this system (no recent AutoSupport capacity report). Check SANtricity System Manager for current figures.' :
                    (isEseries && s.eseriesCapacity) ? 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.' : null,
     };
@@ -17114,6 +17172,8 @@ function enrichSystemTelemetry(s) {
     sazAvailableKiB:   s.sazAvailableKiB || 0,
     // ── E-Series (SANtricity) capacity: SantricitySystem.capacity from Active IQ ──
     eseriesCapacity:   s.eseriesCapacity || null,
+    // ── StorageGRID: per-grid capacity (StorageGrid.gridCapacity) ──
+    storagegridCapacity: s.storagegridCapacity || null,
     // ── As-Built: Extended Capacity & Efficiency Metrics ──
     clusterCapacityReportedOn: s.clusterCapacityReportedOn || '',
     clusterCapacityUtilPct:    s.clusterCapacityUtilPct,

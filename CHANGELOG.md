@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.77] - 2026-09-20
+
+### Fixed
+- **StorageGRID capacity is available from Active IQ; the "not reported" message was wrong.** `StorageGrid.gridCapacity` (usable, used data, used metadata, reserved metadata, raw/actual physical, QoQ/YoY change) is reported per grid on the grid's admin-node system — 4 of 6 real grids return it. Field semantics verified: `usableKiB` is the *remaining* usable space (usable + used data + used metadata + reserved metadata reconciles to the actual total on every grid).
+- Fetched with the same small dedicated query as E-Series capacity, mapped into the standard capacity fields (so fleet totals and capacity RAG include grids), and shown in a grid panel. **Surfaces a real risk that was invisible: the Salasala grid is 96% used (300.3 of 313.8 TiB, 2.0 TiB remaining).**
+
+---
+
 ## [5.6.76] - 2026-09-20
 
 ### Fixed

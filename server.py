@@ -1739,13 +1739,21 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     }
                   }"""
 
-        # E-Series (SANtricity) capacity is fetched with its own tiny query and merged
+        # E-Series (SANtricity) and StorageGRID capacity are fetched with one tiny query and merged
         # by serial: adding it to the TAM/Efficiency field sets pushed them over Active
         # IQ's "Maximum height (field count)" limit and forced whole watchlists down a tier.
         ESERIES_CAP_FIELDS = """
                   serialNumber
                   ... on SantricitySystem {
                     eCapacity: capacity { updatedOn totalKiB unconfiguredKiB configured { allocatedKiB freeKiB } }
+                  }
+                  ... on StorageGrid {
+                    gridId gridName installedNodeCount licenseCapacity
+                    gridCapacity {
+                      reportedOn
+                      configured { usableKiB usedDataKiB usedMetadataKiB reservedMetadataKiB }
+                      physical { rawMarketingKiB actualKiB qoqUtilizationPercentage yoyUtilizationPercentage }
+                    }
                   }"""
 
         # ── Early watchlist auto-discovery ──────────────────────────────────────
@@ -1969,18 +1977,30 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # ── E-Series capacity merge (see ESERIES_CAP_FIELDS) ──
         try:
             _ecap_by_serial = {}
+            _gcap_by_serial = {}
             for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
                 _ecap_rows, _ = _fetch_systems_for_scope(ESERIES_CAP_FIELDS, _ecap_scope)
                 for _r in _ecap_rows:
                     if _r.get("eCapacity"):
                         _ecap_by_serial[_r.get("serialNumber")] = _r["eCapacity"]
-            _ecap_hits = 0
+                    if _r.get("gridCapacity"):
+                        _gcap_by_serial[_r.get("serialNumber")] = {
+                            "gridId": _r.get("gridId"), "gridName": _r.get("gridName"),
+                            "installedNodeCount": _r.get("installedNodeCount"),
+                            "licenseCapacity": _r.get("licenseCapacity"),
+                            **_r["gridCapacity"],
+                        }
+            _ecap_hits = _gcap_hits = 0
             for _s in all_systems:
                 _ec = _ecap_by_serial.get(_s.get("serialNumber"))
                 if _ec:
                     _s["eCapacity"] = _ec
                     _ecap_hits += 1
-            print(f"  [HARVEST] E-Series capacity merged for {_ecap_hits} systems", flush=True)
+                _gc = _gcap_by_serial.get(_s.get("serialNumber"))
+                if _gc:
+                    _s["gCapacity"] = _gc
+                    _gcap_hits += 1
+            print(f"  [HARVEST] E-Series capacity merged for {_ecap_hits} systems, StorageGRID grid capacity for {_gcap_hits}", flush=True)
         except Exception as _e:
             print(f"  [HARVEST] WARNING: E-Series capacity fetch failed: {_e}", flush=True)
 
@@ -3057,6 +3077,39 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     _used_kib = _e_alloc
                     _usbl_kib = _e_total
 
+            # ── StorageGRID: capacity is per GRID (StorageGrid.gridCapacity), carried by
+            # the grid's own system object. usableKiB is the REMAINING usable space
+            # (verified: usable + usedData + usedMetadata + reservedMetadata == actual),
+            # so used = data + metadata and total = actual. ──
+            _g_cap = s.get("gCapacity") or {}
+            _storagegrid_capacity = None
+            if _g_cap:
+                _g_cf = _g_cap.get("configured") or {}
+                _g_ph = _g_cap.get("physical") or {}
+                _g_total = _g_ph.get("actualKiB") or _g_ph.get("rawMarketingKiB") or 0
+                _g_used_d = _g_cf.get("usedDataKiB") or 0
+                _g_used_m = _g_cf.get("usedMetadataKiB") or 0
+                _g_free = _g_cf.get("usableKiB") or 0
+                _g_resv = _g_cf.get("reservedMetadataKiB") or 0
+                if _g_total > 0:
+                    _tb = lambda k: round(k / (1024**3), 3)
+                    _storagegrid_capacity = {
+                        "gridId": _g_cap.get("gridId"), "gridName": _g_cap.get("gridName"),
+                        "installedNodeCount": _g_cap.get("installedNodeCount"),
+                        "licenseCapacity": _g_cap.get("licenseCapacity"),
+                        "totalTB": _tb(_g_total), "usedDataTB": _tb(_g_used_d),
+                        "usedMetadataTB": _tb(_g_used_m), "reservedMetadataTB": _tb(_g_resv),
+                        "remainingTB": _tb(_g_free),
+                        "usedPct": round((_g_used_d + _g_used_m) / _g_total * 100, 1),
+                        "qoqPct": _g_ph.get("qoqUtilizationPercentage"),
+                        "yoyPct": _g_ph.get("yoyUtilizationPercentage"),
+                        "reportedOn": _g_cap.get("reportedOn"),
+                    }
+                    if _raw_kib == 0:
+                        _raw_kib = _g_total
+                        _used_kib = _g_used_d + _g_used_m
+                        _usbl_kib = _g_total
+
             # ── Derive firmware from osVersions catalog if per-system GQL returned null ──
             _raw_sfw = s.get("systemFirmware") or {}
             _raw_mbfw = s.get("motherboardFirmware") or {}
@@ -3308,6 +3361,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "sustainabilityScores": s.get("sustainabilityScores") or [],
                 # ── Capacity ──
                 "eseriesCapacity": _eseries_capacity,
+                "storagegridCapacity": _storagegrid_capacity,
                 "capacityAllocatedKB": 0,
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),

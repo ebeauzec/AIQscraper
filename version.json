@@ -1,8 +1,8 @@
 {
-  "version": "5.6.76",
+  "version": "5.6.77",
   "major": 5,
   "minor": 6,
-  "patch": 76,
+  "patch": 77,
   "date": "2026-09-20",
-  "notes": "E-Series capacity IS available from Active IQ (SantricitySystem.capacity on the systems query) -- the UI's 'not exposed via the Active IQ GraphQL API' message was only true of the clusters query. 26 of 33 real E-Series systems return total/allocated/free/unconfigured capacity. Harvested via a small dedicated query merged by serial (the main query is at Active IQ's field-count limit), mapped into the standard capacity fields, and shown in a new E-Series panel; systems with no report keep an accurate note."
+  "notes": "StorageGRID capacity IS available from Active IQ (StorageGrid.gridCapacity, per grid on the admin-node system) -- the UI's 'not reported via the Active IQ GraphQL API' message was wrong. 4 of 6 real grids return it. Verified usableKiB is remaining space (usable + used data + used metadata + reserved metadata reconciles to actual). Harvested via the same small dedicated query as E-Series capacity, mapped into the standard capacity fields, and shown in a grid panel. Surfaces a real risk that was invisible: the Salasala grid is 96% used with 2.0 TiB remaining."
 }
