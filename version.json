@@ -1,8 +1,8 @@
 {
-  "version": "5.6.75",
+  "version": "5.6.76",
   "major": 5,
   "minor": 6,
-  "patch": 75,
+  "patch": 76,
   "date": "2026-09-20",
-  "notes": "Removed the unused ecosystem harvest (GitHub orgs, PyPI, Ansible Galaxy, Terraform, cloud docs -> data/ecosystem.json): nothing in the app read the file, and it cost dozens of rate-limited requests per cycle plus a dirty file in every commit. Removed harvesters, registries, the --ecosystem-only flag, the path constant and the data file; PyPI stays only for the IMT SDK-version lookup."
+  "notes": "E-Series capacity IS available from Active IQ (SantricitySystem.capacity on the systems query) -- the UI's 'not exposed via the Active IQ GraphQL API' message was only true of the clusters query. 26 of 33 real E-Series systems return total/allocated/free/unconfigured capacity. Harvested via a small dedicated query merged by serial (the main query is at Active IQ's field-count limit), mapped into the standard capacity fields, and shown in a new E-Series panel; systems with no report keep an accurate note."
 }

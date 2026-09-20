@@ -1739,6 +1739,15 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     }
                   }"""
 
+        # E-Series (SANtricity) capacity is fetched with its own tiny query and merged
+        # by serial: adding it to the TAM/Efficiency field sets pushed them over Active
+        # IQ's "Maximum height (field count)" limit and forced whole watchlists down a tier.
+        ESERIES_CAP_FIELDS = """
+                  serialNumber
+                  ... on SantricitySystem {
+                    eCapacity: capacity { updatedOn totalKiB unconfiguredKiB configured { allocatedKiB freeKiB } }
+                  }"""
+
         # ── Early watchlist auto-discovery ──────────────────────────────────────
         # Fetch watchlists from REST *before* the systems query so we can use them
         # as a fallback scope when configured watchlists are stale or the account
@@ -1956,6 +1965,24 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     used_tam_query = attempt <= 1
                     print(f"  [HARVEST] Unfiltered {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
                     break
+
+        # ── E-Series capacity merge (see ESERIES_CAP_FIELDS) ──
+        try:
+            _ecap_by_serial = {}
+            for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
+                _ecap_rows, _ = _fetch_systems_for_scope(ESERIES_CAP_FIELDS, _ecap_scope)
+                for _r in _ecap_rows:
+                    if _r.get("eCapacity"):
+                        _ecap_by_serial[_r.get("serialNumber")] = _r["eCapacity"]
+            _ecap_hits = 0
+            for _s in all_systems:
+                _ec = _ecap_by_serial.get(_s.get("serialNumber"))
+                if _ec:
+                    _s["eCapacity"] = _ec
+                    _ecap_hits += 1
+            print(f"  [HARVEST] E-Series capacity merged for {_ecap_hits} systems", flush=True)
+        except Exception as _e:
+            print(f"  [HARVEST] WARNING: E-Series capacity fetch failed: {_e}", flush=True)
 
         print(f"  [HARVEST] Systems fetch complete: {len(all_systems)} total systems"
               f"{' (TAM/Efficiency tier)' if used_tam_query else ' (Minimal tier)'}", flush=True)
@@ -3005,6 +3032,31 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 if _cl_log > 0:
                     _log_kib = _cl_log
 
+            # ── E-Series (SANtricity): capacity lives on SantricitySystem.capacity, not
+            # in the ONTAP capacity block above (which is empty for these systems) ──
+            # totalKiB = raw capacity of all data drives; configured.allocatedKiB is
+            # space allocated to volume groups/disk pools (NOT data written -- E-Series
+            # has no data reduction to report); unconfiguredKiB = unassigned drives.
+            _e_cap = s.get("eCapacity") or {}
+            _e_cfg = _e_cap.get("configured") or {}
+            _eseries_capacity = None
+            if _e_cap.get("totalKiB") is not None:
+                _e_total = _e_cap.get("totalKiB") or 0
+                _e_alloc = _e_cfg.get("allocatedKiB") or 0
+                _e_free  = _e_cfg.get("freeKiB") or 0
+                _e_unconf = _e_cap.get("unconfiguredKiB") or 0
+                _eseries_capacity = {
+                    "totalTB": round(_e_total / (1024**3), 3),
+                    "allocatedTB": round(_e_alloc / (1024**3), 3),
+                    "freeTB": round(_e_free / (1024**3), 3),
+                    "unconfiguredTB": round(_e_unconf / (1024**3), 3),
+                    "updatedOn": _e_cap.get("updatedOn"),
+                }
+                if _raw_kib == 0 and _e_total > 0:
+                    _raw_kib = _e_total
+                    _used_kib = _e_alloc
+                    _usbl_kib = _e_total
+
             # ── Derive firmware from osVersions catalog if per-system GQL returned null ──
             _raw_sfw = s.get("systemFirmware") or {}
             _raw_mbfw = s.get("motherboardFirmware") or {}
@@ -3255,6 +3307,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "monthlyAutoResolvedCases": s.get("monthlyAutoResolvedCases") or [],
                 "sustainabilityScores": s.get("sustainabilityScores") or [],
                 # ── Capacity ──
+                "eseriesCapacity": _eseries_capacity,
                 "capacityAllocatedKB": 0,
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),

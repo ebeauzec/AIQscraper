@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.76] - 2026-09-20
+
+### Fixed
+- **E-Series capacity is available from Active IQ; the "not exposed" message was wrong.** `SantricitySystem.capacity { totalKiB, unconfiguredKiB, configured { allocatedKiB, freeKiB }, updatedOn }` exists on the systems query — the claim was only true of the clusters query. 26 of 33 real E-Series systems return it (e.g. 1,033.8 TiB raw / 234.5 TiB allocated / 756.6 TiB free).
+- Harvested with a small dedicated query merged by serial (adding it to the main system query exceeded Active IQ's "maximum height (field count)" limit and dropped watchlists to a thinner tier), mapped into the standard capacity fields, and shown in a new E-Series panel (raw total, allocated, free, unconfigured, share bar, report date) that omits data-reduction and FabricPool content. "Allocated" is space assigned to volume groups/pools, not data written. Systems with no report now say so accurately.
+
+---
+
 ## [5.6.75] - 2026-09-20
 
 ### Removed

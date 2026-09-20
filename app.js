@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.75";
+const APP_VERSION = "5.6.76";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.76",
+    date: "20 September 2026",
+    title: "E-Series Capacity Is Available From Active IQ -- The \"Not Exposed\" Message Was Wrong",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- E-Series Systems Were Shown \"Capacity Not Exposed\" Despite Real Data",
+        color: "#f87171",
+        items: [
+          "The Value & ROI card said E-Series 'block-array capacity is managed via SANtricity System Manager and is not exposed through the Active IQ GraphQL clusters API'. Checked against the live schema: SantricitySystem has capacity { totalKiB, unconfiguredKiB, configured { allocatedKiB, freeKiB }, updatedOn } on the systems query (the claim was only true of the clusters query, which is all the app looked at). 26 of your 33 E-Series systems return it, e.g. StbNetapp08e: 1,033.8 TiB raw, 234.5 TiB allocated, 756.6 TiB free.",
+          "Harvest now fetches it with a small dedicated query merged by serial (adding it to the main system query exceeded Active IQ's 'maximum height (field count)' limit and dropped whole watchlists to a thinner tier), maps it into the standard raw/used capacity fields so fleet capacity totals include E-Series, and the system card shows an E-Series panel: raw total, allocated, free, unconfigured drives, a share bar, and the report date. It deliberately omits data-reduction and FabricPool content, which don't apply to a block array, and notes that 'allocated' means assigned to volume groups/pools, not data written. The 7 systems Active IQ returns no capacity for keep an accurate message: no recent AutoSupport capacity report, rather than 'not exposed'.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.75",
     date: "20 September 2026",
@@ -14247,8 +14263,45 @@ function renderCSMTab() {
   // When _capacityUnavailable is true the efficiency object is all-zeros.
   // Render a platform-appropriate informational note instead of the standard
   // efficiency ratio / capacity panel so no misleading "0.0 TB" numbers show.
-  if (sys.efficiency && sys.efficiency._capacityUnavailable) {
-    const _sgNote = sys.efficiency.platformNote || 'Capacity data is not exposed via the Active IQ GraphQL API for this platform type.';
+  if (sys.efficiency && sys.efficiency._eseriesCapacity && sys.eseriesCapacity) {
+    // E-Series with real SANtricity capacity: block-array breakdown, not the
+    // ONTAP data-reduction panel (no dedupe/compression, no FabricPool).
+    const _ec = sys.eseriesCapacity;
+    const _tot = _ec.totalTB || 0;
+    const _pct = (v) => _tot > 0 ? Math.max(0, Math.min(100, (v / _tot) * 100)) : 0;
+    const _allocPct = _pct(_ec.allocatedTB), _freePct = _pct(_ec.freeTB), _unPct = _pct(_ec.unconfiguredTB);
+    const _fmt = (v) => (v || 0).toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' TiB';
+    const _asOf = _ec.updatedOn ? String(_ec.updatedOn).substring(0, 10) : 'unknown';
+    document.getElementById("csmSavingsCard").innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">E-Series Block Capacity</span>
+          <div style="font-size: 2.2rem; font-weight: 800; color: #f59e0b;">${_fmt(_tot)}</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Raw capacity of all data drives &middot; reported ${_asOf}</div>
+        </div>
+        <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,0.06);" title="Allocated / free (in volume groups & pools) / unconfigured drives, as a share of total">
+          <div style="width:${_allocPct}%;background:#f59e0b;"></div>
+          <div style="width:${_freePct}%;background:#10b981;"></div>
+          <div style="width:${_unPct}%;background:#6b7280;"></div>
+        </div>
+        <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div><span style="font-size: 0.75rem; color: #f59e0b;">&#9632; Allocated to volumes</span><div style="font-weight: 600;">${_fmt(_ec.allocatedTB)}</div></div>
+          <div><span style="font-size: 0.75rem; color: #10b981;">&#9632; Free in groups/pools</span><div style="font-weight: 600;">${_fmt(_ec.freeTB)}</div></div>
+          <div><span style="font-size: 0.75rem; color: #9ca3af;">&#9632; Unconfigured drives</span><div style="font-weight: 600;">${_fmt(_ec.unconfiguredTB)}</div></div>
+          <div><span style="font-size: 0.75rem; color: var(--text-muted);">Allocated share of total</span><div style="font-weight: 600;">${_allocPct.toFixed(0)}%</div></div>
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">${sys.efficiency.platformNote || ''} Total is raw; the gap to allocated + free is RAID/pool overhead.</div>
+      </div>
+    `;
+    document.getElementById("csmCloudCard").innerHTML = `
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
+        <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-color);">N/A</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">FabricPool tiering is an ONTAP feature and does not apply to E-Series block arrays.</div>
+    `;
+  } else if (sys.efficiency && sys.efficiency._capacityUnavailable) {
+    const _sgNote = sys.efficiency.platformNote || 'No capacity data was returned by Active IQ for this system.';
     const _sgIcon = _isPlatformStorageGRID(sys) ? '⬡' : '⬡';
     const _sgColor = _isPlatformStorageGRID(sys) ? '#a855f7' : '#f59e0b';
     const _sgLabel = _isPlatformStorageGRID(sys) ? 'StorageGRID Object Node' : 'E-Series Block Array';
@@ -14259,7 +14312,7 @@ function renderCSMTab() {
         <div style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; max-width: 320px; background: rgba(0,0,0,0.25); border: 1px solid ${_sgColor}44; border-radius: var(--radius-sm); padding: 12px 14px;">
           ${_sgNote}
         </div>
-        <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">For capacity utilisation data, use the platform's native management interface.</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">For capacity figures, use the platform's native management interface.</div>
       </div>
     `;
     document.getElementById("csmCloudCard").innerHTML = `
@@ -15907,12 +15960,13 @@ function enrichSystemTelemetry(s) {
     // The overview chart now shows used vs available capacity instead.
     const fpTieredTB = 0;
 
-    // ── StorageGRID / E-Series capacity gap ─────────────────────────────────
-    // The Active IQ GraphQL API does not expose cluster-level capacity for
-    // StorageGRID (object nodes) or E-Series (SANtricity block arrays). The
-    // /clusters query returns nothing for these platform families, so physTB
-    // and rawTB are always 0. Flag _capacityUnavailable so the UI can render
-    // a clear informational note instead of "0.0 TB / N/A" placeholders.
+    // ── StorageGRID / E-Series capacity ─────────────────────────────────────
+    // The /clusters query returns nothing for these platform families, so
+    // physTB/rawTB are 0 unless the systems query supplied capacity: E-Series
+    // reports it via SantricitySystem.capacity (mapped by server.py into
+    // eseriesCapacity and the cluster*TB fields). What's left at zero is a
+    // real gap -- flag _capacityUnavailable so the UI renders an honest note
+    // instead of "0.0 TB / N/A" placeholders.
     const _sgEseriesCapGap = (isStorageGrid || isEseries) && physTBfinal === 0 && rawTBfinal === 0;
 
     efficiency = {
@@ -15935,10 +15989,12 @@ function enrichSystemTelemetry(s) {
       // _capacityUnavailable: true signals the UI to render a platform note
       // instead of misleading zero-value capacity bars and donut charts.
       _capacityUnavailable: _sgEseriesCapGap || false,
+      _eseriesCapacity: !!(isEseries && s.eseriesCapacity),
       platformNote: isASAr2 ? 'ASA r2 — capacity via Storage Availability Zone (SAZ). 4:1 efficiency SLA guaranteed by NetApp.' :
                    isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' :
                    _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — node-level capacity is not reported via the Active IQ GraphQL API. Capacity data is managed at the grid level through the StorageGRID Grid Manager.' :
-                   _sgEseriesCapGap && isEseries    ? 'E-Series — block-array capacity is managed via SANtricity System Manager and is not exposed through the Active IQ GraphQL clusters API.' : null,
+                   _sgEseriesCapGap && isEseries    ? 'E-Series — Active IQ returned no SANtricity capacity for this system (no recent AutoSupport capacity report). Check SANtricity System Manager for current figures.' :
+                   (isEseries && s.eseriesCapacity) ? 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.' : null,
     };
 
   } else if (!efficiency) {
@@ -17056,6 +17112,8 @@ function enrichSystemTelemetry(s) {
     sazTotalRawKiB:    s.sazTotalRawKiB || 0,
     sazUsedKiB:        s.sazUsedKiB || 0,
     sazAvailableKiB:   s.sazAvailableKiB || 0,
+    // ── E-Series (SANtricity) capacity: SantricitySystem.capacity from Active IQ ──
+    eseriesCapacity:   s.eseriesCapacity || null,
     // ── As-Built: Extended Capacity & Efficiency Metrics ──
     clusterCapacityReportedOn: s.clusterCapacityReportedOn || '',
     clusterCapacityUtilPct:    s.clusterCapacityUtilPct,
