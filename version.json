@@ -1,8 +1,8 @@
 {
-  "version": "5.6.77",
+  "version": "5.6.78",
   "major": 5,
   "minor": 6,
-  "patch": 77,
+  "patch": 78,
   "date": "2026-09-20",
-  "notes": "StorageGRID capacity IS available from Active IQ (StorageGrid.gridCapacity, per grid on the admin-node system) -- the UI's 'not reported via the Active IQ GraphQL API' message was wrong. 4 of 6 real grids return it. Verified usableKiB is remaining space (usable + used data + used metadata + reserved metadata reconciles to actual). Harvested via the same small dedicated query as E-Series capacity, mapped into the standard capacity fields, and shown in a grid panel. Surfaces a real risk that was invisible: the Salasala grid is 96% used with 2.0 TiB remaining."
+  "notes": "Value & ROI checklists and the Health Score judged E-Series/StorageGRID by ONTAP rules (target: ONTAP 9.19.1 for a SANtricity upgrade; scored on ARP, SnapMirror, FabricPool, HA...) because the E-Series test was a platform-string match that real bare-number models (2806, 5760) never satisfy. Added a robust platform-family check; ONTAP-only checks are N/A for other families and excluded from counts, PSIRT/CISA are N/A where the advisory engine can't evaluate the version, headroom uses each family's real capacity, and the Health Score scores ARP/efficiency over ONTAP systems only. ONTAP-only scores unchanged; E-Series-only 52 -> 64."
 }

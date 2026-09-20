@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.77";
+const APP_VERSION = "5.6.78";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.78",
+    date: "20 September 2026",
+    title: "Value & ROI Checklist and Health Score No Longer Judge E-Series and StorageGRID by ONTAP Rules",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- E-Series Customers Were Scored (and Labelled) as ONTAP",
+        color: "#f87171",
+        items: [
+          "The Operations & Security / Data Protection checklists said 'OS on Recommended Version (target: ONTAP 9.19.1)' for a SANtricity upgrade (11.70.4R1 -> 11.90R6) and scored E-Series arrays on ARP, SnapMirror, FabricPool, HA pairs, SVM/LIF, FlexClone, storage efficiency, port config and the ONTAP feature-adoption score. Root cause: the E-Series test was a substring match on platform ('e-series', 'ef6'), but real E-Series systems report a bare model number (2806, 5760, 2812...), so every one was silently classified as ONTAP.",
+          "Added a single robust platform-family check (StorageGRID by model, E-Series by SANtricity version / numeric model / E-Series capacity data) and made every check state whether it applies. ONTAP-only checks now show N/A for E-Series and StorageGRID and are excluded from the pass counts (aggregate: '13/163 (applicable)'; single system: '3/4 passed'), instead of an artificial pass or fail. The OS check label no longer says ONTAP for other families.",
+          "The PSIRT and CISA-KEV checks are also N/A for non-ONTAP systems: the advisory engine only evaluates ONTAP versions, and the version field it reads is empty for every E-Series and StorageGRID system here, so they were passing as 'no advisories' when nothing had been evaluated. Capacity Headroom now uses each family's own real capacity data (E-Series free + unconfigured, StorageGRID remaining) and systems with no capacity report are no longer counted as 100% free.",
+          "The Health Score divided ARP (12 pts) by the whole fleet and scored non-ONTAP systems as a 1:1 efficiency ratio (10 pts), capping an E-Series-only customer around 86. Both are now scored over ONTAP systems only, with weights re-normalised when the scope has none. Verified live: ONTAP-only 43 -> 43 and whole fleet 42 -> 42 (unchanged), E-Series-only 52 -> 64, StorageGRID-only 37 -> 45.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.77",
     date: "20 September 2026",
@@ -13926,16 +13944,26 @@ function renderCSMTab() {
 
     let _verDetails = [], _capDetails = [], _caseDetails = [], _haDetails = [];
     let _portDetails = [], _cotermDetails = [], _adoptDetails = [];
+    // Applicability: many checks are ONTAP-only (efficiency ratio, HA pairs, ARP,
+    // SnapMirror, FabricPool, SVM/LIF, FlexClone, port config). E-Series and
+    // StorageGRID systems are excluded from those denominators (shown N/A) rather
+    // than counted as either a pass or a failure.
+    let _nOntap = 0, _nCap = 0;
+    const _famSet = new Set();
 
     targetCSMSystems.forEach(s => {
+      const _fam = _platformFamily(s);
+      const _isOnt = _fam === 'ontap';
+      _famSet.add(_fam);
+      if (_isOnt) _nOntap++;
       // ── Operations & Security checks ────────────────────────────────────────
       // 1. OS on recommended version
       const _hasUpgrade = !!(s.upgrades && s.upgrades.targetVersion && s.upgrades.targetVersion !== 'Up to Date');
       if (!_hasUpgrade) _verPass++;
-      else _verDetails.push(`${s.systemName}: ${s.ontapVersion || '?'} \u2192 ${s.upgrades.targetVersion}`);
+      else _verDetails.push(`${s.systemName}: ${s.ontapVersion || s.santricityVersion || s.osVersion || '?'} \u2192 ${s.upgrades.targetVersion}`);
 
       // 2. Storage efficiency >= 1.5:1
-      if (parseFloat(((s.efficiency || {}).ratio || '1:1').split(':')[0]) > 1.5) _effPass++;
+      if (_isOnt && parseFloat(((s.efficiency || {}).ratio || '1:1').split(':')[0]) > 1.5) _effPass++;
 
       // 3. AutoSupport HTTPS reporting (<=7 days)
       const _asup = s.autosupport || {};
@@ -13948,21 +13976,24 @@ function renderCSMTab() {
 
       // 5. No active CVEs (PSIRT)
       const _sec = getApplicableSecurityBulletins(s.ontapVersion, s.platform).filter(b => b.status !== 'resolved');
-      if (_sec.length === 0) _secPass++;
+      if (_isOnt && _sec.length === 0) _secPass++;
 
-      // 6. Capacity headroom >= 20%
-      const _usable = s.efficiency && s.efficiency.usableCapacityTB > 0 ? s.efficiency.usableCapacityTB : 0;
-      const _phys   = s.efficiency ? (s.efficiency.physicalUsedTB || 0) : 0;
-      const _headroomPct = _usable > 0 ? ((_usable - _phys) / _usable) * 100 : 100;
-      if (_headroomPct >= 20) _capPass++;
-      else if (_usable > 0) _capDetails.push(`${s.systemName}: ${Math.round(_headroomPct)}% free`);
+      // 6. Capacity headroom >= 20% -- applies to every family that reported
+      // capacity; systems with no capacity data are not counted (was: silently
+      // passed as 100% free).
+      const _headroomPct = _capacityHeadroomPct(s);
+      if (_headroomPct != null) {
+        _nCap++;
+        if (_headroomPct >= 20) _capPass++;
+        else _capDetails.push(`${s.systemName}: ${Math.round(_headroomPct)}% free`);
+      }
 
-      // 7. HA pair configured
-      const _isStorageGrid = (s.platform || '').toLowerCase().includes('storagegrid');
-      const _isEseries = (s.platform || '').toLowerCase().includes('e-series') || (s.platform || '').toLowerCase().includes('ef6') || (s.platform || '').toLowerCase().includes('ef3');
-      if (_isStorageGrid || _isEseries || s.haConfigured === true) _haPass++;
-      else if (s.haConfigured === false) _haDetails.push(`${s.systemName}: no HA`);
-      else _haPass++; // unknown — don't penalise
+      // 7. HA pair configured (ONTAP concept)
+      if (_isOnt) {
+        if (s.haConfigured === true) _haPass++;
+        else if (s.haConfigured === false) _haDetails.push(`${s.systemName}: no HA`);
+        else _haPass++; // unknown — don't penalise
+      }
 
       // 8. No open S1/S2 cases
       const _openCritCases = (s.supportCases || []).filter(c => {
@@ -13975,7 +14006,7 @@ function renderCSMTab() {
       else _caseDetails.push(`${s.systemName}: ${_openCritCases.length} critical case${_openCritCases.length > 1 ? 's' : ''}`);
 
       // 10. Anti-Ransomware Protection (ARP)
-      if (_isStorageGrid || _isEseries || s.isARPEnabled === true || s.isARPEnabled === null) _arpPass++;
+      if (_isOnt && (s.isARPEnabled === true || s.isARPEnabled === null)) _arpPass++;
 
       // 11. No outstanding FSAs
       if (!s.fieldActions || s.fieldActions.length === 0) _fsaPass++;
@@ -13983,8 +14014,10 @@ function renderCSMTab() {
       // 12. Network port health (no link-down on active ports)
       const _ports = ((s.networkPorts || {}).networkPorts || []);
       const _downPorts = _ports.filter(p => p.link === 'down' && p.role && p.role !== 'node_mgmt');
-      if (_downPorts.length === 0) _portHealthPass++;
-      else _portDetails.push(`${s.systemName}: ${_downPorts.length} port(s) down`);
+      if (_isOnt) {
+        if (_downPorts.length === 0) _portHealthPass++;
+        else _portDetails.push(`${s.systemName}: ${_downPorts.length} port(s) down`);
+      }
 
       // 13. Firmware currency (shelf/disk FW not flagged)
       const _fwRisks = (s.risks || []).filter(r => {
@@ -13995,7 +14028,7 @@ function renderCSMTab() {
 
       // 14. No CISA KEV active exploitation alerts
       const _cisaHits = _sec.filter(b => b.cisaKEV === true || b.cisaKev === true || (b.tags || []).includes('CISA-KEV'));
-      if (_cisaHits.length === 0) _cisaKevPass++;
+      if (_isOnt && _cisaHits.length === 0) _cisaKevPass++;
 
       // 15. AutoSupport configured (real AutoSupportStatus enum -- QoS was
       // here before, but Active IQ's schema has no QoS field at all;
@@ -14005,10 +14038,10 @@ function renderCSMTab() {
 
       // ── Data Protection & Lifecycle checks ──────────────────────────────────
       // 16. FabricPool tiering active
-      if ((s.efficiency || {}).fabricPoolTieredTB > 0) _cloudPass++;
+      if (_isOnt && (s.efficiency || {}).fabricPoolTieredTB > 0) _cloudPass++;
 
       // 17. SnapMirror replication configured
-      if (s.snapmirror && s.snapmirror.enabled) _drPass++;
+      if (_isOnt && s.snapmirror && s.snapmirror.enabled) _drPass++;
 
       // 18. Zero high/critical risks
       if (s.risks.filter(r => r.severity === 'critical' || r.severity === 'high').length === 0) _riskPass++;
@@ -14018,17 +14051,18 @@ function renderCSMTab() {
 
       // 20. SVM/LIF inventory available
       const _svms = (typeof getSystemSvms === 'function') ? (getSystemSvms(s) || []) : (s.vservers || []);
-      if (_svms.length > 0) _svmPass++;
+      if (_isOnt && _svms.length > 0) _svmPass++;
 
       // 21. No excessive FlexClone sprawl
       // FlexClones from snapshots can consume space; if >10 clone volumes exist flag it.
       // Since this data isn't always available, don't penalise when absent.
       const _cloneCount = s.flexCloneCount || 0;
-      if (_cloneCount <= 10) _clonePass++;
+      if (_isOnt && _cloneCount <= 10) _clonePass++;
 
       // 22. Feature adoption score >= 60%
-      const _adoptScore = (typeof computeFeatureAdoptionScore === 'function') ? computeFeatureAdoptionScore(s) : null;
-      if (_adoptScore && _adoptScore.pct >= 60) _adoptPass++;
+      const _adoptScore = (_isOnt && typeof computeFeatureAdoptionScore === 'function') ? computeFeatureAdoptionScore(s) : null;
+      if (!_isOnt) { /* ONTAP feature set -- N/A for E-Series/StorageGRID */ }
+      else if (_adoptScore && _adoptScore.pct >= 60) _adoptPass++;
       else if (_adoptScore && _adoptScore.pct < 60) _adoptDetails.push(`${s.systemName}: ${_adoptScore.pct}%`);
       else _adoptPass++; // unavailable — don't penalise
 
@@ -14036,7 +14070,7 @@ function renderCSMTab() {
       // Check for broadcast domains with no active ports or orphaned ifgrps
       const _bdPorts = _ports.filter(p => p.broadcastDomain && p.broadcastDomain !== '');
       const _unassigned = _ports.filter(p => !p.broadcastDomain || p.broadcastDomain === '');
-      if (_unassigned.length <= 2 || _ports.length === 0) _configDriftPass++;
+      if (_isOnt && (_unassigned.length <= 2 || _ports.length === 0)) _configDriftPass++;
 
       // 24. MTTR posture (no stale S3/S4 cases >90 days)
       const _staleCases = (s.supportCases || []).filter(c => {
@@ -14078,20 +14112,20 @@ function renderCSMTab() {
     // ── Left column: Operations & Security ──────────────────────────────────
     const _leftChecks = [
       // — Software & Platform —
-      { cat: 'SOFTWARE \u0026 PLATFORM', name: `OS on Recommended Version (target: ONTAP ${_latestOntap})`, completedCount: _verPass, detail: _vDetail, tip: 'Systems running ONTAP at the vendor-recommended target version. Systems behind may be missing security patches, bug fixes, or feature parity with the rest of the fleet.' },
+      { cat: 'SOFTWARE \u0026 PLATFORM', name: _osCheckLabel(_famSet, _latestOntap), completedCount: _verPass, detail: _vDetail, tip: 'Systems running ONTAP at the vendor-recommended target version. Systems behind may be missing security patches, bug fixes, or feature parity with the rest of the fleet.' },
       { name: 'Hardware on Current Platform Generation (non-EOA)',     completedCount: _hwPass,          detail: '', tip: 'Systems on a hardware platform NetApp has not yet marked End-of-Availability (EOA). EOA hardware is still supported but no longer sold -- a signal to start planning a refresh before End-of-Support.' },
       { name: 'Firmware \u0026 Disk Qualification Current',               completedCount: _fwCurrPass,      detail: '', tip: 'Systems whose disk, shelf, and SP/BMC firmware match NetApp current qualified baseline versions for their ONTAP release.' },
       // — Infrastructure Health —
-      { cat: 'INFRASTRUCTURE HEALTH', name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',  completedCount: _effPass,  detail: '', tip: 'Systems achieving at least a 1.5:1 combined dedupe + compression ratio -- a common baseline efficiency benchmark for ONTAP. Lower ratios may mean efficiency features are disabled or the workload does not compress well.' },
-      { name: 'Aggregate Capacity Headroom \u2265 20%',                    completedCount: _capPass,         detail: _capDetail, tip: 'Systems with at least 20% free aggregate capacity -- the generally recommended buffer to avoid performance degradation and leave room for snapshot and unplanned data growth.' },
-      { name: 'HA Pair Configured (No Single Point of Failure)',       completedCount: _haPass,          detail: _haDetail, tip: 'Systems configured in a high-availability (HA) controller pair, so a single controller failure does not take the system offline.' },
-      { name: 'Network Port Health (no link-down on active ports)',    completedCount: _portHealthPass,  detail: _portDetail, tip: 'Systems with no in-use network port currently reporting a link-down state -- a down port on an active path can mean reduced redundancy or an active outage.' },
+      { cat: 'INFRASTRUCTURE HEALTH', name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',  total: _nOntap, completedCount: _effPass,  detail: '', tip: 'Systems achieving at least a 1.5:1 combined dedupe + compression ratio -- a common baseline efficiency benchmark for ONTAP. Lower ratios may mean efficiency features are disabled or the workload does not compress well.' },
+      { name: 'Capacity Headroom \u2265 20%',                    total: _nCap, completedCount: _capPass,         detail: _capDetail, tip: 'Systems with at least 20% free aggregate capacity -- the generally recommended buffer to avoid performance degradation and leave room for snapshot and unplanned data growth.' },
+      { name: 'HA Pair Configured (No Single Point of Failure)',       total: _nOntap, completedCount: _haPass,          detail: _haDetail, tip: 'Systems configured in a high-availability (HA) controller pair, so a single controller failure does not take the system offline.' },
+      { name: 'Network Port Health (no link-down on active ports)',    total: _nOntap, completedCount: _portHealthPass,  detail: _portDetail, tip: 'Systems with no in-use network port currently reporting a link-down state -- a down port on an active path can mean reduced redundancy or an active outage.' },
       { name: 'AutoSupport Configured',                               completedCount: _asupCfgPass,     detail: '', tip: 'Systems with AutoSupport turned on (real Active IQ AutoSupportStatus). Without it, a system is invisible to proactive risk detection and this tool\'s own health scoring.' },
       // — Security & Compliance —
-      { cat: 'SECURITY \u0026 COMPLIANCE', name: 'No Active Security CVEs Applicable (PSIRT)',            completedCount: _secPass,         detail: '', tip: 'Systems with zero NetApp PSIRT-published CVEs applicable to their current OS version.' },
-      { name: 'No CISA KEV Active Exploitation Alerts',               completedCount: _cisaKevPass,     detail: '', tip: 'Systems with no CVEs matching CISA Known Exploited Vulnerabilities (KEV) catalog -- confirmed active real-world exploitation, not just theoretical risk.' },
+      { cat: 'SECURITY \u0026 COMPLIANCE', name: 'No Active Security CVEs Applicable (PSIRT)',            total: _nOntap, completedCount: _secPass,         detail: '', tip: 'Systems with zero NetApp PSIRT-published CVEs applicable to their current OS version.' },
+      { name: 'No CISA KEV Active Exploitation Alerts',               total: _nOntap, completedCount: _cisaKevPass,     detail: '', tip: 'Systems with no CVEs matching CISA Known Exploited Vulnerabilities (KEV) catalog -- confirmed active real-world exploitation, not just theoretical risk.' },
 
-      { name: 'Anti-Ransomware Protection (ARP) Active',              completedCount: _arpPass,         detail: '', tip: 'Systems with ONTAP built-in Anti-Ransomware Protection enabled -- entropy-based anomaly detection on volumes that flags likely ransomware encryption activity.' },
+      { name: 'Anti-Ransomware Protection (ARP) Active',              total: _nOntap, completedCount: _arpPass,         detail: '', tip: 'Systems with ONTAP built-in Anti-Ransomware Protection enabled -- entropy-based anomaly detection on volumes that flags likely ransomware encryption activity.' },
       // — Support & Monitoring —
       { cat: 'SUPPORT \u0026 MONITORING', name: 'AutoSupport HTTPS Reporting (last check \u2264 7 days)',  completedCount: _asupPass,  detail: '', tip: 'Systems whose AutoSupport telemetry was received by NetApp within the last 7 days -- a stale or disabled feed means proactive support and this tool own risk data are both flying blind on that system.' },
       { name: 'No Open S1/S2 Critical Support Cases',                 completedCount: _casePass,        detail: _caseDetail, tip: 'Systems with no open Severity 1 or 2 (business-impacting) support cases.' },
@@ -14101,14 +14135,14 @@ function renderCSMTab() {
     // ── Right column: Data Protection & Lifecycle ───────────────────────────
     const _rightChecks = [
       // — Data Protection —
-      { cat: 'DATA PROTECTION', name: 'SnapMirror Async/Sync Replication Configured',  completedCount: _drPass,     detail: '', tip: 'Systems with at least one active SnapMirror relationship, providing off-system data protection or disaster recovery replication.' },
-      { name: 'Cloud FabricPool / Cold-Data Tiering Active',           completedCount: _cloudPass,  detail: '', tip: 'Systems tiering cold snapshot/inactive data to lower-cost object storage (S3, Azure Blob, GCS) via FabricPool, freeing up primary flash capacity for active data.' },
-      { name: 'SVM/LIF Inventory Mapped',                             completedCount: _svmPass,    detail: '', tip: 'Systems where Storage Virtual Machine (SVM) and Logical Interface (LIF) topology was successfully retrieved from Active IQ. A system failing this check has a data gap here, not necessarily a real SVM/LIF problem.' },
-      { name: 'No Excessive FlexClone Sprawl (\u226410 clones)',          completedCount: _clonePass,  detail: '', tip: 'Systems with 10 or fewer FlexClone volumes. Excessive clone sprawl without a cleanup/lifecycle policy consumes capacity and complicates management over time.' },
+      { cat: 'DATA PROTECTION', name: 'SnapMirror Async/Sync Replication Configured',  total: _nOntap, completedCount: _drPass,     detail: '', tip: 'Systems with at least one active SnapMirror relationship, providing off-system data protection or disaster recovery replication.' },
+      { name: 'Cloud FabricPool / Cold-Data Tiering Active',           total: _nOntap, completedCount: _cloudPass,  detail: '', tip: 'Systems tiering cold snapshot/inactive data to lower-cost object storage (S3, Azure Blob, GCS) via FabricPool, freeing up primary flash capacity for active data.' },
+      { name: 'SVM/LIF Inventory Mapped',                             total: _nOntap, completedCount: _svmPass,    detail: '', tip: 'Systems where Storage Virtual Machine (SVM) and Logical Interface (LIF) topology was successfully retrieved from Active IQ. A system failing this check has a data gap here, not necessarily a real SVM/LIF problem.' },
+      { name: 'No Excessive FlexClone Sprawl (\u226410 clones)',          total: _nOntap, completedCount: _clonePass,  detail: '', tip: 'Systems with 10 or fewer FlexClone volumes. Excessive clone sprawl without a cleanup/lifecycle policy consumes capacity and complicates management over time.' },
       // — Risk & Remediation —
       { cat: 'RISK \u0026 REMEDIATION', name: 'Zero High/Critical Risks Outstanding',          completedCount: _riskPass,           detail: '', tip: 'Systems with no unresolved Active IQ risk findings rated Critical or High severity.' },
-      { name: 'Feature Adoption Score \u2265 60%',                        completedCount: _adoptPass,          detail: _adoptDetail, tip: 'Systems using at least 60% of NetApp recommended best-practice feature set (this same left/right checklist, scored) -- how much of the platform available capability is actually turned on, not just installed.' },
-      { name: 'No Config Drift (unassigned ports \u2264 2)',              completedCount: _configDriftPass,    detail: '', tip: 'Systems with 2 or fewer network ports lacking a broadcast domain assignment. Unassigned ports beyond that are typically a sign of incomplete or drifted network configuration.' },
+      { name: 'Feature Adoption Score \u2265 60%',                        total: _nOntap, completedCount: _adoptPass,          detail: _adoptDetail, tip: 'Systems using at least 60% of NetApp recommended best-practice feature set (this same left/right checklist, scored) -- how much of the platform available capability is actually turned on, not just installed.' },
+      { name: 'No Config Drift (unassigned ports \u2264 2)',              total: _nOntap, completedCount: _configDriftPass,    detail: '', tip: 'Systems with 2 or fewer network ports lacking a broadcast domain assignment. Unassigned ports beyond that are typically a sign of incomplete or drifted network configuration.' },
       { name: 'MTTR Posture (no stale cases \u003e 90 days)',             completedCount: _mttrPass,           detail: '', tip: 'Systems with no support case open longer than 90 days. Cases open that long usually indicate a stuck escalation, a resourcing gap, or a fix waiting on the customer.' },
       // — Contracts & Lifecycle —
       { cat: 'CONTRACTS \u0026 LIFECYCLE', name: 'Support Contract Active (\u003e 90 days remaining)',   completedCount: _contractPass,  detail: '', tip: 'Systems with more than 90 days remaining on their support contract (real isContractActive/overallContractEndDate from Active IQ), i.e. not yet in the renewal-urgency window.' },
@@ -14123,14 +14157,28 @@ function renderCSMTab() {
         if (item.cat) {
           html += `<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);padding:8px 10px 3px;border-top:1px solid rgba(129,140,248,0.12);margin-top:2px;opacity:0.7;">${item.cat}</div>`;
         }
-        const _allDone = item.completedCount === n;
+        // total = systems this check applies to (ONTAP-only checks exclude
+        // E-Series/StorageGRID); 0 applicable => N/A, never a fake pass/fail.
+        const _tot = item.total != null ? item.total : n;
+        if (_tot === 0) {
+          html += `
+          <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color); opacity: 0.6;"${item.tip ? ` title="${_esc(item.tip)}"` : ''}>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 0.78rem;">${item.name}</span>
+              <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; margin-left: 8px;">N/A</span>
+            </div>
+            <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;">Not applicable to the platforms in this scope</div>
+          </div>`;
+          return;
+        }
+        const _allDone = item.completedCount === _tot;
         const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
-        const _pct = Math.round((item.completedCount / Math.max(n, 1)) * 100);
+        const _pct = Math.round((item.completedCount / Math.max(_tot, 1)) * 100);
         html += `
           <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);"${item.tip ? ` title="${_esc(item.tip)}"` : ''}>
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${item.detail ? 3 : 2}px;">
               <span style="font-size: 0.78rem;${item.tip ? ' cursor: help; border-bottom: 1px dotted var(--text-muted);' : ''}">${item.name}</span>
-              <span style="font-size: 0.78rem; font-weight: 600; color: ${_col}; white-space: nowrap; margin-left: 8px;">${item.completedCount}/${n}</span>
+              <span style="font-size: 0.78rem; font-weight: 600; color: ${_col}; white-space: nowrap; margin-left: 8px;">${item.completedCount}/${_tot}${_tot < n ? ' <span style="font-weight:400;color:var(--text-muted);font-size:0.68rem;" title="Applies only to the systems this check is relevant to (ONTAP-only checks exclude E-Series/StorageGRID)">(applicable)</span>' : ''}</span>
             </div>
             ${item.detail ? `<div style="font-size: 0.68rem; color: var(--text-muted); margin-bottom: 3px;">${item.detail}</div>` : ''}
             <div style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;">
@@ -14143,9 +14191,9 @@ function renderCSMTab() {
     }
 
     const _leftPassTotal  = _leftChecks.reduce((s, c) => s + c.completedCount, 0);
-    const _leftMaxTotal   = _leftChecks.length * _n;
+    const _leftMaxTotal   = _leftChecks.reduce((s, c) => s + (c.total != null ? c.total : _n), 0);
     const _rightPassTotal = _rightChecks.reduce((s, c) => s + c.completedCount, 0);
-    const _rightMaxTotal  = _rightChecks.length * _n;
+    const _rightMaxTotal  = _rightChecks.reduce((s, c) => s + (c.total != null ? c.total : _n), 0);
 
     document.getElementById('csmAdoptionChecklist').innerHTML = _renderCheckColumn(_leftChecks, _n);
     const _rightEl = document.getElementById('csmAdoptionChecklistRight');
@@ -14483,7 +14531,7 @@ function renderCSMTab() {
   // Single-system checklist — 25 categorised remediation checks (see the
   // aggregate version above for why this lives in the CSM tab)
   const _sLatestOntap = SOFTWARE_VERSION_DATABASES.ontap[SOFTWARE_VERSION_DATABASES.ontap.length - 1];
-  const _sCurVer     = sys.ontapVersion || sys.santricityVersion || 'N/A';
+  const _sCurVer     = sys.ontapVersion || sys.santricityVersion || sys.osVersion || 'N/A';
   const _sHasUpgrade = !!(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date');
   const _sAsup       = sys.autosupport || {};
   const _sIsEOA      = _getEoaPlatforms().some(p => (sys.platform || sys.model || '').toUpperCase().includes(p.toUpperCase()));
@@ -14491,8 +14539,10 @@ function renderCSMTab() {
   const _sCritH      = (sys.risks || []).filter(r => r.severity === 'critical' || r.severity === 'high');
   const _sCrit       = _sCritH.filter(r => r.severity === 'critical').length;
   const _sHigh       = _sCritH.filter(r => r.severity === 'high').length;
-  const _sIsSG       = (sys.platform || '').toLowerCase().includes('storagegrid');
-  const _sIsES       = (sys.platform || '').toLowerCase().includes('e-series') || (sys.platform || '').toLowerCase().includes('ef6') || (sys.platform || '').toLowerCase().includes('ef3');
+  const _sFam        = _platformFamily(sys);
+  const _sIsOnt      = _sFam === 'ontap';
+  const _sFamName    = _sFam === 'eseries' ? 'E-Series' : _sFam === 'storagegrid' ? 'StorageGRID' : 'ONTAP';
+  const _sNA         = `Not applicable to ${_sFamName}`;
   const _sPorts      = ((sys.networkPorts || {}).networkPorts || []);
   const _sDownPorts  = _sPorts.filter(p => p.link === 'down' && p.role && p.role !== 'node_mgmt');
   const _sFwRisks    = (sys.risks || []).filter(r => {
@@ -14514,7 +14564,7 @@ function renderCSMTab() {
   const _sLeftChecks = [
     // SOFTWARE & PLATFORM
     { cat: 'SOFTWARE \u0026 PLATFORM',
-      name: `OS on Recommended Version (target: ONTAP ${_sLatestOntap})`,
+      name: _osCheckLabel(new Set([_sFam]), _sLatestOntap),
       ok: !_sHasUpgrade,
       detail: _sHasUpgrade ? `${_sCurVer} \u2192 ${sys.upgrades.targetVersion} upgrade recommended` : `${_sCurVer} \u2014 on target`
     },
@@ -14529,35 +14579,37 @@ function renderCSMTab() {
     // INFRASTRUCTURE HEALTH
     { cat: 'INFRASTRUCTURE HEALTH',
       name: 'Storage Efficiency \u2265 1.5:1 (dedup + compression)',
-      ok: parseFloat(((sys.efficiency || {}).ratio || '1:1').split(':')[0]) > 1.5 || _sIsES || _sIsSG,
-      detail: _sIsES || _sIsSG ? 'N/A \u2014 platform manages efficiency at controller level' : `Current ratio: ${(sys.efficiency || {}).ratio || 'N/A'}`
+      na: !_sIsOnt,
+      ok: parseFloat(((sys.efficiency || {}).ratio || '1:1').split(':')[0]) > 1.5,
+      detail: !_sIsOnt ? `${_sNA} (no dedupe/compression ratio is reported)` : `Current ratio: ${(sys.efficiency || {}).ratio || 'N/A'}`
     },
-    { name: 'Aggregate Capacity Headroom \u2265 20%',
-      ok: (() => {
-        const _u = sys.efficiency && sys.efficiency.usableCapacityTB > 0 ? sys.efficiency.usableCapacityTB : 0;
-        const _p = sys.efficiency ? (sys.efficiency.physicalUsedTB || 0) : 0;
-        return _u > 0 ? ((_u - _p) / _u) * 100 >= 20 : true;
-      })(),
+    { name: 'Capacity Headroom \u2265 20%',
+      na: _capacityHeadroomPct(sys) == null,
+      ok: (() => { const _h = _capacityHeadroomPct(sys); return _h == null ? true : _h >= 20; })(),
       detail: (() => {
-        const _u = sys.efficiency && sys.efficiency.usableCapacityTB > 0 ? sys.efficiency.usableCapacityTB : 0;
-        const _p = sys.efficiency ? (sys.efficiency.physicalUsedTB || 0) : 0;
-        if (_u === 0) return 'Capacity data unavailable';
-        const pct = Math.round(((_u - _p) / _u) * 100);
-        return `${_p.toFixed(1)} TB used / ${_u.toFixed(1)} TB usable \u2014 ${pct}% headroom`;
+        const _h = _capacityHeadroomPct(sys);
+        if (_h == null) return 'Capacity data not reported by Active IQ for this system';
+        const g = sys.storagegridCapacity, e = sys.eseriesCapacity;
+        if (g && g.totalTB > 0) return `${g.usedPct}% of ${g.totalTB.toFixed(1)} TiB grid used \u2014 ${g.remainingTB.toFixed(1)} TiB remaining (${Math.round(_h)}%)`;
+        if (e && e.totalTB > 0) return `${(e.freeTB + (e.unconfiguredTB || 0)).toFixed(1)} TiB free or unconfigured of ${e.totalTB.toFixed(1)} TiB raw \u2014 ${Math.round(_h)}% headroom`;
+        const _u = sys.efficiency.usableCapacityTB, _p = sys.efficiency.physicalUsedTB || 0;
+        return `${_p.toFixed(1)} TB used / ${_u.toFixed(1)} TB usable \u2014 ${Math.round(_h)}% headroom`;
       })()
     },
     { name: 'HA Pair Configured (No Single Point of Failure)',
-      ok: _sIsSG || _sIsES || sys.haConfigured === true || sys.haConfigured === null,
+      na: !_sIsOnt,
+      ok: sys.haConfigured === true || sys.haConfigured === null,
       detail: (() => {
-        if (_sIsSG || _sIsES) return 'N/A \u2014 platform does not use traditional HA pairs';
+        if (!_sIsOnt) return `${_sNA} (ONTAP HA-pair concept)`;
         if (sys.haConfigured === true) return 'HA pair active \u2014 automatic failover enabled';
         if (sys.haConfigured === false) return 'No HA pair \u2014 single node, SPOF risk';
         return 'HA status unknown \u2014 verify with: storage failover show';
       })()
     },
     { name: 'Network Port Health (no link-down on active ports)',
+      na: !_sIsOnt,
       ok: _sDownPorts.length === 0,
-      detail: _sDownPorts.length > 0 ? `${_sDownPorts.length} port(s) link-down \u2014 check cabling` : 'All active ports operational'
+      detail: !_sIsOnt ? `${_sNA} (port data comes from ONTAP)` : _sDownPorts.length > 0 ? `${_sDownPorts.length} port(s) link-down \u2014 check cabling` : 'All active ports operational'
     },
     { name: 'AutoSupport Configured',
       ok: _getAsupConfiguredState(sys) !== false,
@@ -14571,20 +14623,23 @@ function renderCSMTab() {
     // SECURITY & COMPLIANCE
     { cat: 'SECURITY \u0026 COMPLIANCE',
       name: 'No Active Security CVEs Applicable (PSIRT)',
+      na: !_sIsOnt,
       ok: _sCVEs.length === 0,
-      detail: _sCVEs.length > 0
+      detail: !_sIsOnt ? `${_sNA} \u2014 this tool's advisory matching only evaluates ONTAP versions; check security.netapp.com for ${_sFamName}` : _sCVEs.length > 0
         ? `${_sCVEs.length} active: ${_sCVEs.slice(0, 3).map(b => b.cve || b.id || '').filter(Boolean).join(', ')}${_sCVEs.length > 3 ? ` +${_sCVEs.length - 3} more` : ''}`
         : 'No active advisories for this version'
     },
     { name: 'No CISA KEV Active Exploitation Alerts',
+      na: !_sIsOnt,
       ok: _sCisaHits.length === 0,
-      detail: _sCisaHits.length > 0 ? `${_sCisaHits.length} CVE(s) on CISA Known Exploited Vulnerabilities list` : 'No actively exploited CVEs applicable'
+      detail: !_sIsOnt ? `${_sNA} \u2014 advisory matching only evaluates ONTAP versions` : _sCisaHits.length > 0 ? `${_sCisaHits.length} CVE(s) on CISA Known Exploited Vulnerabilities list` : 'No actively exploited CVEs applicable'
     },
 
     { name: 'Anti-Ransomware Protection (ARP) Active',
-      ok: sys.isARPEnabled === true || sys.isARPEnabled === null || _sIsSG || _sIsES,
+      na: !_sIsOnt,
+      ok: sys.isARPEnabled === true || sys.isARPEnabled === null,
       detail: (() => {
-        if (_sIsSG || _sIsES) return 'N/A \u2014 ARP is an ONTAP NAS feature';
+        if (!_sIsOnt) return `${_sNA} (ARP is an ONTAP NAS feature)`;
         if (sys.isARPEnabled === true) return 'ARP active \u2014 entropy analysis monitoring enabled on volumes';
         if (sys.isARPEnabled === false) return 'ARP not enabled \u2014 enable via: security anti-ransomware volume enable';
         return 'ARP status unavailable from API \u2014 verify on-cluster';
@@ -14629,20 +14684,24 @@ function renderCSMTab() {
     // DATA PROTECTION
     { cat: 'DATA PROTECTION',
       name: 'SnapMirror Async/Sync Replication Configured',
+      na: !_sIsOnt,
       ok: !!(sys.snapmirror && sys.snapmirror.enabled),
-      detail: (sys.snapmirror && sys.snapmirror.enabled) ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
+      detail: !_sIsOnt ? `${_sNA} (ONTAP replication)` : (sys.snapmirror && sys.snapmirror.enabled) ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
     },
     { name: 'Cloud FabricPool / Cold-Data Tiering Active',
+      na: !_sIsOnt,
       ok: fpTiered > 0,
-      detail: fpTiered > 0 ? `${(fpTiered || 0).toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
+      detail: !_sIsOnt ? `${_sNA} (FabricPool is an ONTAP feature)` : fpTiered > 0 ? `${(fpTiered || 0).toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
     },
     { name: 'SVM/LIF Inventory Mapped',
+      na: !_sIsOnt,
       ok: _sSvms.length > 0,
-      detail: _sSvms.length > 0 ? `${_sSvms.length} SVM(s) with LIF mappings available` : 'No SVM/LIF data \u2014 enable vserver GraphQL harvesting'
+      detail: !_sIsOnt ? `${_sNA} (SVMs are an ONTAP concept)` : _sSvms.length > 0 ? `${_sSvms.length} SVM(s) with LIF mappings available` : 'No SVM/LIF data \u2014 enable vserver GraphQL harvesting'
     },
     { name: 'No Excessive FlexClone Sprawl (\u226410 clones)',
+      na: !_sIsOnt,
       ok: _sCloneCount <= 10,
-      detail: _sCloneCount > 10 ? `${_sCloneCount} FlexClones \u2014 review for cleanup` : _sCloneCount > 0 ? `${_sCloneCount} FlexClone(s) \u2014 within threshold` : 'No FlexClone data or none present'
+      detail: !_sIsOnt ? `${_sNA} (FlexClone is an ONTAP feature)` : _sCloneCount > 10 ? `${_sCloneCount} FlexClones \u2014 review for cleanup` : _sCloneCount > 0 ? `${_sCloneCount} FlexClone(s) \u2014 within threshold` : 'No FlexClone data or none present'
     },
     // RISK & REMEDIATION
     { cat: 'RISK \u0026 REMEDIATION',
@@ -14651,12 +14710,14 @@ function renderCSMTab() {
       detail: _sCritH.length > 0 ? `${_sCrit} critical, ${_sHigh} high \u2014 remediation required` : 'No critical or high risks'
     },
     { name: 'Feature Adoption Score \u2265 60%',
+      na: !_sIsOnt,
       ok: _sAdoptScore ? _sAdoptScore.pct >= 60 : true,
-      detail: _sAdoptScore ? `Adoption score: ${_sAdoptScore.pct}% (${_sAdoptScore.passed}/${_sAdoptScore.total} features)` : 'Adoption data unavailable'
+      detail: !_sIsOnt ? `${_sNA} (score covers ONTAP features)` : _sAdoptScore ? `Adoption score: ${_sAdoptScore.pct}% (${_sAdoptScore.passed}/${_sAdoptScore.total} features)` : 'Adoption data unavailable'
     },
     { name: 'No Config Drift (unassigned ports \u2264 2)',
+      na: !_sIsOnt,
       ok: _sUnassigned.length <= 2 || _sPorts.length === 0,
-      detail: _sUnassigned.length > 2 ? `${_sUnassigned.length} ports without broadcast domain assignment` : 'Network configuration consistent'
+      detail: !_sIsOnt ? `${_sNA} (broadcast-domain config is ONTAP)` : _sUnassigned.length > 2 ? `${_sUnassigned.length} ports without broadcast domain assignment` : 'Network configuration consistent'
     },
     { name: 'MTTR Posture (no stale cases \u003e 90 days)',
       ok: _sStaleCases.length === 0,
@@ -14683,6 +14744,17 @@ function renderCSMTab() {
       if (item.cat) {
         html += `<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);padding:8px 10px 3px;border-top:1px solid rgba(129,140,248,0.12);margin-top:2px;opacity:0.7;">${item.cat}</div>`;
       }
+      if (item.na) {
+        html += `
+        <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color); opacity: 0.6;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px;">
+            <span style="font-size: 0.78rem; flex: 1;">${item.name}</span>
+            <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); flex-shrink: 0;">N/A</span>
+          </div>
+          <div style="font-size: 0.68rem; color: var(--text-muted);">${item.detail}</div>
+        </div>`;
+        return;
+      }
       const _col = item.ok ? 'var(--status-normal)' : 'var(--status-critical)';
       const _dCol = item.ok ? 'var(--text-muted)' : 'var(--status-warning)';
       html += `
@@ -14698,8 +14770,10 @@ function renderCSMTab() {
     return html;
   }
 
-  const _sLeftPass  = _sLeftChecks.filter(c => c.ok).length;
-  const _sRightPass = _sRightChecks.filter(c => c.ok).length;
+  const _sLeftApplicable  = _sLeftChecks.filter(c => !c.na);
+  const _sRightApplicable = _sRightChecks.filter(c => !c.na);
+  const _sLeftPass  = _sLeftApplicable.filter(c => c.ok).length;
+  const _sRightPass = _sRightApplicable.filter(c => c.ok).length;
 
   document.getElementById('csmAdoptionChecklist').innerHTML = _renderSingleCheckCol(_sLeftChecks);
   const _sRightEl = document.getElementById('csmAdoptionChecklistRight');
@@ -14707,9 +14781,9 @@ function renderCSMTab() {
 
   // Update column score headers
   const _sLeftScoreEl = document.getElementById('csmCheckLeftScore');
-  if (_sLeftScoreEl) _sLeftScoreEl.textContent = `${_sLeftPass}/${_sLeftChecks.length} passed`;
+  if (_sLeftScoreEl) _sLeftScoreEl.textContent = `${_sLeftPass}/${_sLeftApplicable.length} passed`;
   const _sRightScoreEl = document.getElementById('csmCheckRightScore');
-  if (_sRightScoreEl) _sRightScoreEl.textContent = `${_sRightPass}/${_sRightChecks.length} passed`;
+  if (_sRightScoreEl) _sRightScoreEl.textContent = `${_sRightPass}/${_sRightApplicable.length} passed`;
 
   // Render Projections & Forecasting Metrics & Line Chart
   const proj = sys.projections || { growthRateGBPerDay: 0, daysToLimit: null, limitDate: null, peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [], growthSource: 'unavailable' };
@@ -15355,9 +15429,16 @@ function computeAccountHealthScore(targetSystems) {
     const d = new Date(s.latestAsupDate);
     return !isNaN(d) && (now - d.getTime()) <= sevenDaysMs;
   }).length / total;
-  // ARP enablement — use total fleet as denominator; unknown-status systems count as unprotected
-  const arpKnownSys = targetSystems.filter(s => s.isARPEnabled != null);
-  const arpPct = total > 0 ? arpKnownSys.filter(s => s.isARPEnabled === true).length / total : 0;
+  // ONTAP-only components. ARP and data-reduction efficiency are ONTAP features:
+  // dividing by the whole fleet meant E-Series/StorageGRID systems could never
+  // earn the ARP points and were scored as a 1:1 efficiency ratio, capping an
+  // E-Series-only customer around 86/100 through no fault of their own. Score
+  // them over the ONTAP systems only, and drop the component entirely (weights
+  // re-normalised below) when the scope has no ONTAP systems.
+  const ontapSys = targetSystems.filter(s => _platformFamily(s) === 'ontap');
+  const nOntap = ontapSys.length;
+  // ARP enablement — ONTAP systems as denominator; unknown-status systems count as unprotected
+  const arpPct = nOntap > 0 ? ontapSys.filter(s => s.isARPEnabled === true).length / nOntap : 0;
   // Firmware currency
   const fwPct = targetSystems.filter(s => s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin)).length / total;
   // Hardware firmware currency (SP/MB/DQP/Drive composite)
@@ -15369,11 +15450,11 @@ function computeAccountHealthScore(targetSystems) {
   const critRisks = targetSystems.reduce((sum, s) => sum + (s.risks || []).filter(r => r.severity === 'critical').length, 0);
   const highRisks = targetSystems.reduce((sum, s) => sum + (s.risks || []).filter(r => r.severity === 'high').length, 0);
   const riskScore = Math.max(0, 1 - (critRisks * 0.15 + highRisks * 0.05));
-  // Efficiency (capped at 5:1 = perfect)
-  const avgEff = targetSystems.reduce((sum, s) => {
+  // Efficiency (capped at 5:1 = perfect) -- ONTAP systems only
+  const avgEff = nOntap > 0 ? ontapSys.reduce((sum, s) => {
     const r = (s.efficiency && s.efficiency.dataReductionRatio) ? parseFloat(String(s.efficiency.dataReductionRatio).split(':')[0]) : 1;
     return sum + Math.min(r, 5);
-  }, 0) / total / 5;
+  }, 0) / nOntap / 5 : 0;
   // Support Case Health (computed from real case data, normalized to 0-1 from 0-10)
   const avgCaseHealth = targetSystems.reduce((sum, s) => {
     const ch = computeSupportCaseHealth(s);
@@ -15381,10 +15462,14 @@ function computeAccountHealthScore(targetSystems) {
   }, 0) / total / 10;
 
   // Weights: ASUP 15 + ARP 12 + OS FW 12 + HW FW 8 + Contract 13 + Risk 20 + Efficiency 10 + Case Health 10 = 100
-  const score = Math.round(
-    asupPct * 15 + arpPct * 12 + fwPct * 12 + hwFwPct * 8 + contractPct * 13 +
-    riskScore * 20 + avgEff * 10 + avgCaseHealth * 10
-  );
+  // ARP (12) and Efficiency (10) are ONTAP-only: with no ONTAP systems in scope
+  // they don't apply, so score over the remaining weight instead of scoring 0.
+  const ontapWeight = nOntap > 0 ? 22 : 0;
+  const applicableWeight = 78 + ontapWeight;
+  const raw = asupPct * 15 + fwPct * 12 + hwFwPct * 8 + contractPct * 13 +
+    riskScore * 20 + avgCaseHealth * 10 +
+    (nOntap > 0 ? arpPct * 12 + avgEff * 10 : 0);
+  const score = Math.round(raw * 100 / applicableWeight);
   return Math.min(100, Math.max(0, score));
 }
 
@@ -15535,6 +15620,47 @@ function computeCapacityRAG(sys) {
 // IQ's System type has NO QoS/adaptive-policy field at all -- the QoS
 // column could never show real data for any customer, ever) as the 5th
 // tracked feature.
+// Product family of a system: 'ontap' | 'eseries' | 'storagegrid'.
+// Real E-Series systems report platform/model as a bare number ("2806",
+// "5760", "2812") -- never the strings "e-series"/"ef6" -- so substring tests
+// on those silently classified every real E-Series array as ONTAP and scored
+// it on ARP/SnapMirror/FabricPool/HA. StorageGRID appliance nodes (SG5712...)
+// are matched by _isPlatformStorageGRID first.
+function _platformFamily(s) {
+  if (!s) return 'ontap';
+  if (_isPlatformStorageGRID(s)) return 'storagegrid';
+  const p = String(s.platform || '').trim();
+  const m = String(s.model || '').trim();
+  const isNumericES = (v) => /^(28|29|40|57)\d{2}$/.test(v);
+  if (s.santricityVersion || s.eseriesCapacity || isNumericES(p) || isNumericES(m) ||
+      /e-series|santricity/i.test(p + ' ' + m + ' ' + (s.productType || '')) || /^ef\d{3}/i.test(p) || /^ef\d{3}/i.test(m)) return 'eseries';
+  return 'ontap';
+}
+
+// Free-capacity percentage, per family, or null when no capacity was reported
+// (null = not applicable/unknown, never a pass). StorageGRID and E-Series use
+// their own breakdowns: a grid's reserved-metadata space is NOT free, and an
+// array's free space is what is unallocated in groups/pools plus unconfigured
+// drives -- using the generic usable-vs-used figures would overstate headroom
+// (e.g. a grid with 0.6% remaining would show 4%).
+function _capacityHeadroomPct(s) {
+  const g = s && s.storagegridCapacity, e = s && s.eseriesCapacity;
+  if (g && g.totalTB > 0) return (g.remainingTB / g.totalTB) * 100;
+  if (e && e.totalTB > 0) return ((e.freeTB + (e.unconfiguredTB || 0)) / e.totalTB) * 100;
+  const u = s && s.efficiency && s.efficiency.usableCapacityTB > 0 ? s.efficiency.usableCapacityTB : 0;
+  if (u > 0) return ((u - ((s.efficiency || {}).physicalUsedTB || 0)) / u) * 100;
+  return null;
+}
+
+// Label for the OS-currency check that doesn't call everything "ONTAP".
+function _osCheckLabel(families, latestOntap) {
+  const ont = families.has('ontap');
+  const other = families.has('eseries') || families.has('storagegrid');
+  if (ont && !other) return `OS on Recommended Version (target: ONTAP ${latestOntap})`;
+  if (!ont) return 'OS on Recommended Version (per Active IQ recommendation)';
+  return `OS on Recommended Version (ONTAP target ${latestOntap}; SANtricity/StorageGRID per Active IQ)`;
+}
+
 function _getAsupConfiguredState(sys) {
   const st = (sys.asupStatus || '').toUpperCase();
   if (st === 'ON') return true;

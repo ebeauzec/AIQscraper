@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.78] - 2026-09-20
+
+### Fixed
+- **E-Series and StorageGRID customers were labelled and scored as ONTAP** in the Value & ROI checklists and the Health Score. The OS check read "target: ONTAP 9.19.1" beside a SANtricity upgrade, and E-Series arrays were scored on ARP, SnapMirror, FabricPool, HA pairs, SVM/LIF, FlexClone, efficiency ratio, port config and feature adoption. Root cause: the E-Series test was a substring match on `platform` ("e-series", "ef6"), but real systems report a bare model number (2806, 5760, 2812), so all were classified as ONTAP.
+- New `_platformFamily()` helper; every check states whether it applies. ONTAP-only checks show **N/A** and are excluded from pass counts for E-Series/StorageGRID (aggregate `13/163 (applicable)`, single system `3/4 passed`). PSIRT/CISA-KEV are N/A where the advisory engine can't evaluate the version (its `ontapVersion` input is empty for every E-Series/StorageGRID system, so they were passing as "no advisories" with nothing evaluated). Capacity Headroom uses each family's own capacity (E-Series free + unconfigured, StorageGRID remaining); systems with no capacity report are no longer counted as 100% free.
+- **Health Score** divided ARP (12 pts) by the whole fleet and scored non-ONTAP systems as a 1:1 efficiency ratio (10 pts). Both now use ONTAP systems only, weights re-normalised when the scope has none. Verified: ONTAP-only 43 → 43 and whole fleet 42 → 42 (unchanged); E-Series-only 52 → 64; StorageGRID-only 37 → 45.
+
+---
+
 ## [5.6.77] - 2026-09-20
 
 ### Fixed
