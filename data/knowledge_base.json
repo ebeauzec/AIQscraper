@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "lastUpdated": "2026-09-14",
-  "articleCount": 762,
+  "lastUpdated": "2026-09-20",
+  "articleCount": 824,
   "articles": [
     {
       "url": "https://kb.netapp.com/Interactive_and_resolution_guides",
@@ -7476,6 +7476,127 @@
       "source": "sitemap-discovery",
       "category": "console-well-architected",
       "discoveredAt": "2026-09-14"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap/ontap-security-hardening/security-hardening-overview.html",
+      "title": "",
+      "source": "docs.netapp.com",
+      "category": "documentation",
+      "accessible": true,
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/ontap-ems/",
+      "title": "ONTAP 9.19.1 EMS reference",
+      "source": "docs.netapp.com",
+      "category": "documentation",
+      "accessible": true,
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/account-deletion.html",
+      "title": "Account Deletion",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ai-controls-overview.html",
+      "title": "Ai Controls Overview",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ai-model-parameters-billing.html",
+      "title": "Ai Model Parameters Billing",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ai-tool-boundaries.html",
+      "title": "Ai Tool Boundaries",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/amazon-bedrock-opt-in.html",
+      "title": "Amazon Bedrock Opt In",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ask-me-access-control.html",
+      "title": "Ask Me Access Control",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ask-me-execution-modes.html",
+      "title": "Ask Me Execution Modes",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ask-me-privacy-availability.html",
+      "title": "Ask Me Privacy Availability",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/ask-me-security-architecture.html",
+      "title": "Ask Me Security Architecture",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/aws-account-integration.html",
+      "title": "Aws Account Integration",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/aws-credential-flow.html",
+      "title": "Aws Credential Flow",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/cloudwatch-monitoring-permissions.html",
+      "title": "Cloudwatch Monitoring Permissions",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/compliance-security-posture.html",
+      "title": "Compliance Security Posture",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/connectivity-trust-paths.html",
+      "title": "Connectivity Trust Paths",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
+    },
+    {
+      "url": "https://docs.netapp.com/us-en/workload-infosec/credential-retention.html",
+      "title": "Credential Retention",
+      "source": "sitemap-discovery",
+      "category": "workload-infosec",
+      "discoveredAt": "2026-09-20"
     }
   ]
 }

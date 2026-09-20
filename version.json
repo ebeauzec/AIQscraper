@@ -1,8 +1,8 @@
 {
-  "version": "5.6.73",
+  "version": "5.6.74",
   "major": 5,
   "minor": 6,
-  "patch": 73,
+  "patch": 74,
   "date": "2026-09-20",
-  "notes": "Removed the third-party vendor version scrapers (Veeam, Commvault, Veritas, vSphere, Hyper-V, RHV, OpenStack, Citrix, Proxmox, Nutanix) from the reference harvester: they regex-matched the first number on landing pages (Veeam scraped as 8.1 vs real 12.3), several 401/403 bot traffic, and the bad values overwrote curated versions in imt_interop.json -- silently disabling the interop check for six vendors. Repaired the stored values; only NetApp-owned sources are harvested now."
+  "notes": "Harvest no longer discards valid data when Active IQ returns partial GraphQL errors (a null/NaN field on one or two systems): it kept treating them as total failure and dropped the whole account to a thinner query tier, losing monthlyCapacity and utilization % for every system. Now keeps the returned systems (verified: TAM tier succeeds, 167 systems). Also removed the always-failing Cisco FlexPod CVD fetch."
 }

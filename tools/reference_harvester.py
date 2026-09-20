@@ -929,30 +929,6 @@ def harvest_cloud_provider_docs():
     return results
 
 
-def harvest_cisco_flexpad_cvds():
-    """Probe Cisco.com for FlexPod Cisco Validated Designs."""
-    logger.info("Starting FlexPod CVD harvest...")
-    results = []
-    try:
-        # FlexPod design guides are typically at:
-        url = "https://www.cisco.com/c/en/us/solutions/design-zone/data-center-design-guides/flexpod-design-guides.html"
-        html = _fetch_url(url, timeout=12)
-        if html:
-            links = _extract_links(html)
-            for href, text in links:
-                if ('flexpod' in text.lower() or 'netapp' in text.lower()) and len(text) > 15:
-                    full_url = href if href.startswith('http') else f"https://www.cisco.com{href}"
-                    results.append({
-                        'url': full_url,
-                        'title': text.strip()[:200],
-                        'source': 'cisco.com',
-                    })
-    except Exception as e:
-        logger.warning(f"FlexPod CVD harvest failed: {e}")
-
-    return results
-
-
 # ============================================================================
 # ORCHESTRATOR
 # ============================================================================
@@ -1255,18 +1231,8 @@ def run_reference_harvest(data_dir=None, dry_run=False,
         except Exception as e:
             logger.warning(f"Cloud docs harvest failed: {e}")
 
-        # FlexPod CVDs
-        try:
-            cvds = harvest_cisco_flexpad_cvds()
-            if cvds:
-                changes['flexpod_cvds'] = len(cvds)
-                eco_sources['flexpod'] = {
-                    'lastChecked': date.today().isoformat(),
-                    'cvds': cvds[:20],  # Cap at 20 entries
-                }
-                eco_changed = True
-        except Exception as e:
-            logger.warning(f"FlexPod CVD harvest failed: {e}")
+        # (FlexPod CVD harvest removed: the Cisco page fails TLS verification
+        # every cycle and had never written a result to ecosystem.json.)
 
         # Persist ecosystem data
         if eco_changed:

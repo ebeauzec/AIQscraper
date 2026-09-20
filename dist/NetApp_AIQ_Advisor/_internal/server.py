@@ -1831,8 +1831,24 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         print(f"  [HARVEST] Watchlist not found (stale ID?): {err_msg[:200]}", flush=True)
                         break
                     elif page == 1:
-                        print(f"  [HARVEST] GraphQL errors: {err_msg[:200]}", flush=True)
-                        break
+                        # Active IQ returns HTTP 200 with BOTH data and an errors
+                        # array when a few systems have a null/NaN numeric field
+                        # ("Float cannot represent non numeric value") or a
+                        # sub-resolver times out: the affected field/object is
+                        # nulled for that system only, the rest is intact.
+                        # Treating any error as fatal discarded ~100 valid
+                        # systems and dropped the whole fleet to a thinner
+                        # tier, losing monthlyCapacity + utilization % for
+                        # every system over one or two bad ones. Only give up
+                        # when no systems came back at all.
+                        _n_err = len(sys_resp["errors"])
+                        _got = ((sys_resp.get("data") or {}).get("systems") or {}).get("systems")
+                        if not _got:
+                            print(f"  [HARVEST] GraphQL errors: {err_msg[:200]}", flush=True)
+                            break
+                        print(f"  [HARVEST] Partial GraphQL errors ({_n_err}, e.g. \"{err_msg[:80]}\") "
+                              f"-- keeping the {len(_got)} systems returned; affected fields are null "
+                              f"for those systems only", flush=True)
                 sys_data = (sys_resp.get("data") or {}).get("systems") or {}
                 if not isinstance(sys_data, dict):
                     break

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.74] - 2026-09-20
+
+### Fixed
+- **Partial GraphQL errors were treated as total failure.** `Float cannot represent non numeric value: null` (or a sub-resolver `TIMEOUT-ERROR`) arrives with HTTP 200 alongside real data — only the affected field is nulled for those systems. The harvester discarded ~100 valid systems on any page-1 error and re-queried a thinner tier (no `monthlyCapacity`, no utilization %) for the entire account. Live comparison on 100 systems: the partial TAM response matched the fallback on every field and added `monthlyCapacity` (81 systems) and utilization % (79). It now keeps the returned systems and only falls back when none come back. Verified: `TAM (full) query succeeded: 167 systems`.
+
+### Removed
+- **FlexPod CVD harvest**: failed TLS verification against cisco.com every cycle and had never written a result. Full crawl re-run after the fixes (reference library, sitemap discovery 267 sections, knowledge base 839 articles): zero HTTP errors.
+
+---
+
 ## [5.6.73] - 2026-09-20
 
 ### Fixed

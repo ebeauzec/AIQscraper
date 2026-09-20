@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-14",
+  "lastUpdated": "2026-09-20",
   "knownSlugs": [
     "about",
     "active-iq",
@@ -265,12 +265,11 @@
     "workload-family",
     "workload-fsx-ontap",
     "workload-genai",
+    "workload-infosec",
     "workload-relnotes",
     "workload-setup-admin",
     "workload-vmware",
     "xcp"
   ],
-  "lastNewSlugs": [
-    "console-well-architected"
-  ]
+  "lastNewSlugs": []
 }
