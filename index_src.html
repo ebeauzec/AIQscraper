@@ -612,6 +612,10 @@
           <!-- Fleet Uptime & Downtime Rollup -->
         </div>
 
+        <div class="card" id="csmPerfCard" style="margin-bottom: 32px; display: none;">
+          <!-- StoragePerf (Plumb) measured performance -->
+        </div>
+
         <!-- Capacity and Performance Projections / Trends line graph -->
         <div class="card" style="margin-bottom: 32px; display: flex; flex-direction: column;">
           <div class="table-header-row" style="margin-bottom: 16px;">
@@ -924,6 +928,7 @@
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; position: sticky; top: 0; z-index: 5; background-color: var(--bg-primary); padding: 8px 0;">
           <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionConnection').scrollIntoView({behavior:'smooth'})">🔑 Connection &amp; Sync</button>
           <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionFleet').scrollIntoView({behavior:'smooth'})">🗂️ Fleet Configuration</button>
+          <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsPerfHost').scrollIntoView({behavior:'smooth'})">⚡ StoragePerf</button>
           <button class="action-btn secondary" style="font-size: 0.78rem;" onclick="document.getElementById('settingsSectionAdvanced').scrollIntoView({behavior:'smooth'})">⚙️ Advanced</button>
         </div>
 
@@ -1295,6 +1300,8 @@
         </div>
 
         <!-- ── Section: Advanced ─────────────────────────────── -->
+        <div id="settingsPerfHost"></div>
+
         <div id="settingsSectionAdvanced" class="settings-section-label" style="margin-top: 24px; scroll-margin-top: 90px;">Advanced</div>
 
         <!-- Accordion: Metadata Editor -->
