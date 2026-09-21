@@ -45,6 +45,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 import html
 import urllib.parse
+import perf_integration
 
 
 # ASUP offline import parser (stdlib-only core, py7zr optional)
@@ -685,6 +686,8 @@ def _run_db_schema_setup(db):
             created_at      TEXT NOT NULL
         );
     """)
+    # StoragePerf (Plumb) performance integration -- see perf_integration.py
+    perf_integration.init_tables(db)
     # enrich_cache purge now happens in _maybe_purge_enrich_cache(), rate-
     # limited to once/hour rather than on every _init_db() call -- see there.
     # One-time migration: copy the legacy singleton harvest (id=1) into the
@@ -8087,6 +8090,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_list()
         elif self.path.startswith('/api/plan-progress'):
             self.handle_plan_progress_list()
+        elif self.path.startswith('/api/perf/'):
+            self.handle_perf('GET')
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -8439,6 +8444,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_upsert()
         elif self.path == '/api/plan-progress':
             self.handle_plan_progress_create()
+        elif self.path.startswith('/api/perf/'):
+            self.handle_perf('POST')
         elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
@@ -8451,6 +8458,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_delete()
         elif self.path.startswith('/api/plan-progress'):
             self.handle_plan_progress_delete()
+        elif self.path.startswith('/api/perf/'):
+            self.handle_perf('DELETE')
         else:
             self.send_error(404, "Not Found")
 
@@ -9310,6 +9319,74 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             print(f"  [PLAN-PROGRESS] Delete error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e)})
 
+    def handle_perf(self, method):
+        """StoragePerf (Plumb) integration -- sources, pull, file import, snapshots.
+        GET    /api/perf/sources | /api/perf/latest | /api/perf/snapshots[?customer=]
+        POST   /api/perf/sources | /api/perf/test | /api/perf/pull | /api/perf/import
+        DELETE /api/perf/sources?id= | /api/perf/snapshots?id=
+        Read-only towards StoragePerf and Active IQ; only ARIA's own SQLite tables are written."""
+        from urllib.parse import urlparse, parse_qs
+        try:
+            parsed = urlparse(self.path)
+            route = parsed.path[len('/api/perf/'):].strip('/')
+            params = parse_qs(parsed.query)
+            body = {}
+            if method == 'POST':
+                length = int(self.headers.get("Content-Length", 0))
+                if length > perf_integration.MAX_PAYLOAD_BYTES + 65536:
+                    self._json_response(413, {"ok": False, "error": "That file is too large to import."})
+                    return
+                body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            db = _init_db()
+            try:
+                if method == 'GET' and route == 'sources':
+                    self._json_response(200, {"ok": True, "sources": perf_integration.list_sources(db)})
+                elif method == 'GET' and route == 'latest':
+                    self._json_response(200, {"ok": True, "snapshots": perf_integration.latest_snapshots(db)})
+                elif method == 'GET' and route == 'snapshots':
+                    self._json_response(200, {"ok": True, "snapshots": perf_integration.list_snapshots(
+                        db, (params.get("customer") or [None])[0])})
+                elif method == 'POST' and route == 'sources':
+                    sid = perf_integration.upsert_source(db, body)
+                    self._json_response(200, {"ok": True, "id": sid})
+                elif method == 'POST' and route == 'test':
+                    src = perf_integration.get_source(db, body["id"]) if body.get("id") else None
+                    token = body.get("token") or (src or {}).get("token", "")
+                    verify = body.get("verifyTls", (src or {}).get("verifyTls", True))
+                    self._json_response(200, perf_integration.test_source(body.get("baseUrl") or (src or {}).get("baseUrl", ""), token, verify))
+                elif method == 'POST' and route == 'pull':
+                    src = perf_integration.get_source(db, body.get("id"))
+                    if not src:
+                        self._json_response(404, {"ok": False, "error": "Unknown source."})
+                    else:
+                        try:
+                            snap_id = perf_integration.pull_source(db, src)
+                            self._json_response(200, {"ok": True, "snapshotId": snap_id})
+                        except ValueError as exc:
+                            self._json_response(200, {"ok": False, "error": str(exc)})
+                elif method == 'POST' and route == 'import':
+                    try:
+                        snap_id = perf_integration.store_snapshot(
+                            db, body.get("payload"), body.get("customerName"), "import", filename=(body.get("filename") or "")[:200])
+                        self._json_response(200, {"ok": True, "snapshotId": snap_id})
+                    except ValueError as exc:
+                        self._json_response(200, {"ok": False, "error": str(exc)})
+                elif method == 'DELETE' and route == 'sources':
+                    perf_integration.delete_source(db, int((params.get("id") or ["0"])[0]))
+                    self._json_response(200, {"ok": True})
+                elif method == 'DELETE' and route == 'snapshots':
+                    perf_integration.delete_snapshot(db, int((params.get("id") or ["0"])[0]))
+                    self._json_response(200, {"ok": True})
+                else:
+                    self._json_response(404, {"ok": False, "error": "Unknown perf endpoint"})
+            finally:
+                db.close()
+        except ValueError as e:
+            self._json_response(200, {"ok": False, "error": str(e)})
+        except Exception as e:
+            print(f"  [PERF] Handler error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
     def handle_config_get(self):
         """GET /api/config — return current config (without sensitive tokens)."""
         try:
@@ -10028,6 +10105,9 @@ if __name__ == '__main__':
             print(f"  [STARTUP] Advisory scan failed: {_scan_err}", flush=True)
 
     threading.Thread(target=_startup_advisory_scan, daemon=True, name="startup-advisory-scan").start()
+
+    # StoragePerf (Plumb) integration: pull whichever customer sources are due
+    perf_integration.PerfPuller(_init_db).start()
 
     # Start enrichment scheduler
     try:

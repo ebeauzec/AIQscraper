@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.80";
+const APP_VERSION = "5.6.81";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.81",
+    date: "21 September 2026",
+    title: "StoragePerf Integration -- Measured Performance in Proactive Reports",
+    sections: [
+      {
+        icon: "⚡",
+        label: "New -- Add Measured Performance From the Customer's StoragePerf",
+        color: "#38bdf8",
+        items: [
+          "Active IQ says what a system is and what NetApp saw in its last AutoSupport; it can't say how the system is performing or whether a slowdown is the array or the network path. A customer's StoragePerf (0.21.0 or later) measures exactly that on site. ARIA now takes its snapshot two ways: DIRECT PULL when the customer's StoragePerf is reachable (Settings > StoragePerf Integration: customer, address, optional token, schedule, period; Test and Pull now), or FILE IMPORT when it is not (dark site, no VPN): upload the export file StoragePerf produces. Every snapshot is kept as history per customer. Read-only in both directions.",
+          "Arrays are matched to Active IQ systems by node serial number (exact; StoragePerf reads ONTAP node serials), then cluster name, then name. Arrays that can't be matched are listed rather than dropped. Demo-fleet data from a StoragePerf running in mock mode is refused so it can never be filed against a real customer, and a newer, incompatible export schema is rejected with an explanation.",
+          "Where it shows: Action Planner > 16. Performance (health per array, latency avg/p95 and trend, worst metric, capacity runway, findings with investigate/remediate steps, EMS events, 'look upstream' calls); a card on Value & ROI (per customer, or per system with its findings); and a Performance & Capacity Runway section in the QBR pack, MSP service report and customer success plan. Customers with no StoragePerf snapshot see none of it.",
+          "Demo mode includes StoragePerf snapshots for nine demo customers (some pulled, some imported, none for the rest) and serves the same endpoints from memory, so the whole flow -- test, pull, import, delete -- can be demonstrated without a StoragePerf.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.80",
     date: "21 September 2026",
@@ -6486,6 +6504,340 @@ let state = {
 window.state = state;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// STORAGEPERF (Plumb) PERFORMANCE INTEGRATION
+//
+// Active IQ says what a system IS and what NetApp saw in its AutoSupport; it can't
+// say how the system is PERFORMING or whether a slowness complaint is the array or
+// the path in front of it. StoragePerf measures that on the customer's site and
+// publishes a versioned JSON snapshot ("plumb.aria-export/1"). ARIA gets it two
+// ways -- pulled from the customer's StoragePerf (sources, see Settings) or imported
+// from a downloaded file -- stores it per customer (server: perf_integration.py) and
+// matches arrays to systems by node serial number, then cluster name, then name.
+// Read-only in both directions: nothing is written to StoragePerf or Active IQ.
+// ═══════════════════════════════════════════════════════════════════════════
+state.perf = state.perf || { sources: [], snapshots: [], loaded: false, editing: null };
+
+async function loadPerfData() {
+  try {
+    const [l, s] = await Promise.all([
+      fetch('/api/perf/latest', { cache: 'no-store' }).then(r => r.json()),
+      fetch('/api/perf/sources', { cache: 'no-store' }).then(r => r.json())
+    ]);
+    state.perf.snapshots = l && l.ok ? (l.snapshots || []) : [];
+    state.perf.sources = s && s.ok ? (s.sources || []) : [];
+  } catch (e) {
+    state.perf.snapshots = []; state.perf.sources = [];
+  }
+  state.perf.loaded = true;
+}
+
+const _pfNorm = v => String(v == null ? '' : v).trim().toLowerCase();
+function _pfSnapshotFor(customerName) {
+  return (state.perf.snapshots || []).find(s => _pfNorm(s.customerName) === _pfNorm(customerName)) || null;
+}
+
+// The array a system belongs to. Serial number is exact; cluster name and display name
+// are the fallbacks (E-Series / StorageGRID publish no serials, ONTAP identity can be
+// unavailable when the cluster didn't answer Plumb).
+function getSystemPerf(sys) {
+  const snap = _pfSnapshotFor(sys.customerName);
+  if (!snap || !snap.payload) return null;
+  const arrays = snap.payload.arrays || [];
+  const serial = String(sys.serialNumber || ''), cn = _pfNorm(sys.clusterName), sn = _pfNorm(sys.systemName);
+  let hit = serial ? arrays.find(a => a.identity && (a.identity.nodes || []).some(n => String(n.serial_number) === serial)) : null;
+  let by = 'serial number';
+  if (!hit && cn) { hit = arrays.find(a => a.identity && _pfNorm(a.identity.cluster_name) === cn); by = 'cluster name'; }
+  if (!hit) { hit = arrays.find(a => [a.name, a.id].some(v => _pfNorm(v) && (_pfNorm(v) === cn || _pfNorm(v) === sn))); by = 'name'; }
+  return hit ? { array: hit, snapshot: snap, matchedBy: by } : null;
+}
+
+function getScopePerf(systems) {
+  const customers = new Set((systems || []).map(s => _pfNorm(s.customerName)));
+  const snaps = (state.perf.snapshots || []).filter(s => customers.has(_pfNorm(s.customerName)));
+  const matched = new Map();
+  (systems || []).forEach(s => {
+    const m = getSystemPerf(s);
+    if (!m) return;
+    const key = m.snapshot.id + '|' + m.array.id;
+    if (!matched.has(key)) matched.set(key, { array: m.array, snapshot: m.snapshot, matchedBy: m.matchedBy, systems: [] });
+    matched.get(key).systems.push(s);
+  });
+  const unmatched = [];
+  snaps.forEach(sn => ((sn.payload && sn.payload.arrays) || []).forEach(a => { if (!matched.has(sn.id + '|' + a.id)) unmatched.push({ array: a, snapshot: sn }); }));
+  const rank = { critical: 0, watch: 1, unknown: 2, good: 3 };
+  const entries = [...matched.values()].sort((a, b) => (rank[a.array.health] ?? 2) - (rank[b.array.health] ?? 2));
+  return { entries, unmatched, snapshots: snaps };
+}
+
+const _PF_COLORS = { good: '#22c55e', watch: '#f59e0b', critical: '#ef4444', unknown: '#94a3b8' };
+const _pfBadge = h => `<span style="display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.68rem;font-weight:700;text-transform:uppercase;color:${_PF_COLORS[h] || _PF_COLORS.unknown};background:${(_PF_COLORS[h] || _PF_COLORS.unknown)}22;">${_esc(h || 'unknown')}</span>`;
+const _pfNum = (v, d = 1) => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const _pfAgeHours = snap => { const t = Date.parse(snap.generatedAt || (snap.payload || {}).generated_at); return isNaN(t) ? null : (Date.now() - t) / 3600000; };
+const _pfAgeText = snap => { const h = _pfAgeHours(snap); if (h == null) return 'unknown age'; if (h < 1) return 'just now'; if (h < 48) return Math.round(h) + 'h ago'; return Math.round(h / 24) + 'd ago'; };
+const _pfStale = snap => { const h = _pfAgeHours(snap); return h != null && h > Math.max(72, ((snap.payload || {}).period_hours || 0) * 1.5); };
+const _pfTrend = p => (p == null || Math.abs(p) < 5) ? '<span style="color:var(--text-muted);">flat</span>' :
+  p > 0 ? `<span style="color:#ef4444;">▲ ${_pfNum(p, 0)}%</span>` : `<span style="color:#22c55e;">▼ ${_pfNum(-p, 0)}%</span>`;
+const _pfDays = d => d < 14 ? Math.round(d) + ' days' : d < 90 ? Math.round(d / 7) + ' weeks' : Math.round(d / 30) + ' months';
+
+function _pfSpark(points, color, w = 120, h = 28) {
+  if (!points || points.length < 2) return '';
+  const ys = points.map(p => p[1]), min = Math.min(...ys), max = Math.max(...ys), span = (max - min) || 1;
+  const d = points.map((p, i) => (i ? 'L' : 'M') + (i / (points.length - 1) * w).toFixed(1) + ' ' + (h - 2 - ((p[1] - min) / span) * (h - 4)).toFixed(1)).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="vertical-align:middle;"><path d="${d}" fill="none" stroke="${color}" stroke-width="1.6"/></svg>`;
+}
+
+function _pfWorstMetric(a) {
+  const rank = { critical: 0, watch: 1, good: 2 };
+  return (a.metrics || []).filter(m => m.samples > 0).sort((x, y) => (rank[x.severity] ?? 2) - (rank[y.severity] ?? 2) || (y.critical_pct + y.watch_pct) - (x.critical_pct + x.watch_pct))[0] || null;
+}
+
+// ── Action Planner section ──────────────────────────────────────────────────
+function _renderPerformanceSection(systems) {
+  const sc = getScopePerf(systems);
+  const th = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.72rem;text-transform:uppercase;';
+  const td = 'padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.8rem;vertical-align:top;';
+  if (sc.snapshots.length === 0) {
+    return `<div style="padding:18px;border:1px dashed var(--border-color);border-radius:8px;font-size:0.85rem;color:var(--text-secondary);line-height:1.6;">
+      <strong style="color:var(--text-primary);">No StoragePerf data for this scope.</strong><br>
+      Active IQ reports what these systems are and what NetApp saw in their last AutoSupport. StoragePerf, running at the customer's site, adds how they are actually performing: latency, CPU, capacity growth and whether a slow-down is the array or the network path in front of it.<br>
+      Connect a customer's StoragePerf (direct pull) or import an export file it produced under <a href="#" onclick="switchTab('settings');setTimeout(()=>{const e=document.getElementById('settingsPerfHost');if(e)e.scrollIntoView({behavior:'smooth'})},200);return false;" style="color:var(--accent-cyan);">Settings &rarr; StoragePerf Integration</a>.</div>`;
+  }
+  const counts = { critical: 0, watch: 0, good: 0, unknown: 0 };
+  sc.entries.forEach(e => { counts[e.array.health || 'unknown'] = (counts[e.array.health || 'unknown'] || 0) + 1; });
+  const snapLine = sc.snapshots.map(s => `<strong>${_esc(s.customerName)}</strong>: StoragePerf ${_esc(s.plumbVersion || '')}${s.siteLabel ? ' (' + _esc(s.siteLabel) + ')' : ''}, ${_esc(s.periodHours ? Math.round(s.periodHours) + 'h' : '')} window, received ${_pfAgeText(s)} via ${s.via === 'pull' ? 'direct pull' : 'file import' + (s.filename ? ' (' + _esc(s.filename) + ')' : '')}${_pfStale(s) ? ' <span style="color:#f59e0b;font-weight:700;">&#9888; stale</span>' : ''}${s.mockData ? ' <span style="color:#a78bfa;">(demo data)</span>' : ''}`).join('<br>');
+  let html = `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Measured on the customer's site by StoragePerf &mdash; complements Active IQ's AutoSupport-based view.<br>${snapLine}</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      ${['critical', 'watch', 'good'].map(k => `<div style="flex:1;min-width:120px;padding:12px;border-radius:8px;border:1px solid ${_PF_COLORS[k]}55;background:${_PF_COLORS[k]}12;text-align:center;"><div style="font-size:1.7rem;font-weight:800;color:${_PF_COLORS[k]};">${counts[k]}</div><div style="font-size:0.72rem;text-transform:uppercase;color:var(--text-secondary);">${k}</div></div>`).join('')}
+      <div style="flex:1;min-width:120px;padding:12px;border-radius:8px;border:1px solid var(--border-color);text-align:center;"><div style="font-size:1.7rem;font-weight:800;">${sc.entries.filter(e => e.array.upstream_suspected).length}</div><div style="font-size:0.72rem;text-transform:uppercase;color:var(--text-secondary);">Look upstream (network/SAN)</div></div>
+    </div>`;
+  if (sc.entries.length === 0) html += `<div style="color:var(--text-muted);font-size:0.85rem;">None of the monitored arrays could be matched to a system in this scope (see below).</div>`;
+  else {
+    html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>
+      <th style="${th}">Array</th><th style="${th}">ARIA system(s)</th><th style="${th}">Health</th><th style="${th}">Latency avg / p95</th><th style="${th}">Trend</th><th style="${th}">Worst metric</th><th style="${th}">Capacity runway</th></tr></thead><tbody>`;
+    sc.entries.forEach(e => {
+      const a = e.array, lat = a.latency, wm = _pfWorstMetric(a), cap = (a.capacity || []).sort((x, y) => x.days_to_critical - y.days_to_critical)[0];
+      const latSeries = ((a.metrics || []).find(m => lat && m.id === lat.metric_id) || {}).sparkline;
+      html += `<tr><td style="${td}"><strong>${_esc(a.name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">${_esc(a.model || a.vendor)}</div></td>
+        <td style="${td}font-size:0.72rem;">${e.systems.slice(0, 3).map(s => _esc(s.systemName)).join(', ')}${e.systems.length > 3 ? ' +' + (e.systems.length - 3) : ''}<div style="color:var(--text-muted);">matched by ${_esc(e.matchedBy)}</div></td>
+        <td style="${td}">${_pfBadge(a.health)}${a.upstream_suspected ? '<div style="font-size:0.68rem;color:#f59e0b;margin-top:3px;">path suspected</div>' : ''}</td>
+        <td style="${td}">${lat ? `${_pfNum(lat.avg)} / ${_pfNum(lat.p95)} ${_esc(lat.unit)} ${_pfSpark(latSeries, _PF_COLORS[a.health] || '#94a3b8', 70, 20)}` : '—'}</td>
+        <td style="${td}">${lat ? _pfTrend(lat.trend_pct) : '—'}</td>
+        <td style="${td}">${wm ? `${_esc(wm.label)} <span style="color:var(--text-muted);">${_pfNum(wm.avg)}${_esc(wm.unit)} avg &middot; ${_pfNum(wm.critical_pct + wm.watch_pct, 0)}% of samples over watch</span>` : '—'}</td>
+        <td style="${td}">${cap ? `<span style="color:${cap.days_to_critical < 90 ? '#ef4444' : '#f59e0b'};">${_esc(cap.label)}: ${_pfDays(cap.days_to_critical)} to ${_pfNum(cap.critical, 0)}${_esc(cap.unit)}</span>` : '<span style="color:var(--text-muted);">none projected</span>'}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    html += '<h4 style="margin:22px 0 8px;font-size:0.9rem;color:var(--text-primary);">Findings and evidence</h4>';
+    sc.entries.forEach(e => {
+      const a = e.array, worst = (a.metrics || []).filter(m => m.severity !== 'good' && m.samples > 0);
+      if (!(a.findings || []).length && !worst.length && !a.coverage_note) return;
+      html += `<details style="border:1px solid var(--border-color);border-radius:6px;margin-bottom:8px;"${a.health === 'critical' ? ' open' : ''}><summary style="padding:9px 14px;cursor:pointer;font-weight:600;font-size:0.85rem;">${_esc(a.name)} ${_pfBadge(a.health)} <span style="font-weight:400;color:var(--text-muted);font-size:0.75rem;">${(a.findings || []).length} finding(s)</span></summary><div style="padding:10px 16px;font-size:0.8rem;line-height:1.55;">
+        ${a.coverage_note ? `<div style="color:#f59e0b;margin-bottom:8px;">${_esc(a.coverage_note)}</div>` : ''}
+        ${(a.findings || []).map(f => `<div style="margin-bottom:10px;"><div>${_pfBadge(f.severity)} <strong>${_esc(f.title)}</strong></div><div style="color:var(--text-secondary);margin:3px 0;">${_esc(f.body)}</div>
+          ${(f.investigate || []).length ? `<div style="color:var(--text-muted);">Investigate: ${(f.investigate).map(_esc).join(' &middot; ')}</div>` : ''}${(f.remediate || []).length ? `<div style="color:var(--text-muted);">Remediate: ${(f.remediate).map(_esc).join(' &middot; ')}</div>` : ''}</div>`).join('')}
+        ${worst.length ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;"><thead><tr><th style="${th}">Metric</th><th style="${th}">Avg</th><th style="${th}">p95</th><th style="${th}">Max</th><th style="${th}">Over watch</th><th style="${th}">Trend</th></tr></thead><tbody>${worst.map(m => `<tr><td style="${td}">${_pfBadge(m.severity)} ${_esc(m.label)}</td><td style="${td}">${_pfNum(m.avg)} ${_esc(m.unit)}</td><td style="${td}">${_pfNum(m.p95)}</td><td style="${td}">${_pfNum(m.max)}</td><td style="${td}">${_pfNum(m.watch_pct + m.critical_pct, 0)}%</td><td style="${td}">${_pfTrend(m.trend_pct)}</td></tr>`).join('')}</tbody></table>` : ''}
+      </div></details>`;
+    });
+  }
+  const evs = sc.snapshots.flatMap(s => ((s.payload && s.payload.events) || []).map(ev => ({ ...ev, customer: s.customerName })));
+  if (evs.length) {
+    html += `<h4 style="margin:22px 0 8px;font-size:0.9rem;color:var(--text-primary);">Recent ONTAP EMS events</h4><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Time</th><th style="${th}">Array</th><th style="${th}">Severity</th><th style="${th}">Event</th></tr></thead><tbody>${evs.slice(0, 15).map(ev => `<tr><td style="${td}">${_esc(String(ev.time).replace('T', ' ').substring(0, 16))}</td><td style="${td}">${_esc(ev.array_name)}</td><td style="${td}">${_pfBadge(ev.severity)}</td><td style="${td}"><strong>${_esc(ev.name)}</strong> &mdash; ${_esc(ev.message)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  if (sc.unmatched.length) {
+    html += `<div style="margin-top:18px;padding:12px 14px;border:1px solid var(--border-color);border-radius:8px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;"><strong>${sc.unmatched.length} monitored array(s) not matched to an Active IQ system in this scope:</strong> ${sc.unmatched.map(u => _esc(u.array.name)).join(', ')}.<br>
+      ARIA matches by node serial number, then cluster name, then name. E-Series and StorageGRID publish no serial numbers, so their name in StoragePerf must equal the system or cluster name in Active IQ; an ONTAP cluster StoragePerf could not reach also falls back to name.</div>`;
+  }
+  return html;
+}
+
+// ── Value & ROI card ────────────────────────────────────────────────────────
+function renderCSMPerfCard(targetSystems) {
+  const el = document.getElementById('csmPerfCard');
+  if (!el) return;
+  const sc = getScopePerf(targetSystems);
+  if (sc.entries.length === 0) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const single = targetSystems.length === 1;
+  const rows = sc.entries.slice(0, single ? 1 : 8);
+  el.style.display = '';
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;"><h3 style="margin:0;font-size:1rem;">&#9889; Performance &mdash; measured on site by StoragePerf</h3>
+    <span style="font-size:0.72rem;color:var(--text-muted);">${sc.snapshots.map(s => _esc(s.customerName) + ' ' + _pfAgeText(s)).join(' &middot; ')}${sc.snapshots.some(_pfStale) ? ' <span style="color:#f59e0b;">&#9888; stale</span>' : ''}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(${single ? 320 : 250}px,1fr));gap:12px;">
+    ${rows.map(e => {
+      const a = e.array, lat = a.latency, cap = (a.capacity || []).sort((x, y) => x.days_to_critical - y.days_to_critical)[0], wm = _pfWorstMetric(a);
+      const series = ((a.metrics || []).find(m => lat && m.id === lat.metric_id) || {}).sparkline;
+      return `<div style="border:1px solid ${(_PF_COLORS[a.health] || '#94a3b8')}55;border-radius:8px;padding:12px;background:${(_PF_COLORS[a.health] || '#94a3b8')}0d;">
+        <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:0.85rem;">${_esc(a.name)}</strong>${_pfBadge(a.health)}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin:2px 0 8px;">${_esc(a.model || a.vendor)} &middot; ${e.systems.length} system(s)</div>
+        ${lat ? `<div style="font-size:0.8rem;">${_esc(lat.label)}: <strong>${_pfNum(lat.avg)} ${_esc(lat.unit)}</strong> avg, ${_pfNum(lat.p95)} p95 ${_pfTrend(lat.trend_pct)} ${_pfSpark(series, _PF_COLORS[a.health] || '#94a3b8', 90, 22)}</div>` : ''}
+        ${wm && wm.severity !== 'good' ? `<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px;">Watch: ${_esc(wm.label)} (${_pfNum(wm.watch_pct + wm.critical_pct, 0)}% of the period over threshold)</div>` : ''}
+        ${cap ? `<div style="font-size:0.75rem;margin-top:4px;color:${cap.days_to_critical < 90 ? '#ef4444' : '#f59e0b'};">${_esc(cap.label)} reaches ${_pfNum(cap.critical, 0)}${_esc(cap.unit)} in ~${_pfDays(cap.days_to_critical)}</div>` : ''}
+        ${a.upstream_suspected ? '<div style="font-size:0.75rem;margin-top:4px;color:#f59e0b;">Array looks healthy while the path in front of it does not &mdash; investigate SAN/network first.</div>' : ''}
+        ${single ? (a.findings || []).slice(0, 4).map(f => `<div style="font-size:0.75rem;margin-top:6px;">${_pfBadge(f.severity)} ${_esc(f.title)}</div>`).join('') : ''}</div>`;
+    }).join('')}</div>`;
+}
+
+// ── Deliverables ────────────────────────────────────────────────────────────
+// Plain-text section for the QBR pack, MSP report and customer success plan.
+// Returns '' unless StoragePerf data exists for this customer scope.
+function compilePerformanceText(targetSystems) {
+  const sc = getScopePerf(targetSystems);
+  if (sc.snapshots.length === 0) return '';
+  const pad = (v, n) => String(v).padEnd(n).substring(0, n);
+  let out = `--------------------------------------------------------------------------------
+PERFORMANCE & CAPACITY RUNWAY (STORAGEPERF, MEASURED ON SITE) [PERFORMANCE]
+--------------------------------------------------------------------------------
+`;
+  sc.snapshots.forEach(s => {
+    out += `  Source: ${s.customerName} StoragePerf ${s.plumbVersion || ''}${s.siteLabel ? ' (' + s.siteLabel + ')' : ''} -- ${Math.round(s.periodHours || 0)}h window, received ${_pfAgeText(s)} via ${s.via === 'pull' ? 'direct pull' : 'file import'}${_pfStale(s) ? '  [STALE -- refresh before relying on it]' : ''}\n`;
+  });
+  const counts = { critical: 0, watch: 0, good: 0 };
+  sc.entries.forEach(e => { if (counts[e.array.health] != null) counts[e.array.health]++; });
+  out += `  Arrays matched to Active IQ systems: ${sc.entries.length}  (${counts.critical} critical, ${counts.watch} watch, ${counts.good} healthy)\n`;
+  if (sc.unmatched.length) out += `  Monitored but not matched to an Active IQ system: ${sc.unmatched.map(u => u.array.name).join(', ')}\n`;
+  if (sc.entries.length) {
+    out += `\n  ${pad('ARRAY', 26)}${pad('HEALTH', 10)}${pad('LATENCY avg/p95', 22)}${pad('TREND', 9)}CAPACITY RUNWAY\n`;
+    sc.entries.forEach(e => {
+      const a = e.array, lat = a.latency, cap = (a.capacity || []).sort((x, y) => x.days_to_critical - y.days_to_critical)[0];
+      out += `  ${pad(a.name, 26)}${pad(String(a.health).toUpperCase(), 10)}${pad(lat ? _pfNum(lat.avg) + '/' + _pfNum(lat.p95) + ' ' + lat.unit : 'n/a', 22)}${pad(lat ? (Math.abs(lat.trend_pct) < 5 ? 'flat' : (lat.trend_pct > 0 ? '+' : '') + Math.round(lat.trend_pct) + '%') : '-', 9)}${cap ? cap.label + ' full-critical in ~' + _pfDays(cap.days_to_critical) : 'none projected'}\n`;
+    });
+    const up = sc.entries.filter(e => e.array.upstream_suspected);
+    if (up.length) out += `\n  PATH, NOT ARRAY: on ${up.map(e => e.array.name).join(', ')} the array's own metrics look healthy while the host-facing path does not -- investigate SAN/network before array changes.\n`;
+    const finds = sc.entries.flatMap(e => (e.array.findings || []).filter(f => f.severity === 'critical' || f.severity === 'watch').map(f => ({ arr: e.array.name, f })))
+      .sort((x, y) => (x.f.severity === 'critical' ? 0 : 1) - (y.f.severity === 'critical' ? 0 : 1)).slice(0, 8);
+    if (finds.length) {
+      out += `\n  TOP FINDINGS (${finds.length} shown)\n`;
+      finds.forEach((x, i) => { out += `   ${i + 1}. [${String(x.f.severity).toUpperCase()}] ${x.arr}: ${x.f.title}\n      ${x.f.body}\n${(x.f.remediate || []).length ? '      Next step: ' + x.f.remediate[0] + '\n' : ''}`; });
+    }
+  }
+  return out + '\n';
+}
+
+// ── Settings: sources, direct pull, file import ─────────────────────────────
+function _pfCustomerOptions(selected) {
+  const names = [...new Set((state.systems || []).map(s => s.customerName).filter(Boolean))].sort();
+  return `<option value="">Choose customer&hellip;</option>` + names.map(n => `<option value="${_esc(n)}"${n === selected ? ' selected' : ''}>${_esc(n)}</option>`).join('');
+}
+
+async function renderPerfSettings() {
+  const host = document.getElementById('settingsPerfHost');
+  if (!host) return;
+  await loadPerfData();
+  const ed = state.perf.editing || {};
+  const inp = 'class="form-input" style="width:100%;"';
+  const rows = state.perf.sources.map(s => `<tr>
+      <td style="padding:6px 8px;"><strong>${_esc(s.customerName)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">${_esc(s.label || '')}</div></td>
+      <td style="padding:6px 8px;font-family:var(--font-mono);font-size:0.72rem;">${_esc(s.baseUrl)}${s.hasToken ? ' &#128273;' : ''}</td>
+      <td style="padding:6px 8px;font-size:0.75rem;">${s.intervalHours ? 'every ' + s.intervalHours + 'h' : 'manual'}${s.enabled ? '' : ' (off)'}</td>
+      <td style="padding:6px 8px;font-size:0.75rem;">${s.lastPullAt ? new Date(s.lastPullAt).toLocaleString() : 'never'}<div style="color:${s.lastStatus === 'ok' ? '#22c55e' : '#ef4444'};">${s.lastStatus === 'ok' ? 'ok' : _esc(s.lastError || '')}</div></td>
+      <td style="padding:6px 8px;white-space:nowrap;"><button class="action-btn secondary" style="font-size:0.7rem;padding:3px 8px;" onclick="perfPull(${s.id})">Pull now</button>
+        <button class="action-btn secondary" style="font-size:0.7rem;padding:3px 8px;" onclick="perfEditSource(${s.id})">Edit</button>
+        <button class="action-btn secondary" style="font-size:0.7rem;padding:3px 8px;" onclick="perfDeleteSource(${s.id})">Remove</button></td></tr>`).join('');
+  const snaps = (state.perf.snapshots || []).map(s => `<tr>
+      <td style="padding:6px 8px;"><strong>${_esc(s.customerName)}</strong></td>
+      <td style="padding:6px 8px;font-size:0.75rem;">${s.arrayCount} array(s) &middot; ${_esc(s.plumbVersion)}${s.siteLabel ? ' &middot; ' + _esc(s.siteLabel) : ''}${s.mockData ? ' <span style="color:#a78bfa;">(demo)</span>' : ''}</td>
+      <td style="padding:6px 8px;font-size:0.75rem;">${_pfAgeText(s)}${_pfStale(s) ? ' <span style="color:#f59e0b;">stale</span>' : ''} &middot; ${s.via === 'pull' ? 'pulled' : 'imported' + (s.filename ? ': ' + _esc(s.filename) : '')}</td>
+      <td style="padding:6px 8px;"><button class="action-btn secondary" style="font-size:0.7rem;padding:3px 8px;" onclick="perfDeleteSnapshot(${s.id})">Delete</button></td></tr>`).join('');
+  host.innerHTML = `
+    <div id="settingsSectionPerf" class="settings-section-label" style="margin-top:24px;scroll-margin-top:90px;">StoragePerf Integration</div>
+    <div class="card" style="margin-bottom:12px;padding:18px;">
+      <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;margin-bottom:14px;">Add measured performance to reports: latency, CPU, capacity growth and whether a slowdown is the array or the network path. Get it from a customer's <strong>StoragePerf</strong> (0.21.0 or later) either <strong>directly</strong> &mdash; if it is reachable from here &mdash; or by <strong>importing the export file</strong> it produces. Read-only in both directions.</div>
+      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">A. Direct pull</div>
+      ${rows ? `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr style="text-align:left;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;"><th style="padding:4px 8px;">Customer</th><th style="padding:4px 8px;">StoragePerf</th><th style="padding:4px 8px;">Schedule</th><th style="padding:4px 8px;">Last pull</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;">No sources yet.</div>'}
+      <div style="display:grid;grid-template-columns:1.2fr 1fr 1.6fr 1fr;gap:8px;align-items:end;">
+        <div><label class="form-label">Customer</label><select id="perfSrcCustomer" ${inp}>${_pfCustomerOptions(ed.customerName)}</select></div>
+        <div><label class="form-label">Label <span style="color:var(--text-muted);">(optional)</span></label><input id="perfSrcLabel" ${inp} value="${_esc(ed.label || '')}" placeholder="e.g. Dallas DC"></div>
+        <div><label class="form-label">StoragePerf address</label><input id="perfSrcUrl" ${inp} value="${_esc(ed.baseUrl || '')}" placeholder="http://plumb.customer.example:8000"></div>
+        <div><label class="form-label">Token ${ed.id && ed.hasToken ? '<span style="color:var(--text-muted);">(blank = keep)</span>' : '<span style="color:var(--text-muted);">(if set)</span>'}</label><input id="perfSrcToken" type="password" ${inp} placeholder="ARIA export token"></div>
+        <div><label class="form-label">Pull</label><select id="perfSrcInterval" ${inp}>${[[0, 'Manual only'], [6, 'Every 6 h'], [12, 'Every 12 h'], [24, 'Every 24 h'], [48, 'Every 48 h']].map(([v, t]) => `<option value="${v}"${(ed.intervalHours != null ? ed.intervalHours : 24) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div><label class="form-label">Period</label><select id="perfSrcPeriod" ${inp}>${[[24, '24 hours'], [72, '3 days'], [168, '7 days'], [720, '30 days']].map(([v, t]) => `<option value="${v}"${(ed.periodHours || 168) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div><label class="form-label">Certificate</label><select id="perfSrcTls" ${inp}><option value="1"${ed.verifyTls === false ? '' : ' selected'}>Verify (https)</option><option value="0"${ed.verifyTls === false ? ' selected' : ''}>Accept self-signed</option></select></div>
+        <div style="display:flex;gap:6px;"><button class="action-btn" onclick="perfSaveSource()">${ed.id ? 'Save changes' : 'Add source'}</button><button class="action-btn secondary" onclick="perfTestSource()">Test</button>${ed.id ? '<button class="action-btn secondary" onclick="perfEditSource(null)">Cancel</button>' : ''}</div>
+      </div>
+      <div id="perfSrcStatus" style="font-size:0.78rem;margin-top:8px;min-height:1.2em;"></div>
+
+      <div style="font-weight:700;font-size:0.85rem;margin:18px 0 6px;">B. Import a file <span style="font-weight:400;color:var(--text-muted);">&mdash; when StoragePerf isn't reachable (dark site, no VPN)</span></div>
+      <div style="display:grid;grid-template-columns:1.2fr 2fr auto;gap:8px;align-items:end;">
+        <div><label class="form-label">Customer</label><select id="perfImpCustomer" ${inp}>${_pfCustomerOptions('')}</select></div>
+        <div><label class="form-label">Export file (.json)</label><input id="perfImpFile" type="file" accept=".json,application/json" ${inp}></div>
+        <button class="action-btn" onclick="perfImportFile()">Import</button>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">In StoragePerf: Config &rarr; ARIA integration &rarr; Download ARIA export (or use the scheduled files in its data/aria-exports/ folder). Each import is kept as history for that customer.</div>
+      <div id="perfImpStatus" style="font-size:0.78rem;margin-top:6px;min-height:1.2em;"></div>
+
+      <div style="font-weight:700;font-size:0.85rem;margin:18px 0 6px;">Latest snapshot per customer</div>
+      ${snaps ? `<table style="width:100%;border-collapse:collapse;"><tbody>${snaps}</tbody></table>` : '<div style="font-size:0.78rem;color:var(--text-muted);">Nothing received yet.</div>'}
+    </div>`;
+}
+
+function _pfStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = msg; el.style.color = ok === true ? '#22c55e' : ok === false ? '#ef4444' : 'var(--text-secondary)'; }
+}
+async function _pfPost(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return r.json();
+}
+function _pfFormBody() {
+  const ed = state.perf.editing || {};
+  return { id: ed.id || undefined, customerName: document.getElementById('perfSrcCustomer').value, label: document.getElementById('perfSrcLabel').value,
+    baseUrl: document.getElementById('perfSrcUrl').value, token: document.getElementById('perfSrcToken').value,
+    intervalHours: parseInt(document.getElementById('perfSrcInterval').value, 10), periodHours: parseInt(document.getElementById('perfSrcPeriod').value, 10),
+    verifyTls: document.getElementById('perfSrcTls').value === '1', enabled: true };
+}
+async function perfSaveSource() {
+  _pfStatus('perfSrcStatus', 'Saving…');
+  const r = await _pfPost('/api/perf/sources', _pfFormBody());
+  if (!r.ok) return _pfStatus('perfSrcStatus', r.error || 'Could not save.', false);
+  state.perf.editing = null;
+  await renderPerfSettings();
+  _pfStatus('perfSrcStatus', 'Saved. Use "Pull now" to fetch the first snapshot.', true);
+}
+async function perfTestSource() {
+  const b = _pfFormBody();
+  _pfStatus('perfSrcStatus', 'Testing…');
+  const r = await _pfPost('/api/perf/test', { id: b.id, baseUrl: b.baseUrl, token: b.token, verifyTls: b.verifyTls });
+  if (!r.ok) return _pfStatus('perfSrcStatus', r.error || 'Failed.', false);
+  const i = r.info || {};
+  _pfStatus('perfSrcStatus', 'Connected: StoragePerf ' + i.plumb_version + (i.site ? ' (' + i.site + ')' : '') + ', ' + i.array_count + ' monitored array(s)' + (i.mock_data ? ' — WARNING: showing its built-in demo fleet, not real systems' : '') + '.', !i.mock_data);
+}
+async function perfPull(id) {
+  _pfStatus('perfSrcStatus', 'Pulling… (a long period across many arrays can take a minute)');
+  const r = await _pfPost('/api/perf/pull', { id });
+  await renderPerfSettings();
+  _pfStatus('perfSrcStatus', r.ok ? 'Snapshot received.' : (r.error || 'Pull failed.'), !!r.ok);
+  if (r.ok) refreshPerfViews();
+}
+async function perfEditSource(id) {
+  state.perf.editing = id ? (state.perf.sources.find(s => s.id === id) || null) : null;
+  await renderPerfSettings();
+}
+async function perfDeleteSource(id) {
+  if (!confirm('Remove this StoragePerf source? Snapshots already received are kept.')) return;
+  await fetch('/api/perf/sources?id=' + id, { method: 'DELETE' });
+  await renderPerfSettings();
+}
+async function perfDeleteSnapshot(id) {
+  if (!confirm('Delete this snapshot? The previous one for that customer (if any) becomes the latest.')) return;
+  await fetch('/api/perf/snapshots?id=' + id, { method: 'DELETE' });
+  await renderPerfSettings();
+  refreshPerfViews();
+}
+async function perfImportFile() {
+  const cust = document.getElementById('perfImpCustomer').value, f = (document.getElementById('perfImpFile').files || [])[0];
+  if (!cust) return _pfStatus('perfImpStatus', 'Choose the customer this file belongs to.', false);
+  if (!f) return _pfStatus('perfImpStatus', 'Choose an export file.', false);
+  let payload;
+  try { payload = JSON.parse(await f.text()); } catch (e) { return _pfStatus('perfImpStatus', 'That file is not valid JSON.', false); }
+  _pfStatus('perfImpStatus', 'Importing…');
+  const r = await _pfPost('/api/perf/import', { customerName: cust, filename: f.name, payload });
+  await renderPerfSettings();
+  _pfStatus('perfImpStatus', r.ok ? 'Imported ' + f.name + '.' : (r.error || 'Import failed.'), !!r.ok);
+  if (r.ok) refreshPerfViews();
+}
+function refreshPerfViews() {
+  try { if (state.currentTab === 'csm') renderCSMTab(); } catch (e) { /* view not built yet */ }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DEMO DATASET -- anonymized, real-shaped telemetry for Demo (mock) mode
 //
 // MOCK_SYSTEMS above only carries a small subset of what a real Active IQ
@@ -6962,6 +7314,7 @@ function _installDemoFetchShim() {
     const qi = path.indexOf('?'); const query = qi >= 0 ? new URLSearchParams(path.slice(qi + 1)) : new URLSearchParams(); if (qi >= 0) path = path.slice(0, qi);
     const body = () => { try { return JSON.parse((init && init.body) || '{}'); } catch (e) { return {}; } };
 
+    if (path.startsWith('/api/perf/')) { const pr = _demoPerfShim(path, method, body, query, json); if (pr) return pr; }
     if (path === '/api/tracker/update' && method === 'POST') {
       const b = body(); const it = _demoTrackerItems.find(x => x.id === b.id);
       if (it) { ['status', 'owner', 'dueDate', 'notes'].forEach(k => { if (b[k] !== undefined) it[k] = b[k]; }); it.updatedAt = _demoIso(Date.now()); }
@@ -7004,6 +7357,150 @@ function _installDemoFetchShim() {
   };
 }
 
+// ── Demo StoragePerf snapshots ─────────────────────────────────────────────
+// Synthetic, plumb.aria-export/1-shaped data for the demo customers so the
+// performance features can be shown without a real StoragePerf. Arrays are
+// built from the demo systems themselves (ONTAP node serials, E-Series /
+// StorageGRID names) so the same serial/name matching a real export needs is exercised.
+let _demoPerf = { snapshots: [], sources: [], seq: 1 };
+
+function _demoPerfMetric(rng, id, label, unit, category, watch, critical, level, opts = {}) {
+  // level: 'good' | 'watch' | 'critical' -> where the period average sits relative to the thresholds
+  const base = level === 'critical' ? critical * (1.05 + rng() * 0.12) : level === 'watch' ? watch + (critical - watch) * (0.2 + rng() * 0.35) : watch * (0.25 + rng() * 0.4);
+  const trend = opts.trend != null ? opts.trend : (level === 'good' ? (rng() - 0.5) * 8 : (rng() - 0.25) * 40);
+  const n = 48, now = Date.now() / 1000, span = (opts.hours || 168) * 3600, pts = [];
+  for (let i = 0; i < n; i++) {
+    const f = i / (n - 1);
+    let v = Math.max(0, base * (1 + (trend / 100) * (f - 0.5)) * (1 + (rng() - 0.5) * 0.12));
+    // keep each series inside the band its level implies, and % metrics inside 0-100
+    if (level === 'good') v = Math.min(v, watch * 0.97); else if (level === 'watch') v = Math.min(Math.max(v, watch * 1.02), critical * 0.97);
+    if (unit === '%') v = Math.min(v, 99.5);
+    pts.push([Math.round(now - span * (1 - f)), +v.toFixed(2)]);
+  }
+  const vals = pts.map(p => p[1]).sort((a, b) => a - b), sum = vals.reduce((a, b) => a + b, 0);
+  const pct = q => vals[Math.min(vals.length - 1, Math.floor(q * vals.length))];
+  const overW = vals.filter(v => v >= watch).length / vals.length * 100, overC = vals.filter(v => v >= critical).length / vals.length * 100;
+  const sev = overC > 0 ? 'critical' : overW > 0 ? 'watch' : 'good';
+  const m = { id, label, unit, category, severity: sev, samples: n, min: vals[0], avg: +(sum / n).toFixed(2), max: vals[vals.length - 1], p90: pct(0.9), p95: pct(0.95), p99: pct(0.99),
+    watch_pct: +(overW - overC).toFixed(1), critical_pct: +overC.toFixed(1), episodes: sev === 'good' ? 0 : 1 + Math.floor(rng() * 4), trend_pct: +trend.toFixed(1),
+    threshold_label: '< ' + watch + ' ' + unit + ' (illustrative — workload dependent)', watch, critical, sparkline: pts };
+  m.analysis = sev === 'critical' ? m.label + ' spent ' + Math.round(overC) + '% of this period at or above the critical threshold, peaking at ' + m.max.toFixed(1) + ' ' + unit + '. This is a sustained condition, not a brief spike, and is the clearest candidate for troubleshooting on this system.'
+    : sev === 'watch' ? m.label + ' ran above the illustrative watch threshold for ' + Math.round(overW) + '% of this period (avg ' + m.avg + ' ' + unit + ', p95 ' + m.p95 + ' ' + unit + '). Consistently elevated rather than spiky.'
+    : m.label + ' stayed within range throughout the period — avg ' + m.avg + ' ' + unit + ', peak ' + m.max.toFixed(1) + ' ' + unit + '.';
+  return m;
+}
+
+function _demoPerfArray(rng, kind, name, model, vendor, systems, level, upstream) {
+  const lvl = (bad) => bad ? level : (level === 'critical' && rng() < 0.4 ? 'watch' : 'good');
+  let metrics;
+  if (kind === 'ontap') metrics = [
+    _demoPerfMetric(rng, 'volume_avg_latency', 'Volume Latency (avg)', 'ms', 'frontend', 8, 15, upstream ? 'watch' : level),
+    _demoPerfMetric(rng, 'volume_avg_latency_write', 'Volume Latency (write)', 'ms', 'frontend', 8, 15, upstream ? 'watch' : lvl(true)),
+    _demoPerfMetric(rng, 'node_cpu_busy', 'Node CPU Busy', '%', 'backend', 70, 85, upstream ? 'good' : lvl(rng() < 0.5)),
+    _demoPerfMetric(rng, 'aggr_capacity', 'Aggregate Capacity Used', '%', 'backend', 80, 95, level === 'good' ? 'good' : 'watch', { trend: 6 + rng() * 14 }),
+    _demoPerfMetric(rng, 'snapmirror_lag_time', 'SnapMirror Lag', 's', 'backend', 3600, 14400, lvl(rng() < 0.3)),
+    _demoPerfMetric(rng, 'nic_utilization', 'Front-End NIC Utilization', '%', 'frontend', 70, 90, upstream ? 'watch' : 'good')];
+  else if (kind === 'eseries') metrics = [
+    _demoPerfMetric(rng, 'eseries_host_latency', 'Host Latency', 'ms', 'frontend', 5, 10, level),
+    _demoPerfMetric(rng, 'eseries_capacity_used_percent', 'Capacity Used', '%', 'backend', 80, 95, level === 'good' ? 'good' : 'watch', { trend: 4 + rng() * 10 }),
+    _demoPerfMetric(rng, 'eseries_cpu', 'Controller CPU', '%', 'backend', 70, 85, lvl(true))];
+  else metrics = [
+    _demoPerfMetric(rng, 'metadata_query_latency', 'Metadata Query Latency', 'ms', 'frontend', 25, 60, level),
+    _demoPerfMetric(rng, 's3_request_latency', 'S3 Request Latency', 'ms', 'frontend', 100, 250, lvl(true)),
+    _demoPerfMetric(rng, 'storage_capacity', 'Grid Storage Used', '%', 'backend', 80, 95, level === 'good' ? 'good' : 'watch', { trend: 5 + rng() * 10 })];
+  const worst = metrics.some(m => m.severity === 'critical') ? 'critical' : metrics.some(m => m.severity === 'watch') ? 'watch' : 'good';
+  const findings = metrics.filter(m => m.severity !== 'good').map(m => ({ severity: m.severity, tag: m.category, title: m.label + ' ' + (m.severity === 'critical' ? 'is critical' : 'is elevated'), body: m.analysis, metric_id: m.id,
+    investigate: kind === 'ontap' && m.id.startsWith('volume') ? ['Which volumes or workloads dominate latency (top volumes by iops)?', 'Did latency rise with a backup, SnapMirror update or snapshot schedule?'] : ['Compare with the previous period for the same time of day.'],
+    remediate: kind === 'ontap' && m.id === 'node_cpu_busy' ? ['Rebalance workloads or LIFs across nodes before adding load.', 'Review background jobs (dedupe, efficiency scans) scheduled in business hours.'] : ['Review the workload driving this metric before changing the array.'] }));
+  if (upstream) findings.push({ severity: 'watch', tag: 'correlation', title: 'Bottleneck is likely upstream of the array', body: 'The array\'s own back-end metrics are healthy while host-facing latency and front-end NIC utilization are elevated. The constraint is most likely in the SAN/network path, not the array.', investigate: ['Check host multipathing and ISL/uplink utilization.', 'Look for CRC errors or link flaps on the switch ports in front of the array.'], remediate: ['Resolve the path issue before tuning or expanding the array.'] });
+  const cap = metrics.filter(m => /capacity/.test(m.id) && m.avg >= m.watch && m.trend_pct > 0).map(m => ({ metric_id: m.id, label: m.label, unit: m.unit, current: m.avg, critical: m.critical, days_to_critical: Math.max(9, Math.round((m.critical - m.avg) / (m.avg * m.trend_pct / 100 / 7))) }));
+  const lat = metrics.find(m => /latency/.test(m.id));
+  return { id: name, name, model, vendor, health: worst, issue_count: metrics.filter(m => m.severity !== 'good').length, upstream_suspected: upstream || undefined,
+    latency: lat ? { metric_id: lat.id, label: lat.label, unit: lat.unit, avg: lat.avg, p95: lat.p95, max: lat.max, trend_pct: lat.trend_pct } : undefined,
+    metrics, findings, capacity: cap.length ? cap : undefined, _systems: systems };
+}
+
+function _demoBuildPerf(systems) {
+  const now = Date.now(), byCust = new Map();
+  systems.forEach(s => { if (!byCust.has(s.customerName)) byCust.set(s.customerName, []); byCust.get(s.customerName).push(s); });
+  const snapshots = [], sources = [];
+  let seq = 1, ci = 0;
+  [...byCust.entries()].forEach(([cust, list]) => {
+    ci++;
+    if (ci > 9) return;   // leave a few customers without StoragePerf: not every customer has one
+    const rng = _demoRng('perf-' + cust), arrays = [], events = [];
+    const clusters = new Map();
+    list.filter(s => _platformFamily(s) === 'ontap' && !/cloud volumes|\bcvo\b/i.test(s.platform || '')).forEach(s => { if (!clusters.has(s.clusterName)) clusters.set(s.clusterName, []); clusters.get(s.clusterName).push(s); });
+    [...clusters.entries()].slice(0, 3).forEach(([cl, nodes]) => {
+      const r = rng(), level = r < 0.5 ? 'good' : r < 0.82 ? 'watch' : 'critical', upstream = level === 'good' && rng() < 0.3;
+      const a = _demoPerfArray(rng, 'ontap', cl, nodes[0].model || 'AFF', 'netapp_ontap', nodes.map(n => n.systemName), level, upstream);
+      a.identity = { cluster_name: cl, cluster_uuid: '5d3c1f0e-0000-4000-8000-' + String(_demoHash(cl)).padStart(12, '0').slice(0, 12), version: 'NetApp Release ' + (nodes[0].ontapVersion || '9.15.1'),
+        nodes: nodes.map(n => ({ name: n.systemName, serial_number: n.serialNumber, model: n.model || 'AFF' })) };
+      arrays.push(a);
+      if (level !== 'good' && rng() < 0.7) events.push({ array_id: cl, array_name: cl, time: _demoIso(now - (1 + rng() * 60) * 3600000), severity: level === 'critical' ? 'critical' : 'watch', name: level === 'critical' ? 'wafl.vol.full' : 'wafl.aggr.almostFull', node: nodes[0].systemName, message: level === 'critical' ? 'Volume vol_data_03 is full (99%).' : 'Aggregate aggr1 is over 90% full.' });
+    });
+    list.filter(s => _platformFamily(s) === 'eseries').slice(0, 1).forEach(s => { arrays.push(_demoPerfArray(rng, 'eseries', s.clusterName || s.systemName, s.model || 'E-Series', 'netapp_eseries', [s.systemName], rng() < 0.7 ? 'good' : 'watch', false)); });
+    list.filter(s => _platformFamily(s) === 'storagegrid').slice(0, 1).forEach(s => { arrays.push(_demoPerfArray(rng, 'sg', s.clusterName || s.systemName, 'StorageGRID', 'netapp_storagegrid', [s.systemName], rng() < 0.6 ? 'good' : 'watch', false)); });
+    if (!arrays.length) return;
+    arrays.forEach(a => { delete a._systems; });
+    const viaPull = ci % 3 !== 0, ageH = 2 + Math.floor(rng() * (viaPull ? 20 : 120));
+    const gen = now - ageH * 3600000;
+    snapshots.push({ id: seq, sourceId: viaPull ? seq : null, customerName: cust, siteLabel: 'Demo site', plumbVersion: '0.21.0', generatedAt: _demoIso(gen), periodHours: 168, arrayCount: arrays.length,
+      via: viaPull ? 'pull' : 'import', filename: viaPull ? '' : 'plumb-aria-' + _demoDateOnly(gen).replace(/-/g, '') + '-0800.json', mockData: false, importedAt: _demoIso(gen + 600000),
+      payload: { schema: 'plumb.aria-export/1', generated_at: _demoIso(gen), plumb_version: '0.21.0', site: 'Demo site', period_hours: 168, period_start: _demoIso(gen - 168 * 3600000), period_end: _demoIso(gen), arrays, events } });
+    if (viaPull) sources.push({ id: seq, customerName: cust, label: 'Demo site', baseUrl: 'http://plumb.' + cust.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.demo.local:8000', hasToken: true, intervalHours: 24, enabled: true,
+      verifyTls: true, periodHours: 168, lastPullAt: _demoIso(gen), lastStatus: 'ok', lastError: '' });
+    seq++;
+  });
+  _demoPerf = { snapshots, sources, seq };
+  state.perf = state.perf || {};
+  state.perf.snapshots = _demoClone(snapshots);
+  state.perf.sources = _demoClone(sources);
+  state.perf.loaded = true;
+}
+
+function _demoPerfShim(path, method, body, query, json) {
+  if (path === '/api/perf/latest') return json({ ok: true, snapshots: _demoClone(_demoPerf.snapshots) });
+  if (path === '/api/perf/sources') {
+    if (method === 'GET') return json({ ok: true, sources: _demoClone(_demoPerf.sources) });
+    if (method === 'POST') {
+      const b = body();
+      if (!b.customerName) return json({ ok: false, error: 'Choose the customer this StoragePerf belongs to.' });
+      if (!/^https?:\/\/.+/.test(b.baseUrl || '')) return json({ ok: false, error: 'Base URL must start with http:// or https:// (for example http://plumb.customer.example:8000).' });
+      const ex = b.id ? _demoPerf.sources.find(x => x.id === b.id) : null;
+      const rec = { id: ex ? ex.id : 1000 + _demoPerf.seq++, customerName: b.customerName, label: b.label || '', baseUrl: b.baseUrl.replace(/\/+$/, ''), hasToken: !!b.token || (ex && ex.hasToken) || false,
+        intervalHours: b.intervalHours, enabled: true, verifyTls: b.verifyTls !== false, periodHours: b.periodHours || 168, lastPullAt: ex ? ex.lastPullAt : '', lastStatus: ex ? ex.lastStatus : '', lastError: ex ? ex.lastError : '' };
+      if (ex) Object.assign(ex, rec); else _demoPerf.sources.push(rec);
+      return json({ ok: true, id: rec.id });
+    }
+    if (method === 'DELETE') { const id = parseInt(query.get('id'), 10); _demoPerf.sources = _demoPerf.sources.filter(x => x.id !== id); return json({ ok: true }); }
+  }
+  if (path === '/api/perf/test') return json({ ok: true, info: { schema: 'plumb.aria-export/1', plumb_version: '0.21.0', site: 'Demo site', array_count: 3, mock_data: false, token_required: true } });
+  if (path === '/api/perf/pull') {
+    const src = _demoPerf.sources.find(x => x.id === body().id);
+    if (!src) return json({ ok: false, error: 'Unknown source.' });
+    src.lastPullAt = _demoIso(Date.now()); src.lastStatus = 'ok'; src.lastError = '';
+    const snap = _demoPerf.snapshots.find(x => x.customerName === src.customerName);
+    if (snap) { snap.generatedAt = src.lastPullAt; snap.payload.generated_at = src.lastPullAt; }
+    return json({ ok: true, snapshotId: snap ? snap.id : 0 });
+  }
+  if (path === '/api/perf/import' && method === 'POST') {
+    const b = body(), p = b.payload;
+    if (!p || !String(p.schema || '').startsWith('plumb.aria-export/') || !Array.isArray(p.arrays)) return json({ ok: false, error: 'The file is not a StoragePerf ARIA export.' });
+    if (!b.customerName) return json({ ok: false, error: 'A customer must be chosen so the snapshot can be matched to that customer\'s systems.' });
+    const rec = { id: 2000 + _demoPerf.seq++, sourceId: null, customerName: b.customerName, siteLabel: p.site || '', plumbVersion: p.plumb_version || '', generatedAt: p.generated_at || _demoIso(Date.now()),
+      periodHours: p.period_hours || 0, arrayCount: p.arrays.length, via: 'import', filename: b.filename || '', mockData: false, importedAt: _demoIso(Date.now()), payload: p };
+    _demoPerf.snapshots = _demoPerf.snapshots.filter(x => _demoNormCust(x.customerName) !== _demoNormCust(b.customerName)).concat([rec]);
+    return json({ ok: true, snapshotId: rec.id });
+  }
+  if (path === '/api/perf/snapshots') {
+    if (method === 'DELETE') { const id = parseInt(query.get('id'), 10); _demoPerf.snapshots = _demoPerf.snapshots.filter(x => x.id !== id); return json({ ok: true }); }
+    return json({ ok: true, snapshots: _demoPerf.snapshots.map(x => { const { payload, ...m } = x; return m; }) });
+  }
+  return null;
+}
+const _demoNormCust = v => String(v || '').trim().toLowerCase();
+
 // Build the whole demo state from MOCK_SYSTEMS + the anonymized dataset.
 async function applyDemoDataset() {
   if (!state.mockMode) return false;
@@ -7030,6 +7527,7 @@ async function applyDemoDataset() {
   applySystemMetadataOverrides();
   _demoBuildRoots(state.systems, ctx);
   _demoBuildTracker(state.systems);
+  _demoBuildPerf(state.systems);
   state.trackerLoaded = true;
   state.trackerItems = _demoClone(_demoTrackerItems);
   state.lastSync = new Date().toISOString();
@@ -14209,11 +14707,13 @@ function renderCSMTab() {
     document.getElementById("csmPeakIopsText").innerText = "-";
     document.getElementById("csmAvgLatencyText").innerText = "-";
     const _histCard0 = document.getElementById("csmHistoryCard"); if (_histCard0) _histCard0.style.display = "none";
+    { const _pfc = document.getElementById("csmPerfCard"); if (_pfc) _pfc.style.display = "none"; }
     return;
   }
 
   const isMulti = targetCSMSystems.length > 1;
   renderCSMHistoryPanel(isMulti ? null : targetCSMSystems[0]);
+  try { renderCSMPerfCard(targetCSMSystems); } catch (e) { console.warn('[PERF] card failed:', e); }
 
     // ── Account Health Score Gauge ──
     const healthScore = computeAccountHealthScore(targetCSMSystems);
@@ -20922,7 +21422,7 @@ status directly on-cluster before applying):
 
 ${formatCostOfInactionText(targetSystems)}
 
-* FINANCIAL IMPACT & ROI SUMMARY [METRICS + OWNERSHIP]
+${compilePerformanceText(targetSystems)}* FINANCIAL IMPACT & ROI SUMMARY [METRICS + OWNERSHIP]
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
   Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at $${state.costPerTiB}/TB/month)
   Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
@@ -21448,7 +21948,7 @@ ${(() => {
 
 ${formatCostOfInactionText(targetSystems)}
 
---------------------------------------------------------------------------------
+${compilePerformanceText(targetSystems)}--------------------------------------------------------------------------------
 4. SVM & NETWORK HEALTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${compileSvmLifSummaryText(targetSystems)}
@@ -21766,7 +22266,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount ==
   Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems protected'}
   RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
 
---------------------------------------------------------------------------------
+${compilePerformanceText(targetSystems)}--------------------------------------------------------------------------------
 8. SVM & NETWORK HEALTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${compileSvmLifSummaryText(targetSystems)}
@@ -28476,6 +28976,18 @@ function generateActionPlan() {
     ${_renderAsBuiltSection(targetSystems)}`;
   planBody.appendChild(sec19);
 
+  const sec20 = document.createElement('div');
+  sec20.className = 'plan-section';
+  sec20.setAttribute('data-section-index', '20');
+  sec20.style.display = 'none';
+  sec20.style.marginTop = '32px';
+  sec20.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. Performance (StoragePerf)</h2>
+    </div>
+    ${_renderPerformanceSection(targetSystems)}`;
+  planBody.appendChild(sec20);
+
 
   // Render plan sub-tabs bar dynamically
   const planTabsHeader = document.getElementById("planTabsHeader");
@@ -28498,6 +29010,7 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
       <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, FabricPool, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
       <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
+      <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
       <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
       <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before this point is fleet analysis used to build them, not itself an exportable deliverable.">★ CUSTOMER DELIVERABLES</span>
@@ -33510,6 +34023,7 @@ function switchTab(tabId) {
     renderSuccessPlansTab();
     loadPlanProgress().then(() => { if (state.currentTab === 'success') renderSuccessPlansTab(); });
   } else if (tabId === "settings") {
+    try { renderPerfSettings(); } catch (e) { console.warn('[PERF] settings render failed:', e); }
     populateGroupManagerSystems();
     populateLogisticsEditor();
     loadSlaPolicy().then(() => {
@@ -33767,6 +34281,7 @@ window.onload = async function() {
       console.error("[AIQ v2.0] loadProductionData error:", e);
     }
     checkAutoSync();
+    loadPerfData();  // StoragePerf snapshots -- non-blocking
   }
   
   updateSearchSuggestions();

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.81] - 2026-09-21
+
+### Added
+- **StoragePerf (Plumb) integration.** A customer's StoragePerf 0.21.0+ publishes a versioned snapshot (`plumb.aria-export/1`) of measured performance: per-metric statistics, findings with investigate/remediate steps, capacity time-to-critical, recent ONTAP EMS events and ONTAP node serial numbers. ARIA ingests it two ways -- **direct pull** from a reachable StoragePerf (`perf_integration.py`: sources with optional bearer token, TLS choice, schedule and period; background puller; test and pull-now), or **file import** of the exported JSON for sites StoragePerf isn't reachable from. Snapshots are stored per customer with history (60 kept).
+- Arrays are matched to systems by node serial, then cluster name, then name; unmatched arrays are reported. Demo-fleet (`mock_data`) exports and incompatible schema majors are refused.
+- Shown in Action Planner *16. Performance*, a Value & ROI card, and a *Performance & Capacity Runway* section in the QBR pack, MSP report and customer success plan (omitted for customers without a snapshot).
+- Demo mode ships StoragePerf snapshots for nine demo customers and serves `/api/perf/*` from memory.
+- Tests: `tests/test_perf_integration.py` (envelope validation, storage/retention, pull over HTTP with and without a token, upgrade hint for a StoragePerf without the endpoint).
+
+---
+
 ## [5.6.80] - 2026-09-21
 
 ### Added

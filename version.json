@@ -1,8 +1,8 @@
 {
-  "version": "5.6.80",
+  "version": "5.6.81",
   "major": 5,
   "minor": 6,
-  "patch": 80,
+  "patch": 81,
   "date": "2026-09-21",
-  "notes": "Demo (mock) mode now shows the full feature set: an anonymized, real-shaped dataset (data/demo_dataset.json, built by tools/build_demo_dataset.py from a live harvest with every identifier stripped) fills firmware coverage, shelves/drives, ports, licences, ASUP history, SVM/LIF detail, adoption mixes, lifecycle events, cases and the account-level TAM datasets for the 13 demo customers. Tracker, history and ASUP-import endpoints are served from memory in demo mode so the real database is never read or written."
+  "notes": "StoragePerf (Plumb) integration: measured performance -- latency, CPU, capacity runway, findings and array-vs-network verdicts -- added to reports. Pulled directly from a reachable StoragePerf (sources, schedule, token) or imported from the file it exports; kept as history per customer and matched to systems by node serial, cluster name or name. Shown in the Action Planner, Value & ROI, and the QBR, MSP and customer success documents. Read-only; requires StoragePerf 0.21.0+."
 }
