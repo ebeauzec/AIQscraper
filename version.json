@@ -1,8 +1,8 @@
 {
-  "version": "5.6.79",
+  "version": "5.6.80",
   "major": 5,
   "minor": 6,
-  "patch": 79,
-  "date": "2026-09-20",
-  "notes": "Full ONTAP-only-assumption audit of summaries and deliverables: ARP/SnapMirror/MetroCluster/HA/FabricPool/SVM/efficiency/firmware are computed over ONTAP systems only (N/A when none), non-ONTAP change tickets and roadmaps use SANtricity/Grid Manager guidance, ONTAP KB and vertical marketing articles are no longer surfaced for customers they can't apply to. Fixed E-Series arrays being matched to 79 ONTAP CVEs each and ONTAP wellness recommendations extrapolated onto E-Series scopes. Replaced the unverified 'Parts Logistics Hubs Normal' badge with an honest not-reported state."
+  "patch": 80,
+  "date": "2026-09-21",
+  "notes": "Demo (mock) mode now shows the full feature set: an anonymized, real-shaped dataset (data/demo_dataset.json, built by tools/build_demo_dataset.py from a live harvest with every identifier stripped) fills firmware coverage, shelves/drives, ports, licences, ASUP history, SVM/LIF detail, adoption mixes, lifecycle events, cases and the account-level TAM datasets for the 13 demo customers. Tracker, history and ASUP-import endpoints are served from memory in demo mode so the real database is never read or written."
 }

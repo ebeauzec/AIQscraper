@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.79-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.80-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -781,6 +781,7 @@ AIQscraper/
 ├── tools/           ← Developer utilities, diagnostic & probe scripts
 │   └── firmware_harvester.py  ← Multi-source firmware version harvester
 │   └── reference_harvester.py  ← IMT interop version harvester (9 vendor scrapers)
+│   └── build_demo_dataset.py  ← Builds data/demo_dataset.json (anonymized, real-shaped Demo-mode telemetry) from a live harvest
 ├── server.py        ← Python HTTP server + API harvester + firmware auto-discovery + background schedulers
 ├── app.js           ← Frontend application (~34.5K lines)
 ├── index.html       ← Compiled single-file build
@@ -806,6 +807,7 @@ AIQscraper/
 | `data/firmware_baselines.json` | ~15 KB | Ground-truth firmware recommendations, auto-refreshed by the firmware harvester |
 | `data/imt_interop.json` | ~21 KB | IMT interoperability matrix — version compatibility for 20+ third-party integrations (Veeam, Commvault, VMware, Hyper-V, etc.) |
 | `tools/reference_harvester.py` | ~60 KB | Reference data harvester — ecosystem docs, firmware baselines, IMT vendor version scraping |
+| `data/demo_dataset.json` | ~3 MB | Anonymized, real-shaped telemetry that Demo (mock) mode overlays on the built-in mock fleet; regenerate with `python tools/build_demo_dataset.py` (needs a running server with a live harvest) |
 | `start_dashboard.bat` | ~1 KB | Windows batch launcher |
 | `Start-Dashboard.ps1` | ~2 KB | PowerShell launcher with Python version check |
 | `launcher.py` | ~8 KB | Desktop app wrapper (pywebview) |

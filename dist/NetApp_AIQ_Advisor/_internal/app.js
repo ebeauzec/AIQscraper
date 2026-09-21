@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.79";
+const APP_VERSION = "5.6.80";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.80",
+    date: "21 September 2026",
+    title: "Demo Mode Now Shows the Full Feature Set",
+    sections: [
+      {
+        icon: "🎬",
+        label: "Demo Mode -- Real-Shaped, Anonymized Telemetry",
+        color: "#38bdf8",
+        items: [
+          "Demo (mock) mode only carried a small subset of what a real Active IQ harvest returns, so large parts of ARIA were empty when demonstrated: firmware coverage (SP/BMC, BIOS, DQP, drive and shelf firmware), shelves and drives, network ports, licences, ASUP history, SVM/LIF and protocol detail, ARP/FabricPool/SnapMirror adoption, lifecycle events, TAM recommendations, sites, sustainability history, health scores, the OS catalogue, renewals and success plans.",
+          "New data/demo_dataset.json (built by tools/build_demo_dataset.py) copies those structures from a real harvest and strips every identifier (customer, site, host, cluster and contact names, serials, licence serials, ASUP ids, MAC/IP/WWPN addresses, vserver/LIF/domain names); the build fails if any identifying token from the source survives. Only technical values are kept: firmware versions, drive/shelf models, licence packages, port roles, protocol mixes, ASUP cadence, score histories and NetApp's public catalogue.",
+          "The curated 140-system mock fleet is unchanged and never overwritten; the dataset fills in what it lacks (114 ASUP-healthy systems, ~60% ARP adoption, FabricPool and SnapMirror mixes, 3,700+ drives across 390+ shelves, lifecycle events, support cases and a low-severity risk tail on quiet systems, E-Series and StorageGRID capacity panels, vCenters, per-month carbon and auto-resolved-case stats, a few downtime events) and builds the account-level datasets for the 13 demo customers (33 sites, 13 health scores and recommendation sets, renewals, 3 acknowledged-then-exploited KEV escalations, 6 success plans).",
+        ],
+      },
+      {
+        icon: "🛡️",
+        label: "Demo Mode Never Touches the Real Database",
+        color: "#22c55e",
+        items: [
+          "The Remediation Tracker, capacity/risk history and ASUP-import endpoints are server-backed. In demo mode they are now served from memory (a seeded tracker, a synthetic weekly history per system and fleet trend), so the demo no longer shows the real account's tracked items or imports and nothing created in the demo is written to the real tracker.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.79",
     date: "20 September 2026",
@@ -6459,6 +6484,560 @@ let state = {
   samFieldActionsSortOrder: "asc"
 };
 window.state = state;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEMO DATASET -- anonymized, real-shaped telemetry for Demo (mock) mode
+//
+// MOCK_SYSTEMS above only carries a small subset of what a real Active IQ
+// harvest returns. tools/build_demo_dataset.py copies real structures (firmware,
+// shelves/drives, ports, licences, ASUP history, SVM/LIF detail, TAM
+// recommendations, OS catalogue...) from a live harvest with every identifier
+// stripped -> data/demo_dataset.json. applyDemoDataset() overlays it onto the
+// mock systems (never overwriting a curated value), builds the account-level TAM
+// datasets for the mock customers, and shims the few server-backed endpoints
+// (tracker, history, ASUP imports) so demo mode never reads or writes the real
+// database.
+// ═══════════════════════════════════════════════════════════════════════════
+let _demoDatasetPromise = null;
+function loadDemoDataset() {
+  if (_demoDatasetPromise) return _demoDatasetPromise;
+  const j = (u) => fetch(u, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+  _demoDatasetPromise = Promise.all([j('/data/demo_dataset.json'), j('/data/firmware_baselines.json'),
+                                     j('/api/eoa-database'), j('/api/imt-interop'), j('/data/cisa_kev.json')])
+    .then(([ds, baselines, eoa, imt, kev]) => ds ? { ds, baselines: baselines || {}, eoa, imt, kev } : null);
+  return _demoDatasetPromise;
+}
+
+function _demoHash(str) {
+  let h = 2166136261;
+  str = String(str);
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function _demoRng(seed) {
+  let a = _demoHash(seed);
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const _demoEmpty = v => v == null || v === '' || (Array.isArray(v) && v.length === 0) ||
+  (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
+const _demoClone = v => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
+const _demoDay = 86400000;
+const _demoIso = ms => new Date(ms).toISOString();
+const _demoDateOnly = ms => new Date(ms).toISOString().substring(0, 10);
+const _demoShift = (iso, d) => { const t = Date.parse(iso); return isNaN(t) ? iso : new Date(t + d).toISOString(); };
+
+const _DEMO_CITIES = [
+  { city: 'New York', state: 'NY', countryCode: 'US', postalCode: '10001' }, { city: 'Chicago', state: 'IL', countryCode: 'US', postalCode: '60601' },
+  { city: 'Dallas', state: 'TX', countryCode: 'US', postalCode: '75201' }, { city: 'Atlanta', state: 'GA', countryCode: 'US', postalCode: '30303' },
+  { city: 'Denver', state: 'CO', countryCode: 'US', postalCode: '80202' }, { city: 'Seattle', state: 'WA', countryCode: 'US', postalCode: '98101' },
+  { city: 'San Jose', state: 'CA', countryCode: 'US', postalCode: '95113' }, { city: 'Boston', state: 'MA', countryCode: 'US', postalCode: '02110' },
+  { city: 'London', state: '', countryCode: 'GB', postalCode: 'EC2N 1HQ' }, { city: 'Manchester', state: '', countryCode: 'GB', postalCode: 'M1 1AE' },
+  { city: 'Frankfurt', state: '', countryCode: 'DE', postalCode: '60311' }, { city: 'Munich', state: '', countryCode: 'DE', postalCode: '80331' },
+  { city: 'Paris', state: '', countryCode: 'FR', postalCode: '75001' }, { city: 'Amsterdam', state: '', countryCode: 'NL', postalCode: '1011' },
+  { city: 'Dublin', state: '', countryCode: 'IE', postalCode: 'D02' }, { city: 'Stockholm', state: '', countryCode: 'SE', postalCode: '111 20' },
+  { city: 'Singapore', state: '', countryCode: 'SG', postalCode: '048616' }, { city: 'Sydney', state: 'NSW', countryCode: 'AU', postalCode: '2000' },
+  { city: 'Tokyo', state: '', countryCode: 'JP', postalCode: '100-0001' }, { city: 'Toronto', state: 'ON', countryCode: 'CA', postalCode: 'M5H' },
+  { city: 'Johannesburg', state: 'GP', countryCode: 'ZA', postalCode: '2000' }, { city: 'Dubai', state: '', countryCode: 'AE', postalCode: '00000' },
+  { city: 'Sao Paulo', state: 'SP', countryCode: 'BR', postalCode: '01000' }, { city: 'Mumbai', state: 'MH', countryCode: 'IN', postalCode: '400001' }
+];
+
+// ── one system -> raw-form system carrying the extra telemetry ─────────────
+function _demoHydrateSystem(s, ctx) {
+  const { ds, baselines, now, delta, nodesByCluster } = ctx;
+  const rng = _demoRng(s.serialNumber);
+  const out = { ...s, _demo: true };
+  const fill = (k, v) => { if (v !== undefined && _demoEmpty(out[k])) out[k] = _demoClone(v); };
+  const platStr = String(s.platform || s.model || '');
+  // Raw mock rows omit fields enrichSystemTelemetry() derives (autosupport, contracts,
+  // lifecycle, santricityVersion...). Read them from the enriched form and pin them on the
+  // raw row so the final enrichment pass reproduces exactly the same values.
+  const E = enrichSystemTelemetry(s);
+  ['contracts', 'lifecycle', 'autosupport', 'projections', 'upgrades', 'logistics', 'contacts', 'salesHealth', 'hypervisors'].forEach(k => {
+    if (_demoEmpty(out[k]) && !_demoEmpty(E[k])) out[k] = _demoClone(E[k]);
+  });
+  const fam = _platformFamily(E);
+  const isCvo = fam === 'ontap' && /cloud volumes|\bcvo\b/i.test(platStr + ' ' + (s.systemName || ''));
+  const cust = ctx.customers.get(s.customerName) || {};
+  const contractDays = out.contracts && out.contracts.endDate ? Math.round((Date.parse(out.contracts.endDate) - now) / _demoDay) : null;
+
+  // ── profile (real firmware/shelves/ports/licences/ASUP cadence, anonymized) ──
+  const plist = ds.profiles[isCvo ? 'cvo' : fam] || [];
+  let prof = null;
+  if (plist.length) {
+    let cand = plist;
+    if (fam === 'ontap' && !isCvo) {
+      const cls = /fas/i.test(platStr) ? /^FAS/i : /asa/i.test(platStr) ? /^ASA/i : /^AFF/i;
+      const m = plist.filter(p => cls.test(p._sourceModel || ''));
+      if (m.length) cand = m;
+    }
+    prof = cand[Math.floor(rng() * cand.length)];
+  }
+  const nodes = nodesByCluster.get(s.clusterName) || [s];
+  const subst = (txt) => String(txt).replace(/\{\{node(\d+)\}\}/g, (m, n) => (nodes[Math.min(parseInt(n, 10) - 1, nodes.length - 1)] || s).systemName)
+    .replace(/\{\{serial\}\}/g, s.serialNumber);
+
+  // Identity / account
+  fill('accountId', 'demo-account'); fill('accountLabel', 'Demo Account');
+  fill('customerId', cust.id); fill('nagpId', cust.nagpId); fill('nagpName', s.customerName);
+  fill('domesticParentName', s.customerName);
+  fill('systemId', 'demo-sys-' + s.serialNumber);
+  fill('resellerCompany', 'Demo Reseller Partners');
+  if (cust.sites && cust.sites.length) {
+    const site = cust.sites[Math.floor(rng() * cust.sites.length)];
+    fill('siteName', site.name); fill('siteId', site.id); fill('siteCity', site.city);
+    fill('siteCountry', site.countryCode); fill('siteState', site.state || '');
+  }
+
+  // Commercial / lifecycle fields derived from the curated mock values
+  const shipAge = 1 + rng() * 5.5;
+  const shipMs = now - shipAge * 365 * _demoDay;
+  fill('originalShipDate', _demoIso(shipMs));
+  fill('ageInYears', Math.floor(shipAge));
+  fill('warrantyStartDate', _demoIso(shipMs));
+  fill('warrantyEndDate', _demoIso(shipMs + 5 * 365 * _demoDay));
+  if (out.contracts && out.contracts.endDate) {
+    const end = _demoIso(Date.parse(out.contracts.endDate));
+    fill('contractEndDate', end); fill('contractExpiry', end);
+    fill('contractHWEndDate', end); fill('contractSWEndDate', end);
+  }
+  fill('contractHWId', String(11000000 + Math.floor(rng() * 900000)));
+  fill('contractSWId', String(11000000 + Math.floor(rng() * 900000)));
+  if (out.lifecycle) {
+    const eoa = out.lifecycle.eoaDate ? _demoIso(Date.parse(out.lifecycle.eoaDate)) : '';
+    const eos = out.lifecycle.eosDate ? _demoIso(Date.parse(out.lifecycle.eosDate)) : '';
+    fill('hwEndOfAvailability', eoa); fill('hwEndOfSupport', eos);
+    fill('eosEarliest', eos);
+    if (eos) { const eosMs = Date.parse(out.lifecycle.eosDate); fill('eosLatest', _demoIso(eosMs + 2 * 365 * _demoDay)); fill('eosPVR', _demoIso(eosMs + 2 * 365 * _demoDay)); }
+  }
+  fill('lastRebootTime', _demoIso(now - (10 + rng() * 320) * _demoDay));
+  fill('salesRepName', 'Alex Morgan'); fill('salesRepEmail', 'alex.morgan@example.com');
+  fill('csmName', 'Jordan Lee'); fill('csmEmail', 'jordan.lee@example.com');
+  fill('samName', 'Sam Rivera'); fill('samEmail', 'sam.rivera@example.com');
+  fill('gard', { worldwide: 'WW Direct Sales', geo: 'AMER', area: 'Demo Area', region: 'Demo Region', district: 'Demo District', territory: 'Demo Territory' });
+  fill('propensityCategory', prof ? prof.propensityCategory : 'NONE');
+  out.nextBestAction = out.nextBestAction || '';
+
+  // ── profile-derived telemetry ──
+  if (prof) {
+    ['productType', 'systemState', 'techRefreshStatus', 'serviceTier', 'marketingType', 'storageConfiguration',
+     'operatingMode', 'serviceLevel', 'systemType', 'personality', 'autoUpdateEnabled', 'autoUpdateSettings',
+     'hasPvr', 'asupTransport', 'asupOnDemand', 'consistencyGroupCount', 'storageUnitCount'].forEach(k => {
+      if (prof[k] !== undefined && (_demoEmpty(out[k]) || out[k] === false)) out[k] = _demoClone(prof[k]);
+    });
+    if (fam === 'ontap') {
+      ['systemFirmware', 'motherboardFirmware', 'diskQualificationPackage', 'recommendedDriveFirmwares',
+       'recommendedShelfFirmwares', 'aggregateDetail', 'licenses'].forEach(k => fill(k, prof[k]));
+      fill('networkPorts', prof.networkPorts);
+      if (prof.shelves) fill('shelves', prof.shelves);
+      if (prof.vservers) fill('vservers', _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v)))));
+      const isAFFish = /aff|asa|a\d{2,3}|c\d{2,3}|afx/i.test(platStr);
+      if (out.isAllFlashOptimized == null || out.isAllFlashOptimized === '') out.isAllFlashOptimized = isAFFish;
+      const verOk = !versionLt(String(s.ontapVersion || s.osVersion || '9.0'), '9.10.1');
+      // Live fleets are mostly ARP-off / FabricPool-off, which would leave a demo with nothing
+      // to show: use a realistic adoption mix instead (ARP ~60% on, ~10% not reported).
+      if (out.isARPEnabled == null) { const r = rng(); out.isARPEnabled = !verOk ? false : r < 0.6 ? true : r < 0.9 ? false : null; }
+      if (out.isFabricPool == null) out.isFabricPool = isAFFish && rng() < 0.3;
+      if (out.isMetroCluster == null) out.isMetroCluster = /metrocluster/i.test(platStr) || /mcc/i.test(s.clusterName || '');
+      fill('serviceProcessorIP', '10.' + (30 + Math.floor(rng() * 20)) + '.' + Math.floor(rng() * 250) + '.' + (2 + Math.floor(rng() * 240)));
+    } else {
+      ['licenses', 'shelves'].forEach(k => fill(k, prof[k]));
+    }
+    // ASUP cadence: align the real history's newest message to this system's last-received age
+    const asupOn = out.autosupport && out.autosupport.enabled !== false && out.autosupport.status !== 'disabled';
+    const lastDays = out.autosupport && out.autosupport.lastReceivedDays != null ? out.autosupport.lastReceivedDays : 1;
+    fill('asupStatus', asupOn ? 'ON' : 'OFF');
+    if (asupOn && prof.asupHistory && prof.asupHistory.length) {
+      const target = now - (lastDays * _demoDay + 2.5 * 3600000);
+      const t0 = Date.parse(prof.asupHistory[0].receivedDate);
+      const d0 = isNaN(t0) ? 0 : target - t0;
+      const shiftA = a => ({ ...a, generatedDate: _demoShift(a.generatedDate, d0), receivedDate: _demoShift(a.receivedDate, d0) });
+      fill('asupHistory', prof.asupHistory.map(shiftA));
+      fill('asupByType', (prof.asupByType || []).map(shiftA));
+      const a0 = out.asupHistory[0];
+      fill('latestAsupDate', a0.receivedDate); fill('latestAsupSubject', a0.subject);
+      fill('latestAsupType', a0.type); fill('latestAsupId', a0.asupId);
+    } else if (!asupOn) {
+      fill('latestAsupDate', _demoIso(now - (30 + rng() * 300) * _demoDay));
+    } else {
+      fill('latestAsupDate', _demoIso(now - (lastDays * _demoDay + 3 * 3600000)));
+    }
+    if (prof.sustainabilityScores) fill('sustainabilityScores', prof.sustainabilityScores.map(x => ({ ...x, generatedDate: _demoShift(x.generatedDate, delta) })));
+  }
+
+  // ── software recommendation baselines (public NetApp reference data) ──
+  const ver = String(s.ontapVersion || s.sgVersion || s.santricityVersion || s.osVersion || '');
+  const upTarget = out.upgrades && out.upgrades.targetVersion && out.upgrades.targetVersion !== 'Up to Date' ? out.upgrades.targetVersion : '';
+  fill('softwareVersionFull', ver);
+  if (fam === 'ontap') {
+    const byBranch = (baselines.ontap && baselines.ontap.latestByBranch) || {};
+    const bm = ver.match(/^(\d+\.\d+\.\d+)/);
+    const branchLatest = bm ? byBranch[bm[1]] : '';
+    const latestGA = (baselines.ontap && baselines.ontap.latestGA) || '';
+    fill('swRecMin', upTarget || ver);
+    fill('swRecLatest', latestGA ? (byBranch[latestGA] || latestGA) : (branchLatest || ver));
+    fill('recommendedOSVersion', upTarget || branchLatest || ver);
+    const osEntry = (ds.roots.tamOsVersions || []).find(v => v.osType === 'ONTAP' && v.osVersion === ver);
+    if (osEntry) {
+      fill('swReleaseDate', osEntry.releaseDate); fill('swEndOfFullSupport', osEntry.endOfVersionFullSupport);
+      fill('swEndOfLimitedSupport', osEntry.endOfVersionLimitedSupport); fill('swEndOfSelfService', osEntry.endOfSelfServiceSupport);
+    }
+  }
+
+  // ── SnapMirror: the curated rows list 1 relationship but carry no per-volume count ──
+  const smObj = out.snapmirror && out.snapmirror.enabled ? out.snapmirror : E.snapmirror;
+  if (fam === 'ontap' && smObj && smObj.enabled) {
+    const n = Math.max((smObj.relationships || []).length, 4 + Math.floor(rng() * 56));
+    out.snapmirror = { ..._demoClone(smObj), totalCount: n, isHAConfigured: true };
+    out.snapMirrorCount = n;
+  }
+
+  // ── E-Series / StorageGRID capacity (built from the curated mock numbers) ──
+  const eff = _demoClone(E.efficiency) || {};
+  if (fam === 'eseries') {
+    const total = eff.rawCapacityTB || s.clusterRawCapacityTB || 0, alloc = eff.physicalUsedTB || s.clusterPhysicalUsedTB || 0;
+    out.eseriesCapacity = { totalTB: total, allocatedTB: alloc, freeTB: Math.max(0, +(total - alloc).toFixed(3)), unconfiguredTB: +(rng() * 6).toFixed(3), updatedOn: _demoIso(now - 2 * _demoDay) };
+    eff.ratio = 'N/A'; eff.dataReductionRatio = 1; eff.spaceSavedTB = 0; eff._eseriesCapacity = true;
+    eff.platformNote = 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.';
+    fill('santricityVersion', ver);
+  } else if (fam === 'storagegrid') {
+    const total = eff.rawCapacityTB || s.clusterRawCapacityTB || 0, used = eff.physicalUsedTB || s.clusterPhysicalUsedTB || 0;
+    const meta = +(used * 0.004).toFixed(3), resv = +(total * 0.01).toFixed(3);
+    const gridN = 1 + (_demoHash(s.clusterName || s.serialNumber) % 9);
+    out.storagegridCapacity = { gridId: String(120000 + gridN), gridName: 'Demo Grid ' + gridN, installedNodeCount: 4 + (gridN % 6) * 2,
+      licenseCapacity: String(Math.round(total * 1.05)), totalTB: total, usedDataTB: used, usedMetadataTB: meta, reservedMetadataTB: resv,
+      remainingTB: +Math.max(0, total - used - meta - resv).toFixed(3), usedPct: total ? +((used / total) * 100).toFixed(1) : 0,
+      qoqPct: s.clusterQoQUtilPct != null ? s.clusterQoQUtilPct : null, yoyPct: s.clusterYoYUtilPct != null ? s.clusterYoYUtilPct : null, reportedOn: _demoIso(now - 5 * _demoDay) };
+    eff.ratio = 'N/A'; eff.dataReductionRatio = 1; eff.spaceSavedTB = 0; eff._storagegridCapacity = true;
+    eff.platformNote = 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.';
+  }
+  if (out.isFabricPool && fam === 'ontap' && !eff.fabricPoolTieredTB) eff.fabricPoolTieredTB = +((eff.physicalUsedTB || 0) * (0.08 + rng() * 0.18)).toFixed(1);
+  out.efficiency = eff;
+  // top-level capacity/efficiency fields Active IQ returns alongside the rolled-up efficiency object
+  if (fam === 'ontap') {
+    const rn = parseFloat(String(eff.ratio || '1').split(':')[0]) || eff.dataReductionRatio || 1;
+    const KIB_PER_TB = 1024 ** 3, savedTB = Math.max(0, (eff.logicalUsedTB || 0) - (eff.physicalUsedTB || 0));
+    fill('dataReductionRatio', +rn.toFixed(2));
+    fill('efficiencyRatio', +(rn * 1.55).toFixed(2)); fill('withSnapshotRatio', +(rn * 1.55).toFixed(2));
+    fill('physicalUsedNoSnapsTB', eff.physicalUsedTB); fill('logicalUsedNoSnapsTB', +((eff.logicalUsedTB || 0) * 0.86).toFixed(1));
+    fill('dedupSavedKiB', Math.round(savedTB * 0.6 * KIB_PER_TB)); fill('compactionSavedKiB', Math.round(savedTB * 0.4 * KIB_PER_TB));
+  }
+  const _uT = eff.usableCapacityTB || s.clusterUsableCapacityTB || 0;
+  if (_uT) fill('clusterCapacityUtilPct', +(((eff.physicalUsedTB || 0) / _uT) * 100).toFixed(1));
+  fill('clusterCapacityReportedOn', _demoIso(now - _demoDay));
+
+  // ── lifecycle events (Active IQ's own event feed shape) ──
+  if (_demoEmpty(out.lifecycleEvents)) {
+    const ev = [];
+    const crit = d => d <= 30 ? 'CRITICAL' : d <= 120 ? 'HIGH' : 'MEDIUM';
+    if (contractDays != null && contractDays > -60 && contractDays <= 400) {
+      const d = Math.max(0, contractDays);
+      ev.push({ workflowCategory: 'RENEWAL', typeCode: 'CONTRACT_EXPIRY', typeName: 'Contract Expiration', criticalityCode: crit(d), daysToEvent: d,
+        talkingPoint: 'A renewal event is coming up in ' + d + ' days, with support contract end date on ' + _demoDateOnly(now + d * _demoDay) + '.' });
+    }
+    if (out.lifecycle && out.lifecycle.eosDate) {
+      const d = Math.round((Date.parse(out.lifecycle.eosDate) - now) / _demoDay);
+      if (d > 0 && d < 1100) ev.push({ workflowCategory: 'TECH_REFRESH', typeCode: 'CONTROLLER_EOSL', typeName: 'Controller End of Service/Life', criticalityCode: d <= 180 ? 'CRITICAL' : d <= 540 ? 'HIGH' : 'MEDIUM', daysToEvent: d,
+        talkingPoint: 'A Refresh event is coming up in ' + d + ' days, with controller reaching end of service on ' + out.lifecycle.eosDate + '.' });
+    }
+    const days = out.projections && out.projections.daysToLimit;
+    if (typeof days === 'number' && days > 0 && days < 700) {
+      const usable = (eff.usableCapacityTB || s.clusterUsableCapacityTB || 0), used = (eff.physicalUsedTB || 0);
+      const pct = usable ? Math.round(used / usable * 100) : 0;
+      ev.push({ workflowCategory: 'CAPACITY', typeCode: 'CAPACITY_THRESHOLD', typeName: 'Storage Capacity Threshold', criticalityCode: days <= 60 ? 'HIGH' : 'MEDIUM', daysToEvent: days,
+        talkingPoint: 'A capacity add-ons event is coming up in ' + days + ' days, with system capacity currently at ' + pct + '% on track to reach full capacity on ' + _demoDateOnly(now + days * _demoDay) + '.' });
+    }
+    if (ev.length) out.lifecycleEvents = ev;
+  }
+
+  // ── VMware vCenters for systems with a vSphere integration ──
+  if (_demoEmpty(out.vcenters) && Array.isArray(out.hypervisors) && out.hypervisors.some(h => /vmware|vsphere|esxi/i.test(h.type || ''))) {
+    const vh = out.hypervisors.find(h => /vmware|vsphere|esxi/i.test(h.type || ''));
+    const vm = String(vh.version || '').match(/\d+\.\d+(\.\d+)?/);
+    out.vcenters = [{ id: '00000000-0000-4000-8000-' + String(_demoHash(s.clusterName || s.serialNumber)).padStart(12, '0'),
+      name: 'vcenter-' + String(1 + (_demoHash(s.customerName) % 4)).padStart(2, '0') + '.demo.local', version: vm ? vm[0] : '8.0.2' }];
+  }
+
+  // ── risks: give quiet systems a realistic long tail of low-severity findings ──
+  if (_demoEmpty(out.risks) && ds.riskPool && ds.riskPool.length && E.status !== 'critical') {
+    const famPool = ds.riskPool.filter(r => r._family === (isCvo ? 'ontap' : fam));
+    const pool = famPool.length ? famPool : ds.riskPool;
+    const n = fam === 'ontap' ? Math.floor(rng() * 4) : Math.floor(rng() * 3);
+    const picked = [];
+    for (let i = 0; i < n; i++) {
+      const r = pool[Math.floor(rng() * pool.length)];
+      if (r && !picked.some(p => p.riskId === r.riskId)) picked.push(_demoClone(r));
+    }
+    picked.forEach(r => { delete r._family; });
+    if (picked.length) out.risks = picked;
+  }
+
+  // ── support cases: a realistic background of (mostly closed) cases ──
+  if (_demoEmpty(out.supportCases) && _demoEmpty(out.cases) && ds.casePool && ds.casePool.length) {
+    const nc = (E.status === 'critical' ? 2 : E.status === 'warning' ? 1 : 0) + (rng() < 0.3 ? 1 : 0);
+    const cases = [];
+    for (let i = 0; i < nc; i++) {
+      const c = _demoClone(ds.casePool[Math.floor(rng() * ds.casePool.length)]);
+      const created = now - (3 + rng() * 150) * _demoDay;
+      const closed = c.status === 'CLOSED';
+      cases.push({ ...c, caseId: String(2010000000 + Math.floor(rng() * 899999)), created: _demoIso(created), lastUpdated: _demoIso(created + 2 * _demoDay),
+        closed: closed ? _demoIso(created + 2 * _demoDay) : null, system: { serialNumber: s.serialNumber, hostName: s.systemName } });
+    }
+    if (cases.length) out.cases = cases;
+  }
+
+  // ── operational telemetry Active IQ exposes per system ──
+  if (fam === 'ontap' && !isCvo) {
+    const rawTB = eff.rawCapacityTB || s.clusterRawCapacityTB || 40;
+    const stats = [], auto = [];
+    for (let m = 0; m < 6; m++) {
+      const dt = new Date(now); dt.setUTCDate(1); dt.setUTCMonth(dt.getUTCMonth() - m);
+      const ym = dt.toISOString().substring(0, 7);
+      const kwh = Math.round(rawTB * (9 + rng() * 3) * 30);
+      stats.push({ month: ym, carbonEmissionTons: +(kwh * 0.00042).toFixed(2), energyConsumedKWh: kwh });
+      auto.push({ month: ym, count: Math.floor(rng() * 6) });
+    }
+    fill('monthlyCarbonStats', stats); fill('monthlyAutoResolvedCases', auto);
+    if (E.status === 'critical' && rng() < 0.45) {
+      out.downtimeEvents = { totalCount: 2, events: [
+        { category: 'Unplanned', code: 'ems.node.panic', emsDate: _demoIso(now - (12 + rng() * 60) * _demoDay), summary: 'Node panic and takeover by HA partner', outageSeconds: Math.round(40 + rng() * 260) },
+        { category: 'Planned', code: 'ems.upgrade', emsDate: _demoIso(now - (70 + rng() * 60) * _demoDay), summary: 'Planned rolling upgrade window', outageSeconds: Math.round(20 + rng() * 60) }] };
+    }
+  }
+  return out;
+}
+
+// ── customers / sites / account-level TAM datasets ─────────────────────────
+function _demoBuildCustomers(rawSystems, ds) {
+  const map = new Map();
+  rawSystems.forEach(s => {
+    if (!s.customerName || map.has(s.customerName)) return;
+    const i = map.size + 1, rng = _demoRng('cust-' + s.customerName);
+    const nSites = 2 + Math.floor(rng() * 3), sites = [], used = new Set();
+    while (sites.length < nSites) {
+      const c = _DEMO_CITIES[Math.floor(rng() * _DEMO_CITIES.length)];
+      if (used.has(c.city)) continue;
+      used.add(c.city);
+      const age = 2 + Math.floor(rng() * 8);
+      sites.push({ id: 'demo-site-' + i + '-' + (sites.length + 1), cmatId: String(9600000 + i * 10 + sites.length), name: s.customerName + ' - ' + c.city,
+        countryCode: c.countryCode, postalCode: c.postalCode, city: c.city, state: c.state, streetAddress: [(100 + Math.floor(rng() * 800)) + ' Demo Way', 'Data Center ' + (sites.length + 1)],
+        vmwareFlag: rng() < 0.6, systemsWithCriticalPropensity: 0, systemsWithHighPropensity: 0,
+        operationalDate: _demoIso(Date.now() - age * 365 * _demoDay), ageInYears: age, customerName: s.customerName,
+        accountId: 'demo-account', accountLabel: 'Demo Account' });
+    }
+    map.set(s.customerName, { id: 'demo-cust-' + String(i).padStart(3, '0'), nagpId: String(375000 + i), cmatId: String(6070000 + i), name: s.customerName, sites, rng });
+  });
+  return map;
+}
+
+function _demoBuildRoots(systems, ctx) {
+  const { ds, baselines, now, delta } = ctx;
+  const R = ds.roots;
+  state.tamRecommendations = _demoClone(R.tamRecommendations);
+  state.tamSustainability = _demoClone(R.tamSustainability).map(x => ({ ...x, generatedDate: _demoShift(x.generatedDate, delta) }));
+  state.tamOfficialHealthScore = _demoClone(R.tamOfficialHealthScore).map(x => ({ ...x, calculatedAt: _demoIso(now) }));
+  state.tamOsVersions = _demoClone(R.tamOsVersions);
+  state.globalRisks = _demoClone(R.globalRisks);
+  state.firmwareBaselines = baselines || {};
+  if (ctx.eoa) state.eoa_database = ctx.eoa;
+  if (ctx.imt) state.imt_interop = ctx.imt;
+
+  const custs = [...ctx.customers.values()];
+  state.customers = custs.map(c => ({ id: c.id, cmatId: c.cmatId, name: c.name, sustainabilityScorePercentage: { overall: 42 + Math.round(c.rng() * 36 * 10) / 10 } }));
+  const hs = R.customerHealthScores && R.customerHealthScores.length ? R.customerHealthScores : [70];
+  state.tamCustomerHealthScores = custs.map((c, i) => ({ nagpId: c.nagpId, nagpName: c.name, overallHealthScore: hs[(i * 7 + 3) % hs.length], calculatedAt: _demoIso(now), accountId: 'demo-account', accountLabel: 'Demo Account' }));
+  const sets = R.customerRecommendationSets || [];
+  state.tamCustomerRecommendations = sets.length ? custs.map((c, i) => {
+    const recs = _demoClone(sets[i % sets.length]).map(r => ({ ...r, score: r.score != null ? Math.max(0, Math.min(100, Math.round(r.score + (c.rng() - 0.5) * 16))) : r.score }));
+    return { customerId: c.id, customerName: c.name, recommendations: recs, accountId: 'demo-account', accountLabel: 'Demo Account' };
+  }) : [];
+
+  // sites (propensity counts from the systems assigned to them)
+  const siteById = new Map();
+  custs.forEach(c => c.sites.forEach(st => siteById.set(st.id, st)));
+  systems.forEach(s => { const st = siteById.get(s.siteId); if (!st) return;
+    if (s.propensityCategory === 'CRITICAL') st.systemsWithCriticalPropensity++; else if (s.propensityCategory === 'HIGH') st.systemsWithHighPropensity++; });
+  state.tamSites = custs.flatMap(c => _demoClone(c.sites));
+  state.fleetSummary = { system: systems.length, cluster: new Set(systems.map(s => s.clusterName)).size, site: state.tamSites.length };
+
+  // renewals (Active IQ's renewals feed shape)
+  state.tamRenewals = systems.map(s => {
+    const end = s.contractEndDate || (s.contracts && s.contracts.endDate ? _demoIso(Date.parse(s.contracts.endDate)) : '');
+    return { serialNumber: s.serialNumber, hostName: s.systemName, platformType: _platformFamily(s) === 'ontap' ? 'ONTAP' : _platformFamily(s) === 'eseries' ? 'E-SERIES' : 'STORAGEGRID',
+      serviceTier: s.serviceTier || 'PREMIUM', techRefreshStatus: s.techRefreshStatus || 'Lost',
+      contract: { expiryDate: end, isContractActive: s.contractActive !== false, hardwareServiceLevel: s.serviceLevel || 'R-HW Support,Premium2,4hr', hardwareContractEndDate: end, softwareContractEndDate: end, overallContractEndDate: end, hardwareWarrantyEndDate: s.warrantyEndDate || '' },
+      hardwareModel: { name: s.model || s.platform, endOfAvailability: s.hwEndOfAvailability || null, endOfSupport: s.hwEndOfSupport || null },
+      endOfSupport: { earliestEndOfSupportDate: s.eosEarliest || null, latestPVRDate: s.eosPVR || null, latestEndOfSupportDate: s.eosLatest || null },
+      accountId: 'demo-account', accountLabel: 'Demo Account' };
+  });
+
+  // acknowledged-then-exploited (CISA KEV) escalations: pick CVEs really in KEV that these systems carry
+  const kevMap = new Map(((ctx.kev && ctx.kev.vulnerabilities) || []).map(v => [v.cveID, v]));
+  const hits = [];
+  for (const s of systems) {
+    if (hits.length >= 3) break;
+    const b = (s.securityBulletins || []).find(x => kevMap.has(x.id));
+    if (!b) continue;
+    const k = kevMap.get(b.id);
+    hits.push({ serialNumber: s.serialNumber, riskId: b.ntapId || b.id, riskTitle: b.title, cveId: b.id, acknowledgedBy: 'Jordan Lee',
+      acknowledgementDate: _demoIso(now - (40 + hits.length * 25) * _demoDay), justification: 'Deferred pending the next maintenance window',
+      kevDateAdded: k.dateAdded, kevDueDate: k.dueDate });
+  }
+  state.acknowledgedRisksNowExploited = hits;
+
+  // Success plans (Active IQ CSP shape)
+  const stages = ['Onboard', 'Adopt', 'Optimize', 'Renew'], hl = ['GREEN', 'YELLOW', 'RED'];
+  state.tamSuccessPlans = custs.slice(0, 6).map((c, i) => ({ id: 'demo-plan-' + (i + 1), name: c.name + ' Success Plan', title: 'Reduce operational risk and improve fleet health',
+    status: i % 3 === 2 ? 'ON_HOLD' : 'ACTIVE', lifecycleStage: stages[i % stages.length], health: hl[i % hl.length], tamOwnerEmail: 'jordan.lee@example.com', source: 'TAM',
+    templateUsed: 'Health & Risk', customerChallengesAndGoals: 'Bring all systems to the recommended OS release and close open critical risks before the next renewal.',
+    objectiveOther: '', successMetrics: 'Health score above 80; zero critical risks older than 30 days; 100% of systems reporting AutoSupport',
+    keyStakeholders: [{ name: 'Casey Nguyen', email: 'casey.nguyen@example.com', role: 'Storage Lead' }], internalTeamMembers: ['Jordan Lee', 'Sam Rivera'],
+    tamNotes: 'Quarterly business review scheduled.', linkedAifId: '', lastUpdated: _demoIso(now - (3 + i * 4) * _demoDay), scope: [{ id: c.id, name: c.name }],
+    lastUpdatedBy: 'Jordan Lee', accountPlanId: '', objectives: ['Reduce risk exposure', 'Improve OS currency'], nagpId: c.nagpId, nagpName: c.name }));
+  state.planProgress = [];
+}
+
+// ── demo-mode tracker / history / ASUP-import shims ────────────────────────
+let _demoTrackerItems = [];
+let _demoTrackerSeq = 1;
+let _demoFetchShimInstalled = false;
+function _demoBuildTracker(systems) {
+  const rng = _demoRng('tracker'), now = Date.now(), items = [];
+  const statuses = ['open', 'open', 'open', 'in_progress', 'in_progress', 'resolved', 'deferred', 'accepted'];
+  const owners = ['Jordan Lee', 'Sam Rivera', 'Casey Nguyen', ''];
+  systems.forEach(s => {
+    (s.risks || []).filter(r => r.severity === 'critical' || r.severity === 'high').slice(0, 1).forEach(r => {
+      if (rng() > 0.45) return;
+      const created = now - (2 + rng() * 60) * _demoDay, st = statuses[Math.floor(rng() * statuses.length)];
+      items.push({ id: _demoTrackerSeq++, itemKey: _trackerItemKey('risk', s.serialNumber, r.description), accountId: 'demo-account', customerName: s.customerName,
+        systemSerial: s.serialNumber, systemName: s.systemName, sourceType: 'risk', severity: r.severity, title: r.description, detail: r.recommendation || '',
+        advisoryUrl: r.advisoryUrl || '', status: st, owner: owners[Math.floor(rng() * owners.length)], dueDate: rng() < 0.6 ? _demoDateOnly(now + (rng() * 50 - 15) * _demoDay) : '',
+        notes: st === 'resolved' ? 'Remediated during the last maintenance window.' : '', createdAt: _demoIso(created), updatedAt: _demoIso(created + rng() * 20 * _demoDay), lastSeenAt: _demoIso(now) });
+    });
+    const d = s.contracts && s.contracts.daysRemaining;
+    if (typeof d === 'number' && d < 60 && rng() < 0.5) {
+      const created = now - (1 + rng() * 30) * _demoDay;
+      items.push({ id: _demoTrackerSeq++, itemKey: _trackerItemKey('contract', s.serialNumber, 'Support contract renewal'), accountId: 'demo-account', customerName: s.customerName,
+        systemSerial: s.serialNumber, systemName: s.systemName, sourceType: 'contract', severity: d <= 30 ? 'critical' : 'high', title: 'Support contract renewal',
+        detail: d < 0 ? 'Contract expired ' + (-d) + ' days ago' : 'Contract expires in ' + d + ' days', advisoryUrl: '', status: rng() < 0.5 ? 'open' : 'in_progress',
+        owner: 'Sam Rivera', dueDate: '', notes: '', createdAt: _demoIso(created), updatedAt: _demoIso(created), lastSeenAt: _demoIso(now) });
+    }
+  });
+  _demoTrackerItems = items.slice(0, 60);
+}
+
+function _demoSyntheticHistory(sys, days) {
+  const rng = _demoRng('hist-' + sys.serialNumber), now = Date.now(), out = [];
+  const cnt = { critical: 0, high: 0, medium: 0, low: 0 };
+  (sys.risks || []).forEach(r => { if (cnt[r.severity] != null) cnt[r.severity]++; });
+  const cases = (sys.supportCases || []).length;
+  const arp = sys.isARPEnabled, eff = parseFloat(String((sys.efficiency || {}).ratio || '1').split(':')[0]) || 1;
+  const flipDays = 90 + Math.floor(rng() * 200), smNow = sys.snapMirrorCount || 0;
+  for (let d = days; d >= 0; d -= 7) {
+    const age = d / 365, ms = now - d * _demoDay;
+    out.push({ date: _demoDateOnly(ms), systemName: sys.systemName, customerName: sys.customerName, platform: sys.platform, osVersion: sys.osVersion,
+      efficiencyRatio: +(eff * (1 - 0.08 * Math.min(1, age)) * (0.97 + rng() * 0.06)).toFixed(2), fabricPoolTieredTB: (sys.efficiency || {}).fabricPoolTieredTB || 0,
+      riskCounts: { critical: Math.max(0, cnt.critical + Math.round(age * 3 * rng()) - (age < 0.1 ? 0 : 0)), high: Math.max(0, cnt.high + Math.round(age * 4 * rng())), medium: cnt.medium + Math.round(age * 3 * rng()), low: cnt.low },
+      caseCount: cases + Math.round(age * 2 * rng()), openCriticalCases: Math.max(0, Math.round((cnt.critical ? 1 : 0) * (1 - age) * rng() * 2)),
+      isHAConfigured: sys.haConfigured, isARPEnabled: arp === true && d > flipDays ? false : arp, snapMirrorCount: Math.max(0, smNow - (age > 0.5 ? 1 : 0)),
+      contractEndDate: sys.contractEndDate || '', contractActive: sys.contractActive, adoptionScorePct: Math.max(20, Math.round(78 - age * 22 + rng() * 6)) });
+  }
+  return out;
+}
+
+function _installDemoFetchShim() {
+  if (_demoFetchShimInstalled) return;
+  _demoFetchShimInstalled = true;
+  const realFetch = window.fetch.bind(window);
+  const json = (obj, status = 200) => Promise.resolve(new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } }));
+  window.fetch = function (input, init) {
+    if (!state.mockMode) return realFetch(input, init);
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    let path = url.replace(/^https?:\/\/[^/]+/, '');
+    const qi = path.indexOf('?'); const query = qi >= 0 ? new URLSearchParams(path.slice(qi + 1)) : new URLSearchParams(); if (qi >= 0) path = path.slice(0, qi);
+    const body = () => { try { return JSON.parse((init && init.body) || '{}'); } catch (e) { return {}; } };
+
+    if (path === '/api/tracker/update' && method === 'POST') {
+      const b = body(); const it = _demoTrackerItems.find(x => x.id === b.id);
+      if (it) { ['status', 'owner', 'dueDate', 'notes'].forEach(k => { if (b[k] !== undefined) it[k] = b[k]; }); it.updatedAt = _demoIso(Date.now()); }
+      return json({ ok: !!it });
+    }
+    if (path === '/api/tracker') {
+      if (method === 'GET') return json({ ok: true, items: _demoClone(_demoTrackerItems) });
+      if (method === 'POST') {
+        const now = _demoIso(Date.now());
+        (body().items || []).forEach(n => {
+          const ex = _demoTrackerItems.find(x => x.itemKey === n.itemKey);
+          if (ex) { ex.lastSeenAt = now; return; }
+          _demoTrackerItems.unshift({ id: _demoTrackerSeq++, status: 'open', owner: '', dueDate: '', notes: '', advisoryUrl: '', detail: '', ...n, createdAt: now, updatedAt: now, lastSeenAt: now });
+        });
+        return json({ ok: true });
+      }
+      if (method === 'DELETE') { const id = parseInt(query.get('id'), 10); _demoTrackerItems = _demoTrackerItems.filter(x => x.id !== id); return json({ ok: true }); }
+    }
+    if (path === '/api/plan-progress') return json({ ok: true, items: state.planProgress || [] });
+    if (path === '/api/asup/imports' && method === 'GET') return json({ ok: true, imports: [], count: 0 });
+    if (path === '/api/asup/customers') return json({ ok: true, customers: [...new Set(state.systems.map(s => s.customerName))].map(n => ({ name: n })) });
+    if (path === '/api/history/annotate') return json({ ok: true, updated: 0 });
+    if (path === '/api/history/trend') {
+      const days = parseInt(query.get('days') || '90', 10), cust = query.get('customer');
+      const scope = state.systems.filter(s => !cust || s.customerName === cust), by = {};
+      scope.forEach(s => _demoSyntheticHistory(s, days).forEach(h => {
+        const d = by[h.date] || (by[h.date] = { date: h.date, critical: 0, high: 0, openCriticalCases: 0, systemCount: 0 });
+        d.critical += h.riskCounts.critical; d.high += h.riskCounts.high; d.openCriticalCases += h.openCriticalCases; d.systemCount++;
+      }));
+      const trend = Object.values(by).sort((a, b) => a.date.localeCompare(b.date));
+      return json({ ok: true, trend, count: trend.length });
+    }
+    const hm = path.match(/^\/api\/history\/([^/]+)$/);
+    if (hm) {
+      const serial = decodeURIComponent(hm[1]), sys = state.systems.find(s => s.serialNumber === serial);
+      const history = sys ? _demoSyntheticHistory(sys, parseInt(query.get('days') || '400', 10)) : [];
+      return json({ ok: true, serialNumber: serial, history, count: history.length });
+    }
+    return realFetch(input, init);
+  };
+}
+
+// Build the whole demo state from MOCK_SYSTEMS + the anonymized dataset.
+async function applyDemoDataset() {
+  if (!state.mockMode) return false;
+  _installDemoFetchShim();
+  const loaded = await loadDemoDataset();
+  if (!loaded) { console.warn('[DEMO] data/demo_dataset.json not found -- demo mode is running with the minimal built-in mock set. Run tools/build_demo_dataset.py.'); return false; }
+  const { ds, baselines, eoa, imt, kev } = loaded;
+  const now = Date.now();
+  const delta = Math.round((now - Date.parse(ds.meta.harvestedAt)) / _demoDay) * _demoDay;
+  const customers = _demoBuildCustomers(MOCK_SYSTEMS, ds);
+  const nodesByCluster = new Map();
+  MOCK_SYSTEMS.forEach(s => { if (!nodesByCluster.has(s.clusterName)) nodesByCluster.set(s.clusterName, []); nodesByCluster.get(s.clusterName).push(s); });
+  nodesByCluster.forEach(a => a.sort((x, y) => String(x.systemName).localeCompare(String(y.systemName))));
+  const ctx = { ds, baselines, eoa, imt, kev, now, delta, customers, nodesByCluster };
+
+  const hydrated = MOCK_SYSTEMS.map(s => _demoHydrateSystem(s, ctx));
+  state.systems = hydrated.map(s => enrichSystemTelemetry(s));
+  _resolveSnapMirrorPartners(state.systems);
+  _inferClusterHA(state.systems);
+  for (const s of state.systems) {
+    if (s.vservers && s.vservers.length) _vserverCache.set(s.serialNumber, s.vservers);
+    if (s.supportCases && s.supportCases.length) _supportCasesCache.set(s.serialNumber, s.supportCases);
+  }
+  applySystemMetadataOverrides();
+  _demoBuildRoots(state.systems, ctx);
+  _demoBuildTracker(state.systems);
+  state.trackerLoaded = true;
+  state.trackerItems = _demoClone(_demoTrackerItems);
+  state.lastSync = new Date().toISOString();
+  if (state.systems.length) state.selectedSystem = state.systems.find(s => state.selectedSystem && s.serialNumber === state.selectedSystem.serialNumber) || state.systems[0];
+  saveSystems();
+  console.log('[DEMO] Demo dataset applied: ' + state.systems.length + ' systems, ' + state.tamSites.length + ' sites, ' + state.tamRenewals.length + ' renewals');
+  return true;
+}
 
 // ── Side-channel vserver cache ───────────────────────────────────────────────
 // Preserves vserver data outside of state.systems so it survives any
@@ -15970,11 +16549,13 @@ function enrichSystemTelemetry(s) {
   // Detect live API systems — these must NEVER get fabricated placeholder data.
   // Also detect live data from markers present in server-normalised systems even
   // when _source was lost due to localStorage quota overflow or schema migration.
-  const isLiveData = s._source === 'graphql'
+  // Demo-dataset systems (see applyDemoDataset) carry the same identity/contract
+  // markers as live ones but are curated mock scenarios: keep them on the mock path.
+  const isLiveData = !s._demo && (s._source === 'graphql'
     || !!(s.contractEndDate && s.contractEndDate !== 'N/A')
     || !!(s.customerId)
     || !!(s.latestAsupDate)
-    || !!(s.nagpId);
+    || !!(s.nagpId));
 
   // 1. Dynamic Upgrade Recommendations
   // For live data, always recompute fresh rather than trusting a pre-existing
@@ -17167,6 +17748,7 @@ function enrichSystemTelemetry(s) {
 
   return {
     _source:           s._source || (isLiveData ? 'graphql' : undefined),
+    _demo:             s._demo ? true : undefined,
     // Which configured Active IQ account this system's harvest came from (see
     // _do_full_harvest's per-item tagging). MUST be carried through here --
     // this function rebuilds an explicit new object rather than spreading
@@ -24460,7 +25042,11 @@ function _renderAccountIntelligenceSection(systems) {
   // that persists even when the user switches to mock mode.  Use MOCK_TAM_SITES
   // when in mock mode so that production site data never bleeds into mock reports.
   let sites;
-  if (state.mockMode) {
+  if (state.mockMode && (state.tamSites || []).some(t => t.accountId === 'demo-account')) {
+    const scopeCustomers = new Set(systems.map(s => s.customerName).filter(Boolean));
+    const demoSites = state.tamSites.filter(t => scopeCustomers.has(t.customerName));
+    sites = demoSites.length > 0 ? demoSites : state.tamSites;
+  } else if (state.mockMode) {
     // Build the set of customer names visible in the current scope
     const scopeCustomers = new Set();
     systems.forEach(s => { if (s.customerName) scopeCustomers.add(s.customerName); });
@@ -30126,6 +30712,7 @@ async function saveSettings() {
     if (state.systems.length > 0) {
       state.selectedSystem = state.systems[0];
     }
+    try { await applyDemoDataset(); } catch (e) { console.error('[DEMO] applyDemoDataset failed:', e); }
     refreshUIState();
   }
   
@@ -33163,6 +33750,10 @@ window.onload = async function() {
   await loadDynamicBulletins();
   
   // Load enrichment knowledge base from server — fleet-relevant articles for deliverables
+  // Demo mode: overlay the anonymized, real-shaped dataset on the mock systems
+  if (state.mockMode) {
+    try { await applyDemoDataset(); } catch (e) { console.error('[DEMO] applyDemoDataset failed:', e); }
+  }
   loadEnrichmentKB();  // async, non-blocking — will populate state.enrichmentKB in background
   
   // Force GraphQL sync on every page load when not in mock mode.

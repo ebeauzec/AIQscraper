@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.80] - 2026-09-21
+
+### Added
+- **Demo mode shows the full feature set.** The hand-written mock fleet carried only a small subset of a real Active IQ harvest, leaving firmware coverage, shelves/drives, ports, licences, ASUP history, SVM/LIF and protocol detail, ARP/FabricPool/SnapMirror adoption, lifecycle events, TAM recommendations, sites, sustainability history, health scores, the OS catalogue, renewals and success plans empty. `data/demo_dataset.json` (built by `tools/build_demo_dataset.py`) copies those structures from a live harvest with every identifier stripped -- names, serials, licence serials, ASUP ids, MAC/IP/WWPN, vserver/LIF/domain names -- and the build fails if any identifying token from the source survives. `applyDemoDataset()` overlays it on the curated 140 mock systems without overwriting curated values and builds the account-level datasets for the 13 demo customers.
+- Demo systems keep the mock enrichment path (`_demo` flag) even though they now carry live-style identity/contract fields.
+
+### Changed
+- The Remediation Tracker, capacity/risk history and ASUP-import endpoints are served from memory in demo mode (seeded tracker, synthetic weekly history), so the demo neither shows the real account's tracked items/imports nor writes to the real tracker.
+
+---
+
 ## [5.6.79] - 2026-09-20
 
 ### Fixed

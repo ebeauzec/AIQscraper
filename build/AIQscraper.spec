@@ -33,6 +33,8 @@ web_datas = [
     (os.path.join(SPECPATH, '..', 'app.js'),     '.'),
     (os.path.join(SPECPATH, '..', 'styles.css'), '.'),
     (os.path.join(SPECPATH, '..', 'chart.js'),   '.'),
+    # Demo (mock) mode overlay -- anonymized, real-shaped telemetry (see tools/build_demo_dataset.py)
+    (os.path.join(SPECPATH, '..', 'data', 'demo_dataset.json'), 'data'),
 ]
 
 # ---------------------------------------------------------------------------
