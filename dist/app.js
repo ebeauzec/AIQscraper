@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.81";
+const APP_VERSION = "5.6.82";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.82",
+    date: "21 September 2026",
+    title: "Demo Mode Uses StoragePerf's Own Demo Fleet",
+    sections: [
+      {
+        icon: "⚡",
+        label: "Demo Mode -- One Customer, Real StoragePerf Data",
+        color: "#38bdf8",
+        items: [
+          "The demo's StoragePerf data is no longer synthetic. It is StoragePerf's own built-in demo fleet, captured as a real plumb.aria-export/1 snapshot (data/demo_storageperf.json, built by tools/build_demo_storageperf.py) with the Pure Storage arrays removed, since ARIA is a NetApp tool. Nothing in it is customer data.",
+          "It is attached to one new demo customer, Harbourview Distribution, whose 12 systems are built from the snapshot's eight NetApp arrays: four ONTAP clusters (8 nodes, matched by the node serial numbers in the snapshot), three StorageGRID grids and one E-Series array (matched by name). Every StoragePerf feature can be shown end to end on it: the Action Planner performance section, the Value & ROI card, and the QBR, MSP and customer success sections. No other demo customer has StoragePerf data.",
+          "Direct pull, file import and delete are served from memory in demo mode as before, so importing a real StoragePerf export file in the demo works for any demo customer.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.81",
     date: "21 September 2026",
@@ -6577,7 +6594,7 @@ const _pfAgeText = snap => { const h = _pfAgeHours(snap); if (h == null) return 
 const _pfStale = snap => { const h = _pfAgeHours(snap); return h != null && h > Math.max(72, ((snap.payload || {}).period_hours || 0) * 1.5); };
 const _pfTrend = p => (p == null || Math.abs(p) < 5) ? '<span style="color:var(--text-muted);">flat</span>' :
   p > 0 ? `<span style="color:#ef4444;">▲ ${_pfNum(p, 0)}%</span>` : `<span style="color:#22c55e;">▼ ${_pfNum(-p, 0)}%</span>`;
-const _pfDays = d => d < 14 ? Math.round(d) + ' days' : d < 90 ? Math.round(d / 7) + ' weeks' : Math.round(d / 30) + ' months';
+const _pfDays = d => d < 1 ? 'under a day' : d < 14 ? 'about ' + Math.round(d) + ' days' : d < 90 ? 'about ' + Math.round(d / 7) + ' weeks' : 'about ' + Math.round(d / 30) + ' months';
 
 function _pfSpark(points, color, w = 120, h = 28) {
   if (!points || points.length < 2) return '';
@@ -6622,7 +6639,7 @@ function _renderPerformanceSection(systems) {
         <td style="${td}">${_pfBadge(a.health)}${a.upstream_suspected ? '<div style="font-size:0.68rem;color:#f59e0b;margin-top:3px;">path suspected</div>' : ''}</td>
         <td style="${td}">${lat ? `${_pfNum(lat.avg)} / ${_pfNum(lat.p95)} ${_esc(lat.unit)} ${_pfSpark(latSeries, _PF_COLORS[a.health] || '#94a3b8', 70, 20)}` : '—'}</td>
         <td style="${td}">${lat ? _pfTrend(lat.trend_pct) : '—'}</td>
-        <td style="${td}">${wm ? `${_esc(wm.label)} <span style="color:var(--text-muted);">${_pfNum(wm.avg)}${_esc(wm.unit)} avg &middot; ${_pfNum(wm.critical_pct + wm.watch_pct, 0)}% of samples over watch</span>` : '—'}</td>
+        <td style="${td}">${wm ? `${_esc(wm.label)} <span style="color:var(--text-muted);">${_pfNum(wm.avg)} ${_esc(wm.unit)} avg &middot; ${_pfNum(wm.critical_pct + wm.watch_pct, 0)}% of samples over watch</span>` : '—'}</td>
         <td style="${td}">${cap ? `<span style="color:${cap.days_to_critical < 90 ? '#ef4444' : '#f59e0b'};">${_esc(cap.label)}: ${_pfDays(cap.days_to_critical)} to ${_pfNum(cap.critical, 0)}${_esc(cap.unit)}</span>` : '<span style="color:var(--text-muted);">none projected</span>'}</td></tr>`;
     });
     html += '</tbody></table></div>';
@@ -6669,7 +6686,7 @@ function renderCSMPerfCard(targetSystems) {
         <div style="font-size:0.72rem;color:var(--text-muted);margin:2px 0 8px;">${_esc(a.model || a.vendor)} &middot; ${e.systems.length} system(s)</div>
         ${lat ? `<div style="font-size:0.8rem;">${_esc(lat.label)}: <strong>${_pfNum(lat.avg)} ${_esc(lat.unit)}</strong> avg, ${_pfNum(lat.p95)} p95 ${_pfTrend(lat.trend_pct)} ${_pfSpark(series, _PF_COLORS[a.health] || '#94a3b8', 90, 22)}</div>` : ''}
         ${wm && wm.severity !== 'good' ? `<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px;">Watch: ${_esc(wm.label)} (${_pfNum(wm.watch_pct + wm.critical_pct, 0)}% of the period over threshold)</div>` : ''}
-        ${cap ? `<div style="font-size:0.75rem;margin-top:4px;color:${cap.days_to_critical < 90 ? '#ef4444' : '#f59e0b'};">${_esc(cap.label)} reaches ${_pfNum(cap.critical, 0)}${_esc(cap.unit)} in ~${_pfDays(cap.days_to_critical)}</div>` : ''}
+        ${cap ? `<div style="font-size:0.75rem;margin-top:4px;color:${cap.days_to_critical < 90 ? '#ef4444' : '#f59e0b'};">${_esc(cap.label)} reaches ${_pfNum(cap.critical, 0)}${_esc(cap.unit)} in ${_pfDays(cap.days_to_critical)}</div>` : ''}
         ${a.upstream_suspected ? '<div style="font-size:0.75rem;margin-top:4px;color:#f59e0b;">Array looks healthy while the path in front of it does not &mdash; investigate SAN/network first.</div>' : ''}
         ${single ? (a.findings || []).slice(0, 4).map(f => `<div style="font-size:0.75rem;margin-top:6px;">${_pfBadge(f.severity)} ${_esc(f.title)}</div>`).join('') : ''}</div>`;
     }).join('')}</div>`;
@@ -6697,7 +6714,7 @@ PERFORMANCE & CAPACITY RUNWAY (STORAGEPERF, MEASURED ON SITE) [PERFORMANCE]
     out += `\n  ${pad('ARRAY', 26)}${pad('HEALTH', 10)}${pad('LATENCY avg/p95', 22)}${pad('TREND', 9)}CAPACITY RUNWAY\n`;
     sc.entries.forEach(e => {
       const a = e.array, lat = a.latency, cap = (a.capacity || []).sort((x, y) => x.days_to_critical - y.days_to_critical)[0];
-      out += `  ${pad(a.name, 26)}${pad(String(a.health).toUpperCase(), 10)}${pad(lat ? _pfNum(lat.avg) + '/' + _pfNum(lat.p95) + ' ' + lat.unit : 'n/a', 22)}${pad(lat ? (Math.abs(lat.trend_pct) < 5 ? 'flat' : (lat.trend_pct > 0 ? '+' : '') + Math.round(lat.trend_pct) + '%') : '-', 9)}${cap ? cap.label + ' full-critical in ~' + _pfDays(cap.days_to_critical) : 'none projected'}\n`;
+      out += `  ${pad(a.name, 26)}${pad(String(a.health).toUpperCase(), 10)}${pad(lat ? _pfNum(lat.avg) + '/' + _pfNum(lat.p95) + ' ' + lat.unit : 'n/a', 22)}${pad(lat ? (Math.abs(lat.trend_pct) < 5 ? 'flat' : (lat.trend_pct > 0 ? '+' : '') + Math.round(lat.trend_pct) + '%') : '-', 9)}${cap ? cap.label + ' reaches critical in ' + _pfDays(cap.days_to_critical) : 'none projected'}\n`;
     });
     const up = sc.entries.filter(e => e.array.upstream_suspected);
     if (up.length) out += `\n  PATH, NOT ARRAY: on ${up.map(e => e.array.name).join(', ')} the array's own metrics look healthy while the host-facing path does not -- investigate SAN/network before array changes.\n`;
@@ -6855,8 +6872,8 @@ function loadDemoDataset() {
   if (_demoDatasetPromise) return _demoDatasetPromise;
   const j = (u) => fetch(u, { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
   _demoDatasetPromise = Promise.all([j('/data/demo_dataset.json'), j('/data/firmware_baselines.json'),
-                                     j('/api/eoa-database'), j('/api/imt-interop'), j('/data/cisa_kev.json')])
-    .then(([ds, baselines, eoa, imt, kev]) => ds ? { ds, baselines: baselines || {}, eoa, imt, kev } : null);
+                                     j('/api/eoa-database'), j('/api/imt-interop'), j('/data/cisa_kev.json'), j('/data/demo_storageperf.json')])
+    .then(([ds, baselines, eoa, imt, kev, sp]) => ds ? { ds, baselines: baselines || {}, eoa, imt, kev, sp } : null);
   return _demoDatasetPromise;
 }
 
@@ -7357,105 +7374,62 @@ function _installDemoFetchShim() {
   };
 }
 
-// ── Demo StoragePerf snapshots ─────────────────────────────────────────────
-// Synthetic, plumb.aria-export/1-shaped data for the demo customers so the
-// performance features can be shown without a real StoragePerf. Arrays are
-// built from the demo systems themselves (ONTAP node serials, E-Series /
-// StorageGRID names) so the same serial/name matching a real export needs is exercised.
+// ── Demo StoragePerf snapshot ──────────────────────────────────────────────
+// StoragePerf's own demo fleet (its "mock data" mode), captured as a real
+// plumb.aria-export/1 snapshot by tools/build_demo_storageperf.py with the Pure
+// Storage arrays removed (ARIA is a NetApp tool). It is attached to ONE demo
+// customer whose systems are built from that snapshot's arrays, so the serial /
+// name matching a real export needs is genuinely exercised end to end.
+const _DEMO_PERF_CUSTOMER = 'Harbourview Distribution';
 let _demoPerf = { snapshots: [], sources: [], seq: 1 };
 
-function _demoPerfMetric(rng, id, label, unit, category, watch, critical, level, opts = {}) {
-  // level: 'good' | 'watch' | 'critical' -> where the period average sits relative to the thresholds
-  const base = level === 'critical' ? critical * (1.05 + rng() * 0.12) : level === 'watch' ? watch + (critical - watch) * (0.2 + rng() * 0.35) : watch * (0.25 + rng() * 0.4);
-  const trend = opts.trend != null ? opts.trend : (level === 'good' ? (rng() - 0.5) * 8 : (rng() - 0.25) * 40);
-  const n = 48, now = Date.now() / 1000, span = (opts.hours || 168) * 3600, pts = [];
-  for (let i = 0; i < n; i++) {
-    const f = i / (n - 1);
-    let v = Math.max(0, base * (1 + (trend / 100) * (f - 0.5)) * (1 + (rng() - 0.5) * 0.12));
-    // keep each series inside the band its level implies, and % metrics inside 0-100
-    if (level === 'good') v = Math.min(v, watch * 0.97); else if (level === 'watch') v = Math.min(Math.max(v, watch * 1.02), critical * 0.97);
-    if (unit === '%') v = Math.min(v, 99.5);
-    pts.push([Math.round(now - span * (1 - f)), +v.toFixed(2)]);
-  }
-  const vals = pts.map(p => p[1]).sort((a, b) => a - b), sum = vals.reduce((a, b) => a + b, 0);
-  const pct = q => vals[Math.min(vals.length - 1, Math.floor(q * vals.length))];
-  const overW = vals.filter(v => v >= watch).length / vals.length * 100, overC = vals.filter(v => v >= critical).length / vals.length * 100;
-  const sev = overC > 0 ? 'critical' : overW > 0 ? 'watch' : 'good';
-  const m = { id, label, unit, category, severity: sev, samples: n, min: vals[0], avg: +(sum / n).toFixed(2), max: vals[vals.length - 1], p90: pct(0.9), p95: pct(0.95), p99: pct(0.99),
-    watch_pct: +(overW - overC).toFixed(1), critical_pct: +overC.toFixed(1), episodes: sev === 'good' ? 0 : 1 + Math.floor(rng() * 4), trend_pct: +trend.toFixed(1),
-    threshold_label: '< ' + watch + ' ' + unit + ' (illustrative — workload dependent)', watch, critical, sparkline: pts };
-  m.analysis = sev === 'critical' ? m.label + ' spent ' + Math.round(overC) + '% of this period at or above the critical threshold, peaking at ' + m.max.toFixed(1) + ' ' + unit + '. This is a sustained condition, not a brief spike, and is the clearest candidate for troubleshooting on this system.'
-    : sev === 'watch' ? m.label + ' ran above the illustrative watch threshold for ' + Math.round(overW) + '% of this period (avg ' + m.avg + ' ' + unit + ', p95 ' + m.p95 + ' ' + unit + '). Consistently elevated rather than spiky.'
-    : m.label + ' stayed within range throughout the period — avg ' + m.avg + ' ' + unit + ', peak ' + m.max.toFixed(1) + ' ' + unit + '.';
-  return m;
-}
-
-function _demoPerfArray(rng, kind, name, model, vendor, systems, level, upstream) {
-  const lvl = (bad) => bad ? level : (level === 'critical' && rng() < 0.4 ? 'watch' : 'good');
-  let metrics;
-  if (kind === 'ontap') metrics = [
-    _demoPerfMetric(rng, 'volume_avg_latency', 'Volume Latency (avg)', 'ms', 'frontend', 8, 15, upstream ? 'watch' : level),
-    _demoPerfMetric(rng, 'volume_avg_latency_write', 'Volume Latency (write)', 'ms', 'frontend', 8, 15, upstream ? 'watch' : lvl(true)),
-    _demoPerfMetric(rng, 'node_cpu_busy', 'Node CPU Busy', '%', 'backend', 70, 85, upstream ? 'good' : lvl(rng() < 0.5)),
-    _demoPerfMetric(rng, 'aggr_capacity', 'Aggregate Capacity Used', '%', 'backend', 80, 95, level === 'good' ? 'good' : 'watch', { trend: 6 + rng() * 14 }),
-    _demoPerfMetric(rng, 'snapmirror_lag_time', 'SnapMirror Lag', 's', 'backend', 3600, 14400, lvl(rng() < 0.3)),
-    _demoPerfMetric(rng, 'nic_utilization', 'Front-End NIC Utilization', '%', 'frontend', 70, 90, upstream ? 'watch' : 'good')];
-  else if (kind === 'eseries') metrics = [
-    _demoPerfMetric(rng, 'eseries_host_latency', 'Host Latency', 'ms', 'frontend', 5, 10, level),
-    _demoPerfMetric(rng, 'eseries_capacity_used_percent', 'Capacity Used', '%', 'backend', 80, 95, level === 'good' ? 'good' : 'watch', { trend: 4 + rng() * 10 }),
-    _demoPerfMetric(rng, 'eseries_cpu', 'Controller CPU', '%', 'backend', 70, 85, lvl(true))];
-  else metrics = [
-    _demoPerfMetric(rng, 'metadata_query_latency', 'Metadata Query Latency', 'ms', 'frontend', 25, 60, level),
-    _demoPerfMetric(rng, 's3_request_latency', 'S3 Request Latency', 'ms', 'frontend', 100, 250, lvl(true)),
-    _demoPerfMetric(rng, 'storage_capacity', 'Grid Storage Used', '%', 'backend', 80, 95, level === 'good' ? 'good' : 'watch', { trend: 5 + rng() * 10 })];
-  const worst = metrics.some(m => m.severity === 'critical') ? 'critical' : metrics.some(m => m.severity === 'watch') ? 'watch' : 'good';
-  const findings = metrics.filter(m => m.severity !== 'good').map(m => ({ severity: m.severity, tag: m.category, title: m.label + ' ' + (m.severity === 'critical' ? 'is critical' : 'is elevated'), body: m.analysis, metric_id: m.id,
-    investigate: kind === 'ontap' && m.id.startsWith('volume') ? ['Which volumes or workloads dominate latency (top volumes by iops)?', 'Did latency rise with a backup, SnapMirror update or snapshot schedule?'] : ['Compare with the previous period for the same time of day.'],
-    remediate: kind === 'ontap' && m.id === 'node_cpu_busy' ? ['Rebalance workloads or LIFs across nodes before adding load.', 'Review background jobs (dedupe, efficiency scans) scheduled in business hours.'] : ['Review the workload driving this metric before changing the array.'] }));
-  if (upstream) findings.push({ severity: 'watch', tag: 'correlation', title: 'Bottleneck is likely upstream of the array', body: 'The array\'s own back-end metrics are healthy while host-facing latency and front-end NIC utilization are elevated. The constraint is most likely in the SAN/network path, not the array.', investigate: ['Check host multipathing and ISL/uplink utilization.', 'Look for CRC errors or link flaps on the switch ports in front of the array.'], remediate: ['Resolve the path issue before tuning or expanding the array.'] });
-  const cap = metrics.filter(m => /capacity/.test(m.id) && m.avg >= m.watch && m.trend_pct > 0).map(m => ({ metric_id: m.id, label: m.label, unit: m.unit, current: m.avg, critical: m.critical, days_to_critical: Math.max(9, Math.round((m.critical - m.avg) / (m.avg * m.trend_pct / 100 / 7))) }));
-  const lat = metrics.find(m => /latency/.test(m.id));
-  return { id: name, name, model, vendor, health: worst, issue_count: metrics.filter(m => m.severity !== 'good').length, upstream_suspected: upstream || undefined,
-    latency: lat ? { metric_id: lat.id, label: lat.label, unit: lat.unit, avg: lat.avg, p95: lat.p95, max: lat.max, trend_pct: lat.trend_pct } : undefined,
-    metrics, findings, capacity: cap.length ? cap : undefined, _systems: systems };
-}
-
-function _demoBuildPerf(systems) {
-  const now = Date.now(), byCust = new Map();
-  systems.forEach(s => { if (!byCust.has(s.customerName)) byCust.set(s.customerName, []); byCust.get(s.customerName).push(s); });
-  const snapshots = [], sources = [];
-  let seq = 1, ci = 0;
-  [...byCust.entries()].forEach(([cust, list]) => {
-    ci++;
-    if (ci > 9) return;   // leave a few customers without StoragePerf: not every customer has one
-    const rng = _demoRng('perf-' + cust), arrays = [], events = [];
-    const clusters = new Map();
-    list.filter(s => _platformFamily(s) === 'ontap' && !/cloud volumes|\bcvo\b/i.test(s.platform || '')).forEach(s => { if (!clusters.has(s.clusterName)) clusters.set(s.clusterName, []); clusters.get(s.clusterName).push(s); });
-    [...clusters.entries()].slice(0, 3).forEach(([cl, nodes]) => {
-      const r = rng(), level = r < 0.5 ? 'good' : r < 0.82 ? 'watch' : 'critical', upstream = level === 'good' && rng() < 0.3;
-      const a = _demoPerfArray(rng, 'ontap', cl, nodes[0].model || 'AFF', 'netapp_ontap', nodes.map(n => n.systemName), level, upstream);
-      a.identity = { cluster_name: cl, cluster_uuid: '5d3c1f0e-0000-4000-8000-' + String(_demoHash(cl)).padStart(12, '0').slice(0, 12), version: 'NetApp Release ' + (nodes[0].ontapVersion || '9.15.1'),
-        nodes: nodes.map(n => ({ name: n.systemName, serial_number: n.serialNumber, model: n.model || 'AFF' })) };
-      arrays.push(a);
-      if (level !== 'good' && rng() < 0.7) events.push({ array_id: cl, array_name: cl, time: _demoIso(now - (1 + rng() * 60) * 3600000), severity: level === 'critical' ? 'critical' : 'watch', name: level === 'critical' ? 'wafl.vol.full' : 'wafl.aggr.almostFull', node: nodes[0].systemName, message: level === 'critical' ? 'Volume vol_data_03 is full (99%).' : 'Aggregate aggr1 is over 90% full.' });
-    });
-    list.filter(s => _platformFamily(s) === 'eseries').slice(0, 1).forEach(s => { arrays.push(_demoPerfArray(rng, 'eseries', s.clusterName || s.systemName, s.model || 'E-Series', 'netapp_eseries', [s.systemName], rng() < 0.7 ? 'good' : 'watch', false)); });
-    list.filter(s => _platformFamily(s) === 'storagegrid').slice(0, 1).forEach(s => { arrays.push(_demoPerfArray(rng, 'sg', s.clusterName || s.systemName, 'StorageGRID', 'netapp_storagegrid', [s.systemName], rng() < 0.6 ? 'good' : 'watch', false)); });
-    if (!arrays.length) return;
-    arrays.forEach(a => { delete a._systems; });
-    const viaPull = ci % 3 !== 0, ageH = 2 + Math.floor(rng() * (viaPull ? 20 : 120));
-    const gen = now - ageH * 3600000;
-    snapshots.push({ id: seq, sourceId: viaPull ? seq : null, customerName: cust, siteLabel: 'Demo site', plumbVersion: '0.21.0', generatedAt: _demoIso(gen), periodHours: 168, arrayCount: arrays.length,
-      via: viaPull ? 'pull' : 'import', filename: viaPull ? '' : 'plumb-aria-' + _demoDateOnly(gen).replace(/-/g, '') + '-0800.json', mockData: false, importedAt: _demoIso(gen + 600000),
-      payload: { schema: 'plumb.aria-export/1', generated_at: _demoIso(gen), plumb_version: '0.21.0', site: 'Demo site', period_hours: 168, period_start: _demoIso(gen - 168 * 3600000), period_end: _demoIso(gen), arrays, events } });
-    if (viaPull) sources.push({ id: seq, customerName: cust, label: 'Demo site', baseUrl: 'http://plumb.' + cust.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.demo.local:8000', hasToken: true, intervalHours: 24, enabled: true,
-      verifyTls: true, periodHours: 168, lastPullAt: _demoIso(gen), lastStatus: 'ok', lastError: '' });
-    seq++;
+function _demoInjectStoragePerfCustomer(sp) {
+  if (!sp || !Array.isArray(sp.arrays) || !sp.arrays.length) return null;
+  if (MOCK_SYSTEMS.some(x => x.customerName === _DEMO_PERF_CUSTOMER)) return _DEMO_PERF_CUSTOMER;
+  const metricAvg = (a, re, dflt) => { const m = (a.metrics || []).find(x => re.test(x.id) && x.samples > 0); return m ? m.avg : dflt; };
+  const statusOf = a => a.health === 'critical' ? 'critical' : a.health === 'watch' ? 'warning' : 'normal';
+  const rng = _demoRng('perf-customer');
+  sp.arrays.forEach((a, ai) => {
+    const vendor = String(a.vendor || '');
+    const common = { customerName: _DEMO_PERF_CUSTOMER, clusterName: a.identity && a.identity.cluster_name || a.name, status: statusOf(a), haConfigured: true };
+    if (vendor === 'netapp_ontap') {
+      const usable = 120 + Math.round(rng() * 90), usedPct = Math.min(96, metricAvg(a, /^aggr_capacity$/, 55));
+      const ver = ((a.identity && a.identity.version) || '').match(/\d+\.\d+\.\d+(P\d+)?/);
+      (a.identity && a.identity.nodes && a.identity.nodes.length ? a.identity.nodes : [{ name: a.name + '-node-1', serial_number: String(720000000000 + ai * 100 + 1), model: a.model }]).forEach(n => {
+        MOCK_SYSTEMS.push({ ...common, serialNumber: String(n.serial_number), systemName: n.name, ontapVersion: ver ? ver[0] : '9.15.1P7', platform: n.model && n.model !== 'AFF-A400' ? n.model : (a.model || 'AFF A400'),
+          clusterUsableCapacityTB: usable, clusterRawCapacityTB: Math.round(usable * 1.35), clusterPhysicalUsedTB: +(usable * usedPct / 100).toFixed(1), clusterLogicalUsedTB: +(usable * usedPct / 100 * 2.6).toFixed(1),
+          nodeSvmCount: 2, dataSvmCount: 3, localTierCount: 2, volumeCount: 60 + Math.round(rng() * 140), lunCount: Math.round(rng() * 40) });
+      });
+    } else if (vendor === 'netapp_storagegrid') {
+      const total = 400 + Math.round(rng() * 900), usedPct = Math.min(96, metricAvg(a, /^storage_capacity$/, 55));
+      MOCK_SYSTEMS.push({ ...common, serialNumber: String(730000000000 + ai * 100 + 1), systemName: a.name, sgVersion: '11.8.0', ontapVersion: '11.8.0', platform: a.model || 'StorageGRID',
+        clusterUsableCapacityTB: total, clusterRawCapacityTB: Math.round(total * 1.15), clusterPhysicalUsedTB: +(total * usedPct / 100).toFixed(1), clusterLogicalUsedTB: +(total * usedPct / 100).toFixed(1) });
+    } else if (vendor === 'netapp_eseries') {
+      const total = 100 + Math.round(rng() * 150), usedPct = Math.min(96, metricAvg(a, /capacity/, 55));
+      MOCK_SYSTEMS.push({ ...common, serialNumber: String(740000000000 + ai * 100 + 1), systemName: a.name, santricityVersion: '11.80.3', ontapVersion: '11.80.3', platform: a.model || 'E5700',
+        clusterUsableCapacityTB: total, clusterRawCapacityTB: Math.round(total * 1.2), clusterPhysicalUsedTB: +(total * usedPct / 100).toFixed(1), clusterLogicalUsedTB: +(total * usedPct / 100).toFixed(1) });
+    }
   });
-  _demoPerf = { snapshots, sources, seq };
+  return _DEMO_PERF_CUSTOMER;
+}
+
+function _demoBuildPerf(systems, sp) {
+  _demoPerf = { snapshots: [], sources: [], seq: 1 };
+  if (sp && sp.arrays && sp.arrays.length && systems.some(x => x.customerName === _DEMO_PERF_CUSTOMER)) {
+    const now = Date.now(), gen = now - 2 * 3600000, shift = gen - Date.parse(sp.generated_at || _demoIso(gen));
+    const p = _demoClone(sp), sec = shift / 1000;
+    p.generated_at = _demoIso(gen); p.period_start = _demoShift(sp.period_start, shift); p.period_end = _demoShift(sp.period_end, shift);
+    (p.arrays || []).forEach(a => (a.metrics || []).forEach(m => { if (m.sparkline) m.sparkline = m.sparkline.map(pt => [Math.round(pt[0] + sec), pt[1]]); }));
+    (p.events || []).forEach(e => { e.time = _demoShift(e.time, shift); });
+    _demoPerf.snapshots.push({ id: 1, sourceId: 1, customerName: _DEMO_PERF_CUSTOMER, siteLabel: p.site || '', plumbVersion: p.plumb_version || '', generatedAt: p.generated_at,
+      periodHours: p.period_hours || 0, arrayCount: p.arrays.length, via: 'pull', filename: '', mockData: false, importedAt: _demoIso(gen + 60000), payload: p });
+    _demoPerf.sources.push({ id: 1, customerName: _DEMO_PERF_CUSTOMER, label: p.site || 'Dallas DC', baseUrl: 'http://storageperf.harbourview.demo.local:8000', hasToken: true, intervalHours: 24,
+      enabled: true, verifyTls: true, periodHours: 168, lastPullAt: p.generated_at, lastStatus: 'ok', lastError: '' });
+    _demoPerf.seq = 2;
+  }
   state.perf = state.perf || {};
-  state.perf.snapshots = _demoClone(snapshots);
-  state.perf.sources = _demoClone(sources);
+  state.perf.snapshots = _demoClone(_demoPerf.snapshots);
+  state.perf.sources = _demoClone(_demoPerf.sources);
   state.perf.loaded = true;
 }
 
@@ -7475,7 +7449,7 @@ function _demoPerfShim(path, method, body, query, json) {
     }
     if (method === 'DELETE') { const id = parseInt(query.get('id'), 10); _demoPerf.sources = _demoPerf.sources.filter(x => x.id !== id); return json({ ok: true }); }
   }
-  if (path === '/api/perf/test') return json({ ok: true, info: { schema: 'plumb.aria-export/1', plumb_version: '0.21.0', site: 'Demo site', array_count: 3, mock_data: false, token_required: true } });
+  if (path === '/api/perf/test') return json({ ok: true, info: { schema: 'plumb.aria-export/1', plumb_version: '0.21.0', site: 'Demo site', array_count: (_demoPerf.snapshots[0] || {}).arrayCount || 0, mock_data: false, token_required: true } });
   if (path === '/api/perf/pull') {
     const src = _demoPerf.sources.find(x => x.id === body().id);
     if (!src) return json({ ok: false, error: 'Unknown source.' });
@@ -7507,7 +7481,8 @@ async function applyDemoDataset() {
   _installDemoFetchShim();
   const loaded = await loadDemoDataset();
   if (!loaded) { console.warn('[DEMO] data/demo_dataset.json not found -- demo mode is running with the minimal built-in mock set. Run tools/build_demo_dataset.py.'); return false; }
-  const { ds, baselines, eoa, imt, kev } = loaded;
+  const { ds, baselines, eoa, imt, kev, sp } = loaded;
+  _demoInjectStoragePerfCustomer(sp);   // adds the StoragePerf customer's systems to MOCK_SYSTEMS (once)
   const now = Date.now();
   const delta = Math.round((now - Date.parse(ds.meta.harvestedAt)) / _demoDay) * _demoDay;
   const customers = _demoBuildCustomers(MOCK_SYSTEMS, ds);
@@ -7527,7 +7502,7 @@ async function applyDemoDataset() {
   applySystemMetadataOverrides();
   _demoBuildRoots(state.systems, ctx);
   _demoBuildTracker(state.systems);
-  _demoBuildPerf(state.systems);
+  _demoBuildPerf(state.systems, sp);
   state.trackerLoaded = true;
   state.trackerItems = _demoClone(_demoTrackerItems);
   state.lastSync = new Date().toISOString();
