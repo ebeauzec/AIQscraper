@@ -1,8 +1,8 @@
 {
-  "version": "5.6.86",
+  "version": "5.6.87",
   "major": 5,
   "minor": 6,
-  "patch": 86,
+  "patch": 87,
   "date": "2026-09-26",
-  "notes": "Adds a paste-ready Customer Health & Lifecycle Report deliverable and a single CVE inventory used by every document."
+  "notes": "Every Action Planner deliverable reviewed against real customer data and corrected for external distribution; parallel deliverable audit tool added."
 }

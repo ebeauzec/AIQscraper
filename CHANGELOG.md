@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.87] - 2026-09-26
+
+### Fixed
+- Every remaining Action Planner document was read against real customer data and corrected so it can be handed out: Problem Statements, Customer Communications, Solution Proposals, Sales Proposals, QBR Pack, MSP Service Report, Risk & Remediation Brief, Security Brief, Sustainability Report, Handover Brief, TAM Success Plan, Change Tickets and Implementation Plans.
+- Corrective actions: an OS upgrade is now listed as the fix only for CVE and software-version findings. Hardware end-of-availability, volume-full, VLDB, Kerberos and drive findings were being listed as 'resolved by upgrade to ONTAP x'. A fix that covers several systems lists each distinct finding once with its system count instead of repeating it per system, and no longer borrows the first finding's root cause and steps for the whole group.
+- Hardware end of availability is 'medium' unless end of support is within 24 months (it only stops new orders); the risk text no longer contains internal wording. The Risk & Remediation Brief now finds EOA hardware from the dates Active IQ reports (it always said 0).
+- Removed invented figures: the 3-year TCO and 'estimated savings' (replaced by facts Active IQ reports), power/CO2 estimates, 'admin time saved', the 45% support premium, a '12.44:1' aggregate efficiency ratio that contradicted the 1.2:1 above it, and the 'Keystone $X/TB' placeholder.
+- Sustainability: the Sustainability Report always said 'not scored' because it read a field that never exists; it now uses Active IQ's per-system scores. The account-wide (all tenants) score is never presented as a customer's own figure.
+- MSP Service Report listed the customer's corporate parents (Vodafone Group, Bollore, Hiperdist) as separate 'customers' with 0% / 390-risk rows; it now reports the customer in scope. Site lists no longer print partner postal addresses.
+- Third-party interoperability findings now come only from the vCenter versions Active IQ reports; the old substring guessing ('pve', 'prism', 'linux', 'sap') produced findings for products the customer may not run. Vendor-guide lists exclude hardware models the customer does not own and per-model URLs that do not exist (StorageGRID), drop repeated identical actions, and no longer claim integrations were 'validated for your fleet'.
+- OS currency is counted over the systems it can be judged for (ONTAP with a recommended minimum, or an Active IQ upgrade assessment) instead of treating E-Series/StorageGRID as behind; AutoSupport 'Disabled' is worded 'not reporting' when Active IQ simply has no data. The Security Brief's CVE matrix uses the same CVE inventory as every other document, de-duplicates systems and no longer prints 'Upgrade firmware' as remediation for CVEs with no remediation text.
+- New tools/audit_deliverables.py: generates every deliverable for every customer scope in parallel headless browsers, dumps them to disk and flags placeholders, invented-figure phrases, NaN/undefined, cross-document number disagreements and other customers' names (44 scopes in about 35 seconds).
+
+---
+
 ## [5.6.86] - 2026-09-26
 
 ### Added
