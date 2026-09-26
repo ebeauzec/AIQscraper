@@ -25,7 +25,7 @@ ts.forEach(sys=>{ (sys.risks||[]).forEach(r=>R.push({systemName:sys.systemName,s
 
 FORBIDDEN = [r'all tenants', r'unpatched CVE', r'Real date reported', r'Review vendor alignment', r'validated for your fleet',
              r'ARIA enrichment', r'\bNaN\b', r'undefined', r'\[object', r'\b9999d\b', r'N/A:1', r'\(estimated\)', r'DR Partner',
-             r'this tool', r'\bInfinity\b', r'null%', r'Fleet Sustainability Score', r'\$X', r'kW avoided', r'kg/year', r'illustrative', r'est\. \$', r'Real date', r'(?<![\w.])-\d+ system', r'\(0d\)', r'0d runway']
+             r'this tool', r'\bInfinity\b', r'null%', r'Fleet Sustainability Score', r'\$X', r'kW avoided', r'kg/year', r'illustrative', r'est\. \$', r'Real date', r'(?<![\w.])-\d+ system', r'\(0d\)', r'(?<![\d<])0d runway']
 
 def work(args):
     idx, custs = args
