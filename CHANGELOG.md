@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.99] - 2026-09-26
+
+### Changed
+- The Customer Value Report is now text like every other deliverable instead of a PowerPoint download: Markdown with one heading per slide (executive summary, value delivered, security and planning, optimisation opportunities, renewal highlights, decisions needed) to copy into your own template. The PowerPoint export button is removed.
+
+---
+
+## [5.6.98] - 2026-09-26
+
+### Changed
+- Health & Lifecycle Report, Security section: risks detected on the customer's systems (Active IQ findings) and published vulnerabilities (CVEs) that apply to the software versions are now shown as two separately labelled parts with a short explanation of why they differ (an estate can have 0 critical risks and still have critical CVEs). The summary line is worded the same way.
+
+---
+
 ## [5.6.97] - 2026-09-26
 
 ### Changed

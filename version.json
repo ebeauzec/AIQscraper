@@ -1,8 +1,8 @@
 {
-  "version": "5.6.97",
+  "version": "5.6.99",
   "major": 5,
   "minor": 6,
-  "patch": 97,
+  "patch": 99,
   "date": "2026-09-26",
-  "notes": "Decisions block in every narrative deliverable; PowerPoint export corrected."
+  "notes": "Customer Value Report is now a text deliverable; PowerPoint export removed."
 }

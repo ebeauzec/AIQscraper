@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.98";
+const APP_VERSION = "5.6.99";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.99",
+    date: "26 September 2026",
+    title: "Customer Value Report as Text",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "The Customer Value Report is now text like every other deliverable instead of a PowerPoint download: Markdown with one heading per slide (executive summary, value delivered, security and planning, optimisation opportunities, renewal highlights, decisions needed) to copy into your own template. The PowerPoint export button is removed.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.98",
     date: "26 September 2026",
@@ -24137,6 +24152,30 @@ function _dfDecisionsText(plan, indent) {
   return `${pad}DECISIONS NEEDED (${top.length} priority item${top.length !== 1 ? 's' : ''}):\n` + top.map((p, i) => `${pad}  ${i + 1}. ${p.action}\n${pad}     Why: ${p.why}\n${pad}     When: ${p.when}  |  Owner: ${p.owner}`).join('\n') + '\n';
 }
 
+// ═══ Customer Value Report (text, one heading per slide) ══════════════════
+// Replaces the generated PowerPoint deck: plain Markdown with one heading per intended slide,
+// to copy into whatever template you use.
+function compileValueReport(targetSystems, allRisks, openCases, scopeTitle) {
+  const cust = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
+  const hs = computeAccountHealthScore(targetSystems), grade = getHealthGrade(hs);
+  const cap = computeFleetCapacitySummary(targetSystems), up = computeFleetUptimeSummary(targetSystems), sus = _dfSustain(targetSystems);
+  const cf = _dfContractFacts(targetSystems), cves = Object.values(_dfCveIndex(targetSystems));
+  const rk = sv => (allRisks || []).filter(r => String(r.severity).toLowerCase() === sv).length;
+  const ont = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.efficiency);
+  const ph = ont.reduce((a, s) => a + (s.efficiency.physicalUsedTB || 0), 0), lg = ont.reduce((a, s) => a + (s.efficiency.logicalUsedTB || 0), 0);
+  const plan = _dfActionPlan(targetSystems, allRisks, openCases);
+  let o = `# ${cust} -- Customer Value Report\n\n_Prepared ${new Date().toISOString().split('T')[0]} from NetApp Active IQ telemetry. One heading per slide._\n\n`;
+  o += `## Slide 1 -- Executive summary\n\n- **Account health index:** ${hs}/100 (grade ${grade}) -- a composite of AutoSupport, ARP, OS currency, firmware, contracts, risks and capacity.\n- **Estate:** ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.\n- **Support:** ${cf.active.length} active${cf.expired.length ? `, ${cf.expired.length} lapsed` : ''}${cf.expiring90.length ? `, ${cf.expiring90.length} expiring within 90 days` : ''}.\n- **Storage efficiency (ONTAP):** ${ph > 0 ? `${(lg / ph).toFixed(1)}:1, ${(lg - ph).toFixed(1)} TB saved` : 'not reported'}.\n- **Availability:** ${up.systemsWithEvents > 0 ? `${up.totalOutageMinutes} minutes of downtime across ${up.systemsWithEvents} system${up.systemsWithEvents !== 1 ? 's' : ''}` : 'no downtime events recorded'}.\n${sus.scorePercentage != null ? `- **Sustainability score (Active IQ):** ${sus.scorePercentage}%.\n` : ''}\n`;
+  o += `## Slide 2 -- Value delivered\n\n- Data reduction on ONTAP systems: ${ph > 0 ? `${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB physical (${(lg / ph).toFixed(1)}:1).` : 'not reported by Active IQ.'}\n- Capacity: ${cap.utilPct}% fleet utilisation; ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''} within 60 days of the capacity threshold.\n- Monitoring: ${targetSystems.filter(s => { const a = s.autosupport || {}; return a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7); }).length} of ${targetSystems.length} systems send AutoSupport data to Active IQ.\n\n`;
+  o += `## Slide 3 -- Security and planning\n\n- **Risks detected by Active IQ on your systems:** ${rk('critical')} critical, ${rk('high')} high, ${rk('medium')} medium.\n- **Published vulnerabilities (CVEs) for the software versions you run:** ${cves.length} (${cves.filter(c => c.sev === 'critical').length} critical, ${cves.filter(c => c.sev === 'high').length} high). These are counted separately from the risks above.\n- **Hardware end-of-support within 24 months:** ${_dfRefreshPlan(targetSystems).filter(r => r.days <= 730).map(r => `${r.model} (${_dfPlural(r.n, 'system')}, ${_dfDate(r.eos)})`).join('; ') || 'none reported'}.\n\n`;
+  const uf = _dfCollapseFindings((allRisks || []).filter(r => ['critical', 'high'].includes(String(r.severity).toLowerCase()) && !/best.?practice/i.test(r.category || '')).map(r => ({ description: r.description, severity: r.severity, systemName: r.systemName || r.serialNumber })));
+  uf.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1) || b.systems.size - a.systems.size);
+  o += `## Slide 4 -- Optimisation opportunities\n\n` + (uf.length ? `| Severity | Systems | Finding |\n|---|---|---|\n` + uf.slice(0, 8).map(f => `| ${String(f.severity).toUpperCase()} | ${f.systems.size} | ${String(f.description).replace(/\|/g, '/').slice(0, 110)} |\n`).join('') + (uf.length > 8 ? `\n_${uf.length - 8} further distinct findings not shown._\n` : '') : 'No open critical or high-severity findings.\n') + '\n';
+  o += `## Slide 5 -- Renewal highlights\n\n` + (cf.expired.length ? `- **Lapsed (no active support):** ${cf.expired.slice(0, 6).map(e => e.systemName).join(', ')}${cf.expired.length > 6 ? ` and ${cf.expired.length - 6} more` : ''}.\n` : '') + (cf.expiring90.length ? `- **Renewals due within 90 days:** ${cf.expiring90.slice(0, 8).map(e => `${e.systemName} (${_dfDate(e.endDate)})`).join(', ')}${cf.expiring90.length > 8 ? ` and ${cf.expiring90.length - 8} more` : ''}.\n` : '') + ((!cf.expired.length && !cf.expiring90.length) ? 'No contract has lapsed or expires within 90 days.\n' : '') + '\n';
+  o += `## Slide 6 -- Decisions needed\n\n` + (plan.length ? plan.slice(0, 5).map((p, i) => `${i + 1}. **${p.action}** ${p.why} _(${p.when}; ${p.owner})_`).join('\n') : 'No corrective action is required at this time.') + '\n';
+  return o;
+}
+
 // ═══ Customer Health & Lifecycle Report (paste-ready) ═════════════════════
 // Written to be copied into a presentation or a customer document as-is: plain
 // customer-facing language, Markdown tables, no internal notes, no other customers,
@@ -25442,6 +25481,7 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     securityBrief,
     sustainabilityReport,
     customerReport: compileCustomerReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle),
+    valueReport: compileValueReport(targetSystems, allRisks, allSupportCases, scopeTitle),
     _enrichmentCounts: enrichSections._counts || {},
     _fleetProfile: enrichSections._fleetProfile || '',
     _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0),
@@ -29504,16 +29544,11 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">N. Customer Value Report (PPTX)</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CVR_PPTX')" data-tooltip="Generate a short exec-ready slide deck from real fleet data, styled after NetApp Digital Advisor's Customer Value Report.">Generate CVR (PPTX)</button>
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">N. Customer Value Report (text, one heading per slide)</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('VALUE_REPORT')">Download Report (MD)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Exec-ready PowerPoint deck built from this tool's real computed fleet data (Account Health Score, uptime rollup, efficiency savings, feature adoption, risk posture, warranty coverage) -- styled after NetApp Digital Advisor's Customer Value Report. Innovation Roadmap is intentionally not included: Active IQ has no real data source for it, and this tool does not fabricate slide content.</p>
-        <div style="display: flex; gap: 18px; flex-wrap: wrap;">
-          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionExec" checked> Executive Summary</label>
-          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionValue" checked> Value Insights</label>
-          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionOptimize" checked> Optimization Opportunities</label>
-          <label style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="cvrSectionRenewal" checked> Renewal Value Highlights</label>
-        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Executive summary, value delivered, security and planning, optimisation opportunities, renewals and decisions needed -- as plain text with one heading per slide, to copy into your own template.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.valueReport}</textarea>
       </div>
     </div>
 
@@ -30317,8 +30352,8 @@ function downloadDeliverable(type) {
     const csvContent = [headers.join(","), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
     
     triggerFileDownload(`systems_audit_${cleanScope}.csv`, csvContent);
-  } else if (type === 'CVR_PPTX') {
-    generateCVRPptx(targetSystems, cleanScope);
+  } else if (type === 'VALUE_REPORT') {
+    triggerFileDownload(`customer_value_report_${cleanScope}.md`, docs.valueReport);
   }
 }
 
