@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.94";
+const APP_VERSION = "5.6.95";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.95",
+    date: "26 September 2026",
+    title: "Deliverables: E-Series, MetroCluster and Small Accounts",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Reviewed three more account shapes (E-Series only, MetroCluster, small two-node) and closed what they showed: the Health & Lifecycle Report now names MetroCluster in its summary and section 7 with Mediator and automatic-switchover state, shows E-Series/StorageGRID capacity (allocated / total / % used), and flags a support contract that runs past the hardware's end-of-support date; StorageGRID and SANtricity reference articles appear only when the fleet has that family (an E-Series-only customer was shown StorageGRID release notes); Sales Proposals no longer print blank/N/A fields or an 'unpatched advisories' claim; the PowerPoint export no longer counts lapsed contracts as expiring.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.94",
     date: "26 September 2026",
@@ -20113,7 +20128,9 @@ function getFleetRelevantArticles(targetSystems) {
   // Release-feature articles about a hardware line (AFX, C-Series) only apply if the fleet has it.
   const _hasFleetTok = re => [..._fleetModelTokens].some(f => re.test(f));
   const _lineGate = a => { const t = String(a.title || ''); if (/\bafx\b/i.test(t) && !_hasFleetTok(/^afx/)) return false; if (/c-series/i.test(t) && !_hasFleetTok(/^affc\d/)) return false; if (/\basa\b/i.test(t) && !_hasFleetTok(/^asa/)) return false; return true; };
-  const candidateArticles = articles.filter(a => !isGenericPage(a) && _lineGate(a) && (() => { const tok = _modelInTitle(a); return !tok || _modelOwned(tok); })() && (() => { const u = _urlModel(a); return !u || (u !== 'storagegrid' && _fleetModelTokens.has(u)); })());
+  const _hasFam = f => targetSystems.some(s => _platformFamily(s) === f);
+  const _famGate = a => { const t = `${a.title || ''} ${a.url || ''}`.toLowerCase(); if (/storagegrid/.test(t) && !_hasFam('storagegrid')) return false; if (/santricity|e-series/.test(t) && !_hasFam('eseries')) return false; return true; };
+  const candidateArticles = articles.filter(a => !isGenericPage(a) && _lineGate(a) && _famGate(a) && (() => { const tok = _modelInTitle(a); return !tok || _modelOwned(tok); })() && (() => { const u = _urlModel(a); return !u || (u !== 'storagegrid' && _fleetModelTokens.has(u)); })());
 
   // ── Relevance scoring function ─────────────────────────────────────────
   function scoreArticle(a) {
@@ -24014,7 +24031,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   o += `- **Support entitlement:** ${contracts.active.length} of ${targetSystems.length} systems under active support${lapsed.length ? `; **${lapsed.length} lapsed**` : ''}${exp90.length ? `; ${exp90.length} expiring within 90 days` : ''}${contracts.unknown.length ? `; ${contracts.unknown.length} not reported` : ''}.\n`;
   o += `- **Security:** ${cveList.length ? `${plural(cveList.length, 'unique CVE')} identified (${cveCrit} critical, ${cveHigh} high)` : 'no CVE exposure identified'}; ${plural(riskSev('critical'), 'critical risk')} and ${plural(riskSev('high'), 'high-priority risk')} open in Active IQ.\n`;
   if (arp.ontap > 0) o += `- **Ransomware protection (ARP):** ${_dfArpSentence(arp)}.\n`;
-  if (dr.ontapCount > 0) o += `- **Data protection:** ${dr.relText}; ${dr.unprotectedText}.\n`;
+  if (dr.ontapCount > 0) o += `- **Data protection:** ${[dr.smRelCount > 0 ? dr.relText : '', dr.mcSystems > 0 ? `MetroCluster on ${plural(dr.mcSystems, 'system')} (${dr.mcMediatorIssues.length ? 'Mediator UNREACHABLE' : 'Mediator OK'}, AUTO-switchover ${dr.mcAusoDisabled.length ? 'DISABLED on ' + dr.mcAusoDisabled.length : 'enabled'})` : '', dr.unprotectedText].filter(Boolean).join('; ')}.\n`;
   o += `- **Open support cases:** ${openCases.length}.\n\n`;
 
   // 2 Estate
@@ -24041,6 +24058,8 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   }
   if (exp90.length) o += `**Renewals due within 90 days:** ${exp90.map(e => `${e.systemName} (${fmtD(e.endDate)}, ${e.daysRemaining} days)`).join(', ')}.\n\n`;
   if (!lapsed.length && !exp90.length && contracts.active.length) o += `No support contract expires within the next 90 days.\n\n`;
+  const _outlive = targetSystems.filter(s => { const c = daysTo(s.contractEndDate || s.contractExpiry || (s.contracts && s.contracts.endDate)), h = daysTo(s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate)); return c != null && h != null && h >= 0 && c > h; });
+  if (_outlive.length) o += `**Contract runs past hardware support:** ${plural(_outlive.length, 'system')} ${_outlive.length === 1 ? 'has' : 'have'} a support contract ending after the hardware's end-of-support date (for example ${nameOf(_outlive[0])}: contract ${fmtD(_outlive[0].contractEndDate || _outlive[0].contractExpiry || (_outlive[0].contracts && _outlive[0].contracts.endDate))}, hardware support ends ${fmtD(_outlive[0].hwEndOfSupport || (_outlive[0].lifecycle && _outlive[0].lifecycle.eosDate))}). Support cannot be renewed beyond the hardware end-of-support date, so plan the refresh before then.\n\n`;
   const warrEnd = targetSystems.filter(s => s.warrantyEndDate && daysTo(s.warrantyEndDate) < 0).length;
   if (warrEnd) o += `${plural(warrEnd, 'system')} ${warrEnd === 1 ? 'is' : 'are'} past the original hardware warranty date (this is separate from any support contract in place).\n\n`;
   // software support by version
@@ -24087,13 +24106,15 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const ont = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.efficiency);
   const ph = ont.reduce((a, s) => a + (s.efficiency.physicalUsedTB || 0), 0), lg = ont.reduce((a, s) => a + (s.efficiency.logicalUsedTB || 0), 0);
   if (ph > 0) o += `ONTAP systems store ${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB of physical capacity (${(lg / ph).toFixed(1)}:1 efficiency, ${(lg - ph).toFixed(1)} TB saved).\n\n`;
+  { const non = targetSystems.filter(s => _platformFamily(s) !== 'ontap' && s.efficiency && (s.efficiency.usableCapacityTB || 0) > 0);
+    if (non.length) { const u = non.reduce((a, s) => a + (s.efficiency.physicalUsedTB || 0), 0), t = non.reduce((a, s) => a + (s.efficiency.usableCapacityTB || 0), 0); o += `${[...new Set(non.map(s => famLabel[_platformFamily(s)]))].join(' / ')} capacity: ${u.toFixed(1)} TB allocated of ${t.toFixed(1)} TB (${Math.round(u / t * 100)}% used). E-Series and StorageGRID have no dedupe/compression ratio.\n\n`; } }
   const near = targetSystems.filter(s => s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 365).sort((a, b) => a.projections.daysToLimit - b.projections.daysToLimit);
   o += near.length ? `Projected to reach (or already at) the capacity threshold within 12 months: ${near.map(s => `${nameOf(s)} (${s.projections.daysToLimit === 0 ? 'already at the threshold' : _dfRunwayText(s.projections.daysToLimit)})`).join(', ')}.\n\n` : `No system is projected to reach its capacity threshold within 12 months.\n\n`;
 
   // 7 Data protection
   if (dr.ontapCount > 0) {
     o += `## 7. Data Protection\n\n- SnapMirror: ${dr.relText}.\n- Replication status: ${dr.unprotectedText}.\n- Replication lag: ${dr.rpoText}.\n`;
-    if (dr.mcSystems > 0) o += `- MetroCluster: ${plural(dr.mcSystems, 'system')}.\n`;
+    if (dr.mcSystems > 0) o += `- MetroCluster: ${plural(dr.mcSystems, 'system')}; Mediator ${dr.mcMediatorIssues.length ? 'UNREACHABLE on ' + dr.mcMediatorIssues.join(', ') : 'reachable'}; automatic unplanned switchover (AUSO) ${dr.mcAusoDisabled.length ? 'disabled on ' + dr.mcAusoDisabled.join(', ') : 'enabled'}. Run a switchover/switchback test at least annually to confirm the design behaves as expected.\n`;
     o += '\nActive IQ reports SnapMirror as a relationship count; destination and lag should be confirmed on the clusters.\n\n';
   }
 
@@ -25021,7 +25042,7 @@ OPPORTUNITY INTELLIGENCE:
 
   // TAM renewal pipeline
   if (scopedRenewals.length > 0) {
-    salesProposals += `RENEWAL PIPELINE (${scopedRenewals.length} systems from TAM data)
+    salesProposals += `RENEWAL PIPELINE (${scopedRenewals.length} system${scopedRenewals.length !== 1 ? 's' : ''} from TAM data)
 --------------------------------------------------------------------------------
 `;
     const refreshGroups = {};
@@ -25033,7 +25054,7 @@ OPPORTUNITY INTELLIGENCE:
     Object.entries(refreshGroups).forEach(([cat, items]) => {
       salesProposals += `  ${cat}: ${items.length} system(s)\n`;
       items.slice(0, 5).forEach(r => {
-        salesProposals += `    • ${r.hostName || 'N/A'} | ${r.hwServiceLevel || ''} | HW EOA: ${(r.hwEndOfAvailability || 'N/A').substring(0,10)} | EOS: ${(r.hwEndOfSupport || 'N/A').substring(0,10)}\n`;
+        salesProposals += `    • ${r.hostName || 'Unnamed system'}${r.hwServiceLevel ? ' | ' + r.hwServiceLevel : ''}${r.hwEndOfAvailability ? ' | HW end of availability: ' + String(r.hwEndOfAvailability).substring(0,10) : ''}${r.hwEndOfSupport ? ' | end of support: ' + String(r.hwEndOfSupport).substring(0,10) : ''}\n`;
       });
       if (items.length > 5) salesProposals += `    ... and ${items.length - 5} more\n`;
     });
@@ -25051,7 +25072,7 @@ OPPORTUNITY INTELLIGENCE:
       const sysSecCount = (sys.securityBulletins || []).length;
       salesProposals += `  ${i+1}. ${sys.systemName} | ${sys.platform} | OS: ${sys.ontapVersion}
      EOA: ${sys.lifecycle.eoaDate ? new Date(sys.lifecycle.eoaDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}  |  EOS: ${sys.lifecycle.eosDate ? new Date(sys.lifecycle.eosDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}
-     Cost of Inaction: ${sysCritCount} critical risks, ${sysSecCount} security advisories unpatched.
+     Cost of Inaction: ${sysCritCount} critical risk${sysCritCount !== 1 ? 's' : ''}, ${sysSecCount} open security advisor${sysSecCount !== 1 ? 'ies' : 'y'} for this system.
      Recommendation: Refresh to AFF A-Series or C-Series
      Reference: https://www.netapp.com/data-storage/aff-a-series/
 `;
@@ -30251,7 +30272,7 @@ async function generateCVRPptx(targetSystems, cleanScope) {
     // on _mCveCount in renderCSMTab() for why this must not count securityBulletins alone.
     cveCount: computeCostOfInaction(targetSystems).cves,
     eosCount: _realRecommendationCount('EOS_AND_PLAT_AND_HW', targetSystems) || 0,
-    expiring90: targetSystems.filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90).length
+    expiring90: _dfContractFacts(targetSystems).expiring90.length
   };
   const topRisks = [];
   targetSystems.forEach(s => (s.risks || []).forEach(r => {
@@ -30259,9 +30280,7 @@ async function generateCVRPptx(targetSystems, cleanScope) {
     if (sev === 'critical' || sev === 'high') topRisks.push({ ...r, systemName: s.systemName, serialNumber: s.serialNumber });
   }));
   topRisks.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
-  const expiringContracts = targetSystems
-    .filter(s => s.contracts && s.contracts.daysRemaining != null && s.contracts.daysRemaining >= 0 && s.contracts.daysRemaining <= 90)
-    .map(s => ({ systemName: s.systemName, serialNumber: s.serialNumber, ...s.contracts }));
+  const expiringContracts = _dfContractFacts(targetSystems).expiring90;   // lapsed contracts (days clamped to 0) are not 'expiring'
 
   const pptx = new window.PptxGenJS();
   pptx.defineLayout({ name: 'CVR_WIDE', width: 10, height: 7.5 });

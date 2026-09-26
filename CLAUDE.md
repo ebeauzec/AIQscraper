@@ -22,87 +22,48 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff — 2026-09-26 (cloud session, v5.6.83 → v5.6.84)
+## Session handoff -- 2026-09-26 (Windows dev station, v5.6.85 -> v5.6.95)
 
-**Correction to the previous handoff:** it assumed the next session would
-be on the user's Windows station. It wasn't — "closing this session" and
-"picking up on this system" both turned out to still be the same Linux
-cloud container (`/home/user/AIQscraper`, hostname `vm`). **This
-environment cannot compile the Windows `.exe`** (PyInstaller doesn't
-cross-compile, and the Windows path needs `pywin32`/`pythonnet`, which
-don't exist on Linux) — that genuinely requires an actual Windows
-machine running `build/build_windows.bat`. If a session ever needs to
-know which machine it's actually on, check `hostname`/`uname -a` and
-`pwd` rather than trusting what the user calls it — this cost one
-clarifying round-trip. Everything below is real, done, and pushed.
+Overlaps the cloud session's v5.6.83/84 (merged in 5.6.85). Everything below is pushed to `main`.
 
-### v5.6.83 (previous handoff, now superseded) — deliverable-consistency fixes
+**What was asked:** audit the Action Planner deliverables for contradictions and invented numbers, make them
+copy/paste-ready for customers, then keep reviewing them against real accounts.
 
-Fixed two real bugs in the Action Planner deliverables (`app.js`'s
-`compile*` functions): (1) `compileCustomerSuccessPlanText` and
-`compileMSPServiceReport` averaged a dead field, `sys.projections.
-runwayDays` (never set anywhere — real field is `daysToLimit`), always
-printing a fake 120-day capacity runway; (2) QBR Pack, MSP Service
-Report, and Risk & Remediation Brief computed the storage efficiency
-ratio across all platforms instead of ONTAP-only, disagreeing with CSP/
-Extended Deliverables on mixed-platform fleets. Both fixed; full detail
-in `git log` on commit `10e3ff1` and `CHANGELOG.md` [5.6.83]. Not
-re-summarized further here per the "overwrite, don't append" rule above.
+**What changed (all in `app.js`, client-side only -- no server restart needed):**
+- One definition per fact, used by every document: `_dfContractFacts` (active / expiring / lapsed),
+  `_dfArpFacts` (tri-state ARP), `_dfCveIndex` (real CVE ids only, systems de-duplicated), `_dfSustain`
+  (per-system score, never the account-wide "all tenants" one), `_dfRunwayText`, `_osKnown/_osIsCurrent`
+  (OS currency over systems it can be judged for), `_dfCollapseFindings`, `_dfCleanCause`.
+- SnapMirror: Active IQ gives a relationship COUNT only. `snapMirrorReported` flag; count-only relationship;
+  "unprotected" = confirmed no replication (unreported is "not reported", HA is not DR).
+- Corrective-action grouping (`_filterAndDeduplicateRisks`): an OS upgrade is the fix only for CVE / software-version
+  findings; groups no longer borrow the first finding's cause/steps. CVE findings get a CVE-specific plan in
+  `generateDynamicRemediationPlan`. Risk 506 flags pre-release ONTAP (RC/beta) as high.
+- Invented figures removed (TCO, savings, power/CO2, admin-time, 45% premium, "$X/TB"). FabricPool removed from the
+  adoption score, scorecards, dashboards and action lists.
+- New deliverable `customerReport` (`compileCustomerReport`): paste-ready Markdown health & lifecycle report.
+  Change Tickets / Implementation Plans skip systems with nothing to do and list them once ("not assessed" when no AutoSupport).
+- IMT interoperability: only from vCenter versions Active IQ reports (no substring guessing).
+- Documents are prepared by the TAM when assigned (was the sales rep).
 
-### v5.6.84 — merged a 3-week-old unmerged branch, completed its wiring
+**Tooling:** `tools/audit_deliverables.py` generates every deliverable for every customer scope in parallel headless
+browsers (44 scopes in ~35 s) and flags placeholders, invented-figure phrases, NaN/undefined, cross-document
+disagreements, negative counts and other customers' names. Run it after any deliverable change:
+`ARIA_URL=http://127.0.0.1:8080/ python tools/audit_deliverables.py 8`. Known benign hits: an account's own ASP / site
+names that contain another customer's name.
 
-The user asked to pull in "changes done on the mac." No new commits had
-been pushed anywhere since the last handoff — but `git ls-remote --heads
-origin` turned up two branches that were never in this conversation's
-context: `ebeauzec-remove-claude-contributor` (already fully merged into
-`main`, an ancestor — harmless, could be deleted, didn't bother) and
-**`ebeauzec-add-kb-interval-config`** (NOT merged, 3 real commits, authored
-by the user directly, dated early September — this was almost certainly
-the "mac" work). **Lesson: when a user says work exists elsewhere and a
-fetch of the branch you're on shows nothing new, check `git ls-remote
---heads origin` for branches outside the current conversation's memory
-before concluding there's nothing to pull in.**
+**Gotchas hit this session:** heredoc Python scripts mangle backslashes (`\b` -> backspace, `\n` -> newline): write patch
+scripts with the Write tool and use `chr(92)` or raw strings. app.js is CRLF. A dropped line inside a template
+literal broke the whole page once (check the browser console after every edit).
 
-Merged it (`f67e8b5`): adds a "KB Crawl Interval" dropdown in Settings >
-Enrichment (24h-14d, default 7 days) alongside the existing Security Scan
-Interval. Conflicts in `README.md`, `app.js`, `server.py` resolved by
-combining both sides (this branch's kb-interval wiring +
-since-added `autoHarvestEnabled`/`autoHarvestInterval` wiring that didn't
-exist when the branch was cut) — `index_src.html` merged cleanly.
+**Still open / not done:**
+- `.exe` not rebuilt (needs Windows `build/build_windows.bat`); `dist/` web files are synced.
+- Reviewed line by line: Vodacom (all documents), MIC Tanzania (about half), Saudi Telecom (health report),
+  Clicks (E-Series only), Shoprite (MetroCluster), Unemployment Insurance Fund (small). Others only by the audit tool.
+- The PPTX Customer Value Report was code-reviewed for contract counts only, never opened.
+- Source-data limits, not bugs: SnapMirror destination/lag not exposed; systems with no AutoSupport cannot be assessed;
+  Active IQ's own recommendation text can disagree with our facts (a note explains it in the QBR); effort estimates,
+  SLA targets and the cost-per-TB rate are defaults; some hardware EOA/EOS dates come from a maintained reference list.
 
-**Found and fixed while merging:** the original branch only wired
-`GET /api/config` to return `kb_interval_hours` — saving the dropdown did
-nothing, silently. Completed it: `POST /api/config` now persists
-`kb_interval_hours` from the request body, `_enrichment_scheduler.
-update_config()` is now called with it on every save (not just at
-startup), and the scheduler's initial construction at server startup now
-reads the saved value instead of always defaulting to 168h. All 54 tests
-in `tests/run_tests.py` pass; `node --check app.js` and
-`python3 -m py_compile server.py` both clean.
-
-**Note:** `index.html` (production) has no enrichment-settings section
-at all (only `index_src.html`, the dev shell, does) — this is a
-pre-existing, documented gap (see `CONTEXT.md` §"index.html vs
-index_src.html"), not something this merge introduced or needed to fix.
-
-### `dist/` sync — same pattern as last time, still no `.exe` rebuild
-
-Only `app.js` changed among the files `dist/` ships (`server.py` isn't
-bundled into the frozen app at all — `launcher.py` has its own smaller,
-self-contained proxy and doesn't implement `/api/config`, background
-schedulers, etc., so the kb-interval backend fix only applies to
-`python server.py` mode, not the packaged desktop app; `index_src.html`
-isn't bundled either — `dist/` only ships `index.html`). Copied the
-updated `app.js` into `dist/app.js` and
-`dist/NetApp_AIQ_Advisor/_internal/app.js` as before. Still true: only a
-`launcher.py`/native-code change would require an actual Windows rebuild.
-
-### Git state as of hand-off
-
-- `main` and `claude/gallant-lovelace-zlrhei` both at `f67e8b5`... then
-  the changelog/version-bump/dist-sync commit on top for v5.6.84 — check
-  `git log --oneline -5` on `main` for the exact current tip, push both
-  branches together (fast-forward `main` from this branch) as usual.
-  Clean working tree, no open PR.
-- Stray fully-merged branch `ebeauzec-remove-claude-contributor` still
-  exists on GitHub (harmless, safe to delete whenever, not urgent).
+**Git:** branch `main`, pushed. Working tree also shows harvest data files modified by the running server
+(`data/*.json`) -- not part of this work, do not commit them with code changes.

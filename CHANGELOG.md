@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.95] - 2026-09-26
+
+### Fixed
+- Reviewed three more account shapes (E-Series only, MetroCluster, small two-node) and closed what they showed: the Health & Lifecycle Report now names MetroCluster in its summary and section 7 with Mediator and automatic-switchover state, shows E-Series/StorageGRID capacity (allocated / total / % used), and flags a support contract that runs past the hardware's end-of-support date; StorageGRID and SANtricity reference articles appear only when the fleet has that family (an E-Series-only customer was shown StorageGRID release notes); Sales Proposals no longer print blank/N/A fields or an 'unpatched advisories' claim; the PowerPoint export no longer counts lapsed contracts as expiring.
+
+---
+
+## [5.6.94] - 2026-09-26
+
+### Fixed
+- Deliverables cycle-checked on a second real account (MIC Tanzania): documents are prepared by the assigned TAM when there is one (was the sales rep); support cases show the system they belong to (case rows were blank in the QBR, MSP report and email); a system at its capacity threshold reads 'at threshold' instead of '0d'; one site per city regardless of capitalisation; missing service levels no longer print 'N/A'; singular/plural fixes ('1 system'); case titles in the advisory email drop the drive serial numbers.
+- Fixed a negative count ('-1 systems not on the recommended OS release'): a system counted as current without being assessable is no longer counted as current. Health report: a recommended target older than the running version is shown as 'move to a supported release'; near-capacity list says 'already at the threshold'. The audit tool now flags negative counts and '0d' countdowns.
+
+---
+
 ## [5.6.93] - 2026-09-26
 
 ### Fixed
