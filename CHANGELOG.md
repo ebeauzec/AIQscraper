@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.113] - 2026-09-26
+
+### Changed
+- Rear-panel drawings use one common scale, so a connector is the same size on every platform (smaller chassis such as the FAS2720/A220/C190, FAS2820 and E-Series canisters were being drawn about twice as large as the FAS8200/A800 class). Saves screen space and looks uniform.
+
+---
+
 ## [5.6.112] - 2026-09-26
 
 ### Changed

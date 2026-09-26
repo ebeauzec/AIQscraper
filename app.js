@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.112";
+const APP_VERSION = "5.6.113";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.113",
+    date: "26 September 2026",
+    title: "Uniform Rear Panel Scale",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Rear-panel drawings use one common scale, so a connector is the same size on every platform (smaller chassis such as the FAS2720/A220/C190, FAS2820 and E-Series canisters were being drawn about twice as large as the FAS8200/A800 class). Saves screen space and looks uniform.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.112",
     date: "26 September 2026",
@@ -35844,6 +35859,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   let _dim = false, _mir = false, _CW = 0;
   const _bn = () => _dim ? {} : _byNameAll;
   const _X = (x, w) => _mir ? _CW - x - (w || 0) : x;
+  const _ZOOM = 1.4;   // one pixels-per-unit for every layout so a connector is the same size on every platform
   const _speedKind = p => { const g = parseFloat((p.details && p.details.speed) || ''); return g >= 40 ? 'qsfp' : 'sfp'; };
   const _stat = p => p ? (p.status === 'online' ? '#22c55e' : p.status === 'offline' ? '#ef4444' : '#f59e0b') : '#4b5563';
   const _statTxt = p => p.status === 'online' ? 'UP' : p.status === 'offline' ? 'DOWN' : 'UNKNOWN';
@@ -35974,7 +35990,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       s += `<text x="${ox + 1}" y="${oy - 2.5}" font-size="5.6" font-weight="800" fill="${i === sel ? '#22d3ee' : '#4b5563'}">${names[i]}${i === sel ? '  (this node)' : ''}</text>`;
     }
     _dim = false; _mir = false;
-    return `<svg viewBox="0 0 ${tw} ${th}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(tw * (L.zoom || 2.1))}px;display:block;margin:0 auto;">${s}</svg>`;
+    return `<svg viewBox="0 0 ${tw} ${th}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(tw * _ZOOM)}px;display:block;margin:0 auto;">${s}</svg>`;
   };
   const _frame = (title, sub2, inner2, note2) => `<style>.bp-port .bpHalo,.bp-port .bpPill{display:none;pointer-events:none}.bp-port.hot .bpHalo{display:block;animation:bpPulse .7s ease-in-out infinite alternate}.bp-port.hot .bpPill{display:block}.bp-port.hot .bpBody{stroke:#fff;stroke-width:1.6}.bp-port.hot .bpNum circle{fill:#fff}.bp-port.hot .bpNum text{fill:#0b0e14}@keyframes bpPulse{from{opacity:.45}to{opacity:1}}</style><div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
@@ -36054,7 +36070,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       ...[0, 1, 2, 3].map(i => ['f', sg ? String(i + 1) : ['0c', '0d', '0e', '0f'][i], 'sfp', 132 + i * 26, 50, 't']), ['f', 'P1', 'rj45', 158, 20, 't'], ['f', 'P2', 'rj45', 184, 20, 't'], ['f', 'μUSB', 'umicro', 218, 22, 't'], ['f', 'USB', 'usb', 236, 20, 't']] });
   const _E4000 = { W: 276, H: 66, mode: 'one', zoom: 2.1, items: [['f', 'MGMT', 'rj45', 14, 20, 't'], ['f', 'CON', 'rj45', 44, 20, 't'], ['f', 'USB-C', 'usbc', 72, 24, 't'], ['f', 'USB', 'usb', 96, 22, 't'], ['f', '0a', 'sas', 140, 22, 't'], ['f', '0b1', 'sas', 162, 22, 't'], ['f', '0b2', 'sas', 184, 22, 't'], ['f', 'HIC1', 'sfp', 220, 22, 't'], ['f', 'HIC2', 'sfp', 246, 22, 't']] };
   const _SG1U = { W: 356, H: 80, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 94, 46, 't'], ['f', '1', 'sfp', 110, 22, 't'], ['f', '2', 'sfp', 136, 22, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 50, 't'], ['f', 'USB', 'usb', 186, 50, 't'], ['f', '4', 'rj45', 208, 46, 't'], ['f', '5', 'rj45', 232, 46, 't'], ['f', '3', 'sfp', 208, 22, 't'], ['f', '4', 'sfp', 232, 22, 't']] };
-  const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(L.W * (L.zoom || 3))}px;display:block;">${s}</svg></div>`; };
+  const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round((L.W + 8) * _ZOOM)}px;display:block;">${s}</svg></div>`; };
 
   const _ctrlAB = _bpNodePos(sys);
   const _plat2 = _plat.replace(/\s+/g, '');
