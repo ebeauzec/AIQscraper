@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.108";
+const APP_VERSION = "5.6.109";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.109",
+    date: "26 September 2026",
+    title: "Rear Panel Port Selection",
+    sections: [
+      {
+        icon: "✅",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Rear-panel drawings: connectors are drawn at true relative size and fit inside their slot bays (multi-port slots wrap or shrink instead of running over the neighbouring slot); every reported physical port carries a number that matches the new # column in the port table; hovering or clicking a port or a table row lights it up with a pulsing halo, a callout (number, name, UP/DOWN/UNKNOWN, speed) and a matching highlighted row, coloured green (up), red (down) or orange (unknown); the highlight no longer makes ports jump; and selecting the second node of an HA pair (names ending -02, N2, 2) now shows it as Controller B instead of Controller A.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.108",
     date: "26 September 2026",
@@ -35753,7 +35768,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   // placed by name (eNx = slot N, e0x = onboard) and coloured by role/link; any connector Active IQ
   // did not report is drawn dashed with no state.
   const _esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const _KIND = { sfp: [16, 10], qsfp: [21, 11], rj45: [16, 13], sas: [14, 8], usb: [13, 8], usbc: [9, 5], umicro: [10, 5] };
+  const _KIND = { sfp: [22, 15], qsfp: [27, 15], rj45: [22, 18], sas: [17, 13], usb: [18, 11], usbc: [12, 7], umicro: [13, 7] };
   const _roleCol = t => t === 'cluster' ? '#3b82f6' : t === 'data' ? '#f59e0b' : t === 'fc' ? '#eab308' : (t === 'sas' || t === 'nvme') ? '#a855f7' : '#10b981';
   const _isPhys = p => /^e\d+[a-z]$/i.test(p.name) || p.name === 'e0M';
   const _byNameAll = {}; ports.forEach(p => { _byNameAll[p.name] = p; });
@@ -35762,45 +35777,58 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const _bn = () => _dim ? {} : _byNameAll;
   const _X = (x, w) => _mir ? _CW - x - (w || 0) : x;
   const _speedKind = p => { const g = parseFloat((p.details && p.details.speed) || ''); return g >= 40 ? 'qsfp' : 'sfp'; };
+  const _stat = p => p ? (p.status === 'online' ? '#22c55e' : p.status === 'offline' ? '#ef4444' : '#f59e0b') : '#4b5563';
+  const _statTxt = p => p.status === 'online' ? 'UP' : p.status === 'offline' ? 'DOWN' : 'UNKNOWN';
+  const _num = _bpNumberPorts(ports);
 
-  const _conn = (kind, x, y, col, dash, fill) => {
-    const k = _KIND[kind] || _KIND.sfp, w = k[0], h = k[1], d = dash ? ' stroke-dasharray="1.6 1.2"' : '';
-    let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.3" fill="${fill || '#0a0d13'}" stroke="${col}" stroke-width="0.9"${d}/>`;
+  // connector shape drawn at its natural size from (0,0), then placed/scaled
+  const _conn = (kind, x, y, col, dash, fill, sc) => {
+    const k = _KIND[kind] || _KIND.sfp, w = k[0], h = k[1], d = dash ? ' stroke-dasharray="1.8 1.3"' : '';
+    let s = `<rect class="bpBody" x="0" y="0" width="${w}" height="${h}" rx="1.6" fill="${fill || '#0a0d13'}" stroke="${col}" stroke-width="1"${d}/>`;
     if (kind === 'sfp' || kind === 'qsfp') {
-      s += `<rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${h - 4.5}" rx="0.6" fill="#000"/><rect x="${x + w / 2 - 2.2}" y="${y + h - 2.6}" width="4.4" height="1.4" fill="${col}" opacity="0.7"/>`;
-      if (kind === 'qsfp') s += `<line x1="${x + w / 2}" y1="${y + 2}" x2="${x + w / 2}" y2="${y + h - 3}" stroke="#1f2937" stroke-width="0.6"/>`;
+      s += `<rect x="2.4" y="2.4" width="${w - 4.8}" height="${h - 6}" rx="0.8" fill="#000"/><rect x="${w / 2 - 2.6}" y="${h - 3.2}" width="5.2" height="1.7" fill="${col}" opacity="0.75"/>`;
+      if (kind === 'qsfp') s += `<line x1="${w / 2}" y1="2.4" x2="${w / 2}" y2="${h - 3.6}" stroke="#1f2937" stroke-width="0.7"/>`;
     } else if (kind === 'rj45') {
-      s += `<rect x="${x + 2}" y="${y + 1.6}" width="${w - 4}" height="${h - 6.4}" fill="#000"/>`;
-      for (let i = 0; i < 8; i++) s += `<rect x="${x + 2.6 + i * 1.5}" y="${y + h - 5}" width="0.75" height="3.3" fill="#c9a227"/>`;
-      s += `<rect x="${x + w / 2 - 2}" y="${y - 1.4}" width="4" height="1.6" fill="${col}" opacity="0.8"/>`;
+      s += `<rect x="2.4" y="2" width="${w - 4.8}" height="${h - 8}" fill="#000"/>`;
+      for (let i = 0; i < 8; i++) s += `<rect x="${3 + i * 2}" y="${h - 6.4}" width="1" height="4.4" fill="#c9a227"/>`;
+      s += `<rect x="${w / 2 - 2.4}" y="-1.8" width="4.8" height="2" fill="${col}" opacity="0.8"/>`;
     } else if (kind === 'sas') {
-      s += `<polygon points="${x + 2},${y + 1.8} ${x + w - 2},${y + 1.8} ${x + w - 3.2},${y + h - 1.8} ${x + 3.2},${y + h - 1.8}" fill="#000"/>`;
+      s += `<polygon points="2.4,2.4 ${w - 2.4},2.4 ${w - 3.8},${h - 2.4} 3.8,${h - 2.4}" fill="#000"/>`;
     } else if (kind === 'usb') {
-      s += `<rect x="${x + 1.8}" y="${y + 2.2}" width="${w - 3.6}" height="2.4" fill="#d1d5db"/>`;
+      s += `<rect x="2.2" y="2.8" width="${w - 4.4}" height="3" fill="#d1d5db"/>`;
     } else {
-      s += `<rect x="${x + 1.5}" y="${y + h / 2 - 0.7}" width="${w - 3}" height="1.4" fill="#4b5563"/>`;
+      s += `<rect x="1.8" y="${h / 2 - 0.8}" width="${w - 3.6}" height="1.6" fill="#4b5563"/>`;
     }
-    return s;
+    return `<g transform="translate(${x},${y}) scale(${sc || 1})">${s}</g>`;
   };
-  // A named connector: reported -> coloured by role with a link LED and hover; unreported -> dashed grey
-  const _pName = (name, kind, x, y, lp) => {
-    _usedNames.add(name);
-    const p = _bn()[name], k = _KIND[kind] || _KIND.sfp, X = _X(x, k[0]);
-    if (_dim) return _conn(kind, X, y, '#3b4557', false);
-    const col = p ? _roleCol(p.type) : '#4b5563';
-    const led = p ? (p.status === 'online' ? '#10b981' : p.status === 'offline' ? '#ef4444' : '#6b7280') : null;
-    const lab = lp === 'b' ? [X + k[0] / 2, y + k[1] + 6.2, 'middle'] : lp === 'l' ? [X - 1.6, y + k[1] / 2 + 1.8, 'end'] : lp === 'r' ? [X + k[0] + 1.6, y + k[1] / 2 + 1.8, 'start'] : [X + k[0] / 2, y - 2.4, 'middle'];
-    const tip = p ? `${name} - ${p.type}${p.details && p.details.speed ? ', ' + p.details.speed : ''}, link ${p.status}` : `${name} - not reported by Active IQ (position from the NetApp hardware diagram)`;
-    return `<g class="bp-port" style="cursor:pointer" id="port-slot-${name}" onmouseenter="hoverCablingPort('${name}')" onmouseleave="unhoverCablingPort('${name}')"><title>${_esc(tip)}</title>${_conn(kind, X, y, col, !p)}` +
-      (led ? `<circle cx="${X + k[0] - 1.6}" cy="${y + 1.6}" r="1.5" fill="${led}" stroke="#000" stroke-width="0.3"/>` : '') +
-      `<text x="${lab[0]}" y="${lab[1]}" font-size="5.2" font-family="monospace" font-weight="700" text-anchor="${lab[2]}" fill="${p ? '#e5e7eb' : '#6b7280'}">${_esc(name)}</text></g>`;
+  // A named connector. Reported: role colour, link LED, number badge, hover/click highlight halo + pill.
+  // Unreported: dashed grey, no state.
+  const _pName = (name, kind, x, y, lp, sc) => {
+    _usedNames.add(name); sc = sc || 1;
+    const p = _bn()[name], kk = _KIND[kind] || _KIND.sfp, w = kk[0] * sc, h = kk[1] * sc, X = _X(x, w);
+    if (_dim) return _conn(kind, X, y, '#3b4557', false, null, sc);
+    const col = p ? _roleCol(p.type) : '#4b5563', sc2 = _stat(p), no = p ? _num[name] : null;
+    const lab = lp === 'b' ? [X + w / 2, y + h + 6.4, 'middle'] : lp === 'l' ? [X - 1.6, y + h / 2 + 2, 'end'] : lp === 'r' ? [X + w + 1.6, y + h / 2 + 2, 'start'] : [X + w / 2, y - 2.6, 'middle'];
+    const tip = p ? `#${no || ''} ${name} - ${p.type}${p.details && p.details.speed ? ', ' + p.details.speed : ''}, link ${p.status}` : `${name} - not reported by Active IQ (position from the NetApp hardware diagram)`;
+    let g = `<g class="bp-port" style="cursor:pointer" id="port-slot-${name}" data-stat="${sc2}" onmouseenter="hoverCablingPort('${name}')" onmouseleave="unhoverCablingPort('${name}')" onclick="bpPin('${name}')"><title>${_esc(tip)}</title>`;
+    if (p) g += `<rect class="bpHalo" x="${X - 3}" y="${y - 3}" width="${w + 6}" height="${h + 6}" rx="3.5" fill="${sc2}" fill-opacity="0.18" stroke="${sc2}" stroke-width="2.2"/>`;
+    g += _conn(kind, X, y, p ? col : '#4b5563', !p, null, sc);
+    if (p) g += `<circle cx="${X + w - 2}" cy="${y + 2}" r="1.9" fill="${sc2}" stroke="#000" stroke-width="0.4"/>`;
+    g += `<text x="${lab[0]}" y="${lab[1]}" font-size="5.4" font-family="monospace" font-weight="700" text-anchor="${lab[2]}" fill="${p ? '#e5e7eb' : '#6b7280'}">${_esc(name)}</text>`;
+    if (p && no) g += `<g class="bpNum"><circle cx="${X + 1}" cy="${y + 1}" r="4.5" fill="#0b0e14" stroke="${sc2}" stroke-width="1.1"/><text x="${X + 1}" y="${y + 2.9}" font-size="${no > 9 ? 4.6 : 5.6}" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#fff">${no}</text></g>`;
+    if (p) {
+      const txt = `#${no || '-'}  ${name}  ${_statTxt(p)}${p.details && p.details.speed ? '  ' + p.details.speed : ''}`, pw = txt.length * 3.5 + 8, below = y < 16;
+      const px = Math.max(1, Math.min(_CW - pw - 1, X + w / 2 - pw / 2)), py = below ? y + h + 4 : y - 15;
+      g += `<g class="bpPill"><rect x="${px}" y="${py}" width="${pw}" height="11" rx="5.5" fill="${sc2}" stroke="#fff" stroke-width="0.8"/><text x="${px + pw / 2}" y="${py + 7.7}" font-size="5.6" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#0b0e14">${_esc(txt)}</text></g>`;
+    }
+    return g + '</g>';
   };
   // A fixed connector Active IQ never reports (console, USB, SAS shelf ports, BMC ...)
   const _pFix = (label, kind, x, y, lp) => {
     const k = _KIND[kind] || _KIND.rj45, X = _X(x, k[0]);
     if (_dim) return _conn(kind, X, y, '#3b4557', false);
-    const ly = lp === 'b' ? y + k[1] + 5.6 : y - 2.2;
-    return `<g><title>${_esc(label)}</title>${_conn(kind, X, y, kind === 'sas' ? '#a855f7' : '#6b7280', false)}<text x="${X + k[0] / 2}" y="${ly}" font-size="4.6" font-family="monospace" text-anchor="middle" fill="#7c8698">${_esc(label)}</text></g>`;
+    const ly = lp === 'b' ? y + k[1] + 6 : y - 2.4;
+    return `<g><title>${_esc(label)}</title>${_conn(kind, X, y, kind === 'sas' ? '#a855f7' : '#6b7280', false)}<text x="${X + k[0] / 2}" y="${ly}" font-size="4.8" font-family="monospace" text-anchor="middle" fill="#7c8698">${_esc(label)}</text></g>`;
   };
   const _slotPortsOf = n => _dim ? [] : ports.filter(p => new RegExp('^e' + n + '[a-z]$', 'i').test(p.name)).sort((a, b) => a.name.localeCompare(b.name));
   const _tag = (txt, x, y, w, h) => `<rect x="${_X(x, w)}" y="${y}" width="${w}" height="${h}" rx="1" fill="#0b0e14" stroke="#3b4557" stroke-width="0.5"/><text x="${_X(x, w) + w / 2}" y="${y + h / 2 + 2.2}" font-size="6.4" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="#e5e7eb">${_esc(txt)}</text>`;
@@ -35808,16 +35836,24 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     let s = `<rect x="${_X(x, w)}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="#1a2030" stroke="#3b4557" stroke-width="0.7"/>`;
     const ps = _slotPortsOf(n); ps.forEach(p => _usedNames.add(p.name));
     if (ps.length) {
-      const kinds = ps.map(p => _speedKind(p));
-      if (dir === 'v') {
-        let yy = y + 6;
-        ps.forEach((p, i) => { const k = _KIND[kinds[i]]; s += _pName(p.name, kinds[i], x + (w - k[0]) / 2, yy + 1, 'b'); yy += k[1] + 10; });
-      } else {
-        const tot = ps.reduce((a, p, i) => a + _KIND[kinds[i]][0] + 7, -7); let xx = x + Math.max(3, (w - tot) / 2);
-        ps.forEach((p, i) => { const k = _KIND[kinds[i]]; s += _pName(p.name, kinds[i], xx, y + (h - k[1]) / 2 + 1, 't'); xx += k[0] + 7; });
+      const kinds = ps.map(p => _speedKind(p)), nat = kinds.map(k => _KIND[k]), pw = Math.max(...nat.map(k => k[0])), ph = Math.max(...nat.map(k => k[1]));
+      const LAB = 8, GX = 4, pad = 3;
+      let best = null;
+      for (let sc = 1.2; sc >= 0.35 && !best; sc -= 0.05) {
+        const opts = dir === 'v' ? [1, 2, 3, 4].map(c => [Math.ceil(ps.length / c), c]) : [1, 2, 3, 4].map(r => [r, Math.ceil(ps.length / r)]);
+        for (const [rows, cols] of opts) {
+          if (cols * pw * sc + (cols - 1) * GX <= w - 2 * pad && rows * (ph * sc + LAB) + (rows - 1) * 1 <= h - 2 * pad) { best = { sc, rows, cols }; break; }
+        }
       }
-    } else if (!_dim) {
-      s += dir === 'v' ? '' : `<text x="${_X(x + w / 2, 0)}" y="${y + h / 2 + 1.6}" font-size="4.4" text-anchor="middle" font-style="italic" fill="#59657a">no Ethernet port reported</text>`;
+      if (!best) best = { sc: 0.35, rows: dir === 'v' ? ps.length : 1, cols: dir === 'v' ? 1 : ps.length };
+      const cw = pw * best.sc + GX, chh = ph * best.sc + LAB, gw = best.cols * cw - GX, gh = best.rows * chh;
+      const x0 = x + (w - gw) / 2, y0 = y + (h - gh) / 2;
+      ps.forEach((p, i) => {
+        const r = dir === 'v' ? i % best.rows : Math.floor(i / best.cols), c = dir === 'v' ? Math.floor(i / best.rows) : i % best.cols, k = _KIND[kinds[i]];
+        s += _pName(p.name, kinds[i], x0 + c * cw + (pw - k[0]) * best.sc / 2, y0 + r * chh + LAB, 't', best.sc);
+      });
+    } else if (!_dim && dir !== 'v') {
+      s += `<text x="${_X(x + w / 2, 0)}" y="${y + h / 2 + 1.6}" font-size="4.6" text-anchor="middle" font-style="italic" fill="#59657a">no Ethernet port reported</text>`;
     }
     if (tagPos !== 'none') s += dir === 'v' ? _tag(n, x + w / 2 - 4.5, y - 11, 9, 10) : _tag(n, x - 10, y + h / 2 - 5.5, 8.5, 11);
     return s;
@@ -35872,7 +35908,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     _dim = false; _mir = false;
     return `<svg viewBox="0 0 ${tw} ${th}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(tw * (L.zoom || 2.1))}px;display:block;margin:0 auto;">${s}</svg>`;
   };
-  const _frame = (title, sub2, inner2, note2) => `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+  const _frame = (title, sub2, inner2, note2) => `<style>.bp-port .bpHalo,.bp-port .bpPill{display:none;pointer-events:none}.bp-port.hot .bpHalo{display:block;animation:bpPulse .7s ease-in-out infinite alternate}.bp-port.hot .bpPill{display:block}.bp-port.hot .bpBody{stroke:#fff;stroke-width:1.6}.bp-port.hot .bpNum circle{fill:#fff}.bp-port.hot .bpNum text{fill:#0b0e14}@keyframes bpPulse{from{opacity:.45}to{opacity:1}}</style><div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
       <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${title}</span><span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span></div>
       <span style="font-size:0.48rem;color:#6b7280;font-style:italic;max-width:70%;text-align:right;">${sub2}</span>
@@ -35896,49 +35932,48 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     items: [['vent', 28, 10, 96, 46], ..._sasRow(['0a', '0b', '0c', '0d'], 46, 82, 19),
       ['p', 'e0a', 'sfp', 129, 55, 't'], ['p', 'e0b', 'sfp', 129, 90, 'b'], ['p', 'e0e', 'sfp', 163, 55, 't'], ['p', 'e0f', 'sfp', 163, 90, 'b'],
       ['p', 'e0g', 'sfp', 196, 55, 't'], ['p', 'e0h', 'sfp', 196, 90, 'b'], ['p', 'e0c', 'rj45', 231, 54, 't'], ['p', 'e0d', 'rj45', 231, 82, 'b'],
-      ['p', 'e0M', 'rj45', 262, 80, 't'], ['f', 'USB', 'usb', 298, 66, 't'], ['f', 'CON', 'rj45', 296, 82, 'b'], ['f', 'μUSB', 'umicro', 327, 92, 't'], ['led', 346, 68, 4],
-      ['bay', 1, 372, 26, 172, 22, 'h'], ['bay', 2, 372, 64, 172, 22, 'h'], ['txt', 300, 12, 'SAS · CLUSTER · UTA2 / 10GBASE-T · MGMT', 5, 'start', '#4b5563']] };
+      ['p', 'e0M', 'rj45', 262, 80, 't'], ['f', 'USB', 'usb', 298, 66, 't'], ['f', 'CON', 'rj45', 294, 82, 'b'], ['f', 'μUSB', 'umicro', 327, 92, 't'], ['led', 346, 68, 4],
+      ['bay', 1, 372, 18, 172, 36, 'h'], ['bay', 2, 372, 60, 172, 36, 'h'], ['txt', 300, 12, 'SAS · CLUSTER · UTA2 / 10GBASE-T · MGMT', 5, 'start', '#4b5563']] };
   // FAS8300 / FAS8700 / AFF A400 / C400
-  _LAY.mid7 = { W: 580, H: 120, mode: 'stack', zoom: 1.5, sub: 'FAS8300/8700, AFF A400/C400: two controllers stacked, 2 PSUs inside each controller · 5 PCIe slots',
-    items: [['psu', 14, 54, 58, 58, 'PSU 1'], ['psu', 100, 54, 58, 58, 'PSU 2'],
-      ['bay', 1, 84, 12, 128, 24, 'h'], ['bay', 2, 262, 12, 120, 24, 'h'], ['bay', 3, 262, 42, 120, 24, 'h'], ['bay', 4, 428, 12, 140, 24, 'h'], ['bay', 5, 428, 42, 140, 24, 'h'],
-      ..._sasRow(['0a', '0b', '0c', '0d'], 226, 86, 15.5),
-      ['p', 'e0a', 'sfp', 292, 84, 't'], ['p', 'e0b', 'sfp', 310, 84, 't'], ['p', 'e0c', 'qsfp', 333, 84, 't'], ['p', 'e0d', 'qsfp', 357, 84, 't'],
-      ['p', 'e0M', 'rj45', 394, 74, 't'], ['f', 'CON', 'rj45', 394, 92, 'b'], ['f', 'μUSB', 'umicro', 416, 96, 't'],
-      ['p', 'e0e', 'sfp', 462, 88, 't'], ['p', 'e0f', 'sfp', 480, 88, 't'], ['p', 'e0g', 'sfp', 498, 88, 't'], ['p', 'e0h', 'sfp', 516, 88, 't']] };
+  _LAY.mid7 = { W: 590, H: 124, mode: 'stack', zoom: 1.5, sub: 'FAS8300/8700, AFF A400/C400: two controllers stacked, 2 PSUs inside each controller · 5 PCIe slots',
+    items: [['psu', 14, 58, 58, 60, 'PSU 1'], ['psu', 100, 58, 58, 60, 'PSU 2'],
+      ['bay', 1, 84, 10, 128, 32, 'h'], ['bay', 2, 262, 10, 120, 32, 'h'], ['bay', 3, 262, 46, 120, 32, 'h'], ['bay', 4, 428, 10, 150, 32, 'h'], ['bay', 5, 428, 46, 150, 32, 'h'],
+      ..._sasRow(['0a', '0b', '0c', '0d'], 212, 88, 19),
+      ['p', 'e0a', 'sfp', 296, 86, 't'], ['p', 'e0b', 'sfp', 321, 86, 't'], ['p', 'e0c', 'qsfp', 352, 86, 't'], ['p', 'e0d', 'qsfp', 383, 86, 't'],
+      ['p', 'e0M', 'rj45', 424, 70, 't'], ['f', 'CON', 'rj45', 424, 92, 'b'], ['f', 'μUSB', 'umicro', 450, 98, 't'],
+      ['p', 'e0e', 'sfp', 476, 90, 't'], ['p', 'e0f', 'sfp', 500, 90, 't'], ['p', 'e0g', 'sfp', 524, 90, 't'], ['p', 'e0h', 'sfp', 548, 90, 't']] };
   // AFF A800 / C800
-  _LAY.a800 = { W: 505, H: 106, mode: 'stack', zoom: 1.7, sub: 'AFF A800/C800: two controllers stacked (4U), 2 PSUs inside each controller · 5 PCIe slots',
-    items: [['bay', 1, 58, 8, 112, 18, 'h'], ['bay', 2, 208, 8, 112, 18, 'h'], ['bay', 3, 208, 32, 112, 18, 'h'], ['bay', 4, 360, 8, 112, 18, 'h'], ['bay', 5, 360, 32, 112, 18, 'h'],
-      ['psu', 10, 54, 76, 46, 'PSU 1'], ['psu', 99, 54, 76, 46, 'PSU 2'],
-      ['f', 'μUSB', 'umicro', 200, 78, 't'], ['f', 'CON', 'rj45', 213, 74, 'b'], ['p', 'e0M', 'rj45', 240, 74, 't'], ['f', 'BMC', 'rj45', 259, 74, 't'], ['f', 'USB', 'usb', 280, 72, 't'], ['f', 'USB', 'usb', 280, 83, 'b'],
-      ['p', 'e0a', 'qsfp', 418, 72, 't'], ['p', 'e0b', 'qsfp', 445, 72, 't']] };
+  _LAY.a800 = { W: 505, H: 112, mode: 'stack', zoom: 1.7, sub: 'AFF A800/C800: two controllers stacked (4U), 2 PSUs inside each controller · 5 PCIe slots',
+    items: [['bay', 1, 58, 6, 120, 34, 'h'], ['bay', 2, 208, 6, 120, 34, 'h'], ['bay', 3, 208, 44, 120, 34, 'h'], ['bay', 4, 360, 6, 130, 34, 'h'], ['bay', 5, 360, 44, 130, 34, 'h'],
+      ['psu', 10, 56, 76, 50, 'PSU 1'], ['psu', 99, 56, 76, 50, 'PSU 2'],
+      ['f', 'μUSB', 'umicro', 190, 86, 't'], ['f', 'CON', 'rj45', 206, 82, 'b'], ['p', 'e0M', 'rj45', 234, 82, 't'], ['f', 'BMC', 'rj45', 259, 82, 't'], ['f', 'USB', 'usb', 286, 78, 't'], ['f', 'USB', 'usb', 286, 92, 'b'],
+      ['p', 'e0a', 'qsfp', 392, 84, 't'], ['p', 'e0b', 'qsfp', 424, 84, 't']] };
   // 8U chassis: AFF A700 / A900, FAS9000 / FAS9500 — 11 vertical slots per controller, NVRAM slot 6, controllers side by side
-  _LAY.chassis8u = { W: 152, H: 300, mode: 'side', gap: 8, mirrorB: true, zoom: 2.6, foot: 0, sub: '8U chassis: two controllers side by side, 11 IO slots each (A1..A11 / B1..B11 top to bottom), NVRAM in slot 6, 4 PSUs',
-    items: (() => { const it = []; for (let i = 1; i <= 11; i++) { const y = 10 + (i - 1) * 21; if (i === 6) it.push(['nvram', 0, y, 100, 17, 'SLOT 6 · NVRAM'], ['tag', 6, 102, y + 3, 8.5, 11]); else it.push(['bay', i, 0, y, 100, 17, 'h', 'none'], ['tag', i, 102, y + 3, 8.5, 11]); }
-      // tags of the bays sit on the outer edge; rewrite: bay() adds its own tag on the left, so suppress it and draw on the inner side
-      return it.concat([['raw', () => `<rect x="${_X(116, 30)}" y="170" width="30" height="76" rx="3" fill="#161c29" stroke="#3b4557" stroke-width="0.7"/>`], ['p', 'e0M', 'rj45', 123, 222, 't'], ['f', 'CON', 'rj45', 123, 200, 't'], ['f', 'USB', 'usb', 124, 178, 't'],
-        ['raw', () => `<rect x="${_X(112, 14)}" y="86" width="14" height="60" rx="3" fill="#7c4a12" opacity="0.55"/>`],
-        ['psu', 0, 254, 48, 40, 'PSU ' + (_mir ? 3 : 1)], ['psu', 52, 254, 48, 40, 'PSU ' + (_mir ? 4 : 2)]]); })() };
+  _LAY.chassis8u = { W: 214, H: 430, mode: 'side', gap: 10, mirrorB: true, zoom: 1.9, foot: 0, sub: '8U chassis: two controllers side by side, 11 IO slots each (A1..A11 / B1..B11 top to bottom), NVRAM in slot 6, 4 PSUs',
+    items: (() => { const it = []; for (let i = 1; i <= 11; i++) { const y = 10 + (i - 1) * 33; if (i === 6) it.push(['nvram', 0, y, 150, 30, 'SLOT 6 · NVRAM'], ['tag', 6, 152, y + 9, 9, 12]); else it.push(['bay', i, 0, y, 150, 30, 'h', 'none'], ['tag', i, 152, y + 9, 9, 12]); }
+      return it.concat([['raw', () => `<rect x="${_X(168, 42)}" y="230" width="42" height="120" rx="3" fill="#161c29" stroke="#3b4557" stroke-width="0.7"/>`], ['f', 'USB', 'usb', 180, 246, 't'], ['f', 'CON', 'rj45', 178, 276, 't'], ['p', 'e0M', 'rj45', 178, 316, 't'],
+        ['raw', () => `<rect x="${_X(170, 22)}" y="100" width="22" height="100" rx="3" fill="#7c4a12" opacity="0.4"/>`],
+        ['psu', 0, 376, 72, 48, 'PSU ' + (_mir ? 3 : 1)], ['psu', 78, 376, 72, 48, 'PSU ' + (_mir ? 4 : 2)]]); })() };
   // AFF A250 / C250 / FAS500f
-  _LAY.a250 = { W: 640, H: 62, mode: 'stack', zoom: 1.4, sub: 'AFF A250/C250: two controllers stacked (2U), one PSU per controller · 2 PCIe slots',
-    items: [['psu', 36, 3, 92, 56, 'PSU'], ['f', 'CON', 'rj45', 191, 32, 'b'], ['f', 'USB', 'usb', 232, 34, 'b'], ['f', 'μUSB', 'umicro', 262, 46, 't'], ['p', 'e0M', 'rj45', 285, 38, 't'], ['led', 330, 22, 4],
-      ['p', 'e0a', 'rj45', 380, 41, 't'], ['p', 'e0b', 'rj45', 408, 41, 't'], ['bay', 1, 460, 9, 88, 18, 'h'], ['bay', 2, 554, 9, 78, 18, 'h'], ['p', 'e0c', 'sfp', 470, 40, 't'], ['p', 'e0d', 'sfp', 490, 40, 't']] };
+  _LAY.a250 = { W: 640, H: 64, mode: 'stack', zoom: 1.4, sub: 'AFF A250/C250: two controllers stacked (2U), one PSU per controller · 2 PCIe slots',
+    items: [['psu', 36, 3, 92, 56, 'PSU'], ['f', 'CON', 'rj45', 180, 30, 'b'], ['f', 'USB', 'usb', 216, 34, 'b'], ['f', 'μUSB', 'umicro', 246, 46, 't'], ['p', 'e0M', 'rj45', 270, 34, 't'], ['led', 322, 22, 4],
+      ['p', 'e0a', 'rj45', 350, 34, 't'], ['p', 'e0b', 'rj45', 380, 34, 't'], ['bay', 1, 430, 4, 100, 26, 'h'], ['bay', 2, 542, 4, 92, 26, 'h'], ['p', 'e0c', 'sfp', 456, 38, 't'], ['p', 'e0d', 'sfp', 486, 38, 't']] };
   // FAS2820 / AFF A150
-  _LAY.fas2800 = { W: 256, H: 108, mode: 'side', gap: 8, zoom: 3.2, sub: 'FAS2820 / AFF A150: two controllers side by side (2U), one PSU each · 1 mezzanine slot',
-    items: [['p', 'e0M', 'rj45', 30, 12, 't'], ['f', 'CON', 'rj45', 54, 11, 'b'], ['f', 'μUSB', 'umicro', 84, 17, 't'], ['f', 'USB', 'usb', 108, 15, 't'], ..._sasRow(['0a', '0b'], 148, 15, 17),
-      ['p', 'e0a', 'sfp', 195, 14, 't'], ['p', 'e0b', 'sfp', 213, 14, 't'], ['bay', 1, 24, 36, 92, 16, 'h'], ['psu', 24, 60, 218, 42, 'PSU']] };
+  _LAY.fas2800 = { W: 256, H: 122, mode: 'side', gap: 8, zoom: 3.0, sub: 'FAS2820 / AFF A150: two controllers side by side (2U), one PSU each · 1 mezzanine slot',
+    items: [['p', 'e0M', 'rj45', 24, 12, 't'], ['f', 'CON', 'rj45', 54, 12, 'b'], ['f', 'μUSB', 'umicro', 86, 18, 't'], ['f', 'USB', 'usb', 106, 15, 't'], ..._sasRow(['0a', '0b'], 146, 15, 21),
+      ['p', 'e0a', 'sfp', 190, 14, 't'], ['p', 'e0b', 'sfp', 216, 14, 't'], ['bay', 1, 24, 40, 130, 30, 'h'], ['psu', 24, 76, 220, 40, 'PSU']] };
   // AFF A220 / C190, FAS2720 / FAS2750 (and FAS2650)
-  _LAY.a220 = { W: 244, H: 106, mode: 'side', gap: 18, zoom: 3.3, sub: 'AFF A220/C190, FAS2720/2750: two controllers side by side (2U), one PSU each',
-    items: [..._sasRow(['0a', '0b'], 10, 17, 13), ['p', 'e0a', 'sfp', 42, 17, 't'], ['p', 'e0b', 'sfp', 60, 17, 't'], ['p', 'e0c', 'sfp', 89, 26, 't'], ['p', 'e0d', 'sfp', 107, 26, 't'], ['p', 'e0e', 'sfp', 139, 17, 't'], ['p', 'e0f', 'sfp', 157, 17, 't'],
-      ['f', 'USB', 'usb', 195, 15, 't'], ['f', 'CON', 'rj45', 194, 28, 'b'], ['p', 'e0M', 'rj45', 221, 16, 't'], ['psu', 14, 54, 214, 46, 'PSU']] };
+  _LAY.a220 = { W: 282, H: 122, mode: 'side', gap: 14, zoom: 2.9, sub: 'AFF A220/C190, FAS2720/2750: two controllers side by side (2U), one PSU each',
+    items: [..._sasRow(['0a', '0b'], 8, 18, 20), ['p', 'e0a', 'sfp', 50, 18, 't'], ['p', 'e0b', 'sfp', 75, 18, 't'], ['p', 'e0c', 'sfp', 106, 32, 't'], ['p', 'e0d', 'sfp', 131, 32, 't'], ['p', 'e0e', 'sfp', 166, 18, 't'], ['p', 'e0f', 'sfp', 191, 18, 't'],
+      ['f', 'USB', 'usb', 226, 14, 't'], ['f', 'CON', 'rj45', 224, 34, 'b'], ['p', 'e0M', 'rj45', 252, 16, 't'], ['psu', 14, 70, 244, 46, 'PSU']] };
   // AFF A1K / A70 / A90, FAS70 / FAS90 (11 slot positions, NVRAM 4&5)
-  const _g11 = (afx) => ({ W: 615, H: 136, mode: 'stack', zoom: 1.25, sub: afx ? 'AFX compute node: slots 1-3 left, 4-5 blank, 6 NVRAM, 7, mgmt, 8-11 right · fixed roles: slot 1 HA replication, slot 7 cluster replication, slots 10-11 shelf fabric' : 'AFF A1K/A70/A90, FAS70/90: slots 1-3 left, 4&5 NVRAM, PSUs on top with slots 6-7 below, mgmt module, slots 8-11 right',
-    items: [['bay', 1, 22, 16, 30, 112, 'v'], ['bay', 2, 57, 16, 30, 112, 'v'], ['bay', 3, 92, 16, 30, 112, 'v'],
-      afx ? ['blank', 128, 8, 64, 120, 'slots 4 · 5 not populated'] : ['nvram', 128, 8, 64, 120, 'SLOT 4&5 · NVRAM'],
-      ['psu', 200, 8, 100, 62, 'PSU 1'], ['psu', 306, 8, 100, 62, 'PSU 2'],
-      afx ? ['nvram', 200, 82, 100, 46, 'SLOT 6 · NVRAM'] : ['bay', 6, 200, 82, 100, 46, 'h'], ['bay', 7, 306, 82, 100, 46, 'h'],
-      ['f', 'USB', 'usb', 428, 22, 't'], ['f', 'CON', 'rj45', 428, 46, 't'], ['p', 'e0M', 'rj45', 428, 74, 't'],
-      ['bay', 8, 476, 16, 30, 112, 'v'], ['bay', 9, 511, 16, 30, 112, 'v'], ['bay', 10, 546, 16, 30, 112, 'v'], ['bay', 11, 581, 16, 30, 112, 'v']] });
+  const _g11 = (afx) => ({ W: 640, H: 150, mode: 'stack', zoom: 1.25, sub: afx ? 'AFX compute node: slots 1-3 left, 4-5 blank, 6 NVRAM, 7, mgmt, 8-11 right · fixed roles: slot 1 HA replication, slot 7 cluster replication, slots 10-11 shelf fabric' : 'AFF A1K/A70/A90, FAS70/90: slots 1-3 left, 4&5 NVRAM, PSUs on top with slots 6-7 below, mgmt module, slots 8-11 right',
+    items: [['bay', 1, 22, 16, 34, 126, 'v'], ['bay', 2, 60, 16, 34, 126, 'v'], ['bay', 3, 98, 16, 34, 126, 'v'],
+      afx ? ['blank', 140, 8, 64, 134, 'slots 4 · 5 not populated'] : ['nvram', 140, 8, 64, 134, 'SLOT 4&5 · NVRAM'],
+      ['psu', 212, 8, 100, 64, 'PSU 1'], ['psu', 318, 8, 100, 64, 'PSU 2'],
+      afx ? ['nvram', 212, 80, 100, 62, 'SLOT 6 · NVRAM'] : ['bay', 6, 212, 80, 100, 62, 'h'], ['bay', 7, 318, 80, 100, 62, 'h'],
+      ['f', 'USB', 'usb', 440, 22, 't'], ['f', 'CON', 'rj45', 438, 54, 't'], ['p', 'e0M', 'rj45', 438, 92, 't'],
+      ['bay', 8, 486, 16, 34, 126, 'v'], ['bay', 9, 524, 16, 34, 126, 'v'], ['bay', 10, 562, 16, 34, 126, 'v'], ['bay', 11, 600, 16, 34, 126, 'v']] });
   _LAY.gen11 = _g11(false); _LAY.afx = _g11(true);
   // AFF A20 / A30 / A50, C30 / C60, FAS50
   _LAY.a20 = { W: 700, H: 96, mode: 'stack', zoom: 1.3, sub: 'AFF A20/A30/A50, C30/C60, FAS50: two controllers stacked (2U), one PSU each · 4 IO slots (1-2 left, 3-4 right)',
@@ -35946,14 +35981,14 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       ['f', 'USB', 'usb', 368, 14, 't'], ['f', 'CON', 'rj45', 410, 12, 't'], ['p', 'e0M', 'rj45', 410, 50, 't'], ['f', 'μUSB', 'umicro', 460, 58, 't'],
       ['bay', 3, 520, 8, 100, 38, 'h'], ['bay', 4, 520, 52, 100, 38, 'h']] };
   // E-Series canisters and StorageGRID appliance controllers (single canister, no partner drawn)
-  const _E2800 = { W: 262, H: 60, mode: 'one', zoom: 2.3, items: [['f', '0a', 'sfp', 19, 18, 't'], ['f', '0b', 'sfp', 40, 18, 't'], ['f', 'P1', 'rj45', 68, 16, 't'], ['f', 'P2', 'rj45', 89, 16, 't'], ['f', 'CON', 'rj45', 122, 16, 't'], ['f', 'μUSB', 'umicro', 152, 22, 't'], ['f', 'USB', 'usb', 178, 20, 't'], ['f', 'EXP1', 'sas', 218, 16, 't'], ['f', 'EXP2', 'sas', 236, 16, 't'], ['led', 84, 40, 3]] };
-  const _E5700 = (sg) => ({ W: 262, H: 84, mode: 'one', zoom: 2.3, items: [['f', sg ? 'IC1' : '0a', 'sfp', 24, 20, 't'], ['f', sg ? 'IC2' : '0b', 'sfp', 45, 20, 't'], ['f', 'CON', 'rj45', 74, 18, 't'], ['f', 'EXP1', 'sas', 100, 20, 't'], ['f', 'EXP2', 'sas', 118, 20, 't'],
-      ...[0, 1, 2, 3].map(i => ['f', sg ? String(i + 1) : ['0c', '0d', '0e', '0f'][i], 'sfp', 141 + i * 20, 46, 't']), ['f', 'P1', 'rj45', 156, 20, 't'], ['f', 'P2', 'rj45', 180, 20, 't'], ['f', 'μUSB', 'umicro', 218, 22, 't'], ['f', 'USB', 'usb', 234, 20, 't']] });
-  const _E4000 = { W: 290, H: 64, mode: 'one', zoom: 2.1, items: [['f', 'MGMT', 'rj45', 20, 20, 't'], ['f', 'CON', 'rj45', 52, 20, 't'], ['f', 'USB-C', 'usbc', 78, 24, 't'], ['f', 'USB', 'usb', 110, 22, 't'], ['f', '0a', 'sas', 158, 22, 't'], ['f', '0b1', 'sas', 178, 22, 't'], ['f', '0b2', 'sas', 198, 22, 't'], ['f', 'HIC1', 'sfp', 236, 22, 't'], ['f', 'HIC2', 'sfp', 258, 22, 't']] };
-  const _SG1U = { W: 350, H: 78, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 96, 46, 't'], ['f', '1', 'sfp', 112, 24, 't'], ['f', '2', 'sfp', 133, 24, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 48, 't'], ['f', 'USB', 'usb', 182, 48, 't'], ['f', '4', 'rj45', 206, 46, 't'], ['f', '5', 'rj45', 226, 46, 't'], ['f', '3', 'sfp', 206, 24, 't'], ['f', '4', 'sfp', 226, 24, 't']] };
+  const _E2800 = { W: 262, H: 60, mode: 'one', zoom: 2.3, items: [['f', '0a', 'sfp', 14, 18, 't'], ['f', '0b', 'sfp', 40, 18, 't'], ['f', 'P1', 'rj45', 72, 16, 't'], ['f', 'P2', 'rj45', 98, 16, 't'], ['f', 'CON', 'rj45', 132, 16, 't'], ['f', 'μUSB', 'umicro', 164, 22, 't'], ['f', 'USB', 'usb', 186, 20, 't'], ['f', 'EXP1', 'sas', 216, 18, 't'], ['f', 'EXP2', 'sas', 238, 18, 't'], ['led', 84, 40, 3]] };
+  const _E5700 = (sg) => ({ W: 264, H: 90, mode: 'one', zoom: 2.3, items: [['f', sg ? 'IC1' : '0a', 'sfp', 12, 20, 't'], ['f', sg ? 'IC2' : '0b', 'sfp', 38, 20, 't'], ['f', 'CON', 'rj45', 72, 18, 't'], ['f', 'EXP1', 'sas', 102, 20, 't'], ['f', 'EXP2', 'sas', 124, 20, 't'],
+      ...[0, 1, 2, 3].map(i => ['f', sg ? String(i + 1) : ['0c', '0d', '0e', '0f'][i], 'sfp', 132 + i * 26, 50, 't']), ['f', 'P1', 'rj45', 158, 20, 't'], ['f', 'P2', 'rj45', 184, 20, 't'], ['f', 'μUSB', 'umicro', 218, 22, 't'], ['f', 'USB', 'usb', 236, 20, 't']] });
+  const _E4000 = { W: 276, H: 66, mode: 'one', zoom: 2.1, items: [['f', 'MGMT', 'rj45', 14, 20, 't'], ['f', 'CON', 'rj45', 44, 20, 't'], ['f', 'USB-C', 'usbc', 72, 24, 't'], ['f', 'USB', 'usb', 96, 22, 't'], ['f', '0a', 'sas', 140, 22, 't'], ['f', '0b1', 'sas', 162, 22, 't'], ['f', '0b2', 'sas', 184, 22, 't'], ['f', 'HIC1', 'sfp', 220, 22, 't'], ['f', 'HIC2', 'sfp', 246, 22, 't']] };
+  const _SG1U = { W: 356, H: 80, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 94, 46, 't'], ['f', '1', 'sfp', 110, 22, 't'], ['f', '2', 'sfp', 136, 22, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 50, 't'], ['f', 'USB', 'usb', 186, 50, 't'], ['f', '4', 'rj45', 208, 46, 't'], ['f', '5', 'rj45', 232, 46, 't'], ['f', '3', 'sfp', 208, 22, 't'], ['f', '4', 'sfp', 232, 22, 't']] };
   const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(L.W * (L.zoom || 3))}px;display:block;">${s}</svg></div>`; };
 
-  const _ctrlAB = (isCtrlB || /-0?2$|b$/i.test(sys.systemName || '')) ? 1 : 0;
+  const _ctrlAB = _bpNodePos(sys);
   const _plat2 = _plat.replace(/\s+/g, '');
   if (isStorageGrid) {
     let inner2 = '', sub2 = '';
@@ -36051,6 +36086,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     tabsHtml += `</div>`;
   }
 
+  const _bpNum = _bpNumberPorts(ports);
   ports.forEach(port => {
     let portColor = "#10b981"; // Green (mgmt)
     let typeLabel = "Management";
@@ -36097,19 +36133,21 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     if (d.mac) detailParts.push('MAC: ' + d.mac);
     const configDetail = `<span style="font-size: 0.75rem; color: var(--text-secondary);">${detailParts.length ? detailParts.join(' | ') : '<span style="color:var(--text-muted);font-style:italic;">Not reported by Active IQ</span>'}</span>`;
 
+    const _sc = port.status === 'online' ? '#22c55e' : (port.status === 'offline' ? '#ef4444' : '#f59e0b'), _no = _bpNum[port.name];
     const statusBadge = port.status === "online"
       ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-normal); border: 1px solid rgba(0, 230, 118, 0.25); background: rgba(0, 230, 118, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">✓ Optimal</span>`
       : (port.status === "offline"
         ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`
-        : `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.03); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">? Unknown</span>`);
+        : `<span style="display: inline-flex; align-items: center; gap: 4px; color: #f59e0b; border: 1px solid rgba(245,158,11,0.45); background: rgba(245,158,11,0.08); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">● Unknown</span>`);
 
     const partnerCell = port.partnerName || '<span style="color:var(--text-muted);font-style:italic;">Not available via API</span>';
     const partnerPortCell = port.partnerPort ? `<code>${port.partnerPort}</code>` : '<span style="color:var(--text-muted);">—</span>';
 
     tableRowsHtml += `
-      <tr id="port-row-${port.name}" style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s ease; cursor: pointer;"
+      <tr id="port-row-${port.name}" data-stat="${_sc}" style="border-bottom: 1px solid var(--border-color); border-left: 4px solid transparent; transition: background-color 0.15s ease; cursor: pointer;"
           onmouseenter="hoverCablingPort('${port.name}')"
-          onmouseleave="unhoverCablingPort('${port.name}')">
+          onmouseleave="unhoverCablingPort('${port.name}')" onclick="bpPin('${port.name}')">
+        <td style="padding: 10px; width: 44px;">${_no ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#0b0e14;border:2px solid ${_sc};color:#fff;font-size:0.7rem;font-weight:800;">${_no}</span>` : '<span style="color:var(--text-muted);" title="Logical interface (interface group / VLAN): no physical connector">—</span>'}</td>
         <td style="padding: 10px; font-weight: 700; color: #fff;"><code>${port.name}</code></td>
         <td style="padding: 10px;">
           <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem;">
@@ -36133,7 +36171,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     const _emptyMsg = _isEseriesSys
       ? 'Active IQ does not expose per-port Ethernet telemetry for E-Series/SANtricity systems (only available for ONTAP systems).'
       : 'No per-port telemetry reported by Active IQ for this system.';
-    tableRowsHtml = `<tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">${_emptyMsg}</td></tr>`;
+    tableRowsHtml = `<tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">${_emptyMsg}</td></tr>`;
   }
 
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
@@ -36254,6 +36292,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
       <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
         <thead>
           <tr style="background: rgba(255, 255, 255, 0.015); border-bottom: 1px solid var(--border-color); text-align: left;">
+            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">#</th>
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Port</th>
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Type</th>
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Speed / Configuration</th>
@@ -36309,37 +36348,50 @@ function selectVisualNode(serial) {
   }
 }
 
-function hoverCablingPort(portName) {
-  const slot = document.getElementById(`port-slot-${portName}`);
-  const row = document.getElementById(`port-row-${portName}`);
-  
-  if (slot) {
-    slot.style.boxShadow = "0 0 12px rgba(0, 229, 255, 0.6)";
-    slot.style.borderColor = "#ffffff";
-    slot.style.transform = "scale(1.04)";
-    slot.style.background = "rgba(0, 229, 255, 0.1)";
+// Which controller of its HA pair a node is: 0 = A, 1 = B. Node names end in -01/-02, N1/N2, 1/2 ...
+// (even = B); otherwise by the node's place among its cluster's nodes.
+function _bpNodePos(sy) {
+  const nm = String((sy && sy.systemName) || ''), m = nm.match(/(\d+)$/);
+  if (m) return parseInt(m[1], 10) % 2 === 0 ? 1 : 0;
+  if (/b$/i.test(nm)) return 1;
+  const peers = (state.systems || []).filter(x => x.clusterName && x.clusterName === sy.clusterName).map(x => x.systemName).sort();
+  const i = peers.indexOf(sy.systemName);
+  return i > 0 && i % 2 === 1 ? 1 : 0;
+}
+// Physical Ethernet ports get a number (e0M first, then by slot and letter) shown on the drawing and
+// in the first column of the port table, so a row and its connector can be matched at a glance.
+function _bpNumberPorts(ports) {
+  const phys = (ports || []).filter(p => /^e\d+[a-z]$/i.test(p.name));
+  const key = p => p.name === 'e0M' ? [-1, 0] : [parseInt(p.name.slice(1), 10), p.name.slice(-1).toLowerCase().charCodeAt(0)];
+  phys.sort((a, b) => { const x = key(a), y = key(b); return x[0] - y[0] || x[1] - y[1]; });
+  const m = {}; phys.forEach((p, i) => { m[p.name] = i + 1; });
+  return m;
+}
+let _bpPinned = null;
+function _bpApply(name, on) {
+  const g = document.getElementById(`port-slot-${name}`), row = document.getElementById(`port-row-${name}`);
+  if (g && g.classList && g.classList.contains('bp-port')) {
+    g.classList.toggle('hot', on);
+    if (on && g.parentNode) g.parentNode.appendChild(g);   // draw on top of neighbouring slots
   }
-  
   if (row) {
-    row.style.background = "rgba(0, 229, 255, 0.04)";
-    row.style.borderLeft = "3px solid var(--accent-cyan)";
+    const c = row.getAttribute('data-stat') || '#f59e0b';
+    row.style.background = on ? c + '2e' : '';
+    row.style.borderLeftColor = on ? c : 'transparent';
   }
 }
-
-function unhoverCablingPort(portName) {
-  const slot = document.getElementById(`port-slot-${portName}`);
-  const row = document.getElementById(`port-row-${portName}`);
-  
-  if (slot) {
-    slot.style.boxShadow = "";
-    slot.style.borderColor = "";
-    slot.style.transform = "";
-    slot.style.background = "rgba(0,0,0,0.4)";
-  }
-  
-  if (row) {
-    row.style.background = "";
-    row.style.borderLeft = "";
+function hoverCablingPort(portName) { _bpApply(portName, true); }
+function unhoverCablingPort(portName) { if (_bpPinned !== portName) _bpApply(portName, false); }
+// Click a port (drawing or table row) to keep it lit; click again or another port to release it
+function bpPin(portName) {
+  const prev = _bpPinned;
+  _bpPinned = (prev === portName) ? null : portName;
+  if (prev) _bpApply(prev, false);
+  if (_bpPinned) {
+    _bpApply(_bpPinned, true);
+    const row = document.getElementById(`port-row-${_bpPinned}`), g = document.getElementById(`port-slot-${_bpPinned}`);
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (g && g.scrollIntoView && !document.querySelector(':hover')) g.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
 

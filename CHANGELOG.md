@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.109] - 2026-09-26
+
+### Changed
+- Rear-panel drawings: connectors are drawn at true relative size and fit inside their slot bays (multi-port slots wrap or shrink instead of running over the neighbouring slot); every reported physical port carries a number that matches the new # column in the port table; hovering or clicking a port or a table row lights it up with a pulsing halo, a callout (number, name, UP/DOWN/UNKNOWN, speed) and a matching highlighted row, coloured green (up), red (down) or orange (unknown); the highlight no longer makes ports jump; and selecting the second node of an HA pair (names ending -02, N2, 2) now shows it as Controller B instead of Controller A.
+
+---
+
 ## [5.6.108] - 2026-09-26
 
 ### Changed
