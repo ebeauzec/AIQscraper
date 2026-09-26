@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.97] - 2026-09-26
+
+### Changed
+- The 'Decisions needed' block is now at the top of every narrative deliverable (adds Success Plan, Handover Brief, MSP Report, Risk & Remediation Brief and Security Brief); the Health & Lifecycle Report opens with an 'At a glance' table for slides, lists the nodes in each upgrade wave, and explains capacity trends (clusters that lost more than half their used capacity are flagged as being drained/decommissioned, and lapsed contracts on them are called out before renewing).
+- Customer Value Report (PowerPoint) checked by opening a generated deck: 'critical/high CVE bulletins' was really the all-severity unique CVE count and is labelled as such; the Optimization slide lists each distinct finding once with its system count (was one row per system); the Renewal slide shows lapsed contracts (it said nothing was wrong); the savings note now states that the dollar figure uses the configured cost rate.
+
+---
+
+## [5.6.96] - 2026-09-26
+
+### Added
+- Deliverables now carry a plan, not just findings: a 'Decisions needed' block (top 5 actions, each with why it matters, timing and owner) at the top of the Health & Lifecycle Report, Problem Statements, QBR Pack and Solution Proposals; the Health report gains a full plan table (type of change, timing, owner), an Upgrade Sequence (clusters in waves: pre-release / unsupported / critical first, MetroCluster DR-site-first), Hardware Refresh Planning (order-by and migrate-by dates, TB to migrate) and a Capacity Trend from Active IQ's monthly history (future and zero months excluded).
+
+---
+
 ## [5.6.95] - 2026-09-26
 
 ### Fixed
