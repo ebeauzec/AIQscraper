@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.102";
+const APP_VERSION = "5.6.103";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.103",
+    date: "26 September 2026",
+    title: "MetroCluster Card Per Cluster",
+    sections: [
+      {
+        icon: "✅",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "MetroCluster Configuration & DR Health card is now broken down per cluster: a table of each cluster with its likely partner, nodes, model, ONTAP version, site and MetroCluster findings, and a count of MetroCluster configurations (pairs) alongside clusters and nodes (was one total of nodes, e.g. '16'). Partners are inferred from cluster names (two clusters differing only in a site prefix) and labelled as inferred because Active IQ does not report them. 'Mediator OK' and 'AUSO ENABLED' now read 'No issue reported' with a note that this is the absence of a finding, not a live check.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.102",
     date: "26 September 2026",
@@ -36438,31 +36453,32 @@ function renderMetroClusterStatus(mcSystems) {
 
   const hasMediatorIssue = allMcRisks.some(r => (r.description || '').toLowerCase().includes('mediator unreachable'));
   const hasMausoDisabled = allMcRisks.some(r => (r.description || '').toLowerCase().includes('mauso disabled'));
-  const clusterNames = [...new Set(mcSystems.map(s => s.clusterName).filter(Boolean))];
+  // ── per-cluster breakdown ──
+  // Active IQ reports each node with isMetroCluster but not which clusters form a MetroCluster
+  // pair, so pairs are INFERRED from the names (two clusters that differ only in a site prefix,
+  // e.g. ECC-MCC1 / CDC-MCC1) and labelled as such. Mediator and AUSO are only ever reported as
+  // findings, so "OK"/"enabled" means "no issue reported", not "verified" -- the card says so.
+  const byCluster = {};
+  mcSystems.forEach(sys => { const k = sys.clusterName || sys.systemName || sys.serialNumber; (byCluster[k] = byCluster[k] || []).push(sys); });
+  const clusterNames = Object.keys(byCluster).sort();
+  const _pairKey = nm => String(nm).toLowerCase().replace(/^[a-z0-9]{2,5}[-_]/, '');
+  const pairGroups = {}; clusterNames.forEach(c => { (pairGroups[_pairKey(c)] = pairGroups[_pairKey(c)] || []).push(c); });
+  const pairs = Object.values(pairGroups).filter(g => g.length === 2), unpaired = Object.values(pairGroups).filter(g => g.length !== 2).flat();
+  const riskFor = c => allMcRisks.filter(r => byCluster[c].some(x => x.systemName === r.systemName));
+  const stat = (label, val, color, sub) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${color};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${label}</div><div style="font-size:1.1rem;font-weight:700;color:${color};">${val}</div>${sub ? `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px;">${sub}</div>` : ''}</div>`;
+  let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px;">` +
+    stat('MetroCluster configurations', pairs.length + (unpaired.length ? ' + ' + unpaired.length + ' unpaired' : ''), '#ff9800', 'pairs inferred from cluster names') +
+    stat('Clusters / nodes', clusterNames.length + ' / ' + mcSystems.length, '#ff9800') +
+    stat('Mediator', hasMediatorIssue ? '⚠ UNREACHABLE' : 'No issue reported', hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)', hasMediatorIssue ? 'from an Active IQ finding' : 'absence of a finding, not a live check') +
+    stat('Auto switchover (AUSO)', hasMausoDisabled ? '⚠ DISABLED' : 'No issue reported', hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)', hasMausoDisabled ? 'from an Active IQ finding' : 'absence of a finding, not a live check') +
+    stat('MC findings', allMcRisks.length, allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)') + `</div>`;
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
-    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid #ff9800;">
-      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">MC Nodes Selected</div>
-      <div style="font-size:1.2rem;font-weight:700;color:#ff9800;">${mcSystems.length}</div>
-    </div>
-    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'};">
-      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Mediator</div>
-      <div style="font-size:0.85rem;font-weight:700;color:${hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)'};">${hasMediatorIssue ? '⚠ UNREACHABLE' : '✓ OK'}</div>
-    </div>
-    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)'};">
-      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">Auto Switchover (AUSO)</div>
-      <div style="font-size:0.85rem;font-weight:700;color:${hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)'};">${hasMausoDisabled ? '⚠ DISABLED' : '✓ ENABLED'}</div>
-    </div>
-    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'};">
-      <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">MC Findings</div>
-      <div style="font-size:1.2rem;font-weight:700;color:${allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)'};">${allMcRisks.length}</div>
-    </div>
-  </div>`;
-
-  html += `<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:14px;">
-    <strong>Cluster${clusterNames.length !== 1 ? 's' : ''}:</strong> ${clusterNames.length > 0 ? clusterNames.join(', ') : 'Unknown'}
-    &nbsp;|&nbsp; MetroCluster provides zero-RPO disaster recovery through synchronous replication across two sites.
-  </div>`;
+  const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:6px 8px;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);';
+  const partnerOf = c => { const g = pairGroups[_pairKey(c)]; return g && g.length === 2 ? g.find(x => x !== c) : ''; };
+  html += `<div style="overflow-x:auto;margin-bottom:14px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Cluster</th><th style="${th}">Likely partner (from names)</th><th style="${th}">Nodes</th><th style="${th}">Model</th><th style="${th}">ONTAP</th><th style="${th}">Site</th><th style="${th}">MC findings</th></tr></thead><tbody>` +
+    clusterNames.map(c => { const ns = byCluster[c], f = riskFor(c).length; const vers = [...new Set(ns.map(x => x.ontapVersion || x.osVersion).filter(Boolean))].join(', '), models = [...new Set(ns.map(x => x.model || x.platform).filter(Boolean))].join(', '), site = [...new Set(ns.map(x => x.siteCity).filter(Boolean))].join(', ');
+      return `<tr><td style="${td}font-weight:600;">${c}</td><td style="${td}">${partnerOf(c) || '<span style="color:var(--text-muted);">not identifiable</span>'}</td><td style="${td}">${ns.length}<div style="font-size:0.68rem;color:var(--text-muted);">${ns.map(x => x.systemName || x.serialNumber).join(', ')}</div></td><td style="${td}">${models || '—'}</td><td style="${td}">${vers || '—'}</td><td style="${td}">${site || '—'}</td><td style="${td}color:${f ? '#ff9800' : 'var(--status-normal)'};">${f ? f : '0'}</td></tr>`; }).join('') + `</tbody></table></div>`;
+  html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:14px;">MetroCluster provides zero-RPO disaster recovery through synchronous replication across two sites. Active IQ does not report which clusters are partners, or the live state of the Mediator and switchover; verify each pair on-cluster with <code>metrocluster check run</code> and <code>metrocluster show</code>.</div>`;
 
   if (allMcRisks.length > 0) {
     html += `<div style="display:flex;flex-direction:column;gap:8px;">`;

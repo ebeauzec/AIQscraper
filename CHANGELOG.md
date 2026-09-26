@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.103] - 2026-09-26
+
+### Changed
+- MetroCluster Configuration & DR Health card is now broken down per cluster: a table of each cluster with its likely partner, nodes, model, ONTAP version, site and MetroCluster findings, and a count of MetroCluster configurations (pairs) alongside clusters and nodes (was one total of nodes, e.g. '16'). Partners are inferred from cluster names (two clusters differing only in a site prefix) and labelled as inferred because Active IQ does not report them. 'Mediator OK' and 'AUSO ENABLED' now read 'No issue reported' with a note that this is the absence of a finding, not a live check.
+
+---
+
 ## [5.6.102] - 2026-09-26
 
 ### Changed
