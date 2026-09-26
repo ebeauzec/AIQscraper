@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-26 (Windows dev station, v5.6.85 -> v5.6.95)
+## Session handoff -- 2026-09-26 (Windows dev station, v5.6.85 -> v5.6.97)
 
 Overlaps the cloud session's v5.6.83/84 (merged in 5.6.85). Everything below is pushed to `main`.
 
@@ -57,13 +57,15 @@ scripts with the Write tool and use `chr(92)` or raw strings. app.js is CRLF. A 
 literal broke the whole page once (check the browser console after every edit).
 
 **Still open / not done:**
-- `.exe` not rebuilt (needs Windows `build/build_windows.bat`); `dist/` web files are synced.
+- `.exe`: rebuilt with `build/build_windows.bat` at the end of the 5.6.97 session (see git log for the build commit).
 - Reviewed line by line: Vodacom (all documents), MIC Tanzania (about half), Saudi Telecom (health report),
   Clicks (E-Series only), Shoprite (MetroCluster), Unemployment Insurance Fund (small). Others only by the audit tool.
-- The PPTX Customer Value Report was code-reviewed for contract counts only, never opened.
+- The PPTX Customer Value Report was opened and corrected in 5.6.97 (Vodacom deck); other scopes not opened.
 - Source-data limits, not bugs: SnapMirror destination/lag not exposed; systems with no AutoSupport cannot be assessed;
   Active IQ's own recommendation text can disagree with our facts (a note explains it in the QBR); effort estimates,
   SLA targets and the cost-per-TB rate are defaults; some hardware EOA/EOS dates come from a maintained reference list.
 
 **Git:** branch `main`, pushed. Working tree also shows harvest data files modified by the running server
 (`data/*.json`) -- not part of this work, do not commit them with code changes.
+
+**Added in 5.6.96-97:** `_dfActionPlan` / `_dfUpgradeWaves` / `_dfRefreshPlan` / `_dfCapacityTrend` (planning helpers before `compileCustomerReport`); 'Decisions needed' block inserted into every narrative document via `_bannerInsert`; capacity trend flags drained clusters.
