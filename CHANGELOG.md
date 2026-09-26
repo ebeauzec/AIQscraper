@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [5.6.83] - 2026-09-26
+## [5.6.85] - 2026-09-26
 
 ### Fixed
 - Deliverables contradicted each other on the same data. Open cases counted closed and cancelled cases (a customer with 1-2 open cases showed 47). Now every document counts open cases only, and resolution-time statistics still use the full history.
@@ -21,10 +21,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [5.6.82] - 2026-09-21
+## [5.6.84] - 2026-09-26
 
-### Changed
-- **Demo mode's StoragePerf data is StoragePerf's own demo fleet**, not synthetic. `data/demo_storageperf.json` (built by `tools/build_demo_storageperf.py` from a running StoragePerf in mock mode) is a real `plumb.aria-export/1` snapshot with the Pure Storage arrays removed. It is attached to one new demo customer, **Harbourview Distribution**, whose 12 systems are built from the snapshot's eight NetApp arrays: four ONTAP clusters (8 nodes, matched by the snapshot's node serial numbers), three StorageGRID grids and one E-Series array (matched by name). No other demo customer has StoragePerf data. Replaces the synthetic snapshots for nine customers added in 5.6.81.
+### Added
+- **KB Crawl Interval Settings UI**, merged in from a branch (`ebeauzec-add-kb-interval-config`) that was pushed in early September but never merged into `main`. Adds a "KB Crawl Interval" dropdown (24 hours to 14 days, default 7 days) in Settings > Enrichment, next to the existing Security Scan Interval, controlling the slow-crawl scanner group (KB articles, reference library).
+
+### Fixed
+- **The original branch's setting silently failed to save.** It only wired the `GET /api/config` response; `POST /api/config` never read `kb_interval_hours` back out of the save request, and the running scheduler was never told about a saved value (it also always started up on the 7-day default regardless of what was saved). All three are now wired through.
+
+---
+
+## [5.6.83] - 2026-09-26
+
+### Fixed
+- **Capacity runway was a fake constant in the Customer Success Plan and MSP Service Report.** Both read `sys.projections.runwayDays`, a field that has never existed in the harvest (the real field, used everywhere else, is `daysToLimit`). The read always failed silently, so both documents always printed the hardcoded fallback of 120 days regardless of real data -- contradicting each document's own correctly-computed capacity-forecast/at-risk section a few lines below, and contradicting the Risk & Remediation Brief and Extended Deliverables, which already used the real field. Both now read `daysToLimit`.
+- **Storage efficiency ratio disagreed across deliverables on mixed-platform fleets.** The Customer Success Plan and Extended Deliverables correctly restrict the dedupe/compression ratio to ONTAP systems (E-Series/StorageGRID report logical == physical). The QBR Pack, MSP Service Report (per-customer table and fleet-wide summary) and Risk & Remediation Brief summed physical/logical capacity across every platform, diluting the ratio toward 1:1 for accounts that also have E-Series or StorageGRID systems. All four now filter to ONTAP systems only.
 
 ---
 

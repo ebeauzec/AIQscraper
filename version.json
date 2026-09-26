@@ -1,8 +1,8 @@
 {
-  "version": "5.6.83",
+  "version": "5.6.85",
   "major": 5,
   "minor": 6,
-  "patch": 83,
+  "patch": 85,
   "date": "2026-09-26",
   "notes": "Action Planner deliverables audited for internal contradictions: open cases, lapsed contracts, ARP, SnapMirror/DR, runway, efficiency and CVE counts now agree across every document and no longer present unreported or invented values as fact."
 }

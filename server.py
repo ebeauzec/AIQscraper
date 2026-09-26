@@ -9401,6 +9401,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
                 "autoHarvestEnabled": cfg.get("autoHarvestEnabled", True),
                 "autoHarvestIntervalHours": cfg.get("autoHarvestIntervalHours", 4),
+                "kb_interval_hours": cfg.get("kb_interval_hours", 168),
                 "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
                 "hasGithubToken": bool(cfg.get("githubToken", "")),
                 # Remediation SLA policy: days-to-remediate by severity, used by
@@ -9479,6 +9480,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "kb_interval_hours" in body:
+                cfg["kb_interval_hours"] = max(1, int(body["kb_interval_hours"]))
             if "autoHarvestEnabled" in body:
                 cfg["autoHarvestEnabled"] = bool(body["autoHarvestEnabled"])
             if "autoHarvestIntervalHours" in body:
@@ -9535,7 +9538,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if _enrichment_scheduler:
                 _enrichment_scheduler.update_config(
                     interval_hours=cfg.get('enrichIntervalHours', 12),
-                    nvd_api_key=cfg.get('nvdApiKey') or None
+                    nvd_api_key=cfg.get('nvdApiKey') or None,
+                    kb_interval_hours=cfg.get('kb_interval_hours', 168)
                 )
             # Update (or start/stop) the harvest scheduler if its config changed
             global _harvest_scheduler
@@ -10115,7 +10119,8 @@ if __name__ == '__main__':
         if _cfg.get('enrichEnabled', True):
             _enrich_interval = int(_cfg.get('enrichIntervalHours', 6))
             _nvd_key = _cfg.get('nvdApiKey') or None
-            _enrichment_scheduler = EnrichmentScheduler(interval_hours=_enrich_interval, nvd_api_key=_nvd_key)
+            _kb_interval = int(_cfg.get('kb_interval_hours', 168))
+            _enrichment_scheduler = EnrichmentScheduler(interval_hours=_enrich_interval, nvd_api_key=_nvd_key, kb_interval_hours=_kb_interval)
             _enrichment_scheduler.start()
     except Exception as _sched_err:
         print(f'  [STARTUP] Enrichment scheduler failed to start: {_sched_err}', flush=True)

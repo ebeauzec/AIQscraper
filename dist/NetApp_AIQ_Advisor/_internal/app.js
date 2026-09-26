@@ -27,27 +27,46 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.83";
+const APP_VERSION = "5.6.85";
 
 const APP_CHANGELOG = [
   {
-    version: "5.6.83",
+    version: "5.6.84",
     date: "26 September 2026",
-    title: "Action Planner Deliverables Made Consistent",
+    title: "KB Crawl Interval Settings UI Merged and Completed",
     sections: [
       {
-        icon: "✅",
-        label: "Deliverable Accuracy",
-        color: "#22c55e",
+        icon: "⚙️",
+        label: "New -- KB Crawl Interval Control in Settings",
+        color: "#38bdf8",
         items: [
-          "Deliverables contradicted each other on the same data. Open cases counted closed and cancelled cases (a customer with 1-2 open cases showed 47). Now every document counts open cases only, and resolution-time statistics still use the full history.",
-          "Lapsed support contracts were listed as 'expiring within 90 days' (Active IQ clamps their days-remaining to 0). They are now a separate LAPSED block with the expiry date, and the renewal lists carry only contracts that still have time left. Removed the unconditional 'SupportEdge Premium SLA active' claim.",
-          "Ransomware protection is tri-state everywhere: 'without ARP' used to include systems Active IQ never reported on, so one document said 13 and another 14. Wording is now 'confirmed disabled' with the not-reported count stated.",
-          "SnapMirror: Active IQ gives only a relationship count. The app invented a sync/async split, '< 1 hour (estimated)' lag and a 'DR Partner' destination from it, which then fed RPO statements and a synchronous-policy risk. It now shows a count-only relationship, states that type, destination and lag are not reported, and never calls a system 'unprotected' unless it is confirmed to have no SnapMirror/MetroCluster/SyncMirror (in-cluster HA is not DR; systems Active IQ did not report on are listed as 'not reported'). Long system lists are capped.",
-          "Capacity runway: the average was always the made-up default of 120 days (it read a field that is never populated). It now uses the growth projection, excludes the 9999-day 'no growth' sentinel and anything past 10 years, and shows 'not available' when there is no data. Per-system runway prints as years or '> 10 years' instead of '9999d'.",
-          "Efficiency: 'space saved' now equals logical minus physical for the same system (it used a different logical figure, so 543 TB saved sat beside 257 TB). The sales business case read fields that do not exist and printed 'N/A:1' and 0.0 TB; it now uses the same data and the same cost-per-TB rate as the other documents. Removed the invented '0.5 kW per TB' power line.",
-          "CVE counts are labelled ('91 unique CVEs, all severities' versus '57 critical/high') instead of one number called 'unpatched CVEs' and another called 'advisories'. The EOSA support-premium line no longer counts out-of-warranty systems as end-of-support, and is omitted when none are.",
-          "The at-risk capacity list no longer prints 'undefined% used'.",
+          "Merged in a KB-crawl-interval configuration UI (Settings > Enrichment) that was pushed to a branch back in early September but never merged: a 'KB Crawl Interval' dropdown (24 hours to 14 days, default 7 days) next to the existing Security Scan Interval, wired to the slow-crawl scanner group (KB articles, reference library) that already ran on its own timer independent of the fast security scanners.",
+          "The original branch only wired the GET /api/config response, so the setting displayed but silently failed to save. Completed the wiring: POST /api/config now reads and persists kb_interval_hours, the running scheduler is updated with it on every Settings save (not just at startup), and the scheduler now starts up honoring whatever value was last saved instead of always resetting to the 7-day default.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.83",
+    date: "26 September 2026",
+    title: "Capacity Runway and Efficiency Ratio Contradictions Between Deliverables",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Capacity Runway Was a Fake Constant in Two Deliverables",
+        color: "#f87171",
+        items: [
+          "The Customer Success Plan's 'Average Capacity Runway' and 'Capacity Extension from Efficiency' lines, and the MSP Service Report's per-customer/portfolio runway column, read sys.projections.runwayDays -- a field that has never existed anywhere in the harvest (the real field, used everywhere else, is daysToLimit). The read always failed silently, so both documents always printed the hardcoded fallback of 120 days for every fleet regardless of real data.",
+          "This produced a visible contradiction inside the same document: the Customer Success Plan's own Capacity Forecast section a few lines below it, and the MSP Report's own at-risk system list, both correctly derive runway from daysToLimit -- so a customer could read 'Average Capacity Runway: 120 days' immediately above a list of systems with 15-45 days of real runway left. It also meant these two documents disagreed with the Risk & Remediation Brief and Extended Deliverables, which already used the real field. Both now read daysToLimit like every other deliverable.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Storage Efficiency Ratio Disagreed Across Deliverables on Mixed-Platform Fleets",
+        color: "#f87171",
+        items: [
+          "The Customer Success Plan and Extended Deliverables restrict the dedupe/compression efficiency ratio to ONTAP systems (E-Series/StorageGRID report logical == physical, no real dedup to count). The QBR Pack, MSP Service Report (both its per-customer table and its fleet-wide summary) and Risk & Remediation Brief summed physical/logical capacity across every platform, diluting the ratio toward 1:1 for any account that also has E-Series or StorageGRID systems.",
+          "For a mixed-platform account this meant the same document set could show two different efficiency ratios for the identical scope depending on which deliverable was opened. All four now filter to ONTAP systems only, matching the Customer Success Plan and Extended Deliverables.",
         ],
       },
     ],
@@ -21725,7 +21744,8 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     const wowChange = (latest.percentageChange || 0) >= 0 ? `+${latest.percentageChange || 0}` : `${latest.percentageChange}`;
     let physTotal = 0, logTotal = 0, savedTotal = 0;
     targetSystems.forEach(s => {
-      if (s.efficiency) {
+      // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+      if (s.efficiency && _platformFamily(s) === 'ontap') {
         physTotal += s.efficiency.physicalUsedTB || 0;
         logTotal  += s.efficiency.logicalUsedTB || 0;
         savedTotal += s.efficiency.spaceSavedTB || 0;
@@ -22106,9 +22126,12 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     const c = mspCustomers[cName];
     c.systems.push(s);
     if (s.efficiency) {
-      c.phys += s.efficiency.physicalUsedTB || 0;
-      c.log += s.efficiency.logicalUsedTB || 0;
-      c.saved += s.efficiency.spaceSavedTB || 0;
+      // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+      if (_platformFamily(s) === 'ontap') {
+        c.phys += s.efficiency.physicalUsedTB || 0;
+        c.log += s.efficiency.logicalUsedTB || 0;
+        c.saved += s.efficiency.spaceSavedTB || 0;
+      }
       // physicalAvailTB is never populated by the harvester — derive real
       // available capacity from usableCapacityTB - physicalUsedTB instead.
       c.avail += Math.max(0, (s.efficiency.usableCapacityTB || 0) - (s.efficiency.physicalUsedTB || 0));
@@ -22222,7 +22245,8 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Capacity ──
   let physTotal = 0, logTotal = 0, savedTotal = 0;
   targetSystems.forEach(s => {
-    if (s.efficiency) {
+    // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+    if (s.efficiency && _platformFamily(s) === 'ontap') {
       physTotal += s.efficiency.physicalUsedTB || 0;
       logTotal  += s.efficiency.logicalUsedTB || 0;
       savedTotal += s.efficiency.spaceSavedTB || 0;
@@ -22397,7 +22421,8 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   let daysToLimitSum = 0, capacityRunwayCount = 0;
   
   targetSystems.forEach(s => {
-    if (s.efficiency) {
+    // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+    if (s.efficiency && _platformFamily(s) === 'ontap') {
       physTotal += s.efficiency.physicalUsedTB || 0;
       logTotal += s.efficiency.logicalUsedTB || 0;
       savedTotal += s.efficiency.spaceSavedTB || 0;
@@ -31413,13 +31438,14 @@ async function saveEnrichmentConfig() {
   try {
     const enrichEnabled = document.getElementById("settingsEnrichEnabled")?.checked ?? true;
     const enrichInterval = parseInt(document.getElementById("settingsEnrichInterval")?.value) || 12;
+    const kbInterval = parseInt(document.getElementById("settingsKbInterval")?.value) || 168;
     const nvdApiKey = document.getElementById("settingsNvdApiKey")?.value?.trim() || "";
     const githubToken = document.getElementById("settingsGithubToken")?.value?.trim() || "";
 
     await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, nvdApiKey, githubToken })
+      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, kb_interval_hours: kbInterval, nvdApiKey, githubToken })
     });
     console.log("[ENRICH] Config saved to server.");
   } catch (err) {
@@ -34155,12 +34181,14 @@ function switchTab(tabId) {
       fetch("/api/config").then(r => r.json()).then(cfg => {
         const enrichToggle = document.getElementById("settingsEnrichEnabled");
         const enrichInterval = document.getElementById("settingsEnrichInterval");
+        const kbInterval = document.getElementById("settingsKbInterval");
         if (enrichToggle && cfg.enrichEnabled !== undefined) enrichToggle.checked = cfg.enrichEnabled;
         if (enrichInterval && cfg.enrichIntervalHours) enrichInterval.value = cfg.enrichIntervalHours.toString();
         const autoHarvestToggle = document.getElementById("settingsAutoHarvestEnabled");
         const autoHarvestInterval = document.getElementById("settingsAutoHarvestInterval");
         if (autoHarvestToggle && cfg.autoHarvestEnabled !== undefined) autoHarvestToggle.checked = cfg.autoHarvestEnabled;
         if (autoHarvestInterval && cfg.autoHarvestIntervalHours) autoHarvestInterval.value = cfg.autoHarvestIntervalHours.toString();
+        if (kbInterval && cfg.kb_interval_hours) kbInterval.value = cfg.kb_interval_hours.toString();
       }).catch(() => {});
     }
   }
