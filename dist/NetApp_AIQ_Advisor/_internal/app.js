@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.95";
+const APP_VERSION = "5.6.96";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.96",
+    date: "26 September 2026",
+    title: "Decisions, Upgrade Sequence, Refresh and Capacity Trend",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Deliverables now carry a plan, not just findings: a 'Decisions needed' block (top 5 actions, each with why it matters, timing and owner) at the top of the Health & Lifecycle Report, Problem Statements, QBR Pack and Solution Proposals; the Health report gains a full plan table (type of change, timing, owner), an Upgrade Sequence (clusters in waves: pre-release / unsupported / critical first, MetroCluster DR-site-first), Hardware Refresh Planning (order-by and migrate-by dates, TB to migrate) and a Capacity Trend from Active IQ's monthly history (future and zero months excluded).",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.95",
     date: "26 September 2026",
@@ -23980,6 +23995,110 @@ function estimateEffort(fixOrDesc) {
   return '~15-30 min';
 }
 
+// ═══ Planning helpers shared by the deliverables ═══════════════════════════
+// Turn the facts into a plan: what to do, why it matters, how disruptive it is, when, and who.
+function _dfPlural(n, w, w2) { return `${n} ${n === 1 ? w : (w2 || w + 's')}`; }
+function _dfDays(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? null : Math.ceil((t - Date.now()) / 86400000); }
+function _dfDate(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? 'not reported' : new Date(t).toISOString().split('T')[0]; }
+function _dfName(s) { return s.systemName || s.clusterName || s.serialNumber; }
+
+// ONTAP clusters that still need a software update, ordered into waves.
+function _dfUpgradeWaves(systems) {
+  const byCluster = {};
+  const _unsupported = s => { const f = _dfDays(s.swEndOfFullSupport), l = _dfDays(s.swEndOfLimitedSupport); return (l != null && l < 0) || (f != null && f < 0) || /^\d+\.\d+(\.\d+)?(RC\d*|BETA\d*|D\d+)/i.test(String(s.ontapVersion || s.osVersion || '')); };
+  (systems || []).filter(s => _platformFamily(s) === 'ontap' && ((_osKnown(s) && !_osIsCurrent(s)) || _unsupported(s))).forEach(s => {
+    const k = s.clusterName || s.systemName || s.serialNumber;
+    const c = byCluster[k] = byCluster[k] || { name: k, nodes: [], vers: new Set(), target: '', mc: false, crit: 0, high: 0, rc: false, pastFull: false, pastLimited: false };
+    c.nodes.push(s); c.vers.add(s.ontapVersion || s.osVersion || '');
+    // only a target that is actually newer than what is running (Active IQ sometimes lists an older patch for a retired train)
+    const _cur = s.ontapVersion || s.osVersion || '';
+    c.target = c.target || [s.upgrades && s.upgrades.targetVersion !== 'Up to Date' ? s.upgrades.targetVersion : '', s.recommendedOSVersion, s.swRecMin].find(v => v && _cur && versionLt(_cur, v)) || '';
+    if (s.isMetroCluster) c.mc = true;
+    (s.risks || []).forEach(r => { const sv = String(r.severity).toLowerCase(); if (sv === 'critical') c.crit++; else if (sv === 'high') c.high++; });
+    if (/^\d+\.\d+(\.\d+)?(RC\d*|BETA\d*|D\d+)/i.test(String(s.ontapVersion || s.osVersion || ''))) c.rc = true;
+    const f = _dfDays(s.swEndOfFullSupport), l = _dfDays(s.swEndOfLimitedSupport);
+    if (f != null && f < 0) c.pastFull = true; if (l != null && l < 0) c.pastLimited = true;
+  });
+  const cl = Object.values(byCluster).map(c => {
+    const reasons = [];
+    if (c.rc) reasons.push('pre-release ONTAP build');
+    if (c.pastLimited) reasons.push('past end of limited support');
+    else if (c.pastFull) reasons.push('past end of full support');
+    if (c.crit) reasons.push(`${c.crit} critical finding${c.crit !== 1 ? 's' : ''}`);
+    c.reasons = reasons; c.urgent = c.rc || c.pastLimited || c.crit > 0;
+    return c;
+  });
+  const cmp = (a, b) => (b.crit - a.crit) || String([...a.vers][0]).localeCompare(String([...b.vers][0]), undefined, { numeric: true });
+  return { wave1: cl.filter(c => c.urgent).sort(cmp), wave2: cl.filter(c => !c.urgent).sort(cmp) };
+}
+
+// Hardware whose support ends within 36 months (or has ended): what to order, and by when.
+function _dfRefreshPlan(systems) {
+  const g = {};
+  (systems || []).forEach(s => {
+    const eos = s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate), d = _dfDays(eos);
+    if (d == null || d > 1095) return;
+    const m = s.model || s.platform || 'Unknown';
+    const e = g[m] = g[m] || { model: m, n: 0, eos, days: d, usedTB: 0, names: [] };
+    e.n++; e.usedTB += (s.efficiency && s.efficiency.physicalUsedTB) || 0; e.names.push(_dfName(s));
+  });
+  return Object.values(g).sort((a, b) => a.days - b.days).map(e => {
+    const eosT = Date.parse(e.eos);
+    const orderBy = new Date(eosT - 365 * 86400000), migrateBy = new Date(eosT - 90 * 86400000);
+    return { ...e, orderBy: e.days <= 365 ? 'now' : orderBy.toISOString().split('T')[0], migrateBy: e.days <= 90 ? 'now' : migrateBy.toISOString().split('T')[0] };
+  });
+}
+
+// Capacity growth from Active IQ's monthly cluster history (one series per cluster).
+function _dfCapacityTrend(systems) {
+  const seen = {}, series = [];
+  (systems || []).forEach(s => {
+    const h = s.clusterMonthlyCapacity; const k = s.clusterName || s.systemName;
+    if (!Array.isArray(h) || h.length < 3 || seen[k]) return;
+    seen[k] = 1;
+    const _nowM = new Date().toISOString().slice(0, 7);   // the history also carries future/forecast months and zero placeholders
+    series.push({ name: k, h: h.filter(x => x && x.usedTB > 0 && String(x.month) <= _nowM).sort((a, b) => String(a.month).localeCompare(String(b.month))) });
+  });
+  const ok = series.filter(x => x.h.length >= 3);
+  if (!ok.length) return null;
+  let first = 0, last = 0, months = 0; const grow = [];
+  ok.forEach(x => { const a = x.h[0], b = x.h[x.h.length - 1]; first += a.usedTB; last += b.usedTB; months = Math.max(months, x.h.length - 1); grow.push({ name: x.name, from: a.usedTB, to: b.usedTB, d: b.usedTB - a.usedTB, m: x.h.length - 1, raw: b.rawTB }); });
+  grow.sort((a, b) => b.d - a.d);
+  return { clusters: ok.length, first, last, months, delta: last - first, pct: first > 0 ? (last - first) / first * 100 : 0, perMonth: months > 0 ? (last - first) / months : 0, top: grow.slice(0, 3),
+           from: ok[0].h[0].month, to: ok[0].h[ok[0].h.length - 1].month };
+}
+
+// The plan: [{action, why, type, when, owner, sev}] in the order it should be worked.
+function _dfActionPlan(systems, allRisks, openCases) {
+  const plan = [], sys = systems || [];
+  const contracts = _dfContractFacts(sys), arp = _dfArpFacts(sys), dr = computeFleetDRSummary(sys), cves = Object.values(_dfCveIndex(sys));
+  const crit = (allRisks || []).filter(r => String(r.severity).toLowerCase() === 'critical').length;
+  const cveCrit = cves.filter(c => c.sev === 'critical'), waves = _dfUpgradeWaves(sys), refresh = _dfRefreshPlan(sys).filter(r => r.days <= 730);
+  const asupBad = sys.filter(s => { const a = s.autosupport || {}; return !(a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7)); });
+  const near = sys.filter(s => s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 365).sort((a, b) => a.projections.daysToLimit - b.projections.daysToLimit);
+  const names = (a, k) => a.slice(0, k).map(x => typeof x === 'string' ? x : (x.systemName || _dfName(x))).join(', ') + (a.length > k ? ` and ${a.length - k} more` : '');
+  const kev = cves.filter(c => /actively exploited|kev/i.test(c.title || ''));
+  if (contracts.expired.length) plan.push({ sev: 1, action: `Reinstate support on ${_dfPlural(contracts.expired.length, 'system')} whose contract has lapsed (${names(contracts.expired, 4)}).`, why: 'Without an active contract there is no hardware replacement, no software support and no access to fixes or NetApp Support cases.', type: 'Commercial (no change to systems)', when: '0-7 days', owner: 'NetApp account team with the customer' });
+  if (kev.length) plan.push({ sev: 1, action: `Address the actively exploited vulnerability ${kev[0].id} (${_dfPlural(kev[0].systems.size, 'system')}).`, why: 'Actively exploited vulnerabilities are used in real attacks; this is the most urgent security item.', type: 'Depends on the fix (see the advisory)', when: '0-7 days', owner: 'Customer storage/security team with NetApp Support' });
+  const w1 = waves.wave1;
+  if (w1.length) plan.push({ sev: 1, action: `Upgrade ONTAP on ${_dfPlural(w1.length, 'cluster')} first (${names(w1.map(c => ({ systemName: c.name })), 4)}): ${[...new Set(w1.flatMap(c => c.reasons))].join(', ')}.`, why: 'These clusters carry the highest-severity findings or run software that is no longer fully supported, so they gain the most from an upgrade.', type: 'Non-disruptive rolling upgrade, one cluster at a time', when: '8-30 days', owner: 'Customer storage team; NetApp TAM to plan' });
+  if (arp.disabled > 0) plan.push({ sev: 2, action: `Enable Autonomous Ransomware Protection on the ${arp.disabled} ONTAP system${arp.disabled !== 1 ? 's' : ''} where it is disabled${arp.unknown ? ` and confirm the ${arp.unknown} not reported` : ''}.`, why: 'ARP detects ransomware-like encryption activity on NAS volumes and takes a protective snapshot automatically, limiting the damage of an attack.', type: 'Non-disruptive configuration change', when: '8-30 days', owner: 'Customer storage team' });
+  if (dr.unprotected.length) plan.push({ sev: 2, action: `Review replication for the ${dr.unprotected.length} ONTAP system${dr.unprotected.length !== 1 ? 's' : ''} with no SnapMirror or MetroCluster configured (${names(dr.unprotected, 4)}).`, why: 'A cluster that is not replicated has no copy elsewhere if the site, the cluster or the data is lost; in-cluster HA does not protect against that.', type: 'Design and configuration (non-disruptive to existing data)', when: '31-90 days', owner: 'Customer with NetApp account team (sizing)' });
+  if (contracts.expiring90.length) plan.push({ sev: 2, action: `Renew ${_dfPlural(contracts.expiring90.length, 'support contract')} expiring within 90 days (${names(contracts.expiring90, 4)}).`, why: 'A lapse leaves the systems unsupported and a renewal after expiry can carry re-instatement conditions.', type: 'Commercial', when: '0-30 days', owner: 'NetApp account team with the customer' });
+  if (asupBad.length) plan.push({ sev: 2, action: `Restore AutoSupport on ${_dfPlural(asupBad.length, 'system')} (${names(asupBad, 4)}).`, why: 'Active IQ can only raise risks, upgrade advice and support cases for systems that send AutoSupport; the others cannot be assessed at all.', type: 'Non-disruptive configuration change', when: '8-30 days', owner: 'Customer storage team' });
+  if (waves.wave2.length) plan.push({ sev: 3, action: `Upgrade ONTAP on the remaining ${_dfPlural(waves.wave2.length, 'cluster')} not on the recommended release (${names(waves.wave2.map(c => ({ systemName: c.name })), 4)}).`, why: 'Staying on the recommended release keeps the systems on the current bug- and security-fix stream.', type: 'Non-disruptive rolling upgrade', when: '31-90 days', owner: 'Customer storage team; NetApp TAM to plan' });
+  if (refresh.length) plan.push({ sev: refresh.some(r => r.days <= 365) ? 2 : 3, action: `Plan hardware refresh for ${refresh.map(r => `${r.model} (${_dfPlural(r.n, 'system')}, support ends ${_dfDate(r.eos)})`).join('; ')}.`, why: 'Support for the hardware cannot be extended past its end-of-support date; a refresh takes months to quote, order, install and migrate.', type: 'Project (new hardware and data migration)', when: 'Quote within 30 days', owner: 'NetApp account team with the customer' });
+  if (near.length) plan.push({ sev: 3, action: `Plan capacity expansion or data placement for ${names(near, 4)} (projected to reach the capacity threshold within 12 months).`, why: 'Running out of capacity stops writes; expansion and procurement have lead times.', type: 'Non-disruptive (expansion) or planned data move', when: '31-90 days', owner: 'Customer storage team; NetApp account team' });
+  if (crit && !w1.length) plan.push({ sev: 2, action: `Remediate the ${_dfPlural(crit, 'critical risk')} reported by Active IQ.`, why: 'Critical risks are the findings Active IQ considers most likely to cause data loss, downtime or a security incident.', type: 'See the finding', when: '0-30 days', owner: 'Customer storage team' });
+  return plan.sort((a, b) => a.sev - b.sev);
+}
+function _dfDecisionsText(plan, indent) {
+  const pad = indent || '';
+  const top = plan.slice(0, 5);
+  if (!top.length) return `${pad}DECISIONS NEEDED: none -- no corrective action is required at this time.\n`;
+  return `${pad}DECISIONS NEEDED (${top.length} priority item${top.length !== 1 ? 's' : ''}):\n` + top.map((p, i) => `${pad}  ${i + 1}. ${p.action}\n${pad}     Why: ${p.why}\n${pad}     When: ${p.when}  |  Owner: ${p.owner}`).join('\n') + '\n';
+}
+
 // ═══ Customer Health & Lifecycle Report (paste-ready) ═════════════════════
 // Written to be copied into a presentation or a customer document as-is: plain
 // customer-facing language, Markdown tables, no internal notes, no other customers,
@@ -24024,6 +24143,8 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
 
   let o = `# ${cust} -- Storage Health & Lifecycle Report\n\n`;
   o += `Prepared ${today.toISOString().split('T')[0]} from NetApp Active IQ telemetry (AutoSupport data as last received from each system).\n\n`;
+  const _plan = _dfActionPlan(targetSystems, allRisks, openCases);
+  o += `## Decisions needed\n\n` + (_plan.length ? _plan.slice(0, 5).map((p, i) => `${i + 1}. **${p.action}** ${p.why} _(${p.when}; ${p.owner})_`).join('\n') : 'No corrective action is required at this time.') + '\n\n';
 
   // 1 Summary
   o += `## 1. Summary\n\n`;
@@ -24127,20 +24248,33 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     o += '\n';
   } else o += `No support cases are currently open.\n\n`;
 
-  // 9 Next steps
-  const steps = [];
-  if (lapsed.length) steps.push(`Reinstate support on ${plural(lapsed.length, 'system')} whose contract has lapsed (${lapsed.slice(0, 5).map(e => e.systemName).join(', ')}${lapsed.length > 5 ? ' and ' + (lapsed.length - 5) + ' more' : ''}).`);
-  if (exp90.length) steps.push(`Renew ${plural(exp90.length, 'contract')} expiring within 90 days.`);
-  if (riskSev('critical') || cveCrit) steps.push(`Remediate the ${plural(riskSev('critical'), 'critical risk')}${cveCrit ? ' and ' + plural(cveCrit, 'critical CVE') : ''} -- start with ${topCves.length ? topCves[0].id : 'the highest-severity items in section 4'}.`);
-  if (arp.disabled > 0) steps.push(`Enable Autonomous Ransomware Protection on the ${arp.disabled} ONTAP system${arp.disabled === 1 ? '' : 's'} where it is disabled${arp.unknown ? ' and confirm the ' + arp.unknown + ' not reported' : ''}.`);
-  const target = targetSystems.filter(s => s.recommendedOSVersion && verOf(s) !== 'not reported' && verOf(s) !== s.recommendedOSVersion).length;
-  if (target) steps.push(`Plan software updates for ${plural(target, 'system')} not yet on the recommended release.`);
-  if (dr.unprotected.length) steps.push(`Review replication for the ${dr.unprotected.length} ONTAP system${dr.unprotected.length === 1 ? '' : 's'} with no SnapMirror or MetroCluster configured.`);
-  if (asupOff || asupStale) steps.push(`Restore AutoSupport reporting on ${plural(asupOff + asupStale, 'system')}.`);
-  const refresh = hwKeys.filter(m => { const d = daysTo(hwGroups[m].eos); return d != null && d <= 730; });
-  if (refresh.length) steps.push(`Plan hardware refresh for ${refresh.join(', ')} (support ends within 24 months or has ended).`);
-  if (near.length) steps.push(`Plan capacity expansion or data placement for ${near.slice(0, 4).map(nameOf).join(', ')}.`);
-  o += `## 9. Recommended Next Steps\n\n` + (steps.length ? steps.map((t, i) => `${i + 1}. ${t}`).join('\n') : 'No corrective action is required at this time.') + '\n';
+  // 9 Recommended plan
+  o += `## 9. Recommended Plan\n\n`;
+  if (_plan.length) {
+    o += `| # | Action | Why it matters | Type of change | Suggested timing | Owner |\n|---|---|---|---|---|---|\n`;
+    _plan.forEach((p, i) => { o += `| ${i + 1} | ${p.action.replace(/\|/g, '/')} | ${p.why} | ${p.type} | ${p.when} | ${p.owner} |\n`; });
+  } else o += 'No corrective action is required at this time.\n';
+  o += '\n_Timings are suggestions ranked by risk; agree the final schedule with your change-control process._\n\n';
+
+  // 10 Upgrade sequence
+  const _waves = _dfUpgradeWaves(targetSystems);
+  if (_waves.wave1.length || _waves.wave2.length) {
+    const row = (c, w) => `| ${w} | ${c.name} | ${_dfPlural(c.nodes.length, 'node')} | ${[...c.vers].filter(Boolean).join(', ') || 'not reported'} | ${c.target || 'a supported release (see Upgrade Advisor)'} | ${c.reasons.join('; ') || 'not on the recommended release'}${c.mc ? ' (MetroCluster: upgrade the DR site first, then the primary)' : ''} |`;
+    o += `## 10. Upgrade Sequence\n\nUpgrade one cluster at a time; each cluster is upgraded non-disruptively, one HA pair at a time. Validate cluster health before and after each cluster (\`cluster image validate\`, \`system health alert show\`, \`storage failover show\`).\n\n| Wave | Cluster | Nodes | Running | Target | Reason |\n|---|---|---|---|---|---|\n` + _waves.wave1.map(c => row(c, '1 (first)')).join('\n') + (_waves.wave1.length && _waves.wave2.length ? '\n' : '') + _waves.wave2.map(c => row(c, '2')).join('\n') + '\n\n';
+  }
+
+  // 11 Hardware refresh planning
+  const _rf = _dfRefreshPlan(targetSystems);
+  if (_rf.length) {
+    o += `## 11. Hardware Refresh Planning\n\nQuote and order at least 12 months before end of support, and finish migrating at least 3 months before it.\n\n| Model | Systems | End of hardware support | Data to migrate (TB used) | Order by | Migrate by |\n|---|---|---|---|---|---|\n` + _rf.map(r => `| ${r.model} | ${r.n} | ${_dfDate(r.eos)}${r.days < 0 ? ' (passed)' : ''} | ${r.usedTB > 0 ? r.usedTB.toFixed(1) : 'not reported'} | ${r.orderBy} | ${r.migrateBy} |`).join('\n') + '\n\n';
+  }
+
+  // 12 Capacity trend
+  const _ct = _dfCapacityTrend(targetSystems);
+  if (_ct) {
+    o += `## 12. Capacity Trend\n\nAcross ${_dfPlural(_ct.clusters, 'ONTAP cluster')}, used capacity (over up to ${_ct.months} months of history) went from ${_ct.first.toFixed(0)} TB to ${_ct.last.toFixed(0)} TB: ${_ct.delta >= 0 ? '+' : ''}${_ct.delta.toFixed(0)} TB (${_ct.pct >= 0 ? '+' : ''}${_ct.pct.toFixed(0)}%), about ${_ct.perMonth.toFixed(1)} TB per month.\n\n`;
+    if (_ct.top.length && _ct.top[0].d > 0) o += `Fastest-growing clusters: ${_ct.top.filter(x => x.d > 0).map(x => `${x.name} (+${x.d.toFixed(0)} TB over ${x.m} months)`).join('; ')}.\n\n`;
+  }
   return o;
 }
 
@@ -25232,6 +25366,12 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     sustainabilityReport += `\n  INTEROPERABILITY NOTE: ${imtFindings.length} IMT finding(s) detected — see full details in Security Brief or Solution Proposal deliverables.\n`;
   }
 
+  // Decisions needed, up front, in the documents a reader opens first.
+  const _bannerInsert = (t, block) => { const L = t.split('\n'); let eq = 0; for (let i = 0; i < L.length && i < 12; i++) { if (/^={20,}$/.test(L[i].trim())) { eq++; if (eq === 2) { L.splice(i + 1, 0, '', block.trimEnd(), ''); return L.join('\n'); } } } return block + '\n' + t; };
+  { const _dec = _dfDecisionsText(_dfActionPlan(targetSystems, allRisks, allSupportCases));
+    problemStatements = _bannerInsert(problemStatements, _dec);
+    qbrPack = _bannerInsert(qbrPack, _dec);
+    solutionProposals = _bannerInsert(solutionProposals, _dec); }
   // Some source titles carry UTF-8 that was decoded as Latin-1 ("CVE-2026-20833" with
   // non-breaking hyphens came out as "CVEâ2026â20833"); repair it in every document.
   const _fixText = t => typeof t !== 'string' ? t
