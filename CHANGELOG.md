@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.108] - 2026-09-26
+
+### Changed
+- Controller rear panels are now scale drawings of the real chassis, traced from NetApp's own hardware diagrams: the selected controller is drawn in full beside its dimmed partner and the shared chassis (PSUs, IO slot bays, NVRAM, management module, rack frame), with true connector shapes (SFP, QSFP, RJ-45, mini-SAS HD, USB), stacked port pairs and slot numbers where the hardware has them. Reported ports are placed by slot (eNx = slot N) with role colour and link LED and highlight their row in the port table on hover; connectors Active IQ did not report are dashed. Covers FAS8200/A300, FAS8300/8700, A400/C400, A800/C800, the 8U A700/A900/FAS9000/9500, A250/C250, FAS2820/A150, A220/C190/FAS2720/2750, A1K/A70/A90/FAS70/90, AFX, A20/A30/A50/C30/C60/FAS50, E-Series E2800/E5700/E4000 and StorageGRID appliances.
+
+---
+
 ## [5.6.107] - 2026-09-26
 
 ### Changed
