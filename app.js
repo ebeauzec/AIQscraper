@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.111";
+const APP_VERSION = "5.6.112";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.112",
+    date: "26 September 2026",
+    title: "FC LIF Ports",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "FC LIFs now map to a physical port: FC ports are missing from Active IQ's port list (Ethernet only), so the Technical Audit adds one port per FC LIF port (6a, 8b, or 0g for an onboard UTA2 port) to the rear-panel drawing and the port table, numbered like the others, with its state inferred from the LIFs on it and clearly marked as inferred. Selecting an FCP LIF lights that port.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.111",
     date: "26 September 2026",
@@ -35654,6 +35669,29 @@ function _fmtPortSpeed(mbps) {
 // system. Active IQ's networkPorts field only covers Ethernet ports (no FC/SAS
 // role exists in the schema), so FC/SAS/disk-shelf ports are never invented
 // here; the backplate layout renders those sections empty rather than guess.
+// Active IQ's networkPorts covers Ethernet only, so FC ports never appear in it, yet FCP LIFs sit on
+// them (ONTAP names them <slot><letter>, e.g. 6a, 8b, or 0g for an onboard UTA2 port in FC mode).
+// Add one port per FC LIF port so the rear panel can show it and a LIF can light it. State is inferred
+// from the LIFs on it (any LIF up = up, all down = down) and flagged as inferred, not measured.
+function _bpAddLifPorts(sys, ports) {
+  const host = sys.hostName || sys.systemName || '';
+  let svms = []; try { svms = getSystemSvms(sys) || []; } catch (e) { svms = []; }
+  const by = {};
+  svms.forEach(svm => (svm.lifs || []).forEach(l => {
+    if (!(l.homeNode === host || l.currentNode === host)) return;
+    const port = (l.currentNode === host || !l.homePort) ? l.currentPort : l.homePort;
+    const base = String(port || '').split('-')[0].trim();
+    if (/^\d+[a-z]$/i.test(base)) (by[base] = by[base] || []).push(l);
+  }));
+  Object.keys(by).forEach(base => {
+    const alias = /^0[a-z]$/i.test(base) ? 'e' + base : null;
+    if (ports.some(p => p.name === base || (alias && p.name === alias))) return;
+    const ls = by[base], up = ls.some(l => l.operStatus === 'UP'), down = ls.every(l => l.operStatus && l.operStatus !== 'UP');
+    ports.push({ name: base, alias, type: 'fc', status: up ? 'online' : (down ? 'offline' : 'unknown'), partnerType: null, partnerName: null, partnerPort: null, cablingStatus: null, inferred: true,
+      lifNames: ls.map(l => l.name), wwpns: ls.map(l => l.wwpn).filter(Boolean), details: { speed: null, mtu: null, mac: null, broadcastDomain: null, ipspace: null, interfaceGroup: null } });
+  });
+  return ports;
+}
 function getSystemPortMappings(sys) {
   const rawPorts = (sys.networkPorts && sys.networkPorts.networkPorts) || [];
   return rawPorts.filter(p => p && p.port).map(p => {
@@ -35800,8 +35838,8 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const _esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const _KIND = { sfp: [22, 15], qsfp: [27, 15], rj45: [22, 18], sas: [17, 13], usb: [18, 11], usbc: [12, 7], umicro: [13, 7] };
   const _roleCol = t => t === 'cluster' ? '#3b82f6' : t === 'data' ? '#f59e0b' : t === 'fc' ? '#eab308' : (t === 'sas' || t === 'nvme') ? '#a855f7' : '#10b981';
-  const _isPhys = p => /^e\d+[a-z]$/i.test(p.name) || p.name === 'e0M';
-  const _byNameAll = {}; ports.forEach(p => { _byNameAll[p.name] = p; });
+  const _isPhys = p => /^e?\d+[a-z]$/i.test(p.name);
+  const _byNameAll = {}; ports.forEach(p => { _byNameAll[p.name] = p; if (p.alias) _byNameAll[p.alias] = p; });
   const _usedNames = new Set();
   let _dim = false, _mir = false, _CW = 0;
   const _bn = () => _dim ? {} : _byNameAll;
@@ -35834,20 +35872,20 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   // A named connector. Reported: role colour, link LED, number badge, hover/click highlight halo + pill.
   // Unreported: dashed grey, no state.
   const _pName = (name, kind, x, y, lp, sc) => {
-    _usedNames.add(name); sc = sc || 1;
+    _usedNames.add(name); if (_bn()[name]) _usedNames.add(_bn()[name].name); sc = sc || 1;
     const p = _bn()[name], kk = _KIND[kind] || _KIND.sfp, w = kk[0] * sc, h = kk[1] * sc, X = _X(x, w);
     if (_dim) return _conn(kind, X, y, '#3b4557', false, null, sc);
-    const col = p ? _roleCol(p.type) : '#4b5563', sc2 = _stat(p), no = p ? _num[name] : null;
+    const nm = p ? p.name : name, col = p ? _roleCol(p.type) : '#4b5563', sc2 = _stat(p), no = p ? _num[nm] : null;
     const lab = lp === 'b' ? [X + w / 2, y + h + 6.4, 'middle'] : lp === 'l' ? [X - 1.6, y + h / 2 + 2, 'end'] : lp === 'r' ? [X + w + 1.6, y + h / 2 + 2, 'start'] : [X + w / 2, y - 2.6, 'middle'];
-    const tip = p ? `#${no || ''} ${name} - ${p.type}${p.details && p.details.speed ? ', ' + p.details.speed : ''}, link ${p.status}` : `${name} - not reported by Active IQ (position from the NetApp hardware diagram)`;
-    let g = `<g class="bp-port" style="cursor:pointer" id="port-slot-${name}" data-stat="${sc2}" onmouseenter="hoverCablingPort('${name}')" onmouseleave="unhoverCablingPort('${name}')" onclick="bpPin('${name}')"><title>${_esc(tip)}</title>`;
+    const tip = p ? `#${no || ''} ${nm} - ${p.type}${p.details && p.details.speed ? ', ' + p.details.speed : ''}, link ${p.status}${p.inferred ? ' (inferred from its LIFs)' : ''}` : `${name} - not reported by Active IQ (position from the NetApp hardware diagram)`;
+    let g = `<g class="bp-port" style="cursor:pointer" id="port-slot-${nm}" data-stat="${sc2}" onmouseenter="hoverCablingPort('${nm}')" onmouseleave="unhoverCablingPort('${nm}')" onclick="bpPin('${nm}')"><title>${_esc(tip)}</title>`;
     g += `<rect class="bpHalo" x="${X - 3}" y="${y - 3}" width="${w + 6}" height="${h + 6}" rx="3.5" fill="${p ? sc2 : '#94a3b8'}" fill-opacity="0.18" stroke="${p ? sc2 : '#94a3b8'}" stroke-width="2.2"/>`;
     g += _conn(kind, X, y, p ? col : '#4b5563', !p, null, sc);
     if (p) g += `<circle cx="${X + w - 2}" cy="${y + 2}" r="1.9" fill="${sc2}" stroke="#000" stroke-width="0.4"/>`;
-    g += `<text x="${lab[0]}" y="${lab[1]}" font-size="5.4" font-family="monospace" font-weight="700" text-anchor="${lab[2]}" fill="${p ? '#e5e7eb' : '#6b7280'}">${_esc(name)}</text>`;
+    g += `<text x="${lab[0]}" y="${lab[1]}" font-size="5.4" font-family="monospace" font-weight="700" text-anchor="${lab[2]}" fill="${p ? '#e5e7eb' : '#6b7280'}">${_esc(nm)}</text>`;
     if (p && no) g += `<g class="bpNum"><circle cx="${X + 1}" cy="${y + 1}" r="4.5" fill="#0b0e14" stroke="${sc2}" stroke-width="1.1"/><text x="${X + 1}" y="${y + 2.9}" font-size="${no > 9 ? 4.6 : 5.6}" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#fff">${no}</text></g>`;
     {
-      const txt = p ? `#${no || '-'}  ${name}  ${_statTxt(p)}${p.details && p.details.speed ? '  ' + p.details.speed : ''}` : `${name}  not reported`, pw = txt.length * 3.5 + 8, below = y < 16;
+      const txt = p ? `#${no || '-'}  ${nm}  ${_statTxt(p)}${p.details && p.details.speed ? '  ' + p.details.speed : ''}` : `${name}  not reported`, pw = txt.length * 3.5 + 8, below = y < 16;
       const px = Math.max(1, Math.min(_CW - pw - 1, X + w / 2 - pw / 2)), py = below ? y + h + 4 : y - 15;
       g += `<g class="bpPill"><rect x="${px}" y="${py}" width="${pw}" height="11" rx="5.5" fill="${p ? sc2 : '#94a3b8'}" stroke="#fff" stroke-width="0.8"/><text x="${px + pw / 2}" y="${py + 7.7}" font-size="5.6" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#0b0e14">${_esc(txt)}</text></g>`;
     }
@@ -35860,7 +35898,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     const ly = lp === 'b' ? y + k[1] + 6 : y - 2.4;
     return `<g><title>${_esc(label)}</title>${_conn(kind, X, y, kind === 'sas' ? '#a855f7' : '#6b7280', false)}<text x="${X + k[0] / 2}" y="${ly}" font-size="4.8" font-family="monospace" text-anchor="middle" fill="#7c8698">${_esc(label)}</text></g>`;
   };
-  const _slotPortsOf = n => _dim ? [] : ports.filter(p => new RegExp('^e' + n + '[a-z]$', 'i').test(p.name)).sort((a, b) => a.name.localeCompare(b.name));
+  const _slotPortsOf = n => _dim ? [] : ports.filter(p => new RegExp('^e?' + n + '[a-z]$', 'i').test(p.name)).sort((a, b) => a.name.localeCompare(b.name));
   const _tag = (txt, x, y, w, h) => `<rect x="${_X(x, w)}" y="${y}" width="${w}" height="${h}" rx="1" fill="#0b0e14" stroke="#3b4557" stroke-width="0.5"/><text x="${_X(x, w) + w / 2}" y="${y + h / 2 + 2.2}" font-size="6.4" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="#e5e7eb">${_esc(txt)}</text>`;
   const _bay = (n, x, y, w, h, dir, tagPos) => {
     let s = `<rect x="${_X(x, w)}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="#1a2030" stroke="#3b4557" stroke-width="0.7"/>`;
@@ -36092,6 +36130,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   renderNodeVisualLayout._lastFP = _nodeLayoutFP;
 
   const ports = getSystemPortMappings(sys);
+  _bpAddLifPorts(sys, ports);
   window._bpCurPorts = ports; _bpReset();
   
   let portsHtml = "";
@@ -36171,6 +36210,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
         ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`
         : `<span style="display: inline-flex; align-items: center; gap: 4px; color: #f59e0b; border: 1px solid rgba(245,158,11,0.45); background: rgba(245,158,11,0.08); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">● Unknown</span>`);
 
+    const _cfgInf = port.inferred ? `<span style="font-size:0.75rem;color:var(--text-secondary);">FC port, inferred from ${port.lifNames.length} LIF${port.lifNames.length !== 1 ? 's' : ''} (${port.lifNames.slice(0, 3).join(', ')}${port.lifNames.length > 3 ? ', ...' : ''}); state is the LIF state, not a link measurement${port.wwpns.length ? '<br><code style="font-size:0.68rem;color:var(--accent-cyan);">' + port.wwpns.slice(0, 2).join(' , ') + '</code>' : ''}</span>` : null;
     const partnerCell = port.partnerName || '<span style="color:var(--text-muted);font-style:italic;">Not available via API</span>';
     const partnerPortCell = port.partnerPort ? `<code>${port.partnerPort}</code>` : '<span style="color:var(--text-muted);">—</span>';
 
@@ -36186,7 +36226,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
             ${typeLabel}
           </span>
         </td>
-        <td style="padding: 10px;">${configDetail}</td>
+        <td style="padding: 10px;">${_cfgInf || configDetail}</td>
         <td style="padding: 10px; font-weight: 500;">${partnerCell}</td>
         <td style="padding: 10px;">${partnerPortCell}</td>
         <td style="padding: 10px;">${statusBadge}</td>
@@ -36254,7 +36294,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
             ? '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--status-normal);border:1px solid rgba(0,230,118,0.25);background:rgba(0,230,118,0.05);padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;">&#10003; Homed</span>'
             : '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--status-warning);border:1px solid rgba(255,152,0,0.35);background:rgba(255,152,0,0.08);padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:700;">&#9888; Migrated</span>';
           lifRowsHtml += `
-            <tr class="bp-lif-row" data-lifport="${(l.currentNode && l.currentNode !== (sys.systemName || '') && l.homeNode === (sys.systemName || '')) ? l.homePort : l.currentPort}" title="Click to light up the physical port(s) behind this LIF" style="border-bottom: 1px solid var(--border-color); border-left: 4px solid transparent; cursor: pointer; transition: background-color 0.15s ease;" onmouseenter="bpLifHover(this,true)" onmouseleave="bpLifHover(this,false)" onclick="bpLifPin(this)">
+            <tr class="bp-lif-row" data-lifport="${(l.currentNode === hostName || !l.homePort) ? l.currentPort : l.homePort}" title="Click to light up the physical port(s) behind this LIF" style="border-bottom: 1px solid var(--border-color); border-left: 4px solid transparent; cursor: pointer; transition: background-color 0.15s ease;" onmouseenter="bpLifHover(this,true)" onmouseleave="bpLifHover(this,false)" onclick="bpLifPin(this)">
               <td style="padding:8px 10px;font-weight:700;color:#fff;"><code>${l.name}</code></td>
               <td style="padding:8px 10px;color:var(--text-secondary);font-size:0.75rem;">${svm.name}</td>
               <td style="padding:8px 10px;font-family:monospace;font-size:0.72rem;color:var(--accent-cyan);" title="${addrLabel}">${addrDisplay}</td>
@@ -36392,8 +36432,8 @@ function _bpNodePos(sy) {
 // Physical Ethernet ports get a number (e0M first, then by slot and letter) shown on the drawing and
 // in the first column of the port table, so a row and its connector can be matched at a glance.
 function _bpNumberPorts(ports) {
-  const phys = (ports || []).filter(p => /^e\d+[a-z]$/i.test(p.name));
-  const key = p => p.name === 'e0M' ? [-1, 0] : [parseInt(p.name.slice(1), 10), p.name.slice(-1).toLowerCase().charCodeAt(0)];
+  const phys = (ports || []).filter(p => /^e?\d+[a-z]$/i.test(p.name));
+  const key = p => p.name === 'e0M' ? [-1, 0] : [parseInt(p.name.replace(/^e/i, ''), 10), p.name.slice(-1).toLowerCase().charCodeAt(0)];
   phys.sort((a, b) => { const x = key(a), y = key(b); return x[0] - y[0] || x[1] - y[1]; });
   const m = {}; phys.forEach((p, i) => { m[p.name] = i + 1; });
   return m;
@@ -36404,7 +36444,7 @@ function _bpNumberPorts(ports) {
 function bpLifPorts(lifPort, ports) {
   ports = ports || window._bpCurPorts || [];
   let base = String(lifPort || '').split('-')[0].trim();
-  if (/^\d[a-z]$/i.test(base)) base = 'e' + base;
+  if (!ports.some(p => p.name === base) && /^0[a-z]$/i.test(base)) base = 'e' + base;
   if (/^a\d+[a-z]$/i.test(base)) {
     const members = ports.filter(p => p.details && String(p.details.interfaceGroup || '').replace(/[*\s]+$/, '') === base).map(p => p.name);
     return { base, group: true, ports: members };

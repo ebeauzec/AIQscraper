@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.112] - 2026-09-26
+
+### Changed
+- FC LIFs now map to a physical port: FC ports are missing from Active IQ's port list (Ethernet only), so the Technical Audit adds one port per FC LIF port (6a, 8b, or 0g for an onboard UTA2 port) to the rear-panel drawing and the port table, numbered like the others, with its state inferred from the LIFs on it and clearly marked as inferred. Selecting an FCP LIF lights that port.
+
+---
+
 ## [5.6.111] - 2026-09-26
 
 ### Fixed
