@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.113";
+const APP_VERSION = "5.6.114";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.114",
+    date: "26 September 2026",
+    title: "Breakout Ports",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Breakout ports are drawn correctly: a slot listing e4a-e4h is two physical 40/100GbE QSFP ports run with 4x breakout cables (ONTAP names every lane as a port), so the rear panel now shows one connector per physical port with four lane cells, each lane keeping its own number, link colour and hover, and a caption explaining the breakout, instead of eight impossible connectors in one slot.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.113",
     date: "26 September 2026",
@@ -35916,25 +35931,59 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   };
   const _slotPortsOf = n => _dim ? [] : ports.filter(p => new RegExp('^e?' + n + '[a-z]$', 'i').test(p.name)).sort((a, b) => a.name.localeCompare(b.name));
   const _tag = (txt, x, y, w, h) => `<rect x="${_X(x, w)}" y="${y}" width="${w}" height="${h}" rx="1" fill="#0b0e14" stroke="#3b4557" stroke-width="0.5"/><text x="${_X(x, w) + w / 2}" y="${y + h / 2 + 2.2}" font-size="6.4" font-weight="700" font-family="sans-serif" text-anchor="middle" fill="#e5e7eb">${_esc(txt)}</text>`;
+  // Breakout: a 40/100GbE QSFP port run with a 4x cable shows up in ONTAP as four ports (e4a-e4d for
+  // the first physical port, e4e-e4h for the second). No card has eight ports, so letters beyond "d"
+  // in one slot mean breakout. Drawn as ONE connector with four lane cells (each lane keeps its own
+  // number, link colour and hover), not as four connectors.
+  const _boNotes = [];
+  const _pGroup = (grp, x, y, sc) => {
+    sc = sc || 1;
+    const w = 27 * sc, h = 15 * sc, X = _X(x, w), first = grp[0], pre = first.name.replace(/[a-z]$/i, ''), blk = Math.floor((first.name.toLowerCase().charCodeAt(first.name.length - 1) - 97) / 4) * 4;
+    const laneNames = [0, 1, 2, 3].map(i => pre + String.fromCharCode(97 + blk + i));
+    const lab = `${pre}${String.fromCharCode(97 + blk)}-${String.fromCharCode(97 + blk + 3)}`;
+    const nos = grp.map(q => _num[q.name]).filter(Boolean);
+    let g = `<g transform="translate(${X},${y}) scale(${sc})"><rect x="0" y="0" width="27" height="15" rx="1.6" fill="#0a0d13" stroke="${_roleCol(first.type)}" stroke-width="1"/>`;
+    g += `<text x="13.5" y="-2.6" font-size="5.2" font-family="monospace" font-weight="700" text-anchor="middle" fill="#e5e7eb">${_esc(lab)}</text><text x="13.5" y="21.6" font-size="4.4" font-family="sans-serif" text-anchor="middle" fill="#7c8698">4x breakout</text>`;
+    laneNames.forEach((ln, i) => {
+      const q = _bn()[ln], c = _stat(q), lx = 2.4 + i * 5.7, tip = q ? `#${_num[ln]} ${ln} - lane ${i + 1} of 4 (breakout), ${q.type}${q.details && q.details.speed ? ', ' + q.details.speed : ''}, link ${q.status}` : `${ln} - lane ${i + 1} of 4 (breakout), not reported`;
+      _usedNames.add(ln);
+      const txt = q ? `#${_num[ln]}  ${ln}  ${_statTxt(q)}${q.details && q.details.speed ? '  ' + q.details.speed : ''}  (lane ${i + 1}/4)` : `${ln}  not reported`, pw = txt.length * 3.5 + 8;
+      g += `<g class="bp-port" style="cursor:pointer" id="port-slot-${ln}" data-stat="${c}" onmouseenter="hoverCablingPort('${ln}')" onmouseleave="unhoverCablingPort('${ln}')" onclick="bpPin('${ln}')"><title>${_esc(tip)}</title>` +
+        `<rect class="bpHalo" x="${lx - 1.6}" y="0.4" width="7.4" height="12.4" rx="1.6" fill="${c}" fill-opacity="0.25" stroke="${c}" stroke-width="1.6"/>` +
+        `<rect class="bpBody" x="${lx}" y="2" width="4.2" height="8.6" rx="0.8" fill="${q ? c : '#000'}" fill-opacity="${q ? 0.55 : 1}" stroke="${q ? c : '#4b5563'}" stroke-width="0.7"${q ? '' : ' stroke-dasharray="1 0.8"'}/>` +
+        `<text x="${lx + 2.1}" y="16.6" font-size="3.6" font-family="sans-serif" font-weight="700" text-anchor="middle" fill="${q ? '#cbd5e1' : '#6b7280'}">${i + 1}</text>` +
+        `<g class="bpPill"><rect x="${13.5 - pw / 2}" y="-16" width="${pw}" height="11" rx="5.5" fill="${q ? c : '#94a3b8'}" stroke="#fff" stroke-width="0.8"/><text x="13.5" y="-8.3" font-size="5.6" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#0b0e14">${_esc(txt)}</text></g></g>`;
+    });
+    if (nos.length) g += `<g class="bpNum"><rect x="-6" y="-3" width="${nos.length > 1 ? 15 : 9}" height="9" rx="4.5" fill="#0b0e14" stroke="${_roleCol(first.type)}" stroke-width="1"/><text x="${-6 + (nos.length > 1 ? 7.5 : 4.5)}" y="3.4" font-size="4.6" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#fff">${nos.length > 1 ? nos[0] + '-' + nos[nos.length - 1] : nos[0]}</text></g>`;
+    _boNotes.push(`${lab}: four lanes of one physical QSFP port run with a 4x breakout cable`);
+    return g + '</g>';
+  };
   const _bay = (n, x, y, w, h, dir, tagPos) => {
     let s = `<rect x="${_X(x, w)}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="#1a2030" stroke="#3b4557" stroke-width="0.7"/>`;
     const ps = _slotPortsOf(n); ps.forEach(p => _usedNames.add(p.name));
     if (ps.length) {
-      const kinds = ps.map(p => _speedKind(p)), nat = kinds.map(k => _KIND[k]), pw = Math.max(...nat.map(k => k[0])), ph = Math.max(...nat.map(k => k[1]));
-      const LAB = 8, GX = 4, pad = 3;
+      // items to draw: one per port, or one per 4-lane breakout group
+      const _lt = ps.map(q => q.name.slice(-1).toLowerCase());
+      const isBo = _lt.some(c => c >= 'e') && _lt.some(c => c !== 'a' && c !== 'e');   // a+e alone = a plain 2-port card
+      let items;
+      if (isBo) { const gm = {}; ps.forEach(q => { const k = Math.floor((q.name.toLowerCase().charCodeAt(q.name.length - 1) - 97) / 4); (gm[k] = gm[k] || []).push(q); }); items = Object.keys(gm).sort().map(k => ({ grp: gm[k], kind: 'qsfp' })); }
+      else items = ps.map(q => ({ p: q, kind: _speedKind(q) }));
+      const nat = items.map(it => _KIND[it.kind]), pw = Math.max(...nat.map(k => k[0])), ph = Math.max(...nat.map(k => k[1]));
+      const LAB = 8, GX = 4, pad = 3, extra = isBo ? 7 : 0;
       let best = null;
       for (let sc = 1.2; sc >= 0.35 && !best; sc -= 0.05) {
-        const opts = dir === 'v' ? [1, 2, 3, 4].map(c => [Math.ceil(ps.length / c), c]) : [1, 2, 3, 4].map(r => [r, Math.ceil(ps.length / r)]);
+        const opts = dir === 'v' ? [1, 2, 3, 4].map(c => [Math.ceil(items.length / c), c]) : [1, 2, 3, 4].map(r => [r, Math.ceil(items.length / r)]);
         for (const [rows, cols] of opts) {
-          if (cols * pw * sc + (cols - 1) * GX <= w - 2 * pad && rows * (ph * sc + LAB) + (rows - 1) * 1 <= h - 2 * pad) { best = { sc, rows, cols }; break; }
+          if (cols * pw * sc + (cols - 1) * GX <= w - 2 * pad && rows * (ph * sc + LAB + extra) + (rows - 1) * 1 <= h - 2 * pad) { best = { sc, rows, cols }; break; }
         }
       }
-      if (!best) best = { sc: 0.35, rows: dir === 'v' ? ps.length : 1, cols: dir === 'v' ? 1 : ps.length };
-      const cw = pw * best.sc + GX, chh = ph * best.sc + LAB, gw = best.cols * cw - GX, gh = best.rows * chh;
+      if (!best) best = { sc: 0.35, rows: dir === 'v' ? items.length : 1, cols: dir === 'v' ? 1 : items.length };
+      const cw = pw * best.sc + GX, chh = ph * best.sc + LAB + extra, gw = best.cols * cw - GX, gh = best.rows * chh;
       const x0 = x + (w - gw) / 2, y0 = y + (h - gh) / 2;
-      ps.forEach((p, i) => {
-        const r = dir === 'v' ? i % best.rows : Math.floor(i / best.cols), c = dir === 'v' ? Math.floor(i / best.rows) : i % best.cols, k = _KIND[kinds[i]];
-        s += _pName(p.name, kinds[i], x0 + c * cw + (pw - k[0]) * best.sc / 2, y0 + r * chh + LAB, 't', best.sc);
+      items.forEach((it, i) => {
+        const r = dir === 'v' ? i % best.rows : Math.floor(i / best.cols), c = dir === 'v' ? Math.floor(i / best.rows) : i % best.cols, k = _KIND[it.kind];
+        const px = x0 + c * cw + (pw - k[0]) * best.sc / 2, py = y0 + r * chh + LAB;
+        s += it.grp ? _pGroup(it.grp, px, py, best.sc) : _pName(it.p.name, it.kind, px, py, 't', best.sc);
       });
     } else if (!_dim && dir !== 'v') {
       s += `<text x="${_X(x + w / 2, 0)}" y="${y + h / 2 + 1.6}" font-size="4.6" text-anchor="middle" font-style="italic" fill="#59657a">no Ethernet port reported</text>`;
@@ -36033,11 +36082,11 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       ['f', 'μUSB', 'umicro', 190, 86, 't'], ['f', 'CON', 'rj45', 206, 82, 'b'], ['p', 'e0M', 'rj45', 234, 82, 't'], ['f', 'BMC', 'rj45', 259, 82, 't'], ['f', 'USB', 'usb', 286, 78, 't'], ['f', 'USB', 'usb', 286, 92, 'b'],
       ['p', 'e0a', 'qsfp', 392, 84, 't'], ['p', 'e0b', 'qsfp', 424, 84, 't']] };
   // 8U chassis: AFF A700 / A900, FAS9000 / FAS9500 — 11 vertical slots per controller, NVRAM slot 6, controllers side by side
-  _LAY.chassis8u = { W: 214, H: 430, mode: 'side', gap: 10, mirrorB: true, zoom: 1.9, foot: 0, sub: '8U chassis: two controllers side by side, 11 IO slots each (A1..A11 / B1..B11 top to bottom), NVRAM in slot 6, 4 PSUs',
-    items: (() => { const it = []; for (let i = 1; i <= 11; i++) { const y = 10 + (i - 1) * 33; if (i === 6) it.push(['nvram', 0, y, 150, 30, 'SLOT 6 · NVRAM'], ['tag', 6, 152, y + 9, 9, 12]); else it.push(['bay', i, 0, y, 150, 30, 'h', 'none'], ['tag', i, 152, y + 9, 9, 12]); }
-      return it.concat([['raw', () => `<rect x="${_X(168, 42)}" y="230" width="42" height="120" rx="3" fill="#161c29" stroke="#3b4557" stroke-width="0.7"/>`], ['f', 'USB', 'usb', 180, 246, 't'], ['f', 'CON', 'rj45', 178, 276, 't'], ['p', 'e0M', 'rj45', 178, 316, 't'],
-        ['raw', () => `<rect x="${_X(170, 22)}" y="100" width="22" height="100" rx="3" fill="#7c4a12" opacity="0.4"/>`],
-        ['psu', 0, 376, 72, 48, 'PSU ' + (_mir ? 3 : 1)], ['psu', 78, 376, 72, 48, 'PSU ' + (_mir ? 4 : 2)]]); })() };
+  _LAY.chassis8u = { W: 214, H: 500, mode: 'side', gap: 10, mirrorB: true, zoom: 1.9, foot: 0, sub: '8U chassis: two controllers side by side, 11 IO slots each (A1..A11 / B1..B11 top to bottom), NVRAM in slot 6, 4 PSUs',
+    items: (() => { const it = []; for (let i = 1; i <= 11; i++) { const y = 10 + (i - 1) * 39; if (i === 6) it.push(['nvram', 0, y, 150, 36, 'SLOT 6 · NVRAM'], ['tag', 6, 152, y + 12, 9, 12]); else it.push(['bay', i, 0, y, 150, 36, 'h', 'none'], ['tag', i, 152, y + 12, 9, 12]); }
+      return it.concat([['raw', () => `<rect x="${_X(168, 42)}" y="270" width="42" height="124" rx="3" fill="#161c29" stroke="#3b4557" stroke-width="0.7"/>`], ['f', 'USB', 'usb', 180, 286, 't'], ['f', 'CON', 'rj45', 178, 318, 't'], ['p', 'e0M', 'rj45', 178, 358, 't'],
+        ['raw', () => `<rect x="${_X(170, 22)}" y="110" width="22" height="110" rx="3" fill="#7c4a12" opacity="0.4"/>`],
+        ['psu', 0, 446, 72, 48, 'PSU ' + (_mir ? 3 : 1)], ['psu', 78, 446, 72, 48, 'PSU ' + (_mir ? 4 : 2)]]); })() };
   // AFF A250 / C250 / FAS500f
   _LAY.a250 = { W: 640, H: 64, mode: 'stack', zoom: 1.4, sub: 'AFF A250/C250: two controllers stacked (2U), one PSU per controller · 2 PCIe slots',
     items: [['psu', 36, 3, 92, 56, 'PSU'], ['f', 'CON', 'rj45', 180, 30, 'b'], ['f', 'USB', 'usb', 216, 34, 'b'], ['f', 'μUSB', 'umicro', 246, 46, 't'], ['p', 'e0M', 'rj45', 270, 34, 't'], ['led', 322, 22, 4],
@@ -36124,7 +36173,8 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
 
   const extra = ports.filter(p => _isPhys(p) && !_usedNames.has(p.name));
   const logical = ports.filter(p => !_isPhys(p));
-  const notes = (extra.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Other reported ports (no position on this drawing): ${extra.map(p => `<code style="color:#cbd5e1;">${p.name}</code>`).join(', ')}</div>` : '') +
+  const _uniqBo = [...new Set(_boNotes)];
+  const notes = (_uniqBo.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Breakout: ${_uniqBo.join('; ')}. ONTAP lists each lane as its own port (e.g. e4a-e4h), which is why one slot can show more than four ports.</div>` : '') + (extra.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Other reported ports (no position on this drawing): ${extra.map(p => `<code style="color:#cbd5e1;">${p.name}</code>`).join(', ')}</div>` : '') +
     (logical.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Logical interfaces on this node (interface groups / VLANs, not physical connectors): ${logical.map(p => `<code style="color:#cbd5e1;">${p.name}</code>`).join(', ')}</div>` : '') +
     (!ports.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Active IQ reported no network ports for this system, so no port state is shown; connector positions are from the NetApp hardware diagram.</div>` : '');
   return _frame(`${_ctrlAB ? 'CONTROLLER B' : 'CONTROLLER A'} — REAR PANEL`, sub, inner, notes);

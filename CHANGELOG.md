@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.114] - 2026-09-26
+
+### Changed
+- Breakout ports are drawn correctly: a slot listing e4a-e4h is two physical 40/100GbE QSFP ports run with 4x breakout cables (ONTAP names every lane as a port), so the rear panel now shows one connector per physical port with four lane cells, each lane keeping its own number, link colour and hover, and a caption explaining the breakout, instead of eight impossible connectors in one slot.
+
+---
+
 ## [5.6.113] - 2026-09-26
 
 ### Changed

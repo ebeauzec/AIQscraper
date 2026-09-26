@@ -1,8 +1,8 @@
 {
-  "version": "5.6.113",
+  "version": "5.6.114",
   "major": 5,
   "minor": 6,
-  "patch": 113,
+  "patch": 114,
   "date": "2026-09-26",
   "notes": "IOM6 upgrade-target check."
 }
