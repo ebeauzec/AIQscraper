@@ -20528,7 +20528,7 @@ function getFleetEnrichmentSections(targetSystems) {
     if (t.includes('fabricpool') || t.includes('cloud tiering') || t.includes('tiering')) {
       return {
         covers: 'Automatic tiering of cold data to object storage (S3/Azure Blob/GCS)',
-        action: 'Enable FabricPool on eligible aggregates for storage cost reduction',
+        action: 'Reference: cold-data tiering to object storage (optional)',
         cli: 'storage aggregate object-store config create; storage aggregate object-store attach',
         effort: '1 hour/aggregate'
       };
@@ -21129,8 +21129,8 @@ function getFleetEnrichmentSections(targetSystems) {
       }
       if (cloudArticles.length > 0) {
         block += `► CLOUD TIERING & DATA LIFECYCLE (${cloudArticles.length})\n`;
-        block += `  FabricPool and cloud tiering can reduce on-premises storage footprint by\n`;
-        block += `  moving cold data to object storage, directly reducing power consumption.\n\n`;
+        block += `  Reference material on cloud and object-storage tiering options.\n`;
+        block += `\n`;
         block += fmtRichSection(cloudArticles, 4) + '\n';
       }
       if (lifecycleArticles.length > 0) {
