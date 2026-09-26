@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.87";
+const APP_VERSION = "5.6.88";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.88",
+    date: "26 September 2026",
+    title: "Change Tickets and Implementation Plans Corrected",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Deliverable Accuracy",
+        color: "#22c55e",
+        items: [
+          "Change Tickets and Implementation Plans: systems with nothing to change no longer get an empty ticket or a section that says 'No critical/high risks identified'. They are listed once at the end, and any that are not sending AutoSupport are called out as 'not assessed' rather than healthy (19 of 35 systems in one real account).",
+          "CVE findings get a CVE-specific remediation plan. Previously a finding was matched on words in its title, so an OpenSSH/OpenSSL/Hibernate/Python CVE was given SSH-cipher hardening options and told to check that SolarWinds/Nagios still authenticate. Options are now 'upgrade to the fixed release' or 'limit management-network access and record a time-limited exception'; the empty 'Host/3rd-Party: N/A' line is gone.",
+          "Repaired mojibake in source titles ('CVE\\u00e2 2026\\u00e2 20833') in every document; site and contact fields say 'Not recorded' instead of N/A and no longer print partner postal addresses; the Best Practice line is omitted for StorageGRID/E-Series.",
+          "A system whose upgrade status is Active IQ's default 'Up to Date' (no data) is no longer counted as on the recommended OS. Vendor reference lists no longer include AFX / C-Series / ASA release notes for fleets without those platforms.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.87",
     date: "26 September 2026",
@@ -16824,7 +16842,8 @@ function _nonOntapRollbackLines(sys) {
 // documents count currency over the systems it can be judged for and say so.
 function _osKnown(s) {
   if (_platformFamily(s) === 'ontap') return !!(s.swRecMin && s.osVersion);
-  return !!(s.upgrades && s.upgrades.targetVersion);
+  // upgrades.source === 'heuristic' with "Up to Date" is a default for systems Active IQ has no data on, not an assessment
+  return !!(s.upgrades && s.upgrades.targetVersion && !(s.upgrades.source === 'heuristic' && s.upgrades.targetVersion === 'Up to Date'));
 }
 function _osIsCurrent(s) {
   if (_platformFamily(s) === 'ontap') return !!(s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin));
@@ -17757,7 +17776,7 @@ function enrichSystemTelemetry(s) {
         impact: r.potentialImpact || _dynPlan.impact || normRisk.description,
         steps: steps,
         options: _dynPlan.options || [],
-        thirdParty: _dynPlan.thirdParty || 'N/A'
+        thirdParty: _dynPlan.thirdParty || ''
       };
     }
     if (!normRisk.remediationPlan) {
@@ -18692,6 +18711,33 @@ function generateDynamicRemediationPlan(risk, sys) {
     "Option B: Retain current parameters if business exceptions mandate legacy settings."
   ];
   let thirdParty = "No direct third-party virtualization or backup hypervisor dependencies identified.";
+  // ═════════════════════════════════════════════════════════════════
+  // CVE / SECURITY ADVISORY FINDINGS
+  // ═════════════════════════════════════════════════════════════════
+  // The keyword branches below matched CVE findings on words in their titles ("OpenSSH" ->
+  // SSH cipher hardening, "OpenSSL" -> TLS settings, everything else -> "verify SolarWinds/
+  // Nagios still authenticate after cipher hardening"), so a Hibernate or Python CVE was
+  // told to restrict SSH ciphers. A CVE is fixed by the vendor's patched release.
+  if (/cve-\d{4}-\d+/.test(desc) || (risk.cveDetails && risk.cveDetails.length > 0)) {
+    const _cd = (risk.cveDetails || [])[0] || {};
+    const _adv = risk.advisoryUrl || 'https://security.netapp.com/advisory/';
+    return {
+      cause: _cd.summary || `NetApp has published a security advisory for this vulnerability, and Active IQ has matched the software installed on this system as affected.`,
+      impact: _cd.description || `See the NetApp security advisory for the impact of this vulnerability.`,
+      steps: [
+        `1. Review the NetApp advisory: ${_adv}`,
+        `2. ${risk.recommendation && !/^See (?:the )?Security Advisory/i.test(risk.recommendation) ? risk.recommendation : 'Upgrade to the ONTAP release that includes the fix (see the advisory for fixed versions).'}`,
+        `3. Schedule the upgrade under change control (rolling, one cluster at a time) and validate cluster health before and after.`,
+        `4. Confirm the finding clears in Active IQ after the next AutoSupport.`
+      ],
+      options: [
+        `Option A: Upgrade to the fixed release (recommended).`,
+        `Option B: If an immediate upgrade is not possible, limit access to the affected service on the management network and record a time-limited risk exception.`
+      ],
+      thirdParty: ''
+    };
+  }
+
 
   // ════════════════════════════════════════════════════════════════════════════
   // STORAGEGRID
@@ -20061,7 +20107,10 @@ function getFleetRelevantArticles(targetSystems) {
   // a model in this fleet; the generator also emitted them for StorageGRID and E-Series, where
   // the path does not exist.
   const _urlModel = a => { const m = String(a.url || '').match(/ontap-systems\/([a-z0-9-]+)\/(?:maintain-overview|install-setup)/i); return m ? _normModel(m[1]) : null; };
-  const candidateArticles = articles.filter(a => !isGenericPage(a) && (() => { const tok = _modelInTitle(a); return !tok || _modelOwned(tok); })() && (() => { const u = _urlModel(a); return !u || (u !== 'storagegrid' && _fleetModelTokens.has(u)); })());
+  // Release-feature articles about a hardware line (AFX, C-Series) only apply if the fleet has it.
+  const _hasFleetTok = re => [..._fleetModelTokens].some(f => re.test(f));
+  const _lineGate = a => { const t = String(a.title || ''); if (/\bafx\b/i.test(t) && !_hasFleetTok(/^afx/)) return false; if (/c-series/i.test(t) && !_hasFleetTok(/^affc\d/)) return false; if (/\basa\b/i.test(t) && !_hasFleetTok(/^asa/)) return false; return true; };
+  const candidateArticles = articles.filter(a => !isGenericPage(a) && _lineGate(a) && (() => { const tok = _modelInTitle(a); return !tok || _modelOwned(tok); })() && (() => { const u = _urlModel(a); return !u || (u !== 'storagegrid' && _fleetModelTokens.has(u)); })());
 
   // ── Relevance scoring function ─────────────────────────────────────────
   function scoreArticle(a) {
@@ -24465,6 +24514,8 @@ rollback plan, and confirm cluster health before initiating any corrective actio
 
 `;
 
+  let _ctNo = 0;
+  const _ctNoChange = [];
   targetSystems.forEach((sys, sidx) => {
     const sysRisks = (sys.risks || [])
       .filter(r => { const s = (r.severity||'').toLowerCase(); return s === 'critical' || s === 'high'; })
@@ -24473,6 +24524,15 @@ rollback plan, and confirm cluster health before initiating any corrective actio
     const l = sys.logistics || { deliveryAddress: 'N/A', accessRestrictions: 'N/A' };
     const ct = sys.contacts || { name: 'N/A', phone: 'N/A' };
     const priority = sysRisks.some(r => r.severity === 'critical') ? 'CRITICAL' : sysRisks.length > 0 ? 'HIGH' : 'STANDARD';
+
+    // A ticket with no task is noise (14 of 35 systems here). Systems needing no change are
+    // listed once at the end, with the ones Active IQ could not assess called out.
+    if (sysRisks.length === 0 && !(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date')) {
+      const _a = sys.autosupport || {};
+      _ctNoChange.push({ name: sys.systemName || sys.serialNumber, model: sys.model || sys.platform || '', noTelemetry: !(_a.enabled === true && (_a.lastReceivedDays == null || _a.lastReceivedDays <= 7)) });
+      return;
+    }
+    _ctNo++;
 
     const sysCapRAG = computeCapacityRAG(sys);
     const sysRunway = (sys.projections && sys.projections.daysToLimit) || 'N/A';
@@ -24489,14 +24549,14 @@ rollback plan, and confirm cluster health before initiating any corrective actio
     const _ctSvms = getSystemSvms(sys) || [];
 
     changeTickets += `================================================================================
-CHANGE TICKET #${sidx + 1} — ${sys.systemName}
+CHANGE TICKET #${_ctNo} — ${sys.systemName}
 ================================================================================
   Serial:   ${sys.serialNumber || 'N/A'}
   Cluster:  ${sys.clusterName || 'N/A'}
   Platform: ${sys.platform || 'N/A'}
   OS:       ${sys.ontapVersion || sys.osVersion || 'N/A'}
-  Site:     ${l.deliveryAddress}
-  Contact:  ${ct.name} | ${ct.phone}
+  Site:     ${(l.deliveryAddress && l.deliveryAddress !== 'N/A') ? l.deliveryAddress : ([sys.siteCity, sys.siteCountry].filter(Boolean).join(', ') || 'Not recorded')}
+  Contact:  ${ct.name && ct.name !== 'N/A' ? ct.name + (ct.phone && ct.phone !== 'N/A' ? ' | ' + ct.phone : '') : 'Not recorded'}
   Priority: ${priority}
   Tasks:    ${sysRisks.length} corrective action${sysRisks.length !== 1 ? 's' : ''}${sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date' ? ' + 1 OS upgrade' : ''}
   Est. Change Window: ~${estTotalEffort >= 60 ? Math.round(estTotalEffort / 60) + ' hr' + (Math.round(estTotalEffort / 60) !== 1 ? 's' : '') : estTotalEffort + ' min'}
@@ -24504,8 +24564,7 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
   SYSTEM INTELLIGENCE:
     Warranty:          ${sysWarranty}
     Capacity:          ${sysCapRAG.toUpperCase()} (runway: ${_dfRunwayText(sys.projections && sys.projections.daysToLimit)})
-    Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)
-    DR Protection:     ${_platformFamily(sys) !== 'ontap' ? 'N/A (SnapMirror/MetroCluster/HA pairs are ONTAP features)' : (sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None') + (sysHasHA ? ' | HA configured' : '')}
+${_platformFamily(sys) === 'ontap' ? `    Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)\n` : ''}    DR Protection:     ${_platformFamily(sys) !== 'ontap' ? 'N/A (SnapMirror/MetroCluster/HA pairs are ONTAP features)' : (sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None') + (sysHasHA ? ' | HA configured' : '')}
     Contract:          ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
     HW Firmware:       ${(() => { const m = fw.perSystem.find(f => f.name === sys.systemName); return m ? m.status + ' (' + m.score + '%)' : 'N/A'; })()}
     Disk Shelves:      ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
@@ -24593,6 +24652,20 @@ ${_nonOntapRollbackLines(sys).map(l => '  ' + l).join('\n')}
 
 `;
   });
+  if (_ctNoChange.length > 0) {
+    const _unassessed = _ctNoChange.filter(x => x.noTelemetry);
+    changeTickets += `================================================================================
+SYSTEMS WITH NO CHANGE REQUIRED
+================================================================================
+${_ctNoChange.length} system${_ctNoChange.length !== 1 ? 's' : ''} in scope ha${_ctNoChange.length !== 1 ? 've' : 's'} no critical/high risk and no pending OS upgrade recorded in Active IQ, so no change ticket was raised:
+  ${_ctNoChange.map(x => x.name + (x.model ? ' (' + x.model + ')' : '')).join(', ')}
+${_unassessed.length ? `
+Of these, ${_unassessed.length} ${_unassessed.length !== 1 ? 'are' : 'is'} not sending AutoSupport data to Active IQ, so "no risks" means "not assessed", not "healthy":
+  ${_unassessed.map(x => x.name).join(', ')}
+Restore AutoSupport on these systems to obtain a real risk and upgrade assessment.
+` : ''}
+`;
+  }
 
   // ===================== 4. SOLUTION PROPOSALS =====================
   const _archAffSysCount = new Set(sortedRisks.flatMap(g => g.systems || [])).size;
@@ -24734,6 +24807,8 @@ ${imtFindings.map((f, i) => {
   }
 
 
+  let _ipNo = 0;
+  const _ipNoChange = [];
   targetSystems.forEach((sys, sysIdx) => {
     const sysRisks = (sys.risks || [])
       .filter(r => { const s = (r.severity||'').toLowerCase(); return s === 'critical' || s === 'high'; })
@@ -24744,14 +24819,24 @@ ${imtFindings.map((f, i) => {
     const rbCapRAG = computeCapacityRAG(sys);
     const rbRunway = (sys.projections && sys.projections.daysToLimit) || 'N/A';
     const rbSmCount = (sys.snapmirror && sys.snapmirror.totalCount) || sys.snapMirrorCount || sys.snapmirrorCount || 0;
+    // Nothing to implement (no risk, no upgrade, no ONTAP feature gap): list it once at the end
+    // instead of a section that only says "no risks" (which, for a system Active IQ receives no
+    // AutoSupport from, means "not assessed").
+    if (sysRisks.length === 0 && !(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date') &&
+        !(_platformFamily(sys) === 'ontap' && (sys.isARPEnabled === false || sys.isFabricPool === false))) {
+      const _a = sys.autosupport || {};
+      _ipNoChange.push({ name: sys.systemName || sys.serialNumber, model: sys.model || sys.platform || '', noTelemetry: !(_a.enabled === true && (_a.lastReceivedDays == null || _a.lastReceivedDays <= 7)) });
+      return;
+    }
+    _ipNo++;
     implementationPlans += `================================================================================
-SYSTEM ${sysIdx + 1}: ${sys.systemName}
+SYSTEM ${_ipNo}: ${sys.systemName}
 ================================================================================
   Serial:   ${sys.serialNumber || 'N/A'}
   Cluster:  ${sys.clusterName || 'N/A'}
   Platform: ${sys.platform || 'N/A'}
   OS:       ${sys.ontapVersion || sys.osVersion || 'N/A'}
-  Site:     ${sys.siteName || 'N/A'}
+  Site:     ${(sys.siteCity && sys.siteCity.length <= 30 ? sys.siteCity : '') || (sys.siteName && sys.siteName.length <= 45 ? sys.siteName : '') || 'Not recorded'}
   Contract: ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
   HW Firmware: ${(() => { const m = fw.perSystem.find(f => f.name === sys.systemName); return m ? m.status + ' (' + m.score + '%)' : 'N/A'; })()}
   Disk Shelves: ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
@@ -24871,6 +24956,19 @@ ${rbSmCount > 0 ? '    snapmirror show -fields state,lag-time,healthy\n' : ''}
       implementationPlans += '\n';
     }
   });
+  if (_ipNoChange.length > 0) {
+    const _un = _ipNoChange.filter(x => x.noTelemetry);
+    implementationPlans += `================================================================================
+SYSTEMS WITH NOTHING TO IMPLEMENT
+================================================================================
+${_ipNoChange.length} system${_ipNoChange.length !== 1 ? 's have' : ' has'} no critical/high risk, no pending OS upgrade and no ONTAP feature gap recorded in Active IQ:
+  ${_ipNoChange.map(x => x.name + (x.model ? ' (' + x.model + ')' : '')).join(', ')}
+${_un.length ? `
+${_un.length} of these ${_un.length !== 1 ? 'are' : 'is'} not sending AutoSupport data to Active IQ, so this means "not assessed", not "healthy". Restore AutoSupport first:
+  ${_un.map(x => x.name).join(', ')}
+` : ''}
+`;
+  }
 
   // ===================== 6. SALES PROPOSALS =====================
   let salesProposals = `================================================================================
@@ -25097,6 +25195,13 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     changeTickets += _imtBlock;
     sustainabilityReport += `\n  INTEROPERABILITY NOTE: ${imtFindings.length} IMT finding(s) detected — see full details in Security Brief or Solution Proposal deliverables.\n`;
   }
+
+  // Some source titles carry UTF-8 that was decoded as Latin-1 ("CVE-2026-20833" with
+  // non-breaking hyphens came out as "CVEâ2026â20833"); repair it in every document.
+  const _fixText = t => typeof t !== 'string' ? t
+    : t.replace(/\u00e2[\u0080-\u009f]{1,2}/g, '-').replace(/(?<=[A-Za-z0-9])\u00e2(?=[A-Za-z0-9])/g, '-').replace(/\u00c2(?=[\u00a0-\u00bf])/g, '');
+  [problemStatements, customerComms, changeTickets, solutionProposals, implementationPlans, salesProposals, customerSuccessPlan, qbrPack, mspReport, handoverBrief, riskRemediationBrief, securityBrief, sustainabilityReport] =
+    [problemStatements, customerComms, changeTickets, solutionProposals, implementationPlans, salesProposals, customerSuccessPlan, qbrPack, mspReport, handoverBrief, riskRemediationBrief, securityBrief, sustainabilityReport].map(_fixText);
 
   return {
     problemStatements,
