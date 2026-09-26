@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.91";
+const APP_VERSION = "5.6.92";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.92",
+    date: "26 September 2026",
+    title: "Site Names in the Health Report",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Health & Lifecycle Report site column: a system with no city now falls back to its site name (when it is a real name, not a partner's postal address run together) instead of printing 'not reported'; the estate summary lists each city once and no longer repeats a site that is just the city again. Site fields were never lost in the browser's slim save (only arrays are stripped) -- the gap was in the report's own fallback.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.91",
     date: "26 September 2026",
@@ -23933,7 +23948,11 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const fams = {}; targetSystems.forEach(s => { const f = _platformFamily(s); fams[f] = (fams[f] || 0) + 1; });
   const famText = Object.keys(fams).map(f => `${fams[f]} ${famLabel[f] || f}`).join(', ');
   const models = [...new Set(targetSystems.map(s => s.model || s.platform).filter(Boolean))];
-  const sites = [...new Set(targetSystems.map(s => s.siteCity).filter(x => x && x.length <= 30))];
+  // City when short; otherwise the site name if it is a name (some are a partner's postal address run together)
+  const _cleanName = n => (n && n.length <= 45 && !/[a-z][A-Z]|\.[A-Za-z]/.test(n)) ? n : '';   // run-together postal addresses fail this
+  const _site = s => (s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || _cleanName(s.siteName);
+  const _cities = [...new Set(targetSystems.map(s => s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '').filter(Boolean))];
+  const sites = [..._cities, ...new Set(targetSystems.filter(s => !(s.siteCity && s.siteCity.length <= 30)).map(s => _cleanName(s.siteName)).filter(n => n && !_cities.some(c => n.toLowerCase().includes(c.toLowerCase()))))];
   const contracts = expiringContracts._facts || _dfContractFacts(targetSystems);
   const lapsed = contracts.expired, exp90 = contracts.expiring90;
   const arp = _dfArpFacts(targetSystems);
@@ -23969,7 +23988,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const rows = targetSystems.slice().sort((a, b) => String(nameOf(a)).localeCompare(String(nameOf(b))));
   rows.slice(0, 40).forEach(s => {
     const a = s.autosupport || {};
-    o += `| ${nameOf(s)} | ${s.model || s.platform || 'not reported'} | ${verOf(s)} | ${(s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || 'not reported'} | ${a.lastReceivedDays != null ? a.lastReceivedDays + ' day(s) ago' : 'not reported'} | ${fmtD(s.contractEndDate || s.contractExpiry || (s.contracts && s.contracts.endDate))} | ${fmtD(s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate))} |\n`;
+    o += `| ${nameOf(s)} | ${s.model || s.platform || 'not reported'} | ${verOf(s)} | ${_site(s) || 'not reported'} | ${a.lastReceivedDays != null ? a.lastReceivedDays + ' day(s) ago' : 'not reported'} | ${fmtD(s.contractEndDate || s.contractExpiry || (s.contracts && s.contracts.endDate))} | ${fmtD(s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate))} |\n`;
   });
   if (rows.length > 40) o += `\n_${rows.length - 40} further systems not listed; the full inventory is available on request._\n`;
   o += '\n';
