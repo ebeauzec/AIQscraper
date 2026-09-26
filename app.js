@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.109";
+const APP_VERSION = "5.6.110";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.110",
+    date: "26 September 2026",
+    title: "LIF To Port Highlighting",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Selecting a LIF (hover or click a row in the LIF inventory) lights up the physical port(s) behind it on the rear-panel drawing: the port itself, the base port of a VLAN LIF (e0c-3367), the member ports of an interface group (a0a, a0a-107, from Active IQ's interface-group ownership), and the matching eNx port for FC LIFs (0g = e0g). Ports Active IQ did not report light up in grey.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.109",
     date: "26 September 2026",
@@ -35811,15 +35826,15 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     const lab = lp === 'b' ? [X + w / 2, y + h + 6.4, 'middle'] : lp === 'l' ? [X - 1.6, y + h / 2 + 2, 'end'] : lp === 'r' ? [X + w + 1.6, y + h / 2 + 2, 'start'] : [X + w / 2, y - 2.6, 'middle'];
     const tip = p ? `#${no || ''} ${name} - ${p.type}${p.details && p.details.speed ? ', ' + p.details.speed : ''}, link ${p.status}` : `${name} - not reported by Active IQ (position from the NetApp hardware diagram)`;
     let g = `<g class="bp-port" style="cursor:pointer" id="port-slot-${name}" data-stat="${sc2}" onmouseenter="hoverCablingPort('${name}')" onmouseleave="unhoverCablingPort('${name}')" onclick="bpPin('${name}')"><title>${_esc(tip)}</title>`;
-    if (p) g += `<rect class="bpHalo" x="${X - 3}" y="${y - 3}" width="${w + 6}" height="${h + 6}" rx="3.5" fill="${sc2}" fill-opacity="0.18" stroke="${sc2}" stroke-width="2.2"/>`;
+    g += `<rect class="bpHalo" x="${X - 3}" y="${y - 3}" width="${w + 6}" height="${h + 6}" rx="3.5" fill="${p ? sc2 : '#94a3b8'}" fill-opacity="0.18" stroke="${p ? sc2 : '#94a3b8'}" stroke-width="2.2"/>`;
     g += _conn(kind, X, y, p ? col : '#4b5563', !p, null, sc);
     if (p) g += `<circle cx="${X + w - 2}" cy="${y + 2}" r="1.9" fill="${sc2}" stroke="#000" stroke-width="0.4"/>`;
     g += `<text x="${lab[0]}" y="${lab[1]}" font-size="5.4" font-family="monospace" font-weight="700" text-anchor="${lab[2]}" fill="${p ? '#e5e7eb' : '#6b7280'}">${_esc(name)}</text>`;
     if (p && no) g += `<g class="bpNum"><circle cx="${X + 1}" cy="${y + 1}" r="4.5" fill="#0b0e14" stroke="${sc2}" stroke-width="1.1"/><text x="${X + 1}" y="${y + 2.9}" font-size="${no > 9 ? 4.6 : 5.6}" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#fff">${no}</text></g>`;
-    if (p) {
-      const txt = `#${no || '-'}  ${name}  ${_statTxt(p)}${p.details && p.details.speed ? '  ' + p.details.speed : ''}`, pw = txt.length * 3.5 + 8, below = y < 16;
+    {
+      const txt = p ? `#${no || '-'}  ${name}  ${_statTxt(p)}${p.details && p.details.speed ? '  ' + p.details.speed : ''}` : `${name}  not reported`, pw = txt.length * 3.5 + 8, below = y < 16;
       const px = Math.max(1, Math.min(_CW - pw - 1, X + w / 2 - pw / 2)), py = below ? y + h + 4 : y - 15;
-      g += `<g class="bpPill"><rect x="${px}" y="${py}" width="${pw}" height="11" rx="5.5" fill="${sc2}" stroke="#fff" stroke-width="0.8"/><text x="${px + pw / 2}" y="${py + 7.7}" font-size="5.6" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#0b0e14">${_esc(txt)}</text></g>`;
+      g += `<g class="bpPill"><rect x="${px}" y="${py}" width="${pw}" height="11" rx="5.5" fill="${p ? sc2 : '#94a3b8'}" stroke="#fff" stroke-width="0.8"/><text x="${px + pw / 2}" y="${py + 7.7}" font-size="5.6" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="#0b0e14">${_esc(txt)}</text></g>`;
     }
     return g + '</g>';
   };
@@ -36062,6 +36077,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   renderNodeVisualLayout._lastFP = _nodeLayoutFP;
 
   const ports = getSystemPortMappings(sys);
+  window._bpCurPorts = ports; _bpLifPinnedRow = null; _bpLifLit = [];
   
   let portsHtml = "";
   let tableRowsHtml = "";
@@ -36223,7 +36239,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
             ? '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--status-normal);border:1px solid rgba(0,230,118,0.25);background:rgba(0,230,118,0.05);padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;">&#10003; Homed</span>'
             : '<span style="display:inline-flex;align-items:center;gap:4px;color:var(--status-warning);border:1px solid rgba(255,152,0,0.35);background:rgba(255,152,0,0.08);padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:700;">&#9888; Migrated</span>';
           lifRowsHtml += `
-            <tr style="border-bottom: 1px solid var(--border-color);">
+            <tr class="bp-lif-row" data-lifport="${(l.currentNode && l.currentNode !== (sys.systemName || '') && l.homeNode === (sys.systemName || '')) ? l.homePort : l.currentPort}" title="Click to light up the physical port(s) behind this LIF" style="border-bottom: 1px solid var(--border-color); border-left: 4px solid transparent; cursor: pointer; transition: background-color 0.15s ease;" onmouseenter="bpLifHover(this,true)" onmouseleave="bpLifHover(this,false)" onclick="bpLifPin(this)">
               <td style="padding:8px 10px;font-weight:700;color:#fff;"><code>${l.name}</code></td>
               <td style="padding:8px 10px;color:var(--text-secondary);font-size:0.75rem;">${svm.name}</td>
               <td style="padding:8px 10px;font-family:monospace;font-size:0.72rem;color:var(--accent-cyan);" title="${addrLabel}">${addrDisplay}</td>
@@ -36367,6 +36383,39 @@ function _bpNumberPorts(ports) {
   const m = {}; phys.forEach((p, i) => { m[p.name] = i + 1; });
   return m;
 }
+// LIF -> physical ports. A LIF sits on a physical port, a VLAN on a port (e0c-3367) or an interface group
+// (a0a, a0a-107). Interface-group members come from Active IQ's interfaceGroupOwner; FC ports (0g) are
+// the eNx port of the same name.
+function bpLifPorts(lifPort, ports) {
+  ports = ports || window._bpCurPorts || [];
+  let base = String(lifPort || '').split('-')[0].trim();
+  if (/^\d[a-z]$/i.test(base)) base = 'e' + base;
+  if (/^a\d+[a-z]$/i.test(base)) {
+    const members = ports.filter(p => p.details && String(p.details.interfaceGroup || '').replace(/[*\s]+$/, '') === base).map(p => p.name);
+    return { base, group: true, ports: members };
+  }
+  return { base, group: false, ports: base ? [base] : [] };
+}
+let _bpLifPinnedRow = null, _bpLifLit = [];
+function _bpLifSet(row, on) {
+  _bpLifLit.forEach(nm => { if (nm !== _bpPinned) _bpApply(nm, false); }); _bpLifLit = [];
+  document.querySelectorAll('.bp-lif-row').forEach(r => { if (r !== _bpLifPinnedRow && r !== (on ? row : null)) { r.style.background = ''; r.style.borderLeftColor = 'transparent'; } });
+  if (!row || !on) return null;
+  const r = bpLifPorts(row.getAttribute('data-lifport'));
+  r.ports.forEach(nm => { _bpApply(nm, true); _bpLifLit.push(nm); });
+  row.style.background = 'rgba(0,229,255,0.12)'; row.style.borderLeftColor = 'var(--accent-cyan)';
+  return r;
+}
+function bpLifHover(row, on) { if (_bpLifPinnedRow && _bpLifPinnedRow !== row) return; if (!on && _bpLifPinnedRow === row) return; _bpLifSet(row, on); }
+function bpLifPin(row) {
+  if (_bpLifPinnedRow === row) { _bpLifPinnedRow = null; _bpLifSet(null, false); return; }
+  _bpLifPinnedRow = null; _bpLifSet(null, false);
+  _bpLifPinnedRow = row;
+  const r = _bpLifSet(row, true);
+  const g = r && r.ports.length && document.getElementById('port-slot-' + r.ports[0]);
+  if (g && g.scrollIntoView) g.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 let _bpPinned = null;
 function _bpApply(name, on) {
   const g = document.getElementById(`port-slot-${name}`), row = document.getElementById(`port-row-${name}`);

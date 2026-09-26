@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.110] - 2026-09-26
+
+### Changed
+- Selecting a LIF (hover or click a row in the LIF inventory) lights up the physical port(s) behind it on the rear-panel drawing: the port itself, the base port of a VLAN LIF (e0c-3367), the member ports of an interface group (a0a, a0a-107, from Active IQ's interface-group ownership), and the matching eNx port for FC LIFs (0g = e0g). Ports Active IQ did not report light up in grey.
+
+---
+
 ## [5.6.109] - 2026-09-26
 
 ### Changed
