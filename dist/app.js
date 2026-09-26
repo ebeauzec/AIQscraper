@@ -29181,7 +29181,7 @@ function generateActionPlan() {
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. Sustainability &amp; ESG Report${enrBadge('sustainabilityReport')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUSTAINABILITY_REPORT')">Download Report (TXT)</button>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Fleet sustainability summary, data reduction impact, estimated power/CO2 avoided, and optimization recommendations.</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Sustainability score, data reduction impact, capacity growth and optimization recommendations.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.sustainabilityReport}</textarea>
       </div>
 
