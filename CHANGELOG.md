@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.83] - 2026-09-26
+
+### Fixed
+- Deliverables contradicted each other on the same data. Open cases counted closed and cancelled cases (a customer with 1-2 open cases showed 47). Now every document counts open cases only, and resolution-time statistics still use the full history.
+- Lapsed support contracts were listed as 'expiring within 90 days' (Active IQ clamps their days-remaining to 0). They are now a separate LAPSED block with the expiry date, and the renewal lists carry only contracts that still have time left. Removed the unconditional 'SupportEdge Premium SLA active' claim.
+- Ransomware protection is tri-state everywhere: 'without ARP' used to include systems Active IQ never reported on, so one document said 13 and another 14. Wording is now 'confirmed disabled' with the not-reported count stated.
+- SnapMirror: Active IQ gives only a relationship count. The app invented a sync/async split, '< 1 hour (estimated)' lag and a 'DR Partner' destination from it, which then fed RPO statements and a synchronous-policy risk. It now shows a count-only relationship, states that type, destination and lag are not reported, and never calls a system 'unprotected' unless it is confirmed to have no SnapMirror/MetroCluster/SyncMirror (in-cluster HA is not DR; systems Active IQ did not report on are listed as 'not reported'). Long system lists are capped.
+- Capacity runway: the average was always the made-up default of 120 days (it read a field that is never populated). It now uses the growth projection, excludes the 9999-day 'no growth' sentinel and anything past 10 years, and shows 'not available' when there is no data. Per-system runway prints as years or '> 10 years' instead of '9999d'.
+- Efficiency: 'space saved' now equals logical minus physical for the same system (it used a different logical figure, so 543 TB saved sat beside 257 TB). The sales business case read fields that do not exist and printed 'N/A:1' and 0.0 TB; it now uses the same data and the same cost-per-TB rate as the other documents. Removed the invented '0.5 kW per TB' power line.
+- CVE counts are labelled ('91 unique CVEs, all severities' versus '57 critical/high') instead of one number called 'unpatched CVEs' and another called 'advisories'. The EOSA support-premium line no longer counts out-of-warranty systems as end-of-support, and is omitted when none are.
+- The at-risk capacity list no longer prints 'undefined% used'.
+
+---
+
+## [5.6.82] - 2026-09-21
+
+### Changed
+- **Demo mode's StoragePerf data is StoragePerf's own demo fleet**, not synthetic. `data/demo_storageperf.json` (built by `tools/build_demo_storageperf.py` from a running StoragePerf in mock mode) is a real `plumb.aria-export/1` snapshot with the Pure Storage arrays removed. It is attached to one new demo customer, **Harbourview Distribution**, whose 12 systems are built from the snapshot's eight NetApp arrays: four ONTAP clusters (8 nodes, matched by the snapshot's node serial numbers), three StorageGRID grids and one E-Series array (matched by name). No other demo customer has StoragePerf data. Replaces the synthetic snapshots for nine customers added in 5.6.81.
+
+---
+
 ## [5.6.81] - 2026-09-21
 
 ### Added

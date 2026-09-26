@@ -1,8 +1,8 @@
 {
-  "version": "5.6.81",
+  "version": "5.6.83",
   "major": 5,
   "minor": 6,
-  "patch": 81,
-  "date": "2026-09-21",
-  "notes": "StoragePerf (Plumb) integration: measured performance -- latency, CPU, capacity runway, findings and array-vs-network verdicts -- added to reports. Pulled directly from a reachable StoragePerf (sources, schedule, token) or imported from the file it exports; kept as history per customer and matched to systems by node serial, cluster name or name. Shown in the Action Planner, Value & ROI, and the QBR, MSP and customer success documents. Read-only; requires StoragePerf 0.21.0+."
+  "patch": 83,
+  "date": "2026-09-26",
+  "notes": "Action Planner deliverables audited for internal contradictions: open cases, lapsed contracts, ARP, SnapMirror/DR, runway, efficiency and CVE counts now agree across every document and no longer present unreported or invented values as fact."
 }

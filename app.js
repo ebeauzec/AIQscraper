@@ -27,9 +27,31 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.82";
+const APP_VERSION = "5.6.83";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.83",
+    date: "26 September 2026",
+    title: "Action Planner Deliverables Made Consistent",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverable Accuracy",
+        color: "#22c55e",
+        items: [
+          "Deliverables contradicted each other on the same data. Open cases counted closed and cancelled cases (a customer with 1-2 open cases showed 47). Now every document counts open cases only, and resolution-time statistics still use the full history.",
+          "Lapsed support contracts were listed as 'expiring within 90 days' (Active IQ clamps their days-remaining to 0). They are now a separate LAPSED block with the expiry date, and the renewal lists carry only contracts that still have time left. Removed the unconditional 'SupportEdge Premium SLA active' claim.",
+          "Ransomware protection is tri-state everywhere: 'without ARP' used to include systems Active IQ never reported on, so one document said 13 and another 14. Wording is now 'confirmed disabled' with the not-reported count stated.",
+          "SnapMirror: Active IQ gives only a relationship count. The app invented a sync/async split, '< 1 hour (estimated)' lag and a 'DR Partner' destination from it, which then fed RPO statements and a synchronous-policy risk. It now shows a count-only relationship, states that type, destination and lag are not reported, and never calls a system 'unprotected' unless it is confirmed to have no SnapMirror/MetroCluster/SyncMirror (in-cluster HA is not DR; systems Active IQ did not report on are listed as 'not reported'). Long system lists are capped.",
+          "Capacity runway: the average was always the made-up default of 120 days (it read a field that is never populated). It now uses the growth projection, excludes the 9999-day 'no growth' sentinel and anything past 10 years, and shows 'not available' when there is no data. Per-system runway prints as years or '> 10 years' instead of '9999d'.",
+          "Efficiency: 'space saved' now equals logical minus physical for the same system (it used a different logical figure, so 543 TB saved sat beside 257 TB). The sales business case read fields that do not exist and printed 'N/A:1' and 0.0 TB; it now uses the same data and the same cost-per-TB rate as the other documents. Removed the invented '0.5 kW per TB' power line.",
+          "CVE counts are labelled ('91 unique CVEs, all severities' versus '57 critical/high') instead of one number called 'unpatched CVEs' and another called 'advisories'. The EOSA support-premium line no longer counts out-of-warranty systems as end-of-support, and is omitted when none are.",
+          "The at-risk capacity list no longer prints 'undefined% used'.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.82",
     date: "21 September 2026",
@@ -16404,6 +16426,13 @@ function _resolveSnapMirrorPartners(systems) {
 
     // Replace generic "DR Partner" placeholders in relationship entries
     s.snapmirror.relationships.forEach(rel => {
+      if (rel.countOnly) {
+        // The destination is NOT reported. Another cluster of the same customer is only a
+        // candidate -- say so instead of presenting it as the destination.
+        rel.possiblePeer = partnerLabel;
+        rel.destination = `${rel.relationshipCount} relationship${rel.relationshipCount > 1 ? 's' : ''} (destination not reported; possible peer, inferred from this customer's other clusters: ${partnerLabel})`;
+        return;
+      }
       if (rel.destination && rel.destination.startsWith('DR Partner')) {
         rel.destination = rel.destination.replace('DR Partner', partnerLabel);
       }
@@ -16458,43 +16487,26 @@ function _buildSnapMirrorData(s, clusterName, isLiveData) {
     return { enabled: false, relationships: [] };
   }
 
-  // Build relationship entries from the count
+  // Active IQ gives a relationship COUNT per cluster and nothing else: no destination,
+  // no type (sync/async), no state, no lag, no schedule. This used to invent all of them
+  // (80% "Asynchronous ... < 1 hour (estimated)", 20% "Synchronous, zero RPO", every
+  // destination a guessed "DR Partner"), which then fed RPO statements and even injected a
+  // "SnapMirror Synchronous policy" risk on live systems. One honest count-only entry.
   const relationships = [];
-  const serial = s.serialNumber || '';
-
   if (smCount > 0) {
-    // We know the total count but not individual volumes — generate cluster-level entries
-    // Split count into async (majority) and sync (minority) as a reasonable estimate
-    const syncCount = Math.min(Math.floor(smCount * 0.2), smCount);
-    const asyncCount = smCount - syncCount;
-
-    if (asyncCount > 0) {
-      relationships.push({
-        destination: `DR Partner (${asyncCount} async vol${asyncCount > 1 ? 's' : ''})`,
-        sourceVolume: `${clusterName} (${asyncCount} volume${asyncCount > 1 ? 's' : ''})`,
-        destinationCluster: "DR Partner",
-        destinationVolume: `${asyncCount} async relationship${asyncCount > 1 ? 's' : ''}`,
-        type: "Asynchronous",
-        state: "Snapmirrored",
-        lagTime: "< 1 hour (estimated)",
-        schedule: "hourly",
-        healthStatus: "Healthy"
-      });
-    }
-
-    if (syncCount > 0) {
-      relationships.push({
-        destination: `DR Partner (${syncCount} sync vol${syncCount > 1 ? 's' : ''})`,
-        sourceVolume: `${clusterName} (${syncCount} volume${syncCount > 1 ? 's' : ''})`,
-        destinationCluster: "DR Partner",
-        destinationVolume: `${syncCount} sync relationship${syncCount > 1 ? 's' : ''}`,
-        type: "Synchronous",
-        state: "In-Sync",
-        lagTime: "0 (zero RPO)",
-        schedule: "continuous",
-        healthStatus: "Healthy"
-      });
-    }
+    relationships.push({
+      destination: `${smCount} relationship${smCount > 1 ? 's' : ''} (destination not reported by Active IQ)`,
+      sourceVolume: `${clusterName} (${smCount} relationship${smCount > 1 ? 's' : ''})`,
+      destinationCluster: "Not reported",
+      destinationVolume: "Not reported",
+      type: "Not reported",
+      state: "Not reported",
+      lagTime: "Not reported",
+      schedule: "Not reported",
+      healthStatus: "Not reported",
+      countOnly: true,
+      relationshipCount: smCount
+    });
   }
 
   return {
@@ -16843,6 +16855,62 @@ function computeFeatureAdoptionScore(sys) {
 }
 
 
+// ═══ Canonical deliverable facts ═══════════════════════════════════════════
+// Every deliverable used to work out these numbers for itself and they disagreed
+// inside one document set: "Open cases: 47" counted 44 closed ones, lapsed
+// contracts were listed as "expiring within 90 days", a system whose ARP status
+// Active IQ never reported was counted as "without ARP". One definition each,
+// used by every document.
+function _dfContractFacts(systems) {
+  const now = Date.now();
+  const out = { active: [], expiring90: [], expiring180: [], expired: [], unknown: [] };
+  (systems || []).forEach(sys => {
+    const d = sys.contractEndDate || sys.contractExpiry || (sys.contracts && sys.contracts.endDate);
+    const t = d ? Date.parse(d) : NaN;
+    const days = isNaN(t) ? null : Math.ceil((t - now) / 86400000);
+    // Active IQ clamps a lapsed contract's daysRemaining to 0, so the end date is the truth.
+    const rec = { systemName: sys.systemName, serialNumber: sys.serialNumber, ...(sys.contracts || {}), endDate: d || (sys.contracts && sys.contracts.endDate) || '', daysRemaining: days };
+    if (sys.contractActive === false || (days != null && days < 0)) out.expired.push(rec);
+    else if (days == null && sys.contractActive == null) out.unknown.push(rec);
+    else {
+      out.active.push(rec);
+      if (days != null && days <= 90) out.expiring90.push(rec);
+      if (days != null && days <= 180) out.expiring180.push(rec);
+    }
+  });
+  return out;
+}
+
+// Lapsed contracts as a text block ('' when there are none). The renewal lists only
+// carry contracts that still have time left; lapsed ones are a different conversation.
+function _dfLapsedText(expiringContracts, indent) {
+  const lapsed = (expiringContracts && expiringContracts._expired) || [];
+  if (!lapsed.length) return '';
+  const pad = indent || '';
+  return `${pad}LAPSED SUPPORT CONTRACTS (${lapsed.length}) -- already expired, no active support entitlement:\n` + lapsed.map(e =>
+    `${pad}  \u2022 ${e.systemName}${e.serialNumber && e.serialNumber !== e.systemName ? ' (' + e.serialNumber + ')' : ''} -- ${e.endDate ? 'expired ' + String(e.endDate).split('T')[0] + (e.daysRemaining != null ? ' (' + Math.abs(e.daysRemaining) + ' days ago)' : '') : 'expiry date not reported'}`).join('\n') + '\n';
+}
+
+// ARP is tri-state: enabled, confirmed disabled, or never reported by Active IQ.
+// Only ONTAP has ARP. "Unprotected" means CONFIRMED disabled -- an unreported system
+// is unverified, not unprotected.
+function _dfArpFacts(systems) {
+  const ont = (systems || []).filter(s => _platformFamily(s) === 'ontap');
+  const enabled = ont.filter(s => s.isARPEnabled === true).length;
+  const disabled = ont.filter(s => s.isARPEnabled === false).length;
+  return { ontap: ont.length, enabled, disabled, unknown: ont.length - enabled - disabled };
+}
+// Capacity runway for print. 9999 is the growth model's "no growth measured" sentinel and
+// values past 10 years are extrapolation noise: neither is a runway figure to show a customer.
+function _dfRunwayText(days) {
+  if (days == null || !Number.isFinite(days) || days < 0) return 'not available';
+  if (days > 3650) return '> 10 years';
+  return days >= 365 ? (days / 365).toFixed(1) + ' years' : days + ' days';
+}
+function _dfArpSentence(a) {
+  return `enabled on ${a.enabled} of ${a.ontap} ONTAP systems (${a.disabled} confirmed disabled${a.unknown > 0 ? ', ' + a.unknown + ' not reported by Active IQ' : ''})`;
+}
+
 function computeCostOfInaction(targetSystems) {
   // Weighted score quantifying urgency of addressing issues
   let score = 0;
@@ -16870,11 +16938,14 @@ function computeCostOfInaction(targetSystems) {
   const cveAffectedSystems = _cveSystems.size;
   const eosaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
   const capacityRed = targetSystems.filter(s => computeCapacityRAG(s) === 'red').length;
-  // Any system not explicitly ARP-enabled is considered unprotected (catches null/undefined)
-  // (ONTAP only -- ARP doesn't exist on E-Series/StorageGRID.)
-  const noArp = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled !== true).length;
+  // ARP: CONFIRMED disabled only (ONTAP only). A system Active IQ never reported ARP
+  // for is unverified, not unprotected -- counting it here made this figure disagree with
+  // the "ARP GAP" line (13 confirmed) printed in the same document (14).
+  const _arpF = _dfArpFacts(targetSystems);
+  const noArp = _arpF.disabled;
+  const arpUnknown = _arpF.unknown;
   score = critRisks * 10 + highRisks * 3 + cves * 5 + eosaSystems * 8 + capacityRed * 7 + noArp * 2;
-  return { score, critRisks, highRisks, cves, cveAffectedSystems, eosaSystems, capacityRed, noArp };
+  return { score, critRisks, highRisks, cves, cveAffectedSystems, eosaSystems, capacityRed, noArp, arpUnknown };
 }
 
 function computeCoTermOpportunities(targetSystems) {
@@ -17277,7 +17348,10 @@ function enrichSystemTelemetry(s) {
     // Use snapshot-excluded logical capacity when available; otherwise fall
     // back to full logical (which includes snapshot space sharing).
     const logicalTBforSavings  = logNoSnaps > 0 ? logNoSnaps : (s.clusterLogicalUsedTB || 0);
-    const spaceSavedForChart   = Math.max(0, logicalTBforSavings - physTBfinal);
+    // Saved space must equal the logical/physical the same object reports (documents print
+    // "ratio X:1" from logical/physical AND "saved N TB" -- they used to disagree, e.g. 543 TB
+    // saved against 257 TB logical-minus-physical, because saved came from a different logical figure).
+    const spaceSavedForChart   = Math.max(0, logTBfinal - physTBfinal);
     // FabricPool: only tag systems where isFabricPool is true; estimate tiered as
     // the delta between logical and physical (cold data sitting in object store).
     // FabricPool tiered bytes are not available from this GQL query — set to 0.
@@ -17702,7 +17776,7 @@ function enrichSystemTelemetry(s) {
   // Sourced from 2026-07-09 Reference Library updates:
   // A. Check for SnapMirror Synchronous zero-RPO policy alignment
   if (s.snapmirror && s.snapmirror.enabled && s.snapmirror.relationships) {
-    const hasSyncRel = s.snapmirror.relationships.some(rel => (rel.type || "").toLowerCase().includes("sync"));
+    const hasSyncRel = s.snapmirror.relationships.some(rel => !rel.countOnly && (rel.type || "").toLowerCase().includes("sync"));
     if (hasSyncRel && !risks.some(r => r.id === 501)) {
       risks.push({
         id: 501,
@@ -18476,6 +18550,9 @@ function enrichSystemTelemetry(s) {
     asupByType:          s.asupByType || [],
     // ── As-Built: SnapMirror Count ──
     snapMirrorCount:     s.snapMirrorCount || 0,
+    // Active IQ returns null for a cluster it didn't report on; 0 above would make that look
+    // like "confirmed no SnapMirror". Kept through re-enrichment (the count is already 0 by then).
+    snapMirrorReported:  s.snapMirrorReported !== undefined ? s.snapMirrorReported : (s.snapMirrorCount != null || !!(s.snapmirror && s.snapmirror.totalCount != null)),
     // ── As-Built: Aggregate / Volume / LUN / SVM Topology ──
     localTierCount:      s.localTierCount || 0,
     volumeCount:         s.volumeCount || 0,
@@ -19687,10 +19764,10 @@ function formatCostOfInactionText(systems) {
   return `  COST OF INACTION [RISK EXPOSURE]
   ──────────────────────────────────────────────────────
   • ${coi.critRisks} critical risks remain unaddressed
-  • ${coi.cves} security advisories unpatched
+  • ${coi.cves} unique CVEs (all severities) affecting ${coi.cveAffectedSystems} system${coi.cveAffectedSystems !== 1 ? 's' : ''}
   • ${coi.eosaSystems} systems approaching EOSA within 12 months
   • ${coi.capacityRed} systems reach capacity limit within 60 days${systems.some(s => _platformFamily(s) === 'ontap') ? `
-  • ${coi.noArp} systems lack ransomware protection (ARP)` : ''}`;
+  • ${coi.noArp} ONTAP systems have ransomware protection (ARP) confirmed disabled${coi.arpUnknown ? ' (' + coi.arpUnknown + ' more not reported)' : ''}` : ''}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -20794,7 +20871,7 @@ function getFleetEnrichmentSections(targetSystems) {
     if (arts.length > 0) {
       let block = `\n================================================================================\nREMEDIATION & HARDENING INTELLIGENCE\n================================================================================\n${fleetHeader}\n`;
       if (arpDisabled > 0) {
-        block += `⚠ CRITICAL: ${arpDisabled} of ${totalSystems} systems have Autonomous Ransomware Protection DISABLED\n`;
+        block += `⚠ CRITICAL: ${arpDisabled} of ${targetSystems.filter(s => _platformFamily(s) === 'ontap').length} ONTAP systems have Autonomous Ransomware Protection DISABLED\n`;
         block += `  Action: Enable ARP on all NAS volumes → security anti-ransomware volume enable\n\n`;
       }
       block += `SECURITY & COMPLIANCE DOCUMENTATION (${secArticles.length}):\n`;
@@ -20976,8 +21053,8 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       totalCapTB += sys.efficiency.physicalUsedTB || 0;
       totalSavedTB += sys.efficiency.spaceSavedTB || 0;
     }
-    if (sys.projections && typeof sys.projections.runwayDays === 'number') {
-      totalRunwayDays += sys.projections.runwayDays;
+    if (sys.projections && Number.isFinite(sys.projections.daysToLimit) && sys.projections.daysToLimit >= 0 && sys.projections.daysToLimit <= 3650) {
+      totalRunwayDays += sys.projections.daysToLimit;
       runwayDaysCount++;
     }
     // sentimentScore || 7.5 would silently replace a real 0 (a genuinely poor
@@ -21000,7 +21077,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     }
   });
 
-  const avgRunwayDays = runwayDaysCount > 0 ? Math.round(totalRunwayDays / runwayDaysCount) : 120;
+  const avgRunwayDays = runwayDaysCount > 0 ? Math.round(totalRunwayDays / runwayDaysCount) : null;  // null = no runway data (never a made-up default)
   const avgCsat = systemCount > 0 ? (csatScoreSum / systemCount).toFixed(1) : "No Data";
   const spaceSavedRatio = totalCapTB > 0 ? (logicalCapTB / totalCapTB).toFixed(1) : "1.0";
 
@@ -21306,7 +21383,7 @@ ${compileSvmLifSummaryText(targetSystems)}
 ${_effOntapN === 0 ? '  - Storage efficiency (dedupe/compression): N/A -- ONTAP-only metric, no ONTAP systems in scope' : `  - Total Physical Used Capacity${_effOntapN < systemCount ? ' (ONTAP systems)' : ''}: ${totalCapTB.toFixed(1)} TB
   - Total Logical Capacity Represented: ${logicalCapTB.toFixed(1)} TB
   - Storage Efficiency Ratio: ${spaceSavedRatio}:1 (Saved ${totalSavedTB.toFixed(1)} TB via Deduplication/Compression)`}
-  - Average Capacity Runway: ${avgRunwayDays} days to 90% (fleet average)
+  - Average Capacity Runway: ${avgRunwayDays != null ? avgRunwayDays + ' days to 90% (average of systems projected to fill within 10 years)' : 'not available (no growth projection reported by Active IQ)'}
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   CAPACITY FORECAST:
   - Fleet Avg Utilization:  ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
@@ -21317,11 +21394,11 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
 
 * DATA PROTECTION & DR POSTURE:
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  - SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
-  - Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
+  - Total DR Relationships: ${dr.relText}
   - MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
   - HA Configured:          ${dr.haSystems}/${dr.ontapCount} (${dr.haCoveragePct}%)
-  - Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
-  - RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
+  - Unprotected Systems:    ${dr.unprotectedText}
+  - RPO Lag Warnings:       ${dr.rpoText}`; })()}
 
 * SUPPORT CASE HEALTH:
   - Case Health Score: ${avgCsat}/10
@@ -21350,7 +21427,8 @@ to prevent support SLA deviations and customer satisfaction impacts.
 ${allSupportCases.length > 0 ? casesText : "✓ No active open support cases detected."}
 
 * SUPPORT CONTRACT COVERAGE & LIFECYCLE RISKS:
-${expiringContracts.length > 0 ? contractsText : "✓ All support contracts have > 90 days remaining. SupportEdge Premium SLA active."}
+${expiringContracts.length > 0 ? contractsText : ((expiringContracts._expired || []).length ? "  No active support contract is due to expire within 90 days." : "✓ All support contracts have > 90 days remaining.")}
+${_dfLapsedText(expiringContracts)}
 
 * AUTOSUPPORT TELEMETRY STATUS:
 ${asupIssues.length > 0 ? asupIssues.map(a => `  ⚠ ${a.name}: ${a.issue} — ${a.detail}`).join('\n') : "✓ All systems reporting AutoSupport telemetry within 7-day SLA window."}
@@ -21400,9 +21478,9 @@ ${formatCostOfInactionText(targetSystems)}
 ${compilePerformanceText(targetSystems)}* FINANCIAL IMPACT & ROI SUMMARY [METRICS + OWNERSHIP]
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
   Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at $${state.costPerTiB}/TB/month)
-  Capacity Extension from Efficiency:  ${avgRunwayDays} additional runway days
   Warranty Coverage Gap Risk:          ${computeFleetWarrantyStatus(targetSystems).warrantyExpired} systems past hardware warranty end date
-  Support Premium Increase (EOSA):     ~45% increase for ${computeFleetWarrantyStatus(targetSystems).warrantyExpired} out-of-warranty systems (illustrative rate; confirm actual renewal pricing with NetApp)
+${targetSystems.some(s => s.lifecycle && s.lifecycle.isNearEos) ? `  Support Premium Increase (EOSA):     ~45% increase for ${targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length} system(s) at or near end of support availability (illustrative rate; confirm actual renewal pricing with NetApp)
+` : ''}
 
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
@@ -21517,6 +21595,7 @@ Focus: Prevent coverage gaps, plan technology refresh for near-EOL systems.
 
 * ACTION 5.1: Support Contract Renewals
 ${expiringContracts.length > 0 ? contractsText : "  ✓ No support contracts expiring within 90 days."}
+${_dfLapsedText(expiringContracts, '  ')}
   - Portal: https://mysupport.netapp.com/
 
 * ACTION 5.2: Hardware Refresh Planning
@@ -21664,8 +21743,9 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   }
 
   // ── Lifecycle / Renewal Pipeline ──
-  const exp90  = expiringContracts.filter(e => e.daysRemaining <= 90).length;
-  const exp180 = expiringContracts.filter(e => e.daysRemaining <= 180).length;
+  const exp90  = expiringContracts.length;
+  const exp180 = (expiringContracts._exp180 || expiringContracts).length;
+  const lapsedN = (expiringContracts._expired || []).length;
   const nearEos = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
   const contractLines = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
@@ -21685,7 +21765,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
         else if (riskNow < riskThen) trendNote = `  [RISK TREND: IMPROVING, ${riskThen}→${riskNow} crit/high over ~90d]`;
       }
     }
-    return `    ’ ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  ${e.daysRemaining != null ? `(${e.daysRemaining} days)` : ''}${trendNote}`;
+    return `    \u2022 ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) — Expires: ${(e.endDate || '').split('T')[0]}  ${e.daysRemaining != null ? `(${e.daysRemaining} days)` : ''}${trendNote}`;
   }).join('\n') ||  '  No expiring contracts within scope.';
 
   // ── Recommendations (real per-customer score when scope is one customer) ──
@@ -21763,7 +21843,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   // ── Action Items ──
   const followUp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = _ontapN - arpCount;
+  const unprotectedArp = _ontapSys.filter(s => s.isARPEnabled === false).length;
   const correctiveCount = sortedRisks.length;
   const renewCount = exp90;
 
@@ -21827,7 +21907,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       const effDelta = effN > 0 ? (effNowSum / effN) - (effThenSum / effN) : null;
       let out = `  Comparing ${matched}/${total} system(s) against their nearest snapshot from ~${daysAgo} days ago:\n`;
       out += `    Critical/High Risks:  ${riskThenTotal} → ${riskNowTotal}  [${fmt(riskDelta, true)}]\n`;
-      out += `    Open Support Cases:   ${caseThenTotal} → ${caseNowTotal}  [${fmt(caseDelta, true)}]\n`;
+      out += `    Support Cases (all statuses, on record): ${caseThenTotal} → ${caseNowTotal}  [${fmt(caseDelta, true)}]\n`;
       if (effDelta !== null) out += `    Avg Efficiency Ratio: ${(effThenSum / effN).toFixed(2)}:1 → ${(effNowSum / effN).toFixed(2)}:1  [${fmt(Math.round(effDelta * 100) / 100, false)}]\n`;
       if (adoptN > 0) {
         const adoptThenAvg = adoptThenSum / adoptN, adoptNowAvg = adoptNowSum / adoptN;
@@ -21936,18 +22016,19 @@ ${sustainSection}
 --------------------------------------------------------------------------------
   Support Contracts Expiring < 90 Days:  ${exp90}
   Support Contracts Expiring < 180 Days: ${exp180}
+  Support Contracts Lapsed (expired):    ${lapsedN}
   Systems Near EOS:              ${nearEos}
 
 ${contractLines}
-
+${_dfLapsedText(expiringContracts, '  ')}
 --------------------------------------------------------------------------------
 7. DATA PROTECTION & DR POSTURE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  DR Coverage:           ${dr.drCoveragePct}% (${dr.smSystems} SnapMirror, ${dr.mcSystems} MetroCluster)
-  SnapMirror Relations:  ${dr.smRelCount} (${dr.smSync} Sync, ${dr.smAsync} Async)
+  SnapMirror Relations:  ${dr.relText}
   HA Configured:         ${dr.haSystems}/${dr.ontapCount}
-  Unprotected Systems:   ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all systems have DR coverage'}
-  RPO Warnings:          ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' — lag ' + w.lag).join('; ') : 'None — replication within SLA'}${dr.mcSystems > 0 ? `
+  Unprotected Systems:   ${dr.unprotectedText}
+  RPO Warnings:          ${dr.rpoText}${dr.mcSystems > 0 ? `
   MetroCluster Health:   Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}`; })()}
 
 --------------------------------------------------------------------------------
@@ -21978,7 +22059,7 @@ ${techRefreshLines}
   □ Schedule follow-up meeting for ${followUp}
   □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
   □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
-${unprotectedArp > 0 ? `  □ Review ARP enablement on ${unprotectedArp} unprotected system${unprotectedArp !== 1 ? 's' : ''}` : '  □ ARP enablement: no unprotected ONTAP systems'}
+${unprotectedArp > 0 ? `  □ Review ARP enablement on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''} with ARP confirmed disabled` : '  □ ARP enablement: no ONTAP system has ARP confirmed disabled'}
   □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
   □ Validate ITIL Change Control process for all planned remediation items
 
@@ -22032,8 +22113,8 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
       // available capacity from usableCapacityTB - physicalUsedTB instead.
       c.avail += Math.max(0, (s.efficiency.usableCapacityTB || 0) - (s.efficiency.physicalUsedTB || 0));
     }
-    if (s.projections && typeof s.projections.runwayDays === 'number') {
-      c.runwaySum += s.projections.runwayDays;
+    if (s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 3650) {
+      c.runwaySum += s.projections.daysToLimit;
       c.runwayCount++;
     }
     if (s.isARPEnabled) c.arp++;
@@ -22068,14 +22149,13 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   let totalPhys = 0, totalAvail = 0, totalRunway = 0, rCount = 0;
   const capacityLines = Object.entries(mspCustomers).map(([name, data]) => {
     const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
-    const rw = data.runwayCount > 0 ? Math.round(data.runwaySum / data.runwayCount) : 120;
+    const rw = data.runwayCount > 0 ? Math.round(data.runwaySum / data.runwayCount) : null;
     totalPhys += data.phys;
     totalAvail += data.avail;
-    totalRunway += rw;
-    rCount++;
-    return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${drr.padEnd(10)} ${rw}d`;
+    if (rw != null) { totalRunway += rw; rCount++; }
+    return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${drr.padEnd(10)} ${rw != null ? rw + 'd' : 'n/a'}`;
   }).join('\n');
-  const avgRunway = rCount > 0 ? Math.round(totalRunway / rCount) : 120;
+  const avgRunway = rCount > 0 ? Math.round(totalRunway / rCount) : null;
 
   // ── ASUP Compliance ──
   const now = Date.now();
@@ -22102,7 +22182,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
 
   // ── Mean Time to Resolve (support case resolution SLA) ──
-  const mttrDays = computeMTTR(allSupportCases);
+  const mttrDays = computeMTTR(allSupportCases._all || allSupportCases);
   const mttrTarget = slaThresholds.mttrDays || slaDefaults.mttrDays;
 
   // ── Average System Age ──
@@ -22166,7 +22246,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   // ── Next Period ──
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = _ontapN - arpCount;
+  const unprotectedArp = _ontapSys.filter(s => s.isARPEnabled === false).length;
   const fwBehind = total - fwCurrent;
 
   return `================================================================================
@@ -22212,7 +22292,7 @@ ${dashboardLines}
   ────────────────── ──────── ──────────── ────────── ──────
 ${capacityLines}
   ────────────────── ──────── ──────────── ────────── ──────
-  PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway}d
+  PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway != null ? avgRunway + 'd' : 'n/a'}
 
 --------------------------------------------------------------------------------
 5. INCIDENT & CASE MANAGEMENT [RISK EXPOSURE]
@@ -22235,11 +22315,11 @@ ${tierLines}
 7. DATA PROTECTION & DR COVERAGE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
-  Total DR Relationships: ${dr.smRelCount} (${dr.smSync} Sync / ${dr.smAsync} Async)
+  Total DR Relationships: ${dr.relText}
   MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
   HA Configured:          ${dr.haSystems}/${dr.ontapCount}
-  Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems protected'}
-  RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
+  Unprotected Systems:    ${dr.unprotectedText}
+  RPO Lag Warnings:       ${dr.rpoText}`; })()}
 
 ${compilePerformanceText(targetSystems)}--------------------------------------------------------------------------------
 8. SVM & NETWORK HEALTH [RISK EXPOSURE]
@@ -22268,8 +22348,8 @@ ${backlogLines}
 11. NEXT PERIOD OBJECTIVES [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
   □ Resolve ${critCount} critical finding${critCount !== 1 ? 's' : ''}
-  □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}
-${unprotectedArp > 0 ? `  □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}` : '  □ ARP: no unprotected ONTAP systems'}
+  □ Renew ${exp90} expiring contract${exp90 !== 1 ? 's' : ''}${expiredContracts > 0 ? `\n  □ Reinstate support on ${expiredContracts} system${expiredContracts !== 1 ? 's' : ''} whose contract has lapsed` : ''}
+${unprotectedArp > 0 ? `  □ Enable ARP on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''}` : '  □ ARP: no ONTAP system has ARP confirmed disabled'}
   □ Restore ASUP on ${staleAsup} stale system${staleAsup !== 1 ? 's' : ''}
   □ Plan OS upgrades for ${fwBehind} system${fwBehind !== 1 ? 's' : ''}
 
@@ -22421,7 +22501,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   if (coi.cves > 0) coiBullets.push(`    • ${coi.cves} Unpatched Security Vulnerabilities (CVEs)`);
   if (coi.eosaSystems > 0) coiBullets.push(`    • ${coi.eosaSystems} Systems facing End of Software Availability`);
   if (coi.capacityRed > 0) coiBullets.push(`    • ${coi.capacityRed} Systems with critical capacity constraints (<60 days)`);
-  if (coi.noArp > 0) coiBullets.push(`    • ${coi.noArp} Systems missing Autonomous Ransomware Protection`);
+  if (coi.noArp > 0) coiBullets.push(`    • ${coi.noArp} ONTAP systems with Autonomous Ransomware Protection confirmed disabled${coi.arpUnknown ? ' (' + coi.arpUnknown + ' more not reported)' : ''}`);
   const coiText = coiBullets.length > 0 ? coiBullets.join('\n') : '    • No major actionable risks identified at this time.';
 
   // Champion signal: first system with a real, non-placeholder technical contact
@@ -22699,12 +22779,12 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
 
   // ASUP / ARP gaps
   const staleAsup = total - asupCompliant;
-  const unprotectedArp = _ontapN - arpCount;
+  const unprotectedArp = _ontapSys.filter(s => s.isARPEnabled === false).length;
   if (staleAsup > 0) {
     talkingPoints.push(`${staleAsup} system${staleAsup > 1 ? 's' : ''} with stale or missing AutoSupport telemetry — proactive monitoring gap.`);
   }
   if (unprotectedArp > 0) {
-    talkingPoints.push(`${unprotectedArp} system${unprotectedArp > 1 ? 's' : ''} without Anti-Ransomware Protection — cyber resilience exposure.`);
+    talkingPoints.push(`${unprotectedArp} ONTAP system${unprotectedArp > 1 ? 's' : ''} with Anti-Ransomware Protection confirmed disabled — cyber resilience exposure.`);
   }
 
   // EOS concerns
@@ -22819,8 +22899,8 @@ ${faLines}
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
   HA Configured:          ${dr.haSystems}/${dr.ontapCount} (${dr.haCoveragePct}%)
-  Unprotected Systems:    ${dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'All systems have DR coverage'}
-  RPO Lag Warnings:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (' + w.lag + ')').join(', ') : 'None'}`; })()}
+  Unprotected Systems:    ${dr.unprotectedText}
+  RPO Lag Warnings:       ${dr.rpoText}`; })()}
 
 --------------------------------------------------------------------------------
 9. CAPACITY & GROWTH OUTLOOK
@@ -23060,7 +23140,7 @@ ${(fw || {}).ontapCount === 0 ? `    HW Firmware Attack Surface: N/A (SP/BMC, BI
   2. COST OF INACTION — SECURITY
   ────────────────────────────────────────────────────────────────────────────
     - ${cveExposures.size} CVE${cveExposures.size !== 1 ? 's' : ''} expose ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''} to known exploit vectors
-${_ontapCountSec > 0 ? `    - ${_ontapCountSec - arpEnabled} ONTAP system${_ontapCountSec - arpEnabled !== 1 ? 's' : ''} lack ARP -> vulnerable to ransomware
+${_ontapCountSec > 0 ? `    - ${_dfArpFacts(targetSystems).disabled} ONTAP system${_dfArpFacts(targetSystems).disabled !== 1 ? 's have' : ' has'} ARP confirmed disabled -> exposed to ransomware${_dfArpFacts(targetSystems).unknown ? ' (' + _dfArpFacts(targetSystems).unknown + ' more not reported by Active IQ)' : ''}
 ` : ''}    - ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} on unsupported firmware -> no security patches
     - Exposure window (oldest tracked CVE): ${exposureWindowText}
 
@@ -23075,8 +23155,8 @@ ${compileSvmLifSummaryText(targetSystems)}
   6. DATA PROTECTION POSTURE
   ────────────────────────────────────────────────────────────────────────────
     DR Coverage:       ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (ONTAP-only; none in scope)'}
-    Unprotected:       ${dr.ontapCount === 0 ? 'N/A' : dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None — all ONTAP systems protected'}
-    RPO at Risk:       ${dr.lagWarnings.length > 0 ? dr.lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join(', ') : 'None'}${dr.mcSystems > 0 ? `
+    Unprotected:       ${dr.ontapCount === 0 ? 'N/A' : dr.unprotectedText}
+    RPO at Risk:       ${dr.rpoText}${dr.mcSystems > 0 ? `
     MetroCluster:      Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}
 
   7. SECURITY ACTIONS
@@ -23087,9 +23167,9 @@ ${(() => {
     // text that would print identically regardless of what's actually wrong.
     const actions = [];
     if (critical > 0) actions.push(`Patch ${critical} critical risk${critical !== 1 ? 's' : ''} immediately — see CVE Remediation Priority Matrix above`);
-    if (count - arpEnabled > 0 && arpKnown > 0) actions.push(`Enable Anti-Ransomware Protection (ARP) on ${count - arpEnabled} of ${count} system${count !== 1 ? 's' : ''} currently unprotected`);
+    { const _a = _dfArpFacts(targetSystems); if (_a.disabled > 0) actions.push(`Enable Anti-Ransomware Protection (ARP) on the ${_a.disabled} of ${_a.ontap} ONTAP system${_a.ontap !== 1 ? 's' : ''} where it is confirmed disabled${_a.unknown > 0 ? ' and verify the ' + _a.unknown + ' not reported by Active IQ' : ''}`); }
     if (count - fwCurrent > 0) actions.push(`Update firmware on ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} running non-current versions`);
-    if (dr.unprotected.length > 0) actions.push(`Establish DR/SnapMirror protection for ${dr.unprotected.length} unprotected system${dr.unprotected.length !== 1 ? 's' : ''}: ${dr.unprotected.join(', ')}`);
+    if (dr.unprotected.length > 0) actions.push(`Establish replication (SnapMirror/MetroCluster) for the ${dr.unprotected.length} ONTAP system${dr.unprotected.length !== 1 ? 's' : ''} with none configured: ${dr.unprotectedText.replace(/^\d+ confirmed with no SnapMirror or MetroCluster \(|\)(?=;|$)/g, '')}`);
     if (cveExposures.size > 0) actions.push(`Remediate ${cveExposures.size} tracked CVE${cveExposures.size !== 1 ? 's' : ''} affecting ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''}`);
     if (actions.length === 0) return '    ✓ No outstanding security actions identified for this scope.\n';
     return actions.map((a, i) => `    ${i + 1}. ${a}`).join('\n') + '\n';
@@ -23292,7 +23372,9 @@ function computeFleetDRSummary(allSystems) {
   // third DR site, a common real architecture), and summing smSystems +
   // mcSystems double-counted those, letting drCoveragePct exceed 100%.
   let drProtectedSystems = 0;
-  const unprotected = [];
+  const unprotected = [];   // CONFIRMED no SnapMirror / MetroCluster / SyncMirror (HA is not DR)
+  const smUnknownNames = []; // SnapMirror status never reported by Active IQ
+  let realRel = 0, countOnlyRel = 0;
   const lagWarnings = [];
   // MetroCluster health signals (Mediator/AUSO), same detection used by the
   // Action Planner and Technical Audit MC widgets -- surfaced here too so
@@ -23320,12 +23402,14 @@ function computeFleetDRSummary(allSystems) {
     if (isMC) mcSystems++;
     if (isSM) syncMirrorSystems++;
     if (smCount > 0 || isMC) drProtectedSystems++;
-    // Unprotected: no SnapMirror, no MetroCluster, no HA
-    if (smCount === 0 && !isMC && !hasCfg) {
-      unprotected.push(s.systemName || s.serialNumber || 'Unknown');
-    }
-    // Lag warnings from relationships
+    // Unprotected = CONFIRMED no replication. In-cluster HA is not disaster recovery, and a
+    // system Active IQ never reported SnapMirror for is unknown, not unprotected.
+    const _smReported = s.snapMirrorReported !== false;
+    if (!_smReported && !isMC && !isSM) smUnknownNames.push(s.systemName || s.serialNumber || 'Unknown');
+    else if (smCount === 0 && !isMC && !isSM) unprotected.push(s.systemName || s.serialNumber || 'Unknown');
+    // Lag warnings from relationships (count-only entries carry no lag: nothing to warn about)
     (sm.relationships || []).forEach(r => {
+      if (r.countOnly) return;
       const lag = (r.lagTime || '').toLowerCase();
       if (lag.includes('hr') || lag.includes('hour') || lag.match(/>\s*60\s*min/)) {
         lagWarnings.push({ system: s.systemName, dest: r.destination || r.destinationCluster || '', lag: r.lagTime, type: r.type || 'Async' });
@@ -23333,12 +23417,26 @@ function computeFleetDRSummary(allSystems) {
     });
     // Sync/async counts
     (sm.relationships || []).forEach(r => {
+      if (r.countOnly) { countOnlyRel += r.relationshipCount || 0; return; }
+      realRel++;
       if ((r.type || '').toLowerCase().includes('sync') && !(r.type || '').toLowerCase().includes('async')) smSync++;
       else smAsync++;
     });
   });
   const total = targetSystems.length;
+  // Ready-to-print wording, so every document says the same thing about the same data.
+  const _names = (a, max) => a.length <= max ? a.join(', ') : a.slice(0, max).join(', ') + ` and ${a.length - max} more`;
+  const relText = `${smRelCount} relationship${smRelCount !== 1 ? 's' : ''} on ${smSystems} system${smSystems !== 1 ? 's' : ''}` +
+    (realRel > 0 ? ` (${smSync} sync, ${smAsync} async)` : (smRelCount > 0 ? ' (Active IQ reports counts only: type, destination and lag are not available)' : ''));
+  const rpoText = lagWarnings.length > 0 ? lagWarnings.map(w => w.system + ' (lag ' + w.lag + ')').join('; ')
+    : smRelCount === 0 ? 'N/A (no SnapMirror relationships)'
+    : realRel > 0 ? 'None reported' : 'Not reported by Active IQ (relationship counts only) -- verify replication lag on-cluster';
+  const unknownNote = smUnknownNames.length > 0 ? `SnapMirror status not reported by Active IQ for ${smUnknownNames.length} system${smUnknownNames.length !== 1 ? 's' : ''}` : '';
+  const unprotectedText = unprotected.length > 0
+    ? `${unprotected.length} confirmed with no SnapMirror or MetroCluster (${_names(unprotected, 8)})${unknownNote ? '; ' + unknownNote : ''}`
+    : (unknownNote ? `None confirmed; ${unknownNote}` : 'None -- every ONTAP system has replication configured');
   return {
+    relText, rpoText, unprotectedText, smUnknown: smUnknownNames.length, smUnknownNames,
     smSystems, smRelCount, smAsync, smSync,
     mcSystems, syncMirrorSystems, haSystems,
     unprotected, lagWarnings,
@@ -23513,7 +23611,8 @@ function computeFleetCapacitySummary(targetSystems) {
       totalAvailTB += s.efficiency.rawCapacityTB || s.efficiency.availableCapacityTB || 0;
     }
     const rag = computeCapacityRAG(s);
-    if (rag === 'red') { redCount++; atRisk.push({ name: s.systemName, runway: (s.projections && s.projections.daysToLimit) || 0, platform: s.platform || '' }); }
+    if (rag === 'red') { redCount++; { const _e = s.efficiency || {}; const _u = _e.usableCapacityTB || _e.rawCapacityTB || 0;
+      atRisk.push({ name: s.systemName, runway: (s.projections && s.projections.daysToLimit) || 0, platform: s.platform || '', utilPct: _u > 0 && _e.physicalUsedTB != null ? Math.round(_e.physicalUsedTB / _u * 100) : null }); } }
     else if (rag === 'amber') amberCount++;
     else greenCount++;
     if (s.projections && s.projections.growthRateGBPerDay > 0) {
@@ -23736,6 +23835,21 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
 
+  // ── Canonical facts (see _dfContractFacts) ──
+  // Support cases arrive sorted (closed last) but never filtered, so every "open cases"
+  // figure and list in every document counted closed and cancelled cases. Documents get
+  // the OPEN cases; the full list stays on ._all for resolution-time statistics.
+  filterActiveCases(allSupportCases);
+  const _allCasesInclClosed = allSupportCases;
+  allSupportCases = allSupportCases.filter(c => !c._isClosed);
+  allSupportCases._all = _allCasesInclClosed;
+  // The callers' "expiring" list included contracts that had already lapsed (Active IQ
+  // clamps their daysRemaining to 0). Rebuild it from the end dates.
+  const _contractFacts = _dfContractFacts(targetSystems);
+  expiringContracts = _contractFacts.expiring90;
+  expiringContracts._exp180 = _contractFacts.expiring180;
+  expiringContracts._expired = _contractFacts.expired;
+
   // Counts from ALL risks (for summary header)
   const sevRank = { critical: 0, high: 1, medium: 2, low: 3 };
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -23802,6 +23916,7 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
   const _ontapNE = targetSystems.filter(s => _platformFamily(s) === 'ontap').length;
   const arpEnabledCount = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled === true).length;
+  const _arpFactsNE = _dfArpFacts(targetSystems);
   const fwCurrentCount = targetSystems.filter(_osIsCurrent).length;
   const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
   const sysCount = targetSystems.length;
@@ -23909,8 +24024,8 @@ ACCOUNT TEAM
 
 RISK SUMMARY
   Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
-  Security: ${secRisksCount}   AutoSupport: ${asupIssues.length}   Cases: ${allSupportCases.length}
-  Upgrades: ${allUpgrades.length}   Contracts Expiring: ${expiringContracts.length}
+  Security: ${allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length}   AutoSupport: ${asupIssues.length}   Open cases: ${allSupportCases.length}
+  Upgrades: ${allUpgrades.length}   Contracts Expiring: ${expiringContracts.length}   Lapsed: ${(expiringContracts._expired || []).length}
 
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
@@ -23928,13 +24043,13 @@ HARDWARE FIRMWARE CURRENCY (Detailed)${fw.ontapCount === 0 ? `
   HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)`}
 
 ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
-COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unpatched CVEs, ${coi.capacityRed} capacity-red systems${_ontapNE > 0 ? ', ' + coi.noArp + ' without ARP' : ''}
+COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unique CVEs (all severities), ${coi.capacityRed} capacity-red systems${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
 
 DATA PROTECTION POSTURE
   DR Coverage:        ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SnapMirror + ' + dr.mcSystems + ' MetroCluster of ' + dr.ontapCount + ' ONTAP)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 ? '\n  MetroCluster:       Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}
   HA Coverage:        ${dr.ontapCount > 0 ? dr.haCoveragePct + '% (' + dr.haSystems + '/' + dr.ontapCount + ')' : 'N/A (HA pairs are an ONTAP concept)'}
-  Relationships:      ${dr.smRelCount} total (${dr.smAsync} async / ${dr.smSync} sync)
-  Unprotected:        ${dr.ontapCount === 0 ? 'N/A' : dr.unprotected.length > 0 ? dr.unprotected.join(', ') : 'None'}${dr.lagWarnings.length > 0 ? '\n  RPO Risks:          ' + dr.lagWarnings.map(w => w.system + ' → ' + w.dest + ' lag: ' + w.lag).join('; ') : ''}
+  Relationships:      ${dr.relText}
+  Unprotected:        ${dr.ontapCount === 0 ? 'N/A' : dr.unprotectedText}${dr.lagWarnings.length > 0 ? '\n  RPO Risks:          ' + dr.lagWarnings.map(w => w.system + ' → ' + w.dest + ' lag: ' + w.lag).join('; ') : ''}
 
 CAPACITY RISK
   Utilisation:        ${cap.utilPct}% fleet-wide (${cap.totalPhysTB.toFixed(1)} / ${cap.totalAvailTB.toFixed(1)} TB)
@@ -23995,6 +24110,9 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
     problemStatements += '\n';
   }
 
+  if ((expiringContracts._expired || []).length > 0) {
+    problemStatements += `${_dfLapsedText(expiringContracts)}\n`;
+  }
   if (expiringContracts.length > 0) {
     problemStatements += `EXPIRING SUPPORT CONTRACTS (${expiringContracts.length})
 --------------------------------------------------------------------------------
@@ -24044,9 +24162,9 @@ OPERATIONAL HEALTH SNAPSHOT:
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} active per Active IQ's contract data)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
-COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity${_ontapNE > 0 ? ', ' + coi.noArp + ' without ransomware protection' : ''}
+COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
 
-DATA PROTECTION: ${dr.ontapCount > 0 ? dr.drCoveragePct + '% DR coverage (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ UNPROTECTED: ' + dr.unprotected.join(', ') : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
+DATA PROTECTION: ${dr.ontapCount > 0 ? dr.drCoveragePct + '% DR coverage (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ NO REPLICATION CONFIGURED: ' + dr.unprotectedText : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
 
 CAPACITY: ${cap.utilPct}% fleet utilisation (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)${cap.atRisk.length > 0 ? '\n  ⚠ SYSTEMS AT RISK: ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd runway)').join(', ') : ''}
 
@@ -24061,7 +24179,7 @@ ${exp90.length > 0 ? 'SUPPORT CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
   }).join('\n') : ''}
-${sustLatest.scorePercentage ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score (all tenants): ${sustLatest.scorePercentage}%` : ''}
+${_dfLapsedText(expiringContracts, '    ')}${sustLatest.scorePercentage ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score (all tenants): ${sustLatest.scorePercentage}%` : ''}
 
 Please advise on your preferred CAB window for remediation. Detailed runbooks are attached.
 
@@ -24090,16 +24208,16 @@ HEALTH METRICS:
   Warranty:           ${warranty.active}/${sysCount} active${warranty.expired > 0 ? ', ' + warranty.expired + ' EXPIRED' : ''}${warranty.expiring30 > 0 ? ', ' + warranty.expiring30 + ' <30d' : ''}
 
 RISK POSTURE:
-  Findings: ${totalDeduped} (${critCount}C / ${highCount}H / ${medCount}M)
-  Security: ${secRisksCount}  |  Cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
+  Risks: ${allRisks.length} (${critCount}C / ${highCount}H / ${medCount}M / ${lowCount}L) -- the ${totalDeduped} critical/high consolidate into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}
+  Security: ${allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length}  |  Open cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
 ${sustLatest.scorePercentage ? `\nSUSTAINABILITY (fleet, all tenants): ${sustLatest.scorePercentage}%` : ''}
 
 PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}
 ${asupIssues.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + 1}. Restore AutoSupport on ${asupIssues.length} system(s)` : ''}
 ${expiringContracts.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 2 : 1)}. Renew ${expiringContracts.length} expiring support contract(s)` : ''}
-${_ontapNE - arpEnabledCount > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${_ontapNE - arpEnabledCount} unprotected system(s)` : ''}
-${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (_ontapNE - arpEnabledCount > 0 ? 1 : 0) + 1}. Establish DR protection for ${dr.unprotected.length} unprotected system(s)` : ''}
+${_arpFactsNE.disabled > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + 1}. Enable ARP on ${_arpFactsNE.disabled} ONTAP system(s) with ARP confirmed disabled` : ''}
+${dr.unprotected.length > 0 ? `  ${Math.min(sortedRisks.length, 6) + (asupIssues.length > 0 ? 1 : 0) + (expiringContracts.length > 0 ? 1 : 0) + (_arpFactsNE.disabled > 0 ? 1 : 0) + 1}. Establish replication for ${dr.unprotected.length} ONTAP system(s) with no SnapMirror or MetroCluster configured` : ''}
 ${imtFindings.length > 0 ? `\nINTEROPERABILITY POSTURE (IMT CHECK):\n${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ') + ' ' + f.message).join('\n')}` : ''}`;
   // ===================== 3. CHANGE TICKETS =====================
   let changeTickets = `================================================================================
@@ -24150,7 +24268,7 @@ CHANGE TICKET #${sidx + 1} — ${sys.systemName}
 
   SYSTEM INTELLIGENCE:
     Warranty:          ${sysWarranty}
-    Capacity:          ${sysCapRAG.toUpperCase()} (runway: ${sysRunway === 'N/A' ? 'N/A' : sysRunway + 'd'})
+    Capacity:          ${sysCapRAG.toUpperCase()} (runway: ${_dfRunwayText(sys.projections && sys.projections.daysToLimit)})
     Best Practice:     ${sysFAScore.passed}/${sysFAScore.total} (${sysFAScore.pct}%)
     DR Protection:     ${_platformFamily(sys) !== 'ontap' ? 'N/A (SnapMirror/MetroCluster/HA pairs are ONTAP features)' : (sysSmCount > 0 ? sysSmCount + ' SnapMirror rel.' : 'None') + (sysHasHA ? ' | HA configured' : '')}
     Contract:          ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
@@ -24401,7 +24519,7 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
   Contract: ${sys.contractActive === true ? 'Active' : sys.contractActive === false ? 'EXPIRED' : 'Unknown'}
   HW Firmware: ${(() => { const m = fw.perSystem.find(f => f.name === sys.systemName); return m ? m.status + ' (' + m.score + '%)' : 'N/A'; })()}
   Disk Shelves: ${(sys.diskShelves || sys.shelves || []).length > 0 ? (sys.diskShelves || sys.shelves || []).length + ' shelf(s)' : 'None detected'}
-  Capacity: ${rbCapRAG.toUpperCase()} (runway: ${rbRunway === 'N/A' ? 'N/A' : rbRunway + 'd'})
+  Capacity: ${rbCapRAG.toUpperCase()} (runway: ${_dfRunwayText(sys.projections && sys.projections.daysToLimit)})
   Best Practice Score: ${rbFAScore.passed}/${rbFAScore.total} (${rbFAScore.pct}%)
   DR Protection: ${_platformFamily(sys) !== 'ontap' ? 'N/A \u2014 SnapMirror/MetroCluster are ONTAP features' : rbSmCount > 0 ? rbSmCount + ' SnapMirror relationships' : 'UNPROTECTED — no SnapMirror or MetroCluster'}
   SVMs:     ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP construct)' : `${(() => { const _svms = typeof getSystemSvms === 'function' ? (getSystemSvms(sys) || []) : (sys.vservers || []); return _svms.length + ' (' + (_svms.length > 0 ? [...new Set(_svms.flatMap(s => s.protocols || []))].filter(Boolean).join(', ') || 'No protocols' : 'None') + ')'; })()}`}
@@ -24528,7 +24646,7 @@ Account Health: ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel} (${coi.
 
 OPPORTUNITY INTELLIGENCE:
   Capacity:         ${cap.utilPct}% fleet utilisation (${cap.redCount} RED systems${cap.atRisk.length > 0 ? ', ' + cap.atRisk.length + ' with <60d runway' : ''})
-  DR Gaps:          ${dr.ontapCount === 0 ? 'N/A (ONTAP-only)' : dr.unprotected.length + ' unprotected system' + (dr.unprotected.length !== 1 ? 's' : '') + ' (SnapMirror/MC opportunity)'}
+  DR Gaps:          ${dr.ontapCount === 0 ? 'N/A (ONTAP-only)' : dr.unprotected.length + ' ONTAP system' + (dr.unprotected.length !== 1 ? 's' : '') + ' with no SnapMirror/MetroCluster configured (opportunity)' + (dr.smUnknown ? '; SnapMirror status not reported for ' + dr.smUnknown + ' more' : '')}
   Feature Gaps:     ${fm.ontapCount === 0 ? 'N/A (ONTAP feature set; no ONTAP systems in scope)' : fm.fleetAvgScore < 60 ? 'LOW (' + fm.fleetAvgScore + '%) \u2014 significant enablement opportunity' : fm.fleetAvgScore < 80 ? 'MODERATE (' + fm.fleetAvgScore + '%)' : 'GOOD (' + fm.fleetAvgScore + '%)'}
   Warranty:         ${warranty.expired} expired, ${warranty.expiring30} <30d, ${warranty.expiring90} <90d
   HW Firmware:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore < 80 ? 'AT RISK (' + fw.overallFwScore + '%) — upgrade engagement opportunity' : 'CURRENT (' + fw.overallFwScore + '%)'}
@@ -24536,6 +24654,9 @@ OPPORTUNITY INTELLIGENCE:
 `;
 
   // Contract renewals
+  if ((expiringContracts._expired || []).length > 0) {
+    salesProposals += `${_dfLapsedText(expiringContracts)}  \u2192 Reinstate or renew: these systems currently have no active support entitlement.\n\n`;
+  }
   if (expiringContracts.length > 0) {
     salesProposals += `SUPPORT CONTRACT RENEWALS (${expiringContracts.length}) [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
@@ -24589,7 +24710,7 @@ OPPORTUNITY INTELLIGENCE:
   }
 
   // Security posture upsell
-  const arpGap = _ontapNE - arpEnabledCount;
+  const arpGap = _arpFactsNE.disabled;
   const fwGap = sysCount - fwCurrentCount;
   if (arpGap > 0 || fwGap > 0) {
     salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES [STANDARDS & ADOPTION]
@@ -24603,8 +24724,8 @@ OPPORTUNITY INTELLIGENCE:
   if (dr.unprotected.length > 0) {
     salesProposals += `\nDATA PROTECTION UPSELL [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-  ${dr.unprotected.length} system(s) without SnapMirror or MetroCluster protection:
-${dr.unprotected.map(n => `    • ${n}`).join('\n')}
+  ${dr.unprotected.length} ONTAP system(s) with no SnapMirror or MetroCluster configured${dr.smUnknown ? ' (SnapMirror status not reported for ' + dr.smUnknown + ' more)' : ''}:
+${dr.unprotected.slice(0, 12).map(n => `    • ${n}`).join('\n')}${dr.unprotected.length > 12 ? `\n    + ${dr.unprotected.length - 12} more` : ''}
   → SnapMirror async/sync licensing + destination capacity
   → Cloud Volumes ONTAP as DR target (AWS/Azure/GCP)
   → MetroCluster IP for zero-RPO metro-distance sites
@@ -24616,7 +24737,7 @@ ${dr.unprotected.map(n => `    • ${n}`).join('\n')}
     salesProposals += `\nCAPACITY EXPANSION [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
   ${cap.redCount} system(s) in RED capacity zone, ${cap.atRisk.length} with <60d runway:
-${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct}% used, ${a.runway}d remaining`).join('\n')}
+${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct != null ? a.utilPct + '% used, ' : ''}${a.runway}d remaining`).join('\n')}
   → Additional disk shelves or Flash Cache
 ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? '  → FabricPool auto-tiering to object storage (reduce primary cost)\n' : ''}  → Keystone capacity-on-demand (burst without CAPEX)
 `;
@@ -24639,14 +24760,14 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   const avgSupportCostPerSystem = 8500; // Estimated annual avg
   targetSystems.forEach(s => {
     if (s.efficiency) {
-      physTotalTB += (s.efficiency.physicalUsedBytes || 0) / (1024**4);
-      logTotalTB += (s.efficiency.logicalUsedBytes || 0) / (1024**4);
-      savedTotalTB += (s.efficiency.savedBytes || 0) / (1024**4);
+      physTotalTB += s.efficiency.physicalUsedTB || 0;
+      logTotalTB += s.efficiency.logicalUsedTB || 0;
+      savedTotalTB += s.efficiency.spaceSavedTB || 0;
     }
     if (s.lifecycle && s.lifecycle.isNearEos) eosaCount++;
   });
   const avgDRRatio = physTotalTB > 0 ? (logTotalTB / physTotalTB).toFixed(1) : 'N/A';
-  const costAvoidanceMonthly = Math.round(savedTotalTB * 50);
+  const costAvoidanceMonthly = Math.round(savedTotalTB * (state.costPerTiB || 0));
   const annualMaintenance = sysCount * avgSupportCostPerSystem;
   const eosaPremium = Math.round(eosaCount * avgSupportCostPerSystem * 0.45);
   const unsupportedRiskCost = critCount * 25000; // Estimated per-incident exposure
@@ -24664,7 +24785,6 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   Modernized Fleet (AFF A-Series / Keystone):
     Data Reduction Improvement:  ${avgDRRatio}:1 current -> est. 4:1+ (industry benchmark)
     Space Saved:                 ${savedTotalTB.toFixed(1)} TB ($${costAvoidanceMonthly.toLocaleString()}/month cost avoidance)
-    Power Reduction:             est. ${Math.round(savedTotalTB * 0.5)} kW avoided
     Rack Consolidation:          est. ${Math.max(1, Math.round(sysCount * 0.15))} fewer rack units
 
   Investment Options:
@@ -32572,7 +32692,7 @@ const SUCCESS_PLAN_TEMPLATES = [
     metrics: ['REDUCED_RECOVERY_TIME_OBJECTIVE', 'REDUCED_OPERATIONAL_RISK'],
     evaluate(systems) {
       const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
-      const unprotected = systems.filter(s => _smCount(s) === 0 && !s.isMetroCluster && !s.isSyncMirror);
+      const unprotected = systems.filter(s => _platformFamily(s) === 'ontap' && s.snapMirrorReported !== false && _smCount(s) === 0 && !s.isMetroCluster && !s.isSyncMirror);
       if (unprotected.length === 0) return null;
       return {
         metricLabel: 'Systems with no SnapMirror, MetroCluster, or SyncMirror protection', metricValue: unprotected.length, targetDirection: 'down',
