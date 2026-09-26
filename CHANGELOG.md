@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.86] - 2026-09-26
+
+### Added
+- New deliverable: Customer Health & Lifecycle Report, written to be pasted straight into a presentation or customer document (Markdown tables, customer-facing wording, no internal notes, only that customer's data). Sections: summary, per-system estate table (model, software, site, last AutoSupport, support end, hardware support end), support and lifecycle (lapsed and expiring contracts, software support windows by version with recommended target, hardware end-of-availability/end-of-support by model), security (unique CVEs and top items, ARP), monitoring, capacity and efficiency, data protection, open cases, and prioritised next steps. Uses enrichment data that no other document printed (software/hardware support dates, recommended releases, AutoSupport recency, sustainability score).
+- One CVE inventory for every document: KB articles and vendor bug ids (KB-..., CONTAP-...) are no longer counted as CVEs, and advisories that list several CVEs contribute each one. The Customer Success Plan now labels its list as critical/high advisories and states the total unique CVE count beside it.
+
+---
+
 ## [5.6.85] - 2026-09-26
 
 ### Fixed
