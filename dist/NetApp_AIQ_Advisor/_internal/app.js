@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.86";
+const APP_VERSION = "5.6.87";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.87",
+    date: "26 September 2026",
+    title: "All Deliverables Reviewed for External Use",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Deliverable Accuracy",
+        color: "#22c55e",
+        items: [
+          "Every remaining Action Planner document was read against real customer data and corrected so it can be handed out: Problem Statements, Customer Communications, Solution Proposals, Sales Proposals, QBR Pack, MSP Service Report, Risk & Remediation Brief, Security Brief, Sustainability Report, Handover Brief, TAM Success Plan, Change Tickets and Implementation Plans.",
+          "Corrective actions: an OS upgrade is now listed as the fix only for CVE and software-version findings. Hardware end-of-availability, volume-full, VLDB, Kerberos and drive findings were being listed as 'resolved by upgrade to ONTAP x'. A fix that covers several systems lists each distinct finding once with its system count instead of repeating it per system, and no longer borrows the first finding's root cause and steps for the whole group.",
+          "Hardware end of availability is 'medium' unless end of support is within 24 months (it only stops new orders); the risk text no longer contains internal wording. The Risk & Remediation Brief now finds EOA hardware from the dates Active IQ reports (it always said 0).",
+          "Removed invented figures: the 3-year TCO and 'estimated savings' (replaced by facts Active IQ reports), power/CO2 estimates, 'admin time saved', the 45% support premium, a '12.44:1' aggregate efficiency ratio that contradicted the 1.2:1 above it, and the 'Keystone $X/TB' placeholder.",
+          "Sustainability: the Sustainability Report always said 'not scored' because it read a field that never exists; it now uses Active IQ's per-system scores. The account-wide (all tenants) score is never presented as a customer's own figure.",
+          "MSP Service Report listed the customer's corporate parents (Vodafone Group, Bollore, Hiperdist) as separate 'customers' with 0% / 390-risk rows; it now reports the customer in scope. Site lists no longer print partner postal addresses.",
+          "Third-party interoperability findings now come only from the vCenter versions Active IQ reports; the old substring guessing ('pve', 'prism', 'linux', 'sap') produced findings for products the customer may not run. Vendor-guide lists exclude hardware models the customer does not own and per-model URLs that do not exist (StorageGRID), drop repeated identical actions, and no longer claim integrations were 'validated for your fleet'.",
+          "OS currency is counted over the systems it can be judged for (ONTAP with a recommended minimum, or an Active IQ upgrade assessment) instead of treating E-Series/StorageGRID as behind; AutoSupport 'Disabled' is worded 'not reporting' when Active IQ simply has no data. The Security Brief's CVE matrix uses the same CVE inventory as every other document, de-duplicates systems and no longer prints 'Upgrade firmware' as remediation for CVEs with no remediation text.",
+          "New tools/audit_deliverables.py: generates every deliverable for every customer scope in parallel headless browsers, dumps them to disk and flags placeholders, invented-figure phrases, NaN/undefined, cross-document number disagreements and other customers' names (44 scopes in about 35 seconds).",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.84",
     date: "26 September 2026",
@@ -16566,7 +16589,8 @@ function computeAccountHealthScore(targetSystems) {
   // ARP enablement — ONTAP systems as denominator; unknown-status systems count as unprotected
   const arpPct = nOntap > 0 ? ontapSys.filter(s => s.isARPEnabled === true).length / nOntap : 0;
   // Firmware currency
-  const fwPct = targetSystems.filter(_osIsCurrent).length / total;
+  const _fwK = targetSystems.filter(_osKnown).length;
+  const fwPct = _fwK > 0 ? targetSystems.filter(_osIsCurrent).length / _fwK : 0;
   // Hardware firmware currency (SP/MB/DQP/Drive composite)
   const hwFw = computeFleetFirmwareSummary(targetSystems);
   const hwFwPct = (hwFw && hwFw.ontapCount > 0 && typeof hwFw.overallFwScore === 'number') ? hwFw.overallFwScore / 100 : fwPct; // fallback to OS fw
@@ -16795,6 +16819,13 @@ function _nonOntapRollbackLines(sys) {
 // minimum-recommended version (unchanged). E-Series/StorageGRID never have that
 // field populated (it's ONTAP's minRecommendedVersion), so every one was counted
 // as BEHIND (0/33) -- use Active IQ's own upgrade recommendation for them.
+// Whether OS currency can be judged at all: ONTAP needs the running and recommended-minimum
+// versions; other families need Active IQ's upgrade assessment. Unknown is not "behind" --
+// documents count currency over the systems it can be judged for and say so.
+function _osKnown(s) {
+  if (_platformFamily(s) === 'ontap') return !!(s.swRecMin && s.osVersion);
+  return !!(s.upgrades && s.upgrades.targetVersion);
+}
 function _osIsCurrent(s) {
   if (_platformFamily(s) === 'ontap') return !!(s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin));
   return !!(s.upgrades && s.upgrades.targetVersion === 'Up to Date');
@@ -16948,6 +16979,29 @@ function _dfCveIndex(systems) {
     (sys.risks || []).forEach(r => (r.cveDetails || []).forEach(d => { if (d) add(d.id, d.severity, d.cvss || d.cvssScore, d.title || d.description, sys); }));
   });
   return map;
+}
+// Sustainability score for THIS scope. Active IQ's account-level score covers every tenant
+// on the account, so it must never be printed as a customer's own figure. Per-system scores
+// (latest of each system's history) are averaged; failing that, the per-customer score.
+function _dfSustain(systems) {
+  const per = (systems || []).map(s => (s.sustainabilityScores || [])[0]).filter(x => x && x.scorePercentage != null);
+  if (per.length) {
+    const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+    const ch = per.filter(x => x.percentageChange != null).map(x => x.percentageChange);
+    return { scorePercentage: Math.round(avg(per.map(x => x.scorePercentage)) * 10) / 10, percentageChange: ch.length ? Math.round(avg(ch) * 10) / 10 : null, n: per.length };
+  }
+  const ids = new Set((systems || []).map(s => s.customerId).filter(Boolean)), names = new Set((systems || []).map(s => s.customerName).filter(Boolean));
+  const m = (state.customers || []).filter(c => ids.has(c.id) || names.has(c.name));
+  const v = m.length === 1 ? (m[0].sustainabilityScorePercentage || {}).overall : null;
+  return v != null ? { scorePercentage: Math.round(v * 10) / 10, percentageChange: null, n: 0 } : {};
+}
+// Active IQ's security-advisory template names the FIRST product in the advisory ("AIQUM for
+// VMware vSphere has been determined to have a version or configuration exposed...") even when
+// the finding is raised against an ONTAP cluster, which reads as a mistake to a customer. Say
+// what is actually known: the advisory applies to a component of the software on this system.
+function _dfCleanCause(c) {
+  const m = String(c || '').match(/^.+? has been determined to have a version or configuration exposed to a vulnerability\.\s*Advisory ID:\s*([A-Z0-9-]+)\.?$/i);
+  return m ? `NetApp advisory ${m[1]} applies to a component of the software running on this system. Active IQ has matched the installed version as affected.` : c;
 }
 function _dfArpSentence(a) {
   return `enabled on ${a.enabled} of ${a.ontap} ONTAP systems (${a.disabled} confirmed disabled${a.unknown > 0 ? ', ' + a.unknown + ' not reported by Active IQ' : ''})`;
@@ -17932,17 +17986,19 @@ function enrichSystemTelemetry(s) {
       const eosDateStr = (_hasRealEoa && s.hwEndOfSupport) ? new Date(s.hwEndOfSupport).toISOString().split('T')[0] : null;
       risks.push({
         id: 504,
-        severity: "high",
+        // End of availability only stops NEW orders. It becomes urgent when support itself
+        // ends within 24 months (or already has); otherwise it is a planning item.
+        severity: (() => { const e = s.hwEndOfSupport ? Date.parse(s.hwEndOfSupport) : NaN; return !isNaN(e) && e - Date.now() > 730 * 86400000 ? "medium" : "high"; })(),
         category: "Lifecycle",
         description: _hasRealEoa
-          ? `Platform ${platformLabel} reached End-of-Availability (EOA) on ${eoaDateStr}${eosDateStr ? `, with End-of-Support (EOS) on ${eosDateStr}` : ''}. Real date reported directly by Active IQ for this system.`
-          : `Platform ${matchedEOA} has reached End-of-Availability (EOA). EOS timeline: Feature Release ~2yr post-EOA → Patch/Fix ~3yr → EOS ~5yr post-EOA. ⚠ This platform's EOA/EOS dates are from a manually-maintained snapshot, not a live feed -- NetApp's public EOA page stopped publishing per-model dates in a machine-readable form as of Sep 2026 (moved off the page this tool used to scrape, and not present in the PDF it now links to). Confirm the current date with your NetApp account team or Hardware Universe before acting on it.`,
+          ? `Platform ${platformLabel} reached End-of-Availability (EOA) on ${eoaDateStr}${eosDateStr ? `, with End-of-Support (EOS) on ${eosDateStr}` : ''} (dates as reported by Active IQ).`
+          : `Platform ${matchedEOA} has reached End-of-Availability (EOA). Support for this model is scheduled to end about five years after end of availability. The dates for this model come from a maintained reference list rather than from Active IQ, so confirm the exact dates for your serial number on the NetApp Support Site or Hardware Universe.`,
         recommendation: `Initiate tech-refresh evaluation. Current generation replacements: AFF A-Series (A20/A30/A50/A70/A90/A1K), AFF C-Series (C30/C60/C80), or ASA A-Series for SAN-only workloads.`,
         kbLink: "https://docs.netapp.com/us-en/ontap-systems/endofavail/",
         remediationPlan: {
           cause: _hasRealEoa
             ? `Active IQ reports ${platformLabel} reached End-of-Availability on ${eoaDateStr}${eosDateStr ? ` and reaches End-of-Support on ${eosDateStr}` : ''}. No new orders can be placed for this hardware.`
-            : `The ${matchedEOA} platform is listed on NetApp's official End-of-Availability page (as last confirmed by this tool). No new orders can be placed, and the EOS clock is ticking. NetApp's own public page no longer publishes per-model dates in a scrapeable form, so this tool's automated refresh cannot currently verify this date is still current -- treat it as a starting point, not a live status.`,
+            : `The ${matchedEOA} platform is on NetApp's End-of-Availability list, so no new units can be ordered. Confirm the end-of-support date for your serial number with NetApp before planning.`,
           impact: "Post-EOS, no further security patches or bug fixes will ship. Any CVE affecting this platform may have no vendor-supplied remediation path other than hardware refresh.",
           steps: [
             "1. Verify EOA/EOS dates for this specific serial: check Hardware Universe (hwu.netapp.com) or NetApp Support Site.",
@@ -19669,7 +19725,12 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
     // Determine the fix: use the system's recommended upgrade version if available
     const sys = sysLookup[r.systemName] || {};
     const targetVer = sys.recommendedVersion || (sys.upgrades || {}).targetVersion || '';
-    const isUpgradeAvailable = targetVer && targetVer !== 'Up to Date';
+    // An OS/firmware upgrade only fixes software-borne findings. Hardware lifecycle
+    // (end of availability/support), capacity, contract and configuration findings were being
+    // listed as "resolved by upgrade to ONTAP x", which no upgrade can do.
+    const _riskText = `${r.category || ''} ${r.description || ''} ${r.recommendation || ''}`.toLowerCase();
+    const _hardwareOrLifecycle = !(/cve-\d{4}-\d+/.test(_riskText) || /minimum recommended|below the (minimum|recommended)|ontap (version|release)|software (version|release)|upgrade to ontap|known bug|bug id|burt|memory leak|panic/.test(_riskText));
+    const isUpgradeAvailable = targetVer && targetVer !== 'Up to Date' && !_hardwareOrLifecycle;
 
     let fixKey = '';
     let fixLabel = '';
@@ -19782,6 +19843,19 @@ function _filterAndDeduplicateRisks(risks, targetSystems) {
   };
 
   return groups;
+}
+
+// One line per distinct finding with the number of systems it affects (a fix covering 12
+// clusters used to print the same CVE 12 times).
+function _dfCollapseFindings(findings) {
+  const m = new Map();
+  (findings || []).forEach(f => {
+    const k = `${(f.severity || '').toLowerCase()}|${f.description}`;
+    const e = m.get(k) || { description: f.description, severity: f.severity, systems: new Set() };
+    e.systems.add(f.systemName || '');
+    m.set(k, e);
+  });
+  return [...m.values()];
 }
 
 // ── Deliverable formatting helpers (delegate to canonical KPI functions) ──
@@ -19976,7 +20050,18 @@ function getFleetRelevantArticles(targetSystems) {
     return false;
   }
 
-  const candidateArticles = articles.filter(a => !isGenericPage(a));
+  // Hardware-model articles ("AFF-A150 -- Hardware Maintenance") apply only to a model the
+  // customer actually owns; a generic AFF/FAS match let other models' guides through.
+  const _normModel = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const _fleetModelTokens = new Set();
+  targetSystems.forEach(s => { [s.model, s.platform].forEach(x => { const t = _normModel(x); if (t) _fleetModelTokens.add(t); }); });
+  const _modelInTitle = a => { const m = String(a.title || '').match(/\b(?:aff|fas|asa|afx|ef)[- ]?[a-z]?\d{2,4}[a-z]?\b/i); return m ? _normModel(m[0]) : null; };
+  const _modelOwned = tok => [..._fleetModelTokens].some(f => f === tok || f.startsWith(tok + "-") );
+  // Per-model hardware guide URLs (docs.netapp.com/.../ontap-systems/<model>/...) must be for
+  // a model in this fleet; the generator also emitted them for StorageGRID and E-Series, where
+  // the path does not exist.
+  const _urlModel = a => { const m = String(a.url || '').match(/ontap-systems\/([a-z0-9-]+)\/(?:maintain-overview|install-setup)/i); return m ? _normModel(m[1]) : null; };
+  const candidateArticles = articles.filter(a => !isGenericPage(a) && (() => { const tok = _modelInTitle(a); return !tok || _modelOwned(tok); })() && (() => { const u = _urlModel(a); return !u || (u !== 'storagegrid' && _fleetModelTokens.has(u)); })());
 
   // ── Relevance scoring function ─────────────────────────────────────────
   function scoreArticle(a) {
@@ -20167,9 +20252,9 @@ function getFleetEnrichmentSections(targetSystems) {
 
   const versStr = [...fleetVersions].sort().join(', ') || 'N/A';
   const platStr = [...fleetPlatforms].join(', ') || 'N/A';
-  const modelStr = [...fleetModels].slice(0, 5).join(', ') || 'N/A';
+  const modelStr = [...fleetModels].join(', ') || 'N/A';
   const ontapClause = ontapCount > 0
-    ? `${ontapCount} system${ontapCount !== 1 ? 's' : ''} running ONTAP ${versStr} on ${platStr} (${modelStr})`
+    ? `${ontapCount} system${ontapCount !== 1 ? 's' : ''} running ONTAP ${versStr} on ${modelStr !== 'N/A' ? modelStr : platStr}`
     : '';
   const sgClause = sgCount > 0 ? `${sgCount} StorageGRID system${sgCount !== 1 ? 's' : ''} (${[...sgVersions].join(', ') || 'version unknown'})` : '';
   const esClause = esCount > 0 ? `${esCount} E-Series/SANtricity system${esCount !== 1 ? 's' : ''} (${[...esVersions].join(', ') || 'version unknown'})` : '';
@@ -20192,7 +20277,7 @@ function getFleetEnrichmentSections(targetSystems) {
     if (a._vendorGuideline && a.alignment && /e-series|santricity|storagegrid/.test(t + ' ' + u)) {
       return {
         covers: a.alignment,
-        action: a._gapAnalysis ? `⚠ COVERAGE GAP: ${a.alignment}` : `Review vendor alignment: ${a.alignment}`,
+        action: a._gapAnalysis ? `⚠ COVERAGE GAP: ${a.alignment}` : "Review against your deployed configuration",
         effort: a._gapAnalysis ? 'Requires assessment' : '1 hour review'
       };
     }
@@ -20452,7 +20537,7 @@ function getFleetEnrichmentSections(targetSystems) {
         covers: a.alignment,
         action: a._gapAnalysis
           ? `⚠ COVERAGE GAP: ${a.alignment}`
-          : `Review vendor alignment: ${a.alignment}`,
+          : "Review against your deployed configuration",
         effort: a._gapAnalysis ? 'Requires assessment' : '1 hour review'
       };
     }
@@ -20554,7 +20639,16 @@ function getFleetEnrichmentSections(targetSystems) {
   }
 
   function fmtRichSection(articles, max = 8) {
-    return articles.slice(0, max).map((a, i) => fmtRichArticle(a, i + 1)).join('\n');
+    // The same recommendation was printed once per article (e.g. the ARP action three times
+    // in a row); show it under the first article and leave it off the repeats.
+    const seenActions = new Set();
+    return articles.slice(0, max).map((a, i) => {
+      const block = fmtRichArticle(a, i + 1);
+      const ctx = getArticleContext(a);
+      if (ctx.action && seenActions.has(ctx.action)) return block.replace(`     Action: ${ctx.action}\n`, '').replace(/     CLI: [^\n]*\n/, '').replace(/     Effort: [^\n]*\n/, '');
+      if (ctx.action) seenActions.add(ctx.action);
+      return block;
+    }).join('\n');
   }
 
   // Brief format for email-style deliverables
@@ -20586,7 +20680,7 @@ function getFleetEnrichmentSections(targetSystems) {
   const counts = {};
 
   // ── Fleet context header (used in all sections) ─────────────────────────
-  const fleetHeader = `Based on fleet analysis: ${fleetCtx}.\nARIA enrichment engine matched ${allArticles.length} vendor documents specific to your deployed hardware and software.\n`;
+  const fleetHeader = `Based on fleet analysis: ${fleetCtx}.\n${allArticles.length} NetApp reference documents matched to your deployed hardware and software.\n`;
 
   // ── 1. Problem Statements — security + operational intelligence ──
   {
@@ -20620,7 +20714,7 @@ function getFleetEnrichmentSections(targetSystems) {
     counts.customerComms = allArticles.length;
     if (allArticles.length > 0) {
       let block = `\nENRICHMENT INTELLIGENCE SUMMARY\n--------------------------------------------------------------------------------\n`;
-      block += `As part of our proactive fleet management, the ARIA enrichment engine has\nidentified ${allArticles.length} vendor documents specifically relevant to your deployed\ninfrastructure (${fleetCtx}).\n\n`;
+      block += `As part of our proactive management of your environment, we have\nidentified ${allArticles.length} vendor documents specifically relevant to your deployed\ninfrastructure (${fleetCtx}).\n\n`;
       block += `Key areas of coverage:\n`;
       if (secArticles.length > 0) block += `  ■ Security & Compliance: ${secArticles.length} guide(s) — covering hardening, encryption, and ransomware protection\n`;
       if (vendorArticles.length > 0) block += `  ■ 3rd-Party Vendor Guidelines: ${vendorArticles.length} document(s) — backup, hypervisor, switch, database, and cyber vendor alignment\n`;
@@ -20632,7 +20726,7 @@ function getFleetEnrichmentSections(targetSystems) {
       if (troubleArticles.length > 0) block += `  ■ Troubleshooting: ${troubleArticles.length} article(s) — known issues and resolution procedures\n`;
       if (opsArticles.length > 0) block += `  ■ Operations: ${opsArticles.length} guide(s) — administration and configuration references\n`;
       if (bpArticles.length > 0) block += `  ■ Best Practices: ${bpArticles.length} guide(s) — NetApp-recommended configuration baselines\n`;
-      if (refArchArticles.length > 0) block += `  ■ Reference Architectures: ${refArchArticles.length} document(s) — NVA, FlexPod CVD, and Technical Reports aligned to your fleet\n`;
+      if (refArchArticles.length > 0) block += `  ■ Reference Architectures: ${refArchArticles.length} document(s) — NVA, FlexPod CVD, and Technical Reports relevant to your platforms\n`;
       if (perfArticles.length > 0) block += `  ■ Performance: ${perfArticles.length} guide(s) — tuning, QoS, and workload optimization\n`;
       block += `\nFull reference library: ${allArticles.length} document(s) covering your deployed platforms and software versions.\n`;
       block += `These references are version-matched to your fleet and available in detailed form in the attached deliverables.\n`;
@@ -20679,8 +20773,8 @@ function getFleetEnrichmentSections(targetSystems) {
         block += fmtRichSection(vendorArticles, 15) + '\n';
       }
       if (integrationArticles.length > 0) {
-        block += `► ECOSYSTEM INTEGRATION (${integrationArticles.length} platforms)\n`;
-        block += `  The following 3rd-party integrations have been validated for your fleet:\n\n`;
+        block += `► ECOSYSTEM INTEGRATION (${integrationArticles.length} document${integrationArticles.length !== 1 ? 's' : ''})\n`;
+        block += `  Integration guidance relevant to the platforms in your estate:\n\n`;
         block += fmtRichSection(integrationArticles, 12) + '\n';
       }
       if (cloudArticles.length > 0) {
@@ -20697,7 +20791,7 @@ function getFleetEnrichmentSections(targetSystems) {
       }
       if (refArchArticles.length > 0) {
         block += `► CERTIFIED REFERENCE ARCHITECTURES & VALIDATED DESIGNS (${refArchArticles.length} documents)\n`;
-        block += `  NetApp Verified Architectures (NVA), FlexPod CVDs, and Technical Reports aligned to your fleet:\n\n`;
+        block += `  NetApp Verified Architectures (NVA), FlexPod CVDs, and Technical Reports relevant to your platforms:\n\n`;
         block += fmtRichSection(refArchArticles, 20) + '\n';
       }
       sections.solutionProposals = block;
@@ -20870,8 +20964,8 @@ function getFleetEnrichmentSections(targetSystems) {
       let block = `\n================================================================================\nSUPPORTING EVIDENCE [RISK EXPOSURE]\n================================================================================\nFleet Profile: ${fleetCtx}\n\n`;
       if (secArticles.length > 0) {
         block += `► SECURITY EXPOSURE — ${secArticles.length} vendor-published remediation guide(s)\n`;
-        block += `  Evidence: NetApp has published ${secArticles.length} security-specific documents that\n`;
-        block += `  directly address vulnerabilities and hardening requirements for this fleet.\n\n`;
+        block += `  NetApp publishes ${secArticles.length} security document${secArticles.length !== 1 ? 's' : ''} relevant to the platforms in this fleet\n`;
+        block += `  (hardening, ransomware protection and remediation guidance).\n\n`;
         block += fmtRichSection(secArticles, 4) + '\n';
       }
       if (upgradeArticles.length > 0) {
@@ -20888,8 +20982,7 @@ function getFleetEnrichmentSections(targetSystems) {
       }
       if (integrationArticles.length > 0) {
         block += `► ECOSYSTEM EXPANSION — ${integrationArticles.length} integration opportunity(ies)\n`;
-        block += `  Evidence: ${integrationArticles.length} validated integration paths available\n`;
-        block += `  for VMware, Kubernetes, database, automation, and cloud platforms.\n\n`;
+        block += `  ${integrationArticles.length} integration guide${integrationArticles.length !== 1 ? 's' : ''} relevant to the platforms in this fleet.\n\n`;
         block += fmtBriefIntel(integrationArticles, 5) + '\n\n';
       }
       sections.riskRemediationBrief = block;
@@ -21169,6 +21262,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
   const fwCurrent = targetSystems.filter(_osIsCurrent).length;
+  const fwKnown = targetSystems.filter(_osKnown).length;
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
 
   // ── Risk groups ──
@@ -21262,7 +21356,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     if (asup.unknown) {
       asupIssues.push({ name: sysNameModel, issue: "AutoSupport Not Reported", detail: "Active IQ did not return AutoSupport telemetry for this system -- status unverified, not confirmed healthy." });
     } else if (!asup.enabled) {
-      asupIssues.push({ name: sysNameModel, issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled." });
+      asupIssues.push({ name: sysNameModel, issue: "AutoSupport not reporting", detail: asup.failureReason && asup.failureReason !== "None" ? asup.failureReason : "AutoSupport is off or not configured on this system -- Active IQ has no telemetry for it." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
       asupIssues.push({ name: sysNameModel, issue: "AutoSupport Stale", detail: `No telemetry for ${asup.lastReceivedDays} days. Verify HTTPS (443) to support.netapp.com.` });
     }
@@ -21323,7 +21417,8 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     const refUrl = g.fixUrl || '';
     const refLine = refUrl ? `\n   -> Reference: ${refUrl}` : '';
     const stepsBlock = (() => {
-      // Pull enriched steps from the first finding's remediationPlan
+      // Steps belong to ONE finding; a group of different findings must not borrow the first one's
+      if (_dfCollapseFindings(g.findings).length > 1) return '';
       const firstFinding = g.findings[0];
       const plan = firstFinding && firstFinding.remediationPlan;
       if (plan && plan.steps && plan.steps.length > 0) {
@@ -21337,8 +21432,9 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       const nameWithModel = sys.platform ? `${firstFinding.systemName} (${sys.platform})` : firstFinding.systemName;
       return `${i+1}. [${g.severity.toUpperCase()}] ${nameWithModel}: ${firstFinding.description}\n   -> Fix: ${g.fix}${stepsBlock}${refLine}`;
     }
-    let text = `${i+1}. [${g.severity.toUpperCase()}] FIX: ${g.fix}  (resolves ${g.count} finding${g.count > 1 ? 's' : ''} across ${sysLabel})`;
-    g.findings.forEach(f => { text += `\n     • [${(f.severity || '').toUpperCase()}] ${f.description}`; });
+    const _uf = _dfCollapseFindings(g.findings);
+    let text = `${i+1}. [${g.severity.toUpperCase()}] FIX: ${g.fix}  (resolves ${_uf.length} distinct finding${_uf.length !== 1 ? 's' : ''}, ${g.count} occurrence${g.count !== 1 ? 's' : ''} across ${sysLabel})`;
+    _uf.forEach(f => { text += `\n     • [${(f.severity || '').toUpperCase()}] ${f.description}${f.systems.size > 1 ? ` (${f.systems.size} systems)` : ''}`; });
     text += stepsBlock;
     text += refLine;
     return text;
@@ -21388,8 +21484,8 @@ ${platformLines}
 
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
-  - ARP Coverage:            ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' *' : ''}
-  - OS Currency:             ${fwCurrent}/${systemCount} (${systemCount > 0 ? Math.round(fwCurrent/systemCount*100) : 0}%) — running recommended OS baseline
+  - ARP Coverage:            ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported by Active IQ)' : ''}
+  - OS Currency:             ${fwCurrent}/${fwKnown} (${fwKnown > 0 ? Math.round(fwCurrent/fwKnown*100) : 0}%) — running recommended OS baseline${fwKnown < systemCount ? ` (${systemCount - fwKnown} system${systemCount - fwKnown !== 1 ? 's' : ''} without a recommended version reported are excluded)` : ''}
   - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Support Contract Coverage: ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active per Active IQ's contract data
 
@@ -21509,10 +21605,8 @@ ${formatCostOfInactionText(targetSystems)}
 
 ${compilePerformanceText(targetSystems)}* FINANCIAL IMPACT & ROI SUMMARY [METRICS + OWNERSHIP]
   Space Reclaimed via Data Reduction:  ${totalSavedTB.toFixed(1)} TB
-  Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at $${state.costPerTiB}/TB/month)
+  Estimated Cost Avoidance:            $${(totalSavedTB * state.costPerTiB).toLocaleString()}/month (at the configured rate of $${state.costPerTiB} per TB per month)
   Warranty Coverage Gap Risk:          ${computeFleetWarrantyStatus(targetSystems).warrantyExpired} systems past hardware warranty end date
-${targetSystems.some(s => s.lifecycle && s.lifecycle.isNearEos) ? `  Support Premium Increase (EOSA):     ~45% increase for ${targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length} system(s) at or near end of support availability (illustrative rate; confirm actual renewal pricing with NetApp)
-` : ''}
 
 --------------------------------------------------------------------------------
 4. PHASED ENVIRONMENTAL POSTURE REMEDIATION ROADMAP (TAM PRACTICE)
@@ -21700,7 +21794,8 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
 
   // ── Firmware Currency ──
   const fwCurrent = targetSystems.filter(_osIsCurrent).length;
-  const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
+  const fwKnown = targetSystems.filter(_osKnown).length;
+  const fwPct = fwKnown > 0 ? ((fwCurrent / fwKnown) * 100).toFixed(0) : 0;
 
   // ── Support Contract Coverage (real: isContractActive from Active IQ) ──
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
@@ -21740,18 +21835,17 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       const sys = targetSystems.find(s => s.systemName === name);
       return sys && sys.platform ? `${name} (${sys.platform})` : name;
     }).join(', ');
-    const plan = g.remediationPlan || {};
+    const plan = (_dfCollapseFindings(g.findings).length <= 1 ? g.remediationPlan : null) || {};
     let entry = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${_truncate(g.fix)}`;
     if (g.count > 1) entry += ` (${g.count} findings across ${sysLabel})`;
     else entry += ` — ${sysLabel}`;
-    if (plan.cause) entry += `\n       Root Cause: ${plan.cause}`;
+    if (plan.cause) entry += `\n       Root Cause: ${_dfCleanCause(plan.cause)}`;
     if (plan.impact) entry += `\n       Impact: ${plan.impact}`;
     return entry;
   }).join('\n\n');
 
   // ── Sustainability ──
-  const scores = state.tamSustainability || [];
-  const latest = scores[0] || {};
+  const latest = _dfSustain(targetSystems);
   let sustainSection = '  No sustainability data available. Run a data refresh to load fleet scores.\n';
   if (latest.scorePercentage != null) {
     const wowChange = (latest.percentageChange || 0) >= 0 ? `+${latest.percentageChange || 0}` : `${latest.percentageChange}`;
@@ -21765,8 +21859,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
       }
     });
     const drr = physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '—';
-    sustainSection = `  Fleet Sustainability Score (all tenants): ${latest.scorePercentage}%
-  Week-over-Week Change:  ${wowChange}%
+    sustainSection = `  Sustainability Score (Active IQ): ${latest.scorePercentage}%${latest.n > 1 ? ' (average of ' + latest.n + ' systems)' : ''}${latest.percentageChange != null ? '\n  Change since previous score:  ' + wowChange + '%' : ''}
 
   Storage Efficiency:
     Total Physical Used:  ${physTotal.toFixed(1)} TB
@@ -21808,7 +21901,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const qbrMultiAcct = Object.keys(qbrAcctLabels).length > 1;
   let recsSection = '  No recommendations available.\n';
   if (recs.length > 0) {
-    recsSection = `  NOTE: Active IQ recommendation scores reflect the full TAM fleet for the account(s) in scope, not just this customer's systems. Scoped system count: ${total} systems.` +
+    recsSection = `  Source: Active IQ recommendations. Percentages are Active IQ's own scores for the account's installed base.${(expiringContracts._expired || []).length ? ' Entitlement-related scores only cover systems that have a current contract record; the lapsed contracts listed under Lifecycle & Renewal Pipeline are not reflected in them.' : ''}` +
       (qbrMultiAcct ? ` This scope spans multiple accounts (${Object.values(qbrAcctLabels).join(', ')}) -- where the same check appears more than once below, each instance is a distinct account.` : '') +
       `\n\n`;
     const byCat = {};
@@ -21986,8 +22079,8 @@ Prepared: ${salesRep}
 2. OPERATIONAL HEALTH SCORECARD [METRICS]
 --------------------------------------------------------------------------------
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
-  ARP Coverage:             ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' *' : ''}
-  OS Currency:              ${fwCurrent}/${total} systems (${fwPct}%) — running recommended OS version
+  ARP Coverage:             ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported by Active IQ)' : ''}
+  OS Currency:              ${fwCurrent}/${fwKnown} systems (${fwPct}%) — running recommended OS version
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Support Contract Coverage: ${contractActive}/${total} systems (${contractPct}%) — active per Active IQ's contract data
 
@@ -22090,8 +22183,7 @@ ${techRefreshLines}
 11. ACTION ITEMS & NEXT STEPS [REMEDIATION PLAN]
 --------------------------------------------------------------------------------
   □ Schedule follow-up meeting for ${followUp}
-  □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}
-  □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
+${renewCount > 0 ? `  □ Initiate contract renewals for ${renewCount} expiring system${renewCount !== 1 ? 's' : ''}\n` : ''}  □ Plan maintenance window for ${correctiveCount} corrective action${correctiveCount !== 1 ? 's' : ''}
 ${unprotectedArp > 0 ? `  □ Review ARP enablement on ${unprotectedArp} system${unprotectedArp !== 1 ? 's' : ''} with ARP confirmed disabled` : '  □ ARP enablement: no ONTAP system has ARP confirmed disabled'}
   □ Address ${staleAsup} stale AutoSupport connection${staleAsup !== 1 ? 's' : ''}
   □ Validate ITIL Change Control process for all planned remediation items
@@ -22127,7 +22219,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Per-Customer Grouping ──
   const mspCustomers = {};
   targetSystems.forEach(s => {
-    const cName = s.domesticParentName || s.customerName || 'Unknown';
+    const cName = s.customerName || s.domesticParentName || 'Unknown';
     if (!mspCustomers[cName]) {
       mspCustomers[cName] = { 
         systems: [], 
@@ -22160,9 +22252,9 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   });
   
   allRisks.forEach(r => {
-    const s = targetSystems.find(sys => sys.systemName === r.systemName);
+    const s = targetSystems.find(sys => r.serialNumber ? sys.serialNumber === r.serialNumber : sys.systemName === r.systemName);
     if (s) {
-      const cName = s.domesticParentName || s.customerName || 'Unknown';
+      const cName = s.customerName || s.domesticParentName || 'Unknown';
       if (mspCustomers[cName]) mspCustomers[cName].risks++;
     }
   });
@@ -22212,7 +22304,8 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
 
   // ── Firmware Currency ──
   const fwCurrent = targetSystems.filter(_osIsCurrent).length;
-  const fwPct = total > 0 ? ((fwCurrent / total) * 100).toFixed(0) : 0;
+  const fwKnown = targetSystems.filter(_osKnown).length;
+  const fwPct = fwKnown > 0 ? ((fwCurrent / fwKnown) * 100).toFixed(0) : 0;
 
   // ── Critical risk count ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -22274,9 +22367,9 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
       const sys = targetSystems.find(s => s.systemName === name);
       return sys && sys.platform ? `${name} (${sys.platform})` : name;
     }).join(', ');
-    const plan = g.remediationPlan || {};
+    const plan = (_dfCollapseFindings(g.findings).length <= 1 ? g.remediationPlan : null) || {};
     let line = `  ${i + 1}. [${(g.severity || '').toUpperCase()}] ${_truncate(g.fix)}  (${g.count} finding${g.count > 1 ? 's' : ''} — ${sysLabel})`;
-    if (plan.cause) line += `\n       Root Cause: ${plan.cause}`;
+    if (plan.cause) line += `\n       Root Cause: ${_dfCleanCause(plan.cause)}`;
     if (plan.impact) line += `\n       Impact: ${plan.impact}`;
     return line;
   }).join('\n\n') || '  No outstanding corrective actions.';
@@ -22284,7 +22377,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Next Period ──
   const staleAsup = total - asupCompliant;
   const unprotectedArp = _ontapSys.filter(s => s.isARPEnabled === false).length;
-  const fwBehind = total - fwCurrent;
+  const fwBehind = fwKnown - fwCurrent;
 
   return `================================================================================
 MANAGED SERVICE PROVIDER — SERVICE DELIVERY REPORT
@@ -22301,8 +22394,7 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Support Contract Coverage: ${activeContracts}/${total} (${contractPct}%) active per Active IQ's contract data
   ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
   HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
-  Average System Age:        ${avgAge} years
-
+${avgAge !== '—' ? `  Average System Age:        ${avgAge} years\n` : ''}
 --------------------------------------------------------------------------------
 2. PER-CUSTOMER HEALTH DASHBOARD [METRICS]
 --------------------------------------------------------------------------------
@@ -22394,11 +22486,9 @@ ${unprotectedArp > 0 ? `  □ Enable ARP on ${unprotectedArp} system${unprotecte
 12. PARTNER VALUE STATEMENT
 --------------------------------------------------------------------------------
   Total Data Managed:       ${logTotal.toFixed(1)} TB
-  Storage Cost Avoidance:   $${(savedTotal * state.costPerTiB).toLocaleString()} / month (at $${state.costPerTiB}/TB)
-  Critical Risks Identified: ${critCount} critical issue${critCount !== 1 ? 's' : ''} flagged proactively before customer impact
-  Admin Time Saved:         ~${total * 2} hours/month via automated telemetry and monitoring
-                            (ESTIMATE: 2 hrs/system/month manual-monitoring offset, not a measured value — do not cite externally)
-  Next Quarter Focus:       ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'Expand ARP coverage to 100% and initiate' : 'Initiate'} tech refresh for ${ages.filter(a=>a>5).length} aged systems.
+  Storage Cost Avoidance:   $${(savedTotal * state.costPerTiB).toLocaleString()} / month (at the configured rate of $${state.costPerTiB} per TB per month)
+  Critical Risks Open:      ${critCount}
+  Next Quarter Focus:       ${[targetSystems.some(s => _platformFamily(s) === 'ontap') && _dfArpFacts(targetSystems).disabled > 0 ? 'enable ARP on the ' + _dfArpFacts(targetSystems).disabled + ' ONTAP system' + (_dfArpFacts(targetSystems).disabled !== 1 ? 's' : '') + ' where it is disabled' : '', ages.filter(a => a > 5).length > 0 ? 'plan tech refresh for ' + ages.filter(a => a > 5).length + ' system' + (ages.filter(a => a > 5).length !== 1 ? 's' : '') + ' older than 5 years' : ''].filter(Boolean).join('; ') || 'maintain current posture'}.
 ================================================================================`;
 }
 
@@ -22440,7 +22530,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
       logTotal += s.efficiency.logicalUsedTB || 0;
       savedTotal += s.efficiency.spaceSavedTB || 0;
     }
-    if (s.projections && s.projections.daysToLimit !== null && s.projections.daysToLimit !== undefined) {
+    if (s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 3650) {
       daysToLimitSum += s.projections.daysToLimit;
       capacityRunwayCount++;
     }
@@ -22465,11 +22555,12 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
   const fwCurrent = targetSystems.filter(_osIsCurrent).length;
+  const fwKnown = targetSystems.filter(_osKnown).length;
   const activeContracts = targetSystems.filter(s => s.contractActive === true).length;
   
   const asupPct = total > 0 ? Math.round((asupCompliant / total) * 100) : 0;
   const arpPct = _ontapN > 0 ? Math.round((arpCount / _ontapN) * 100) : 0;
-  const fwPct = total > 0 ? Math.round((fwCurrent / total) * 100) : 0;
+  const fwPct = fwKnown > 0 ? Math.round((fwCurrent / fwKnown) * 100) : 0;
   const contractPct = total > 0 ? Math.round((activeContracts / total) * 100) : 0;
 
   const domesticParent = (targetSystems.find(s => s.domesticParentName) || {}).domesticParentName || '—';
@@ -22496,7 +22587,6 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   STORAGE EFFICIENCY OPPORTUNITIES (Per-Aggregate, Real Active IQ Data)
   ─────────────────────────────────────────────────────────────────────────────
     Systems with Aggregate Detail:   ${_aggReporting.length}/${total}
-    Avg Storage Efficiency Ratio:    ${_aggAvgRatio != null ? `${_aggAvgRatio}:1 (without snapshots)` : 'N/A'}
     Systems w/ Dedup/Compression Disabled on ≥1 Aggregate: ${_aggSisDisabledSys.length}
     Systems w/ Non-FabricPool Aggregates:                  ${_aggNoFabricPoolSys.length}
 ` : '';
@@ -22513,7 +22603,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const uniqueOntapVersions = new Set(targetSystems.filter(s => s.osVersion).map(s => s.osVersion)).size;
 
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
-  const fwBehind = total - fwCurrent;
+  const fwBehind = fwKnown - fwCurrent;
 
   const expiring90 = expiringContracts.filter(c => c.daysRemaining <= 90).length;
   const expiredContracts = targetSystems.filter(s => s.contractActive === false).length;
@@ -22536,7 +22626,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   const coiBullets = [];
   if (coi.critRisks > 0) coiBullets.push(`    • ${coi.critRisks} Critical Risks threatening availability/performance`);
   if (coi.highRisks > 0) coiBullets.push(`    • ${coi.highRisks} High Risks requiring attention`);
-  if (coi.cves > 0) coiBullets.push(`    • ${coi.cves} Unpatched Security Vulnerabilities (CVEs)`);
+  if (coi.cves > 0) coiBullets.push(`    • ${coi.cves} unique CVEs (all severities) applicable to the deployed software`);
   if (coi.eosaSystems > 0) coiBullets.push(`    • ${coi.eosaSystems} Systems facing End of Software Availability`);
   if (coi.capacityRed > 0) coiBullets.push(`    • ${coi.capacityRed} Systems with critical capacity constraints (<60 days)`);
   if (coi.noArp > 0) coiBullets.push(`    • ${coi.noArp} ONTAP systems with Autonomous Ransomware Protection confirmed disabled${coi.arpUnknown ? ' (' + coi.arpUnknown + ' more not reported)' : ''}`);
@@ -22558,8 +22648,10 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
     return (now - d.getTime()) > 5 * 365.25 * 24 * 60 * 60 * 1000;
   }).length;
   
-  const eoaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isEoa);
-  const eoaLines = eoaSystems.map(s => `    - ${s.systemName} (${s.platform || 'Unknown'})`).join('\n');
+  const eoaSystems = targetSystems.filter(s => { const d = s.hwEndOfAvailability || (s.lifecycle && s.lifecycle.eoaDate); const t = d ? Date.parse(d) : NaN; return !isNaN(t) && t <= Date.now(); });
+  const _eoaGroups = {};
+  eoaSystems.forEach(s => { const m = s.model || s.platform || 'Unknown'; const g = _eoaGroups[m] = _eoaGroups[m] || { n: 0, eos: s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate) }; g.n++; });
+  const eoaLines = Object.entries(_eoaGroups).map(([m, g]) => `    - ${m}: ${g.n} system${g.n !== 1 ? 's' : ''}${g.eos ? ' (end of hardware support ' + new Date(g.eos).toISOString().split('T')[0] + ')' : ''}`).join('\n');
 
   return `================================================================================
   RISK & REMEDIATION BRIEF
@@ -22572,7 +22664,7 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   ─────────────────────────────────────────────────────────────────────────────
     Data Reduction Ratio:     ${drr}:1 (dedupe + compression, excl. snapshots)
     Space Saved:              ${savedTotal.toFixed(1)} TB
-    Capacity Runway:          ${runway} days to 90% (average)
+    Capacity Runway:          ${runway === '—' ? 'not available' : runway + ' days to 90% (average of systems projected to fill within 10 years)'}
     Sustainability Score:     ${avgSustLabel}
     Operational Compliance:   ASUP ${asupPct}% | ARP ${_ontapN > 0 ? arpPct + '%' : 'N/A'} | FW Current ${fwPct}%
     Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
@@ -22587,20 +22679,18 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
   ─────────────────────────────────────────────────────────────────────────────
     Domestic Parent:          ${domesticParent}
     Sales Representative:     ${salesRep}
-    Propensity Category:      ${propCategory}
-    Next Best Action:         ${nextBestAction}
 
   STANDARDS & ADOPTION (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
     Feature Adoption Score:   ${featureScores.length > 0 ? avgFeaturePct + '% fleet average (ARP/FabricPool/SnapMirror/HA/AutoSupport, ~' + avgFeaturePassed + ' of 5 features per system)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}
-    ARP Enablement:           ${_ontapN > 0 ? arpCount + '/' + _ontapN : 'N/A (no ONTAP systems)'}${arpKnownSys.length < _ontapN ? ' *' : ''}
+    ARP Enablement:           ${_ontapN > 0 ? arpCount + '/' + _ontapN : 'N/A (no ONTAP systems)'}${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported)' : ''}
     FabricPool Adoption:      ${_ontapN > 0 ? fpAdopted + '/' + _ontapN : 'N/A'}
 
     SnapMirror Usage:         ${_ontapN > 0 ? smAdopted + '/' + _ontapN : 'N/A'}
     HA Configured:            ${_ontapN > 0 ? haAdopted + '/' + _ontapN : 'N/A'}
-    OS Currency:              ${fwCurrent}/${total} on recommended version
+    OS Currency:              ${fwCurrent}/${fwKnown} on recommended version
     Software Currency Index:  ${swIndex} versions behind GA (avg)
-    Fleet Diversity:          ${uniqueOntapVersions} unique ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'ONTAP' : 'OS'} versions across ${total} systems
+    Fleet Diversity:          ${uniqueOntapVersions} unique ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'ONTAP' : 'OS'} versions across ${targetSystems.filter(s => _platformFamily(s) === 'ontap').length || total} ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'ONTAP ' : ''}systems
 ${aggEfficiencySection}
 ${compileSvmLifInventoryText(targetSystems)}
   REMEDIATION PLAN (Recommended Governance & Gates)
@@ -22619,14 +22709,14 @@ ${getSuccessPlanAlignmentText(targetSystems)}
     Expiring < 90 Days:       ${expiring90} systems
     Expired / Lapsed:         ${expiredContracts} systems
     Co-Term Opportunities:    ${cotermGroups.length} groups (${cotermSysCount} systems alignable)
-    Service Tiers:            
+    Service Tiers:
 ${tierLines}
 
   RISK EXPOSURE (Risk & Cost of Inaction)
   ─────────────────────────────────────────────────────────────────────────────
     Critical Risks:           ${coi.critRisks}
     High Risks:               ${coi.highRisks}
-    Unpatched CVEs:           ${coi.cves} security advisories
+    CVEs:                     ${coi.cves} unique (all severities)
     HW Firmware Gap:          ${(fw || {}).overallFwScore < 80 ? 'AT RISK (' + ((fw || {}).overallFwScore || 0) + '%)' : 'CURRENT (' + ((fw || {}).overallFwScore || 0) + '%)'}
     EOSA < 12 Months:         ${coi.eosaSystems} systems
     Capacity < 60 Days:       ${coi.capacityRed} systems
@@ -22636,7 +22726,7 @@ ${tierLines}
     ─────────────────────────────────────────────────────────────────────────
 ${coiText}
 
-  PRIMARY CONTACTS (Internal Advocate)
+  PRIMARY CONTACT
   ─────────────────────────────────────────────────────────────────────────────
     Primary Contact:          ${primContact}
     Email:                    ${email}
@@ -22669,8 +22759,9 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   // ── Sites ──
   const siteMap = {};
   targetSystems.forEach(s => {
-    const name = s.siteName || 'Unknown';
-    if (!siteMap[name]) siteMap[name] = { city: s.siteCity || '', country: s.siteCountry || '' };
+    // Some site names are a partner's postal address run together; use the city then.
+    const name = (s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || (s.siteName && s.siteName.length <= 45 ? s.siteName : '') || 'Unknown';
+    if (!siteMap[name]) siteMap[name] = { city: s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '', country: s.siteCountry || '' };
   });
   const uniqueSiteNames = Object.keys(siteMap);
   const siteLines = uniqueSiteNames.map(name => {
@@ -22844,11 +22935,8 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   if (_matchedCustomers.length === 1 && _custScores.length === 1) {
     talkingPoints.push(`Sustainability score: ${_custScores[0]}%. Highlight environmental efficiency achievements with incoming account team.`);
   } else {
-    const scores = state.tamSustainability || [];
-    const latestScore = scores[0] || {};
-    if (latestScore.scorePercentage != null) {
-      talkingPoints.push(`Fleet sustainability score (all tenants on this Active IQ account, not this customer alone): ${latestScore.scorePercentage}%.`);
-    }
+    const _sc = _dfSustain(targetSystems);
+    if (_sc.scorePercentage != null) talkingPoints.push(`Sustainability score (Active IQ, average across this account's systems): ${_sc.scorePercentage}%.`);
   }
 
   const talkingPointsText = talkingPoints.length > 0
@@ -22898,7 +22986,7 @@ ${compileSvmLifSummaryText(targetSystems)}
 --------------------------------------------------------------------------------
 5. RISK & COMPLIANCE POSTURE
 --------------------------------------------------------------------------------
-  Total Risks:          ${allRisks.length} (Critical: ${critCount}, High: ${highCount})
+  Total Risks:          ${allRisks.filter(r => r.severity !== 'best_practice').length} (Critical: ${critCount}, High: ${highCount}, Medium: ${allRisks.filter(r => r.severity === 'medium').length}, Low: ${allRisks.filter(r => r.severity === 'low').length})
   Security Advisories:  ${secCount}
   Open Support Cases:   ${allSupportCases.length}
   ASUP Compliance:      ${asupPct}%
@@ -23007,7 +23095,7 @@ ${_kevAckLines}
   let securityRisks = [];
   let cveExposures = new Set();
   let systemsWithCve = new Set();
-  let arpEnabled = 0, fwCurrent = 0, kevExposures = 0;
+  let arpEnabled = 0, fwCurrent = 0, fwKnown = 0, kevExposures = 0;
   let arpKnown = 0;
 
   let oldestCveDate = null;
@@ -23019,6 +23107,7 @@ ${_kevAckLines}
     // firmware-update action below always claimed every single system needed
     // a firmware update, even when none did. swRecMin/osVersion + versionLt()
     // is the real OS-currency check used consistently everywhere else.
+    if (_osKnown(s)) fwKnown++;
     if (_osIsCurrent(s)) fwCurrent++;
 
     // securityBulletins (OS-version-matched advisories) is the other half of
@@ -23083,38 +23172,27 @@ ${_kevAckLines}
     : null;
   const exposureWindowText = daysSinceOldestCVE != null ? `${daysSinceOldestCVE} days` : 'Unknown (no CVE date data)';
 
-  const cveMap = new Map();
-  securityRisks.forEach(r => {
-    const _entries = Array.isArray(r.cveDetails) && r.cveDetails.length > 0
-      ? r.cveDetails.map(c => ({ key: c.id, cvss: c.cvssScore }))
-      : (r.title && r.title.toLowerCase().includes('cve') ? [{ key: r.title, cvss: null }] : []);
-    _entries.forEach(({ key, cvss }) => {
-      if (!key) return;
-      if (!cveMap.has(key)) {
-        cveMap.set(key, { severity: r.severity, cvss, count: 0, systems: new Set(), advisory: r.url || 'N/A', recommended: r.remediation || 'Upgrade firmware' });
-      }
-      let c = cveMap.get(key);
-      c.count++;
-      c.systems.add(r.system);
+  // Same CVE inventory as every other document (real CVE ids only; a bulletin listing several
+  // CVEs contributes each; systems de-duplicated), enriched with the advisory link and the
+  // vendor's own mitigation text where a bulletin or risk carries them.
+  const _cveIdx = _dfCveIndex(targetSystems);
+  cveExposures.clear(); Object.keys(_cveIdx).forEach(k => cveExposures.add(k));
+  systemsWithCve.clear(); Object.values(_cveIdx).forEach(c => c.systems.forEach(x => systemsWithCve.add(x)));
+  const _cveInfo = {};
+  const _noteInfo = (id, link, fix) => { id = String(id || '').toUpperCase(); const e = _cveInfo[id] = _cveInfo[id] || {}; if (link && !e.link) e.link = link; if (fix && !e.fix) e.fix = fix; };
+  targetSystems.forEach(sys => {
+    (sys.securityBulletins || []).forEach(b => {
+      const ids = new Set([...(String(b.cve || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.cveId || b.id || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.title || '').match(/CVE-\d{4}-\d{4,}/gi) || [])]);
+      ids.forEach(id => _noteInfo(id, b.link, b.mitigation || b.fixedIn));
     });
+    (sys.risks || []).forEach(r => (r.cveDetails || []).forEach(d => { if (d && d.id) _noteInfo(d.id, r.url || r.advisoryUrl || r.kbLink, r.remediation || r.recommendation); }));
   });
-  // OS-version-matched securityBulletins -- the other real CVE source, same
-  // union already used for the "CVE Exposure" headline count above. Without
-  // this, the matrix only ever saw native risk-linked CVEs, so a fleet whose
-  // CVEs came entirely from the bulletin match (common -- most fleets have
-  // none of their risks natively CVE-linked) printed "No specific CVEs
-  // detected" directly under a summary line reporting dozens of real CVEs.
-  targetSystems.forEach(s => {
-    (s.securityBulletins || []).forEach(b => {
-      const key = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
-      if (!key) return;
-      if (!cveMap.has(key)) {
-        cveMap.set(key, { severity: b.severity, cvss: b.cvss, count: 0, systems: new Set(), advisory: b.link || 'N/A', recommended: b.mitigation || 'Upgrade firmware' });
-      }
-      let c = cveMap.get(key);
-      c.count++;
-      c.systems.add(s.systemName);
-    });
+  const cveMap = new Map();
+  Object.values(_cveIdx).forEach(c => {
+    const info = _cveInfo[c.id] || {};
+    cveMap.set(c.id, { severity: c.sev || 'not rated', cvss: c.cvss || null, count: c.systems.size, systems: c.systems,
+      advisory: info.link || `https://nvd.nist.gov/vuln/detail/${c.id}`,
+      recommended: info.fix || 'See the linked advisory for the fixed release; no NetApp remediation text is recorded for this CVE' });
   });
 
   let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
@@ -23154,8 +23232,8 @@ ${_kevAckLines}
 
   let featureLines = `    Feature                 Enabled    Gap      Action Required
     ─────────────────────── ────────── ──────── ──────────────────────────────
-    ARP (Anti-Ransomware)   ${_fRatio(arpEnabled, arpKnown).padEnd(10)} ${_fGap(arpEnabled, arpKnown)}security anti-ransomware volume ...
-    (* = not reported by Active IQ API — verify on-cluster)\n`;
+    ARP (Anti-Ransomware)   ${(_ontapCountSec > 0 ? arpEnabled + '/' + _ontapCountSec : 'N/A').padEnd(10)} ${(_ontapCountSec > 0 ? String(arpKnown - arpEnabled) + ' confirmed disabled' : 'N/A')}${_ontapCountSec > arpKnown ? ', ' + (_ontapCountSec - arpKnown) + ' not reported' : ''}
+    ${_ontapCountSec > arpKnown ? 'Systems not reported by Active IQ should be verified on-cluster.' : ''}\n`;
 
   return `================================================================================
   SECURITY POSTURE EXECUTIVE BRIEF [RISK EXPOSURE + REMEDIATION PLAN]
@@ -23167,9 +23245,9 @@ ${kevAckBlock}
   ────────────────────────────────────────────────────────────────────────────
     Total Risks:              ${totalRisks} (Critical: ${critical}, High: ${high}, Medium: ${medium}, Low: ${low})
     Security-Specific Risks:  ${securityRisks.length}
-    CVE Exposure:             ${cveExposures.size} unique advisories across ${systemsWithCve.size} systems
+    CVE Exposure:             ${Object.keys(_cveIdx).length} unique CVEs (all severities) across ${new Set(Object.values(_cveIdx).flatMap(c => [...c.systems])).size} systems
     ARP Coverage:             ${_covTxt(arpEnabled, _ontapCountSec)} — Anti-Ransomware Protection
-    OS Currency:              ${fwCurrent}/${count} on recommended version
+    OS Currency:              ${fwCurrent}/${fwKnown} on recommended version
 ${(fw || {}).ontapCount === 0 ? `    HW Firmware Attack Surface: N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)` : `    HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
       SP Firmware: ${(fw || {}).spPct || 0}% current | MB Firmware: ${(fw || {}).mbPct || 0}% current
       DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current`}
@@ -23177,9 +23255,9 @@ ${(fw || {}).ontapCount === 0 ? `    HW Firmware Attack Surface: N/A (SP/BMC, BI
 
   2. COST OF INACTION — SECURITY
   ────────────────────────────────────────────────────────────────────────────
-    - ${cveExposures.size} CVE${cveExposures.size !== 1 ? 's' : ''} expose ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''} to known exploit vectors
+    - ${cveExposures.size} CVE${cveExposures.size !== 1 ? 's' : ''} expose ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''} (applicable to the deployed software versions)
 ${_ontapCountSec > 0 ? `    - ${_dfArpFacts(targetSystems).disabled} ONTAP system${_dfArpFacts(targetSystems).disabled !== 1 ? 's have' : ' has'} ARP confirmed disabled -> exposed to ransomware${_dfArpFacts(targetSystems).unknown ? ' (' + _dfArpFacts(targetSystems).unknown + ' more not reported by Active IQ)' : ''}
-` : ''}    - ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} on unsupported firmware -> no security patches
+` : ''}    - ${fwKnown - fwCurrent} system${fwKnown - fwCurrent !== 1 ? 's' : ''} not on the recommended OS release -> missing fixes included in that release
     - Exposure window (oldest tracked CVE): ${exposureWindowText}
 
   3. CVE REMEDIATION PRIORITY MATRIX
@@ -23206,7 +23284,7 @@ ${(() => {
     const actions = [];
     if (critical > 0) actions.push(`Patch ${critical} critical risk${critical !== 1 ? 's' : ''} immediately — see CVE Remediation Priority Matrix above`);
     { const _a = _dfArpFacts(targetSystems); if (_a.disabled > 0) actions.push(`Enable Anti-Ransomware Protection (ARP) on the ${_a.disabled} of ${_a.ontap} ONTAP system${_a.ontap !== 1 ? 's' : ''} where it is confirmed disabled${_a.unknown > 0 ? ' and verify the ' + _a.unknown + ' not reported by Active IQ' : ''}`); }
-    if (count - fwCurrent > 0) actions.push(`Update firmware on ${count - fwCurrent} system${count - fwCurrent !== 1 ? 's' : ''} running non-current versions`);
+    if (fwKnown - fwCurrent > 0) actions.push(`Update the OS on ${fwKnown - fwCurrent} system${fwKnown - fwCurrent !== 1 ? 's' : ''} not on the recommended release`);
     if (dr.unprotected.length > 0) actions.push(`Establish replication (SnapMirror/MetroCluster) for the ${dr.unprotected.length} ONTAP system${dr.unprotected.length !== 1 ? 's' : ''} with none configured: ${dr.unprotectedText.replace(/^\d+ confirmed with no SnapMirror or MetroCluster \(|\)(?=;|$)/g, '')}`);
     if (cveExposures.size > 0) actions.push(`Remediate ${cveExposures.size} tracked CVE${cveExposures.size !== 1 ? 's' : ''} affecting ${systemsWithCve.size} system${systemsWithCve.size !== 1 ? 's' : ''}`);
     if (actions.length === 0) return '    ✓ No outstanding security actions identified for this scope.\n';
@@ -23222,31 +23300,14 @@ ${(() => {
 // deliverables report the identical honest number instead of the Brief
 // separately inventing a DRR-derived score with no data-availability caveat.
 function computeHonestSustainabilityScore(targetSystems) {
-  let overallScoreSum = 0, systemsWithScore = 0;
-  targetSystems.forEach(s => {
-    if (s.sustainability && s.sustainability.overallScore != null) {
-      overallScoreSum += s.sustainability.overallScore;
-      systemsWithScore++;
-    }
-  });
-  if (systemsWithScore > 0) {
-    const avgScore = Math.round(overallScoreSum / systemsWithScore);
-    return { avgScore, avgScoreLabel: `${avgScore}/100` };
+  // Per-system scores (average of each system's latest), then the per-customer score; never
+  // the account-wide figure, which covers every tenant.
+  const sc = _dfSustain(targetSystems);
+  if (sc.scorePercentage != null) {
+    const avgScore = Math.round(sc.scorePercentage);
+    return { avgScore, avgScoreLabel: `${avgScore}%${sc.n > 1 ? ' (average of ' + sc.n + ' systems)' : ''}` };
   }
-  const _custIds = new Set(targetSystems.map(s => s.customerId).filter(Boolean));
-  const _custNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
-  const _matched = (state.customers || []).filter(c => _custIds.has(c.id) || _custNames.has(c.name));
-  const _custScores = _matched.map(c => (c.sustainabilityScorePercentage || {}).overall).filter(v => v != null);
-  if (_matched.length === 1 && _custScores.length === 1) {
-    const avgScore = Math.round(_custScores[0]);
-    return { avgScore, avgScoreLabel: `${avgScore}/100` };
-  }
-  const _fleet = (state.tamSustainability || [])[0];
-  if (_fleet && _fleet.scorePercentage != null) {
-    const avgScore = Math.round(_fleet.scorePercentage);
-    return { avgScore, avgScoreLabel: `${avgScore}/100 (fleet-wide, all tenants on this Active IQ account -- no per-system or per-customer score available for this scope)` };
-  }
-  return { avgScore: null, avgScoreLabel: 'N/A -- not scored by Active IQ at any level (system, customer, or fleet)' };
+  return { avgScore: null, avgScoreLabel: 'N/A -- Active IQ has not scored this scope' };
 }
 
 function compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw) {
@@ -23278,10 +23339,11 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     // both used to collapse to 0 via `|| 0`, which silently excluded systems
     // with a real 0 score from optimization recommendations (the `score > 0`
     // guard below) even though a true 0 is the case that most needs one.
-    const hasScoreData = !!(s.sustainability && s.sustainability.overallScore != null);
+    const _ss = (s.sustainabilityScores || [])[0];
+    const hasScoreData = !!(_ss && _ss.scorePercentage != null);
     if (!hasScoreData) noScoreDataCount++;
-    let score = hasScoreData ? s.sustainability.overallScore : 0;
-    let trend = s.sustainability ? s.sustainability.weekOverWeekChange || 0 : 0;
+    let score = hasScoreData ? _ss.scorePercentage : 0;
+    let trend = hasScoreData ? (_ss.percentageChange || 0) : 0;
     let logical = s.efficiency ? (s.efficiency.logicalUsedTB || s.efficiency.logicalData || 0) : 0;
     let physical = s.efficiency ? (s.efficiency.physicalUsedTB || s.efficiency.physicalCapacity || 0) : 0;
     let saved = s.efficiency ? (s.efficiency.spaceSavedTB || s.efficiency.spaceSaved || 0) : 0;
@@ -23309,7 +23371,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     // get a recommendation — previously indistinguishable from "no data" and
     // silently skipped, even though a true 0 is the case needing it most.
     if (hasScoreData && score < 50) {
-      if (!isFP) optimizationRecs.push(`    • ${s.systemName}: Enable FabricPool to tier cold data → est. 15% improvement`);
+      if (!isFP && _platformFamily(s) === 'ontap') optimizationRecs.push(`    • ${s.systemName}: Consider FabricPool to tier cold data to object storage`);
       if (drRatio < 2) optimizationRecs.push(`    • ${s.systemName}: Data reduction ${drRatio}:1 below fleet avg → review compaction`);
     }
   });
@@ -23324,8 +23386,6 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   const { avgScore, avgScoreLabel } = computeHonestSustainabilityScore(targetSystems);
   
   const totalDrRatio = totalPhysical > 0 ? (totalLogical / totalPhysical).toFixed(1) : 1;
-  const powerAvoided = Math.round(spaceSaved * 0.5); // 0.5 kW/TB
-  const co2Avoided = Math.round(powerAvoided * 0.5); // 0.5 kg CO2/kWh
 
   let recLines = optimizationRecs.join('\n');
   if (recLines.trim() === '') recLines = '    No urgent optimization recommendations found.';
@@ -23339,7 +23399,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
   1. FLEET SUSTAINABILITY SUMMARY
   ────────────────────────────────────────────────────────────────────────────
     Overall Sustainability Score:  ${avgScoreLabel}
-    Week-over-Week Trend:          ${avgTrend > 0 ? '+'+avgTrend : avgTrend}%
+    Change since previous score:   ${systemsWithScore > 0 ? (avgTrend > 0 ? '+' + avgTrend : avgTrend) + '%' : 'not available'}
     Systems Assessed:              ${systemsWithScore}/${count}${noScoreDataCount > 0 ? ` (${noScoreDataCount} system${noScoreDataCount > 1 ? 's' : ''} have no sustainability score reported by Active IQ)` : ''}
 
   2. EFFICIENCY & DATA REDUCTION IMPACT
@@ -23348,17 +23408,11 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     Total Logical Data:            ${totalLogical.toFixed(1)} TB
     Data Reduction Ratio:          ${totalDrRatio}:1 (dedupe + compression)
     Space Saved:                   ${spaceSaved.toFixed(1)} TB (equivalent shelves/racks not needed)
-    Estimated Power Avoided:       ${powerAvoided} kW *
-    Estimated CO2 Avoided:         ${co2Avoided} kg/year *
     Hardware Firmware Health:      ${(fw || {}).overallFwScore || 'N/A'}% — current firmware extends hardware operational lifespan
 
-    * ESTIMATE METHODOLOGY: Power/CO2 figures use generic planning-level factors
-      (0.5 kW/TB storage power draw, 0.5 kg CO2/kWh grid carbon intensity) — NOT
-      measured telemetry or region-specific grid data. These are directional
-      estimates for internal planning conversations only; do not cite externally
-      or in formal ESG/compliance reporting without validating against your
-      actual PUE, regional grid carbon intensity (e.g. EPA eGRID), and rack
-      power metering.
+    Power and carbon: Active IQ reports scores, not measured power or CO2. No
+    power or carbon figures are estimated here; for ESG reporting use your
+    metered power data and regional grid carbon intensity.
 
   3. PER-SYSTEM SUSTAINABILITY SCORES
   ────────────────────────────────────────────────────────────────────────────
@@ -23376,14 +23430,13 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
     Systems in RED zone (>85%): ${cap.redCount}/${count}
     <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
     Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}
-    Environmental Impact: ${cap.totalGrowthTBMo > 0 ? Math.round(cap.totalGrowthTBMo * 12 * 0.5) + ' kW additional power if not tiered *' : 'Minimal'}
     → ${_fpOntN === 0 ? 'FabricPool tiering does not apply (ONTAP-only; no ONTAP systems in scope)' : 'FabricPool tiering can offset ' + (fabricPoolCount < _fpOntN ? (_fpOntN - fabricPoolCount) + ' remaining ONTAP systems' : 'already deployed across ONTAP systems')}`; })()}
 
   6. CARBON REDUCTION ROADMAP
   ────────────────────────────────────────────────────────────────────────────
-    Quick Wins:   ${_fpOntN === 0 ? 'FabricPool does not apply (no ONTAP systems in scope)' : 'Enable FabricPool on ' + (_fpOntN - fabricPoolCount) + ' ONTAP systems → est. ' + (spaceSaved*0.1).toFixed(1) + ' TB tiered'}
-    Medium Term:  Consolidate under-utilized systems → retire aging shelves
-    Long Term:    Refresh legacy platforms → modern efficient hardware
+    Quick Wins:   ${_fpOntN === 0 ? 'FabricPool does not apply (no ONTAP systems in scope)' : 'Evaluate FabricPool on ' + (_fpOntN - fabricPoolCount) + ' ONTAP systems to move cold data to object storage'}
+    Medium Term:  Review under-utilised systems for consolidation
+    Long Term:    Plan refresh of platforms approaching end of hardware support
 ================================================================================`;
 }
 
@@ -24054,7 +24107,7 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
     if (asup.unknown) {
       asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Not Reported", detail: "Active IQ did not return AutoSupport telemetry for this system -- status unverified, not confirmed healthy." });
     } else if (!asup.enabled) {
-      asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Disabled", detail: asup.failureReason || "Disabled intentionally." });
+      asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport not reporting", detail: asup.failureReason && asup.failureReason !== "None" ? asup.failureReason : "AutoSupport is off or not configured on this system -- Active IQ has no telemetry for it." });
     } else if (asup.status === "failed" || asup.lastReceivedDays > 7) {
       asupIssues.push({ name: s.systemName, serial: s.serialNumber, model: s.platform || '', issue: "AutoSupport Connection Failed", detail: `No telemetry for ${asup.lastReceivedDays} days. ${asup.failureReason || "Verify HTTPS (443) to support.netapp.com."}` });
     }
@@ -24092,9 +24145,11 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const siteSet = new Set();
   const siteDetails = [];
   targetSystems.forEach(s => {
-    if (s.siteName && !siteSet.has(s.siteName)) {
-      siteSet.add(s.siteName);
-      siteDetails.push({ name: s.siteName, city: s.siteCity || '', country: s.siteCountry || '' });
+    // Some site names are a partner's postal address run together; show the city instead.
+    const _sn = (s.siteCity && s.siteCity.length <= 30) ? s.siteCity : ((s.siteName && s.siteName.length <= 45) ? s.siteName : '');
+    if (_sn && !siteSet.has(_sn)) {
+      siteSet.add(_sn);
+      siteDetails.push({ name: _sn, city: s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '', country: s.siteCountry || '' });
     }
   });
   const asupCompliant = targetSystems.filter(s => s.latestAsupDate && (now - new Date(s.latestAsupDate)) / 86400000 <= 7).length;
@@ -24102,14 +24157,14 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const arpEnabledCount = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.isARPEnabled === true).length;
   const _arpFactsNE = _dfArpFacts(targetSystems);
   const fwCurrentCount = targetSystems.filter(_osIsCurrent).length;
+  const fwKnownCount = targetSystems.filter(_osKnown).length;
   const contractActiveCount = targetSystems.filter(s => s.contractActive === true).length;
   const sysCount = targetSystems.length;
   const pctAsup = sysCount > 0 ? Math.round(asupCompliant / sysCount * 100) : 0;
   const pctArp = _ontapNE > 0 ? Math.round(arpEnabledCount / _ontapNE * 100) : 0;
-  const pctFw = sysCount > 0 ? Math.round(fwCurrentCount / sysCount * 100) : 0;
+  const pctFw = fwKnownCount > 0 ? Math.round(fwCurrentCount / fwKnownCount * 100) : 0;
   const pctContract = sysCount > 0 ? Math.round(contractActiveCount / sysCount * 100) : 0;
-  const sustScores = state.tamSustainability || [];
-  const sustLatest = sustScores[0] || {};
+  const sustLatest = _dfSustain(targetSystems);
   let totalPhysTB = 0, totalLogTB = 0, totalSavedTBd = 0;
   targetSystems.forEach(s => {
     if (s.efficiency && _platformFamily(s) === 'ontap') {
@@ -24141,54 +24196,42 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const coiLabel = coi.score >= 50 ? 'CRITICAL' : coi.score >= 25 ? 'MATERIAL' : coi.score >= 10 ? 'MODERATE' : 'LOW';
 
   // ── IMT Interoperability Validation ──
-  // Build fleet signals from targetSystems to detect 3rd-party integrations
+  // Only from what Active IQ actually reports for these systems: the vCenter (name + version)
+  // registered against a cluster. The previous version guessed third-party integrations by
+  // searching each system's whole record for substrings ("pve", "prism", "linux", "sap",
+  // "container"...), so a customer was told about Proxmox, Hyper-V, Cisco and Brocade
+  // estates it may not have, and about end-of-life versions of tools whose versions were
+  // never known. Where nothing is reported there is simply no finding.
   const _fleetSignals = {};
-  targetSystems.forEach(s => {
-    const allText = JSON.stringify(s).toLowerCase();
-    if (!_fleetSignals.vmware && (allText.includes('vmware') || allText.includes('esxi') || allText.includes('vmfs') || allText.includes('vaai'))) _fleetSignals.vmware = true;
-    if (!_fleetSignals.kubernetes && (allText.includes('kubernetes') || allText.includes('trident') || allText.includes('k8s'))) _fleetSignals.kubernetes = true;
-    if (!_fleetSignals.snapcenter && (allText.includes('snapcenter') || allText.includes('snap center'))) _fleetSignals.snapcenter = true;
-    if (!_fleetSignals.veeam && allText.includes('veeam')) _fleetSignals.veeam = true;
-    if (!_fleetSignals.commvault && (allText.includes('commvault') || allText.includes('intellisnap'))) _fleetSignals.commvault = true;
-    if (!_fleetSignals.rubrik && allText.includes('rubrik')) _fleetSignals.rubrik = true;
-    if (!_fleetSignals.cohesity && allText.includes('cohesity')) _fleetSignals.cohesity = true;
-    if (!_fleetSignals.hycu && allText.includes('hycu')) _fleetSignals.hycu = true;
-    if (!_fleetSignals.cisco_san && (allText.includes('cisco') || allText.includes('nexus') || allText.includes('mds'))) _fleetSignals.cisco_san = true;
-    if (!_fleetSignals.brocade_fc && (allText.includes('brocade') || allText.includes('fabric os'))) _fleetSignals.brocade_fc = true;
-    if (!_fleetSignals.broadcom_eth && allText.includes('bes-53248')) _fleetSignals.broadcom_eth = true;
-    if (!_fleetSignals.kvm_linux && (allText.includes('linux') || allText.includes('kvm'))) _fleetSignals.kvm_linux = true;
-    if (!_fleetSignals.hyperv && (allText.includes('hyper-v') || allText.includes('hyperv'))) _fleetSignals.hyperv = true;
-    if (!_fleetSignals.oracle_db && allText.includes('oracle')) _fleetSignals.oracle_db = true;
-    if (!_fleetSignals.mssql && (allText.includes('mssql') || allText.includes('sql server'))) _fleetSignals.mssql = true;
-    if (!_fleetSignals.sap_hana && (allText.includes('sap') || allText.includes('hana'))) _fleetSignals.sap_hana = true;
-    if (!_fleetSignals.splunk && (allText.includes('splunk') || allText.includes('harvest') || allText.includes('grafana'))) _fleetSignals.splunk = true;
-    if (!_fleetSignals.varonis && (allText.includes('varonis') || allText.includes('fpolicy'))) _fleetSignals.varonis = true;
-    // New hypervisor/vendor auto-detection
-    if (!_fleetSignals.veritas && (allText.includes('netbackup') || allText.includes('veritas') || allText.includes('backup exec'))) _fleetSignals.veritas = true;
-    if (!_fleetSignals.openstack && (allText.includes('openstack') || allText.includes('manila') || allText.includes('cinder'))) _fleetSignals.openstack = true;
-    if (!_fleetSignals.citrix && (allText.includes('citrix') || allText.includes('xenserver') || allText.includes('xencenter'))) _fleetSignals.citrix = true;
-    if (!_fleetSignals.proxmox && (allText.includes('proxmox') || allText.includes('pve'))) _fleetSignals.proxmox = true;
-    if (!_fleetSignals.nutanix && (allText.includes('nutanix') || allText.includes('ahv') || allText.includes('prism'))) _fleetSignals.nutanix = true;
-    if (!_fleetSignals.rhev && (allText.includes('rhev') || allText.includes('ovirt') || allText.includes('red hat virtualization'))) _fleetSignals.rhev = true;
-    if (!_fleetSignals.docker && (allText.includes('docker') || allText.includes('podman') || allText.includes('container'))) _fleetSignals.docker = true;
-    if (!_fleetSignals.vmware_vsphere && (allText.includes('vsphere') || allText.includes('vcenter') || allText.includes('vvol'))) _fleetSignals.vmware_vsphere = true;
-  });
-  // NOTE: signals are intentionally derived only from targetSystems above --
-  // an earlier version also scanned state.enrichmentKB.articles (the whole
-  // account's ~800-article KB library, harvested across every customer) and
-  // OR'd its vendor mentions into _fleetSignals. That meant any customer
-  // could inherit e.g. "vmware" or "veeam" just because some OTHER customer
-  // in the account had that KB article persisted, which then fabricated
-  // IMT interoperability findings (runIMTInteropCheck below) claiming THIS
-  // customer runs a vendor integration they have no evidence of.
-
-  // Map targetSystems to format expected by runIMTInteropCheck
-  const _imtSystems = targetSystems.map(s => ({
-    hostname: s.systemName || s.hostname || '',
-    serialNumber: s.serialNumber || '',
-    ontapVersion: s.osVersion || s.ontapVersion || '',
-  }));
-  const imtFindings = (typeof runIMTInteropCheck === 'function') ? runIMTInteropCheck(_imtSystems, _fleetSignals) : [];
+  const imtFindings = [];
+  const _vs = (typeof _getImtInterop === 'function' ? _getImtInterop() : {}).vmware_vsphere;
+  if (_vs && _vs.versions) {
+    targetSystems.forEach(s => {
+      const ontapVer = s.osVersion || s.ontapVersion || '';
+      (s.vcenters || []).forEach(vc => {
+        const m = String((vc && vc.version) || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+        if (!m) return;
+        const key = [`${m[1]}.${m[2]} U${m[3]}`, `${m[1]}.${m[2]}`].find(k => _vs.versions[k]);
+        if (!key) return;
+        _fleetSignals.vmware_vsphere = true;
+        const compat = _vs.versions[key], host = s.systemName || s.serialNumber, vcName = vc.name || 'vCenter';
+        if (ontapVer && compat.minOntap && versionLt(ontapVer, compat.minOntap)) {
+          imtFindings.push({ type: 'ontap_below_minimum', severity: 'warning', system: host, ontapVersion: ontapVer, integration: _vs.name, integrationKey: 'vmware_vsphere',
+            message: `${host}: ONTAP ${ontapVer} is below the minimum ONTAP ${compat.minOntap} for VMware vSphere ${key} (${vcName} ${vc.version})`,
+            recommendation: `Upgrade ONTAP to ${compat.minOntap}+ or confirm the combination in the NetApp IMT`, imtUrl: buildIMTUrl(_vs.imtProduct, ontapVer), upgradeDoc: _vs.upgradeDoc });
+        } else if (ontapVer && compat.maxOntap && versionLt(compat.maxOntap, ontapVer)) {
+          imtFindings.push({ type: 'ontap_above_maximum', severity: 'info', system: host, ontapVersion: ontapVer, integration: _vs.name, integrationKey: 'vmware_vsphere',
+            message: `${host}: ONTAP ${ontapVer} is newer than the latest ONTAP listed (${compat.maxOntap}) for VMware vSphere ${key} (${vcName} ${vc.version}) -- confirm in the NetApp IMT`,
+            recommendation: `Check the NetApp IMT for this vSphere / ONTAP combination`, imtUrl: buildIMTUrl(_vs.imtProduct, ontapVer), upgradeDoc: _vs.upgradeDoc });
+        }
+        if (compat.status === 'eol-imminent') {
+          imtFindings.push({ type: 'tool_eol_warning', severity: 'info', integration: _vs.name, integrationKey: 'vmware_vsphere', toolVersion: key, affectedSystems: [host],
+            message: `${host}: ${vcName} runs vSphere ${vc.version}, which is at or near end of general support${compat.notes ? ' (' + compat.notes + ')' : ''} -- plan an upgrade to ${_vs.currentRecommended}`,
+            recommendation: `Upgrade vSphere to ${_vs.currentRecommended}`, upgradeDoc: _vs.upgradeDoc, notes: compat.notes || '' });
+        }
+      });
+    });
+  }
   const imtCritical = imtFindings.filter(f => f.severity === 'critical');
   const imtWarnings = imtFindings.filter(f => f.severity === 'warning');
   const imtInfo = imtFindings.filter(f => f.severity === 'info' || f.type === 'tool_eol_warning');
@@ -24214,7 +24257,7 @@ RISK SUMMARY
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
   ARP Coverage:       ${_covTxt(arpEnabledCount, _ontapNE)}
-  OS Currency:        ${fwCurrentCount}/${sysCount} (${pctFw}%)
+  OS Currency:        ${fwCurrentCount}/${fwKnownCount} (${pctFw}%)
   Support Contract Coverage: ${contractActiveCount}/${sysCount} (${pctContract}%) (active per Active IQ's contract data)
 
 HARDWARE FIRMWARE CURRENCY (Detailed)${fw.ontapCount === 0 ? `
@@ -24274,9 +24317,10 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
         const ref = findingRef(g.findings[0]);
         if (ref) problemStatements += `   Ref: ${ref}\n`;
       } else {
-        problemStatements += `   Resolves ${g.count} findings:\n`;
-        g.findings.forEach(f => {
-          problemStatements += `     • ${f.description}\n`;
+        const _uf = _dfCollapseFindings(g.findings);
+        problemStatements += `   Resolves ${_uf.length} distinct finding${_uf.length !== 1 ? 's' : ''} (${g.count} occurrences across ${new Set(g.systems.filter(Boolean)).size} system${new Set(g.systems.filter(Boolean)).size !== 1 ? 's' : ''}):\n`;
+        _uf.forEach(f => {
+          problemStatements += `     • ${f.description}${f.systems.size > 1 ? ` (${f.systems.size} systems)` : ''}\n`;
         });
         if (g.fixUrl) problemStatements += `   Ref: ${g.fixUrl}\n`;
       }
@@ -24288,8 +24332,15 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
     problemStatements += `AUTOSUPPORT ISSUES (${asupIssues.length})
 --------------------------------------------------------------------------------
 `;
-    asupIssues.forEach((a, i) => {
-      problemStatements += `${i + 1}. ${a.name} (${a.serial}) — ${a.issue}: ${a.detail}\n`;
+    // Systems with the same issue and cause are listed together rather than repeating it.
+    const _asupGroups = new Map();
+    asupIssues.forEach(a => {
+      const k = `${a.issue}|${a.detail}`;
+      if (!_asupGroups.has(k)) _asupGroups.set(k, { issue: a.issue, detail: a.detail, names: [] });
+      _asupGroups.get(k).names.push(a.name && a.name !== a.serial && a.name !== 'UNNAMED' ? a.name : (a.serial || a.name));
+    });
+    [..._asupGroups.values()].forEach((g, i) => {
+      problemStatements += `${i + 1}. ${g.issue} -- ${g.names.length} system${g.names.length !== 1 ? 's' : ''}: ${g.names.join(', ')}\n   ${g.detail}\n`;
     });
     problemStatements += '\n';
   }
@@ -24341,12 +24392,12 @@ Our Active IQ posture audit identified ${totalDeduped} finding${totalDeduped !==
 OPERATIONAL HEALTH SNAPSHOT:
   ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
   ARP Protection:     ${_ontapNE > 0 ? pctArp + '% (' + arpEnabledCount + '/' + _ontapNE + ' ONTAP systems with Anti-Ransomware enabled)' : 'N/A (ARP is an ONTAP feature; no ONTAP systems in scope)'}
-  OS Currency:        ${pctFw}% (${fwCurrentCount}/${sysCount} on recommended OS version)
+  OS Currency:        ${pctFw}% (${fwCurrentCount}/${fwKnownCount} on recommended OS version)
   HW Firmware Score:  ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP: ' + fw.spPct + '%, MB: ' + fw.mbPct + '%, DQP: ' + fw.dqpPct + '%, Drives: ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} active per Active IQ's contract data)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
-COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unpatched CVE${coi.cves !== 1 ? 's' : ''}, ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
+COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks !== 1 ? 's' : ''}, ${coi.cves} unique CVE${coi.cves !== 1 ? "s" : ""} (all severities), ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} near capacity${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
 
 DATA PROTECTION: ${dr.ontapCount > 0 ? dr.drCoveragePct + '% DR coverage (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ NO REPLICATION CONFIGURED: ' + dr.unprotectedText : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
 
@@ -24363,7 +24414,7 @@ ${exp90.length > 0 ? 'SUPPORT CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
     return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
   }).join('\n') : ''}
-${_dfLapsedText(expiringContracts, '    ')}${sustLatest.scorePercentage ? `\nSUSTAINABILITY:\n  Fleet Sustainability Score (all tenants): ${sustLatest.scorePercentage}%` : ''}
+${_dfLapsedText(expiringContracts, '    ')}${sustLatest.scorePercentage ? `\nSUSTAINABILITY:\n  Sustainability Score (Active IQ): ${sustLatest.scorePercentage}%` : ''}
 
 Please advise on your preferred CAB window for remediation. Detailed runbooks are attached.
 
@@ -24394,7 +24445,7 @@ HEALTH METRICS:
 RISK POSTURE:
   Risks: ${allRisks.length} (${critCount}C / ${highCount}H / ${medCount}M / ${lowCount}L) -- the ${totalDeduped} critical/high consolidate into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}
   Security: ${allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length}  |  Open cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
-${sustLatest.scorePercentage ? `\nSUSTAINABILITY (fleet, all tenants): ${sustLatest.scorePercentage}%` : ''}
+${sustLatest.scorePercentage ? `\nSUSTAINABILITY (Active IQ score): ${sustLatest.scorePercentage}%` : ''}
 
 PRIORITY ACTIONS:
 ${sortedRisks.slice(0, 6).map((g, i) => { const _affSys = g.findings ? [...new Set(g.findings.map(f => f.system || f.systemName || '').filter(Boolean))].slice(0, 3).join(', ') : ''; return `  ${i+1}. [${g.severity.toUpperCase()}] ${g.fix}${g.count > 1 ? ` (${g.count} finding${g.count !== 1 ? 's' : ''}${_affSys ? ', ' + _affSys : ''})` : ''}`; }).join('\n')}
@@ -24479,7 +24530,7 @@ ${_platformFamily(sys) !== 'ontap' ? _nonOntapVerifyLines(sys).map(l => '  ' + l
         const effort = estimateEffort(r.description + ' ' + (r.recommendation || ''));
         changeTickets += `  [${rIdx + 1}] [${(r.severity || '').toUpperCase()}] [${itilTier}] ${r.description}\n`;
         changeTickets += `      Effort:     ${effort}\n`;
-        if (plan.cause) changeTickets += `      Root Cause: ${plan.cause}\n`;
+        if (plan.cause) changeTickets += `      Root Cause: ${_dfCleanCause(plan.cause)}\n`;
         if (plan.impact) changeTickets += `      Impact:     ${plan.impact}\n`;
         if (plan.steps && plan.steps.length > 0) {
           changeTickets += `      CLI Steps:\n`;
@@ -24560,7 +24611,7 @@ Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCoun
 OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
   ARP Coverage:           ${_covTxt(arpEnabledCount, _ontapNE)}
-  OS Currency:            ${pctFw}% (${fwCurrentCount}/${sysCount} systems)
+  OS Currency:            ${pctFw}% (${fwCurrentCount}/${fwKnownCount} systems)
   HW Firmware Score:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} systems; active per Active IQ's contract data)
 
@@ -24570,15 +24621,16 @@ PRIORITISED CORRECTIVE ACTIONS
 
   sortedRisks.forEach((g, idx) => {
     const sysNames = [...new Set(g.systems.filter(Boolean))];
-    const plan = g.remediationPlan || {};
+    const plan = (_dfCollapseFindings(g.findings).length <= 1 ? g.remediationPlan : null) || {};
     solutionProposals += `${idx + 1}. [${g.severity.toUpperCase()}] ${g.fix}\n`;
     solutionProposals += `   Affected Systems: ${sysNames.join(', ')}\n`;
-    if (plan.cause) solutionProposals += `   Root Cause:  ${plan.cause}\n`;
+    if (plan.cause) solutionProposals += `   Root Cause:  ${_dfCleanCause(plan.cause)}\n`;
     if (plan.impact) solutionProposals += `   Business Risk: ${plan.impact}\n`;
     if (g.count > 1) {
-      solutionProposals += `   Resolves ${g.count} findings:\n`;
-      g.findings.forEach(f => {
-        solutionProposals += `     • [${(f.severity||'').toUpperCase()}] ${f.description}\n`;
+      const _uf = _dfCollapseFindings(g.findings);
+      solutionProposals += `   Resolves ${_uf.length} distinct finding${_uf.length !== 1 ? 's' : ''} (${g.count} occurrences):\n`;
+      _uf.forEach(f => {
+        solutionProposals += `     • [${(f.severity||'').toUpperCase()}] ${f.description}${f.systems.size > 1 ? ` (${f.systems.size} systems)` : ''}\n`;
       });
     } else {
       solutionProposals += `   Finding: ${g.findings[0].description}\n`;
@@ -24612,8 +24664,8 @@ PRIORITISED CORRECTIVE ACTIONS
   solutionProposals += `IMPLEMENTATION TIMELINE
 --------------------------------------------------------------------------------
   Phase 1 (Days 1-7):   CAB approval, pre-change health validation, critical risk remediation
-  Phase 2 (Days 8-30):  OS/firmware upgrades, switch firmware, shelf module updates
-  Phase 3 (Days 31-90): ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? 'ARP enablement, audit logging, hypervisor integration compliance' : 'host/hypervisor integration compliance and configuration review'}
+  Phase 2 (Days 8-30):  ${allUpgrades.length > 0 ? 'OS upgrades for ' + allUpgrades.length + ' system' + (allUpgrades.length !== 1 ? 's' : '') + ' (rolling, one cluster at a time), then firmware updates flagged in Active IQ' : 'Firmware updates flagged in Active IQ'}
+  Phase 3 (Days 31-90): ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? (_dfArpFacts(targetSystems).disabled > 0 ? 'Enable ARP on ' + _dfArpFacts(targetSystems).disabled + ' system' + (_dfArpFacts(targetSystems).disabled !== 1 ? 's' : '') + '; review replication and AutoSupport coverage' : 'Review replication and AutoSupport coverage') : 'Review AutoSupport coverage and configuration'}
   Phase 4 (Day 90+):    Post-change verification, QBR review, documentation sign-off
 
 CHANGE SAFETY CLASSIFICATION
@@ -24719,7 +24771,7 @@ SYSTEM ${sysIdx + 1}: ${sys.systemName}
 ACTION ${rIdx + 1}: [${(r.severity||'').toUpperCase()}] [${itilTier}] ${r.description}
   Effort: ${effort}
 --------------------------------------------------------------------------------`;
-        if (plan.cause)    implementationPlans += `\n  Root Cause:   ${plan.cause}`;
+        if (plan.cause)    implementationPlans += `\n  Root Cause:   ${_dfCleanCause(plan.cause)}`;
         if (plan.impact)   implementationPlans += `\n  Impact:       ${plan.impact}`;
         implementationPlans += '\n';
         if (plan.steps && plan.steps.length > 0) {
@@ -24895,13 +24947,13 @@ OPPORTUNITY INTELLIGENCE:
 
   // Security posture upsell
   const arpGap = _arpFactsNE.disabled;
-  const fwGap = sysCount - fwCurrentCount;
+  const fwGap = fwKnownCount - fwCurrentCount;
   if (arpGap > 0 || fwGap > 0) {
     salesProposals += `\nSECURITY & COMPLIANCE UPSELL OPPORTUNITIES [STANDARDS & ADOPTION]
 --------------------------------------------------------------------------------
 `;
-    if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} system(s) without Anti-Ransomware Protection\n    → ONTAP ARP licensing or upgrade engagement\n`;
-    if (fwGap > 0) salesProposals += `  • OS Currency: ${fwGap} system(s) behind recommended OS version\n    → Professional Services upgrade engagement\n`;
+    if (arpGap > 0) salesProposals += `  • ARP Enablement: ${arpGap} ONTAP system(s) with Anti-Ransomware Protection confirmed disabled\n    → Review ARP entitlement and enablement\n`;
+    if (fwGap > 0) salesProposals += `  • OS Currency: ${fwGap} system(s) not on the recommended OS version\n    → Professional Services upgrade engagement\n`;
   }
 
   // DR protection upsell
@@ -24938,12 +24990,13 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
 `;
   }
 
-  // Financial Business Case
+  // Commercial context
+  const _contractFactsSales = _dfContractFacts(targetSystems);
   let physTotalTB = 0, logTotalTB = 0, savedTotalTB = 0;
   let eosaCount = 0;
   const avgSupportCostPerSystem = 8500; // Estimated annual avg
   targetSystems.forEach(s => {
-    if (s.efficiency) {
+    if (s.efficiency && _platformFamily(s) === 'ontap') {   // dedupe/compression is ONTAP-only
       physTotalTB += s.efficiency.physicalUsedTB || 0;
       logTotalTB += s.efficiency.logicalUsedTB || 0;
       savedTotalTB += s.efficiency.spaceSavedTB || 0;
@@ -24956,28 +25009,20 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   const eosaPremium = Math.round(eosaCount * avgSupportCostPerSystem * 0.45);
   const unsupportedRiskCost = critCount * 25000; // Estimated per-incident exposure
 
-  salesProposals += `\nFINANCIAL BUSINESS CASE [METRICS + OWNERSHIP]
+  // Only facts Active IQ reports. The previous version printed a "3-year TCO" built from
+  // invented rates ($8,500 per system, $25K per incident, $1,000 per TB per month, a 45%
+  // premium, "est. N fewer rack units", a "$X/TB/month" placeholder) and a multi-million-dollar
+  // "estimated savings" total. None of that is customer-presentable; pricing comes from the
+  // account team.
+  const _hwWindow = targetSystems.filter(s => { const e = s.hwEndOfSupport ? Date.parse(s.hwEndOfSupport) : NaN; return !isNaN(e) && e - Date.now() <= 730 * 86400000; });
+  const _hwModels = [...new Set(_hwWindow.map(s => s.model || s.platform).filter(Boolean))];
+  salesProposals += `\nCOMMERCIAL CONTEXT [METRICS + OWNERSHIP]
 --------------------------------------------------------------------------------
-  3-YEAR TCO COMPARISON (ESTIMATED)
-
-  Current Fleet (${sysCount} systems):
-    Annual Maintenance:          $${annualMaintenance.toLocaleString()}/year (${sysCount} systems x ~$${avgSupportCostPerSystem}/yr)
-    EOSA Premium Exposure:       ~$${eosaPremium.toLocaleString()}/year (+45% on ${eosaCount} out-of-support systems)
-    Operational Risk Exposure:   ~$${unsupportedRiskCost.toLocaleString()} (${critCount} critical risks x est. $25K/incident)
-    3-Year Current TCO:          ~$${((annualMaintenance + eosaPremium) * 3 + unsupportedRiskCost).toLocaleString()}
-
-  Modernized Fleet (AFF A-Series / Keystone):
-    Data Reduction Improvement:  ${avgDRRatio}:1 current -> est. 4:1+ (industry benchmark)
-    Space Saved:                 ${savedTotalTB.toFixed(1)} TB ($${costAvoidanceMonthly.toLocaleString()}/month cost avoidance)
-    Rack Consolidation:          est. ${Math.max(1, Math.round(sysCount * 0.15))} fewer rack units
-
-  Investment Options:
-    CAPEX:     Purchase AFF A-Series with 3-year premium support
-    Keystone:  Monthly consumption model ($X/TB/month, capacity on-demand)
-    Hybrid:    CAPEX core + Keystone burst capacity
-
-  Estimated 3-Year Savings:      ~$${Math.round(((annualMaintenance + eosaPremium) * 3 * 0.2) + costAvoidanceMonthly * 36).toLocaleString()}
-  (20% maintenance reduction + storage cost avoidance from efficiency gains)
+  Estate:                      ${sysCount} systems (${Object.entries(targetSystems.reduce((a, s) => { const f = _platformFamily(s); a[f] = (a[f] || 0) + 1; return a; }, {})).map(([f, c]) => c + ' ' + ({ ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID' }[f] || f)).join(', ')})
+  Support entitlement:         ${_contractFactsSales.active.length} active${_contractFactsSales.expired.length ? ', ' + _contractFactsSales.expired.length + ' lapsed' : ''}${_contractFactsSales.expiring90.length ? ', ' + _contractFactsSales.expiring90.length + ' expiring within 90 days' : ''}
+  Hardware support ending within 24 months (or already ended): ${_hwWindow.length ? _hwWindow.length + ' system' + (_hwWindow.length !== 1 ? 's' : '') + ' (' + _hwModels.join(', ') + ')' : 'none reported'}
+  Data reduction (ONTAP):      ${avgDRRatio === 'N/A' ? 'ratio not reported by Active IQ' : avgDRRatio + ':1, ' + savedTotalTB.toFixed(1) + ' TB saved'}
+  Pricing:                     Quotations for renewals, refresh and consumption (Keystone) options are provided by your NetApp account team.
 `;
 
   if (expiringContracts.length === 0 && eos.length === 0 && scopedRenewals.length === 0 && arpGap === 0) {
