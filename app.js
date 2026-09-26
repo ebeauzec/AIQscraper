@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.93";
+const APP_VERSION = "5.6.94";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.94",
+    date: "26 September 2026",
+    title: "Deliverable Cycle-Check: Second Account",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Deliverables cycle-checked on a second real account (MIC Tanzania): documents are prepared by the assigned TAM when there is one (was the sales rep); support cases show the system they belong to (case rows were blank in the QBR, MSP report and email); a system at its capacity threshold reads 'at threshold' instead of '0d'; one site per city regardless of capitalisation; missing service levels no longer print 'N/A'; singular/plural fixes ('1 system'); case titles in the advisory email drop the drive serial numbers.",
+          "Fixed a negative count ('-1 systems not on the recommended OS release'): a system counted as current without being assessable is no longer counted as current. Health report: a recommended target older than the running version is shown as 'move to a supported release'; near-capacity list says 'already at the threshold'. The audit tool now flags negative counts and '0d' countdowns.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.93",
     date: "26 September 2026",
@@ -16805,7 +16821,7 @@ function _osKnown(s) {
 }
 function _osIsCurrent(s) {
   if (_platformFamily(s) === 'ontap') return !!(s.swRecMin && s.osVersion && !versionLt(s.osVersion, s.swRecMin));
-  return !!(s.upgrades && s.upgrades.targetVersion === 'Up to Date');
+  return _osKnown(s) && s.upgrades.targetVersion === 'Up to Date';   // a default 'Up to Date' with no data is not current
 }
 
 // "n/d (p%)" for an ONTAP-only feature, or an explicit N/A when the scope has no
@@ -16929,6 +16945,7 @@ function _dfArpFacts(systems) {
 // values past 10 years are extrapolation noise: neither is a runway figure to show a customer.
 function _dfRunwayText(days) {
   if (days == null || !Number.isFinite(days) || days < 0) return 'not available';
+  if (days === 0) return 'already at the threshold';
   if (days > 3650) return '> 10 years';
   return days >= 365 ? (days / 365).toFixed(1) + ' years' : days + ' days';
 }
@@ -19903,8 +19920,8 @@ function formatCostOfInactionText(systems) {
   ──────────────────────────────────────────────────────
   • ${coi.critRisks} critical risks remain unaddressed
   • ${coi.cves} unique CVEs (all severities) affecting ${coi.cveAffectedSystems} system${coi.cveAffectedSystems !== 1 ? 's' : ''}
-  • ${coi.eosaSystems} systems approaching EOSA within 12 months
-  • ${coi.capacityRed} systems reach capacity limit within 60 days${systems.some(s => _platformFamily(s) === 'ontap') ? `
+  • ${coi.eosaSystems} system${coi.eosaSystems !== 1 ? 's' : ''} approaching EOSA within 12 months
+  • ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''} reach capacity limit within 60 days${systems.some(s => _platformFamily(s) === 'ontap') ? `
   • ${coi.noArp} ONTAP systems have ransomware protection (ARP) confirmed disabled${coi.arpUnknown ? ' (' + coi.arpUnknown + ' more not reported)' : ''}` : ''}`;
 }
 
@@ -21440,7 +21457,7 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const contractsText = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName) || {};
     const model = sys.platform || sys.model || '';
-    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} | Level: ${e.supportLevel} | Expires: ${e.endDate ? new Date(e.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}${e.daysRemaining != null ? ` (${e.daysRemaining} days)` : ''}`;
+    return `- System: ${e.systemName}${model ? ` (${model})` : ''} | S/N: ${e.serialNumber || 'N/A'} ${e.supportLevel && e.supportLevel !== 'N/A' ? '| Level: ' + e.supportLevel + ' ' : ''}| Expires: ${e.endDate ? new Date(e.endDate).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'}) : 'N/A'}${e.daysRemaining != null ? ` (${e.daysRemaining} days)` : ''}`;
   }).join("\n");
 
   const risksText = fixGroups.map((g, i) => {
@@ -21551,7 +21568,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   - Fleet Avg Utilization:  ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
   - Red Zone (>85%):        ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
   - Amber Zone (70-85%):    ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
-  - <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
+  - <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None'}
   - Est. 12-Month Growth:   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
 
 * DATA PROTECTION & DR POSTURE:
@@ -21800,12 +21817,13 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
 
   // ── Personnel: first system with each field ──
   const salesRep = (targetSystems.find(s => s.salesRepName) || {}).salesRepName || 'Account Team';
+  const _qbrPreparedBy = (targetSystems.find(s => s.csmName) || {}).csmName || salesRep;   // TAM when assigned
   const csmName  = (targetSystems.find(s => s.csmName) || {}).csmName || '—';
   const samName  = (targetSystems.find(s => s.samName) || {}).samName || '—';
   const aspName  = (targetSystems.find(s => s.aspName) || {}).aspName || '—';
 
   // ── Sites ──
-  const uniqueSites = [...new Set(targetSystems.map(s => s.siteName).filter(Boolean))];
+  const uniqueSites = [...new Map(targetSystems.map(s => (s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || (s.siteName && s.siteName.length <= 45 ? s.siteName : '')).filter(Boolean).map(x => [x.toLowerCase().replace(/[^a-z0-9]+/g, ''), x])).values()];
 
   // ── ASUP Health: received within 7 days ──
   const now = Date.now();
@@ -22093,7 +22111,7 @@ QUARTERLY BUSINESS REVIEW (QBR) — ACCOUNT INTELLIGENCE PACK
 Account Health Score: ${formatHealthScoreText(targetSystems)}
 Account:  ${cleanScope}
 Date:     ${today}
-Prepared: ${salesRep}
+Prepared: ${_qbrPreparedBy}
 
 --------------------------------------------------------------------------------
 1. ACCOUNT OVERVIEW [METRICS]
@@ -22195,7 +22213,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount ==
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Monthly Growth: ${cap.avgGrowthPctMo}%/mo
   Red Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
   Amber Zone (70-85%):   ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
-  At-Risk (<60d runway): ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
+  At-Risk (<60d runway): ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None'}
   Est. Growth (12-mo):   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
 
 --------------------------------------------------------------------------------
@@ -22464,10 +22482,10 @@ ${casesLines}
 --------------------------------------------------------------------------------
 6. CONTRACT PORTFOLIO [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
-  Active:    ${activeContracts} systems
-  Expiring:  ${exp90} systems (within 90 days)
-  Expired:   ${expiredContracts} systems
-  Unknown:   ${unknownContracts} systems
+  Active:    ${activeContracts} system${activeContracts !== 1 ? 's' : ''}
+  Expiring:  ${exp90} system${exp90 !== 1 ? 's' : ''} (within 90 days)
+  Expired:   ${expiredContracts} system${expiredContracts !== 1 ? 's' : ''}
+  Unknown:   ${unknownContracts} system${unknownContracts !== 1 ? 's' : ''}
 
   Service Tier Breakdown:
 ${tierLines}
@@ -22498,7 +22516,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   Fleet Avg Utilization:  ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
   Red Zone (>85%):        ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
   Amber Zone (70-85%):    ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
-  <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}`; })()}
+  <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None'}`; })()}
 
 --------------------------------------------------------------------------------
 10. IMPROVEMENT BACKLOG [REMEDIATION PLAN]
@@ -22736,8 +22754,8 @@ ${getSuccessPlanAlignmentText(targetSystems)}
   CONTRACTS & ENTITLEMENTS (Contracts & Procurement)
   ─────────────────────────────────────────────────────────────────────────────
     Active Contracts:         ${activeContracts}/${total} systems (${contractPct}%)
-    Expiring < 90 Days:       ${expiring90} systems
-    Expired / Lapsed:         ${expiredContracts} systems
+    Expiring < 90 Days:       ${expiring90} system${expiring90 !== 1 ? 's' : ''}
+    Expired / Lapsed:         ${expiredContracts} system${expiredContracts !== 1 ? 's' : ''}
     Co-Term Opportunities:    ${cotermGroups.length} groups (${cotermSysCount} systems alignable)
     Service Tiers:
 ${tierLines}
@@ -22748,8 +22766,8 @@ ${tierLines}
     High Risks:               ${coi.highRisks}
     CVEs:                     ${coi.cves} unique (all severities)
     HW Firmware Gap:          ${(fw || {}).overallFwScore < 80 ? 'AT RISK (' + ((fw || {}).overallFwScore || 0) + '%)' : 'CURRENT (' + ((fw || {}).overallFwScore || 0) + '%)'}
-    EOSA < 12 Months:         ${coi.eosaSystems} systems
-    Capacity < 60 Days:       ${coi.capacityRed} systems
+    EOSA < 12 Months:         ${coi.eosaSystems} system${coi.eosaSystems !== 1 ? 's' : ''}
+    Capacity < 60 Days:       ${coi.capacityRed} system${coi.capacityRed !== 1 ? 's' : ''}
     Open P1/P2 Cases:         ${openP1P2}
 
     COST OF INACTION SUMMARY (Score: ${coi.score})
@@ -22765,9 +22783,9 @@ ${coiText}
 
   MODERNIZATION OUTLOOK (Displacement Risk & Positioning)
   ─────────────────────────────────────────────────────────────────────────────
-    Tech Refresh Flagged:     ${refreshFlagged} systems
-    Platform Age > 5 Years:   ${ageOver5} systems
-    EOA Hardware:             ${eoaSystems.length} systems${eoaSystems.length > 0 ? '\n' + eoaLines : ''}
+    Tech Refresh Flagged:     ${refreshFlagged} system${refreshFlagged !== 1 ? 's' : ''}
+    Platform Age > 5 Years:   ${ageOver5} system${ageOver5 !== 1 ? 's' : ''}
+    EOA Hardware:             ${eoaSystems.length} system${eoaSystems.length !== 1 ? 's' : ''}${eoaSystems.length > 0 ? '\n' + eoaLines : ''}
 ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? `    ONTAP Differentiators:    Unified SAN/NAS/S3, ARP,
                               NDU upgrades, SnapLock, native DR
 ` : ''}`;
@@ -23064,7 +23082,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount ==
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
   RED Zone (>85%):       ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
   AMBER Zone (70-85%):   ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
-  <60-day Runway:        ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None — capacity healthy'}
+  <60-day Runway:        ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None — capacity healthy'}
   Procurement Alert:     ${cap.atRisk.length > 0 ? 'Yes — capacity procurement discussions may be in progress' : 'No immediate procurement needed'}`; })()}
 
 --------------------------------------------------------------------------------
@@ -23457,7 +23475,7 @@ ${recLines}
   ────────────────────────────────────────────────────────────────────────────
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
     Systems in RED zone (>85%): ${cap.redCount}/${count}
-    <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
+    <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None'}
     Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}`; })()}
 
   6. CARBON REDUCTION ROADMAP
@@ -23966,7 +23984,8 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   // City when short; otherwise the site name if it is a name (some are a partner's postal address run together)
   const _cleanName = n => (n && n.length <= 45 && !/[a-z][A-Z]|\.[A-Za-z]/.test(n) && n.trim().toLowerCase() !== cust.toLowerCase()) ? n : '';   // run-together postal addresses fail this
   const _site = s => (s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || _cleanName(s.siteName);
-  const _cities = [...new Set(targetSystems.map(s => s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '').filter(Boolean))];
+  const _cityKey = c => c.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const _cities = [...new Map(targetSystems.map(s => s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '').filter(Boolean).map(c => [_cityKey(c), c])).values()];
   const sites = [..._cities, ...new Set(targetSystems.filter(s => !(s.siteCity && s.siteCity.length <= 30)).map(s => _cleanName(s.siteName)).filter(n => n && !_cities.some(c => n.toLowerCase().includes(c.toLowerCase()))))];
   const contracts = expiringContracts._facts || _dfContractFacts(targetSystems);
   const lapsed = contracts.expired, exp90 = contracts.expiring90;
@@ -24014,7 +24033,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     const _byDate = {};
     lapsed.forEach(e => { const d = fmtD(e.endDate); (_byDate[d] = _byDate[d] || []).push(e.systemName); });
     const _dates = Object.keys(_byDate).sort();
-    o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for them.\n\n`;
+    o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for ${lapsed.length === 1 ? 'it' : 'them'}.\n\n`;
     if (lapsed.length <= 12) o += lapsed.map(e => `- ${e.systemName} (expired ${fmtD(e.endDate)})`).join('\n') + '\n\n';
     else {
       o += `| Contract expired | Systems | Examples |\n|---|---|---|\n` + _dates.map(d => `| ${d} | ${_byDate[d].length} | ${_byDate[d].slice(0, 4).join(', ')}${_byDate[d].length > 4 ? ', ...' : ''} |`).join('\n') + '\n\n';
@@ -24030,7 +24049,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const vKeys = Object.keys(verGroups);
   if (vKeys.length) {
     o += `**Software versions and support windows**\n\n| Version | Systems | End of full support | End of limited support | Recommended target | Status |\n|---|---|---|---|---|---|\n`;
-    vKeys.sort().forEach(v => { const g = verGroups[v]; const _f = daysTo(g.full), _l = daysTo(g.lim); const _st = _l != null && _l < 0 ? 'Past end of limited support' : _f != null && _f < 0 ? 'Past end of full support' : _f == null ? 'support dates not reported' : 'In full support'; o += `| ${v} | ${g.n} | ${fmtD(g.full)} | ${fmtD(g.lim)} | ${g.rec || 'not reported'} | ${_st} |\n`; });
+    vKeys.sort().forEach(v => { const g = verGroups[v]; const _f = daysTo(g.full), _l = daysTo(g.lim); const _st = _l != null && _l < 0 ? 'Past end of limited support' : _f != null && _f < 0 ? 'Past end of full support' : _f == null ? 'support dates not reported' : 'In full support'; o += `| ${v} | ${g.n} | ${fmtD(g.full)} | ${fmtD(g.lim)} | ${(g.rec && g.rec !== v && !versionLt(g.rec, v)) ? g.rec : (g.rec && versionLt(g.rec, v) ? 'move to a supported release' : 'not reported')} | ${_st} |\n`; });
     o += '\n';
   }
   // hardware lifecycle by model
@@ -24069,7 +24088,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const ph = ont.reduce((a, s) => a + (s.efficiency.physicalUsedTB || 0), 0), lg = ont.reduce((a, s) => a + (s.efficiency.logicalUsedTB || 0), 0);
   if (ph > 0) o += `ONTAP systems store ${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB of physical capacity (${(lg / ph).toFixed(1)}:1 efficiency, ${(lg - ph).toFixed(1)} TB saved).\n\n`;
   const near = targetSystems.filter(s => s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 365).sort((a, b) => a.projections.daysToLimit - b.projections.daysToLimit);
-  o += near.length ? `Projected to reach the capacity threshold within 12 months: ${near.map(s => `${nameOf(s)} (${_dfRunwayText(s.projections.daysToLimit)})`).join(', ')}.\n\n` : `No system is projected to reach its capacity threshold within 12 months.\n\n`;
+  o += near.length ? `Projected to reach (or already at) the capacity threshold within 12 months: ${near.map(s => `${nameOf(s)} (${s.projections.daysToLimit === 0 ? 'already at the threshold' : _dfRunwayText(s.projections.daysToLimit)})`).join(', ')}.\n\n` : `No system is projected to reach its capacity threshold within 12 months.\n\n`;
 
   // 7 Data protection
   if (dr.ontapCount > 0) {
@@ -24119,6 +24138,9 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   // the OPEN cases; the full list stays on ._all for resolution-time statistics.
   filterActiveCases(allSupportCases);
   const _allCasesInclClosed = allSupportCases;
+  const _bySerial = {}; targetSystems.forEach(s => { if (s.serialNumber) _bySerial[s.serialNumber] = s; });
+  const _fillCase = c => (c.systemName || !c.serialNumber || !_bySerial[c.serialNumber]) ? c : Object.assign(c, { systemName: _bySerial[c.serialNumber].systemName || c.serialNumber });
+  _allCasesInclClosed.forEach(_fillCase);
   allSupportCases = allSupportCases.filter(c => !c._isClosed);
   allSupportCases._all = _allCasesInclClosed;
   // The callers' "expiring" list included contracts that had already lapsed (Active IQ
@@ -24188,8 +24210,9 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   targetSystems.forEach(s => {
     // Some site names are a partner's postal address run together; show the city instead.
     const _sn = (s.siteCity && s.siteCity.length <= 30) ? s.siteCity : ((s.siteName && s.siteName.length <= 45) ? s.siteName : '');
-    if (_sn && !siteSet.has(_sn)) {
-      siteSet.add(_sn);
+    const _snKey = (_sn || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (_sn && !siteSet.has(_snKey)) {
+      siteSet.add(_snKey);
       siteDetails.push({ name: _sn, city: s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '', country: s.siteCountry || '' });
     }
   });
@@ -24311,7 +24334,7 @@ HARDWARE FIRMWARE CURRENCY (Detailed)${fw.ontapCount === 0 ? `
   HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)`}
 
 ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
-COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unique CVEs (all severities), ${coi.capacityRed} capacity-red systems${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
+COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unique CVEs (all severities), ${coi.capacityRed} capacity-red system${coi.capacityRed !== 1 ? 's' : ''}${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
 
 DATA PROTECTION POSTURE
   DR Coverage:        ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SnapMirror + ' + dr.mcSystems + ' MetroCluster of ' + dr.ontapCount + ' ONTAP)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 ? '\n  MetroCluster:       Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}
@@ -24322,7 +24345,7 @@ DATA PROTECTION POSTURE
 CAPACITY RISK
   Utilisation:        ${cap.utilPct}% fleet-wide (${cap.totalPhysTB.toFixed(1)} / ${cap.totalAvailTB.toFixed(1)} TB)
   RAG Distribution:   ${cap.greenCount} Green / ${cap.amberCount} Amber / ${cap.redCount} Red
-  Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : ''}
+  Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : ''}
 
 FEATURE ADOPTION:     ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average (' + fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + fm.perSystem.reduce((a, p) => a + p.total, 0) + ' best-practice criteria met, ' + fm.ontapCount + ' ONTAP systems)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}${fm.ontapCount > 0 ? `
   ARP: ${fm.pct.arp}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%` : ''}
@@ -24396,7 +24419,7 @@ ${imtFindings.map(f => '  ' + (f.severity === 'critical' ? '‼' : f.severity ==
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
       const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      problemStatements += `${i + 1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) | ${e.supportLevel} | Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}\n`;    });
+      problemStatements += `${i + 1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'}) | ${e.supportLevel && e.supportLevel !== 'N/A' ? e.supportLevel + ' | ' : ''}Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}\n`;    });
     problemStatements += '\n';
   }
 
@@ -24442,18 +24465,18 @@ COST OF INACTION: ${coiLabel} — ${coi.critRisks} critical risk${coi.critRisks 
 
 DATA PROTECTION: ${dr.ontapCount > 0 ? dr.drCoveragePct + '% DR coverage (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (SnapMirror/MetroCluster are ONTAP-only; none in scope)'}${dr.mcSystems > 0 && (dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '\n  ⚠ METROCLUSTER: Mediator ' + (dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK') + ' | AUSO ' + (dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED') : ''}${dr.unprotected.length > 0 ? '\n  ⚠ NO REPLICATION CONFIGURED: ' + dr.unprotectedText : ''}${dr.lagWarnings.length > 0 ? '\n  ⚠ RPO AT RISK: ' + dr.lagWarnings.map(w => w.system).join(', ') : ''}
 
-CAPACITY: ${cap.utilPct}% fleet utilisation (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)${cap.atRisk.length > 0 ? '\n  ⚠ SYSTEMS AT RISK: ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd runway)').join(', ') : ''}
+CAPACITY: ${cap.utilPct}% fleet utilisation (${cap.greenCount}G/${cap.amberCount}A/${cap.redCount}R)${cap.atRisk.length > 0 ? '\n  ⚠ SYSTEMS AT RISK: ' + cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at the threshold now' : a.runway + 'd runway') + ')').join(', ') : ''}
 
 ${emailRiskLines}
 
 ${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • ${a.name}: ${a.issue}`).join('\n') : 'AutoSupport: All systems reporting healthy.'}
 
-${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}] ${c.title}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
+${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}]${c.systemName ? ' ' + c.systemName + ':' : ''} ${String(c.title || '').replace(/\s+/g, ' ').replace(/\s*S\/N \[[^\]]*\]/g, '').slice(0, 110)}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
 
 ${exp90.length > 0 ? 'SUPPORT CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
     const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-    return `    ${e.systemName}${modelStr} - ${e.supportLevel} - Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
+    return `    ${e.systemName}${modelStr} - ${e.supportLevel && e.supportLevel !== 'N/A' ? e.supportLevel + ' - ' : ''}Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}`;
   }).join('\n') : ''}
 ${_dfLapsedText(expiringContracts, '    ')}${sustLatest.scorePercentage ? `\nSUSTAINABILITY:\n  Sustainability Score (Active IQ): ${sustLatest.scorePercentage}%` : ''}
 
@@ -24462,7 +24485,7 @@ Please advise on your preferred CAB window for remediation. Detailed runbooks ar
 References: security.netapp.com | kb.netapp.com | activeiq.netapp.com
 
 Best Regards,
-${personnel.sam !== 'Not Assigned' ? personnel.sam + ', NetApp SAM' : personnel.salesRep !== 'Not Assigned' ? personnel.salesRep + ', NetApp Account Team' : '[Your Name], NetApp Account Team'}
+${personnel.sam !== 'Not Assigned' ? personnel.sam + ', NetApp SAM' : personnel.csm !== 'Not Assigned' ? personnel.csm + ', NetApp TAM' : personnel.salesRep !== 'Not Assigned' ? personnel.salesRep + ', NetApp Account Team' : '[Your Name], NetApp Account Team'}
 
 --------------------------------------------------------------------------------
 TEMPLATE B: QBR EXECUTIVE SUMMARY
@@ -24666,7 +24689,7 @@ TECHNICAL SOLUTION PROPOSAL
 ================================================================================
 Customer:     ${cleanScope}
 Date:         ${today}
-Prepared By:  ${personnel.sam !== 'Not Assigned' ? personnel.sam + ' (SAM)' : personnel.salesRep !== 'Not Assigned' ? personnel.salesRep : 'NetApp Account Team'}
+Prepared By:  ${personnel.sam !== 'Not Assigned' ? personnel.sam + ' (SAM)' : personnel.csm !== 'Not Assigned' ? personnel.csm + ' (TAM)' : personnel.salesRep !== 'Not Assigned' ? personnel.salesRep : 'NetApp Account Team'}
 
 EXECUTIVE SUMMARY
 --------------------------------------------------------------------------------
@@ -24766,7 +24789,7 @@ CLI RUNBOOK — CORRECTIVE ACTION PLAYBOOK
 ================================================================================
 Scope:    ${cleanScope}
 Date:     ${today}
-Prepared: ${personnel.sam !== 'Not Assigned' ? personnel.sam : personnel.salesRep}
+Prepared: ${personnel.sam !== 'Not Assigned' ? personnel.sam : personnel.csm !== 'Not Assigned' ? personnel.csm : personnel.salesRep}
 Note:     Critical/High severity items only. Best-practice items excluded.
           ${_ontapNE > 0 ? 'All commands must be run in the context of the correct cluster/vserver.' : 'Use each platform\'s own management console (SANtricity System Manager / Grid Manager); no ONTAP CLI applies.'}
           Obtain CAB approval before executing Disruptive or Destructive commands.
@@ -24971,7 +24994,7 @@ Account Team: ${personnel.salesRep}${personnel.csm !== 'Not Assigned' ? '  |  TA
 Account Health: ${healthScore}/100 (${healthGrade})  |  CoI: ${coiLabel} (${coi.score})
 
 OPPORTUNITY INTELLIGENCE:
-  Capacity:         ${cap.utilPct}% fleet utilisation (${cap.redCount} RED systems${cap.atRisk.length > 0 ? ', ' + cap.atRisk.length + ' with <60d runway' : ''})
+  Capacity:         ${cap.utilPct}% fleet utilisation (${cap.redCount} RED system${cap.redCount !== 1 ? 's' : ''}${cap.atRisk.length > 0 ? ', ' + cap.atRisk.length + ' with <60d runway' : ''})
   DR Gaps:          ${dr.ontapCount === 0 ? 'N/A (ONTAP-only)' : dr.unprotected.length + ' ONTAP system' + (dr.unprotected.length !== 1 ? 's' : '') + ' with no SnapMirror/MetroCluster configured (opportunity)' + (dr.smUnknown ? '; SnapMirror status not reported for ' + dr.smUnknown + ' more' : '')}
   Feature Gaps:     ${fm.ontapCount === 0 ? 'N/A (ONTAP feature set; no ONTAP systems in scope)' : fm.fleetAvgScore < 60 ? 'LOW (' + fm.fleetAvgScore + '%) \u2014 significant enablement opportunity' : fm.fleetAvgScore < 80 ? 'MODERATE (' + fm.fleetAvgScore + '%)' : 'GOOD (' + fm.fleetAvgScore + '%)'}
   Warranty:         ${warranty.expired} expired, ${warranty.expiring30} <30d, ${warranty.expiring90} <90d
@@ -24990,7 +25013,7 @@ OPPORTUNITY INTELLIGENCE:
     expiringContracts.forEach((e, i) => {
       const sys = targetSystems.find(s => s.systemName === e.systemName);
       const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n     Service Level: ${e.supportLevel}  |  Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}
+      salesProposals += `  ${i+1}. ${e.systemName}${modelStr} (${e.serialNumber || 'N/A'})\n     ${e.supportLevel && e.supportLevel !== 'N/A' ? 'Service Level: ' + e.supportLevel + '  |  ' : ''}Expires: ${(e.endDate || '').split('T')[0]}${e.daysRemaining != null ? ` (${e.daysRemaining}d)` : ''}
 `;
     });
     salesProposals += `  Portal: https://mysupport.netapp.com/\n\n`;
@@ -25063,7 +25086,7 @@ ${dr.unprotected.slice(0, 12).map(n => `    • ${n}`).join('\n')}${dr.unprotect
     salesProposals += `\nCAPACITY EXPANSION [CONTRACTS & ENTITLEMENTS]
 --------------------------------------------------------------------------------
   ${cap.redCount} system(s) in RED capacity zone, ${cap.atRisk.length} with <60d runway:
-${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct != null ? a.utilPct + '% used, ' : ''}${a.runway}d remaining`).join('\n')}
+${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct != null ? a.utilPct + '% used, ' : ''}${a.runway === 0 ? 'at the threshold now' : a.runway + 'd remaining'}`).join('\n')}
   → Additional disk shelves or Flash Cache
   → Keystone capacity-on-demand (burst without CAPEX)
 `;
