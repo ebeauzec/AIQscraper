@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.100] - 2026-09-26
+
+### Changed
+- Every text deliverable now downloads in three formats at once: .txt, .md and a formatted .docx. The Word file is built inside the app with no library: Markdown deliverables (Health & Lifecycle Report, Customer Value Report) become real headings, tables, bullets and bold text; the plain-text deliverables keep their layout in a monospaced landscape document with their titles as headings. Also: OS currency reads 'not assessed' instead of '0/0 (0%)' when nothing can be assessed, '1 systems' is fixed everywhere, and the capacity trend now says when a cluster spiked far above where it ended.
+
+---
+
 ## [5.6.99] - 2026-09-26
 
 ### Changed

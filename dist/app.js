@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.99";
+const APP_VERSION = "5.6.100";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.100",
+    date: "26 September 2026",
+    title: "Downloads in TXT, MD and DOCX",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Every text deliverable now downloads in three formats at once: .txt, .md and a formatted .docx. The Word file is built inside the app with no library: Markdown deliverables (Health & Lifecycle Report, Customer Value Report) become real headings, tables, bullets and bold text; the plain-text deliverables keep their layout in a monospaced landscape document with their titles as headings. Also: OS currency reads 'not assessed' instead of '0/0 (0%)' when nothing can be assessed, '1 systems' is fixed everywhere, and the capacity trend now says when a cluster spiked far above where it ended.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.99",
     date: "26 September 2026",
@@ -1975,7 +1990,7 @@ const APP_CHANGELOG = [
         label: "New: Download TAM Recommendations as TXT",
         color: "#2dd4bf",
         items: [
-          "Added a Download Recommendations (TXT) button to Section 12, matching the export available on every other Fleet Analysis section"
+          "Added a Download Recommendations (TXT, MD, DOCX) button to Section 12, matching the export available on every other Fleet Analysis section"
         ]
       }
     ]
@@ -24113,9 +24128,10 @@ function _dfCapacityTrend(systems) {
   let first = 0, last = 0, months = 0; const grow = [];
   ok.forEach(x => { const a = x.h[0], b = x.h[x.h.length - 1]; first += a.usedTB; last += b.usedTB; months = Math.max(months, x.h.length - 1); grow.push({ name: x.name, from: a.usedTB, to: b.usedTB, d: b.usedTB - a.usedTB, m: x.h.length - 1, raw: b.rawTB }); });
   grow.sort((a, b) => b.d - a.d);
+  const peaks = ok.map(x => { const mx = x.h.reduce((m, y) => y.usedTB > m.usedTB ? y : m, x.h[0]), last = x.h[x.h.length - 1]; return { name: x.name, peak: mx.usedTB, month: mx.month, last: last.usedTB }; }).filter(x => x.peak > x.last * 1.5 && x.peak > 100);
   // a cluster whose used capacity has fallen by more than half is being drained (migration / decommissioning)
   const drained = grow.filter(g => g.from >= 20 && g.to < g.from * 0.5).map(g => g.name);
-  return { drained, clusters: ok.length, first, last, months, delta: last - first, pct: first > 0 ? (last - first) / first * 100 : 0, perMonth: months > 0 ? (last - first) / months : 0, top: grow.slice(0, 3),
+  return { peaks, drained, clusters: ok.length, first, last, months, delta: last - first, pct: first > 0 ? (last - first) / first * 100 : 0, perMonth: months > 0 ? (last - first) / months : 0, top: grow.slice(0, 3),
            from: ok[0].h[0].month, to: ok[0].h[ok[0].h.length - 1].month };
 }
 
@@ -24355,6 +24371,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   if (_ct) {
     o += `## 12. Capacity Trend\n\nAcross ${_dfPlural(_ct.clusters, 'ONTAP cluster')}, used capacity (over up to ${_ct.months} months of history) went from ${_ct.first.toFixed(0)} TB to ${_ct.last.toFixed(0)} TB: ${_ct.delta >= 0 ? '+' : ''}${_ct.delta.toFixed(0)} TB (${_ct.pct >= 0 ? '+' : ''}${_ct.pct.toFixed(0)}%), about ${_ct.perMonth.toFixed(1)} TB per month.\n\n`;
     if (_ct.drained.length) o += `${_dfPlural(_ct.drained.length, 'cluster')} lost more than half of their used capacity over this period (${_ct.drained.slice(0, 8).join(', ')}${_ct.drained.length > 8 ? ' and ' + (_ct.drained.length - 8) + ' more' : ''}), which is consistent with data being migrated off them ahead of decommissioning. The estate total falls for that reason, not because usage is shrinking; confirm the plan before renewing support on those clusters.\n\n`;
+    if (_ct.peaks.length) o += `Growth was not steady: ${_ct.peaks.map(x => `${x.name} peaked at ${x.peak.toFixed(0)} TB in ${x.month} before ending at ${x.last.toFixed(0)} TB`).join('; ')}. A spike like this usually means a temporary copy or migration; confirm before planning capacity from the trend.\n\n`;
     if (_ct.top.length && _ct.top[0].d > 0) o += `Fastest-growing clusters: ${_ct.top.filter(x => x.d > 0).map(x => `${x.name} (+${x.d.toFixed(0)} TB over ${x.m} months)`).join('; ')}.\n\n`;
   }
   return o;
@@ -25462,7 +25479,10 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
   // Some source titles carry UTF-8 that was decoded as Latin-1 ("CVE-2026-20833" with
   // non-breaking hyphens came out as "CVEâ2026â20833"); repair it in every document.
   const _fixText = t => typeof t !== 'string' ? t
-    : t.replace(/\u00e2[\u0080-\u009f]{1,2}/g, '-').replace(/(?<=[A-Za-z0-9])\u00e2(?=[A-Za-z0-9])/g, '-').replace(/\u00c2(?=[\u00a0-\u00bf])/g, '');
+    : t.replace(/\u00e2[\u0080-\u009f]{1,2}/g, '-').replace(/(?<=[A-Za-z0-9])\u00e2(?=[A-Za-z0-9])/g, '-').replace(/\u00c2(?=[\u00a0-\u00bf])/g, '')
+    // nothing to assess is not "0% current"
+    .replace(/(OS Currency:[ \t]+)[^\n]*\b0\/0\b[^\n]*/g, '$1not assessed (no recommended version is reported for these systems)')
+    .replace(/\b1 systems\b/g, '1 system');
   [problemStatements, customerComms, changeTickets, solutionProposals, implementationPlans, salesProposals, customerSuccessPlan, qbrPack, mspReport, handoverBrief, riskRemediationBrief, securityBrief, sustainabilityReport] =
     [problemStatements, customerComms, changeTickets, solutionProposals, implementationPlans, salesProposals, customerSuccessPlan, qbrPack, mspReport, handoverBrief, riskRemediationBrief, securityBrief, sustainabilityReport].map(_fixText);
 
@@ -28648,7 +28668,7 @@ function generateActionPlan() {
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
           <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">1. Executive Summary</h2>
           <div style="display: flex; gap: 8px;">
-            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(1)" data-tooltip="Download Section 1 text report as a TXT file.">Download Summary (TXT)</button>
+            <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(1)" data-tooltip="Download Section 1 text report as a TXT file.">Download Summary (TXT, MD, DOCX)</button>
             <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CSV')" data-tooltip="Download full filtered systems inventory list as a CSV spreadsheet.">Export Inventory (CSV)</button>
           </div>
         </div>
@@ -28737,7 +28757,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="2" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">2. Prioritized Technical Risks & Remediation Steps</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(2)" data-tooltip="Download Section 2 prioritized risks report as a TXT file.">Download Risks (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(2)" data-tooltip="Download Section 2 prioritized risks report as a TXT file.">Download Risks (TXT, MD, DOCX)</button>
       </div>
   `;
 
@@ -28864,7 +28884,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="3" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">3. Security Bulletins & Vulnerability Mitigations</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(3)" data-tooltip="Download Section 3 security advisories report as a TXT file.">Download Advisories (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(3)" data-tooltip="Download Section 3 security advisories report as a TXT file.">Download Advisories (TXT, MD, DOCX)</button>
       </div>
   `;
 
@@ -28926,7 +28946,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="4" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">6. Support Cases & Service Activity</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 support cases report as a TXT file.">Download Cases (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 support cases report as a TXT file.">Download Cases (TXT, MD, DOCX)</button>
       </div>
   `;
 
@@ -29024,7 +29044,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="5" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Recommended OS Upgrade Roadmaps</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps (TXT, MD, DOCX)</button>
       </div>
   `;
 
@@ -29138,7 +29158,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="6" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">5. Network Switch & Fabric Infrastructure Remediation</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(6)" data-tooltip="Download Section 6 switch validation roadmap as a TXT file.">Download Switch Report (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(6)" data-tooltip="Download Section 6 switch validation roadmap as a TXT file.">Download Switch Report (TXT, MD, DOCX)</button>
       </div>
   `;
 
@@ -29217,7 +29237,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="7" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. Site Logistics, Contacts, & Customer Health</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(7)" data-tooltip="Download Section 7 logistics and contacts catalog as a TXT file.">Download Logistics (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(7)" data-tooltip="Download Section 7 logistics and contacts catalog as a TXT file.">Download Logistics (TXT, MD, DOCX)</button>
       </div>
   `;
 
@@ -29273,7 +29293,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="8" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">17. Operational Guidelines & Proceeding Steps</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(8)" data-tooltip="Download Section 8 change control guidelines as a TXT file.">Download Guidelines (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(8)" data-tooltip="Download Section 8 change control guidelines as a TXT file.">Download Guidelines (TXT, MD, DOCX)</button>
       </div>
       
       ${(() => {
@@ -29387,7 +29407,7 @@ function generateActionPlan() {
               Equally usable by enterprise end-customers managing their own fleet: scope to a business unit, data center, or environment instead of an external customer to get the same security, licensing, capacity, and lifecycle deliverables for internal reporting and audit.
             </p>
           </div>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download the 13 TXT deliverables as individual files. The Customer Value Report (PPTX) is generated separately via its own button below.">⬇ Download All (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download the 13 TXT deliverables as individual files. The Customer Value Report (PPTX) is generated separately via its own button below.">⬇ Download All (TXT, MD, DOCX)</button>
         </div>
         <div style="display: flex; gap: 16px; margin-top: 8px;">
           <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C)</span>
@@ -29407,7 +29427,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">A. Executive Risk Assessment${enrBadge('problemStatements')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('PROBLEM_STATEMENTS')">Download Draft (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('PROBLEM_STATEMENTS')">Download Draft (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Consolidated risk posture with account team context, operational health scorecard (ASUP/ARP/firmware/contract compliance), and prioritized corrective actions grouped by fix.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.problemStatements}</textarea>
@@ -29416,7 +29436,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">B. ITIL Change Control &amp; Dispatch Tickets${enrBadge('changeTickets')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('TICKET')">Download Draft (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('TICKET')">Download Draft (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.changeTickets}</textarea>
@@ -29425,7 +29445,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">C. CLI Runbooks &amp; Upgrade Execution Plans${enrBadge('implementationPlans')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('IMPLEMENTATION')">Download Runbook (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('IMPLEMENTATION')">Download Runbook (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Step-by-step remediation runbooks with exact ONTAP CLI syntax, multi-hop upgrade paths, and platform-specific checks (ASA SAN, E-Series).</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.implementationPlans}</textarea>
@@ -29440,7 +29460,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">D. Customer Advisory &amp; QBR Communications${enrBadge('customerComms')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('EMAIL')">Download Draft (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('EMAIL')">Download Draft (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Advisory email template with health snapshot, sustainability score, and lifecycle milestones. QBR executive summary with compliance indicators and priority actions.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerComms}</textarea>
@@ -29449,7 +29469,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">E. Technical Solution &amp; Architecture Proposals${enrBadge('solutionProposals')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SOLUTION_PROPOSAL')">Download Draft (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SOLUTION_PROPOSAL')">Download Draft (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Solution design with prioritized corrections, OS upgrade targets, and a phased implementation timeline (6-week remediation roadmap).</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.solutionProposals}</textarea>
@@ -29458,7 +29478,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">F. Sales Refresh &amp; Renewal Proposals${enrBadge('salesProposals')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SALES_PROPOSAL')">Download Draft (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SALES_PROPOSAL')">Download Draft (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Warranty renewals, TAM renewal pipeline with tech refresh status, lifecycle refresh candidates, and security/compliance upsell opportunities.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.salesProposals}</textarea>
@@ -29467,7 +29487,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">G. Risk & Remediation Brief${enrBadge('riskRemediationBrief')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('RISK_REMEDIATION_BRIEF')">Download Brief (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('RISK_REMEDIATION_BRIEF')">Download Brief (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Quantifiable account metrics, fleet tracking dimensions (Metrics, Ownership, Standards & Adoption, etc.), risk evaluation, and cost of inaction summaries.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.riskRemediationBrief}</textarea>
@@ -29476,7 +29496,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">H. Security Posture Executive Brief${enrBadge('securityBrief')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SECURITY_BRIEF')">Download Brief (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SECURITY_BRIEF')">Download Brief (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Security health summary, CVE exposure matrix, ransomware protection gaps, and security roadmap.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.securityBrief}</textarea>
@@ -29485,7 +29505,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">Customer Health &amp; Lifecycle Report (paste-ready)</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CUSTOMER_REPORT')">Download Report (MD)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CUSTOMER_REPORT')">Download Report (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Customer-facing summary written to be pasted into a presentation or customer document as-is: estate, support and lifecycle dates, security, monitoring, capacity, data protection, open cases and next steps. Contains only this customer's data; no internal notes.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerReport}</textarea>
@@ -29494,7 +29514,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. Sustainability &amp; ESG Report${enrBadge('sustainabilityReport')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUSTAINABILITY_REPORT')">Download Report (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUSTAINABILITY_REPORT')">Download Report (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Sustainability score, data reduction impact, capacity growth and optimization recommendations.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.sustainabilityReport}</textarea>
@@ -29509,7 +29529,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">J. TAM Success &amp; Posture Optimization Plan${enrBadge('customerSuccessPlan')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download TAM Success Plan (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUCCESS_PLAN')">Download TAM Success Plan (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Phased TAM roadmap (Phase 1: critical mitigation, Phase 2: OS upgrades, Phase 3: compliance audits) with ITIL governance guidelines.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerSuccessPlan}</textarea>
@@ -29518,7 +29538,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">K. TAM Quarterly Business Review (QBR) Pack${enrBadge('qbrPack')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('QBR_PACK')">Download QBR Pack (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('QBR_PACK')">Download QBR Pack (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Structured QBR document with account overview, operational health scorecard (A-F grade), sustainability metrics, lifecycle pipeline, AIQ recommendations, and templated action items.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.qbrPack}</textarea>
@@ -29527,7 +29547,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">L. MSP Service Delivery Report${enrBadge('mspReport')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MSP_REPORT')">Download MSP Report (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('MSP_REPORT')">Download MSP Report (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Managed services SLA compliance matrix (ASUP/ARP/firmware/contracts with MET/MISSED indicators), incident management, contract portfolio, and capacity efficiency analysis.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.mspReport}</textarea>
@@ -29536,7 +29556,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">M. Account Handover &amp; Transition Brief${enrBadge('handoverBrief')}</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('HANDOVER_BRIEF')">Download Handover Brief (TXT)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('HANDOVER_BRIEF')">Download Handover Brief (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Comprehensive account profile for SAM/TAM transitions &mdash; environment inventory, personnel, risk posture, contract status, recent activity, and auto-generated talking points.</p>
         <textarea style="width: 100%; height: 220px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.handoverBrief}</textarea>
@@ -29545,7 +29565,7 @@ function generateActionPlan() {
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">N. Customer Value Report (text, one heading per slide)</h4>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('VALUE_REPORT')">Download Report (MD)</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('VALUE_REPORT')">Download Report (TXT, MD, DOCX)</button>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Executive summary, value delivered, security and planning, optimisation opportunities, renewals and decisions needed -- as plain text with one heading per slide, to copy into your own template.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.valueReport}</textarea>
@@ -29572,7 +29592,7 @@ function generateActionPlan() {
     <div class="plan-section" data-section-index="12" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
         <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">10. TAM Recommendations</h2>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(12)" data-tooltip="Download Section 12 TAM recommendations report as a TXT file.">Download Recommendations (TXT)</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(12)" data-tooltip="Download Section 12 TAM recommendations report as a TXT file.">Download Recommendations (TXT, MD, DOCX)</button>
       </div>
       ${_renderRecommendationsSection(targetSystems)}
     </div>
@@ -30529,14 +30549,101 @@ async function generateCVRPptx(targetSystems, cleanScope) {
   }
 }
 
-function triggerFileDownload(filename, text) {
-  const element = document.createElement('a');
-  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-  element.setAttribute('download', filename);
-  element.style.display = 'none';
-  document.body.appendChild(element);
-  element.click();
-  document.body.removeChild(element);
+// ── Downloads ────────────────────────────────────────────────────────────
+// Every text deliverable downloads as .txt, .md and .docx. The .docx is built here, offline
+// (no library): a minimal Word file with real headings, tables, bullets and bold text for
+// the Markdown deliverables, and a monospaced layout-preserving one for the plain-text ones.
+function _dlBlob(filename, blob) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+let _crcTable = null;
+function _crc32(bytes) {
+  if (!_crcTable) { _crcTable = new Uint32Array(256); for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; _crcTable[i] = c >>> 0; } }
+  let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = _crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function _zipStored(files) {   // files: [{name, data: Uint8Array}] -> Uint8Array (no compression)
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  const u16 = v => [v & 255, (v >>> 8) & 255], u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  files.forEach(f => {
+    const nm = enc.encode(f.name), crc = _crc32(f.data), sz = f.data.length;
+    const local = new Uint8Array([0x50, 0x4b, 3, 4, 20, 0, 0, 8, 0, 0, 0, 0, 0x21, 0, ...u32(crc), ...u32(sz), ...u32(sz), ...u16(nm.length), 0, 0]);
+    parts.push(local, nm, f.data);
+    central.push(new Uint8Array([0x50, 0x4b, 1, 2, 20, 0, 20, 0, 0, 8, 0, 0, 0, 0, 0x21, 0, ...u32(crc), ...u32(sz), ...u32(sz), ...u16(nm.length), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(offset)]), nm);
+    offset += local.length + nm.length + sz;
+  });
+  const cdSize = central.reduce((a, b) => a + b.length, 0);
+  const end = new Uint8Array([0x50, 0x4b, 5, 6, 0, 0, 0, 0, ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(offset), 0, 0]);
+  const all = [...parts, ...central, end], out = new Uint8Array(all.reduce((a, b) => a + b.length, 0)); let p = 0;
+  all.forEach(b => { out.set(b, p); p += b.length; }); return out;
+}
+function _xe(t) { return String(t).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function _mdToPlain(t) { return t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1$2').replace(/`([^`]+)`/g, '$1').replace(/^#{1,6}\s+/gm, '').replace(/^\|?\s*-{3,}[\s|:-]*\|?\s*$/gm, ''); }
+function _docxRuns(text, base) {   // **bold**, _italic_, `code`
+  const out = []; const re = /(\*\*(.+?)\*\*)|(`([^`]+)`)|((?:^|(?<=[\s(]))_(.+?)_(?=[\s).,;:]|$))/g; let last = 0, m;
+  const run = (t, extra) => t ? `<w:r><w:rPr>${base || ''}${extra || ''}</w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>` : '';
+  while ((m = re.exec(text))) { out.push(run(text.slice(last, m.index))); if (m[2] != null) out.push(run(m[2], '<w:b/>')); else if (m[4] != null) out.push(run(m[4], '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="18"/>')); else out.push(run(m[6], '<w:i/>')); last = m.index + m[0].length; }
+  out.push(run(text.slice(last))); return out.join('');
+}
+function _docxBody(text, isMd) {
+  const L = String(text).replace(/\r/g, '').split('\n'); let b = '';
+  const para = (runs, ppr) => `<w:p><w:pPr>${ppr || ''}</w:pPr>${runs}</w:p>`;
+  if (!isMd) {
+    const mono = '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="16"/>';
+    L.forEach((l, i) => {
+      if (/^={10,}$/.test(l.trim())) return;
+      const prevBanner = i > 0 && /^={10,}$/.test(L[i - 1].trim()), nextBanner = i + 1 < L.length && /^={10,}$/.test(L[i + 1].trim());
+      if (prevBanner && nextBanner && l.trim()) { b += para(`<w:r><w:rPr><w:b/><w:sz w:val="26"/></w:rPr><w:t xml:space="preserve">${_xe(l.trim())}</w:t></w:r>`, '<w:pStyle w:val="Heading1"/>'); return; }
+      if (/^-{10,}$/.test(l.trim())) return;
+      b += para(`<w:r><w:rPr>${mono}</w:rPr><w:t xml:space="preserve">${_xe(l)}</w:t></w:r>`, '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>');
+    });
+    return b;
+  }
+  for (let i = 0; i < L.length; i++) {
+    const l = L[i]; let m;
+    if (!l.trim()) continue;
+    if ((m = l.match(/^(#{1,3})\s+(.*)$/))) { b += para(_docxRuns(m[2], '<w:b/>'), `<w:pStyle w:val="Heading${m[1].length}"/>`); continue; }
+    if (l.trim().startsWith('|')) {
+      const rows = []; while (i < L.length && L[i].trim().startsWith('|')) { if (!/^\|?\s*:?-{2,}/.test(L[i].trim().replace(/^\|/, '').trim())) rows.push(L[i].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())); i++; } i--;
+      const cols = Math.max(...rows.map(r => r.length)), w = Math.floor(9360 / cols);
+      b += `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(x => `<w:${x} w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>`).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + w + '"/>'.repeat(cols)}</w:tblGrid>` +
+        rows.map((r, ri) => `<w:tr>${Array.from({ length: cols }, (_, ci) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${ri === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="E7EEF7"/>' : ''}</w:tcPr>${para(_docxRuns(r[ci] || '', (ri === 0 ? '<w:b/>' : '') + '<w:sz w:val="18"/>'), '<w:spacing w:before="20" w:after="20"/>')}</w:tc>`).join('')}</w:tr>`).join('') + '</w:tbl>' + para('', '<w:spacing w:after="80"/>');
+      continue;
+    }
+    if ((m = l.match(/^\s*[-*]\s+(.*)$/))) { b += para(_docxRuns('\u2022 ' + m[1]), '<w:ind w:left="360" w:hanging="220"/><w:spacing w:after="40"/>'); continue; }
+    if ((m = l.match(/^\s*(\d+)\.\s+(.*)$/))) { b += para(_docxRuns(m[1] + '. ' + m[2]), '<w:ind w:left="400" w:hanging="300"/><w:spacing w:after="60"/>'); continue; }
+    b += para(_docxRuns(l), '<w:spacing w:after="100"/>');
+  }
+  return b;
+}
+function _buildDocx(title, text) {
+  const isMd = /^#\s/.test(String(text).trimStart()), enc = new TextEncoder(), ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const sect = isMd ? '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
+                    : '<w:sectPr><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>';
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>` +
+    [[1, 32, '1F3864', 240, 120], [2, 26, '2E5597', 200, 80], [3, 23, '2E5597', 160, 60]].map(([n, sz, col, bef, aft]) => `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="${bef}" w:after="${aft}"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:color w:val="${col}"/><w:sz w:val="${sz}"/></w:rPr></w:style>`).join('') + '</w:styles>';
+  const files = [
+    { name: '[Content_Types].xml', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>') },
+    { name: '_rels/.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>') },
+    { name: 'word/_rels/document.xml.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>') },
+    { name: 'word/styles.xml', data: enc.encode(styles) },
+    { name: 'word/document.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>${_docxBody(text, isMd)}${sect}</w:body></w:document>`) }
+  ];
+  return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+function triggerFileDownload(filename, text, opts) {
+  const m = String(filename).match(/^(.*)\.(txt|md)$/i);
+  if (!m || (opts && opts.single)) return _dlBlob(filename, new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const base = m[1], isMd = /^#\s/.test(String(text).trimStart());
+  const jobs = [
+    () => _dlBlob(base + '.txt', new Blob([isMd ? _mdToPlain(text) : text], { type: 'text/plain;charset=utf-8' })),
+    () => _dlBlob(base + '.md', new Blob([isMd ? text : '```text\n' + text + '\n```\n'], { type: 'text/markdown;charset=utf-8' })),
+    () => { try { _dlBlob(base + '.docx', _buildDocx(base, text)); } catch (e) { console.warn('[docx] build failed:', e); } }
+  ];
+  jobs.forEach((j, i) => setTimeout(j, i * 400));   // staggered so the browser does not block the extra downloads
 }
 
 function printActionPlan() {
