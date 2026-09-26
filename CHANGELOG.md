@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.107] - 2026-09-26
+
+### Changed
+- Controller rear-panel views redrawn to match the physical layout of each NetApp platform, taken from NetApp's own installation and cabling diagrams: FAS8200/AFF A300, FAS8300/8700 and AFF A400/C400, AFF A800/C800, the 8U AFF A700/A900 and FAS9000/9500 (11 vertical slots, NVRAM in slot 6), AFF A250/C250, FAS2820/A150, AFF A220/C190 and FAS2720/2750, AFF A1K/A70/A90 and FAS70/90, AFX, AFF A20/A30/A50, C30/C60 and FAS50, E-Series E2800/E5700/E4000 controllers and StorageGRID SG100/SG1000, SG5700, SG5800 and SG6000 appliances. Reported ports are placed by name (eNx = slot N); connectors Active IQ did not report are drawn dashed as 'not reported'; interface groups and VLANs are listed separately instead of being drawn as connectors. EF600/EF300 and unrecognised models show a note instead of a guessed layout.
+
+---
+
 ## [5.6.106] - 2026-09-26
 
 ### Fixed

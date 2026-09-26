@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.106";
+const APP_VERSION = "5.6.107";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.107",
+    date: "26 September 2026",
+    title: "Accurate Controller Rear Panels",
+    sections: [
+      {
+        icon: "✅",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Controller rear-panel views redrawn to match the physical layout of each NetApp platform, taken from NetApp's own installation and cabling diagrams: FAS8200/AFF A300, FAS8300/8700 and AFF A400/C400, AFF A800/C800, the 8U AFF A700/A900 and FAS9000/9500 (11 vertical slots, NVRAM in slot 6), AFF A250/C250, FAS2820/A150, AFF A220/C190 and FAS2720/2750, AFF A1K/A70/A90 and FAS70/90, AFX, AFF A20/A30/A50, C30/C60 and FAS50, E-Series E2800/E5700/E4000 controllers and StorageGRID SG100/SG1000, SG5700, SG5800 and SG6000 appliances. Reported ports are placed by name (eNx = slot N); connectors Active IQ did not report are drawn dashed as 'not reported'; interface groups and VLANs are listed separately instead of being drawn as connectors. EF600/EF300 and unrecognised models show a note instead of a guessed layout.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.106",
     date: "26 September 2026",
@@ -35714,462 +35729,237 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     </div>`;
   }
 
+  // ── ONTAP controllers: layouts drawn from NetApp's own installation and cabling diagrams ──
+  // Each layout below reproduces the physical arrangement of ONE controller module as printed in
+  // the platform's Installation and Setup Instructions / cabling guide (NetAppDocs/ontap-systems):
+  // which connector sits where, which ports are stacked, where the PCIe/IO slots, management
+  // ports and power supplies are. Reported ports (Active IQ networkPorts, Ethernet only) are
+  // placed by name: eNx = slot N, e0x = onboard. A connector that Active IQ did not report is
+  // drawn dashed ("not reported"): the position is real, its state is unknown.
+  const _isPhys = p => /^e\d+[a-z]$/i.test(p.name) || p.name === 'e0M';
+  const _byName = {}; ports.forEach(p => { _byName[p.name] = p; });
+  const _used = new Set();
+  const _P = (name, opt) => {
+    _used.add(name); const p = _byName[name]; opt = opt || {};
+    if (p) return _portBlock(p, opt.w || 34);
+    return `<div title="${name}: not reported by Active IQ (position shown from the NetApp hardware diagram)" style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,0,0,0.25);border:1.5px dashed #4b5563;border-radius:3px;padding:3px 2px;min-width:${opt.w || 34}px;opacity:0.75;"><span style="font-size:0.55rem;color:#9ca3af;font-weight:700;font-family:monospace;">${name}</span><span style="font-size:0.42rem;color:#6b7280;">${opt.tag || 'n/r'}</span></div>`;
+  };
+  const _FIX = (label, kind, tag) => `<div title="${tag || label}" style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.85;min-width:26px;">${_connectorIcon(kind || 'rj45', 12)}<span style="font-size:0.42rem;color:#6b7280;white-space:nowrap;">${label}</span></div>`;
+  const _SAS = (labels) => labels.map(l => _FIX(l, 'sas', 'Mini-SAS HD 12Gb (shelf) port ' + l + ': not reported by Active IQ')).join('');
+  const _stack = (items) => `<div style="display:flex;flex-direction:column;gap:3px;align-items:center;">${items.join('')}</div>`;
+  const _row = (items) => `<div style="display:flex;gap:3px;align-items:center;">${items.join('')}</div>`;
+  const _slotPorts = (n) => ports.filter(p => new RegExp('^e' + n + '[a-z]$', 'i').test(p.name)).sort((x, y) => x.name.localeCompare(y.name));
+  const _SL = (n, label, opt) => {
+    opt = opt || {};
+    const ps = _slotPorts(n); ps.forEach(p => _used.add(p.name));
+    const body = ps.length ? ps.map(p => _portBlock(p, 30)).join('')
+      : `<span style="font-size:0.44rem;color:#6b7280;text-align:center;line-height:1.2;">${opt.empty || 'no Ethernet port reported'}</span>`;
+    return _section(`${label || 'SLOT ' + n}`, body, ps.length ? _portTypeColor(ps[0].type) : '#374151', { minWidth: opt.minWidth || '56px', flex: '0 0 auto' });
+  };
+  const _PSU = (label) => `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:3px;padding:8px 10px;display:flex;align-items:center;gap:4px;min-width:54px;justify-content:center;"><span style="width:5px;height:5px;border-radius:50%;background:#10b981;box-shadow:0 0 4px #10b981;"></span><span style="font-size:0.5rem;font-weight:700;color:#6b7280;">${label}</span></div>`;
+  const _NVRAM = (label) => _section(label, `<span style="font-size:0.5rem;color:#6b7280;font-weight:700;">NVRAM</span><span style="font-size:0.42rem;color:#4b5563;">no network ports</span>`, '#374151', { minWidth: '70px' });
+  const _MG = (extra) => _section('MGMT', _P('e0M', { w: 38, tag: 'wrench' }) + _FIX('CON', 'rj45', 'Console (RJ-45)') + _FIX('USB', 'usb', 'USB-A') + (extra || ''), '#10b981', { minWidth: '80px' });
+
+  // ── shared frame + static connector cell for platforms Active IQ reports no port list for ──
+  const _CS = (label, conns, color, minW) => _section(label, conns.join(''), color, { minWidth: minW || '70px' });
+  const _SFP = (l, t) => _FIX(l, 'sfp28', t || (l + ' (SFP/SFP+/SFP28 cage)'));
+  const _RJ = (l, t) => _FIX(l, 'rj45', t || (l + ' (RJ-45)'));
+  const _SASC = (l) => _FIX(l, 'sas', l + ' (mini-SAS HD)');
+  const _frame = (ctrlLabel2, sub2, inner2, note2) => `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel2}</span><span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span></div>
+      <span style="font-size:0.48rem;color:#6b7280;font-style:italic;max-width:70%;text-align:right;">${sub2}</span>
+    </div>
+    <div style="overflow-x:auto;padding:4px 0;display:flex;flex-direction:column;gap:8px;">${inner2}</div>
+    <div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">${note2 || 'Active IQ does not report port state for this platform; connector positions are from the NetApp hardware diagram.'}</div>
+  </div>`;
+  const _plat2 = _plat.replace(/\s+/g, '');
+  const _ctrlAB = (isCtrlB || /-0?2$|b$/i.test(sys.systemName || '')) ? 'CONTROLLER B' : 'CONTROLLER A';
+  // E-Series canisters (NetApp E-Series hardware diagrams)
+  const _E2800 = () => _row([
+    _CS('HOST PORTS<br>0a · 0b', [_SFP('0a'), _SFP('0b')], '#f59e0b', '70px'),
+    _CS('MGMT<br>P1 · P2', [_RJ('P1'), _RJ('P2')], '#10b981', '70px'),
+    _CS('CONSOLE', [_RJ('RJ-45'), _FIX('μUSB', 'usb'), _FIX('USB-A', 'usb')], '#6b7280', '100px'),
+    _CS('DRIVE EXP<br>EXP1 · EXP2', [_SASC('EXP1'), _SASC('EXP2')], '#a855f7', '90px')
+  ]);
+  const _E5700 = (sgLabel) => _row([
+    _CS(sgLabel ? 'INTERCONNECT<br>0a · 0b' : 'HOST PORTS<br>0a · 0b', [_SFP('0a'), _SFP('0b')], sgLabel ? '#3b82f6' : '#f59e0b', '70px'),
+    _CS('CONSOLE', [_RJ('RJ-45')], '#6b7280', '50px'),
+    _CS('DRIVE EXP<br>EXP1 · EXP2', [_SASC('EXP1'), _SASC('EXP2')], '#a855f7', '90px'),
+    _CS(sgLabel ? 'NETWORK PORTS<br>1 · 2 · 3 · 4' : 'HIC (optional)<br>0c · 0d · 0e · 0f', [_SFP(sgLabel ? '1' : '0c'), _SFP(sgLabel ? '2' : '0d'), _SFP(sgLabel ? '3' : '0e'), _SFP(sgLabel ? '4' : '0f')], '#f59e0b', '150px'),
+    _CS('MGMT<br>P1 · P2', [_RJ('P1'), _RJ('P2')], '#10b981', '70px'),
+    _CS('CONSOLE', [_FIX('μUSB', 'usb'), _FIX('USB-A', 'usb')], '#6b7280', '70px')
+  ]);
+  const _E4000 = () => _row([
+    _CS('MGMT', [_RJ('1')], '#10b981', '50px'),
+    _CS('CONSOLE', [_RJ('RJ-45'), _FIX('USB-C', 'usb'), _FIX('USB-A', 'usb')], '#6b7280', '110px'),
+    _CS('PORTS<br>0a · 0b1 · 0b2', [_FIX('0a', 'sas'), _FIX('0b1', 'sas'), _FIX('0b2', 'sas')], '#a855f7', '110px'),
+    _CS('HIC<br>2 ports', [_SFP('1'), _SFP('2')], '#f59e0b', '80px')
+  ]);
+  // StorageGRID appliance compute controller (1U services/compute node: SG100/110/120/1000/1100/1200, SGF6112)
+  const _SG1U = () => _row([
+    _PSU('PSU 1'),
+    _CS('BMC', [_RJ('BMC')], '#10b981', '46px'),
+    _CS('NETWORK<br>1 · 2', [_SFP('1'), _SFP('2')], '#f59e0b', '76px'),
+    _CS('VGA / SERIAL / USB', [_FIX('VGA', 'rj45'), _FIX('COM', 'rj45'), _FIX('USB', 'usb'), _FIX('USB', 'usb')], '#6b7280', '130px'),
+    _CS('ADMIN / MGMT<br>RJ-45', [_RJ('4'), _RJ('5')], '#10b981', '70px'),
+    _CS('NETWORK<br>3 · 4', [_SFP('3'), _SFP('4')], '#f59e0b', '76px'),
+    _PSU('PSU 2')
+  ]);
+  const _psuNote = 'Two PSUs in the shelf/chassis.';
+
   if (isStorageGrid) {
-    const sgModel = (sys.platform || '').match(/SG\d+/i)?.[0] || 'SG6060';
-    return `<div style="background:linear-gradient(135deg,rgba(168,85,247,0.08),rgba(107,33,168,0.12));border:2px solid rgba(168,85,247,0.3);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
-      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(168,85,247,0.4));">⚙️</div>
-      <div style="flex:1;">
-        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">StorageGRID ${sgModel} — Object Appliance Node</div>
-        <div style="font-size:0.6rem;color:var(--text-muted);">Grid/Admin/Client networks bond across 10/25GbE ports. Port-level connectivity shown in table below.</div>
-      </div>
-      <div style="font-size:0.55rem;color:#a855f7;font-family:monospace;background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:4px;">${sys.platform}</div>
-    </div>`;
+    let sg = '', sub2 = '';
+    if (/sg(1[012]0|1[012]00|f?6[12]12|f?6212)|^sg(100|110|120|1000|1100|1200)/.test(_plat2)) { sub2 = 'StorageGRID 1U appliance · 2 PSUs · source: StorageGRID SG100/SG1000 hardware diagrams'; sg = _SG1U(); }
+    else if (/sg57(12|60)/.test(_plat2)) { sub2 = 'StorageGRID SG5700: E2800 storage controller + E5700SG compute controller (2 canisters) · source: SG5700 hardware diagrams'; sg = `<div><div style="font-size:0.5rem;color:#94a3b8;margin-bottom:3px;">STORAGE CONTROLLER (E2800)</div>${_E2800()}</div><div><div style="font-size:0.5rem;color:#94a3b8;margin-bottom:3px;">COMPUTE CONTROLLER (E5700SG)</div>${_E5700(true)}</div>`; }
+    else if (/sg58(12|60)/.test(_plat2)) { sub2 = 'StorageGRID SG5800: 1U compute controller + E4000 storage controller · source: SG5800 hardware diagrams'; sg = `<div><div style="font-size:0.5rem;color:#94a3b8;margin-bottom:3px;">COMPUTE CONTROLLER (1U)</div>${_SG1U()}</div><div><div style="font-size:0.5rem;color:#94a3b8;margin-bottom:3px;">STORAGE CONTROLLER (E4000)</div>${_E4000()}</div>`; }
+    else if (/sg6060|sg6160/.test(_plat2)) { sub2 = 'StorageGRID SG6000: 1U compute controller + E2860 storage controllers · source: SG6000 hardware diagrams'; sg = `<div><div style="font-size:0.5rem;color:#94a3b8;margin-bottom:3px;">COMPUTE CONTROLLER (1U)</div>${_SG1U()}</div><div><div style="font-size:0.5rem;color:#94a3b8;margin-bottom:3px;">STORAGE CONTROLLER (E2800-class)</div>${_E2800()}</div>`; }
+    else return _frame('STORAGEGRID NODE', 'Appliance model not identified: no physical layout drawn', '<div style="font-size:0.6rem;color:#94a3b8;">Grid/Admin/Client networks bond across the appliance network ports; see the port table below.</div>', 'Active IQ does not report port state for StorageGRID.');
+    return _frame(_ctrlAB.replace('CONTROLLER', 'NODE').replace(/ [AB]$/, '') + ' — REAR', sub2, sg, _psuNote + ' Active IQ does not report port state for StorageGRID; connector positions are from the NetApp hardware diagram.');
   }
 
   if (isEseries) {
-    const isEf600 = _plat.includes('ef600') || _plat.includes('ef300');
-    const ctrlSide = isCtrlB ? 'B' : 'A';
-    // EF600: 2 HIC slots, P1/P2 management; E5700: 4 baseboard + 1 HIC + 2 SAS
-    const mgmtPorts = ports.filter(p => p.type === 'mgmt');
-    const hostPorts = ports.filter(p => p.type === 'data' || p.type === 'fc');
-    const storagePorts = ports.filter(p => p.type === 'sas');
-    const mgmtContent = mgmtPorts.map(p => _portBlock(p, 34)).join('') +
-      `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.6;">
-        ${_connectorIcon('usb', 8)}<span style="font-size:0.42rem;color:#6b7280;">μUSB</span>
-      </div>`;
-    const hostContent = hostPorts.map(p => _portBlock(p, 34)).join('');
-    const storageContent = storagePorts.map(p => _portBlock(p, 34)).join('');
-
-    return `<div style="background:linear-gradient(135deg,#1a1d2e,#0d1117);border:2px solid #475569;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:#f59e0b;letter-spacing:0.5px;">${isEf600 ? 'EF600' : 'E-SERIES'} CTRL ${ctrlSide}</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">2U Duplex Controller Canister</span>
-      </div>
-      <div style="display:flex;gap:6px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_section('MGMT / SVC', mgmtContent, '#10b981', { minWidth: '80px' })}
-        ${_section(isEf600 ? 'HIC SLOT 1' : 'BASEBOARD HOST', hostContent.split('</div>').slice(0, Math.ceil(hostPorts.length/2)).join('</div>') + '</div>', '#f59e0b', { flex: '1 1 auto', minWidth: '90px' })}
-        ${hostPorts.length > 2 ? _section(isEf600 ? 'HIC SLOT 2' : 'HOST (cont.)', hostContent.split('</div>').slice(Math.ceil(hostPorts.length/2)).join('</div>'), '#f59e0b', { flex: '1 1 auto', minWidth: '90px' }) : ''}
-        ${storagePorts.length > 0 ? _section('DRIVE EXPANSION', storageContent, '#a855f7', { minWidth: '70px' }) : ''}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '55px' })}
-      </div>
-    </div>`;
+    let ec = '', sub2 = '';
+    if (/^(28\d\d|e?2800|ef280|e28)/.test(_plat2)) { sub2 = 'E2800 / EF280 controller canister (2U, or 4U for 2860) · 2 PSUs in the shelf · source: E-Series hardware diagram'; ec = _E2800(); }
+    else if (/^(57\d\d|e?5700|ef570|e57)/.test(_plat2)) { sub2 = 'E5700 / EF570 controller canister (host ports 0a/0b; optional HIC) · 2 PSUs in the shelf · source: E-Series hardware diagram'; ec = _E5700(false); }
+    else if (/^(40\d\d|e4000)/.test(_plat2)) { sub2 = 'E4000 controller canister · source: E-Series hardware diagram'; ec = _E4000(); }
+    else { sub2 = 'EF600 / EF300 / EF50 / EF80 / unrecognised model: physical layout not drawn'; ec = '<div style="font-size:0.6rem;color:#94a3b8;">Host and management ports are shown in the port table below.</div>'; }
+    return _frame(`${_ctrlAB} — REAR PANEL`, sub2, ec, _psuNote + ' Active IQ does not report port state for E-Series; connector positions are from the NetApp hardware diagram.');
   }
 
-  // ── ONTAP Controllers — Platform-specific rear-panel layouts ───────────────
-  const platformStr = sys.platform || '';
-
-  // Detect platform family
-  // AFX is a disaggregated architecture (separate compute nodes + storage pool
-  // modules, not a traditional dual-controller chassis with numbered PCIe I/O
-  // slots) — it must NOT share the 11-slot layout below, which asserts specific
-  // slot-number semantics (SLOT 1/7/8/9-11) that don't apply to AFX's hardware.
   const isAFXPlat = _plat.includes('afx');
+  const _code = _plat.replace(/^(aff|asa|fas)[-_\s]*/, '').replace(/^r2[-_\s]*/, '').replace(/[-_\s]+/g, '');
+  const _isCtrlB2 = isCtrlB || /-0?2$/.test(sys.systemName || '');
+  const ctrl = _isCtrlB2 ? 'CONTROLLER B' : 'CONTROLLER A';
+  const _has = (...codes) => codes.some(c => _code === c || _code.startsWith(c) && !/^\d/.test(_code.slice(c.length)));
+  let layout = 'generic', sub = '', inner = '';
 
-  // "a90" substring-matches "a900" (AFF A900 is a different, 10-slot-per-
-  // controller platform — see isA900Family below), so it must be explicitly
-  // excluded here or A900 systems get misclassified into the 9-slot A70/A90/
-  // A1K layout. Same guard for "fas90" vs "fas9000".
-  const isNextGen11Slot = !isAFXPlat && (_plat.includes('a70') ||
-    (_plat.includes('a90') && !_plat.includes('a900')) || _plat.includes('a1k') ||
-    _plat.includes('fas70') || (_plat.includes('fas90') && !_plat.includes('fas9000')) ||
-    _plat.includes('asa a') || (platformStr.includes('ASA') && /r2/i.test(platformStr)));
+  if (isAFXPlat) layout = 'afx';
+  else if (_has('a700', '9000', 'a900', '9500')) layout = 'chassis8u';
+  else if (_has('8300', '8700', 'a400', 'c400')) layout = 'mid7';
+  else if (_has('a800', 'c800')) layout = 'a800';
+  else if (_has('8200', 'a300')) layout = 'fas8200';
+  else if (_has('a250', 'c250', '500f')) layout = 'a250';
+  else if (_has('2820', '2850', 'a150', '150')) layout = 'fas2800';
+  else if (_has('a220', 'c190', '2720', '2750', '2650', '2620', 'a200')) layout = 'a220';
+  else if (_has('a1k', 'a70', 'a90', '70', '90')) layout = 'gen11';
+  else if (_has('a20', 'a30', 'a50', 'c30', 'c60', '50')) layout = 'a20';
 
-  // Mid-range chassis families, confirmed distinct via NetApp's own key-
-  // specifications pages (2026-08-10) plus a follow-up confirmation pass
-  // (2026-08-10, second round) that resolved FAS8300/FAS8700/FAS9000/C400
-  // from "grouped with A400 by unverified guess" to individually confirmed:
-  //   A400 = 5 slots/ctrl (10 total, 4U)   C400 = 5 slots/ctrl (10 total) — confirmed match to A400
-  //   A900 = 10 slots/ctrl (20 total, 8U)  FAS9000 = 10 slots/ctrl (20 total) — sourced from a
-  //     NetApp datasheet PDF rather than a live key-specs page (FAS9000 predates
-  //     the current doc format), so treated as lower-confidence but still a real
-  //     confirmation rather than a guess.
-  //   FAS8300 = 7 slots/ctrl (14 total)    FAS8700 = 7 slots/ctrl (14 total) — own bucket, see isA87Family below
-  const isA400Family = _plat.includes('a400') || _plat.includes('c400');
-  const isA900Family = _plat.includes('a900') || _plat.includes('fas9000');
-  const isA87Family = _plat.includes('fas8300') || _plat.includes('fas8700') ||
-    _plat.includes('8300') || _plat.includes('8700');
-
-  // A800/C800 confirmed at 5 PCIe slots/controller (10 HA-pair total) — same as
-  // A400, but kept as a separate bucket since it has internal drive slots (48)
-  // where A400 does not (external-shelf only).
-  const is5Slot = _plat.includes('a800') || _plat.includes('c800');
-
-  const isEntry2U = _plat.includes('a250') || _plat.includes('a150') || _plat.includes('c250') ||
-    _plat.includes('fas2') || _plat.includes('2820') || _plat.includes('a220') ||
-    _plat.includes('a20') || _plat.includes('a30') || _plat.includes('a50') ||
-    _plat.includes('c20') || _plat.includes('c30') || _plat.includes('c60') ||
-    _plat.includes('fas500');
-
-  // ── AFX — confirmed fixed slot assignments ─────────────────────────────────
-  // AFX 1K controller nodes are based on AFF A1K hardware (2U each, no on-board
-  // disk) but AFX's own hardware-details documentation states FIXED slot
-  // assignments distinct from standard A1K: slot 1 = HA replication, slot 7 =
-  // cluster replication, slots 10-11 = storage-shelf (NX224/NSM140) communication.
-  // Source: docs.netapp.com AFX hardware-details page (re-confirmed 2026-07-13),
-  // cross-checked in NetApp Reference Library/Platforms-Hardware/README.md
-  // 2026-08-10. This is AFX-specific — do NOT reuse for plain A1K (see the
-  // 9-slot-per-controller branch below, which is what A1K running standard
-  // Unified ONTAP actually has).
-  if (isAFXPlat) {
-    const clusterPorts = ports.filter(p => p.type === 'cluster');
-    const dataPorts = ports.filter(p => p.type === 'data');
-    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
-
-    let afxSlotsHtml = '';
-    const slot1Port = clusterPorts[0];
-    afxSlotsHtml += slot1Port ? _section('SLOT 1<br>HA REPL', _portBlock(slot1Port, 32), '#3b82f6', { minWidth: '48px' })
-      : _section('SLOT 1<br>HA REPL', _emptySlot(1), '#374151', { minWidth: '40px' });
-
-    for (let s = 2; s <= 6; s++) {
-      const dp = dataPorts[s - 2];
-      afxSlotsHtml += dp ? _section(`SLOT ${s}`, _portBlock(dp, 32), _portTypeColor(dp.type), { minWidth: '48px' })
-        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
+  if (layout === 'fas8200') {
+    sub = '3U-class chassis, two controllers · 2 PCIe slots per controller · PSUs are in the chassis, at each side · source: FAS8200/AFF A300 ISI';
+    inner = _row([
+      _section('SAS', _SAS(['0a', '0b', '0c', '0d']), '#a855f7', { minWidth: '110px' }),
+      _section('CLUSTER<br>10GbE SFP+', _stack([_P('e0a'), _P('e0b')]), '#3b82f6', { minWidth: '52px' }),
+      _section('UTA2', _row([_stack([_P('e0e'), _P('e0f')]), _stack([_P('e0g'), _P('e0h')])]), '#f59e0b', { minWidth: '92px' }),
+      _section('10GBASE-T', _stack([_P('e0c'), _P('e0d')]), '#f59e0b', { minWidth: '52px' }),
+      _MG(_FIX('μUSB', 'usb', 'micro-USB console')),
+      _SL(1), _SL(2)
+    ]);
+  } else if (layout === 'mid7') {
+    sub = '4U chassis, two controllers · 5 PCIe slots per controller · 2 PSUs inside each controller · source: FAS8300/FAS8700/AFF A400/C400 ISI';
+    inner = `<div style="display:flex;gap:4px;align-items:stretch;margin-bottom:4px;">${_PSU('PSU 1')}${_PSU('PSU 2')}${_SL(1)}${_stack([_SL(2), _SL(3)])}${_stack([_SL(4), _SL(5)])}</div>` +
+      _row([
+        _section('SAS', _SAS(['0a', '0b', '0c', '0d']), '#a855f7', { minWidth: '110px' }),
+        _section('HA<br>25GbE', _row([_P('e0a'), _P('e0b')]), '#3b82f6', { minWidth: '70px' }),
+        _section('CLUSTER<br>100GbE', _row([_P('e0c'), _P('e0d')]), '#3b82f6', { minWidth: '70px' }),
+        _MG(_FIX('μUSB', 'usb', 'micro-USB console')),
+        _section('MEZZANINE<br>25GbE / 16Gb FC', _row([_P('e0e'), _P('e0f'), _P('e0g'), _P('e0h')]), '#f59e0b', { minWidth: '150px' })
+      ]);
+  } else if (layout === 'a800') {
+    sub = '4U chassis, two controllers · 5 PCIe slots per controller · 48 internal drives (A800) · 2 PSUs per controller · source: AFF A800/C800 ISI';
+    inner = `<div style="display:flex;gap:4px;align-items:stretch;margin-bottom:4px;">${_SL(1)}${_stack([_SL(2), _SL(3)])}${_stack([_SL(4), _SL(5)])}</div>` +
+      _row([
+        _PSU('PSU 1'), _PSU('PSU 2'),
+        _section('MGMT', _FIX('CON', 'rj45', 'Console (RJ-45)') + _FIX('μUSB', 'usb', 'micro-USB console') + _P('e0M', { w: 38, tag: 'wrench' }) + _FIX('BMC', 'rj45', 'BMC (RJ-45)') + _FIX('USB', 'usb', 'USB-A') + _FIX('USB', 'usb', 'USB-A'), '#10b981', { minWidth: '150px' }),
+        _section('CLUSTER / HA<br>100GbE', _row([_P('e0a'), _P('e0b')]), '#3b82f6', { minWidth: '80px' })
+      ]);
+  } else if (layout === 'chassis8u') {
+    sub = '8U chassis, two controllers side by side · 11 vertical IO slots per controller, slot 6 = NVRAM · 4 PSUs · source: AFF A700/A900, FAS9000/FAS9500 ISI';
+    const bays = [];
+    for (let i = 1; i <= 11; i++) {
+      bays.push(i === 6 ? `<div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.25);border:1px solid #374151;border-radius:3px;padding:3px 6px;"><span style="font-size:0.5rem;font-weight:700;color:#94a3b8;min-width:38px;">SLOT 6</span><span style="font-size:0.5rem;color:#6b7280;">NVRAM module (no network ports)</span></div>` :
+        (() => { const ps = _slotPorts(i); ps.forEach(q => _used.add(q.name)); return `<div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.25);border:1px solid ${ps.length ? _portTypeColor(ps[0].type) : '#374151'};border-radius:3px;padding:3px 6px;min-height:26px;"><span style="font-size:0.5rem;font-weight:700;color:#94a3b8;min-width:38px;">SLOT ${i}</span>${ps.length ? ps.map(q => _portBlock(q, 30)).join('') : '<span style="font-size:0.44rem;color:#6b7280;">no Ethernet port reported</span>'}</div>`; })());
     }
-
-    const slot7Port = clusterPorts[1];
-    afxSlotsHtml += slot7Port ? _section('SLOT 7<br>CLUS REPL', _portBlock(slot7Port, 32), '#3b82f6', { minWidth: '48px' })
-      : _section('SLOT 7<br>CLUS REPL', _emptySlot(7), '#374151', { minWidth: '40px' });
-
-    afxSlotsHtml += _section('SLOT 8<br>SYS MGMT', _mgmtSection(), '#10b981', { minWidth: '85px' });
-
-    const s9Data = dataPorts[5];
-    afxSlotsHtml += s9Data ? _section('SLOT 9', _portBlock(s9Data, 32), _portTypeColor(s9Data.type), { minWidth: '48px' })
-      : _section('SLOT 9', _emptySlot(9), '#374151', { minWidth: '40px' });
-
-    for (let s = 10; s <= 11; s++) {
-      const sp = storagePorts[s - 10];
-      afxSlotsHtml += sp ? _section(`SLOT ${s}<br>STORE`, _portBlock(sp, 32), '#a855f7', { minWidth: '48px' })
-        : _section(`SLOT ${s}<br>STORE`, _emptySlot(s), '#374151', { minWidth: '40px' });
-    }
-
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">AFX Compute Node (A1K-based, 2U) · Fixed Slot Map</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${afxSlotsHtml}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>HA/Cluster Replication</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage-Shelf Fabric (NX224/NSM140)</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
+    inner = `<div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;"><div style="display:flex;flex-direction:column;gap:3px;flex:1 1 320px;min-width:280px;">${bays.join('')}</div>` +
+      `<div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">${_section('SYSTEM MGMT<br>(centre of chassis)', _P('e0M', { w: 38, tag: 'wrench' }) + _FIX('CON', 'rj45', 'Console (RJ-45)') + _FIX('USB', 'usb', 'USB-A'), '#10b981', { minWidth: '110px' })}<div style="display:flex;gap:4px;">${_isCtrlB2 ? _PSU('PSU 3') + _PSU('PSU 4') : _PSU('PSU 1') + _PSU('PSU 2')}</div></div></div>`;
+  } else if (layout === 'a250') {
+    sub = '2U chassis, two controllers · 2 PCIe slots per controller · 1 PSU per controller · source: AFF A250/C250 ISI';
+    inner = _row([
+      _PSU('PSU'),
+      _MG(_FIX('μUSB', 'usb', 'micro-USB console')),
+      _section('e0a / e0b<br>RJ-45', _row([_P('e0a'), _P('e0b')]), '#3b82f6', { minWidth: '76px' }),
+      _SL(1), _SL(2),
+      _section('e0c / e0d<br>SFP28', _row([_P('e0c'), _P('e0d')]), '#3b82f6', { minWidth: '76px' })
+    ]);
+  } else if (layout === 'fas2800') {
+    sub = '2U chassis, two controllers side by side · 1 mezzanine slot · 1 PSU per controller · source: FAS2820/AFF A150 ISI';
+    inner = `<div style="display:flex;gap:4px;align-items:stretch;margin-bottom:4px;">${_MG(_FIX('μUSB', 'usb', 'micro-USB console'))}${_section('SAS', _SAS(['0a', '0b']), '#a855f7', { minWidth: '64px' })}${_section('CLUSTER<br>25GbE SFP28', _row([_P('e0a'), _P('e0b')]), '#3b82f6', { minWidth: '76px' })}</div>` +
+      _row([_SL(1, 'SLOT 1 (mezzanine)', { minWidth: '150px' }), _PSU('PSU')]);
+  } else if (layout === 'a220') {
+    sub = '2U chassis, two controllers side by side · 1 PSU per controller · source: AFF A220/C190, FAS2720/FAS2750 ISI';
+    inner = _row([
+      _section('SAS', _SAS(['0a', '0b']), '#a855f7', { minWidth: '64px' }),
+      _section('CLUSTER<br>10GbE', _row([_P('e0a'), _P('e0b')]), '#3b82f6', { minWidth: '76px' }),
+      _section('UNIFIED / 10GbE', _row([_P('e0c'), _P('e0d'), _P('e0e'), _P('e0f')]), '#f59e0b', { minWidth: '150px' }),
+      _section('MGMT', _FIX('CON', 'rj45', 'Console (RJ-45)') + _FIX('USB', 'usb', 'USB-A') + _P('e0M', { w: 38, tag: 'wrench' }), '#10b981', { minWidth: '110px' }),
+      _PSU('PSU')
+    ]);
+  } else if (layout === 'gen11') {
+    sub = '2U controller with 11 slot positions: 1-3 left, 4-5 NVRAM, 6-7 below the PSUs, 8-11 right · 2 PSUs · source: AFF A1K/A70/A90, FAS70/FAS90 hardware diagrams';
+    inner = _row([
+      _SL(1), _SL(2), _SL(3), _NVRAM('SLOT 4 & 5'),
+      `<div style="display:flex;flex-direction:column;gap:4px;"><div style="display:flex;gap:4px;">${_PSU('PSU 1')}${_PSU('PSU 2')}</div><div style="display:flex;gap:4px;">${_SL(6)}${_SL(7)}</div></div>`,
+      _section('MGMT', _FIX('USB', 'usb', 'USB-A') + _FIX('CON', 'rj45', 'Console (RJ-45)') + _P('e0M', { w: 38, tag: 'e0M' }), '#10b981', { minWidth: '70px' }),
+      _SL(8), _SL(9), _SL(10), _SL(11)
+    ]);
+  } else if (layout === 'afx') {
+    sub = 'AFX compute node (A1K-class, 2U): slots 1-5 left, 6 NVRAM, 7, 8-11 right · fixed roles: slot 1 HA replication, slot 7 cluster replication, slots 10-11 shelf fabric · source: AFX hardware diagrams';
+    inner = _row([
+      _SL(1, 'SLOT 1<br>HA REPL'), _SL(2), _SL(3), _SL(4, 'SLOT 4', { empty: 'not populated' }), _SL(5, 'SLOT 5', { empty: 'not populated' }),
+      `<div style="display:flex;flex-direction:column;gap:4px;"><div style="display:flex;gap:4px;">${_PSU('PSU 1')}${_PSU('PSU 2')}</div><div style="display:flex;gap:4px;">${_NVRAM('SLOT 6')}${_SL(7, 'SLOT 7<br>CLUS REPL')}</div></div>`,
+      _section('MGMT', _FIX('USB', 'usb', 'USB-A') + _FIX('CON', 'rj45', 'Console (RJ-45)') + _P('e0M', { w: 38, tag: 'e0M' }), '#10b981', { minWidth: '70px' }),
+      _SL(8), _SL(9), _SL(10, 'SLOT 10<br>STORE'), _SL(11, 'SLOT 11<br>STORE')
+    ]);
+  } else if (layout === 'a20') {
+    sub = '2U chassis, two controllers stacked · 4 IO slots per controller (1 and 2 left, 3 and 4 right) · 1 PSU per controller · source: AFF A20/A30/A50, C30/C60, FAS50 diagrams';
+    inner = _row([
+      _PSU('PSU'),
+      `<div style="display:flex;flex-direction:column;gap:4px;">${_SL(1, 'SLOT 1', { minWidth: '110px' })}${_SL(2)}</div>`,
+      _section('MGMT', _FIX('USB', 'usb', 'USB-A') + _FIX('CON', 'rj45', 'Console (RJ-45)') + _P('e0M', { w: 38, tag: 'e0M' }) + _FIX('μUSB', 'usb', 'micro-USB console'), '#10b981', { minWidth: '110px' }),
+      `<div style="display:flex;flex-direction:column;gap:4px;">${_SL(3)}${_SL(4)}</div>`
+    ]);
+  } else {
+    // Unknown platform: group what Active IQ reported by slot, which is how ONTAP names the ports
+    sub = 'Physical layout for this model is not built in; ports are grouped by the slot in their name (e0x = onboard, eNx = slot N)';
+    const slots = [...new Set(ports.filter(_isPhys).map(p => p.name === 'e0M' ? 'M' : (p.name.match(/^e(\d+)/) || [])[1]))].filter(x => x !== undefined && x !== 'M').map(Number).sort((x, y) => x - y);
+    inner = _row([
+      _section('MGMT', _P('e0M', { w: 38 }), '#10b981', { minWidth: '60px' }),
+      ...slots.map(sn => sn === 0 ? _section('ONBOARD', ports.filter(p => /^e0[a-z]$/i.test(p.name)).map(p => { _used.add(p.name); return _portBlock(p, 30); }).join(''), '#3b82f6', { minWidth: '80px' }) : _SL(sn))
+    ]);
   }
 
-  // ── A70/A90/A1K — 9 PCIe slots per controller (confirmed) ────────────────
-  // Confirmed via NetApp's own key-specifications pages (2026-08-10 direct
-  // fetch): A70/A90/A1K are each 18 PCIe slots per HA pair = 9 per controller.
-  // A1K is a dual-chassis HA pair (2U per controller, no on-board drives);
-  // A70/A90 are single-chassis 4U HA pairs with 48 internal drive slots.
-  // Previously this layout rendered 11 numbered positions (1-11, including a
-  // non-PCIe mgmt module at "slot 8") — corrected to 9 real PCIe slots plus a
-  // separate (non-numbered) management module, matching the confirmed count.
-  if (isNextGen11Slot) {
-    const clusterPorts = ports.filter(p => p.type === 'cluster');
-    const dataPorts = ports.filter(p => p.type === 'data');
-    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
-    const fcPorts = ports.filter(p => p.type === 'fc');
+  const extra = ports.filter(p => _isPhys(p) && !_used.has(p.name));
+  const logical = ports.filter(p => !_isPhys(p));
+  const notes = (extra.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Other reported ports: ${extra.map(p => _portBlock(p, 30)).join(' ')}</div>` : '') +
+    (logical.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Logical interfaces on this node (interface groups / VLANs, not physical connectors): ${logical.map(p => `<code style="color:#cbd5e1;">${p.name}</code>`).join(', ')}</div>` : '') +
+    (!ports.length ? `<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Active IQ reported no network ports for this system, so no port state is shown; connector positions are from the NetApp hardware diagram.</div>` : '');
 
-    // Slots 1-9: slot 1 = HA/cluster, slots 2-6 = data/FC, slot 7 = cluster,
-    // slots 8-9 = storage/overflow I/O. Management is a separate onboard
-    // module, not one of the 9 numbered PCIe slots.
-    let slotsHtml = '';
-    const slot1Port = clusterPorts[0];
-    slotsHtml += slot1Port ? _section('SLOT 1<br>HA/CLUS', _portBlock(slot1Port, 32), '#3b82f6', { minWidth: '48px' })
-      : _section('SLOT 1', _emptySlot(1), '#374151', { minWidth: '40px' });
-
-    for (let s = 2; s <= 6; s++) {
-      const portIdx = s - 2;
-      const dp = dataPorts[portIdx] || fcPorts[portIdx - dataPorts.length];
-      slotsHtml += dp ? _section(`SLOT ${s}<br>I/O`, _portBlock(dp, 32), _portTypeColor(dp.type), { minWidth: '48px' })
-        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
-    }
-
-    const slot7Port = clusterPorts[1];
-    slotsHtml += slot7Port ? _section('SLOT 7<br>CLUS', _portBlock(slot7Port, 32), '#3b82f6', { minWidth: '48px' })
-      : _section('SLOT 7', _emptySlot(7), '#374151', { minWidth: '40px' });
-
-    for (let s = 8; s <= 9; s++) {
-      const stIdx = s - 8;
-      const sp = storagePorts[stIdx];
-      if (sp) {
-        slotsHtml += _section(`SLOT ${s}<br>STORE`, _portBlock(sp, 32), '#a855f7', { minWidth: '48px' });
-      } else {
-        const extraData = dataPorts[s - 8 + 2];
-        slotsHtml += extraData ? _section(`SLOT ${s}<br>I/O`, _portBlock(extraData, 32), '#f59e0b', { minWidth: '48px' })
-          : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
-      }
-    }
-
-    // Management module — separate from the 9 numbered PCIe slots
-    slotsHtml += _section('SYS MGMT', _mgmtSection(), '#10b981', { minWidth: '85px' });
-
-    const chassisLabel = _plat.includes('a1k') ? '2U/Controller · Dual-Chassis HA' : '4U · Single-Chassis HA';
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisLabel} · 9 PCIe Slots (Confirmed)</span>
-        </div>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${slotsHtml}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#eab308;"></span>FC/SAN</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
-  }
-
-  // ── A900/FAS9000 — 10 PCIe slots per controller ───────────────────────────
-  // A900 confirmed via NetApp's live key-specs page (2026-08-10): 20 PCIe
-  // slots per HA pair = 10 per controller, 8U single-chassis HA pair, no
-  // internal drives. FAS9000 confirmed to the same 10/controller figure in a
-  // follow-up pass, but sourced from a NetApp datasheet PDF rather than a live
-  // key-specs page (FAS9000 predates the current doc format) — real
-  // confirmation, just lower-confidence than A900's, labeled accordingly.
-  // Previously bucketed with A400 under a single "10-slot" layout — A400 is
-  // actually 5 slots/controller (see below), a real discrepancy this corrects.
-  if (isA900Family) {
-    const clusterPorts = ports.filter(p => p.type === 'cluster');
-    const dataPorts = ports.filter(p => p.type === 'data');
-    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
-    const fcPorts = ports.filter(p => p.type === 'fc');
-
-    const onboardHtml = _mgmtSection() +
-      ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
-      ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
-
-    const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
-    let pcieSlotsHtml = '';
-    for (let s = 1; s <= 10; s++) {
-      const rp = remainingPorts[s-1];
-      pcieSlotsHtml += rp ? _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' })
-        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
-    }
-
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${_plat.includes('a900') ? '8U ' : ''}Single-Chassis HA · 10 PCIe Slots ${_plat.includes('a900') ? '(Confirmed)' : '(Confirmed, lower-confidence source)'}</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
-        ${pcieSlotsHtml}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
-  }
-
-  // ── A400 family — 5 PCIe slots per controller (A400 and C400 both confirmed) ──
-  // Confirmed via NetApp key-specs (2026-08-10, C400 confirmation added in a
-  // follow-up pass same day): A400/C400 are each 10 PCIe slots per HA pair =
-  // 5 per controller, 4U single-chassis HA pair, no internal drives.
-  if (isA400Family) {
-    const clusterPorts = ports.filter(p => p.type === 'cluster');
-    const dataPorts = ports.filter(p => p.type === 'data');
-    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
-    const fcPorts = ports.filter(p => p.type === 'fc');
-
-    const onboardHtml = _mgmtSection() +
-      ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
-      ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
-
-    const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
-    let pcieSlotsHtml = '';
-    for (let s = 1; s <= 5; s++) {
-      const rp = remainingPorts[s-1];
-      pcieSlotsHtml += rp ? _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' })
-        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
-    }
-
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U Single-Chassis HA · 5 PCIe Slots (Confirmed)</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
-        ${pcieSlotsHtml}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
-  }
-
-  // ── FAS8300/FAS8700 — 7 PCIe slots per controller (confirmed) ────────────
-  // Confirmed via NetApp key-specs (2026-08-10 follow-up pass): FAS8300 and
-  // FAS8700 are each 14 PCIe slots per HA pair = 7 per controller — distinct
-  // from both the A400 family (5/ctrl) and A900 family (10/ctrl) they were
-  // previously (unverified) grouped with.
-  if (isA87Family) {
-    const onboardHtml = _mgmtSection() +
-      ports.filter(p => ['e0a','e0b'].includes(p.name)).map(p => _portBlock(p, 32)).join('') +
-      ports.filter(p => ['e0c','e0d'].includes(p.name)).map(p => _portBlock(p, 32)).join('');
-
-    const remainingPorts = ports.filter(p => !['e0M','e0a','e0b','e0c','e0d'].includes(p.name));
-    let pcieSlotsHtml = '';
-    for (let s = 1; s <= 7; s++) {
-      const rp = remainingPorts[s-1];
-      pcieSlotsHtml += rp ? _section(`SLOT ${s}`, _portBlock(rp, 30), _portTypeColor(rp.type), { minWidth: '44px' })
-        : _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '38px' });
-    }
-
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">Single-Chassis HA · 7 PCIe Slots (Confirmed)</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_section('ONBOARD I/O<br>e0M · HA · CLUS', onboardHtml, '#10b981', { minWidth: '120px' })}
-        ${pcieSlotsHtml}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
-  }
-
-  // ── A800/C800 — 5 PCIe Slots with separate e0M + BMC ─────────────────────
-  if (is5Slot) {
-    const mgmtHtml = _mgmtSection() +
-      `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:1px;opacity:0.6;">
-        ${_connectorIcon('rj45', 10)}<span style="font-size:0.42rem;color:#6b7280;">BMC</span>
-      </div>`;
-    const dataPorts = ports.filter(p => p.type !== 'mgmt');
-    let pcieSlotsHtml = '';
-    for (let s = 1; s <= 5; s++) {
-      const dp = dataPorts[s-1];
-      if (dp) {
-        pcieSlotsHtml += _section(`SLOT ${s}`, _portBlock(dp, 32), _portTypeColor(dp.type), { minWidth: '48px' });
-      } else {
-        pcieSlotsHtml += _section(`SLOT ${s}`, _emptySlot(s), '#374151', { minWidth: '40px' });
-      }
-    }
-
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">4U Single-Chassis HA · 48 Internal Drives · 5 PCIe Slots (Confirmed)</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_section('MGMT + BMC', mgmtHtml, '#10b981', { minWidth: '100px' })}
-        ${pcieSlotsHtml}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
-  }
-
-  // ── Entry 2U (A250/C250/FAS2820/A150) ─────────────────────────────────────
-  if (isEntry2U) {
-    const mgmtPort = _findPort('e0M');
-    const clusterPorts = ports.filter(p => p.type === 'cluster');
-    const dataPorts = ports.filter(p => p.type === 'data');
-    const storagePorts = ports.filter(p => p.type === 'sas' || p.type === 'nvme');
-    const fcPorts = ports.filter(p => p.type === 'fc');
-
-    const mgmtHtml = _mgmtSection();
-    const onboardEthHtml = clusterPorts.map(p => _portBlock(p, 34)).join('') +
-      dataPorts.map(p => _portBlock(p, 34)).join('');
-    const storageHtml = storagePorts.map(p => _portBlock(p, 34)).join('');
-    const fcHtml = fcPorts.map(p => _portBlock(p, 34)).join('');
-
-    const hasMezz = _plat.includes('a250') || _plat.includes('c250') || _plat.includes('fas2');
-    const chassisDesc = _plat.includes('a150') ? '2U Fixed Architecture' : '2U · 2 Mezz Slots';
-
-    return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
-          <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
-        </div>
-        <span style="font-size:0.48rem;color:#6b7280;font-style:italic;">${chassisDesc}</span>
-      </div>
-      <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-        ${_section('MGMT / CON', mgmtHtml, '#10b981', { minWidth: '80px' })}
-        ${_section('ONBOARD ETH<br>CLUS + DATA', onboardEthHtml, '#3b82f6', { flex: '1 1 auto', minWidth: '80px' })}
-        ${fcHtml ? _section(hasMezz ? 'MEZZ SLOT 2<br>FC / UTA2' : 'ONBOARD FC', fcHtml, '#eab308', { minWidth: '70px' }) : ''}
-        ${storageHtml ? _section('SAS / NVMe<br>SHELF PORTS', storageHtml, '#a855f7', { minWidth: '70px' }) : ''}
-        ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-      </div>
-      <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
-        <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
-      </div>
-    </div>`;
-  }
-
-  // ── Fallback — Generic ONTAP controller ───────────────────────────────────
-  const allPorts = ports.map(p => _portBlock(p, 34)).join('');
   return `<div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrlLabel} — REAR PANEL</span>
+        <span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${ctrl} — REAR PANEL</span>
         <span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span>
       </div>
+      <span style="font-size:0.48rem;color:#6b7280;font-style:italic;max-width:70%;text-align:right;">${sub}</span>
     </div>
-    <div style="display:flex;gap:4px;align-items:stretch;overflow-x:auto;padding:4px 0;">
-      ${_section('MGMT', _mgmtSection(), '#10b981', { minWidth: '80px' })}
-      ${_section('I/O PORTS', allPorts, '#3b82f6', { flex: '1 1 auto', minWidth: '100px' })}
-      ${_section('PSU', _psuSection(2), '#374151', { minWidth: '50px' })}
-    </div>
+    <div style="overflow-x:auto;padding:4px 0;">${inner}</div>
+    ${notes}
     <div style="margin-top:6px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
       <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>Cluster/HA</span>
       <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span>Data/Host</span>
-      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage</span>
+      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;"></span>Storage (SAS)</span>
       <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span>Management</span>
+      <span style="font-size:0.48rem;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:0;border-top:1.5px dashed #6b7280;"></span>Not reported by Active IQ</span>
     </div>
   </div>`;
 }
@@ -36301,7 +36091,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
 
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
   const _plat = (sys.platform || '').toLowerCase();
-  const isEseries = !!sys.santricityVersion || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
+  const isEseries = _platformFamily(sys) === "eseries" || !!sys.santricityVersion || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
   const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud");
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
