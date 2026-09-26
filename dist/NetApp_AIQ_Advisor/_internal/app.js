@@ -24014,7 +24014,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     const _byDate = {};
     lapsed.forEach(e => { const d = fmtD(e.endDate); (_byDate[d] = _byDate[d] || []).push(e.systemName); });
     const _dates = Object.keys(_byDate).sort();
-    o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for them.\n\n`;
+    o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for ${lapsed.length === 1 ? 'it' : 'them'}.\n\n`;
     if (lapsed.length <= 12) o += lapsed.map(e => `- ${e.systemName} (expired ${fmtD(e.endDate)})`).join('\n') + '\n\n';
     else {
       o += `| Contract expired | Systems | Examples |\n|---|---|---|\n` + _dates.map(d => `| ${d} | ${_byDate[d].length} | ${_byDate[d].slice(0, 4).join(', ')}${_byDate[d].length > 4 ? ', ...' : ''} |`).join('\n') + '\n\n';
