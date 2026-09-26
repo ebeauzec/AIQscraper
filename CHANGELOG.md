@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.91] - 2026-09-26
+
+### Changed
+- FabricPool is removed from the on-screen dashboards as well: the Cloud Tiering card and its column on the CSM tab (the row is now two cards wide), the tiered series in the Storage Capacity by System chart, the FabricPool checklist item on the fleet and per-system Data Protection checklists, the FabricPool column in the Feature Adoption matrix, the per-system 'FabricPool Tiered' field, and the FabricPool items in the Success Plan recommendations. NetApp's own recommendation text and reference-library articles are unchanged.
+
+---
+
+## [5.6.90] - 2026-09-26
+
+### Changed
+- FabricPool is removed from the feature-adoption score and from every deliverable scorecard and action list (Success Plan, Risk & Remediation Brief, Sales Proposals, Sustainability Report, Customer Communications). The score is now over ARP, SnapMirror, HA and AutoSupport, and the criteria total is summed from the real per-system totals instead of a hardcoded 15 per system. The on-screen dashboards are unchanged.
+
+---
+
 ## [5.6.89] - 2026-09-26
 
 ### Added

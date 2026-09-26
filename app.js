@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.90";
+const APP_VERSION = "5.6.91";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.91",
+    date: "26 September 2026",
+    title: "FabricPool Removed from Dashboards",
+    sections: [
+      {
+        icon: "✅",
+        label: "Dashboards",
+        color: "#22c55e",
+        items: [
+          "FabricPool is removed from the on-screen dashboards as well: the Cloud Tiering card and its column on the CSM tab (the row is now two cards wide), the tiered series in the Storage Capacity by System chart, the FabricPool checklist item on the fleet and per-system Data Protection checklists, the FabricPool column in the Feature Adoption matrix, the per-system 'FabricPool Tiered' field, and the FabricPool items in the Success Plan recommendations. NetApp's own recommendation text and reference-library articles are unchanged.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.90",
     date: "26 September 2026",
@@ -8400,51 +8415,30 @@ function renderCharts() {
     }
   }
 
-  // ── Bar: top 15 systems by physical used — physical on-flash / FabricPool tiered / available ──
+  // ── Bar: top 15 systems by physical used — used / available ──
   const barSystems = [...filteredSystems]
     .filter(s => (s.efficiency.physicalUsedTB || 0) > 0)
     .sort((a, b) => b.efficiency.physicalUsedTB - a.efficiency.physicalUsedTB)
     .slice(0, 15);
 
-  // Determine FabricPool participation
-  const barFPTiered = barSystems.map(s => parseFloat(((s.efficiency.fabricPoolTieredTB) || 0).toFixed(1)));
-  const fpCount     = barFPTiered.filter(v => v > 0).length;
-  const anyFP       = fpCount > 0;
-
-  // Physical on-flash = physicalUsedTB minus what's already tiered (FabricPool tiered is cold blocks
-  // that have been moved off-flash; the physicalUsedTB field in our mock data represents total logical
-  // footprint. We keep the bar split as: [on-flash physical] + [tiered] + [available])
-  const barOnFlash = barSystems.map((s, i) => {
-    const total = parseFloat((s.efficiency.physicalUsedTB || 0).toFixed(1));
-    return parseFloat(Math.max(0, total - barFPTiered[i]).toFixed(1));
-  });
+  const barUsed = barSystems.map(s => parseFloat((s.efficiency.physicalUsedTB || 0).toFixed(1)));
   const barAvail = barSystems.map(s => {
     const usable = s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0;
     return parseFloat(Math.max(0, usable - (s.efficiency.physicalUsedTB || 0)).toFixed(1));
   });
 
-  // Update card title dynamically
+  // Update card title
   const capCardTitle = ctxCap.closest('.chart-card')?.querySelector('.card-title');
   if (capCardTitle) {
-    capCardTitle.innerHTML = anyFP
-      ? `Storage Capacity by System <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);margin-left:6px;">· top 15 · <span style="color:#2dd4bf;">&#9632;</span> incl. FabricPool tiering</span>`
-      : `Storage Capacity by System <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);margin-left:6px;">· top 15 · no FabricPool in view</span>`;
+    capCardTitle.innerHTML = `Storage Capacity by System <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);margin-left:6px;">· top 15</span>`;
   }
 
   const barDatasets = [
     {
-      label: 'Physical On-Flash (TB)',
-      data: barOnFlash,
+      label: 'Physical Used (TB)',
+      data: barUsed,
       backgroundColor: 'rgba(0, 115, 230, 0.82)',
       borderColor: '#0073e6',
-      borderWidth: 1,
-      stack: 'cap'
-    },
-    {
-      label: anyFP ? `FabricPool Tiered (TB) — ${fpCount} system${fpCount > 1 ? 's' : ''}` : 'FabricPool Tiered (TB)',
-      data: barFPTiered,
-      backgroundColor: 'rgba(45, 212, 191, 0.75)',
-      borderColor: '#2dd4bf',
       borderWidth: 1,
       stack: 'cap'
     },
@@ -8487,34 +8481,17 @@ function renderCharts() {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: {
-            color: '#f3f4f6',
-            font: { size: 11 },
-            // Hide FabricPool legend entry when none of the systems have it
-            filter: item => !(item.text.startsWith('FabricPool') && !anyFP)
-          }
+          labels: { color: '#f3f4f6', font: { size: 11 } }
         },
         tooltip: {
           callbacks: {
             label: ctx => {
               const i = ctx.dataIndex;
-              const total = barOnFlash[i] + barFPTiered[i] + barAvail[i];
-              const utilPct = total > 0 ? ((( barOnFlash[i] + barFPTiered[i]) / total) * 100).toFixed(0) : 0;
-              if (ctx.datasetIndex === 0) {
-                return `On-Flash: ${ctx.parsed.y.toFixed(1)} TB  (${utilPct}% utilised)`;
-              } else if (ctx.datasetIndex === 1) {
-                return barFPTiered[i] > 0
-                  ? `FabricPool Tiered: ${ctx.parsed.y.toFixed(1)} TB (cold data moved to cloud)`
-                  : `FabricPool: not enabled on this system`;
-              } else {
-                return `Available: ${ctx.parsed.y.toFixed(1)} TB`;
-              }
-            },
-            afterBody: (items) => {
-              if (!items.length) return [];
-              const i = items[0].dataIndex;
-              const hasFP = barFPTiered[i] > 0;
-              return hasFP ? [] : ['  ↳ No FabricPool tiering configured'];
+              const total = barUsed[i] + barAvail[i];
+              const utilPct = total > 0 ? ((barUsed[i] / total) * 100).toFixed(0) : 0;
+              return ctx.datasetIndex === 0
+                ? `Used: ${ctx.parsed.y.toFixed(1)} TB  (${utilPct}% utilised)`
+                : `Available: ${ctx.parsed.y.toFixed(1)} TB`;
             }
           }
         }
@@ -14781,7 +14758,6 @@ function renderCSMTab() {
   
   if (targetCSMSystems.length === 0) {
     document.getElementById("csmSavingsCard").innerHTML = "";
-    document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
     { const _upElX = document.getElementById("csmUptimeCard"); if (_upElX) _upElX.innerHTML = ""; }
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
@@ -15081,26 +15057,6 @@ function renderCSMTab() {
     `;
 
 
-    // 2. FabricPool aggregate
-    let totalFP = 0, activeFPCount = 0;
-    _aggOntap.forEach(s => {
-      const fp = s.efficiency.fabricPoolTieredTB || 0;
-      totalFP += fp;
-      if (fp > 0) activeFPCount++;
-    });
-    let fpBadge = _aggOntap.length === 0 ? `<span class="badge">N/A</span>` : activeFPCount > 0 ? `<span class="badge normal">${activeFPCount} active tiering</span>` : `<span class="badge warning">No Cloud Tiering</span>`;
-    document.getElementById("csmCloudCard").innerHTML = `
-      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);" title="FabricPool automatically tiers cold (inactive) data from high-performance SSD to lower-cost object storage (cloud or on-premises S3). Adoption indicates systems actively offloading cold data.">FabricPool Integration</h4>
-        ${fpBadge}
-      </div>
-      <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${totalFP > 0 ? "var(--status-info)" : "var(--status-warning)"};">
-        ${_aggOntap.length === 0 ? 'Cloud Tiered: N/A' : 'Cloud Tiered: ' + totalFP.toFixed(1) + ' TB'}
-      </div>
-      <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-        ${_aggOntap.length === 0 ? 'FabricPool is an ONTAP feature; no ONTAP systems are in this scope.' : activeFPCount + ' out of ' + _aggOntap.length + (_aggOntap.length < targetCSMSystems.length ? ' ONTAP' : '') + ' systems are tiering cold data to public/private cloud object storage.'}
-      </p>
-    `;
 
     // 3. SnapMirror aggregate
     let smEnabledCount = 0;
@@ -15145,7 +15101,7 @@ function renderCSMTab() {
     // New ops checks
     let _portHealthPass = 0, _fwCurrPass = 0, _cisaKevPass = 0, _asupCfgPass = 0;
     // ── RIGHT COLUMN: Data Protection & Lifecycle ───────────────────────────────
-    let _cloudPass = 0, _drPass = 0, _riskPass = 0, _contractPass = 0;
+    let _drPass = 0, _riskPass = 0, _contractPass = 0;
     // New DP/lifecycle checks
     let _svmPass = 0, _clonePass = 0, _cotermPass = 0, _adoptPass = 0,
         _configDriftPass = 0, _mttrPass = 0;
@@ -15245,8 +15201,6 @@ function renderCSMTab() {
       if (_asupCfgState === true || _asupCfgState == null) _asupCfgPass++;
 
       // ── Data Protection & Lifecycle checks ──────────────────────────────────
-      // 16. FabricPool tiering active
-      if (_isOnt && (s.efficiency || {}).fabricPoolTieredTB > 0) _cloudPass++;
 
       // 17. SnapMirror replication configured
       if (_isOnt && s.snapmirror && s.snapmirror.enabled) _drPass++;
@@ -15344,7 +15298,6 @@ function renderCSMTab() {
     const _rightChecks = [
       // — Data Protection —
       { cat: 'DATA PROTECTION', name: 'SnapMirror Async/Sync Replication Configured',  total: _nOntap, completedCount: _drPass,     detail: '', tip: 'Systems with at least one active SnapMirror relationship, providing off-system data protection or disaster recovery replication.' },
-      { name: 'Cloud FabricPool / Cold-Data Tiering Active',           total: _nOntap, completedCount: _cloudPass,  detail: '', tip: 'Systems tiering cold snapshot/inactive data to lower-cost object storage (S3, Azure Blob, GCS) via FabricPool, freeing up primary flash capacity for active data.' },
       { name: 'SVM/LIF Inventory Mapped',                             total: _nOntap, completedCount: _svmPass,    detail: '', tip: 'Systems where Storage Virtual Machine (SVM) and Logical Interface (LIF) topology was successfully retrieved from Active IQ. A system failing this check has a data gap here, not necessarily a real SVM/LIF problem.' },
       { name: 'No Excessive FlexClone Sprawl (\u226410 clones)',          total: _nOntap, completedCount: _clonePass,  detail: '', tip: 'Systems with 10 or fewer FlexClone volumes. Excessive clone sprawl without a cleanup/lifecycle policy consumes capacity and complicates management over time.' },
       // — Risk & Remediation —
@@ -15510,7 +15463,6 @@ function renderCSMTab() {
   const sys = targetCSMSystems[0];
   if (!sys) {
     document.getElementById("csmSavingsCard").innerHTML = "";
-    document.getElementById("csmCloudCard").innerHTML = "";
     document.getElementById("csmSnapmirrorCard").innerHTML = "";
     { const _upElX = document.getElementById("csmUptimeCard"); if (_upElX) _upElX.innerHTML = ""; }
     document.getElementById("csmAdoptionChecklist").innerHTML = "";
@@ -15530,7 +15482,6 @@ function renderCSMTab() {
   `;
 
   const isASA = (sys.platform || "").includes("ASA");
-  let fpTiered = 0;
   // ── StorageGRID / E-Series: capacity not available via Active IQ API ──────
   // When _capacityUnavailable is true the efficiency object is all-zeros.
   // Render a platform-appropriate informational note instead of the standard
@@ -15568,13 +15519,6 @@ function renderCSMTab() {
         <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">${sys.efficiency.platformNote || ''}</div>
       </div>
     `;
-    document.getElementById("csmCloudCard").innerHTML = `
-      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
-        <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-color);">N/A</span>
-      </div>
-      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">FabricPool tiering is an ONTAP feature and does not apply to StorageGRID.</div>
-    `;
   } else if (sys.efficiency && sys.efficiency._eseriesCapacity && sys.eseriesCapacity) {
     // E-Series with real SANtricity capacity: block-array breakdown, not the
     // ONTAP data-reduction panel (no dedupe/compression, no FabricPool).
@@ -15605,13 +15549,6 @@ function renderCSMTab() {
         <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">${sys.efficiency.platformNote || ''} Total is raw; the gap to allocated + free is RAID/pool overhead.</div>
       </div>
     `;
-    document.getElementById("csmCloudCard").innerHTML = `
-      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
-        <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-color);">N/A</span>
-      </div>
-      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">FabricPool tiering is an ONTAP feature and does not apply to E-Series block arrays.</div>
-    `;
   } else if (sys.efficiency && sys.efficiency._capacityUnavailable) {
     const _sgNote = sys.efficiency.platformNote || 'No capacity data was returned by Active IQ for this system.';
     const _sgIcon = _isPlatformStorageGRID(sys) ? '⬡' : '⬡';
@@ -15626,13 +15563,6 @@ function renderCSMTab() {
         </div>
         <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">For capacity figures, use the platform's native management interface.</div>
       </div>
-    `;
-    document.getElementById("csmCloudCard").innerHTML = `
-      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
-        <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-color);">N/A</span>
-      </div>
-      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">FabricPool tiering is an ONTAP feature and does not apply to ${_sgLabel} systems.</div>
     `;
   } else {
 
@@ -15668,34 +15598,6 @@ function renderCSMTab() {
     </div>
   `;
 
-
-  fpTiered = (sys.efficiency || {}).fabricPoolTieredTB || 0;
-  let fpAdoptionBadge = "";
-  let fpStatusText = "";
-  
-  if (isASA) {
-    fpAdoptionBadge = `<span class="badge normal" style="background: rgba(255,255,255,0.05); color: var(--text-secondary); border-color: var(--border-color);">N/A (SAN Block Array)</span>`;
-    fpStatusText = `ASA platforms prioritize high-speed symmetric SAN block access. Snapshot copy space optimization is managed directly via local aggregates and active block deduplication/compression.`;
-  } else if (fpTiered > 0) {
-    fpAdoptionBadge = `<span class="badge normal">Tiering Active</span>`;
-    fpStatusText = `System is tiering <strong>${(fpTiered || 0).toFixed(1)} TB</strong> of cold data to public/private cloud object storage. This saves premium flash tier capacity.`;
-  } else {
-    fpAdoptionBadge = `<span class="badge warning">No FabricPool Tiering</span>`;  // Note: NetApp Cloud Tiering service EOA April 24 2026 — FabricPool is the current term
-    fpStatusText = `<span style="color: var(--status-warning);">Potential opportunity!</span> Enable FabricPool tiering to offload cold backup/snapshot data to cheaper object storage and free up premium flash capacity.`;
-  }
-
-  document.getElementById("csmCloudCard").innerHTML = `
-    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <h4 style="font-size: 0.9rem; color: var(--text-secondary);">FabricPool Integration</h4>
-      ${fpAdoptionBadge}
-    </div>
-    <div style="font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; color: ${fpTiered > 0 && !isASA ? "var(--status-info)" : "var(--status-warning)"};">
-      Cloud Tiered: ${(fpTiered || 0).toFixed(1)} TB
-    </div>
-    <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-      ${fpStatusText}
-    </p>
-  `;
 
   const smContainer = document.getElementById("csmSnapmirrorCard");
   if (smContainer && !sys.snapmirror) {
@@ -15895,11 +15797,6 @@ function renderCSMTab() {
       na: !_sIsOnt,
       ok: !!(sys.snapmirror && sys.snapmirror.enabled),
       detail: !_sIsOnt ? `${_sNA} (ONTAP replication)` : (sys.snapmirror && sys.snapmirror.enabled) ? `${(sys.snapmirror.relationships || []).length} relationship(s) active` : 'No replication configured'
-    },
-    { name: 'Cloud FabricPool / Cold-Data Tiering Active',
-      na: !_sIsOnt,
-      ok: fpTiered > 0,
-      detail: !_sIsOnt ? `${_sNA} (FabricPool is an ONTAP feature)` : fpTiered > 0 ? `${(fpTiered || 0).toFixed(1)} TB tiered to object storage` : 'Not configured \u2014 cold data using primary tier'
     },
     { name: 'SVM/LIF Inventory Mapped',
       na: !_sIsOnt,
@@ -26929,7 +26826,6 @@ function _renderFeatureAdoptionSection(systems) {
   // Each feature tracks: enabled (confirmed true), disabled (confirmed false), unknown (null)
   const featureDefs = [
     { name: 'ARP',       ontapOnly: true, get: (s) => s.isARPEnabled != null ? s.isARPEnabled : null },
-    { name: 'FabricPool', ontapOnly: true, get: (s) => s.isFabricPool != null ? s.isFabricPool : null },
     { name: 'SnapMirror', ontapOnly: true, get: (s) => _smCountKnown(s) ? (_smCount(s) > 0) : null },
     { name: 'HA',         ontapOnly: true, get: (s) => _hasHA(s) },
     { name: 'AutoSupport', get: (s) => _getAsupConfiguredState(s) },
@@ -26982,7 +26878,6 @@ function _renderFeatureAdoptionSection(systems) {
       <tr>
         <td style="${tdLeft}font-family:monospace;">${s.systemName || s.serialNumber}</td>
         <td style="${tdStyle}">${_ont ? _icon(s.isARPEnabled != null ? s.isARPEnabled : null) : _naCell}</td>
-        <td style="${tdStyle}">${_ont ? _icon(s.isFabricPool != null ? s.isFabricPool : null) : _naCell}</td>
         <td style="${tdStyle}">${_ont ? _icon(_smCountKnown(s) ? (_smCount(s) > 0) : null) : _naCell}</td>
         <td style="${tdStyle}">${_ont ? _icon(_hasHA(s)) : _naCell}</td>
         <td style="${tdStyle}">${_icon(_getAsupConfiguredState(s))}</td>
@@ -26995,7 +26890,6 @@ function _renderFeatureAdoptionSection(systems) {
   const recs = systems.map(s => {
     const missing = [];
     if (_platformFamily(s) === 'ontap' && s.isARPEnabled === false) missing.push('ARP (ONTAP 9.16.1+ ARP/AI: Instant active protection via pre-trained ML models — no learning period required. Older versions: 30-day learning period in dry-run mode recommended. `security anti-ransomware volume enable`)');
-    if (_platformFamily(s) === 'ontap' && s.isFabricPool === false) missing.push('FabricPool (TR-4598: Auto policy default 31-day cooling, adjustable 2-183 days, Snapshot-Only, All, None. Keep local aggregate usage below 80%)');
     if (_getAsupConfiguredState(s) === false) missing.push('AutoSupport (Proactive risk detection, upgrade recommendations, and this tool\'s own health scoring all depend on it. `system node autosupport modify -node * -state enable`)');
     
     if (missing.length === 0) return '';
@@ -27043,7 +26937,6 @@ function _renderFeatureAdoptionSection(systems) {
           <tr>
             ${_sth(thStyle, 'System')}
             ${_sth(thStyle, 'ARP')}
-            ${_sth(thStyle, 'FabricPool')}
             ${_sth(thStyle, 'SnapMirror')}
             ${_sth(thStyle, 'HA')}
             ${_sth(thStyle, 'AutoSupport')}
@@ -27383,7 +27276,6 @@ function _renderAsBuiltSection(systems) {
                     <table style="${tblStyle}">
                         <tr>
                             <th style="${thStyle}">Data Reduction Ratio</th><td style="${tdStyle}">${valOrDash(eff.dataReductionRatio || s.dataReductionRatio)}</td>
-                            <th style="${thStyle}">FabricPool Tiered</th><td style="${tdStyle}">${_platformFamily(s) !== 'ontap' ? '<span style="color:var(--text-muted);">N/A (ONTAP feature)</span>' : s.isFabricPool ? (eff.fabricPoolTieredTB ? parseFloat(eff.fabricPoolTieredTB).toFixed(1) + ' TB' : '<span style="' + badgeGreen + '">Enabled</span>') : 'Not Configured'}</td>
                         </tr>
                         <tr>
                             <th style="${thStyle}">Cluster Usable</th><td style="${tdStyle}">${_fmtTB(s.clusterUsableCapacityTB)}</td>
@@ -29499,7 +29391,7 @@ function generateActionPlan() {
       <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
       <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
       <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
-      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, FabricPool, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
+      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
       <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
       <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
       <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
@@ -29917,7 +29809,6 @@ ${sepThin}
   Cluster Usable:     ${_fmtTBv(sys.clusterUsableCapacityTB)}
   Cluster Raw:        ${_fmtTBv(sys.clusterRawCapacityTB)}
   Utilization:        ${_fmtPctv(sys.clusterCapacityUtilPct)}
-  FabricPool:         ${_platformFamily(sys) !== 'ontap' ? 'N/A (ONTAP feature)' : sys.isFabricPool ? 'Enabled' : 'Not Configured'}
 
 4. TOPOLOGY
 ${sepThin}
@@ -30208,7 +30099,7 @@ function _cvrAddValueInsightsSlide(pptx, health, uptime, cap, feat, security) {
     ['Overall Health', `${health.score}/100 (Grade ${health.grade})`],
     ['NetApp-Delivered Savings & Stability', `${cap.savedTB.toFixed(1)} TB saved${cap.projectedMonthlySavings > 0 ? ` (~$${Math.round(cap.projectedMonthlySavings).toLocaleString()}/mo)` : ''}; ${uptime.systemsWithEvents > 0 ? `${uptime.totalOutageMinutes} outage min across ${uptime.systemsWithEvents} system(s)` : 'no downtime events recorded'}`],
     ['Security & Future Planning', `${security.cveCount} critical/high CVE bulletin(s); ${security.eosCount} system(s) approaching end-of-support; ${security.expiring90} support contract(s) expiring <90 days`],
-    ['Maximize Infrastructure Value', `Feature adoption ${feat.fleetAvgScore}% fleet average (ARP, FabricPool, SnapMirror, HA)`]
+    ['Maximize Infrastructure Value', `Feature adoption ${feat.fleetAvgScore}% fleet average (ARP, SnapMirror, HA)`]
   ];
   slide.addTable(rows, {
     x: 0.5, y: 1.05, w: 9, colW: [3, 6],
@@ -33001,14 +32892,13 @@ const SUCCESS_PLAN_TEMPLATES = [
       const score = typeof computeAccountHealthScore === 'function' ? computeAccountHealthScore(systems) : null;
       if (score == null || score >= 70) return null;
       // Surface the specific systems missing the most of the 5 real tracked
-      // features (ARP/FabricPool/SnapMirror/HA/AutoSupport) -- the actual real
+      // features (ARP/SnapMirror/HA/AutoSupport) -- the actual real
       // contributors to a low score, not a restatement of the score itself.
       const _smCountKnown = (s) => (s.snapmirrorCount != null) || (s.snapMirrorCount != null) || !!(s.snapmirror && s.snapmirror.totalCount != null);
       const _smCount = (s) => s.snapmirrorCount || s.snapMirrorCount || (s.snapmirror && s.snapmirror.totalCount) || 0;
       const featureGaps = systems.map(s => {
         const missing = [];
         if (s.isARPEnabled === false) missing.push('ARP');
-        if (s.isFabricPool === false) missing.push('FabricPool');
         if (_smCountKnown(s) && _smCount(s) === 0) missing.push('SnapMirror');
         if (s.isHAConfigured === false || s.haConfigured === false) missing.push('HA');
         if (_getAsupConfiguredState(s) === false) missing.push('AutoSupport');
@@ -33019,7 +32909,7 @@ const SUCCESS_PLAN_TEMPLATES = [
         challenges: `This account's computed health score is ${score}/100, below the 70-point target, driven by open risk findings, feature adoption gaps, and/or contract coverage.`,
         objectives: [
           `Raise the account health score from ${score} toward 80+`,
-          'Close the top feature-adoption gaps (ARP/FabricPool/SnapMirror/HA/AutoSupport)',
+          'Close the top feature-adoption gaps (ARP/SnapMirror/HA/AutoSupport)',
         ],
         affectedSystems: featureGaps.slice(0, 12).map(x => ({ name: x.name, serial: x.serial, detail: `Missing: ${x.missing.join(', ')}` })),
         remediationSteps: _uniqueSteps(featureGaps.slice(0, 20).flatMap(x => x.missing.map(m => `Enable ${m} on systems currently missing it`))),
@@ -33051,7 +32941,7 @@ const SUCCESS_PLAN_TEMPLATES = [
         affectedSystems: newSystems.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `Shipped ${String(s.originalShipDate).slice(0, 10)}` })),
         remediationSteps: [
           'Verify AutoSupport transport and connectivity on each newly deployed system',
-          'Confirm ARP, FabricPool, and HA configuration match best-practice defaults',
+          'Confirm ARP and HA configuration match best-practice defaults',
           'Schedule a 30-day check-in to review early telemetry',
         ],
       };
@@ -33065,24 +32955,18 @@ const SUCCESS_PLAN_TEMPLATES = [
       // dedup) harvested this session -- only populated for ONTAP systems
       // Active IQ reports aggregate telemetry for, so this only ever
       // triggers where real data actually backs it.
-      const noFabricPool = systems.filter(s => s.aggregateDetail && s.aggregateDetail.aggregatesWithoutFabricPool > 0);
       const sisDisabled = systems.filter(s => s.aggregateDetail && s.aggregateDetail.aggregatesWithSisDisabledVolumes > 0);
-      if (noFabricPool.length === 0 && sisDisabled.length === 0) return null;
+      if (sisDisabled.length === 0) return null;
       return {
-        metricLabel: 'Systems with efficiency gaps (non-FabricPool or dedup-disabled aggregates)', metricValue: noFabricPool.length + sisDisabled.length, targetDirection: 'down',
-        challenges: `${noFabricPool.length} system(s) have aggregates not using FabricPool tiering, and ${sisDisabled.length} have aggregates with deduplication/compression disabled, per Active IQ's real per-aggregate data.`,
+        metricLabel: 'Systems with dedup/compression disabled on some aggregates', metricValue: sisDisabled.length, targetDirection: 'down',
+        challenges: `${sisDisabled.length} system(s) have aggregates with deduplication/compression disabled, per Active IQ's real per-aggregate data.`,
         objectives: [
-          noFabricPool.length > 0 ? `Enable FabricPool tiering on ${noFabricPool.length} system(s) to reduce primary storage cost` : 'Maintain FabricPool coverage fleet-wide',
-          sisDisabled.length > 0 ? `Re-enable storage efficiency (dedup/compression) on ${sisDisabled.length} system(s)` : 'Maintain storage efficiency coverage fleet-wide',
+          `Re-enable storage efficiency (dedup/compression) on ${sisDisabled.length} system(s)`,
         ],
-        affectedSystems: [
-          ...noFabricPool.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.aggregateDetail.aggregatesWithoutFabricPool} aggregate(s) not FabricPool-tiered` })),
-          ...sisDisabled.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.aggregateDetail.aggregatesWithSisDisabledVolumes} aggregate(s) with dedup/compression disabled` })),
-        ],
+        affectedSystems: sisDisabled.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.aggregateDetail.aggregatesWithSisDisabledVolumes} aggregate(s) with dedup/compression disabled` })),
         remediationSteps: [
-          noFabricPool.length > 0 ? 'Attach an object-store tier and enable FabricPool on cold-data aggregates' : null,
-          sisDisabled.length > 0 ? 'Re-enable storage efficiency: `volume efficiency on -vserver <vs> -volume <vol>`' : null,
-        ].filter(Boolean),
+          'Re-enable storage efficiency: `volume efficiency on -vserver <vs> -volume <vol>`',
+        ],
       };
     },
   },
@@ -33173,7 +33057,7 @@ const SUCCESS_PLAN_TEMPLATES = [
         affectedSystems: atRisk.map(s => ({ name: s.systemName, serial: s.serialNumber, detail: `${s.projections.daysToLimit} day(s) of runway remaining${s.projections.limitDate ? ` (projected ${String(s.projections.limitDate).slice(0, 10)})` : ''}` })),
         remediationSteps: [
           `Initiate procurement for the ${Math.min(3, atRisk.length)} system(s) with the least runway`,
-          'Review candidates for efficiency gains (FabricPool, dedup) before adding capacity',
+          'Review candidates for efficiency gains (dedup/compression) before adding capacity',
         ],
       };
     },
