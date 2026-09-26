@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.115";
+const APP_VERSION = "5.6.116";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.116",
+    date: "26 September 2026",
+    title: "EF600 Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Added the EF600 / EF300 rear panel (controller canister with USB, micro-USB and RJ-45 console, HIC slot 1 with its four host ports and the P1/P2 management ports below it, and HIC slot 2 with four host ports), drawn from NetApp's E-Series maintenance photo.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.115",
     date: "26 September 2026",
@@ -36133,6 +36148,16 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const _E5700 = (sg) => ({ W: 264, H: 90, mode: 'one', zoom: 2.3, items: [['f', sg ? 'IC1' : '0a', 'sfp', 12, 20, 't'], ['f', sg ? 'IC2' : '0b', 'sfp', 38, 20, 't'], ['f', 'CON', 'rj45', 72, 18, 't'], ['f', 'EXP1', 'sas', 102, 20, 't'], ['f', 'EXP2', 'sas', 124, 20, 't'],
       ...[0, 1, 2, 3].map(i => ['f', sg ? String(i + 1) : ['0c', '0d', '0e', '0f'][i], 'sfp', 132 + i * 26, 50, 't']), ['f', 'P1', 'rj45', 158, 20, 't'], ['f', 'P2', 'rj45', 184, 20, 't'], ['f', 'μUSB', 'umicro', 218, 22, 't'], ['f', 'USB', 'usb', 236, 20, 't']] });
   const _E4000 = { W: 276, H: 66, mode: 'one', zoom: 2.1, items: [['f', 'MGMT', 'rj45', 14, 20, 't'], ['f', 'CON', 'rj45', 44, 20, 't'], ['f', 'USB-C', 'usbc', 72, 24, 't'], ['f', 'USB', 'usb', 96, 22, 't'], ['f', '0a', 'sas', 140, 22, 't'], ['f', '0b1', 'sas', 162, 22, 't'], ['f', '0b2', 'sas', 184, 22, 't'], ['f', 'HIC1', 'sfp', 220, 22, 't'], ['f', 'HIC2', 'sfp', 246, 22, 't']] };
+  // EF600 / EF300 controller canister (NetApp maintenance photo: USB-A, micro-USB and RJ-45 console at the
+  // left; HIC slot 1 (4 ports) with the two RJ-45 management ports P1/P2 under it; HIC slot 2 (4 ports)).
+  // EF300 fills only some HIC slots; ports are the host ports of whichever HICs are fitted.
+  const _EF600 = { W: 320, H: 84, mode: 'one', items: [
+    ['f', 'USB', 'usb', 6, 30, 't'], ['f', 'μUSB', 'umicro', 8, 50, 't'], ['f', 'CON', 'rj45', 34, 30, 't'],
+    ['raw', () => `<rect x="80" y="12" width="108" height="62" rx="2" fill="#1a2030" stroke="#3b4557" stroke-width="0.7"/><rect x="196" y="12" width="112" height="62" rx="2" fill="#1a2030" stroke="#3b4557" stroke-width="0.7"/>`],
+    ['txt', 84, 9, 'HIC 1', 5, 'start', '#94a3b8'], ['txt', 200, 9, 'HIC 2', 5, 'start', '#94a3b8'],
+    ...[0, 1, 2, 3].map(i => ['f', String(i + 1), 'sfp', 84 + i * 25, 24, 't']),
+    ['f', 'P1', 'rj45', 100, 48, 't'], ['f', 'P2', 'rj45', 130, 48, 't'],
+    ...[0, 1, 2, 3].map(i => ['f', String(i + 1), 'sfp', 204 + i * 26, 34, 't'])] };
   const _SG1U = { W: 356, H: 80, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 94, 46, 't'], ['f', '1', 'sfp', 110, 22, 't'], ['f', '2', 'sfp', 136, 22, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 50, 't'], ['f', 'USB', 'usb', 186, 50, 't'], ['f', '4', 'rj45', 208, 46, 't'], ['f', '5', 'rj45', 232, 46, 't'], ['f', '3', 'sfp', 208, 22, 't'], ['f', '4', 'sfp', 232, 22, 't']] };
   const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round((L.W + 8) * _ZOOM)}px;display:block;">${s}</svg></div>`; };
 
@@ -36152,7 +36177,8 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     if (/^(28\d\d|e?2800|ef280|e28)/.test(_plat2)) { sub2 = 'E2800 / EF280 controller canister'; inner2 = _one(_E2800, 'CONTROLLER CANISTER'); }
     else if (/^(57\d\d|e?5700|ef570|e57)/.test(_plat2)) { sub2 = 'E5700 / EF570 controller canister (optional HIC shown)'; inner2 = _one(_E5700(false), 'CONTROLLER CANISTER'); }
     else if (/^(40\d\d|e4000)/.test(_plat2)) { sub2 = 'E4000 controller canister'; inner2 = _one(_E4000, 'CONTROLLER CANISTER'); }
-    else { sub2 = 'EF600 / EF300 / EF50 / EF80 / unrecognised model: physical layout not drawn'; inner2 = '<div style="font-size:0.6rem;color:#94a3b8;">Host and management ports are shown in the port table below.</div>'; }
+    else if (/^(600|ef600|300|ef300)/.test(_plat2)) { sub2 = 'EF600 / EF300 controller canister: two HIC slots (4 host ports each; EF300 fills only some), P1/P2 management under HIC 1'; inner2 = _one(_EF600, 'CONTROLLER CANISTER'); }
+    else { sub2 = 'EF50 / EF80 / unrecognised model: physical layout not drawn'; inner2 = '<div style="font-size:0.6rem;color:#94a3b8;">Host and management ports are shown in the port table below.</div>'; }
     return _frame(`${_ctrlAB ? 'CONTROLLER B' : 'CONTROLLER A'} — REAR PANEL`, sub2, inner2, '<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Active IQ does not report port state for E-Series; connector positions are from the NetApp hardware diagram.</div>');
   }
 

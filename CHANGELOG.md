@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.116] - 2026-09-26
+
+### Changed
+- Added the EF600 / EF300 rear panel (controller canister with USB, micro-USB and RJ-45 console, HIC slot 1 with its four host ports and the P1/P2 management ports below it, and HIC slot 2 with four host ports), drawn from NetApp's E-Series maintenance photo.
+
+---
+
 ## [5.6.115] - 2026-09-26
 
 ### Changed
