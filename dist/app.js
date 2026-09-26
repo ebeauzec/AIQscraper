@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.97";
+const APP_VERSION = "5.6.98";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.98",
+    date: "26 September 2026",
+    title: "Risks vs CVEs Explained",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Health & Lifecycle Report, Security section: risks detected on the customer's systems (Active IQ findings) and published vulnerabilities (CVEs) that apply to the software versions are now shown as two separately labelled parts with a short explanation of why they differ (an estate can have 0 critical risks and still have critical CVEs). The summary line is worded the same way.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.97",
     date: "26 September 2026",
@@ -24175,7 +24190,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   o += `## 1. Summary\n\n`;
   o += `- **Estate:** ${plural(targetSystems.length, 'system')} (${famText})${sites.length ? ' across ' + sites.slice(0, 6).join(', ') + (sites.length > 6 ? ' and ' + (sites.length - 6) + ' more' : '') : ''}.\n`;
   o += `- **Support entitlement:** ${contracts.active.length} of ${targetSystems.length} systems under active support${lapsed.length ? `; **${lapsed.length} lapsed**` : ''}${exp90.length ? `; ${exp90.length} expiring within 90 days` : ''}${contracts.unknown.length ? `; ${contracts.unknown.length} not reported` : ''}.\n`;
-  o += `- **Security:** ${cveList.length ? `${plural(cveList.length, 'unique CVE')} identified (${cveCrit} critical, ${cveHigh} high)` : 'no CVE exposure identified'}; ${plural(riskSev('critical'), 'critical risk')} and ${plural(riskSev('high'), 'high-priority risk')} open in Active IQ.\n`;
+  o += `- **Security:** ${riskSev('critical')} critical and ${riskSev('high')} high risks detected on your systems by Active IQ; separately, ${cveList.length ? `${plural(cveList.length, 'published vulnerability (CVE)', 'published vulnerabilities (CVEs)')} affect the software versions you run (${cveCrit} rated critical, ${cveHigh} high)` : 'no published vulnerabilities (CVEs) were matched to your software versions'}.\n`;
   if (arp.ontap > 0) o += `- **Ransomware protection (ARP):** ${_dfArpSentence(arp)}.\n`;
   if (dr.ontapCount > 0) o += `- **Data protection:** ${[dr.smRelCount > 0 ? dr.relText : '', dr.mcSystems > 0 ? `MetroCluster on ${plural(dr.mcSystems, 'system')} (${dr.mcMediatorIssues.length ? 'Mediator UNREACHABLE' : 'Mediator OK'}, AUTO-switchover ${dr.mcAusoDisabled.length ? 'DISABLED on ' + dr.mcAusoDisabled.length : 'enabled'})` : '', dr.unprotectedText].filter(Boolean).join('; ')}.\n`;
   o += `- **Open support cases:** ${openCases.length}.\n\n`;
@@ -24233,12 +24248,14 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
 
   // 4 Security
   o += `## 4. Security\n\n`;
-  o += `Active IQ currently reports ${riskSev('critical')} critical, ${riskSev('high')} high, ${riskSev('medium')} medium and ${riskSev('low')} low risk${allRisks.length === 1 ? '' : 's'} across the estate.\n\n`;
+  o += `This section reports two different things. They are counted separately and are not expected to match.\n\n`;
+  o += `**1. Risks detected on your systems.** Active IQ analyses each system's AutoSupport data (configuration, health, software version) and raises a risk when it finds a problem on that system.\n\n| Severity | Risks |\n|---|---|\n| Critical | ${riskSev('critical')} |\n| High | ${riskSev('high')} |\n| Medium | ${riskSev('medium')} |\n| Low | ${riskSev('low')} |\n\n`;
   if (cveList.length) {
-    o += `${plural(cveList.length, 'unique CVE')} apply to this estate (${cveCrit} critical, ${cveHigh} high; the remainder medium/low or not severity-rated). Highest priority:\n\n| CVE | Severity | Systems affected | Description |\n|---|---|---|---|\n`;
+    o += `**2. Published vulnerabilities (CVEs) for the software you run.** NetApp publishes security advisories for each ONTAP, StorageGRID and SANtricity release. ${plural(cveList.length, 'CVE')} apply to the software versions in this estate (${cveCrit} rated critical, ${cveHigh} high, the rest medium/low or not rated). A CVE applies to a version; it does not mean the system has been attacked, and many are fixed by moving to the recommended release.\n\nHighest priority:\n\n| CVE | Severity | Systems affected | Description |\n|---|---|---|---|\n`;
     topCves.forEach(c => { o += `| ${c.id} | ${c.sev}${c.cvss ? ' (CVSS ' + c.cvss + ')' : ''} | ${c.systems.size} | ${(c.title || '').replace(/\|/g, '/').slice(0, 110)} |\n`; });
     o += '\n';
-  }
+  } else o += `**2. Published vulnerabilities (CVEs).** None were matched to the software versions in this estate.\n\n`;
+  o += `**Why the numbers differ:** a risk is raised on a system for a finding Active IQ has confirmed there (for example a misconfiguration or a known bug in the installed release). A CVE is matched to a software version from NetApp's advisories. So an estate can have no critical risks and still have critical CVEs -- the CVEs are the reason to move to the recommended release, and the plan in section 9 lists when.\n\n`;
   if (arp.ontap > 0) o += `**Ransomware protection:** Autonomous Ransomware Protection is ${_dfArpSentence(arp)}.\n\n`;
 
   // 5 Reliability
