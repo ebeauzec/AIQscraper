@@ -1,8 +1,8 @@
 {
-  "version": "5.6.81",
+  "version": "5.6.83",
   "major": 5,
   "minor": 6,
-  "patch": 81,
-  "date": "2026-09-21",
-  "notes": "StoragePerf (Plumb) integration: measured performance -- latency, CPU, capacity runway, findings and array-vs-network verdicts -- added to reports. Pulled directly from a reachable StoragePerf (sources, schedule, token) or imported from the file it exports; kept as history per customer and matched to systems by node serial, cluster name or name. Shown in the Action Planner, Value & ROI, and the QBR, MSP and customer success documents. Read-only; requires StoragePerf 0.21.0+."
+  "patch": 83,
+  "date": "2026-09-26",
+  "notes": "Fixed two deliverable contradictions: the Customer Success Plan and MSP Service Report read a capacity-runway field (runwayDays) that never existed in the harvest, always falling back to a fake 120 days instead of the real daysToLimit figure shown elsewhere in the same documents; and the QBR Pack, MSP Service Report and Risk & Remediation Brief computed the storage efficiency ratio across all platforms instead of ONTAP-only, disagreeing with the Customer Success Plan and Extended Deliverables on mixed-platform fleets."
 }

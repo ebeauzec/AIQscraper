@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.83] - 2026-09-26
+
+### Fixed
+- **Capacity runway was a fake constant in the Customer Success Plan and MSP Service Report.** Both read `sys.projections.runwayDays`, a field that has never existed in the harvest (the real field, used everywhere else, is `daysToLimit`). The read always failed silently, so both documents always printed the hardcoded fallback of 120 days regardless of real data -- contradicting each document's own correctly-computed capacity-forecast/at-risk section a few lines below, and contradicting the Risk & Remediation Brief and Extended Deliverables, which already used the real field. Both now read `daysToLimit`.
+- **Storage efficiency ratio disagreed across deliverables on mixed-platform fleets.** The Customer Success Plan and Extended Deliverables correctly restrict the dedupe/compression ratio to ONTAP systems (E-Series/StorageGRID report logical == physical). The QBR Pack, MSP Service Report (per-customer table and fleet-wide summary) and Risk & Remediation Brief summed physical/logical capacity across every platform, diluting the ratio toward 1:1 for accounts that also have E-Series or StorageGRID systems. All four now filter to ONTAP systems only.
+
+---
+
 ## [5.6.81] - 2026-09-21
 
 ### Added
