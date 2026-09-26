@@ -24058,7 +24058,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   o += `## 8. Support Cases\n\n`;
   if (openCases.length) {
     o += `${plural(openCases.length, 'case')} currently open:\n\n| Case | System | Title | Priority | Opened |\n|---|---|---|---|---|\n`;
-    openCases.slice(0, 10).forEach(c => { o += `| ${c.caseNumber || c.id || c.number || ''} | ${c.systemName || (targetSystems.find(x => x.serialNumber === c.serialNumber) || {}).systemName || 'not reported'} | ${String(c.title || c.subject || '').replace(/\|/g, '/').slice(0, 80)} | ${c.severity || c.criticality || 'not reported'} | ${fmtD(c.createdDate || c.openedDate || c.created)} |\n`; });
+    openCases.slice(0, 10).forEach(c => { o += `| ${c.caseNumber || c.id || c.number || ''} | ${c.systemName || (c.serialNumber && (targetSystems.find(x => x.serialNumber === c.serialNumber) || {}).systemName) || 'not reported'} | ${String(c.title || c.subject || '').replace(/\|/g, '/').slice(0, 80)} | ${c.severity || c.criticality || 'not reported'} | ${fmtD(c.createdDate || c.openedDate || c.created)} |\n`; });
     if (openCases.length > 10) o += `\n_${openCases.length - 10} further open cases not listed._\n`;
     o += '\n';
   } else o += `No support cases are currently open.\n\n`;
