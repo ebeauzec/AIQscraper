@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.102] - 2026-09-26
+
+### Changed
+- Every download button now asks which format to save (Text .txt, Markdown .md or Word .docx, with your last choice highlighted); Download All asks once and applies it to all files. The always-on 'Download as' selector is replaced by this prompt.
+- Word documents are A4 portrait (2 cm margins) for every deliverable and are structured, not text dumps: titles and sections become Word headings, 'Label:  value' blocks and ' | ' rows become tables with shaded headers, bullets and numbered steps become real lists, and CLI commands are set in a shaded monospaced style.
+
+---
+
+## [5.6.101] - 2026-09-26
+
+### Changed
+- Deliverable downloads are one format at a time: a 'Download as' selector (Text .txt / Markdown .md / Word .docx) at the top of the Deliverables Suite applies to every download button and to Download All, and is remembered. Downloads no longer produce three files at once.
+- Deliverable headings are uniform: the Health & Lifecycle Report is 'O.' at the end of the list (was an unlettered 'paste-ready' card in the middle), the Customer Value Report is 'N.' without its subtitle, and every button reads 'Download ...' with no format in its label.
+
+---
+
 ## [5.6.100] - 2026-09-26
 
 ### Changed

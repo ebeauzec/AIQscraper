@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.101";
+const APP_VERSION = "5.6.102";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.102",
+    date: "26 September 2026",
+    title: "Choose a Download Format; Structured A4 Word Files",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Every download button now asks which format to save (Text .txt, Markdown .md or Word .docx, with your last choice highlighted); Download All asks once and applies it to all files. The always-on 'Download as' selector is replaced by this prompt.",
+          "Word documents are A4 portrait (2 cm margins) for every deliverable and are structured, not text dumps: titles and sections become Word headings, 'Label:  value' blocks and ' | ' rows become tables with shaded headers, bullets and numbered steps become real lists, and CLI commands are set in a shaded monospaced style.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.101",
     date: "26 September 2026",
@@ -29423,7 +29439,6 @@ function generateActionPlan() {
               Equally usable by enterprise end-customers managing their own fleet: scope to a business unit, data center, or environment instead of an external customer to get the same security, licensing, capacity, and lifecycle deliverables for internal reporting and audit.
             </p>
           </div>
-          <label style="font-size: 0.72rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; white-space: nowrap;">Download as <select id="dlFormatSelect" onchange="setDownloadFormat(this.value)" style="font-size: 0.72rem; padding: 4px 6px; background: rgba(0,0,0,0.25); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm);"><option value="txt"${_getDownloadFormat() === 'txt' ? ' selected' : ''}>Text (.txt)</option><option value="md"${_getDownloadFormat() === 'md' ? ' selected' : ''}>Markdown (.md)</option><option value="docx"${_getDownloadFormat() === 'docx' ? ' selected' : ''}>Word (.docx)</option></select></label>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download every deliverable as an individual file in the format chosen on the left.">⬇ Download All</button>
         </div>
         <div style="display: flex; gap: 16px; margin-top: 8px;">
@@ -29792,6 +29807,7 @@ function switchPlanTab(index) {
 
 // Download report of a specific Action Plan section as plain text
 function downloadPlanSection(index) {
+  if (!window.__dlFmtOverride) return _askFormat(() => downloadPlanSection(index));
   const selectValue = document.getElementById("planTargetSelect").value;
   let targetSystems = [];
   let scopeTitle = "";
@@ -30267,6 +30283,7 @@ ${sepThin}\n`;
 
 // Download all 13 deliverables at once (staggered to avoid browser popup blockers)
 function downloadAllDeliverables() {
+  if (!window.__dlFmtOverride) return _askFormat(() => downloadAllDeliverables(), 'Applies to all deliverables in this download', 6000);
   const types = [
     'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
     'EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL',
@@ -30274,14 +30291,16 @@ function downloadAllDeliverables() {
     'SECURITY_BRIEF', 'SUSTAINABILITY_REPORT'
   ];
   let delay = 0;
+  const _fmtAll = window.__dlFmtOverride;
   types.forEach(type => {
-    setTimeout(() => downloadDeliverable(type), delay);
+    setTimeout(() => { window.__dlFmtOverride = _fmtAll; try { downloadDeliverable(type); } finally { window.__dlFmtOverride = null; } }, delay);   // each compile takes a while, so the choice is re-applied per file
     delay += 200;
   });
 }
 
 // Download deliverables helper by type and active environment scope
 function downloadDeliverable(type) {
+  if (!window.__dlFmtOverride && type !== 'CSV') return _askFormat(() => downloadDeliverable(type));
   let targetSystems = [];
   let scopeTitle = "";
   
@@ -30606,42 +30625,80 @@ function _docxRuns(text, base) {   // **bold**, _italic_, `code`
   while ((m = re.exec(text))) { out.push(run(text.slice(last, m.index))); if (m[2] != null) out.push(run(m[2], '<w:b/>')); else if (m[4] != null) out.push(run(m[4], '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="18"/>')); else out.push(run(m[6], '<w:i/>')); last = m.index + m[0].length; }
   out.push(run(text.slice(last))); return out.join('');
 }
+// Word body for both kinds of deliverable. Markdown is converted directly; the plain-text
+// deliverables are first turned into the same structure (banner titles -> Title/Heading 1,
+// underlined section titles -> Heading 2/3, "Label:   value" runs and " | " rows -> tables,
+// bullets -> bullets, CLI commands -> monospace) so the Word file is a real document, not a dump.
+const _DOCX_W = 9638;   // A4 portrait, 2 cm margins: usable width in twips
+function _docxTable(rows, opts) {
+  opts = opts || {};
+  const cols = Math.max(...rows.map(r => r.length)); let widths = opts.widths;
+  if (!widths) { const len = Array.from({ length: cols }, (_, c) => Math.max(4, Math.min(40, Math.max(...rows.map(r => String(r[c] || '').length))))); const tot = len.reduce((a, b) => a + b, 0); widths = len.map(l => Math.max(700, Math.floor(_DOCX_W * l / tot))); const sum = widths.reduce((a, b) => a + b, 0); widths = widths.map(w => Math.floor(w * _DOCX_W / sum)); }
+  const cell = (t, ri, ci) => `<w:tc><w:tcPr><w:tcW w:w="${widths[ci]}" w:type="dxa"/>${(opts.header && ri === 0) ? '<w:shd w:val="clear" w:color="auto" w:fill="DCE6F2"/>' : (opts.keyCol && ci === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="F3F6FA"/>' : '')}</w:tcPr><w:p><w:pPr><w:spacing w:before="30" w:after="30"/></w:pPr>${_docxRuns(String(t == null ? '' : t), ((opts.header && ri === 0) || (opts.keyCol && ci === 0) ? '<w:b/>' : '') + '<w:sz w:val="18"/>')}</w:p></w:tc>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="${_DOCX_W}" w:type="dxa"/><w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(x => `<w:${x} w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>`).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>` +
+    rows.map((r, ri) => `<w:tr>${(opts.header && ri === 0) ? '<w:trPr><w:tblHeader/></w:trPr>' : '<w:trPr><w:cantSplit/></w:trPr>'}${Array.from({ length: cols }, (_, ci) => cell(r[ci], ri, ci)).join('')}</w:tr>`).join('') + '</w:tbl><w:p><w:pPr><w:spacing w:after="80"/></w:pPr></w:p>';
+}
 function _docxBody(text, isMd) {
   const L = String(text).replace(/\r/g, '').split('\n'); let b = '';
   const para = (runs, ppr) => `<w:p><w:pPr>${ppr || ''}</w:pPr>${runs}</w:p>`;
-  if (!isMd) {
-    const mono = '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="16"/>';
-    L.forEach((l, i) => {
-      if (/^={10,}$/.test(l.trim())) return;
-      const prevBanner = i > 0 && /^={10,}$/.test(L[i - 1].trim()), nextBanner = i + 1 < L.length && /^={10,}$/.test(L[i + 1].trim());
-      if (prevBanner && nextBanner && l.trim()) { b += para(`<w:r><w:rPr><w:b/><w:sz w:val="26"/></w:rPr><w:t xml:space="preserve">${_xe(l.trim())}</w:t></w:r>`, '<w:pStyle w:val="Heading1"/>'); return; }
-      if (/^-{10,}$/.test(l.trim())) return;
-      b += para(`<w:r><w:rPr>${mono}</w:rPr><w:t xml:space="preserve">${_xe(l)}</w:t></w:r>`, '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>');
-    });
+  const head = (t, lvl) => para(_docxRuns(t.replace(/\s+/g, ' '), '<w:b/>'), `<w:pStyle w:val="Heading${lvl}"/>`);
+  const mono = t => para(`<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="17"/><w:color w:val="1F2937"/></w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>`, '<w:shd w:val="clear" w:color="auto" w:fill="F3F4F6"/><w:spacing w:before="0" w:after="0"/><w:ind w:left="284"/>');
+  const bullet = (t, lvl) => para(_docxRuns('\u2022 ' + t), `<w:ind w:left="${360 + lvl * 300}" w:hanging="220"/><w:spacing w:after="40"/>`);
+  const isRule = l => /^[\s=\-\u2500\u2550_*]{6,}$/.test(l) && /[=\-\u2500\u2550_]{6,}/.test(l);
+  const isCli = l => /^\s{2,}(cluster|system|storage|network|event|vserver|security|snapmirror|volume|metrocluster|qos|statistics|version|lun|igroup|esxcli|aggr|node|set |run |debug)\b/.test(l) || /^\s{2,}[\$#] /.test(l);
+  if (isMd) {
+    for (let i = 0; i < L.length; i++) {
+      const l = L[i]; let m;
+      if (!l.trim()) continue;
+      if ((m = l.match(/^(#{1,3})\s+(.*)$/))) { b += head(m[2], m[1].length); continue; }
+      if (l.trim().startsWith('|')) {
+        const rows = []; while (i < L.length && L[i].trim().startsWith('|')) { if (!/^\|?\s*:?-{2,}/.test(L[i].trim().replace(/^\|/, '').trim())) rows.push(L[i].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())); i++; } i--;
+        b += _docxTable(rows, { header: true }); continue;
+      }
+      if ((m = l.match(/^\s*[-*]\s+(.*)$/))) { b += bullet(m[1], 0); continue; }
+      if ((m = l.match(/^\s*(\d+)\.\s+(.*)$/))) { b += para(_docxRuns(m[1] + '. ' + m[2]), '<w:ind w:left="400" w:hanging="300"/><w:spacing w:after="60"/>'); continue; }
+      if (/^```/.test(l.trim())) continue;
+      b += para(_docxRuns(l), '<w:spacing w:after="100"/>');
+    }
     return b;
   }
+  // ---- plain-text deliverable ----
+  let firstTitle = true;
   for (let i = 0; i < L.length; i++) {
-    const l = L[i]; let m;
-    if (!l.trim()) continue;
-    if ((m = l.match(/^(#{1,3})\s+(.*)$/))) { b += para(_docxRuns(m[2], '<w:b/>'), `<w:pStyle w:val="Heading${m[1].length}"/>`); continue; }
-    if (l.trim().startsWith('|')) {
-      const rows = []; while (i < L.length && L[i].trim().startsWith('|')) { if (!/^\|?\s*:?-{2,}/.test(L[i].trim().replace(/^\|/, '').trim())) rows.push(L[i].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())); i++; } i--;
-      const cols = Math.max(...rows.map(r => r.length)), w = Math.floor(9360 / cols);
-      b += `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(x => `<w:${x} w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>`).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + w + '"/>'.repeat(cols)}</w:tblGrid>` +
-        rows.map((r, ri) => `<w:tr>${Array.from({ length: cols }, (_, ci) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${ri === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="E7EEF7"/>' : ''}</w:tcPr>${para(_docxRuns(r[ci] || '', (ri === 0 ? '<w:b/>' : '') + '<w:sz w:val="18"/>'), '<w:spacing w:before="20" w:after="20"/>')}</w:tc>`).join('')}</w:tr>`).join('') + '</w:tbl>' + para('', '<w:spacing w:after="80"/>');
-      continue;
+    const l = L[i], t = l.trim(); let m;
+    if (!t) continue;
+    if (isRule(l)) continue;
+    const prevRule = i > 0 && isRule(L[i - 1]), nextRule = i + 1 < L.length && isRule(L[i + 1]);
+    const strong = /^={6,}$/.test((L[i - 1] || '').trim()) || /^\u2550{6,}$/.test((L[i - 1] || '').trim());
+    if (prevRule && nextRule && !/^\s{3,}/.test(l) || (prevRule && nextRule && strong)) {   // banner: rule / title / rule
+      b += head(t.replace(/\[[^\]]*\]\s*$/, '').trim(), strong ? (firstTitle ? 1 : 1) : 2); firstTitle = false; continue;
     }
-    if ((m = l.match(/^\s*[-*]\s+(.*)$/))) { b += para(_docxRuns('\u2022 ' + m[1]), '<w:ind w:left="360" w:hanging="220"/><w:spacing w:after="40"/>'); continue; }
-    if ((m = l.match(/^\s*(\d+)\.\s+(.*)$/))) { b += para(_docxRuns(m[1] + '. ' + m[2]), '<w:ind w:left="400" w:hanging="300"/><w:spacing w:after="60"/>'); continue; }
-    b += para(_docxRuns(l), '<w:spacing w:after="100"/>');
+    if (nextRule && !prevRule && !/^\s/.test(l) && t.length < 100) { b += head(t, 3); continue; }        // title with an underline
+    if (/^\s{0,2}\*\s+[A-Z]/.test(l) && /:\s*$|\[[A-Z ]+\]/.test(t)) { b += head(t.replace(/^\*\s+/, ''), 3); continue; }   // "* SECTION NAME:"
+    if (/^[A-Z][A-Z0-9 &\/,()\-:'\u2014.<>\u2264%]{5,}:?$/.test(t) && !/^\s{2,}/.test(l)) { b += head(t.replace(/:$/, ''), 3); continue; }   // ALL-CAPS label
+    if (/^(ACTION|PHASE|SYSTEM|CHANGE TICKET)\b.*/.test(t) && !/^\s{2,}/.test(l)) { b += head(t.replace(/\s+\[[A-Z \-+&]+\]$/, ''), 2); continue; }
+    // " | " rows -> table
+    if ((t.match(/ \| /g) || []).length >= 2) {
+      const rows = []; while (i < L.length && (L[i].match(/ \| /g) || []).length >= 2 || (i < L.length && isRule(L[i]) && rows.length)) { if (!isRule(L[i])) rows.push(L[i].trim().split(/\s+\|\s+/).map(c => c.trim())); i++; } i--;
+      if (rows.length >= 2) { b += _docxTable(rows, { header: true }); continue; }
+      rows.forEach(r => { b += para(_docxRuns(r.join(' | ')), '<w:spacing w:after="40"/>'); }); continue;
+    }
+    // "Label:   value" runs -> two-column table
+    if (/^\s{0,4}[A-Za-z][A-Za-z0-9 /&()<>\u2264.\-']{1,38}:\s{2,}\S/.test(l)) {
+      const rows = []; while (i < L.length && /^\s{0,4}[A-Za-z][A-Za-z0-9 /&()<>\u2264.\-']{1,38}:\s{2,}\S/.test(L[i])) { const mm = L[i].match(/^\s*([^:]+):\s+(.*)$/); rows.push([mm[1].trim(), mm[2].trim()]); i++; } i--;
+      b += _docxTable(rows, { keyCol: true, widths: [2900, _DOCX_W - 2900] }); continue;
+    }
+    if ((m = l.match(/^(\s*)([\u2022\-*\u2192\u25aa\u25cf]|\u26a0|\u2713|\u25a1)\s+(.*)$/))) { b += bullet(m[3], Math.min(2, Math.floor(m[1].length / 3))); continue; }
+    if ((m = l.match(/^(\s*)(\d+)\.\s+(.*)$/))) { b += para(_docxRuns(m[2] + '. ' + m[3]), `<w:ind w:left="${400 + Math.min(2, Math.floor(m[1].length / 3)) * 300}" w:hanging="300"/><w:spacing w:after="60"/>`); continue; }
+    if (isCli(l) || /^\s{2,}\$ /.test(l)) { b += mono(t); continue; }
+    b += para(_docxRuns(t), `<w:spacing w:after="60"/>${/^\s{4,}/.test(l) ? '<w:ind w:left="360"/>' : ''}`);
   }
   return b;
 }
 function _buildDocx(title, text) {
   const isMd = /^#\s/.test(String(text).trimStart()), enc = new TextEncoder(), ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
-  const sect = isMd ? '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
-                    : '<w:sectPr><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>';
-  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>` +
+  const sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>';   // A4 portrait, 2 cm margins
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="20"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>` +
     [[1, 32, '1F3864', 240, 120], [2, 26, '2E5597', 200, 80], [3, 23, '2E5597', 160, 60]].map(([n, sz, col, bef, aft]) => `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="${bef}" w:after="${aft}"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:color w:val="${col}"/><w:sz w:val="${sz}"/></w:rPr></w:style>`).join('') + '</w:styles>';
   const files = [
     { name: '[Content_Types].xml', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>') },
@@ -30652,12 +30709,33 @@ function _buildDocx(title, text) {
   ];
   return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
+window.__dlFmtOverride = null;
+function _askFormat(run, label, keepMs) {
+  const prev = document.getElementById('dlFormatModal'); if (prev) prev.remove();
+  const last = _getDownloadFormat();
+  const wrap = document.createElement('div'); wrap.id = 'dlFormatModal';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100000;display:flex;align-items:center;justify-content:center;';
+  const opt = (v, t, d) => `<button data-fmt="${v}" style="display:block;width:100%;text-align:left;margin:6px 0;padding:10px 14px;border-radius:8px;border:1px solid ${v === last ? 'var(--accent-cyan)' : 'var(--border-color)'};background:${v === last ? 'rgba(56,189,248,0.12)' : 'rgba(255,255,255,0.03)'};color:var(--text-primary);cursor:pointer;font-size:0.9rem;"><strong>${t}</strong><br><span style="font-size:0.75rem;color:var(--text-secondary);">${d}</span></button>`;
+  wrap.innerHTML = `<div style="background:var(--bg-card,#0f172a);border:1px solid var(--border-color);border-radius:12px;padding:20px 22px;width:340px;max-width:92vw;"><div style="font-size:1rem;font-weight:700;margin-bottom:4px;">Download format</div><div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:8px;">${label || 'Choose a format for this download'}</div>` +
+    opt('txt', 'Text (.txt)', 'Plain text, layout preserved') + opt('md', 'Markdown (.md)', 'Headings and tables as Markdown') + opt('docx', 'Word (.docx)', 'Formatted document with headings and tables') +
+    `<button data-fmt="" style="margin-top:8px;padding:6px 12px;border-radius:8px;border:1px solid var(--border-color);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:0.8rem;">Cancel</button></div>`;
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  wrap.addEventListener('click', e => {
+    const b = e.target.closest('button[data-fmt]'); if (!b && e.target !== wrap) return;
+    close(); const f = b ? b.dataset.fmt : ''; if (!f) return;
+    setDownloadFormat(f); window.__dlFmtOverride = f;
+    try { run(); } finally { if (keepMs) setTimeout(() => { window.__dlFmtOverride = null; }, keepMs); else window.__dlFmtOverride = null; }   // only the staggered "download all" needs the choice to outlive the call
+  });
+  document.body.appendChild(wrap);
+}
 function _getDownloadFormat() { try { const v = localStorage.getItem('aiq_dl_format'); return ['txt', 'md', 'docx'].includes(v) ? v : 'txt'; } catch (e) { return 'txt'; } }
 function setDownloadFormat(v) { try { localStorage.setItem('aiq_dl_format', v); } catch (e) { /* storage blocked: the choice just is not remembered */ } }
 function triggerFileDownload(filename, text, opts) {
   const m = String(filename).match(/^(.*)\.(txt|md)$/i);
   if (!m || (opts && opts.single)) return _dlBlob(filename, new Blob([text], { type: 'text/plain;charset=utf-8' }));
-  const base = m[1], isMd = /^#\s/.test(String(text).trimStart()), fmt = (opts && opts.format) || _getDownloadFormat();
+  const base = m[1], isMd = /^#\s/.test(String(text).trimStart()), fmt = (opts && opts.format) || window.__dlFmtOverride || _getDownloadFormat();
   if (fmt === 'docx') { try { return _dlBlob(base + '.docx', _buildDocx(base, text)); } catch (e) { console.warn('[docx] build failed, falling back to text:', e); } }
   if (fmt === 'md') return _dlBlob(base + '.md', new Blob([isMd ? text : '```text\n' + text + '\n```\n'], { type: 'text/markdown;charset=utf-8' }));
   return _dlBlob(base + '.txt', new Blob([isMd ? _mdToPlain(text) : text], { type: 'text/plain;charset=utf-8' }));
