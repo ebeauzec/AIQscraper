@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.104";
+const APP_VERSION = "5.6.105";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.105",
+    date: "26 September 2026",
+    title: "IOM6 Upgrade-Target Check",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Upgrade targets respect the IOM6 limit: a cluster whose systems carry Active IQ's IOM6 shelf finding is no longer sent to ONTAP 9.16.1 or newer (NetApp dropped IOM6 support in 9.16.1). The upgrade sequence caps the target at the latest 9.15.1 patch, the decisions/plan add a 'replace IOM6 with IOM12 or hold' item, and the per-system upgrade steps carry the same warning.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.104",
     date: "26 September 2026",
@@ -19706,6 +19721,7 @@ function generateDynamicRemediationPlan(risk, sys) {
     impact = "Running an outdated ONTAP version exposes the cluster to resolved bugs, security vulnerabilities, and missing feature support. Some versions are approaching or past End-of-Support.";
 
     steps  = [
+      ...(_dfIom6Blocks(sys, targetVer) ? ["IOM6 SHELVES: this system has shelves with IOM6 modules. ONTAP 9.16.1 and later do not support IOM6 (DS2246/DS4246/DS4486). Do NOT target " + targetVer + " until the IOM6 modules are replaced with IOM12 (they can be mixed in one stack); otherwise upgrade only to the latest 9.15.1 patch. Confirm the shelf modules with 'storage shelf show -module' and in Upgrade Advisor.", ""] : []),
       // Pre-upgrade checklist
       "PRE-UPGRADE CHECKLIST:",
       "1. Verify cluster HA status: 'cluster show' — all nodes must be healthy. 'storage failover show' — takeover must be enabled.",
@@ -24141,6 +24157,13 @@ function _dfDays(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? null 
 function _dfDate(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? 'not reported' : new Date(t).toISOString().split('T')[0]; }
 function _dfName(s) { return s.systemName || s.clusterName || s.serialNumber; }
 
+// Active IQ raises a risk when a system has shelves with IOM6 modules: ONTAP 9.16.1 and later do not
+// support them (DS2246/DS4246/DS4486 SAS2 shelves). Such a system must not be sent to 9.16.1 or newer
+// until the IOM6 modules are replaced with IOM12 (IOM6 and IOM12 can be mixed in one stack).
+const _IOM6_CEILING = '9.16.1';
+function _dfIom6(s) { return (s.risks || []).some(r => /IOM-?6/i.test(`${r.description || ''} ${r.title || ''}`)); }
+function _dfIom6Blocks(s, target) { return _dfIom6(s) && !!target && !versionLt(target, _IOM6_CEILING) && versionLt(s.ontapVersion || s.osVersion || '', _IOM6_CEILING); }
+
 // ONTAP clusters that still need a software update, ordered into waves.
 function _dfUpgradeWaves(systems) {
   const byCluster = {};
@@ -24153,6 +24176,7 @@ function _dfUpgradeWaves(systems) {
     const _cur = s.ontapVersion || s.osVersion || '';
     c.target = c.target || [s.upgrades && s.upgrades.targetVersion !== 'Up to Date' ? s.upgrades.targetVersion : '', s.recommendedOSVersion, s.swRecMin].find(v => v && _cur && versionLt(_cur, v)) || '';
     if (s.isMetroCluster) c.mc = true;
+    if (_dfIom6Blocks(s, c.target)) c.iom6 = true;
     (s.risks || []).forEach(r => { const sv = String(r.severity).toLowerCase(); if (sv === 'critical') c.crit++; else if (sv === 'high') c.high++; });
     if (/^\d+\.\d+(\.\d+)?(RC\d*|BETA\d*|D\d+)/i.test(String(s.ontapVersion || s.osVersion || ''))) c.rc = true;
     const f = _dfDays(s.swEndOfFullSupport), l = _dfDays(s.swEndOfLimitedSupport);
@@ -24164,6 +24188,7 @@ function _dfUpgradeWaves(systems) {
     if (c.pastLimited) reasons.push('past end of limited support');
     else if (c.pastFull) reasons.push('past end of full support');
     if (c.crit) reasons.push(`${c.crit} critical finding${c.crit !== 1 ? 's' : ''}`);
+    if (c.iom6) { c.blockedTarget = c.target; c.target = 'latest 9.15.1 patch (IOM6 shelves: 9.16.1 and later are not supported until they are replaced with IOM12)'; reasons.push('IOM6 shelf modules block 9.16.1+'); }
     c.reasons = reasons; c.urgent = c.rc || c.pastLimited || c.crit > 0;
     return c;
   });
@@ -24229,6 +24254,8 @@ function _dfActionPlan(systems, allRisks, openCases) {
   if (kev.length) plan.push({ sev: 1, action: `Address the actively exploited vulnerability ${kev[0].id} (${_dfPlural(kev[0].systems.size, 'system')}).`, why: 'Actively exploited vulnerabilities are used in real attacks; this is the most urgent security item.', type: 'Depends on the fix (see the advisory)', when: '0-7 days', owner: 'Customer storage/security team with NetApp Support' });
   const w1 = waves.wave1;
   if (w1.length) plan.push({ sev: 1, action: `Upgrade ONTAP on ${_dfPlural(w1.length, 'cluster')} first (${names(w1.map(c => ({ systemName: c.name })), 4)}): ${[...new Set(w1.flatMap(c => c.reasons))].join(', ')}.`, why: 'These clusters carry the highest-severity findings or run software that is no longer fully supported, so they gain the most from an upgrade.', type: 'Non-disruptive rolling upgrade, one cluster at a time', when: '8-30 days', owner: 'Customer storage team; NetApp TAM to plan' });
+  const _io6 = [...w1, ...waves.wave2].filter(c => c.iom6);
+  if (_io6.length) plan.push({ sev: 2, action: `Do not upgrade ${_dfPlural(_io6.length, 'cluster')} with IOM6 shelf modules to ONTAP 9.16.1 or newer (${names(_io6.map(c => ({ systemName: c.name })), 4)}): stay on the latest 9.15.1 patch, or replace the IOM6 modules with IOM12 first.`, why: 'ONTAP 9.16.1 and later do not support IOM6 modules (DS2246, DS4246, DS4486 shelves); upgrading creates an unsupported configuration and possible shelf errors. The shelves are also past end of support.', type: 'Hardware change (IOM12 module swap) or hold the ONTAP target', when: 'Before the upgrade', owner: 'Customer storage team with NetApp support' });
   if (arp.disabled > 0) plan.push({ sev: 2, action: `Enable Autonomous Ransomware Protection on the ${arp.disabled} ONTAP system${arp.disabled !== 1 ? 's' : ''} where it is disabled${arp.unknown ? ` and confirm the ${arp.unknown} not reported` : ''}.`, why: 'ARP detects ransomware-like encryption activity on NAS volumes and takes a protective snapshot automatically, limiting the damage of an attack.', type: 'Non-disruptive configuration change', when: '8-30 days', owner: 'Customer storage team' });
   if (dr.unprotected.length) plan.push({ sev: 2, action: `Review replication for the ${dr.unprotected.length} ONTAP system${dr.unprotected.length !== 1 ? 's' : ''} with no SnapMirror or MetroCluster configured (${names(dr.unprotected, 4)}).`, why: 'A cluster that is not replicated has no copy elsewhere if the site, the cluster or the data is lost; in-cluster HA does not protect against that.', type: 'Design and configuration (non-disruptive to existing data)', when: '31-90 days', owner: 'Customer with NetApp account team (sizing)' });
   if (contracts.expiring90.length) plan.push({ sev: 2, action: `Renew ${_dfPlural(contracts.expiring90.length, 'support contract')} expiring within 90 days (${names(contracts.expiring90, 4)}).`, why: 'A lapse leaves the systems unsupported and a renewal after expiry can carry re-instatement conditions.', type: 'Commercial', when: '0-30 days', owner: 'NetApp account team with the customer' });
