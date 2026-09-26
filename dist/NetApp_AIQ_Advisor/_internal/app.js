@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.82";
+const APP_VERSION = "5.6.83";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.83",
+    date: "26 September 2026",
+    title: "Capacity Runway and Efficiency Ratio Contradictions Between Deliverables",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Capacity Runway Was a Fake Constant in Two Deliverables",
+        color: "#f87171",
+        items: [
+          "The Customer Success Plan's 'Average Capacity Runway' and 'Capacity Extension from Efficiency' lines, and the MSP Service Report's per-customer/portfolio runway column, read sys.projections.runwayDays -- a field that has never existed anywhere in the harvest (the real field, used everywhere else, is daysToLimit). The read always failed silently, so both documents always printed the hardcoded fallback of 120 days for every fleet regardless of real data.",
+          "This produced a visible contradiction inside the same document: the Customer Success Plan's own Capacity Forecast section a few lines below it, and the MSP Report's own at-risk system list, both correctly derive runway from daysToLimit -- so a customer could read 'Average Capacity Runway: 120 days' immediately above a list of systems with 15-45 days of real runway left. It also meant these two documents disagreed with the Risk & Remediation Brief and Extended Deliverables, which already used the real field. Both now read daysToLimit like every other deliverable.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Storage Efficiency Ratio Disagreed Across Deliverables on Mixed-Platform Fleets",
+        color: "#f87171",
+        items: [
+          "The Customer Success Plan and Extended Deliverables restrict the dedupe/compression efficiency ratio to ONTAP systems (E-Series/StorageGRID report logical == physical, no real dedup to count). The QBR Pack, MSP Service Report (both its per-customer table and its fleet-wide summary) and Risk & Remediation Brief summed physical/logical capacity across every platform, diluting the ratio toward 1:1 for any account that also has E-Series or StorageGRID systems.",
+          "For a mixed-platform account this meant the same document set could show two different efficiency ratios for the identical scope depending on which deliverable was opened. All four now filter to ONTAP systems only, matching the Customer Success Plan and Extended Deliverables.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.82",
     date: "21 September 2026",
@@ -20976,8 +21001,8 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       totalCapTB += sys.efficiency.physicalUsedTB || 0;
       totalSavedTB += sys.efficiency.spaceSavedTB || 0;
     }
-    if (sys.projections && typeof sys.projections.runwayDays === 'number') {
-      totalRunwayDays += sys.projections.runwayDays;
+    if (sys.projections && typeof sys.projections.daysToLimit === 'number') {
+      totalRunwayDays += sys.projections.daysToLimit;
       runwayDaysCount++;
     }
     // sentimentScore || 7.5 would silently replace a real 0 (a genuinely poor
@@ -21646,7 +21671,8 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     const wowChange = (latest.percentageChange || 0) >= 0 ? `+${latest.percentageChange || 0}` : `${latest.percentageChange}`;
     let physTotal = 0, logTotal = 0, savedTotal = 0;
     targetSystems.forEach(s => {
-      if (s.efficiency) {
+      // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+      if (s.efficiency && _platformFamily(s) === 'ontap') {
         physTotal += s.efficiency.physicalUsedTB || 0;
         logTotal  += s.efficiency.logicalUsedTB || 0;
         savedTotal += s.efficiency.spaceSavedTB || 0;
@@ -22025,15 +22051,18 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     const c = mspCustomers[cName];
     c.systems.push(s);
     if (s.efficiency) {
-      c.phys += s.efficiency.physicalUsedTB || 0;
-      c.log += s.efficiency.logicalUsedTB || 0;
-      c.saved += s.efficiency.spaceSavedTB || 0;
+      // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+      if (_platformFamily(s) === 'ontap') {
+        c.phys += s.efficiency.physicalUsedTB || 0;
+        c.log += s.efficiency.logicalUsedTB || 0;
+        c.saved += s.efficiency.spaceSavedTB || 0;
+      }
       // physicalAvailTB is never populated by the harvester — derive real
       // available capacity from usableCapacityTB - physicalUsedTB instead.
       c.avail += Math.max(0, (s.efficiency.usableCapacityTB || 0) - (s.efficiency.physicalUsedTB || 0));
     }
-    if (s.projections && typeof s.projections.runwayDays === 'number') {
-      c.runwaySum += s.projections.runwayDays;
+    if (s.projections && typeof s.projections.daysToLimit === 'number') {
+      c.runwaySum += s.projections.daysToLimit;
       c.runwayCount++;
     }
     if (s.isARPEnabled) c.arp++;
@@ -22142,7 +22171,8 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   // ── Capacity ──
   let physTotal = 0, logTotal = 0, savedTotal = 0;
   targetSystems.forEach(s => {
-    if (s.efficiency) {
+    // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+    if (s.efficiency && _platformFamily(s) === 'ontap') {
       physTotal += s.efficiency.physicalUsedTB || 0;
       logTotal  += s.efficiency.logicalUsedTB || 0;
       savedTotal += s.efficiency.spaceSavedTB || 0;
@@ -22317,7 +22347,8 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   let daysToLimitSum = 0, capacityRunwayCount = 0;
   
   targetSystems.forEach(s => {
-    if (s.efficiency) {
+    // Dedupe/compression aggregates are ONTAP-only (E-Series/StorageGRID report logical == physical)
+    if (s.efficiency && _platformFamily(s) === 'ontap') {
       physTotal += s.efficiency.physicalUsedTB || 0;
       logTotal += s.efficiency.logicalUsedTB || 0;
       savedTotal += s.efficiency.spaceSavedTB || 0;
