@@ -1,8 +1,8 @@
 {
-  "version": "5.6.87",
+  "version": "5.6.89",
   "major": 5,
   "minor": 6,
-  "patch": 87,
+  "patch": 89,
   "date": "2026-09-26",
-  "notes": "Every Action Planner deliverable reviewed against real customer data and corrected for external distribution; parallel deliverable audit tool added."
+  "notes": "Pre-release ONTAP builds flagged as a high-severity finding; FabricPool no longer listed as an enablement gap."
 }

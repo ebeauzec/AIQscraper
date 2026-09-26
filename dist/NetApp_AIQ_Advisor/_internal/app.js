@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.88";
+const APP_VERSION = "5.6.89";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.89",
+    date: "26 September 2026",
+    title: "Pre-release ONTAP Flagged",
+    sections: [
+      {
+        icon: "✅",
+        label: "Risks",
+        color: "#22c55e",
+        items: [
+          "New risk: a system running a pre-release ONTAP build (release candidate, beta or development, e.g. 9.17.1RC1) is flagged high severity and grouped under the upgrade to a generally available release. Previously such a system was shown a routine upgrade with no mention that the running release is unsupported for production.",
+          "Implementation Plans no longer list FabricPool as a 'feature enablement gap' (optional tiering, not a gap on all-flash systems); ARP enablement is listed only where ARP is confirmed disabled.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.88",
     date: "26 September 2026",
@@ -18171,6 +18187,36 @@ function enrichSystemTelemetry(s) {
     }
   }
 
+  // H. Pre-release ONTAP in production (risk 506)
+  // A release candidate / beta / development build (9.17.1RC1, 9.18.1D5, ...) is not a supported
+  // production release: it carries no support commitment and does not receive P-release fixes.
+  if (osVer && !isEseries && !isStorageGrid && /^\d+\.\d+(\.\d+)?(RC\d*|BETA\d*|D\d+|PRE\d*)/i.test(String(osVer).trim()) && !risks.some(r => r.id === 506)) {
+    const _rec = (s.upgrades && s.upgrades.targetVersion && s.upgrades.targetVersion !== 'Up to Date') ? s.upgrades.targetVersion : 'the latest generally available P-release of this ONTAP version';
+    risks.push({
+      id: 506,
+      severity: "high",
+      category: "Lifecycle",
+      description: `This system is running a pre-release ONTAP release (${osVer}). Release candidates are not supported for production use and do not receive P-release fixes.`,
+      recommendation: `Upgrade to ${_rec} (a generally available ONTAP release).`,
+      kbLink: "https://mysupport.netapp.com/site/downloads",
+      remediationPlan: {
+        cause: `ONTAP ${osVer} is a release candidate / pre-release build, not a generally available release.`,
+        impact: "Pre-release software has no production support commitment, can contain defects fixed before general availability, and is not covered by the P-release security and bug-fix stream.",
+        steps: [
+          `1. Identify the generally available release to move to (recommended: ${_rec}).`,
+          "2. Run 'cluster image validate' for the target version and review the upgrade path in Upgrade Advisor.",
+          "3. Schedule a rolling (non-disruptive) upgrade under change control, one cluster at a time.",
+          "4. Confirm health after the upgrade: 'system health alert show', 'storage failover show'."
+        ],
+        options: [
+          "Option A: Upgrade to the generally available release (recommended).",
+          "Option B: If the release candidate was installed deliberately (for example for a feature evaluation), obtain written confirmation from NetApp that it is supported on this system and record the exception."
+        ],
+        thirdParty: ""
+      }
+    });
+  }
+
   // KB links: no sanitization needed — search URLs are generated at render time
   // by buildKBSearchURL(). Any kbLink fields in raw API data are ignored.
 
@@ -24823,7 +24869,7 @@ ${imtFindings.map((f, i) => {
     // instead of a section that only says "no risks" (which, for a system Active IQ receives no
     // AutoSupport from, means "not assessed").
     if (sysRisks.length === 0 && !(sys.upgrades && sys.upgrades.targetVersion && sys.upgrades.targetVersion !== 'Up to Date') &&
-        !(_platformFamily(sys) === 'ontap' && (sys.isARPEnabled === false || sys.isFabricPool === false))) {
+        !(_platformFamily(sys) === 'ontap' && sys.isARPEnabled === false)) {
       const _a = sys.autosupport || {};
       _ipNoChange.push({ name: sys.systemName || sys.serialNumber, model: sys.model || sys.platform || '', noTelemetry: !(_a.enabled === true && (_a.lastReceivedDays == null || _a.lastReceivedDays <= 7)) });
       return;
@@ -24949,7 +24995,7 @@ ${rbSmCount > 0 ? '    snapmirror show -fields state,lag-time,healthy\n' : ''}
     // Feature gap enablement CLI (best-practice items not yet enabled)
     const featureGaps = [];
     if (_platformFamily(sys) === 'ontap' && sys.isARPEnabled === false) featureGaps.push('  ARP:        security anti-ransomware volume enable -volume <vol> -vserver <svm>');
-    if (_platformFamily(sys) === 'ontap' && sys.isFabricPool === false) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
+    if (false) featureGaps.push('  FabricPool: storage aggregate object-store attach -aggregate <aggr> -object-store-name <store>');
     if (featureGaps.length > 0) {
       implementationPlans += `  [FEATURE ENABLEMENT RECOMMENDATIONS (${featureGaps.length} gaps)]\n`;
       featureGaps.forEach(g => { implementationPlans += `  ${g}\n`; });

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.89] - 2026-09-26
+
+### Added
+- New risk: a system running a pre-release ONTAP build (release candidate, beta or development, e.g. 9.17.1RC1) is flagged high severity and grouped under the upgrade to a generally available release. Previously such a system was shown a routine upgrade with no mention that the running release is unsupported for production.
+- Implementation Plans no longer list FabricPool as a 'feature enablement gap' (optional tiering, not a gap on all-flash systems); ARP enablement is listed only where ARP is confirmed disabled.
+
+---
+
+## [5.6.88] - 2026-09-26
+
+### Fixed
+- Change Tickets and Implementation Plans: systems with nothing to change no longer get an empty ticket or a section that says 'No critical/high risks identified'. They are listed once at the end, and any that are not sending AutoSupport are called out as 'not assessed' rather than healthy (19 of 35 systems in one real account).
+- CVE findings get a CVE-specific remediation plan. Previously a finding was matched on words in its title, so an OpenSSH/OpenSSL/Hibernate/Python CVE was given SSH-cipher hardening options and told to check that SolarWinds/Nagios still authenticate. Options are now 'upgrade to the fixed release' or 'limit management-network access and record a time-limited exception'; the empty 'Host/3rd-Party: N/A' line is gone.
+- Repaired mojibake in source titles ('CVE\u00e2 2026\u00e2 20833') in every document; site and contact fields say 'Not recorded' instead of N/A and no longer print partner postal addresses; the Best Practice line is omitted for StorageGRID/E-Series.
+- A system whose upgrade status is Active IQ's default 'Up to Date' (no data) is no longer counted as on the recommended OS. Vendor reference lists no longer include AFX / C-Series / ASA release notes for fleets without those platforms.
+
+---
+
 ## [5.6.87] - 2026-09-26
 
 ### Fixed
