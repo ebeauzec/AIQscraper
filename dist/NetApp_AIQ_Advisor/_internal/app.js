@@ -27,7 +27,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.85";
+const APP_VERSION = "5.6.86";
 
 const APP_CHANGELOG = [
   {
@@ -16926,6 +16926,29 @@ function _dfRunwayText(days) {
   if (days > 3650) return '> 10 years';
   return days >= 365 ? (days / 365).toFixed(1) + ' years' : days + ' days';
 }
+// One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
+// ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
+// critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
+function _dfCveIndex(systems) {
+  const map = {};
+  const add = (id, sev, cvss, title, sys) => {
+    id = String(id || '').trim().toUpperCase();
+    if (!/^CVE-\d{4}-\d{4,}$/.test(id)) return;
+    const c = map[id] = map[id] || { id, sev: '', cvss: 0, title: '', systems: new Set() };
+    c.systems.add(sys.systemName || sys.serialNumber);
+    c.sev = c.sev || String(sev || '').toLowerCase();
+    c.cvss = Math.max(c.cvss, parseFloat(cvss) || 0);
+    c.title = c.title || title || '';
+  };
+  (systems || []).forEach(sys => {
+    (sys.securityBulletins || []).forEach(b => {
+      const ids = new Set([...(String(b.cve || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.cveId || b.id || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.title || '').match(/CVE-\d{4}-\d{4,}/gi) || [])]);
+      ids.forEach(id => add(id, b.severity, b.cvss || b.cvssScore, b.title, sys));
+    });
+    (sys.risks || []).forEach(r => (r.cveDetails || []).forEach(d => { if (d) add(d.id, d.severity, d.cvss || d.cvssScore, d.title || d.description, sys); }));
+  });
+  return map;
+}
 function _dfArpSentence(a) {
   return `enabled on ${a.enabled} of ${a.ontap} ONTAP systems (${a.disabled} confirmed disabled${a.unknown > 0 ? ', ' + a.unknown + ' not reported by Active IQ' : ''})`;
 }
@@ -16940,19 +16963,9 @@ function computeCostOfInaction(targetSystems) {
   // enrichment, and the native per-system Risk.cves linkage straight from
   // Active IQ (authoritative for CVEs tied to an actually-detected risk instance
   // on that exact system, catches cases the version-matched bulletins miss).
-  const _cveSet = new Set();
-  const _cveSystems = new Set();
-  targetSystems.forEach(sys => {
-    (sys.securityBulletins || []).forEach(b => {
-      const id = b.cveId || b.id || (b.title && b.title.match(/CVE-\d{4}-\d+/)?.[0]);
-      if (id) { _cveSet.add(id); _cveSystems.add(sys.systemName || sys.serialNumber); }
-    });
-    (sys.risks || []).forEach(r => {
-      (r.cveDetails || []).forEach(c => {
-        if (c && c.id) { _cveSet.add(c.id); _cveSystems.add(sys.systemName || sys.serialNumber); }
-      });
-    });
-  });
+  const _cveIdx = _dfCveIndex(targetSystems);
+  const _cveSet = { size: Object.keys(_cveIdx).length };
+  const _cveSystems = new Set(); Object.values(_cveIdx).forEach(c => c.systems.forEach(x => _cveSystems.add(x)));
   const cves = _cveSet.size;
   const cveAffectedSystems = _cveSystems.size;
   const eosaSystems = targetSystems.filter(s => s.lifecycle && s.lifecycle.isNearEos).length;
@@ -21462,7 +21475,7 @@ ${secBulletins.length > 0 ? (() => {
     const SHOWN = 5;
     const top = secBulletins.slice(0, SHOWN).map((b, i) => `  ${i + 1}. [${(b.severity || '').toUpperCase()}] ${b.id || b.cve || 'Advisory'} — ${b.title || b.description || ''}\n     Affects: ${b.systems.size} system${b.systems.size !== 1 ? 's' : ''} (${Array.from(b.systems).slice(0, 3).join(', ')}${b.systems.size > 3 ? ', ...' : ''})\n     Fix: ${b.mitigation || 'Upgrade to fixed version. See security.netapp.com.'}`).join('\n\n');
     const more = secBulletins.length > SHOWN ? `\n\n  + ${secBulletins.length - SHOWN} more -- see the Security Posture Brief for the complete CVE Remediation Priority Matrix.` : '';
-    return `ACTIVE SECURITY ADVISORIES: ${secBulletins.length} unique CVE${secBulletins.length !== 1 ? 's' : ''} (${critCount} critical, ${highCount} high) affecting ${affectedSystems} system${affectedSystems !== 1 ? 's' : ''}. Top priorities:\n\n${top}${more}`;
+    return `ACTIVE SECURITY ADVISORIES: ${secBulletins.length} critical/high security advisor${secBulletins.length !== 1 ? 'ies' : 'y'} (${critCount} critical, ${highCount} high; each advisory may cover several CVEs -- ${Object.keys(_dfCveIndex(targetSystems)).length} unique CVEs in total across all severities) affecting ${affectedSystems} system${affectedSystems !== 1 ? 's' : ''}. Top priorities:\n\n${top}${more}`;
   })() : "✓ No critical or high-severity security advisories active."}
 
 ${(() => {
@@ -23851,6 +23864,152 @@ function estimateEffort(fixOrDesc) {
   return '~15-30 min';
 }
 
+// ═══ Customer Health & Lifecycle Report (paste-ready) ═════════════════════
+// Written to be copied into a presentation or a customer document as-is: plain
+// customer-facing language, Markdown tables, no internal notes, no other customers,
+// every figure from the canonical fact helpers or straight from the customer's own
+// Active IQ data. Anything Active IQ did not report is said to be "not reported"
+// rather than omitted or guessed.
+function compileCustomerReport(targetSystems, allRisks, expiringContracts, openCases, scopeTitle) {
+  const cust = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
+  const today = new Date();
+  const fmtD = d => { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? 'not reported' : new Date(t).toISOString().split('T')[0]; };
+  const daysTo = d => { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? null : Math.ceil((t - today.getTime()) / 86400000); };
+  const plural = (n, w, w2) => `${n} ${n === 1 ? w : (w2 || w + 's')}`;
+  const nameOf = s => s.systemName || s.clusterName || s.serialNumber;
+  const verOf = s => s.ontapVersion || s.santricityVersion || s.sgVersion || s.softwareVersionFull || 'not reported';
+  const famLabel = { ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID' };
+  const fams = {}; targetSystems.forEach(s => { const f = _platformFamily(s); fams[f] = (fams[f] || 0) + 1; });
+  const famText = Object.keys(fams).map(f => `${fams[f]} ${famLabel[f] || f}`).join(', ');
+  const models = [...new Set(targetSystems.map(s => s.model || s.platform).filter(Boolean))];
+  const sites = [...new Set(targetSystems.map(s => s.siteCity).filter(x => x && x.length <= 30))];
+  const contracts = expiringContracts._facts || _dfContractFacts(targetSystems);
+  const lapsed = contracts.expired, exp90 = contracts.expiring90;
+  const arp = _dfArpFacts(targetSystems);
+  const dr = computeFleetDRSummary(targetSystems);
+  const cap = computeFleetCapacitySummary(targetSystems);
+  const warranty = computeFleetWarrantyStatus(targetSystems);
+
+  const cveMap = _dfCveIndex(targetSystems);
+  const cveList = Object.values(cveMap);
+  const cveCrit = cveList.filter(c => c.sev === 'critical').length, cveHigh = cveList.filter(c => c.sev === 'high').length;
+  const topCves = cveList.filter(c => c.sev === 'critical' || c.sev === 'high').sort((a, b) => (b.cvss - a.cvss) || (b.systems.size - a.systems.size)).slice(0, 6);
+
+  const riskSev = sv => allRisks.filter(r => (r.severity || '').toLowerCase() === sv).length;
+  const asup = targetSystems.map(s => s.autosupport || {});
+  const asupOk = asup.filter(a => a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7)).length;
+  const asupStale = asup.filter(a => a.enabled === true && a.lastReceivedDays != null && a.lastReceivedDays > 7).length;
+  const asupOff = asup.filter(a => a.enabled === false).length;
+
+  let o = `# ${cust} -- Storage Health & Lifecycle Report\n\n`;
+  o += `Prepared ${today.toISOString().split('T')[0]} from NetApp Active IQ telemetry (AutoSupport data as last received from each system).\n\n`;
+
+  // 1 Summary
+  o += `## 1. Summary\n\n`;
+  o += `- **Estate:** ${plural(targetSystems.length, 'system')} (${famText})${sites.length ? ' across ' + sites.slice(0, 6).join(', ') + (sites.length > 6 ? ' and ' + (sites.length - 6) + ' more' : '') : ''}.\n`;
+  o += `- **Support entitlement:** ${contracts.active.length} of ${targetSystems.length} systems under active support${lapsed.length ? `; **${lapsed.length} lapsed**` : ''}${exp90.length ? `; ${exp90.length} expiring within 90 days` : ''}${contracts.unknown.length ? `; ${contracts.unknown.length} not reported` : ''}.\n`;
+  o += `- **Security:** ${cveList.length ? `${plural(cveList.length, 'unique CVE')} identified (${cveCrit} critical, ${cveHigh} high)` : 'no CVE exposure identified'}; ${plural(riskSev('critical'), 'critical risk')} and ${plural(riskSev('high'), 'high-priority risk')} open in Active IQ.\n`;
+  if (arp.ontap > 0) o += `- **Ransomware protection (ARP):** ${_dfArpSentence(arp)}.\n`;
+  if (dr.ontapCount > 0) o += `- **Data protection:** ${dr.relText}; ${dr.unprotectedText}.\n`;
+  o += `- **Open support cases:** ${openCases.length}.\n\n`;
+
+  // 2 Estate
+  o += `## 2. Estate\n\n| System | Model | Software | Site | Last AutoSupport | Support ends | Hardware support ends |\n|---|---|---|---|---|---|---|\n`;
+  const rows = targetSystems.slice().sort((a, b) => String(nameOf(a)).localeCompare(String(nameOf(b))));
+  rows.slice(0, 40).forEach(s => {
+    const a = s.autosupport || {};
+    o += `| ${nameOf(s)} | ${s.model || s.platform || 'not reported'} | ${verOf(s)} | ${(s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || 'not reported'} | ${a.lastReceivedDays != null ? a.lastReceivedDays + ' day(s) ago' : 'not reported'} | ${fmtD(s.contractEndDate || s.contractExpiry || (s.contracts && s.contracts.endDate))} | ${fmtD(s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate))} |\n`;
+  });
+  if (rows.length > 40) o += `\n_${rows.length - 40} further systems not listed; the full inventory is available on request._\n`;
+  o += '\n';
+
+  // 3 Support & lifecycle
+  o += `## 3. Support & Lifecycle\n\n`;
+  if (lapsed.length) o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for: ${lapsed.map(e => `${e.systemName} (expired ${fmtD(e.endDate)})`).join(', ')}.\n\n`;
+  if (exp90.length) o += `**Renewals due within 90 days:** ${exp90.map(e => `${e.systemName} (${fmtD(e.endDate)}, ${e.daysRemaining} days)`).join(', ')}.\n\n`;
+  if (!lapsed.length && !exp90.length && contracts.active.length) o += `No support contract expires within the next 90 days.\n\n`;
+  const warrEnd = targetSystems.filter(s => s.warrantyEndDate && daysTo(s.warrantyEndDate) < 0).length;
+  if (warrEnd) o += `${plural(warrEnd, 'system')} ${warrEnd === 1 ? 'is' : 'are'} past the original hardware warranty date (this is separate from any support contract in place).\n\n`;
+  // software support by version
+  const verGroups = {};
+  targetSystems.forEach(s => { const v = verOf(s); if (v === 'not reported') return; const g = verGroups[v] = verGroups[v] || { n: 0, full: s.swEndOfFullSupport, lim: s.swEndOfLimitedSupport, rec: s.recommendedOSVersion }; g.n++; g.full = g.full || s.swEndOfFullSupport; g.lim = g.lim || s.swEndOfLimitedSupport; g.rec = g.rec || s.recommendedOSVersion; });
+  const vKeys = Object.keys(verGroups);
+  if (vKeys.length) {
+    o += `**Software versions and support windows**\n\n| Version | Systems | End of full support | End of limited support | Recommended target |\n|---|---|---|---|---|\n`;
+    vKeys.sort().forEach(v => { const g = verGroups[v]; o += `| ${v} | ${g.n} | ${fmtD(g.full)} | ${fmtD(g.lim)} | ${g.rec || 'not reported'} |\n`; });
+    o += '\n';
+  }
+  // hardware lifecycle by model
+  const hwGroups = {};
+  targetSystems.forEach(s => { const m = s.model || s.platform; if (!m) return; const g = hwGroups[m] = hwGroups[m] || { n: 0, eoa: null, eos: null }; g.n++; g.eoa = g.eoa || s.hwEndOfAvailability || (s.lifecycle && s.lifecycle.eoaDate); g.eos = g.eos || s.hwEndOfSupport || (s.lifecycle && s.lifecycle.eosDate); });
+  const hwKeys = Object.keys(hwGroups).filter(m => hwGroups[m].eos || hwGroups[m].eoa);
+  if (hwKeys.length) {
+    o += `**Hardware lifecycle**\n\n| Model | Systems | End of availability | End of hardware support | Status |\n|---|---|---|---|---|\n`;
+    hwKeys.sort((a, b) => (Date.parse(hwGroups[a].eos) || 9e15) - (Date.parse(hwGroups[b].eos) || 9e15)).forEach(m => {
+      const g = hwGroups[m], d = daysTo(g.eos);
+      const st = d == null ? 'support end not reported' : d < 0 ? 'Past end of hardware support' : d <= 730 ? `Support ends in ${d <= 365 ? d + ' days' : (d / 365).toFixed(1) + ' years'} -- plan refresh` : 'In support';
+      o += `| ${m} | ${g.n} | ${fmtD(g.eoa)} | ${fmtD(g.eos)} | ${st} |\n`;
+    });
+    o += '\n';
+  }
+
+  // 4 Security
+  o += `## 4. Security\n\n`;
+  o += `Active IQ currently reports ${plural(riskSev('critical'), 'critical')}, ${riskSev('high')} high, ${riskSev('medium')} medium and ${riskSev('low')} low risk${allRisks.length === 1 ? '' : 's'} across the estate.\n\n`;
+  if (cveList.length) {
+    o += `${plural(cveList.length, 'unique CVE')} apply to this estate (${cveCrit} critical, ${cveHigh} high; the remainder medium/low or not severity-rated). Highest priority:\n\n| CVE | Severity | Systems affected | Description |\n|---|---|---|---|\n`;
+    topCves.forEach(c => { o += `| ${c.id} | ${c.sev}${c.cvss ? ' (CVSS ' + c.cvss + ')' : ''} | ${c.systems.size} | ${(c.title || '').replace(/\|/g, '/').slice(0, 110)} |\n`; });
+    o += '\n';
+  }
+  if (arp.ontap > 0) o += `**Ransomware protection:** Autonomous Ransomware Protection is ${_dfArpSentence(arp)}.\n\n`;
+
+  // 5 Reliability
+  o += `## 5. Monitoring & Reliability\n\n`;
+  o += `AutoSupport: ${asupOk} of ${targetSystems.length} systems reporting normally${asupStale ? `; ${asupStale} not heard from for more than 7 days` : ''}${asupOff ? `; ${asupOff} with no AutoSupport data reported (AutoSupport off or not configured)` : ''}. Without AutoSupport, Active IQ cannot raise risks or support cases proactively for that system.\n\n`;
+  const scores = targetSystems.map(s => (s.sustainabilityScores || [])[0]).filter(x => x && x.scorePercentage != null).map(x => x.scorePercentage);
+  if (scores.length) o += `Sustainability score (Active IQ): average ${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(0)}% across ${plural(scores.length, 'system')} reporting a score.\n\n`;
+
+  // 6 Capacity
+  o += `## 6. Capacity & Efficiency\n\n`;
+  const ont = targetSystems.filter(s => _platformFamily(s) === 'ontap' && s.efficiency);
+  const ph = ont.reduce((a, s) => a + (s.efficiency.physicalUsedTB || 0), 0), lg = ont.reduce((a, s) => a + (s.efficiency.logicalUsedTB || 0), 0);
+  if (ph > 0) o += `ONTAP systems store ${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB of physical capacity (${(lg / ph).toFixed(1)}:1 efficiency, ${(lg - ph).toFixed(1)} TB saved).\n\n`;
+  const near = targetSystems.filter(s => s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 365).sort((a, b) => a.projections.daysToLimit - b.projections.daysToLimit);
+  o += near.length ? `Projected to reach the capacity threshold within 12 months: ${near.map(s => `${nameOf(s)} (${_dfRunwayText(s.projections.daysToLimit)})`).join(', ')}.\n\n` : `No system is projected to reach its capacity threshold within 12 months.\n\n`;
+
+  // 7 Data protection
+  if (dr.ontapCount > 0) {
+    o += `## 7. Data Protection\n\n- SnapMirror: ${dr.relText}.\n- Replication status: ${dr.unprotectedText}.\n- Replication lag: ${dr.rpoText}.\n`;
+    if (dr.mcSystems > 0) o += `- MetroCluster: ${plural(dr.mcSystems, 'system')}.\n`;
+    o += '\nActive IQ reports SnapMirror as a relationship count; destination and lag should be confirmed on the clusters.\n\n';
+  }
+
+  // 8 Cases
+  o += `## 8. Support Cases\n\n`;
+  if (openCases.length) {
+    o += `${plural(openCases.length, 'case')} currently open:\n\n| Case | System | Title | Priority | Opened |\n|---|---|---|---|---|\n`;
+    openCases.slice(0, 10).forEach(c => { o += `| ${c.caseNumber || c.id || c.number || ''} | ${c.systemName || (targetSystems.find(x => x.serialNumber === c.serialNumber) || {}).systemName || 'not reported'} | ${String(c.title || c.subject || '').replace(/\|/g, '/').slice(0, 80)} | ${c.severity || c.criticality || 'not reported'} | ${fmtD(c.createdDate || c.openedDate || c.created)} |\n`; });
+    if (openCases.length > 10) o += `\n_${openCases.length - 10} further open cases not listed._\n`;
+    o += '\n';
+  } else o += `No support cases are currently open.\n\n`;
+
+  // 9 Next steps
+  const steps = [];
+  if (lapsed.length) steps.push(`Reinstate support on ${plural(lapsed.length, 'system')} whose contract has lapsed (${lapsed.slice(0, 5).map(e => e.systemName).join(', ')}${lapsed.length > 5 ? ' and ' + (lapsed.length - 5) + ' more' : ''}).`);
+  if (exp90.length) steps.push(`Renew ${plural(exp90.length, 'contract')} expiring within 90 days.`);
+  if (riskSev('critical') || cveCrit) steps.push(`Remediate the ${plural(riskSev('critical'), 'critical risk')}${cveCrit ? ' and ' + plural(cveCrit, 'critical CVE') : ''} -- start with ${topCves.length ? topCves[0].id : 'the highest-severity items in section 4'}.`);
+  if (arp.disabled > 0) steps.push(`Enable Autonomous Ransomware Protection on the ${arp.disabled} ONTAP system${arp.disabled === 1 ? '' : 's'} where it is disabled${arp.unknown ? ' and confirm the ' + arp.unknown + ' not reported' : ''}.`);
+  const target = targetSystems.filter(s => s.recommendedOSVersion && verOf(s) !== 'not reported' && verOf(s) !== s.recommendedOSVersion).length;
+  if (target) steps.push(`Plan software updates for ${plural(target, 'system')} not yet on the recommended release.`);
+  if (dr.unprotected.length) steps.push(`Review replication for the ${dr.unprotected.length} ONTAP system${dr.unprotected.length === 1 ? '' : 's'} with no SnapMirror or MetroCluster configured.`);
+  if (asupOff || asupStale) steps.push(`Restore AutoSupport reporting on ${plural(asupOff + asupStale, 'system')}.`);
+  const refresh = hwKeys.filter(m => { const d = daysTo(hwGroups[m].eos); return d != null && d <= 730; });
+  if (refresh.length) steps.push(`Plan hardware refresh for ${refresh.join(', ')} (support ends within 24 months or has ended).`);
+  if (near.length) steps.push(`Plan capacity expansion or data placement for ${near.slice(0, 4).map(nameOf).join(', ')}.`);
+  o += `## 9. Recommended Next Steps\n\n` + (steps.length ? steps.map((t, i) => `${i + 1}. ${t}`).join('\n') : 'No corrective action is required at this time.') + '\n';
+  return o;
+}
+
 function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle) {
   // Strip a leading "Customer: " / "Watchlist: " / "Custom Group: " / "System: "
   // scope-type prefix -- scopeTitle carries it to distinguish scope types in
@@ -24908,6 +25067,7 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     riskRemediationBrief,
     securityBrief,
     sustainabilityReport,
+    customerReport: compileCustomerReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle),
     _enrichmentCounts: enrichSections._counts || {},
     _fleetProfile: enrichSections._fleetProfile || '',
     _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0),
@@ -28915,6 +29075,15 @@ function generateActionPlan() {
 
       <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">Customer Health &amp; Lifecycle Report (paste-ready)</h4>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CUSTOMER_REPORT')">Download Report (MD)</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Customer-facing summary written to be pasted into a presentation or customer document as-is: estate, support and lifecycle dates, security, monitoring, capacity, data protection, open cases and next steps. Contains only this customer's data; no internal notes.</p>
+        <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.customerReport}</textarea>
+      </div>
+
+      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h4 style="font-size: 0.95rem; color: var(--accent-cyan); margin: 0;">I. Sustainability &amp; ESG Report${enrBadge('sustainabilityReport')}</h4>
           <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('SUSTAINABILITY_REPORT')">Download Report (TXT)</button>
         </div>
@@ -29758,6 +29927,8 @@ function downloadDeliverable(type) {
     triggerFileDownload(`risk_remediation_brief_${cleanScope}.txt`, docs.riskRemediationBrief || compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'SECURITY_BRIEF') {
     triggerFileDownload(`security_brief_${cleanScope}.txt`, docs.securityBrief || compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+  } else if (type === 'CUSTOMER_REPORT') {
+    triggerFileDownload(`customer_report_${cleanScope}.md`, docs.customerReport);
   } else if (type === 'SUSTAINABILITY_REPORT') {
     triggerFileDownload(`sustainability_report_${cleanScope}.txt`, docs.sustainabilityReport || compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CSV') {
