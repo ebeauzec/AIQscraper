@@ -1,8 +1,8 @@
 {
-  "version": "5.6.104",
+  "version": "5.6.106",
   "major": 5,
   "minor": 6,
-  "patch": 104,
+  "patch": 106,
   "date": "2026-09-26",
-  "notes": "MetroCluster described per pair in the deliverables; documentation refreshed."
+  "notes": "IOM6 upgrade-target check."
 }

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.105";
+const APP_VERSION = "5.6.106";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.106",
+    date: "26 September 2026",
+    title: "Plan Buttons Fixed",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Fixed the Plan buttons in the Technical Audit risk table doing nothing: the remediation dialog (and the ASUP import dialog) sat inside the hidden Settings tab in the page markup, so they had no size unless Settings was open. They are now attached to the page body at load.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.105",
     date: "26 September 2026",
@@ -37615,6 +37630,8 @@ window.afterHarvestComplete = function(...args) {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+  // These modals are declared inside #settingsTab in index.html, so they were invisible (zero size) whenever another tab was active -- e.g. the Plan buttons did nothing. Re-parent them to <body>.
+  ['remediationModal', 'asupImportModal'].forEach(function(id) { var m = document.getElementById(id); if (m && m.parentElement !== document.body) document.body.appendChild(m); });
   setTimeout(loadPersistedAsupImports, 3000);
 
   // Auto-restore token + watchlist ID from localStorage to the server on every

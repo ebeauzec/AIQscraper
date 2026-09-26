@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.106] - 2026-09-26
+
+### Fixed
+- Fixed the Plan buttons in the Technical Audit risk table doing nothing: the remediation dialog (and the ASUP import dialog) sat inside the hidden Settings tab in the page markup, so they had no size unless Settings was open. They are now attached to the page body at load.
+
+---
+
+## [5.6.105] - 2026-09-26
+
+### Changed
+- Upgrade targets respect the IOM6 limit: a cluster whose systems carry Active IQ's IOM6 shelf finding is no longer sent to ONTAP 9.16.1 or newer (NetApp dropped IOM6 support in 9.16.1). The upgrade sequence caps the target at the latest 9.15.1 patch, the decisions/plan add a 'replace IOM6 with IOM12 or hold' item, and the per-system upgrade steps carry the same warning.
+
+---
+
 ## [5.6.104] - 2026-09-26
 
 ### Changed
