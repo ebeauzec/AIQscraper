@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.84] - 2026-09-26
+
+### Added
+- **KB Crawl Interval Settings UI**, merged in from a branch (`ebeauzec-add-kb-interval-config`) that was pushed in early September but never merged into `main`. Adds a "KB Crawl Interval" dropdown (24 hours to 14 days, default 7 days) in Settings > Enrichment, next to the existing Security Scan Interval, controlling the slow-crawl scanner group (KB articles, reference library).
+
+### Fixed
+- **The original branch's setting silently failed to save.** It only wired the `GET /api/config` response; `POST /api/config` never read `kb_interval_hours` back out of the save request, and the running scheduler was never told about a saved value (it also always started up on the 7-day default regardless of what was saved). All three are now wired through.
+
+---
+
 ## [5.6.83] - 2026-09-26
 
 ### Fixed

@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.83";
+const APP_VERSION = "5.6.84";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.84",
+    date: "26 September 2026",
+    title: "KB Crawl Interval Settings UI Merged and Completed",
+    sections: [
+      {
+        icon: "⚙️",
+        label: "New -- KB Crawl Interval Control in Settings",
+        color: "#38bdf8",
+        items: [
+          "Merged in a KB-crawl-interval configuration UI (Settings > Enrichment) that was pushed to a branch back in early September but never merged: a 'KB Crawl Interval' dropdown (24 hours to 14 days, default 7 days) next to the existing Security Scan Interval, wired to the slow-crawl scanner group (KB articles, reference library) that already ran on its own timer independent of the fast security scanners.",
+          "The original branch only wired the GET /api/config response, so the setting displayed but silently failed to save. Completed the wiring: POST /api/config now reads and persists kb_interval_hours, the running scheduler is updated with it on every Settings save (not just at startup), and the scheduler now starts up honoring whatever value was last saved instead of always resetting to the 7-day default.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.83",
     date: "26 September 2026",
@@ -31324,13 +31340,14 @@ async function saveEnrichmentConfig() {
   try {
     const enrichEnabled = document.getElementById("settingsEnrichEnabled")?.checked ?? true;
     const enrichInterval = parseInt(document.getElementById("settingsEnrichInterval")?.value) || 12;
+    const kbInterval = parseInt(document.getElementById("settingsKbInterval")?.value) || 168;
     const nvdApiKey = document.getElementById("settingsNvdApiKey")?.value?.trim() || "";
     const githubToken = document.getElementById("settingsGithubToken")?.value?.trim() || "";
 
     await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, nvdApiKey, githubToken })
+      body: JSON.stringify({ enrichEnabled, enrichIntervalHours: enrichInterval, kb_interval_hours: kbInterval, nvdApiKey, githubToken })
     });
     console.log("[ENRICH] Config saved to server.");
   } catch (err) {
@@ -34066,12 +34083,14 @@ function switchTab(tabId) {
       fetch("/api/config").then(r => r.json()).then(cfg => {
         const enrichToggle = document.getElementById("settingsEnrichEnabled");
         const enrichInterval = document.getElementById("settingsEnrichInterval");
+        const kbInterval = document.getElementById("settingsKbInterval");
         if (enrichToggle && cfg.enrichEnabled !== undefined) enrichToggle.checked = cfg.enrichEnabled;
         if (enrichInterval && cfg.enrichIntervalHours) enrichInterval.value = cfg.enrichIntervalHours.toString();
         const autoHarvestToggle = document.getElementById("settingsAutoHarvestEnabled");
         const autoHarvestInterval = document.getElementById("settingsAutoHarvestInterval");
         if (autoHarvestToggle && cfg.autoHarvestEnabled !== undefined) autoHarvestToggle.checked = cfg.autoHarvestEnabled;
         if (autoHarvestInterval && cfg.autoHarvestIntervalHours) autoHarvestInterval.value = cfg.autoHarvestIntervalHours.toString();
+        if (kbInterval && cfg.kb_interval_hours) kbInterval.value = cfg.kb_interval_hours.toString();
       }).catch(() => {});
     }
   }

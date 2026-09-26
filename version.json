@@ -1,8 +1,8 @@
 {
-  "version": "5.6.83",
+  "version": "5.6.84",
   "major": 5,
   "minor": 6,
-  "patch": 83,
+  "patch": 84,
   "date": "2026-09-26",
-  "notes": "Fixed two deliverable contradictions: the Customer Success Plan and MSP Service Report read a capacity-runway field (runwayDays) that never existed in the harvest, always falling back to a fake 120 days instead of the real daysToLimit figure shown elsewhere in the same documents; and the QBR Pack, MSP Service Report and Risk & Remediation Brief computed the storage efficiency ratio across all platforms instead of ONTAP-only, disagreeing with the Customer Success Plan and Extended Deliverables on mixed-platform fleets."
+  "notes": "Merged the long-unmerged KB Crawl Interval Settings UI (branch ebeauzec-add-kb-interval-config) and completed its backend wiring: saving the interval now actually persists and updates the running enrichment scheduler, instead of being silently discarded on save as in the original branch."
 }

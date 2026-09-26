@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.83";
+const APP_VERSION = "5.6.84";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.84",
+    date: "26 September 2026",
+    title: "KB Crawl Interval Settings UI Merged and Completed",
+    sections: [
+      {
+        icon: "⚙️",
+        label: "New -- KB Crawl Interval Control in Settings",
+        color: "#38bdf8",
+        items: [
+          "Merged in a KB-crawl-interval configuration UI (Settings > Enrichment) that was pushed to a branch back in early September but never merged: a 'KB Crawl Interval' dropdown (24 hours to 14 days, default 7 days) next to the existing Security Scan Interval, wired to the slow-crawl scanner group (KB articles, reference library) that already ran on its own timer independent of the fast security scanners.",
+          "The original branch only wired the GET /api/config response, so the setting displayed but silently failed to save. Completed the wiring: POST /api/config now reads and persists kb_interval_hours, the running scheduler is updated with it on every Settings save (not just at startup), and the scheduler now starts up honoring whatever value was last saved instead of always resetting to the 7-day default.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.83",
     date: "26 September 2026",
