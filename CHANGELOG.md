@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.111] - 2026-09-26
+
+### Fixed
+- Fixed ports staying lit after moving between ports, table rows and LIFs: the highlight is now recomputed from the current hover and selection each time, so only the port(s) currently hovered or selected are lit, and switching node or view clears the selection.
+
+---
+
 ## [5.6.110] - 2026-09-26
 
 ### Changed

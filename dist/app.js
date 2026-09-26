@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.110";
+const APP_VERSION = "5.6.111";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.111",
+    date: "26 September 2026",
+    title: "Port Highlight Fix",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Fixed ports staying lit after moving between ports, table rows and LIFs: the highlight is now recomputed from the current hover and selection each time, so only the port(s) currently hovered or selected are lit, and switching node or view clears the selection.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.110",
     date: "26 September 2026",
@@ -36077,7 +36092,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   renderNodeVisualLayout._lastFP = _nodeLayoutFP;
 
   const ports = getSystemPortMappings(sys);
-  window._bpCurPorts = ports; _bpLifPinnedRow = null; _bpLifLit = [];
+  window._bpCurPorts = ports; _bpReset();
   
   let portsHtml = "";
   let tableRowsHtml = "";
@@ -36396,51 +36411,51 @@ function bpLifPorts(lifPort, ports) {
   }
   return { base, group: false, ports: base ? [base] : [] };
 }
-let _bpLifPinnedRow = null, _bpLifLit = [];
-function _bpLifSet(row, on) {
-  _bpLifLit.forEach(nm => { if (nm !== _bpPinned) _bpApply(nm, false); }); _bpLifLit = [];
-  document.querySelectorAll('.bp-lif-row').forEach(r => { if (r !== _bpLifPinnedRow && r !== (on ? row : null)) { r.style.background = ''; r.style.borderLeftColor = 'transparent'; } });
-  if (!row || !on) return null;
-  const r = bpLifPorts(row.getAttribute('data-lifport'));
-  r.ports.forEach(nm => { _bpApply(nm, true); _bpLifLit.push(nm); });
-  row.style.background = 'rgba(0,229,255,0.12)'; row.style.borderLeftColor = 'var(--accent-cyan)';
-  return r;
+// One source of truth for what is lit: the union of {hovered port, pinned port, hovered LIF row,
+// pinned LIF row}. Every change recomputes the set and clears anything no longer in it, so nothing
+// stays lit after the pointer or the selection moves on.
+let _bpHoverPort = null, _bpPinned = null, _bpLifHoverRow = null, _bpLifPinnedRow = null;
+function _bpReset() { _bpHoverPort = null; _bpPinned = null; _bpLifHoverRow = null; _bpLifPinnedRow = null; }
+function _bpRefresh() {
+  const want = new Set();
+  if (_bpHoverPort) want.add(_bpHoverPort);
+  if (_bpPinned) want.add(_bpPinned);
+  [_bpLifPinnedRow, _bpLifHoverRow].forEach(r => { if (r && r.isConnected) bpLifPorts(r.getAttribute('data-lifport')).ports.forEach(nm => want.add(nm)); });
+  document.querySelectorAll('.bp-port').forEach(g => {
+    const nm = g.id.replace('port-slot-', ''), on = want.has(nm), was = g.classList.contains('hot');
+    if (on && !was) { g.classList.add('hot'); if (g.parentNode) g.parentNode.appendChild(g); }   // draw on top of neighbouring slots
+    else if (!on && was) g.classList.remove('hot');
+  });
+  document.querySelectorAll('tr[id^="port-row-"]').forEach(r => {
+    const on = want.has(r.id.replace('port-row-', '')), c = r.getAttribute('data-stat') || '#f59e0b';
+    r.style.background = on ? c + '2e' : ''; r.style.borderLeftColor = on ? c : 'transparent';
+  });
+  document.querySelectorAll('.bp-lif-row').forEach(r => {
+    const on = r === _bpLifPinnedRow || r === _bpLifHoverRow;
+    r.style.background = on ? 'rgba(0,229,255,0.12)' : ''; r.style.borderLeftColor = on ? 'var(--accent-cyan)' : 'transparent';
+  });
 }
-function bpLifHover(row, on) { if (_bpLifPinnedRow && _bpLifPinnedRow !== row) return; if (!on && _bpLifPinnedRow === row) return; _bpLifSet(row, on); }
-function bpLifPin(row) {
-  if (_bpLifPinnedRow === row) { _bpLifPinnedRow = null; _bpLifSet(null, false); return; }
-  _bpLifPinnedRow = null; _bpLifSet(null, false);
-  _bpLifPinnedRow = row;
-  const r = _bpLifSet(row, true);
-  const g = r && r.ports.length && document.getElementById('port-slot-' + r.ports[0]);
-  if (g && g.scrollIntoView) g.scrollIntoView({ block: 'center', behavior: 'smooth' });
-}
-
-let _bpPinned = null;
-function _bpApply(name, on) {
-  const g = document.getElementById(`port-slot-${name}`), row = document.getElementById(`port-row-${name}`);
-  if (g && g.classList && g.classList.contains('bp-port')) {
-    g.classList.toggle('hot', on);
-    if (on && g.parentNode) g.parentNode.appendChild(g);   // draw on top of neighbouring slots
-  }
-  if (row) {
-    const c = row.getAttribute('data-stat') || '#f59e0b';
-    row.style.background = on ? c + '2e' : '';
-    row.style.borderLeftColor = on ? c : 'transparent';
-  }
-}
-function hoverCablingPort(portName) { _bpApply(portName, true); }
-function unhoverCablingPort(portName) { if (_bpPinned !== portName) _bpApply(portName, false); }
-// Click a port (drawing or table row) to keep it lit; click again or another port to release it
+function hoverCablingPort(portName) { _bpHoverPort = portName; _bpRefresh(); }
+function unhoverCablingPort(portName) { if (_bpHoverPort === portName) _bpHoverPort = null; _bpRefresh(); }
+// Click a port (drawing or table row) to keep it lit; click again to release. Selecting a port drops any pinned LIF.
 function bpPin(portName) {
-  const prev = _bpPinned;
-  _bpPinned = (prev === portName) ? null : portName;
-  if (prev) _bpApply(prev, false);
+  _bpLifPinnedRow = null; _bpLifHoverRow = null;
+  _bpPinned = (_bpPinned === portName) ? null : portName;
+  _bpRefresh();
   if (_bpPinned) {
-    _bpApply(_bpPinned, true);
-    const row = document.getElementById(`port-row-${_bpPinned}`), g = document.getElementById(`port-slot-${_bpPinned}`);
+    const row = document.getElementById(`port-row-${_bpPinned}`);
     if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (g && g.scrollIntoView && !document.querySelector(':hover')) g.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+function bpLifHover(row, on) { _bpLifHoverRow = on ? row : (_bpLifHoverRow === row ? null : _bpLifHoverRow); _bpRefresh(); }
+// Click a LIF row to keep its physical ports lit; click again to release. Selecting a LIF drops any pinned port.
+function bpLifPin(row) {
+  _bpPinned = null;
+  _bpLifPinnedRow = (_bpLifPinnedRow === row) ? null : row;
+  _bpRefresh();
+  if (_bpLifPinnedRow) {
+    const r = bpLifPorts(row.getAttribute('data-lifport')), g = r.ports.length && document.getElementById('port-slot-' + r.ports[0]);
+    if (g && g.scrollIntoView) g.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 }
 
