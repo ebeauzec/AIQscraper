@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.92";
+const APP_VERSION = "5.6.93";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.93",
+    date: "26 September 2026",
+    title: "Health Report Handles Large Accounts",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Health & Lifecycle Report scaled for large accounts: more than 12 lapsed contracts are grouped by expiry date instead of listed one by one; the software table has a Status column (past end of full/limited support); a site that is just the customer's own name is not shown as a site; case titles no longer break the Markdown table; 'N critical' grammar.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.92",
     date: "26 September 2026",
@@ -23949,7 +23964,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const famText = Object.keys(fams).map(f => `${fams[f]} ${famLabel[f] || f}`).join(', ');
   const models = [...new Set(targetSystems.map(s => s.model || s.platform).filter(Boolean))];
   // City when short; otherwise the site name if it is a name (some are a partner's postal address run together)
-  const _cleanName = n => (n && n.length <= 45 && !/[a-z][A-Z]|\.[A-Za-z]/.test(n)) ? n : '';   // run-together postal addresses fail this
+  const _cleanName = n => (n && n.length <= 45 && !/[a-z][A-Z]|\.[A-Za-z]/.test(n) && n.trim().toLowerCase() !== cust.toLowerCase()) ? n : '';   // run-together postal addresses fail this
   const _site = s => (s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '') || _cleanName(s.siteName);
   const _cities = [...new Set(targetSystems.map(s => s.siteCity && s.siteCity.length <= 30 ? s.siteCity : '').filter(Boolean))];
   const sites = [..._cities, ...new Set(targetSystems.filter(s => !(s.siteCity && s.siteCity.length <= 30)).map(s => _cleanName(s.siteName)).filter(n => n && !_cities.some(c => n.toLowerCase().includes(c.toLowerCase()))))];
@@ -23995,7 +24010,16 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
 
   // 3 Support & lifecycle
   o += `## 3. Support & Lifecycle\n\n`;
-  if (lapsed.length) o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for: ${lapsed.map(e => `${e.systemName} (expired ${fmtD(e.endDate)})`).join(', ')}.\n\n`;
+  if (lapsed.length) {
+    const _byDate = {};
+    lapsed.forEach(e => { const d = fmtD(e.endDate); (_byDate[d] = _byDate[d] || []).push(e.systemName); });
+    const _dates = Object.keys(_byDate).sort();
+    o += `**Support has lapsed on ${plural(lapsed.length, 'system')}** -- there is currently no active support entitlement for them.\n\n`;
+    if (lapsed.length <= 12) o += lapsed.map(e => `- ${e.systemName} (expired ${fmtD(e.endDate)})`).join('\n') + '\n\n';
+    else {
+      o += `| Contract expired | Systems | Examples |\n|---|---|---|\n` + _dates.map(d => `| ${d} | ${_byDate[d].length} | ${_byDate[d].slice(0, 4).join(', ')}${_byDate[d].length > 4 ? ', ...' : ''} |`).join('\n') + '\n\n';
+    }
+  }
   if (exp90.length) o += `**Renewals due within 90 days:** ${exp90.map(e => `${e.systemName} (${fmtD(e.endDate)}, ${e.daysRemaining} days)`).join(', ')}.\n\n`;
   if (!lapsed.length && !exp90.length && contracts.active.length) o += `No support contract expires within the next 90 days.\n\n`;
   const warrEnd = targetSystems.filter(s => s.warrantyEndDate && daysTo(s.warrantyEndDate) < 0).length;
@@ -24005,8 +24029,8 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   targetSystems.forEach(s => { const v = verOf(s); if (v === 'not reported') return; const g = verGroups[v] = verGroups[v] || { n: 0, full: s.swEndOfFullSupport, lim: s.swEndOfLimitedSupport, rec: s.recommendedOSVersion }; g.n++; g.full = g.full || s.swEndOfFullSupport; g.lim = g.lim || s.swEndOfLimitedSupport; g.rec = g.rec || s.recommendedOSVersion; });
   const vKeys = Object.keys(verGroups);
   if (vKeys.length) {
-    o += `**Software versions and support windows**\n\n| Version | Systems | End of full support | End of limited support | Recommended target |\n|---|---|---|---|---|\n`;
-    vKeys.sort().forEach(v => { const g = verGroups[v]; o += `| ${v} | ${g.n} | ${fmtD(g.full)} | ${fmtD(g.lim)} | ${g.rec || 'not reported'} |\n`; });
+    o += `**Software versions and support windows**\n\n| Version | Systems | End of full support | End of limited support | Recommended target | Status |\n|---|---|---|---|---|---|\n`;
+    vKeys.sort().forEach(v => { const g = verGroups[v]; const _f = daysTo(g.full), _l = daysTo(g.lim); const _st = _l != null && _l < 0 ? 'Past end of limited support' : _f != null && _f < 0 ? 'Past end of full support' : _f == null ? 'support dates not reported' : 'In full support'; o += `| ${v} | ${g.n} | ${fmtD(g.full)} | ${fmtD(g.lim)} | ${g.rec || 'not reported'} | ${_st} |\n`; });
     o += '\n';
   }
   // hardware lifecycle by model
@@ -24025,7 +24049,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
 
   // 4 Security
   o += `## 4. Security\n\n`;
-  o += `Active IQ currently reports ${plural(riskSev('critical'), 'critical')}, ${riskSev('high')} high, ${riskSev('medium')} medium and ${riskSev('low')} low risk${allRisks.length === 1 ? '' : 's'} across the estate.\n\n`;
+  o += `Active IQ currently reports ${riskSev('critical')} critical, ${riskSev('high')} high, ${riskSev('medium')} medium and ${riskSev('low')} low risk${allRisks.length === 1 ? '' : 's'} across the estate.\n\n`;
   if (cveList.length) {
     o += `${plural(cveList.length, 'unique CVE')} apply to this estate (${cveCrit} critical, ${cveHigh} high; the remainder medium/low or not severity-rated). Highest priority:\n\n| CVE | Severity | Systems affected | Description |\n|---|---|---|---|\n`;
     topCves.forEach(c => { o += `| ${c.id} | ${c.sev}${c.cvss ? ' (CVSS ' + c.cvss + ')' : ''} | ${c.systems.size} | ${(c.title || '').replace(/\|/g, '/').slice(0, 110)} |\n`; });
@@ -24058,7 +24082,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   o += `## 8. Support Cases\n\n`;
   if (openCases.length) {
     o += `${plural(openCases.length, 'case')} currently open:\n\n| Case | System | Title | Priority | Opened |\n|---|---|---|---|---|\n`;
-    openCases.slice(0, 10).forEach(c => { o += `| ${c.caseNumber || c.id || c.number || ''} | ${c.systemName || (c.serialNumber && (targetSystems.find(x => x.serialNumber === c.serialNumber) || {}).systemName) || 'not reported'} | ${String(c.title || c.subject || '').replace(/\|/g, '/').slice(0, 80)} | ${c.severity || c.criticality || 'not reported'} | ${fmtD(c.createdDate || c.openedDate || c.created)} |\n`; });
+    openCases.slice(0, 10).forEach(c => { o += `| ${c.caseNumber || c.id || c.number || ''} | ${c.systemName || (c.serialNumber && (targetSystems.find(x => x.serialNumber === c.serialNumber) || {}).systemName) || 'not reported'} | ${String(c.title || c.subject || '').replace(/\s+/g, ' ').replace(/\|/g, '/').slice(0, 80)} | ${c.severity || c.criticality || 'not reported'} | ${fmtD(c.createdDate || c.openedDate || c.created)} |\n`; });
     if (openCases.length > 10) o += `\n_${openCases.length - 10} further open cases not listed._\n`;
     o += '\n';
   } else o += `No support cases are currently open.\n\n`;

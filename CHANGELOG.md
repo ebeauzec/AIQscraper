@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.93] - 2026-09-26
+
+### Fixed
+- Health & Lifecycle Report scaled for large accounts: more than 12 lapsed contracts are grouped by expiry date instead of listed one by one; the software table has a Status column (past end of full/limited support); a site that is just the customer's own name is not shown as a site; case titles no longer break the Markdown table; 'N critical' grammar.
+
+---
+
+## [5.6.92] - 2026-09-26
+
+### Fixed
+- Health & Lifecycle Report site column: a system with no city now falls back to its site name (when it is a real name, not a partner's postal address run together) instead of printing 'not reported'; the estate summary lists each city once and no longer repeats a site that is just the city again. Site fields were never lost in the browser's slim save (only arrays are stripped) -- the gap was in the report's own fallback.
+
+---
+
 ## [5.6.91] - 2026-09-26
 
 ### Changed
