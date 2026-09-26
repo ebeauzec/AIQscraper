@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.114";
+const APP_VERSION = "5.6.115";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.115",
+    date: "26 September 2026",
+    title: "Rear Panel Accuracy Check",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Checked every rear-panel layout against NetApp's cabling diagrams side by side (FAS8200, FAS8300/A400, A800, A250, FAS2820, C190/A220, A20-A50, A70/A90): the order and grouping of connectors match; fixed the FAS8300/8700 and A400/C400 drawing where the management ports overlapped slot 5.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.114",
     date: "26 September 2026",
@@ -36068,13 +36083,13 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       ['p', 'e0M', 'rj45', 262, 80, 't'], ['f', 'USB', 'usb', 298, 66, 't'], ['f', 'CON', 'rj45', 294, 82, 'b'], ['f', 'μUSB', 'umicro', 327, 92, 't'], ['led', 346, 68, 4],
       ['bay', 1, 372, 18, 172, 36, 'h'], ['bay', 2, 372, 60, 172, 36, 'h'], ['txt', 300, 12, 'SAS · CLUSTER · UTA2 / 10GBASE-T · MGMT', 5, 'start', '#4b5563']] };
   // FAS8300 / FAS8700 / AFF A400 / C400
-  _LAY.mid7 = { W: 590, H: 124, mode: 'stack', zoom: 1.5, sub: 'FAS8300/8700, AFF A400/C400: two controllers stacked, 2 PSUs inside each controller · 5 PCIe slots',
-    items: [['psu', 14, 58, 58, 60, 'PSU 1'], ['psu', 100, 58, 58, 60, 'PSU 2'],
+  _LAY.mid7 = { W: 590, H: 138, mode: 'stack', zoom: 1.5, sub: 'FAS8300/8700, AFF A400/C400: two controllers stacked, 2 PSUs inside each controller · 5 PCIe slots',
+    items: [['psu', 14, 80, 58, 54, 'PSU 1'], ['psu', 100, 80, 58, 54, 'PSU 2'],
       ['bay', 1, 84, 10, 128, 32, 'h'], ['bay', 2, 262, 10, 120, 32, 'h'], ['bay', 3, 262, 46, 120, 32, 'h'], ['bay', 4, 428, 10, 150, 32, 'h'], ['bay', 5, 428, 46, 150, 32, 'h'],
-      ..._sasRow(['0a', '0b', '0c', '0d'], 212, 88, 19),
-      ['p', 'e0a', 'sfp', 296, 86, 't'], ['p', 'e0b', 'sfp', 321, 86, 't'], ['p', 'e0c', 'qsfp', 352, 86, 't'], ['p', 'e0d', 'qsfp', 383, 86, 't'],
-      ['p', 'e0M', 'rj45', 424, 70, 't'], ['f', 'CON', 'rj45', 424, 92, 'b'], ['f', 'μUSB', 'umicro', 450, 98, 't'],
-      ['p', 'e0e', 'sfp', 476, 90, 't'], ['p', 'e0f', 'sfp', 500, 90, 't'], ['p', 'e0g', 'sfp', 524, 90, 't'], ['p', 'e0h', 'sfp', 548, 90, 't']] };
+      ..._sasRow(['0a', '0b', '0c', '0d'], 212, 104, 19),
+      ['p', 'e0a', 'sfp', 296, 102, 't'], ['p', 'e0b', 'sfp', 321, 102, 't'], ['p', 'e0c', 'qsfp', 352, 102, 't'], ['p', 'e0d', 'qsfp', 383, 102, 't'],
+      ['p', 'e0M', 'rj45', 424, 90, 't'], ['f', 'CON', 'rj45', 424, 112, 'b'], ['f', 'μUSB', 'umicro', 450, 118, 't'],
+      ['p', 'e0e', 'sfp', 476, 106, 't'], ['p', 'e0f', 'sfp', 500, 106, 't'], ['p', 'e0g', 'sfp', 524, 106, 't'], ['p', 'e0h', 'sfp', 548, 106, 't']] };
   // AFF A800 / C800
   _LAY.a800 = { W: 505, H: 112, mode: 'stack', zoom: 1.7, sub: 'AFF A800/C800: two controllers stacked (4U), 2 PSUs inside each controller · 5 PCIe slots',
     items: [['bay', 1, 58, 6, 120, 34, 'h'], ['bay', 2, 208, 6, 120, 34, 'h'], ['bay', 3, 208, 44, 120, 34, 'h'], ['bay', 4, 360, 6, 130, 34, 'h'], ['bay', 5, 360, 44, 130, 34, 'h'],

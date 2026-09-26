@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.115] - 2026-09-26
+
+### Changed
+- Checked every rear-panel layout against NetApp's cabling diagrams side by side (FAS8200, FAS8300/A400, A800, A250, FAS2820, C190/A220, A20-A50, A70/A90): the order and grouping of connectors match; fixed the FAS8300/8700 and A400/C400 drawing where the management ports overlapped slot 5.
+
+---
+
 ## [5.6.114] - 2026-09-26
 
 ### Changed
