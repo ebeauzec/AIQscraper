@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.89";
+const APP_VERSION = "5.6.90";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.90",
+    date: "26 September 2026",
+    title: "FabricPool Removed from Scorecards",
+    sections: [
+      {
+        icon: "✅",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "FabricPool is removed from the feature-adoption score and from every deliverable scorecard and action list (Success Plan, Risk & Remediation Brief, Sales Proposals, Sustainability Report, Customer Communications). The score is now over ARP, SnapMirror, HA and AutoSupport, and the criteria total is summed from the real per-system totals instead of a hardcoded 15 per system. The on-screen dashboards are unchanged.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.89",
     date: "26 September 2026",
@@ -16906,7 +16921,7 @@ function _getAsupConfiguredState(sys) {
 
 function computeFeatureAdoptionScore(sys) {
   // Returns {passed, total, pct} for actual OPTIONAL ONTAP FEATURE adoption
-  // only -- ARP, FabricPool, SnapMirror, HA, AutoSupport configured. This
+  // only -- ARP, SnapMirror, HA, AutoSupport configured. This
   // used to also count 10 unrelated operational/health checks (OS
   // currency, risk count, contract status, ASUP compliance, EOS lifecycle,
   // CVE count, capacity %, support cases, field actions) toward the same
@@ -16919,8 +16934,6 @@ function computeFeatureAdoptionScore(sys) {
   let passed = 0;
   let total = 0;
 
-  // FabricPool
-  if (sys.isFabricPool != null) { total++; if (sys.isFabricPool === true) passed++; }
   // SnapMirror -- real per-cluster relationship count when this system is
   // part of a cluster Active IQ returned; null (excluded, not "0 = no SM")
   // when it isn't, e.g. StorageGRID/E-Series or an ungrouped system.
@@ -21588,7 +21601,6 @@ ${platformLines}
   Feature                       Enabled     Total    Coverage    CLI Command
   ───────────────────────────── ─────────── ──────── ─────────── ──────────────────────────
   Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, _ontapN)}      security anti-ransomware volume ...
-  FabricPool (Cloud Tiering)    ${_fmtAdopt(fabricPoolCount, fpKnownSys.length, _ontapN)}      storage aggregate ... -cloud-target
   SnapMirror DR                 ${_fmtAdopt(snapMirrorCount, smKnownSys.length, _ontapN)}      snapmirror show
   HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, _ontapN)}      cluster ha show
 
@@ -21770,17 +21782,15 @@ ${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(
 -----------------------------------------------------------
 Focus: ${_ontapN === 0 ? 'replication and AutoSupport remediation (replication is managed outside Active IQ for this scope).' : 'SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.'}
 
-${_ontapN === 0 ? '* SnapMirror / FabricPool actions do not apply (ONTAP-only). Replication for E-Series (Asynchronous/Synchronous Mirroring) and StorageGRID (ILM / cross-grid replication) is configured in their own consoles and is not reported by Active IQ -- review it manually.\n\n' : `* ACTION 3.1: SnapMirror Relationship Health
+${_ontapN === 0 ? '* SnapMirror actions do not apply (ONTAP-only). Replication for E-Series (Asynchronous/Synchronous Mirroring) and StorageGRID (ILM / cross-grid replication) is configured in their own consoles and is not reported by Active IQ -- review it manually.\n\n' : `* ACTION 3.1: SnapMirror Relationship Health
   - Check all relationships: 'snapmirror show -fields state,lag-time,health'
   - Update lagging relationships: 'snapmirror update -destination-path <dest>'
   - Resync broken relationships: 'snapmirror resync -destination-path <dest>'
   - Mediator status (active sync): 'snapmirror mediator show'
 
-* ACTION 3.2: Capacity & FabricPool Tiering
+* ACTION 3.2: Capacity Management
   - Identify full volumes: 'volume show -fields percent-used,available,state' | filter >80%
   - Enable auto-grow: 'volume modify -vserver <svm> -volume <vol> -autosize-mode grow'
-  - FabricPool tiering: 'volume modify -vserver <svm> -volume <vol> -tiering-policy auto'
-  - Reference: docs.netapp.com/us-en/ontap/fabricpool/
 
 `}PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 --------------------------------------------------------------------
@@ -21828,7 +21838,7 @@ ${_dfLapsedText(expiringContracts, '  ')}
 ${platformAgeLines}
   
   Refresh Candidates:   ${refreshCandidatesCount} systems flagged for tech refresh
-${_ontapN === 0 ? '  Recommended Refresh:   current-generation E-Series / StorageGRID hardware (confirm sizing with NetApp)' : `  ONTAP Differentiators: Unified SAN/NAS/S3, ARP, FabricPool, NDU, SnapLock, native DR
+${_ontapN === 0 ? '  Recommended Refresh:   current-generation E-Series / StorageGRID hardware (confirm sizing with NetApp)' : `  ONTAP Differentiators: Unified SAN/NAS/S3, ARP, NDU, SnapLock, native DR
   Recommended Refresh:   AFF A-Series/C-Series for EOS/EOA candidates`}
 
 --------------------------------------------------------------------------------
@@ -22683,7 +22693,6 @@ function compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts,
   ─────────────────────────────────────────────────────────────────────────────
     Systems with Aggregate Detail:   ${_aggReporting.length}/${total}
     Systems w/ Dedup/Compression Disabled on ≥1 Aggregate: ${_aggSisDisabledSys.length}
-    Systems w/ Non-FabricPool Aggregates:                  ${_aggNoFabricPoolSys.length}
 ` : '';
 
   const ontapSystems = targetSystems.filter(s => (s.platform || '').toLowerCase().includes('ontap') || (s.systemType || '').toLowerCase() === 'filer' || (s.systemType || '').toLowerCase() === 'aff');
@@ -22777,9 +22786,8 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); const cap = computeF
 
   STANDARDS & ADOPTION (Feature Adoption & Technical Benchmarks)
   ─────────────────────────────────────────────────────────────────────────────
-    Feature Adoption Score:   ${featureScores.length > 0 ? avgFeaturePct + '% fleet average (ARP/FabricPool/SnapMirror/HA/AutoSupport, ~' + avgFeaturePassed + ' of 5 features per system)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}
+    Feature Adoption Score:   ${featureScores.length > 0 ? avgFeaturePct + '% fleet average (ARP/SnapMirror/HA/AutoSupport, ~' + avgFeaturePassed + ' of 4 features per system)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}
     ARP Enablement:           ${_ontapN > 0 ? arpCount + '/' + _ontapN : 'N/A (no ONTAP systems)'}${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported)' : ''}
-    FabricPool Adoption:      ${_ontapN > 0 ? fpAdopted + '/' + _ontapN : 'N/A'}
 
     SnapMirror Usage:         ${_ontapN > 0 ? smAdopted + '/' + _ontapN : 'N/A'}
     HA Configured:            ${_ontapN > 0 ? haAdopted + '/' + _ontapN : 'N/A'}
@@ -22833,7 +22841,7 @@ ${coiText}
     Tech Refresh Flagged:     ${refreshFlagged} systems
     Platform Age > 5 Years:   ${ageOver5} systems
     EOA Hardware:             ${eoaSystems.length} systems${eoaSystems.length > 0 ? '\n' + eoaLines : ''}
-${targetSystems.some(s => _platformFamily(s) === 'ontap') ? `    ONTAP Differentiators:    Unified SAN/NAS/S3, ARP, FabricPool,
+${targetSystems.some(s => _platformFamily(s) === 'ontap') ? `    ONTAP Differentiators:    Unified SAN/NAS/S3, ARP,
                               NDU upgrades, SnapLock, native DR
 ` : ''}`;
 }
@@ -23460,13 +23468,12 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     }
     if (isFP) fabricPoolCount++;
 
-    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${hasScoreData ? score.toString().padEnd(6) : 'N/A'.padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)} ${isFP ? 'Yes' : 'No'}\n`;
+    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${hasScoreData ? score.toString().padEnd(6) : 'N/A'.padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)}\n`;
 
     // Real 0 scores (hasScoreData true, score genuinely 0) now correctly still
     // get a recommendation — previously indistinguishable from "no data" and
     // silently skipped, even though a true 0 is the case needing it most.
     if (hasScoreData && score < 50) {
-      if (!isFP && _platformFamily(s) === 'ontap') optimizationRecs.push(`    • ${s.systemName}: Consider FabricPool to tier cold data to object storage`);
       if (drRatio < 2) optimizationRecs.push(`    • ${s.systemName}: Data reduction ${drRatio}:1 below fleet avg → review compaction`);
     }
   });
@@ -23511,8 +23518,8 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
 
   3. PER-SYSTEM SUSTAINABILITY SCORES
   ────────────────────────────────────────────────────────────────────────────
-    System                      Score  Trend  DR Ratio  Saved TB  FabricPool
-    ─────────────────────────── ────── ────── ──────── ──────── ──────────
+    System                      Score  Trend  DR Ratio  Saved TB
+    ─────────────────────────── ────── ────── ──────── ────────
 ${perSystemLines ? perSystemLines.trimRight() : '    No data available'}
 
   4. OPTIMIZATION RECOMMENDATIONS
@@ -23524,12 +23531,11 @@ ${recLines}
 ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    Fleet Avg Utilization: ${cap.avgUtilPct}%  |  Growth: ${cap.avgGrowthPctMo}%/mo
     Systems in RED zone (>85%): ${cap.redCount}/${count}
     <60-day runway systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : 'None'}
-    Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}
-    → ${_fpOntN === 0 ? 'FabricPool tiering does not apply (ONTAP-only; no ONTAP systems in scope)' : 'FabricPool tiering can offset ' + (fabricPoolCount < _fpOntN ? (_fpOntN - fabricPoolCount) + ' remaining ONTAP systems' : 'already deployed across ONTAP systems')}`; })()}
+    Estimated New Capacity Needed: ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB/year' : 'N/A'}`; })()}
 
   6. CARBON REDUCTION ROADMAP
   ────────────────────────────────────────────────────────────────────────────
-    Quick Wins:   ${_fpOntN === 0 ? 'FabricPool does not apply (no ONTAP systems in scope)' : 'Evaluate FabricPool on ' + (_fpOntN - fabricPoolCount) + ' ONTAP systems to move cold data to object storage'}
+    Quick Wins:   Review data-reduction settings on systems below the fleet efficiency ratio
     Medium Term:  Review under-utilised systems for consolidation
     Long Term:    Plan refresh of platforms approaching end of hardware support
 ================================================================================`;
@@ -24378,8 +24384,8 @@ CAPACITY RISK
   RAG Distribution:   ${cap.greenCount} Green / ${cap.amberCount} Amber / ${cap.redCount} Red
   Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + a.runway + 'd)').join(', ') : ''}
 
-FEATURE ADOPTION:     ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average (' + fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + (fm.perSystem.length * 15) + ' best-practice criteria met, ' + fm.ontapCount + ' ONTAP systems)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}${fm.ontapCount > 0 ? `
-  ARP: ${fm.pct.arp}%  FabricPool: ${fm.pct.fabricPool}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%` : ''}
+FEATURE ADOPTION:     ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average (' + fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + fm.perSystem.reduce((a, p) => a + p.total, 0) + ' best-practice criteria met, ' + fm.ontapCount + ' ONTAP systems)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}${fm.ontapCount > 0 ? `
+  ARP: ${fm.pct.arp}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%` : ''}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
   Integrations Checked: ${Object.keys(_fleetSignals).filter(k => _fleetSignals[k]).length}
@@ -25119,7 +25125,7 @@ ${dr.unprotected.slice(0, 12).map(n => `    • ${n}`).join('\n')}${dr.unprotect
   ${cap.redCount} system(s) in RED capacity zone, ${cap.atRisk.length} with <60d runway:
 ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct != null ? a.utilPct + '% used, ' : ''}${a.runway}d remaining`).join('\n')}
   → Additional disk shelves or Flash Cache
-${targetSystems.some(s => _platformFamily(s) === 'ontap') ? '  → FabricPool auto-tiering to object storage (reduce primary cost)\n' : ''}  → Keystone capacity-on-demand (burst without CAPEX)
+  → Keystone capacity-on-demand (burst without CAPEX)
 `;
   }
 
@@ -25128,7 +25134,7 @@ ${targetSystems.some(s => _platformFamily(s) === 'ontap') ? '  → FabricPool au
     salesProposals += `\nFEATURE ADOPTION UPLIFT [STANDARDS & ADOPTION + MODERNIZATION OUTLOOK]
 --------------------------------------------------------------------------------
   Fleet Average: ${fm.fleetAvgScore}%  |  Bottom Performers:
-${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; if (!s.arp) gaps.push('ARP'); if (!s.fabricPool) gaps.push('FabricPool'); if (!s.snapMirror) gaps.push('SnapMirror'); if (!s.ha) gaps.push('HA'); return `    • ${s.name}: ${s.score}/${s.total} (${s.pct}%) — gaps: ${gaps.slice(0, 3).join(', ')}`; }).join('\n')}
+${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; if (!s.arp) gaps.push('ARP'); if (!s.snapMirror) gaps.push('SnapMirror'); if (!s.ha) gaps.push('HA'); return `    • ${s.name}: ${s.score}/${s.total} (${s.pct}%) — gaps: ${gaps.slice(0, 3).join(', ')}`; }).join('\n')}
   → Professional Services enablement engagement
   → NetApp Learning Services training credits
 `;
