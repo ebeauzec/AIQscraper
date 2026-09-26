@@ -57,7 +57,7 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 | Gap in Active IQ | What the Advisor Dashboard does |
 |---|---|
 | **One customer at a time** — you must manually switch contexts and re-filter for every account | **Cross-customer fleet view** — all customers, all systems in a single pane. Filter to any customer in one click |
-| **No deliverable generation** — you take screenshots or copy/paste into documents | **13 ready-to-share deliverables** — QBR Pack, TAM Success Plan, MSP Report, Handover Brief, CLI Runbook, MEDDPICC Brief, Security Brief, Sustainability Report, Solution Proposals, Implementation Plans, Sales Proposals, Customer Comms, and Change Tickets — generated in seconds, each enriched with fleet-relevant KB references |
+| **No deliverable generation** — you take screenshots or copy/paste into documents | **15 ready-to-share deliverables** — QBR Pack, TAM Success Plan, MSP Report, Handover Brief, CLI Runbook, MEDDPICC Brief, Security Brief, Sustainability Report, Solution Proposals, Implementation Plans, Sales Proposals, Customer Comms, and Change Tickets — generated in seconds, each enriched with fleet-relevant KB references |
 | **No upgrade path calculator** — AIQ shows your current version; you have to figure out the hop sequence yourself | **Automatic hop-by-hop upgrade paths** — direct paths where available; multi-hop sequences with intermediate versions and per-version notes for ONTAP, StorageGRID, E-Series (SANtricity), and all live API platforms |
 | **CVE matching is generic** — you see advisories but must manually check which of your systems are actually affected | **Per-system CVE cross-referencing** — every system's ONTAP version is tested against **tracked CVEs** (from MITRE, NVD, CISA KEV, NetApp PSIRT, GitHub) with CVSS scores, affected ranges, fix versions, and exact CLI remediation steps. Includes 2 CISA KEV-confirmed actively exploited entries. |
 | **Capacity trend is per-system** — no fleet-wide growth rate or cross-customer runway view | **Fleet-wide capacity projection** — 6-month historical trend, growth rate in GB/day, per-node breakdown, and runway estimate per node |
@@ -266,6 +266,7 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 2. All cluster and MetroCluster switches are inventoried with model and firmware version
 3. ISL parameters (distance, packet loss, jitter, MTU) are validated against Reference Library baselines
 4. Firmware currency is checked against recommended minimums for Cisco NX-OS, Cisco MDS, Brocade FOS, and Broadcom EFOS
+5. **Technical Audit → MetroCluster Configuration & DR Health** shows each cluster with its likely partner (inferred from names), nodes, model, ONTAP version, site and MetroCluster findings; the deliverables describe MetroCluster per pair. Active IQ reports Mediator and switchover only as findings, so "no issue reported" is not a live check.
 
 ---
 
@@ -449,7 +450,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are 
 | **11** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
 | **12** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **13** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
-| **14** | **Feature Adoption** | Per-system feature matrix — ARP, FabricPool, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 5 real feature checks (e.g. "3/5"), not a blended health score |
+| **14** | **Feature Adoption** | Per-system feature matrix — ARP, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 5 real feature checks (e.g. "3/5"), not a blended health score |
 | **15** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
 | **16** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
 | **17** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
@@ -466,27 +467,49 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 > **Customer-scoped:** Set the Customer Filter in the sidebar before generating to produce a deliverable for a single account only.
 
-> **SVM/LIF Inventory:** All 13 deliverables now include **SVM/LIF inventory sections** when vserver data is available.
+> **SVM/LIF Inventory:** The deliverables include **SVM/LIF inventory sections** when vserver data is available.
 
 > **Enterprise end-customers:** the "Audience" column below reflects the TAM/MSP naming used throughout the tool, but every deliverable is scope-agnostic — it renders from whatever systems are in scope, whether that's one external customer or one internal business unit. In an enterprise deployment, map TAM → storage/infrastructure lead, Sales/MSP → internal IT leadership or procurement, and CISO/Security stays CISO/Security. **H** (Security Posture), **I** (Sustainability & ESG), and **L**'s SLA/capacity structure (renamed internally to an Ops Report) are the most directly reusable as-is for internal enterprise reporting.
 
 | ID | Deliverable | Audience | Contents |
 |---|---|---|---|
-| **A** | **Executive Risk Assessment** | TAM / Enterprise IT Leadership | Fleet health summary, key risks, operational health scorecard, prioritized corrective actions, account team context |
-| **B** | **ITIL Change Control & Dispatch Tickets** | TAM / Change Mgmt / Enterprise Change Advisory Board | Per-system ITIL-aligned change tickets with pre-checks, task lists, upgrade steps, and post-change verification CLI commands |
-| **C** | **CLI Runbooks & Upgrade Execution Plans** | Implementation Eng / Enterprise Storage Ops | Copy-paste ONTAP CLI commands, multi-hop upgrade paths, platform-specific checks |
-| **D** | **Customer Advisory & QBR Communications** | TAM | Advisory email template with health snapshot, sustainability score, lifecycle milestones, QBR executive summary |
-| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions / Enterprise Architecture | Solution design with prioritized corrections, OS upgrade targets, phased implementation timeline |
-| **F** | **Sales Refresh & Renewal Proposals** | Sales Rep | Contract renewals, lifecycle refresh candidates, security/compliance upsell opportunities |
-| **G** | **MEDDPICC Deal Intelligence Brief** | Sales | Account health score, feature adoption, cost of inaction, champion mapping, competitive positioning |
-| **H** | **Security Posture Executive Brief** | CISO / Security | CVE remediation matrix, ARP/encryption coverage, NIST CSF 2.0 alignment, feature gap analysis |
-| **I** | **Sustainability & ESG Report** | Exec / ESG | Fleet sustainability score, carbon/energy metrics, data reduction impact, optimization roadmap |
-| **J** | **TAM Success & Posture Optimization Plan** | TAM | Phased TAM roadmap, ITIL governance guidelines, full KB enrichment by category |
-| **K** | **TAM Quarterly Business Review (QBR) Pack** | TAM / Exec | KPI scorecard, risk trend, resolved cases, open action items, upgrade roadmap, sustainability metrics |
-| **L** | **MSP Service Delivery Report** | MSP / Enterprise Storage Ops Reporting | SLA compliance matrix, incident management, contract portfolio, capacity efficiency analysis |
-| **M** | **Account Handover & Transition Brief** | TAM Transitions / Enterprise Onboarding | Environment inventory, personnel, risk posture, contract status, recent activity, talking points |
+| **A** | **Executive Risk Assessment** | TAM / Enterprise IT Leadership | Decisions needed, fleet health summary, key risks, operational health scorecard, prioritized corrective actions (each distinct finding once, with its system count), account team context |
+| **B** | **ITIL Change Control & Dispatch Tickets** | TAM / Change Mgmt / CAB | One ticket per system that has something to change (systems with nothing to do are listed once at the end, with "not assessed" called out for systems that send no AutoSupport), pre-checks, tasks, upgrade steps, rollback |
+| **C** | **CLI Runbooks & Upgrade Execution Plans** | Implementation Eng / Storage Ops | ONTAP CLI commands, multi-hop upgrade paths, CVE-specific remediation options, platform-specific checks |
+| **D** | **Customer Advisory & QBR Communications** | TAM | Advisory email with health snapshot and recommended actions, QBR executive summary |
+| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions | Prioritized corrections, OS upgrade targets, phased implementation timeline |
+| **F** | **Sales Refresh & Renewal Proposals** | Sales Rep | Contract renewals and lapsed contracts, lifecycle refresh candidates, upsell opportunities, a commercial-context summary (no invented pricing) |
+| **G** | **Risk & Remediation Brief** | TAM / Sales / Exec | Metrics, ownership, feature adoption, efficiency, network health, contracts, risk exposure, modernization outlook |
+| **H** | **Security Posture Executive Brief** | CISO / Security | CVE remediation matrix (real CVE ids, one inventory across all documents), ARP coverage, feature gaps |
+| **I** | **Sustainability & ESG Report** | Exec / ESG | Active IQ sustainability score (per-system average, never the account-wide figure), data reduction impact, optimization roadmap. No power/CO2 estimates |
+| **J** | **TAM Success & Posture Optimization Plan** | TAM | Phased roadmap, ITIL governance guidelines, KB enrichment by category |
+| **K** | **TAM Quarterly Business Review (QBR) Pack** | TAM / Exec | KPI scorecard, risk posture, lifecycle & renewal pipeline, data protection, capacity forecast, Active IQ recommendations, action items |
+| **L** | **MSP Service Delivery Report** | MSP / Storage Ops Reporting | SLA compliance matrix, incident management, contract portfolio, capacity and efficiency |
+| **M** | **Account Handover & Transition Brief** | TAM Transitions | Environment inventory, personnel, risk posture, contract status, recent activity, talking points (internal) |
+| **N** | **Customer Value Report** | TAM / Exec | Text, one heading per slide: executive summary, value delivered, security and planning, optimisation opportunities, renewals, decisions needed |
+| **O** | **Customer Health & Lifecycle Report** | Customer-facing | Paste-ready report: at a glance, decisions needed, estate table, support and lifecycle (software and hardware windows), security (risks vs CVEs explained), monitoring, capacity and trend, data protection incl. MetroCluster per pair, cases, recommended plan, upgrade sequence, hardware refresh planning |
 | — | **Fleet Inventory CSV** | Data Export / ITAM / CMDB Reconciliation | Complete system inventory with all enriched fields, exportable to Excel |
 | — | **Config State JSON** | Backup | Full application configuration state for import/export across environments |
+
+
+### Download formats
+
+Every download button asks which format to save: **Text (.txt)**, **Markdown (.md)** or **Word (.docx)**. **Download All** asks once and applies the choice to all files. The Word file is built inside the app (no library, fully offline) as **A4 portrait** with real structure: titles and sections become Word headings, "Label: value" blocks and " | " rows become tables with shaded headers, bullets and numbered steps become lists, and CLI commands are set in a shaded monospaced style. Markdown deliverables (N, O) convert directly.
+
+### What every narrative deliverable opens with
+
+Each narrative deliverable starts with a **Decisions needed** block: the top five actions, each with why it matters, a suggested timing and an owner. The Health & Lifecycle Report also carries the full plan table (type of change, timing, owner), an **Upgrade Sequence** (clusters in waves: pre-release, unsupported or critical first; MetroCluster DR site first), **Hardware Refresh Planning** (order-by and migrate-by dates, TB to migrate) and a **Capacity Trend** from Active IQ's monthly cluster history (drained or decommissioning clusters and temporary spikes are called out).
+
+### Accuracy rules the deliverables follow
+
+- One definition per fact across all documents (contract state, ARP, CVEs, OS currency, runway, sustainability) so the same number never differs between documents.
+- Tri-state everywhere: confirmed enabled / confirmed disabled / not reported. "Not reported" is never counted as "disabled" or "protected".
+- SnapMirror is a relationship **count** in Active IQ (no destination, type or lag), and MetroCluster partners are not reported (pairs are inferred from cluster names and labelled as such).
+- No invented figures: no TCO, savings, power/CO2 or admin-time estimates. The only cost figure is capacity saved at the rate set in Settings.
+
+### Auditing the deliverables
+
+`tools/audit_deliverables.py` generates every deliverable for every customer scope in parallel headless browsers (44 scopes in about 35 seconds) and flags placeholders, invented-figure phrases, NaN/undefined, negative counts, numbers that disagree between documents and other customers' names. Run it after any deliverable change: `ARIA_URL=http://127.0.0.1:8080/ python tools/audit_deliverables.py 8` (needs `pip install playwright` and `playwright install chromium`).
 
 ---
 
@@ -539,13 +562,12 @@ Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPI
 
 ---
 
-### Feature Adoption Score (per system, shown as X/5 and %)
+### Feature Adoption Score (per system, shown as X/4 and %)
 Counts only real, optional ONTAP feature toggles — not a general health/compliance blend. A feature the API doesn't report for a given system is excluded from that system's denominator rather than counted as failing, so a system with e.g. 4 of 5 features reported shows "3/4", not a diluted "3/5".
 
 | Feature | What's Checked |
 |---|---|
 | ARP | Anti-Ransomware Protection enabled (`isARPEnabled`) |
-| FabricPool | Cold-data tiering active (`isFabricPool`) |
 | SnapMirror | At least one SnapMirror relationship configured (real per-cluster count; excluded from the denominator, not counted as failing, when a system isn't part of any cluster Active IQ returned) |
 | HA | HA pair configured |
 | AutoSupport | AutoSupport turned on (real `AutoSupportStatus` enum: ON counts as adopted, OFF/DECLINE as not) — replaced QoS, which was removed after confirming live via GraphQL schema introspection that Active IQ's API has no QoS/adaptive-policy field at all, so that column could never show real data for any customer |

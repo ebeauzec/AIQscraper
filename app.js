@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.103";
+const APP_VERSION = "5.6.104";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.104",
+    date: "26 September 2026",
+    title: "MetroCluster Per Pair in the Deliverables",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Deliverables",
+        color: "#22c55e",
+        items: [
+          "Deliverables describe MetroCluster per pair instead of as a node count: the Health & Lifecycle Report, QBR Pack, Security Brief, MSP Report, Handover Brief and the other documents that carried a MetroCluster line now show the number of MetroCluster configurations, clusters and nodes with inferred partners (a per-cluster table in the Health report), and 'Mediator OK / AUSO ENABLED' reads 'no issue reported (not a live check)' everywhere. Also fixes a page-breaking syntax error in the first draft of this change.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.103",
     date: "26 September 2026",
@@ -21714,7 +21729,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
 * DATA PROTECTION & DR POSTURE:
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  - SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   - Total DR Relationships: ${dr.relText}
-  - MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
+  - MetroCluster:           ${dr.mcSystems > 0 ? dr.mcView.summary + '\n  MetroCluster Health:   ' + dr.mcView.health : '0 systems'}
   - HA Configured:          ${dr.haSystems}/${dr.ontapCount} (${dr.haCoveragePct}%)
   - Unprotected Systems:    ${dr.unprotectedText}
   - RPO Lag Warnings:       ${dr.rpoText}`; })()}
@@ -22345,7 +22360,7 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount ==
   HA Configured:         ${dr.haSystems}/${dr.ontapCount}
   Unprotected Systems:   ${dr.unprotectedText}
   RPO Warnings:          ${dr.rpoText}${dr.mcSystems > 0 ? `
-  MetroCluster Health:   Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}`; })()}
+  MetroCluster Health:   ${dr.mcView.health}` : ''}`; })()}
 
 --------------------------------------------------------------------------------
 8. CAPACITY FORECAST & GROWTH [RISK EXPOSURE]
@@ -22635,7 +22650,7 @@ ${tierLines}
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   Total DR Relationships: ${dr.relText}
-  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
+  MetroCluster:           ${dr.mcSystems > 0 ? dr.mcView.summary + '\n  MetroCluster Health:   ' + dr.mcView.health : '0 systems'}
   HA Configured:          ${dr.haSystems}/${dr.ontapCount}
   Unprotected Systems:    ${dr.unprotectedText}
   RPO Lag Warnings:       ${dr.rpoText}`; })()}
@@ -23211,7 +23226,7 @@ ${faLines}
 8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
-  MetroCluster:           ${dr.mcSystems} system${dr.mcSystems !== 1 ? 's' : ''}${dr.mcSystems > 0 ? ` — Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED' : 'ENABLED'}` : ''}
+  MetroCluster:           ${dr.mcSystems > 0 ? dr.mcView.summary + '\n  MetroCluster Health:   ' + dr.mcView.health : '0 systems'}
   HA Configured:          ${dr.haSystems}/${dr.ontapCount} (${dr.haCoveragePct}%)
   Unprotected Systems:    ${dr.unprotectedText}
   RPO Lag Warnings:       ${dr.rpoText}`; })()}
@@ -23461,7 +23476,7 @@ ${compileSvmLifSummaryText(targetSystems)}
     DR Coverage:       ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SnapMirror / ' + dr.mcSystems + ' MetroCluster)' : 'N/A (ONTAP-only; none in scope)'}
     Unprotected:       ${dr.ontapCount === 0 ? 'N/A' : dr.unprotectedText}
     RPO at Risk:       ${dr.rpoText}${dr.mcSystems > 0 ? `
-    MetroCluster:      Mediator ${dr.mcMediatorIssues.length > 0 ? 'UNREACHABLE (' + dr.mcMediatorIssues.join(', ') + ')' : 'OK'} | AUSO ${dr.mcAusoDisabled.length > 0 ? 'DISABLED (' + dr.mcAusoDisabled.join(', ') + ')' : 'ENABLED'}` : ''}
+    MetroCluster:      ${dr.mcView.health}` : ''}
 
   7. SECURITY ACTIONS
   ────────────────────────────────────────────────────────────────────────────
@@ -23633,6 +23648,21 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
 // compilers. These functions expose dashboard-level intelligence
 // (Tabs 14–17) to all 13 downloadable deliverables.
 
+// MetroCluster per cluster and per pair. Active IQ reports isMetroCluster per node but not which
+// clusters are partners, so a pair is INFERRED from names (two clusters differing only by a site
+// prefix, e.g. ECC-MCC1 / CDC-MCC1). Mediator and AUSO are only ever reported as findings, so
+// "no issue reported" is the absence of a finding, not a live check.
+function _dfMetroClusters(systems, mediatorIssues, ausoDisabled) {
+  const mc = (systems || []).filter(s => _platformFamily(s) === 'ontap' && s.isMetroCluster);
+  const byC = {}; mc.forEach(s => { const k = s.clusterName || s.systemName || s.serialNumber; (byC[k] = byC[k] || []).push(s); });
+  const names = Object.keys(byC).sort(), key = c => String(c).toLowerCase().replace(/^[a-z0-9]{2,5}[-_]/, '');
+  const groups = {}; names.forEach(c => { (groups[key(c)] = groups[key(c)] || []).push(c); });
+  const pairs = Object.values(groups).filter(g => g.length === 2), unpaired = Object.values(groups).filter(g => g.length !== 2).flat();
+  const iss = (mediatorIssues || []).length, aus = (ausoDisabled || []).length;
+  const summary = `${_dfPlural(pairs.length, 'MetroCluster configuration')}${unpaired.length ? ` plus ${_dfPlural(unpaired.length, 'cluster')} with no identifiable partner` : ''} (${_dfPlural(names.length, 'cluster')}, ${_dfPlural(mc.length, 'node')})${pairs.length ? '; pairs inferred from cluster names: ' + pairs.map(g => g.join(' <-> ')).join('; ') : ''}`;
+  const health = `Mediator: ${iss ? 'UNREACHABLE (' + mediatorIssues.join(', ') + ')' : 'no issue reported'} | Auto switchover (AUSO): ${aus ? 'DISABLED (' + ausoDisabled.join(', ') + ')' : 'no issue reported'}${(iss || aus) ? '' : ' -- absence of a finding in Active IQ, not a live check'}`;
+  return { clusters: names, byCluster: byC, pairs, unpaired, nodes: mc.length, summary, health };
+}
 function computeFleetDRSummary(allSystems) {
   // SnapMirror / MetroCluster / HA pairs are ONTAP concepts. E-Series and
   // StorageGRID systems were counted here as "unprotected" (no SnapMirror, no
@@ -23719,6 +23749,7 @@ function computeFleetDRSummary(allSystems) {
     unprotected, lagWarnings,
     mcMediatorIssues: [...new Set(mcMediatorIssues)],
     mcAusoDisabled: [...new Set(mcAusoDisabled)],
+    mcView: _dfMetroClusters(targetSystems, [...new Set(mcMediatorIssues)], [...new Set(mcAusoDisabled)]),
     drCoveragePct: total > 0 ? Math.round(drProtectedSystems / total * 100) : 0,
     haCoveragePct: total > 0 ? Math.round(haSystems / total * 100) : 0,
     ontapCount,
@@ -24294,7 +24325,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   o += `- **Support entitlement:** ${contracts.active.length} of ${targetSystems.length} systems under active support${lapsed.length ? `; **${lapsed.length} lapsed**` : ''}${exp90.length ? `; ${exp90.length} expiring within 90 days` : ''}${contracts.unknown.length ? `; ${contracts.unknown.length} not reported` : ''}.\n`;
   o += `- **Security:** ${riskSev('critical')} critical and ${riskSev('high')} high risks detected on your systems by Active IQ; separately, ${cveList.length ? `${plural(cveList.length, 'published vulnerability (CVE)', 'published vulnerabilities (CVEs)')} affect the software versions you run (${cveCrit} rated critical, ${cveHigh} high)` : 'no published vulnerabilities (CVEs) were matched to your software versions'}.\n`;
   if (arp.ontap > 0) o += `- **Ransomware protection (ARP):** ${_dfArpSentence(arp)}.\n`;
-  if (dr.ontapCount > 0) o += `- **Data protection:** ${[dr.smRelCount > 0 ? dr.relText : '', dr.mcSystems > 0 ? `MetroCluster on ${plural(dr.mcSystems, 'system')} (${dr.mcMediatorIssues.length ? 'Mediator UNREACHABLE' : 'Mediator OK'}, AUTO-switchover ${dr.mcAusoDisabled.length ? 'DISABLED on ' + dr.mcAusoDisabled.length : 'enabled'})` : '', dr.unprotectedText].filter(Boolean).join('; ')}.\n`;
+  if (dr.ontapCount > 0) o += `- **Data protection:** ${[dr.smRelCount > 0 ? dr.relText : '', dr.mcSystems > 0 ? `${dr.mcView.pairs.length ? plural(dr.mcView.pairs.length, 'MetroCluster configuration') : 'MetroCluster'} across ${plural(dr.mcView.clusters.length, 'cluster')}${(dr.mcMediatorIssues.length || dr.mcAusoDisabled.length) ? ' (' + dr.mcView.health + ')' : ''}` : '', dr.unprotectedText].filter(Boolean).join('; ')}.\n`;
   o += `- **Open support cases:** ${openCases.length}.\n\n`;
 
   // 2 Estate
@@ -24379,7 +24410,10 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   // 7 Data protection
   if (dr.ontapCount > 0) {
     o += `## 7. Data Protection\n\n- SnapMirror: ${dr.relText}.\n- Replication status: ${dr.unprotectedText}.\n- Replication lag: ${dr.rpoText}.\n`;
-    if (dr.mcSystems > 0) o += `- MetroCluster: ${plural(dr.mcSystems, 'system')}; Mediator ${dr.mcMediatorIssues.length ? 'UNREACHABLE on ' + dr.mcMediatorIssues.join(', ') : 'reachable'}; automatic unplanned switchover (AUSO) ${dr.mcAusoDisabled.length ? 'disabled on ' + dr.mcAusoDisabled.join(', ') : 'enabled'}. Run a switchover/switchback test at least annually to confirm the design behaves as expected.\n`;
+    if (dr.mcSystems > 0) {
+      o += `- MetroCluster: ${dr.mcView.summary}.\n- MetroCluster health: ${dr.mcView.health}. Run a switchover/switchback test at least annually to confirm the design behaves as expected.\n`;
+      o += `\n| MetroCluster cluster | Likely partner | Nodes | Model | ONTAP |\n|---|---|---|---|---|\n` + dr.mcView.clusters.map(c => { const ns = dr.mcView.byCluster[c], g = dr.mcView.pairs.find(x => x.includes(c)); return `| ${c} | ${g ? g.find(x => x !== c) : 'not identifiable'} | ${ns.length} (${ns.map(x => x.systemName || x.serialNumber).slice(0, 6).join(', ')}${ns.length > 6 ? ', ...' : ''}) | ${[...new Set(ns.map(x => x.model || x.platform).filter(Boolean))].join(', ')} | ${[...new Set(ns.map(x => x.ontapVersion || x.osVersion).filter(Boolean))].join(', ')} |`; }).join('\n') + '\n\n_Active IQ does not report which clusters are partners; pairs are inferred from cluster names -- confirm with `metrocluster show` on each cluster._\n';
+    }
     o += '\nActive IQ reports SnapMirror as a relationship count; destination and lag should be confirmed on the clusters.\n\n';
   }
 
@@ -25529,7 +25563,10 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     : t.replace(/\u00e2[\u0080-\u009f]{1,2}/g, '-').replace(/(?<=[A-Za-z0-9])\u00e2(?=[A-Za-z0-9])/g, '-').replace(/\u00c2(?=[\u00a0-\u00bf])/g, '')
     // nothing to assess is not "0% current"
     .replace(/(OS Currency:[ \t]+)[^\n]*\b0\/0\b[^\n]*/g, '$1not assessed (no recommended version is reported for these systems)')
-    .replace(/\b1 systems\b/g, '1 system');
+    .replace(/\b1 systems\b/g, '1 system')
+    // Mediator/AUSO are only ever reported as findings: "OK" is the absence of one, not a live check
+    .replace(/MC: Mediator OK\/AUSO ON/g, 'MC: no Mediator/switchover issue reported')
+    .replace(/Mediator OK \| AUSO ENABLED/g, 'Mediator and switchover: no issue reported (not a live check)');
   [problemStatements, customerComms, changeTickets, solutionProposals, implementationPlans, salesProposals, customerSuccessPlan, qbrPack, mspReport, handoverBrief, riskRemediationBrief, securityBrief, sustainabilityReport] =
     [problemStatements, customerComms, changeTickets, solutionProposals, implementationPlans, salesProposals, customerSuccessPlan, qbrPack, mspReport, handoverBrief, riskRemediationBrief, securityBrief, sustainabilityReport].map(_fixText);
 

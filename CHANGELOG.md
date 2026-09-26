@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.104] - 2026-09-26
+
+### Changed
+- Deliverables describe MetroCluster per pair instead of as a node count: the Health & Lifecycle Report, QBR Pack, Security Brief, MSP Report, Handover Brief and the other documents that carried a MetroCluster line now show the number of MetroCluster configurations, clusters and nodes with inferred partners (a per-cluster table in the Health report), and 'Mediator OK / AUSO ENABLED' reads 'no issue reported (not a live check)' everywhere. Also fixes a page-breaking syntax error in the first draft of this change.
+
+---
+
 ## [5.6.103] - 2026-09-26
 
 ### Changed

@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-26 (Windows dev station, v5.6.85 -> v5.6.97)
+## Session handoff -- 2026-09-26 (Windows dev station, v5.6.85 -> v5.6.104)
 
 Overlaps the cloud session's v5.6.83/84 (merged in 5.6.85). Everything below is pushed to `main`.
 
@@ -69,3 +69,5 @@ literal broke the whole page once (check the browser console after every edit).
 (`data/*.json`) -- not part of this work, do not commit them with code changes.
 
 **Added in 5.6.96-97:** `_dfActionPlan` / `_dfUpgradeWaves` / `_dfRefreshPlan` / `_dfCapacityTrend` (planning helpers before `compileCustomerReport`); 'Decisions needed' block inserted into every narrative document via `_bannerInsert`; capacity trend flags drained clusters.
+
+**Added in 5.6.98-104:** risks vs CVEs explained in the health report; Customer Value Report as text (PowerPoint removed); downloads as txt/md/docx with a per-download format prompt and structured A4 Word files; MetroCluster card and deliverables per inferred pair (`_dfMetroClusters`); README/CONTEXT refreshed. Lesson: patch scripts written via heredoc turn `\\n` into real newlines inside JS strings -- use the Write tool and check the browser console after every edit (a broken line 21717 briefly took the live page down in 5.6.104 development).

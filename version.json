@@ -1,8 +1,8 @@
 {
-  "version": "5.6.103",
+  "version": "5.6.104",
   "major": 5,
   "minor": 6,
-  "patch": 103,
+  "patch": 104,
   "date": "2026-09-26",
-  "notes": "MetroCluster card per cluster with inferred partners."
+  "notes": "MetroCluster described per pair in the deliverables; documentation refreshed."
 }
