@@ -1,8 +1,8 @@
 {
-  "version": "5.6.138",
+  "version": "5.6.141",
   "major": 5,
   "minor": 6,
-  "patch": 138,
+  "patch": 141,
   "date": "2026-09-27",
-  "notes": "Shelf firmware currency now live end-to-end: new shelvesSummary harvest field, fixed two dead shelf-firmware code paths, propagated through every deliverable and KPI tile."
+  "notes": "Critical fix: loadConfig() was silently re-hydrating state.systems from a quota-stripped localStorage cache after every sync, wiping switches/vservers/risks/cases/etc. within the same page load. Also: switch reporting audit (dedup, vendor inference, network+supportContract fields)."
 }

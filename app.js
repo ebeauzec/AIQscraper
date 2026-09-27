@@ -27,9 +27,66 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.138";
+const APP_VERSION = "5.6.141";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.141",
+    date: "27 September 2026",
+    title: "Root Cause Found: Data Silently Wiped After Every Sync",
+    sections: [
+      {
+        icon: "✅",
+        label: "Critical Fix",
+        color: "#ef4444",
+        items: [
+          "Found the actual root cause of switches (and, it turns out, several other fields) reporting empty despite the harvest correctly fetching them: loadConfig() -- a function whose real job is reading auth tokens/settings from localStorage -- also unconditionally re-hydrates state.systems from the localStorage cache as an undocumented side effect, every time it's called. loadProductionData() calls updateStatusIndicators() at its own end purely to refresh the connection-status dot, which called loadConfig() just for the token, which silently reloaded the ENTIRE system list from localStorage -- overwriting the correct, freshly-harvested in-memory data with whatever saveSystems() had just written to localStorage moments earlier in the SAME sync.",
+          "That localStorage write is quota-limited: the full dataset is 69.6MB on one real fleet, far over any browser's ~5-10MB localStorage quota, so saveSystems() falls back to a 'slim' save that strips switches, vservers, risks, supportCases, fieldActions, securityBulletins, hypervisors, projections, logistics, contacts, salesHealth, autosupport, and lifecycleEvents before writing. The result: every single harvest correctly populated all of these fields in memory, then silently wiped them seconds later on the SAME page load, with no second sync, no error, and nothing in between to suggest why -- confirmed live by instrumenting the actual load path: switches went from 295 systems populated to 0 within one page load, purely from this call chain.",
+          "Fixed by giving loadConfig() an explicit restoreSystemsFromCache parameter (default true, for the one genuine boot-time caller) and passing false from the two callers that only ever wanted the token (updateStatusIndicators(), runAPIDiagnostics()). Confirmed live after the fix: switches (295 systems) and vservers (360 systems) both now persist correctly through a full page load and stay stable.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.140",
+    date: "27 September 2026",
+    title: "Switch Reporting: Duplicates, Vendors, Support Contracts",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Found and fixed the dominant cause of 'flaky/thin' switch rows: Active IQ's own cluster.switches field can report the SAME physical switch twice under two different device-name suffixes from two different discovery paths (e.g. a MAC-suffixed name and a serial-suffixed name), each with its own IP and differently-phrased firmware string -- confirmed live, 14 such duplicate pairs in one account's harvest alone. Deduplicated by normalized device name, keeping whichever duplicate Active IQ actually monitors (falling back to whichever has a real model, then the longer firmware string) instead of showing both -- one thin, one rich -- as separate rows.",
+          "Server-side switch model inference only ever checked the device hostname (e.g. 'SA-OOB-RDC47-F2A-01', which gives no hint at all) and never the firmware STRING, which nearly always names the real platform ('Cisco NX-OS(tm) n6000...', 'Huawei Switch...S5700...'). Now checks both, and recognizes Huawei, HP, Aruba, and Ubiquiti in addition to the existing Cisco/Brocade/NVIDIA/Broadcom coverage -- confirmed live: 'OTHER'/blank switch models across two real fleets dropped from 50 to 22 genuinely unidentifiable stragglers.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Added",
+        color: "#38bdf8",
+        items: [
+          "Two real Active IQ switch fields were never queried: `network` (a reliable CLUSTER_NETWORK/MANAGEMENT_NETWORK/STORAGE_NETWORK/OTHER enum, more trustworthy than the free-text `role` field it's now preferred over) and `supportContract` (start/end date, offer description -- real switch warranty/EOS tracking, same as every other hardware component's contract data). Support-contract end date now shows as a badge in the Switch Validation table (color-coded by days remaining) and in the Action Plan's switch remediation cards, when Active IQ reports it.",
+          "A switch seen via local port connectivity but never in Active IQ's CSHM-monitored switches list now gets its own explicit row (status 'Unknown', with an explanation) instead of being silently absent -- and when the SAME switch is reported by both sources, they're now merged into one row carrying both the CSHM model/firmware data and the local port-cabling detail (which port, at what speed), shown in the Switch Validation table.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.139",
+    date: "27 September 2026",
+    title: "As-Built Download Tooltip Fix",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "The As-Built Configuration Document's Download button already went through the same Text/Markdown/Word format dialog as every other deliverable -- confirmed live, including a successful .docx build -- but its tooltip still said 'plain-text file', left over from before that dialog existed. Tooltip corrected; no behavior change.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.138",
     date: "27 September 2026",
@@ -8500,7 +8557,21 @@ function safeSetItem(key, value) {
 }
 
 // 3. Storage & Groups Helpers
-function loadConfig() {
+// restoreSystemsFromCache: true only for the genuine one-time boot call. This
+// function is ALSO called later, mid-session, by code that only wants the
+// {refresh, access, expiry} token triple (updateStatusIndicators(),
+// runAPIDiagnostics()) -- but it unconditionally re-hydrated state.systems/
+// groups/watchlists from localStorage as a side effect every single call.
+// Real impact: loadProductionData() ends with updateStatusIndicators(), which
+// called loadConfig() (restoreSystemsFromCache defaulted true), which re-read
+// aiq_systems_db -- the copy saveSystems() had JUST written moments earlier,
+// quota-stripped of switches/vservers/risks/supportCases/etc. because the full
+// dataset (69.6MB in one real fleet) exceeds localStorage's quota. So every
+// single harvest correctly populated state.systems in memory, then silently
+// wiped those same fields seconds later on the very same page load --
+// confirmed live: switches went 295 systems -> 0 within the same load, purely
+// from this call chain, with no network activity or second harvest involved.
+function loadConfig(restoreSystemsFromCache = true) {
   const mockModeVal = safeGetItem("aiq_mock_mode");
   state.mockMode = mockModeVal === "true";
   
@@ -8531,7 +8602,8 @@ function loadConfig() {
   
   // Note: mock mode safeguard removed — server-side /api/harvest reads
   // the refresh token from aiq_config.json, no browser-side token needed.
-  
+
+  if (restoreSystemsFromCache) {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
@@ -8604,7 +8676,8 @@ function loadConfig() {
   } else {
     state.watchlists = state.mockMode ? [...MOCK_WATCHLISTS] : [];
   }
-  
+  } // end if (restoreSystemsFromCache)
+
   return { refresh, access, expiry };
 }
 
@@ -14352,16 +14425,35 @@ function renderTAMTab() {
         rcfBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--status-warning);" title="Active IQ recommends RCF ${sw.rcfVersion}; running firmware ${sw.firmware}">⚠ RCF Mismatch — recommended: ${sw.rcfVersion}</span></div>`;
       }
 
+      // Support contract (Active IQ's switches.supportContract — start/end date,
+      // offer description). Real EOS/warranty tracking for the switch, same as
+      // every other hardware component's contract data.
+      let supportBadge = '';
+      if (sw.supportContractEnd) {
+        const endMs = Date.parse(sw.supportContractEnd);
+        const daysLeft = isNaN(endMs) ? null : Math.round((endMs - Date.now()) / 86400000);
+        const color = daysLeft == null ? 'var(--text-muted)' : daysLeft < 0 ? 'var(--status-critical)' : daysLeft <= 90 ? 'var(--status-warning)' : 'var(--status-normal)';
+        const label = daysLeft == null ? '' : daysLeft < 0 ? ` (expired ${Math.abs(daysLeft)}d ago)` : daysLeft <= 90 ? ` (${daysLeft}d left)` : '';
+        supportBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:${color};" title="${sw.supportContractDesc || 'Switch support contract'}">🛡 Support ends ${sw.supportContractEnd.substring(0, 10)}${label}</span></div>`;
+      }
+
+      // Local port-cabling detail (which of this system's ports this switch is
+      // connected to) — from portInterface connectivity, merged onto the same row
+      // as this switch's CSHM model/firmware data (see server.py conn_by_dev).
+      const portNote = sw.connectedPort
+        ? `<div style="font-size: 0.68rem; color: var(--text-muted);">via ${sw.sourcePort || '?'} → ${sw.connectedPort}${sw.portSpeed ? ' @ ' + sw.portSpeed : ''}</div>`
+        : '';
+
       switchRows += `
         <tr>
           <td><strong style="color: var(--text-primary); font-size: 0.85rem;">${sw.systemName}</strong></td>
           <td>
-            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${sw.model}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">S/N: ${sw.serialNumber}</div>
+            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${sw.model || '—'}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">S/N: ${sw.serialNumber || '—'}</div>
           </td>
-          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}</td>
+          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}${portNote}</td>
           <td>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware}</code></div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware || '—'}</code></div>
             ${sw.targetFirmware ? `<div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>` : `<div style="font-size: 0.75rem; color: var(--text-muted);">No RCF published by Active IQ for this switch — current firmware only.</div>`}
             <div style="margin-top:4px;">
               <a href="${fwLink.url}" target="_blank"
@@ -14369,6 +14461,7 @@ function renderTAMTab() {
                  onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label}</a>
             </div>
             ${rcfBadge}
+            ${supportBadge}
           </td>
           <td>${statusBadge}</td>
           <td>
@@ -28901,7 +28994,7 @@ function _renderAsBuiltSection(systems) {
         let swHtml = '<div style="padding:16px; color:var(--text-muted);">No switch data available</div>';
         if (switches && switches.length > 0) {
             swHtml = '<div style="padding:16px;"><table style="' + tblStyle + '">'
-                + '<tr><th style="' + thStyle + '">Type</th><th style="' + thStyle + '">Model</th><th style="' + thStyle + '">Serial</th><th style="' + thStyle + '">Firmware</th><th style="' + thStyle + '">Target</th><th style="' + thStyle + '">Status</th><th style="' + thStyle + '">IP</th></tr>'
+                + '<tr><th style="' + thStyle + '">Type</th><th style="' + thStyle + '">Model</th><th style="' + thStyle + '">Serial</th><th style="' + thStyle + '">Firmware</th><th style="' + thStyle + '">Target</th><th style="' + thStyle + '">Status</th><th style="' + thStyle + '">IP</th><th style="' + thStyle + '">Support Ends</th></tr>'
                 + switches.map(sw => '<tr>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.type) + '</td>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.model) + '</td>'
@@ -28910,6 +29003,7 @@ function _renderAsBuiltSection(systems) {
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.targetFirmware) + '</td>'
                     + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(sw.status) + '">' + valOrDash(sw.status) + '</span></td>'
                     + '<td style="' + tdStyle + 'font-family:monospace;">' + valOrDash(sw.ipAddress) + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(sw.supportContractEnd) + '</td>'
                     + '</tr>').join('')
                 + '</table></div>';
         }
@@ -29312,14 +29406,17 @@ function generateActionPlan() {
   targetSystems.forEach(sys => {
     const sws = getSystemSwitches(sys);
     sws.forEach(sw => {
-      // s.switches merges two unrelated real Active IQ sources: per-port
-      // connected-device entries (deviceName/connectedPort/portSpeed only --
-      // never assessed by CSHM, so they have no `status`/`model`/`firmware`
-      // at all) and real cluster-level switch validation entries (which do).
-      // `sw.status !== "Optimal"` is true for BOTH an actual warning AND an
-      // unvalidated connectivity entry (undefined !== "Optimal"), so without
-      // this guard every connected-device port became a false switch alert
-      // and crashed downstream rendering that assumes a real `sw.model`.
+      // s.switches merges two real Active IQ sources (server.py): per-port
+      // connected-device entries and cluster.switches' CSHM validation data.
+      // A switch reported by both is now ONE row (matched by normalized device
+      // name and merged), not two -- previously there was no cross-source dedup,
+      // so the same physical switch could appear twice: once "thin" (no model/
+      // firmware/status at all) and once "rich", which is what most of the
+      // flaky/duplicate-looking switch rows users saw actually was. A switch
+      // seen ONLY via port connectivity (never in CSHM's inventory at all) still
+      // gets its own row with an explicit "Unknown" status and an explanatory
+      // validationDetails message, so it surfaces as a real "not monitored by
+      // CSHM" gap instead of being silently invisible.
       if (sw.status && sw.status !== "Optimal") {
         switchAlerts.push({ systemName: sys.systemName, ...sw });
       }
@@ -30031,6 +30128,7 @@ function generateActionPlan() {
           <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
             <strong>Validation Drift:</strong> ${sw.validationDetails}
           </div>
+          ${sw.supportContractEnd ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Support contract ends: <strong>${sw.supportContractEnd.substring(0, 10)}</strong>${sw.supportContractDesc ? ' — ' + sw.supportContractDesc : ''}</div>` : ''}
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
             ${stepGuide}
           </div>
@@ -30493,7 +30591,7 @@ function generateActionPlan() {
       <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">19. As-Built Configuration Document</h2>
       <div style="display:flex; gap:8px;">
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="printAsBuiltSection()" data-tooltip="Open As-Built Document in a print-ready window for PDF export.">🖨 Print / PDF</button>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(19)" data-tooltip="Download As-Built Configuration Document as a plain-text file.">⬇ Download</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(19)" data-tooltip="Download the As-Built Configuration Document -- choose Text, Markdown or Word (.docx), same as every other deliverable.">⬇ Download</button>
       </div>
     </div>
     ${_renderAsBuiltSection(targetSystems)}`;
@@ -32545,7 +32643,7 @@ function deleteCustomGroup(groupId) {
 // ── API Diagnostics ───────────────────────────────────────────────────────────
 // Probes all key endpoints and shows results in a visible modal (no DevTools needed)
 async function runAPIDiagnostics() {
-  const { refresh } = loadConfig();
+  const { refresh } = loadConfig(false); // only need the token -- don't re-hydrate state.systems from cache
   if (!refresh) {
     alert("No API refresh token found.\n\nPaste your Active IQ refresh token into the field above and click 'Save Configuration', then run diagnostics again.");
     return;
@@ -33449,7 +33547,15 @@ async function manualRefresh() {
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
-  const { refresh } = loadConfig();
+  // Only need the token here -- NOT restoreSystemsFromCache. This function is
+  // called at the end of every loadProductionData() (and elsewhere) purely to
+  // refresh the connection-status dot/label; it used to also silently re-hydrate
+  // state.systems from localStorage every time, discarding whatever
+  // saveSystems() had just quota-stripped (switches, vservers, risks,
+  // supportCases, etc.) moments earlier in the SAME load -- the actual root
+  // cause of fields that were correctly harvested going empty within the same
+  // page load, with no second sync involved. See loadConfig()'s own comment.
+  const { refresh } = loadConfig(false);
   const hasLiveData = state.systems?.some(s => s._source === 'graphql');
 
   indicators.forEach(ind => {

@@ -2075,12 +2075,14 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     switchSerialNumber
                     deviceName
                     role
+                    network
                     vendor
                     model
                     ipAddress
                     isDiscovered
                     isMonitored
                     versionInfo { fwVersion rcfVersion }
+                    supportContract { startDate endDate offerDescription }
                   }
                   shelves {
                     serialNumber shelfId
@@ -2140,8 +2142,9 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                             ' osRecommendation { recommendedVersion }'
                             ' snapMirrorRelationships { totalCount }'
                             ' systems { serialNumber }'
-                            ' switches { switchSerialNumber deviceName role vendor model ipAddress'
-                            '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } }'
+                            ' switches { switchSerialNumber deviceName role network vendor model ipAddress'
+                            '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion }'
+                            '   supportContract { startDate endDate offerDescription } }'
                             ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
                             ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
                             ' capacity {'
@@ -2866,8 +2869,24 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             # guessed switch "role" enum value (unconfirmed against live Active IQ
             # data) — it only uses the confirmed-real per-system isMetroCluster field.
             _sys_is_mcc = bool(s.get("isMetroCluster"))
+            # Port-interface-derived connectivity (which local port this system's node
+            # cables into, at what speed/state) and cluster.switches (CSHM-monitored
+            # model/firmware/RCF/support-contract data) describe the SAME physical
+            # switches from two different Active IQ fields, keyed by device name only
+            # loosely -- cluster.switches' deviceName can carry a parenthetical serial
+            # suffix ("LEAF-1001(FDO22452V0T)") the port-interface's connectedDevice
+            # never has. Normalize both for matching so a switch reported by both
+            # sources becomes ONE row carrying both port-cabling detail and CSHM
+            # model/firmware/status, instead of two rows in the same list -- one
+            # "thin" (no model/firmware/status at all) and one "rich" -- which is what
+            # was actually happening (no cross-source dedup existed) and is almost
+            # certainly the "flaky/thin reporting" a user sees in the switch table.
+            def _sw_norm(name):
+                return re.sub(r'\s*\([^)]*\)\s*$', '', str(name or '')).strip().lower()
+
             switches = []
             seen_devs = set()
+            conn_by_dev = {}  # normalized device name -> connectivity dict
             pi = s.get("portInterface") or {}
             all_ports = list(pi.get("onboardPorts") or [])
             for card in (pi.get("adapterCards") or []):
@@ -2880,17 +2899,56 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     sw_type = "Data"
                     if "cluster" in pt: sw_type = "Cluster Interconnect"
                     elif "intercluster" in pt: sw_type = "Intercluster"
-                    switches.append({
+                    conn_by_dev[_sw_norm(dev)] = {
                         "deviceName": dev, "type": sw_type,
                         "connectedPort": p.get("connectedPort", ""),
                         "portSpeed": p.get("portSpeed", ""),
                         "portState": p.get("portState", ""),
                         "sourcePort": p.get("portName", ""),
                         "mcContext": _sys_is_mcc,
-                    })
+                    }
+            matched_conn_devs = set()
 
             # Merge cluster-level switches (with model, firmware, validation data)
-            cl_switches = serial_to_cluster_switches.get(serial, [])
+            #
+            # Active IQ's own cluster.switches field can report the SAME physical
+            # switch twice under two different device-name suffixes from two
+            # different discovery paths -- e.g. "SA-OOB-...corp (d4:2c:44:af:0e:53)"
+            # (MAC-suffixed) and "SA-OOB-...corp(FOC2039R176)" (serial-suffixed),
+            # each with its own IP and firmware-string phrasing. This is NOT a
+            # cross-source (portInterface vs cluster.switches) issue -- it happens
+            # within cluster.switches alone, and was very likely the dominant cause
+            # of "flaky/thin" duplicate-looking switch rows (confirmed live: 14
+            # such pairs in one account's harvest). Dedup by normalized device name,
+            # keeping whichever duplicate Active IQ actually monitors (isMonitored
+            # =True beats False; a real model beats "OTHER"/blank; a non-empty
+            # firmware string beats an empty one) rather than showing both.
+            cl_switches_raw = serial_to_cluster_switches.get(serial, [])
+            _by_norm = {}
+            for _csw in cl_switches_raw:
+                _key = _sw_norm(_csw.get("deviceName") or "")
+                if not _key:
+                    continue
+                _prev = _by_norm.get(_key)
+                if _prev is None:
+                    _by_norm[_key] = _csw
+                    continue
+                _prev_mon, _cur_mon = _prev.get("isMonitored", False), _csw.get("isMonitored", False)
+                if _cur_mon and not _prev_mon:
+                    _by_norm[_key] = _csw
+                elif _cur_mon == _prev_mon:
+                    _prev_model = (_prev.get("model") or "").upper()
+                    _cur_model = (_csw.get("model") or "").upper()
+                    _prev_has_model = _prev_model not in ("", "OTHER")
+                    _cur_has_model = _cur_model not in ("", "OTHER")
+                    if _cur_has_model and not _prev_has_model:
+                        _by_norm[_key] = _csw
+                    elif _cur_has_model == _prev_has_model:
+                        _prev_fw = ((_prev.get("versionInfo") or {}).get("fwVersion") or "")
+                        _cur_fw = ((_csw.get("versionInfo") or {}).get("fwVersion") or "")
+                        if len(_cur_fw) > len(_prev_fw):
+                            _by_norm[_key] = _csw
+            cl_switches = list(_by_norm.values())
             for csw in cl_switches:
                 sw_serial = csw.get("switchSerialNumber", "") or ""
                 vi = csw.get("versionInfo") or {}
@@ -2901,13 +2959,48 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 sw_model  = csw.get("model")  or ""
                 sw_vendor = csw.get("vendor") or ""
                 sw_name   = csw.get("deviceName") or ""
-                sw_role   = csw.get("role") or "Cluster Interconnect"
                 sw_ip     = csw.get("ipAddress") or ""
+                # `network` is a real enum (CLUSTER_NETWORK/MANAGEMENT_NETWORK/
+                # STORAGE_NETWORK/OTHER) -- more reliable than the free-text `role`
+                # field, which is nullable and vendor-supplied. Prefer it; fall back
+                # to `role`, then the same default as before.
+                _NETWORK_LABELS = {"CLUSTER_NETWORK": "Cluster Interconnect", "MANAGEMENT_NETWORK": "Management",
+                                    "STORAGE_NETWORK": "Storage/Data", "OTHER": ""}
+                sw_role = _NETWORK_LABELS.get(csw.get("network") or "", "") or csw.get("role") or "Cluster Interconnect"
 
-                # ── Infer model from device name when AIQ returns OTHER / blank ──
-                # Typical names: "zaDEL-DC1-LEAF-1001(FDO22452V0T)", "Nexus3132Q-V"
+                # Support contract (start/end date, offer description) -- fetched but
+                # never surfaced before; feeds EOS/warranty tracking the same as every
+                # other hardware component's contract data.
+                _contracts = csw.get("supportContract") or []
+                _active_contract = None
+                for _c in _contracts:
+                    _end = _c.get("endDate")
+                    if _end and (not _active_contract or _end > (_active_contract.get("endDate") or "")):
+                        _active_contract = _c
+                sw_contract_end = (_active_contract or {}).get("endDate") or ""
+                sw_contract_start = (_active_contract or {}).get("startDate") or ""
+                sw_contract_desc = (_active_contract or {}).get("offerDescription") or ""
+
+                # Merge in this switch's local port-cabling detail (which of this
+                # system's node ports it's connected to, at what speed) if the same
+                # physical switch was also seen via portInterface connectivity --
+                # see conn_by_dev / _sw_norm above. Without this, the switch would
+                # appear TWICE: once here with no port info, once from conn_by_dev
+                # with no model/firmware/status.
+                _conn = conn_by_dev.get(_sw_norm(sw_name))
+                if _conn:
+                    matched_conn_devs.add(_sw_norm(sw_name))
+
+                # ── Infer model from device name, then firmware string, when AIQ
+                # returns OTHER / blank ── Typical names: "zaDEL-DC1-LEAF-1001
+                # (FDO22452V0T)", "Nexus3132Q-V". A hostname often gives no hint at
+                # all (e.g. "SA-OOB-RDC47-F2A-01") while the firmware STRING nearly
+                # always names the real platform ("Cisco NX-OS(tm) n6000, Software
+                # (n6000-uk9)...") -- checked second, only when the device name
+                # itself matched nothing, so a confident name-based match still wins.
                 if not sw_model or sw_model.upper() == "OTHER":
                     dn_lower = sw_name.lower()
+                    fw_lower = fw.lower()
                     if any(x in dn_lower for x in ("nexus 9", "nexus9", "n9k", "93", "9336", "9364", "9332")):
                         sw_model = "Cisco Nexus 9k"
                     elif any(x in dn_lower for x in ("nexus 3", "nexus3", "n3k", "3132", "3064", "3548")):
@@ -2920,6 +3013,37 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         sw_model = "Broadcom BES-53248"
                     elif any(x in dn_lower for x in ("g620", "g630", "g720", "brocade", "fos")):
                         sw_model = "Brocade FC Switch"
+                    elif any(x in fw_lower for x in ("n9k", "nexus 9", " n9000")):
+                        sw_model = "Cisco Nexus 9k"
+                    elif any(x in fw_lower for x in ("n6000", "nexus 6")):
+                        sw_model = "Cisco Nexus 6k"
+                    elif any(x in fw_lower for x in ("n5000", "nexus 5")):
+                        sw_model = "Cisco Nexus 5k"
+                    elif any(x in fw_lower for x in ("n3k", "nexus 3", " n3000")):
+                        sw_model = "Cisco Nexus 3k"
+                    elif "mds" in fw_lower:
+                        sw_model = "Cisco MDS"
+                    elif "cumulus" in fw_lower:
+                        sw_model = "NVIDIA SN2100"
+                    elif "fabric os" in fw_lower or "fos" in fw_lower:
+                        sw_model = "Brocade FC Switch"
+                    elif "cisco" in fw_lower:
+                        sw_model = "Cisco (model not identified)"
+                    elif "huawei" in fw_lower:
+                        # e.g. "Huawei Switch\nHuawei YunShan OS\nVersion 1.22.1.1 (S5700 V600R022C10SPC500)"
+                        _m = re.search(r'\b(S\d{3,5}|CE\d{3,5}|AR\d{3,5})\b', fw)
+                        sw_model = "Huawei " + _m.group(1) if _m else "Huawei Switch"
+                    elif "aruba" in fw_lower:
+                        # e.g. "Aruba JL256A 2930F-48G-PoE+-4SFP+ Switch, revision ..."
+                        _m = re.search(r'\b(JL\d{3,5}A)\b', fw)
+                        sw_model = "Aruba " + _m.group(1) if _m else "Aruba Switch"
+                    elif fw_lower.startswith("hp ") or " hp " in fw_lower or fw_lower.startswith("hpe "):
+                        # e.g. "HP J9146A 2910al-24G-PoE Switch, revision ...", "HP J9850A Switch 5406Rzl2, ..."
+                        _m = re.search(r'\b(J\d{3,5}[A-Z]?)\b', fw)
+                        sw_model = "HP " + _m.group(1) if _m else "HP Switch"
+                    elif fw_lower.startswith("usw-") or "unifi" in fw_lower:
+                        # e.g. "USW-Pro-48-PoE, 7.5.15.17146, Linux 3.6.5"
+                        sw_model = "Ubiquiti " + fw.split(",")[0].strip()
                     elif sw_vendor:
                         sw_model = sw_vendor
                     # Still nothing — use the device name (already the most descriptive thing we have)
@@ -2987,6 +3111,35 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     "isMonitored":       is_monitored,
                     "isDiscovered":      is_discovered,
                     "mcContext":         _sys_is_mcc,
+                    "supportContractEnd":   sw_contract_end,
+                    "supportContractStart": sw_contract_start,
+                    "supportContractDesc":  sw_contract_desc,
+                    "connectedPort":     (_conn or {}).get("connectedPort", ""),
+                    "portSpeed":         (_conn or {}).get("portSpeed", ""),
+                    "portState":         (_conn or {}).get("portState", ""),
+                    "sourcePort":        (_conn or {}).get("sourcePort", ""),
+                })
+
+            # Any switch seen via port connectivity but never reported by
+            # cluster.switches at all (not a merge -- genuinely no CSHM data for it)
+            # is still surfaced, clearly as a thin/connectivity-only row rather than
+            # silently dropped -- but only ONE such row per device now, not one from
+            # every code path that happens to see it.
+            for _norm, _conn in conn_by_dev.items():
+                if _norm in matched_conn_devs:
+                    continue
+                switches.append({
+                    "type": _conn["type"], "model": "", "serialNumber": "Not available",
+                    "firmware": "Not reported", "targetFirmware": "", "rcfVersion": "", "rcfCompliant": None,
+                    "status": "Unknown",
+                    "validationDetails": f"Switch '{_conn['deviceName']}' was seen only via local port connectivity, "
+                                          f"not in Active IQ's CSHM-monitored switch inventory -- no model, firmware, "
+                                          f"or health data is available for it.",
+                    "ipAddress": "", "deviceName": _conn["deviceName"], "vendor": "",
+                    "isMonitored": False, "isDiscovered": False, "mcContext": _sys_is_mcc,
+                    "supportContractEnd": "", "supportContractStart": "", "supportContractDesc": "",
+                    "connectedPort": _conn.get("connectedPort", ""), "portSpeed": _conn.get("portSpeed", ""),
+                    "portState": _conn.get("portState", ""), "sourcePort": _conn.get("sourcePort", ""),
                 })
 
             # Merge cluster-level shelves
