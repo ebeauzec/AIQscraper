@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.118] - 2026-09-27
+
+### Changed
+- Corrected the StorageGRID SG5700 rear panel against NetApp's SG5700 hardware description: the E2800 storage controller's first two ports are interconnect ports to the E5700SG compute controller (labelled IC1/IC2, not host ports), the SG5712X/SG5760X use the E2800B layout (management ports first, 4-port HIC whose last two ports are the interconnect), and the drawing captions explain each controller's ports.
+
+---
+
 ## [5.6.117] - 2026-09-27
 
 ### Changed
