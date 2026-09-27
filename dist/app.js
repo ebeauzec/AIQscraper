@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.131";
+const APP_VERSION = "5.6.132";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.132",
+    date: "27 September 2026",
+    title: "AFX 2K Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "AFX 2K rear panel corrected from NetApp's AFX 2K I/O slot table: slot 1 HA, slot 2 cluster, slot 3 network, slots 4-5 NVRAM12, slots 6-7 NVRAM12-EX, slot 8 storage, slot 9 network, slot 10 storage, slot 11 optional 4x25GbE management (it had been drawn with the AFX 1K arrangement). Read the install/maintenance text pages of every ONTAP platform against the layouts: slot and port roles agree, with this one exception.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.131",
     date: "27 September 2026",
@@ -36397,6 +36412,14 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       ['f', 'USB', 'usb', 440, 22, 't'], ['f', 'CON', 'rj45', 438, 54, 't'], ['p', 'e0M', 'rj45', 438, 92, 't'],
       ['bay', 8, 486, 16, 34, 126, 'v'], ['bay', 9, 524, 16, 34, 126, 'v'], ['bay', 10, 562, 16, 34, 126, 'v'], ['bay', 11, 600, 16, 34, 126, 'v']] });
   _LAY.gen11 = _g11(false); _LAY.afx = _g11(true);
+  // AFX 2K (NetApp AFX 2K I/O slot table): 1 HA, 2 cluster, 3 network, 4-5 NVRAM12, 6-7 NVRAM12-EX, 8 storage, 9 network, 10 storage, 11 optional 4x25GbE management
+  _LAY.afx2k = { W: 640, H: 156, mode: 'stack', zoom: 1.25, sub: 'AFX 2K (2U): slot 1 HA, 2 cluster, 3 network, 4-5 NVRAM12, 6-7 NVRAM12-EX, 8 storage, 9 network, 10 storage, 11 optional 4x25GbE management',
+    items: [['bay', 1, 22, 16, 34, 120, 'v'], ['bay', 2, 60, 16, 34, 120, 'v'], ['bay', 3, 98, 16, 34, 120, 'v'],
+      ['nvram', 140, 8, 64, 128, 'SLOT 4&5 · NVRAM12'], ['psu', 212, 8, 100, 64, 'PSU 1'], ['psu', 318, 8, 100, 64, 'PSU 2'],
+      ['nvram', 212, 80, 206, 56, 'SLOT 6&7 · NVRAM12-EX'],
+      ['f', 'USB', 'usb', 440, 22, 't'], ['f', 'CON', 'rj45', 438, 54, 't'], ['p', 'e0M', 'rj45', 438, 92, 't'],
+      ['bay', 8, 486, 16, 34, 120, 'v'], ['bay', 9, 524, 16, 34, 120, 'v'], ['bay', 10, 562, 16, 34, 120, 'v'], ['bay', 11, 600, 16, 34, 120, 'v'],
+      ['txt', 39, 148, 'HA', 4.6], ['txt', 77, 148, 'CLUSTER', 4.6], ['txt', 115, 148, 'NETWORK', 4.6], ['txt', 503, 148, 'STORAGE', 4.6], ['txt', 541, 148, 'NETWORK', 4.6], ['txt', 579, 148, 'STORAGE', 4.6], ['txt', 617, 148, 'MGMT (opt)', 4.6]] };
   // AFF A20 / A30 / A50, C30 / C60, FAS50
   _LAY.a20 = { W: 700, H: 96, mode: 'stack', zoom: 1.3, sub: 'AFF A20/A30/A50, C30/C60, FAS50: two controllers stacked (2U), one PSU each · 4 IO slots (1-2 left, 3-4 right)',
     items: [['psu', 8, 4, 120, 88, 'PSU'], ['bay', 1, 166, 8, 150, 38, 'h'], ['bay', 2, 166, 52, 150, 38, 'h'],
@@ -36540,7 +36563,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const _code = _plat.replace(/^(aff|asa|fas)[-_\s]*/, '').replace(/^r2[-_\s]*/, '').replace(/[-_\s]+/g, '');
   const _has = (...codes) => codes.some(c => _code === c || _code.startsWith(c) && !/^\d/.test(_code.slice(c.length)));
   let layout = 'generic';
-  if (isAFXPlat) layout = 'afx';
+  if (isAFXPlat) layout = /2k/.test(_plat) ? 'afx2k' : 'afx';
   else if (_code === 'a700s') layout = 'a700s';
   else if (_has('a700', '9000', 'a900', '9500')) layout = 'chassis8u';
   else if (_has('8300', '8700', 'a400', 'c400')) layout = 'mid7';

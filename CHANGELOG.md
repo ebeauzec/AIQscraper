@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.132] - 2026-09-27
+
+### Changed
+- AFX 2K rear panel corrected from NetApp's AFX 2K I/O slot table: slot 1 HA, slot 2 cluster, slot 3 network, slots 4-5 NVRAM12, slots 6-7 NVRAM12-EX, slot 8 storage, slot 9 network, slot 10 storage, slot 11 optional 4x25GbE management (it had been drawn with the AFX 1K arrangement). Read the install/maintenance text pages of every ONTAP platform against the layouts: slot and port roles agree, with this one exception.
+
+---
+
 ## [5.6.131] - 2026-09-27
 
 ### Changed
