@@ -63,7 +63,7 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 | **Capacity trend is per-system** — no fleet-wide growth rate or cross-customer runway view | **Fleet-wide capacity projection** — 6-month historical trend, growth rate in GB/day, per-node breakdown, and runway estimate per node |
 | **Efficiency includes snapshot savings** — the displayed ratio is inflated | **Correct data reduction ratio** — uses dedupe + compression only (no snapshots). Snapshot-inclusive ratio shown separately for reference |
 | **No ITIL-aligned change control output** — risks are described but remediation isn't structured for change management | **CLI Runbook with ITIL tiers** — every remediation step classified as Non-Disruptive / Disruptive / Destructive, formatted as change tickets for CAB approval |
-| **No Reference Library enrichment** — you must manually cross-reference EOA lists, firmware baselines, and MetroCluster ISL specs | **Automatic enrichment from 268+ live sources** — fleet-aware scanner crawls `docs.netapp.com` indexes and `kb.netapp.com` JSON-LD category trees to discover best practices, upgrade guides, troubleshooting procedures, security hardening docs, configuration guides, and 3rd-party integration references. All 13 deliverables receive fleet-relevant references scored by ONTAP version, platform family, and hardware model. |
+| **No Reference Library enrichment** — you must manually cross-reference EOA lists, firmware baselines, and MetroCluster ISL specs | **Automatic enrichment from 268+ live sources** — fleet-aware scanner crawls `docs.netapp.com` indexes and `kb.netapp.com` JSON-LD category trees to discover best practices, upgrade guides, troubleshooting procedures, security hardening docs, configuration guides, and 3rd-party integration references. All 15 deliverables receive fleet-relevant references scored by ONTAP version, platform family, and hardware model. |
 | **Version database is static** — you must manually track which ONTAP/StorageGRID/SANtricity versions are current | **Version catalog auto-detection** — scrapes docs.netapp.com during each sync to discover newly released product versions. The upgrade path calculator and latest-version recommendations update automatically without code changes. |
 | **No account handover support** — transitioning an account means extensive manual documentation | **Account Handover Brief** — structured briefing generated in one click covering fleet context, open risks, contracts, contacts, and pending actions |
 | **No official health score visible per customer** — Active IQ computes one, but a partner-facing view only ever shows an account-wide figure, identical for every customer on that account | **Real per-customer Official Health Score** — `summary(nagpId: ...)` queried once per real customer at harvest time, so the Overview KPI tile, QBR Pack, and Risk & Remediation Brief show each customer's own genuine score (confirmed live: 28 real customers, 28 different scores) alongside this tool's own risk-based score — not the same account-wide number restated for everyone |
@@ -422,7 +422,7 @@ Storage efficiency and capacity intelligence:
 
 ### Action Planner
 
-The core reporting engine. Click **Generate** to build all 18 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-18-sections) for full detail on each section.
+The core reporting engine. Click **Generate** to build all 19 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-19-sections) for full detail on each section.
 
 ### Remediation Tracker
 
@@ -468,7 +468,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are 
 | **11** | **Account Intelligence** | Personnel map (Sales Rep, TAM, SAM, ASP, Propensity per system), site inventory |
 | **12** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **13** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
-| **14** | **Feature Adoption** | Per-system feature matrix — ARP, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 5 real feature checks (e.g. "3/5"), not a blended health score |
+| **14** | **Feature Adoption** | Per-system feature matrix — ARP, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 4 real feature checks (e.g. "3/4"), not a blended health score |
 | **15** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
 | **16** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
 | **17** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
@@ -581,7 +581,7 @@ Weighted urgency score quantifying risk exposure from not acting. Maps to MEDDPI
 ---
 
 ### Feature Adoption Score (per system, shown as X/4 and %)
-Counts only real, optional ONTAP feature toggles — not a general health/compliance blend. A feature the API doesn't report for a given system is excluded from that system's denominator rather than counted as failing, so a system with e.g. 4 of 5 features reported shows "3/4", not a diluted "3/5".
+Counts only real, optional ONTAP feature toggles — not a general health/compliance blend. A feature the API doesn't report for a given system is excluded from that system's denominator rather than counted as failing, so a system where e.g. 1 of the 4 features isn't reported and the other 3 are all enabled shows "3/3", not a diluted "3/4".
 
 | Feature | What's Checked |
 |---|---|
