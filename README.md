@@ -88,14 +88,14 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 > **A note on scale:** every fleet-wide view — capacity projection, CVE cross-reference, ARP/adoption audit, contract pipeline — runs the same aggregation logic whether it's scoped to one customer's 50 systems or an enterprise's 5,000. The dashboard, SQLite cache, and deliverable generators were built and tested against multi-hundred-system portfolios; there is no per-customer ceiling baked into the data model.
 
 <p align="center">
-  <img src="docs/images/workflow.svg" alt="Four-step ARIA pipeline: Harvest pulls the full fleet from Active IQ in one sync, Enrich cross-references it against a local reference library, Aggregate computes fleet-wide rollups once, and Deliver turns that into 14 customer-ready outputs" width="820">
+  <img src="docs/images/workflow.svg" alt="Four-step ARIA pipeline: Harvest pulls the full fleet from Active IQ in one sync, Enrich cross-references it against a local reference library, Aggregate computes fleet-wide rollups once, and Deliver turns that into 15 customer-ready outputs" width="820">
 </p>
 
 ---
 
 ## 2. What It Delivers
 
-In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library and ARIA Knowledge Base Intelligence engine, and renders it as a fully interactive dashboard with 14 downloadable customer-facing deliverables — each enriched with fleet-relevant KB references, actionable CLI commands, and estimated remediation effort.
+In a single sync, the tool harvests your complete fleet telemetry from the Active IQ API, enriches it with a curated Reference Library and ARIA Knowledge Base Intelligence engine, and renders it as a fully interactive dashboard with 15 downloadable customer-facing deliverables — each enriched with fleet-relevant KB references, actionable CLI commands, and estimated remediation effort.
 
 **Harvested from Active IQ:**
 - Every system and cluster across your entire portfolio
