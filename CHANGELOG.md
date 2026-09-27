@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.125] - 2026-09-27
+
+### Fixed
+- Fixed the FC port rows in the Technical Audit port table: they showed the WWPN of the LIF sitting on the port, but a LIF's WWPN is a virtual address different from the physical port's WWPN. The rows now say the physical port WWPN is not reported and point to the LIF inventory for LIF WWPNs.
+
+---
+
 ## [5.6.124] - 2026-09-27
 
 ### Changed

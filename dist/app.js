@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.124";
+const APP_VERSION = "5.6.125";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.125",
+    date: "27 September 2026",
+    title: "FC Port WWPN Fix",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Fixed the FC port rows in the Technical Audit port table: they showed the WWPN of the LIF sitting on the port, but a LIF's WWPN is a virtual address different from the physical port's WWPN. The rows now say the physical port WWPN is not reported and point to the LIF inventory for LIF WWPNs.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.124",
     date: "27 September 2026",
@@ -36523,7 +36538,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
         ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: var(--status-critical); border: 1px solid rgba(255, 51, 102, 0.25); background: rgba(255, 51, 102, 0.05); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 6px rgba(255,51,102,0.1);">✗ Link Down</span>`
         : `<span style="display: inline-flex; align-items: center; gap: 4px; color: #f59e0b; border: 1px solid rgba(245,158,11,0.45); background: rgba(245,158,11,0.08); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">● Unknown</span>`);
 
-    const _cfgInf = port.inferred ? `<span style="font-size:0.75rem;color:var(--text-secondary);">FC port, inferred from ${port.lifNames.length} LIF${port.lifNames.length !== 1 ? 's' : ''} (${port.lifNames.slice(0, 3).join(', ')}${port.lifNames.length > 3 ? ', ...' : ''}); state is the LIF state, not a link measurement${port.wwpns.length ? '<br><code style="font-size:0.68rem;color:var(--accent-cyan);">' + port.wwpns.slice(0, 2).join(' , ') + '</code>' : ''}</span>` : null;
+    const _cfgInf = port.inferred ? `<span style="font-size:0.75rem;color:var(--text-secondary);">FC port, inferred from ${port.lifNames.length} LIF${port.lifNames.length !== 1 ? 's' : ''} (${port.lifNames.slice(0, 3).join(', ')}${port.lifNames.length > 3 ? ', ...' : ''}); state is the LIF state, not a link measurement.<br><span style="color:var(--text-muted);">The physical port's own WWPN is not reported by Active IQ; a LIF's WWPN is a separate virtual address (see the LIF inventory), not this port's.</span></span>` : null;
     const partnerCell = port.partnerName || '<span style="color:var(--text-muted);font-style:italic;">Not available via API</span>';
     const partnerPortCell = port.partnerPort ? `<code>${port.partnerPort}</code>` : '<span style="color:var(--text-muted);">—</span>';
 
