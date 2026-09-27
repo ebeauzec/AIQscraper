@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.130";
+const APP_VERSION = "5.6.131";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.131",
+    date: "27 September 2026",
+    title: "FAS50 Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "FAS50 rear panel corrected from NetApp's FAS50 install-cable page: slot 2 is the 4-port Ethernet or FC module (2a-2d) at top-left, slot 1 below it, slot 3 the SAS ports 3a-3d at top-right and slot 4 the 2-port 40/100GbE cluster/HA module; the FAS50 was sharing the AFF A50 layout, which has a different slot arrangement.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.130",
     date: "27 September 2026",
@@ -36387,6 +36402,13 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     items: [['psu', 8, 4, 120, 88, 'PSU'], ['bay', 1, 166, 8, 150, 38, 'h'], ['bay', 2, 166, 52, 150, 38, 'h'],
       ['f', 'USB', 'usb', 368, 14, 't'], ['f', 'CON', 'rj45', 410, 12, 't'], ['p', 'e0M', 'rj45', 410, 50, 't'], ['f', 'μUSB', 'umicro', 460, 58, 't'],
       ['bay', 3, 520, 8, 100, 38, 'h'], ['bay', 4, 520, 52, 100, 38, 'h']] };
+  // FAS50 (NetApp FAS50 install-cable page and diagrams): slot 2 = 4-port 10/25GbE (e2a-e2d) or 4-port 64Gb FC (2a-2d) top-left,
+  // slot 1 bottom-left, slot 3 = SAS shelf ports 3a-3d top-right, slot 4 = 2-port 40/100GbE cluster/HA (e4a/e4b) bottom-right
+  _LAY.fas50 = { W: 700, H: 96, mode: 'stack', zoom: 1.3, sub: 'FAS50: two controllers stacked (2U), one PSU each · slot 2 = 4-port Ethernet or FC (2a-2d), slot 3 = SAS (3a-3d), slot 4 = 2-port 40/100GbE cluster/HA',
+    items: [['psu', 8, 4, 120, 88, 'PSU'], ['bay', 2, 166, 8, 150, 38, 'h'], ['bay', 1, 166, 52, 150, 38, 'h'],
+      ['f', 'USB', 'usb', 368, 14, 't'], ['f', 'CON', 'rj45', 410, 12, 't'], ['p', 'e0M', 'rj45', 410, 50, 't'], ['f', 'μUSB', 'umicro', 460, 58, 't'],
+      ['raw', () => `<rect x="${_X(520, 100)}" y="8" width="100" height="38" rx="1.5" fill="#1a2030" stroke="#3b4557" stroke-width="0.7"/>`], ['tag', 3, 510, 21, 8.5, 11], ..._sasRow(['3a', '3b', '3c', '3d'], 526, 22, 22),
+      ['bay', 4, 520, 52, 100, 38, 'h']] };
   // E-Series canisters and StorageGRID appliance controllers (single canister, no partner drawn)
   const _E2800 = { W: 262, H: 60, mode: 'one', zoom: 2.3, items: [['f', '0a', 'sfp', 14, 18, 't'], ['f', '0b', 'sfp', 40, 18, 't'], ['f', 'P1', 'rj45', 72, 16, 't'], ['f', 'P2', 'rj45', 98, 16, 't'], ['f', 'CON', 'rj45', 132, 16, 't'], ['f', 'μUSB', 'umicro', 164, 22, 't'], ['f', 'USB', 'usb', 186, 20, 't'], ['f', 'EXP1', 'sas', 216, 18, 't'], ['f', 'EXP2', 'sas', 238, 18, 't'], ['led', 84, 40, 3]] };
   const _E5700 = (sg) => ({ W: 264, H: 90, mode: 'one', zoom: 2.3, items: [['f', sg ? 'IC1' : '0a', 'sfp', 12, 20, 't'], ['f', sg ? 'IC2' : '0b', 'sfp', 38, 20, 't'], ['f', 'CON', 'rj45', 72, 18, 't'], ['f', 'EXP1', 'sas', 102, 20, 't'], ['f', 'EXP2', 'sas', 124, 20, 't'],
@@ -36529,6 +36551,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   else if (_has('2820', '2850')) layout = 'fas2800';
   else if (_has('a220', 'c190', 'a150', '150', '2720', '2750', '2650', '2620', 'a200')) layout = 'a220';
   else if (_has('a1k', 'a70', 'a90', '70', '90')) layout = 'gen11';
+  else if (_code === '50') layout = 'fas50';
   else if (_has('a20', 'a30', 'a50', 'c30', 'c60', '50')) layout = 'a20';
 
   let inner = '', sub = '';

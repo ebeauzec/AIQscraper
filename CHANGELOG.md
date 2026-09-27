@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.131] - 2026-09-27
+
+### Changed
+- FAS50 rear panel corrected from NetApp's FAS50 install-cable page: slot 2 is the 4-port Ethernet or FC module (2a-2d) at top-left, slot 1 below it, slot 3 the SAS ports 3a-3d at top-right and slot 4 the 2-port 40/100GbE cluster/HA module; the FAS50 was sharing the AFF A50 layout, which has a different slot arrangement.
+
+---
+
 ## [5.6.130] - 2026-09-27
 
 ### Changed
