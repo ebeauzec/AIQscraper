@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.117] - 2026-09-27
+
+### Changed
+- Second rear-panel accuracy pass against NetApp's diagrams for the remaining platforms (8U A700/A900/FAS9000/9500, FAS2720/2750, FAS50, FAS70/90, A1K, E2800, E5700, E4000, StorageGRID SG1000): layouts match; relabelled the StorageGRID 1U RJ-45 admin ports ADM1/ADM2 so they no longer share the numbers 4/5 with the network ports.
+
+---
+
 ## [5.6.116] - 2026-09-26
 
 ### Changed

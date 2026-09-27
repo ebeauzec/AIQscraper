@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.116";
+const APP_VERSION = "5.6.117";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.117",
+    date: "27 September 2026",
+    title: "Rear Panel Accuracy Pass 2",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Second rear-panel accuracy pass against NetApp's diagrams for the remaining platforms (8U A700/A900/FAS9000/9500, FAS2720/2750, FAS50, FAS70/90, A1K, E2800, E5700, E4000, StorageGRID SG1000): layouts match; relabelled the StorageGRID 1U RJ-45 admin ports ADM1/ADM2 so they no longer share the numbers 4/5 with the network ports.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.116",
     date: "26 September 2026",
@@ -36158,7 +36173,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     ...[0, 1, 2, 3].map(i => ['f', String(i + 1), 'sfp', 84 + i * 25, 24, 't']),
     ['f', 'P1', 'rj45', 100, 48, 't'], ['f', 'P2', 'rj45', 130, 48, 't'],
     ...[0, 1, 2, 3].map(i => ['f', String(i + 1), 'sfp', 204 + i * 26, 34, 't'])] };
-  const _SG1U = { W: 356, H: 80, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 94, 46, 't'], ['f', '1', 'sfp', 110, 22, 't'], ['f', '2', 'sfp', 136, 22, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 50, 't'], ['f', 'USB', 'usb', 186, 50, 't'], ['f', '4', 'rj45', 208, 46, 't'], ['f', '5', 'rj45', 232, 46, 't'], ['f', '3', 'sfp', 208, 22, 't'], ['f', '4', 'sfp', 232, 22, 't']] };
+  const _SG1U = { W: 356, H: 80, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 94, 46, 't'], ['f', '1', 'sfp', 110, 22, 't'], ['f', '2', 'sfp', 136, 22, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 50, 't'], ['f', 'USB', 'usb', 186, 50, 't'], ['f', 'ADM1', 'rj45', 208, 46, 't'], ['f', 'ADM2', 'rj45', 232, 46, 't'], ['f', '3', 'sfp', 208, 22, 't'], ['f', '4', 'sfp', 232, 22, 't']] };
   const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round((L.W + 8) * _ZOOM)}px;display:block;">${s}</svg></div>`; };
 
   const _ctrlAB = _bpNodePos(sys);
