@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.135] - 2026-09-27
+
+### Fixed
+- Fixed demo/mock data assigning the wrong controller's ports to a system: networkPorts is now matched to a curated profile in the SAME rear-panel layout bucket as the system's platform label (e.g. an 'AFF A1K' system no longer borrows an AFF A700's e2a-e4e ports), and synthesizes realistic ports from NetApp's hardware documentation for platforms (A1K/A70/A90/FAS70/90, AFX, A320, A700s, FAS8200/A300, FAS2820) the curated demo dataset has no profile for.
+
+---
+
 ## [5.6.134] - 2026-09-27
 
 ### Added

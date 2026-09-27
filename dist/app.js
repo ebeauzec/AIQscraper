@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.134";
+const APP_VERSION = "5.6.135";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.135",
+    date: "27 September 2026",
+    title: "Demo Data Port Accuracy",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Fixed demo/mock data assigning the wrong controller's ports to a system: networkPorts is now matched to a curated profile in the SAME rear-panel layout bucket as the system's platform label (e.g. an 'AFF A1K' system no longer borrows an AFF A700's e2a-e4e ports), and synthesizes realistic ports from NetApp's hardware documentation for platforms (A1K/A70/A90/FAS70/90, AFX, A320, A700s, FAS8200/A300, FAS2820) the curated demo dataset has no profile for.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.134",
     date: "27 September 2026",
@@ -7693,6 +7708,53 @@ const _DEMO_CITIES = [
 ];
 
 // ── one system -> raw-form system carrying the extra telemetry ─────────────
+// Rear-panel layout bucket for a platform string -- mirrors _buildControllerBackplate's own dispatch
+// in app.js exactly, so a demo system's synthesized/borrowed ports always land on the same slots its
+// OWN drawing expects. Used to stop the demo generator from borrowing e.g. an AFF A700's ports under
+// a system labeled "AFF A1K" (a different chassis with a different slot map).
+function _demoPortBucket(platformStr) {
+  const _plat = String(platformStr || '').toLowerCase();
+  if (_plat.includes('afx')) return /2k/.test(_plat) ? 'afx2k' : 'afx';
+  const _code = _plat.replace(/^(aff|asa|fas)[-_\s]*/, '').replace(/^r2[-_\s]*/, '').replace(/[-_\s]+/g, '');
+  const _has = (...codes) => codes.some(c => _code === c || (_code.startsWith(c) && !/^\d/.test(_code.slice(c.length))));
+  if (_has('a700', '9000', 'a900', '9500')) return _code === 'a700s' ? 'a700s' : 'chassis8u';
+  if (_has('8300', '8700', 'a400', 'c400')) return 'mid7';
+  if (_has('a800', 'c800')) return 'a800';
+  if (_has('8200', 'a300')) return 'fas8200';
+  if (_has('a250', 'c250', '500f')) return 'a250';
+  if (_has('2820', '2850')) return 'fas2800';
+  if (_has('a220', 'c190', 'a150', '150', '2720', '2750', '2650', '2620', 'a200')) return 'a220';
+  if (_has('a1k', 'a70', 'a90', '70', '90')) return 'gen11';
+  if (_has('a20', 'a30', 'a50', 'c30', 'c60', '50')) return 'a20';
+  if (_has('a320')) return 'a320';
+  return '';
+}
+// Onboard/common-configuration ports for buckets no curated demo profile (data/demo_dataset.json)
+// covers -- traced from NetApp's own hardware documentation the same way the rear-panel drawings are
+// (see hw_docs_harvester.py / data/platform_hardware.json). Only the ports NetApp's docs actually name
+// for that chassis, so every synthesized port has somewhere real to land on its own drawing.
+const _DEMO_PORT_TEMPLATES = {
+  fas8200: { cluster: ['e0a', 'e0b'], data: ['e0c', 'e0d', 'e0e', 'e0f', 'e0g', 'e0h'] },
+  fas2800: { cluster: ['e0a', 'e0b'], data: ['e1a', 'e1b', 'e1c', 'e1d'] },
+  gen11: { cluster: ['e1a', 'e1b', 'e7a', 'e7b'], data: ['e8a', 'e8b', 'e9a', 'e9b', 'e10a', 'e10b', 'e11a', 'e11b'] },
+  afx: { cluster: ['e1a', 'e1b', 'e7a', 'e7b'], data: ['e9a', 'e9b', 'e10a', 'e10b'] },
+  afx2k: { cluster: ['e1a', 'e1b', 'e2a', 'e2b'], data: ['e3a', 'e3b', 'e8a', 'e8b', 'e9a', 'e9b', 'e10a', 'e10b'] },
+  a320: { cluster: ['e0a', 'e0d'], data: ['e0g', 'e0h', 'e0b', 'e0c'] },
+  a700s: { cluster: ['e0a', 'e0e'], data: ['e0f', 'e0j'] },
+};
+function _demoSynthPorts(bucket, rng, seed) {
+  const t = _DEMO_PORT_TEMPLATES[bucket]; if (!t) return null;
+  const mac = i => '02:de:' + Array.from({ length: 4 }, () => Math.floor(rng() * 256).toString(16).padStart(2, '0')).join(':');
+  const dataCount = 2 + Math.floor(rng() * (t.data.length - 1));
+  const dataPorts = t.data.slice(0, dataCount);
+  const mk = (name, role, up, mtu, speed) => ({ port: name, role, link: up ? 'UP' : 'DOWN', type: 'PHYSICAL', broadcastDomain: role === 'CLUSTER' ? 'Cluster' : 'Default',
+    ipspaceName: role === 'CLUSTER' ? 'Cluster' : 'Default', speedOperationalMbps: up ? String(speed) : null, macAddress: mac(name), maxTransmissionUnitBytes: mtu, interfaceGroupOwner: null });
+  const ports = [mk('e0M', 'NODE_MGMT', true, 1500, 1000)];
+  t.cluster.forEach(nm => ports.push(mk(nm, 'CLUSTER', true, 9000, 100000)));
+  dataPorts.forEach(nm => ports.push(mk(nm, 'DATA', rng() < 0.85, rng() < 0.6 ? 9000 : 1500, [10000, 25000, 40000][Math.floor(rng() * 3)])));
+  return { totalCount: ports.length, networkPorts: ports };
+}
+
 function _demoHydrateSystem(s, ctx) {
   const { ds, baselines, now, delta, nodesByCluster } = ctx;
   const rng = _demoRng(s.serialNumber);
@@ -7778,7 +7840,17 @@ function _demoHydrateSystem(s, ctx) {
     if (fam === 'ontap') {
       ['systemFirmware', 'motherboardFirmware', 'diskQualificationPackage', 'recommendedDriveFirmwares',
        'recommendedShelfFirmwares', 'aggregateDetail', 'licenses'].forEach(k => fill(k, prof[k]));
-      fill('networkPorts', prof.networkPorts);
+      // networkPorts is very literal about which slot each eNx port lives in on the rear-panel drawing --
+      // a profile picked only by the broad FAS/ASA/AFF class above can be a different chassis entirely
+      // (e.g. an AFF A700's e2a-e4e ports rendered under an "AFF A1K" label). Match a curated profile in
+      // the SAME layout bucket the rear panel itself uses first; if none exists, synthesize from the
+      // hardware-documentation-derived template above instead of borrowing the wrong shape.
+      if (_demoEmpty(out.networkPorts)) {
+        const bucket = _demoPortBucket(platStr);
+        const bucketProf = plist.find(p => !_demoEmpty(p.networkPorts) && _demoPortBucket(p._sourceModel || '') === bucket);
+        if (bucketProf) out.networkPorts = _demoClone(bucketProf.networkPorts);
+        else { const synth = _demoSynthPorts(bucket, rng, s.serialNumber); if (synth) out.networkPorts = synth; else fill('networkPorts', prof.networkPorts); }
+      }
       if (prof.shelves) fill('shelves', prof.shelves);
       if (prof.vservers) fill('vservers', _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v)))));
       const isAFFish = /aff|asa|a\d{2,3}|c\d{2,3}|afx/i.test(platStr);
