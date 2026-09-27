@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.118";
+const APP_VERSION = "5.6.119";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.119",
+    date: "27 September 2026",
+    title: "SG5800 And SG6060 Rear Panels",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "StorageGRID SG5800 and SG6060 rear panels corrected against NetApp's hardware descriptions: the SG5800 compute controller is an E4000-style canister (management port, diagnostic ports, four network ports, SAS expansion and two interconnect ports), not a 1U server; the SG6060 compute controller is the SG6000-CN with its four FC interconnect ports, and its storage controllers use the E2800A/E2800B layout with interconnect ports.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.118",
     date: "27 September 2026",
@@ -36195,6 +36210,19 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     ...[0, 1, 2, 3].map(i => ['f', String(i + 1), 'sfp', 84 + i * 25, 24, 't']),
     ['f', 'P1', 'rj45', 100, 48, 't'], ['f', 'P2', 'rj45', 130, 48, 't'],
     ...[0, 1, 2, 3].map(i => ['f', String(i + 1), 'sfp', 204 + i * 26, 34, 't'])] };
+  // SG5800 compute controller: an E4000-style canister (NetApp SG5800 hardware description): management
+  // port 1, diagnostic RJ-45/USB-C/USB, network ports 1-4 (e1a-e1d), SAS drive expansion, interconnect 1-2 (25GbE iSCSI)
+  const _SG5800C = { W: 290, H: 76, mode: 'one', items: [['f', 'MGMT', 'rj45', 14, 16, 't'], ['f', 'CON', 'rj45', 44, 16, 't'], ['f', 'USB-C', 'usbc', 72, 20, 't'], ['f', 'USB', 'usb', 96, 18, 't'],
+    ['f', '1', 'sfp', 14, 46, 't'], ['f', '2', 'sfp', 40, 46, 't'], ['f', '3', 'sfp', 66, 46, 't'], ['f', '4', 'sfp', 92, 46, 't'],
+    ['f', '0a', 'sas', 140, 22, 't'], ['f', '0b1', 'sas', 162, 22, 't'], ['f', '0b2', 'sas', 184, 22, 't'], ['f', 'IC1', 'sfp', 222, 22, 't'], ['f', 'IC2', 'sfp', 248, 22, 't']] };
+  // E4000 storage controller inside an SG5800: same canister, but the last two ports are the interconnect
+  const _E4000SG = { W: 276, H: 66, mode: 'one', items: [['f', 'MGMT', 'rj45', 14, 20, 't'], ['f', 'CON', 'rj45', 44, 20, 't'], ['f', 'USB-C', 'usbc', 72, 24, 't'], ['f', 'USB', 'usb', 96, 22, 't'], ['f', 'EXP 0a', 'sas', 140, 22, 't'], ['f', 'EXP 0b1', 'sas', 162, 22, 't'], ['f', 'EXP 0b2', 'sas', 184, 22, 't'], ['f', 'IC1', 'sfp', 220, 22, 't'], ['f', 'IC2', 'sfp', 246, 22, 't']] };
+  // SG6000-CN compute controller (1U): 4 FC interconnect ports, network ports 1-4, BMC, VGA/serial/USB, two admin RJ-45
+  const _SG6000CN = { W: 420, H: 80, mode: 'one', items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 330, 10, 82, 58, 'PSU 2'],
+    ['f', 'IC1', 'sas', 98, 24, 't'], ['f', 'IC2', 'sas', 117, 24, 't'], ['f', 'IC3', 'sas', 136, 24, 't'], ['f', 'IC4', 'sas', 155, 24, 't'],
+    ['f', '1', 'sfp', 184, 22, 't'], ['f', '2', 'sfp', 208, 22, 't'], ['f', '3', 'sfp', 244, 22, 't'], ['f', '4', 'sfp', 268, 22, 't'],
+    ['f', 'BMC', 'rj45', 96, 48, 't'], ['f', 'VGA', 'rj45', 122, 48, 't'], ['f', 'COM', 'rj45', 148, 48, 't'], ['f', 'USB', 'usb', 174, 52, 't'], ['f', 'USB', 'usb', 194, 52, 't'],
+    ['f', 'ADM1', 'rj45', 244, 48, 't'], ['f', 'ADM2', 'rj45', 268, 48, 't']] };
   const _SG1U = { W: 356, H: 80, mode: 'one', zoom: 2.1, items: [['psu', 8, 10, 82, 58, 'PSU 1'], ['psu', 260, 10, 82, 58, 'PSU 2'], ['f', 'BMC', 'rj45', 94, 46, 't'], ['f', '1', 'sfp', 110, 22, 't'], ['f', '2', 'sfp', 136, 22, 't'], ['f', 'VGA', 'rj45', 118, 46, 't'], ['f', 'COM', 'rj45', 142, 46, 't'], ['f', 'USB', 'usb', 166, 50, 't'], ['f', 'USB', 'usb', 186, 50, 't'], ['f', 'ADM1', 'rj45', 208, 46, 't'], ['f', 'ADM2', 'rj45', 232, 46, 't'], ['f', '3', 'sfp', 208, 22, 't'], ['f', '4', 'sfp', 232, 22, 't']] };
   const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round((L.W + 8) * _ZOOM)}px;display:block;">${s}</svg></div>`; };
 
@@ -36204,8 +36232,8 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     let inner2 = '', sub2 = '';
     if (/sg(1[012]0|1[012]00|f?6[12]12|f?6212)|^sg(100|110|120|1000|1100|1200)/.test(_plat2)) { sub2 = 'StorageGRID 1U appliance: 2 PSUs, 4 network ports, BMC, admin ports'; inner2 = _one(_SG1U, 'SERVICES / COMPUTE APPLIANCE (1U)'); }
     else if (/sg57(12|60)/.test(_plat2)) { const _x = /x$/.test(_plat2); sub2 = `StorageGRID SG5700${_x ? 'X' : ''}: ${_x ? 'E2800B' : 'E2800A'} storage controller + E5700SG compute controller`; inner2 = _one(_E2800SG(_x), `STORAGE CONTROLLER (${_x ? 'E2800B' : 'E2800A'}) - interconnect ports link it to the compute controller (16Gb FC); drive expansion unused`) + _one(_E5700(true), 'COMPUTE CONTROLLER (E5700SG) - network ports 1-4 (10/25GbE) to the Grid and Client networks; P1/P2 = management ports (Admin network); IC1/IC2 = interconnect to the storage controller'); }
-    else if (/sg58(12|60)/.test(_plat2)) { sub2 = 'StorageGRID SG5800: 1U compute controller + E4000 storage controller'; inner2 = _one(_SG1U, 'COMPUTE CONTROLLER (1U)') + _one(_E4000, 'STORAGE CONTROLLER (E4000)'); }
-    else if (/sg6060|sg6160/.test(_plat2)) { sub2 = 'StorageGRID SG6000: 1U compute controller + E2860 storage controllers'; inner2 = _one(_SG1U, 'COMPUTE CONTROLLER (1U)') + _one(_E2800, 'STORAGE CONTROLLER (E2800-class)'); }
+    else if (/sg58(12|60)/.test(_plat2)) { sub2 = 'StorageGRID SG5800: SG5800 compute controller + E4000 storage controller'; inner2 = _one(_E4000SG, 'STORAGE CONTROLLER (E4000) - management, drive expansion (unused), interconnect ports 1-2 (25GbE iSCSI) to the compute controller') + _one(_SG5800C, 'COMPUTE CONTROLLER (SG5800) - network ports 1-4 (e1a-e1d, 10/25GbE) to the Grid and Client networks; management port = Admin network; IC1/IC2 = interconnect to the storage controller'); }
+    else if (/sg6060|sg6160/.test(_plat2)) { const _x6 = /x$/.test(_plat2); sub2 = `StorageGRID SG6060${_x6 ? 'X' : ''}: SG6000-CN 1U compute controller + two ${_x6 ? 'E2800B' : 'E2800A'} storage controllers in the E2860 shelf`; inner2 = _one(_SG6000CN, 'COMPUTE CONTROLLER (SG6000-CN, 1U) - IC1-IC4 = 16Gb FC interconnect (two to each storage controller); network ports 1-4 (10/25GbE); BMC; ADM1/ADM2 = Admin network') + _one(_E2800SG(_x6), `STORAGE CONTROLLER (${_x6 ? 'E2800B' : 'E2800A'}, 1 of 2) - interconnect ports link it to the SG6000-CN; drive expansion ports go to an expansion shelf`); }
     else return _frame('STORAGEGRID NODE', 'Appliance model not identified: no physical layout drawn', '<div style="font-size:0.6rem;color:#94a3b8;">Grid/Admin/Client networks bond across the appliance network ports; see the port table below.</div>', '');
     return _frame('STORAGEGRID NODE — REAR', sub2, inner2, '<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;">Active IQ does not report port state for StorageGRID; connector positions are from the NetApp hardware diagram.</div>');
   }

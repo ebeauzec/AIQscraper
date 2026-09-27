@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.119] - 2026-09-27
+
+### Changed
+- StorageGRID SG5800 and SG6060 rear panels corrected against NetApp's hardware descriptions: the SG5800 compute controller is an E4000-style canister (management port, diagnostic ports, four network ports, SAS expansion and two interconnect ports), not a 1U server; the SG6060 compute controller is the SG6000-CN with its four FC interconnect ports, and its storage controllers use the E2800A/E2800B layout with interconnect ports.
+
+---
+
 ## [5.6.118] - 2026-09-27
 
 ### Changed
