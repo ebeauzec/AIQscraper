@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.130] - 2026-09-27
+
+### Changed
+- Added the AFF A320 rear panel (two stacked controllers, two NIC slots, onboard e0a-e0h 40/100GbE ports, USB/console and management) from NetApp's A320 install guide; A320 systems previously fell back to ports grouped by slot.
+
+---
+
 ## [5.6.129] - 2026-09-27
 
 ### Changed

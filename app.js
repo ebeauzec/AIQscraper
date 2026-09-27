@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.129";
+const APP_VERSION = "5.6.130";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.130",
+    date: "27 September 2026",
+    title: "AFF A320 Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Added the AFF A320 rear panel (two stacked controllers, two NIC slots, onboard e0a-e0h 40/100GbE ports, USB/console and management) from NetApp's A320 install guide; A320 systems previously fell back to ports grouped by slot.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.129",
     date: "27 September 2026",
@@ -36338,6 +36353,14 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       ['f', 'CON', 'rj45', 268, 90, 'b'], ['f', 'USB', 'usb', 302, 92, 't'], ['p', 'e0M', 'rj45', 332, 90, 't'], ['f', 'BMC', 'rj45', 357, 90, 't'],
       ['bay', 4, 464, 4, 160, 44, 'h'], ..._sasRow(['5a', '5b', '5c', '5d'], 484, 56, 26),
       ['p', 'e0j', 'qsfp', 439, 92, 't'], ['p', 'e0f', 'qsfp', 472, 92, 't'], ['p', 'e0e', 'qsfp', 556, 92, 't'], ['p', 'e0a', 'qsfp', 590, 92, 't']] };
+  // AFF A320 (2U, two controllers stacked; NetApp AFF A320 install and setup instructions): PSU left; slot 2 and slot 1
+  // NIC areas (4 ports each) on the top row; onboard e0a-e0b (cluster/HA), e0c-e0d, e0e-e0f and e0g-e0h (40/100GbE) on the
+  // bottom row; micro-USB console, USB-A, and two RJ-45 (management e0M/BMC, console) at the right
+  _LAY.a320 = { W: 560, H: 56, mode: 'stack', sub: 'AFF A320: two controllers stacked (2U), one PSU per controller · 2 PCIe slots · e0a-e0h onboard (40/100GbE)',
+    items: [['psu', 26, 3, 92, 48, 'PSU'], ['bay', 2, 156, 2, 122, 28, 'h'], ['bay', 1, 352, 2, 150, 28, 'h'],
+      ['p', 'e0a', 'qsfp', 137, 32, 't'], ['p', 'e0b', 'qsfp', 166, 32, 't'], ['p', 'e0c', 'qsfp', 277, 32, 't'], ['p', 'e0d', 'qsfp', 306, 32, 't'], ['p', 'e0e', 'qsfp', 333, 32, 't'], ['p', 'e0f', 'qsfp', 362, 32, 't'],
+      ['f', 'μUSB', 'umicro', 428, 38, 't'], ['f', 'USB', 'usb', 446, 34, 't'], ['p', 'e0g', 'qsfp', 470, 32, 't'], ['p', 'e0h', 'qsfp', 499, 32, 't'],
+      ['p', 'e0M', 'rj45', 532, 8, 't'], ['f', 'CON', 'rj45', 532, 32, 't']] };
   // AFF A250 / C250 / FAS500f
   _LAY.a250 = { W: 640, H: 64, mode: 'stack', zoom: 1.4, sub: 'AFF A250/C250: two controllers stacked (2U), one PSU per controller · 2 PCIe slots',
     items: [['psu', 36, 3, 92, 56, 'PSU'], ['f', 'CON', 'rj45', 180, 30, 'b'], ['f', 'USB', 'usb', 216, 34, 'b'], ['f', 'μUSB', 'umicro', 246, 46, 't'], ['p', 'e0M', 'rj45', 270, 34, 't'], ['led', 322, 22, 4],
@@ -36501,6 +36524,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   else if (_has('8300', '8700', 'a400', 'c400')) layout = 'mid7';
   else if (_has('a800', 'c800')) layout = 'a800';
   else if (_has('8200', 'a300')) layout = 'fas8200';
+  else if (_has('a320')) layout = 'a320';
   else if (_has('a250', 'c250', '500f')) layout = 'a250';
   else if (_has('2820', '2850')) layout = 'fas2800';
   else if (_has('a220', 'c190', 'a150', '150', '2720', '2750', '2650', '2620', 'a200')) layout = 'a220';
