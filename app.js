@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.132";
+const APP_VERSION = "5.6.133";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.133",
+    date: "27 September 2026",
+    title: "Legible Model Name",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Rear-panel header: the model name is now larger, bold and high-contrast in a small badge, so it is easy to read next to the controller title.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.132",
     date: "27 September 2026",
@@ -36330,7 +36345,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   };
   const _frame = (title, sub2, inner2, note2, legend2) => `<style>.bp-port .bpHalo,.bp-port .bpPill{display:none;pointer-events:none}.bp-port.hot .bpHalo{display:block;animation:bpPulse .7s ease-in-out infinite alternate}.bp-port.hot .bpPill{display:block}.bp-port.hot .bpBody{stroke:#fff;stroke-width:1.6}.bp-port.hot .bpNum circle{fill:#fff}.bp-port.hot .bpNum text{fill:#0b0e14}@keyframes bpPulse{from{opacity:.45}to{opacity:1}}</style><div style="background:linear-gradient(135deg,#13151f,#0a0c14);border:2px solid #2d3748;border-radius:var(--radius-sm);padding:10px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.6);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${title}</span><span style="font-size:0.55rem;color:#94a3b8;font-family:monospace;">${modelName}</span></div>
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.65rem;font-weight:800;color:var(--accent-cyan);letter-spacing:0.5px;">${title}</span><span style="font-size:0.85rem;font-weight:700;color:#f1f5f9;background:rgba(148,163,184,0.16);border:1px solid rgba(148,163,184,0.35);border-radius:4px;padding:1px 8px;letter-spacing:0.3px;">${modelName}</span></div>
       <span style="font-size:0.48rem;color:#6b7280;font-style:italic;max-width:70%;text-align:right;">${sub2}</span>
     </div>
     <div style="overflow-x:auto;padding:4px 0;">${inner2}</div>

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.133] - 2026-09-27
+
+### Changed
+- Rear-panel header: the model name is now larger, bold and high-contrast in a small badge, so it is easy to read next to the controller title.
+
+---
+
 ## [5.6.132] - 2026-09-27
 
 ### Changed
