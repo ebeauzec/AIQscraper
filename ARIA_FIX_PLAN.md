@@ -1,4 +1,4 @@
-# AIQscraper Fix Plan — Round 3: enrichment optimizations implemented
+# ARIA Fix Plan — Round 3: enrichment optimizations implemented
 
 Rounds 1 (contract-null cascade, asup_parser, mock badge, sustainabilityScore/
 osVersions/recommendations wiring) and 2 (native `Risk.cves` wiring) are done —

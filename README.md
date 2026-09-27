@@ -319,8 +319,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 ### Step 1 — Clone the Repository
 
 ```bash
-git clone https://github.com/ebeauzec/AIQscraper.git
-cd AIQscraper
+git clone https://github.com/ebeauzec/ARIA.git
+cd ARIA
 ```
 
 ### Step 2 — Get Your API Refresh Token
@@ -814,7 +814,7 @@ server.py  ─── port 8080 ───►  SQLite (aiq_cache.db)
 ### Repository Layout
 
 ```
-AIQscraper/
+ARIA/
 ├── build/           ← Packaging, installers, build scripts
 ├── data/            ← Reference data (security bulletins, firmware baselines, imt_interop.json, version_catalog.json, eoa_database.json)
 ├── dist/            ← Pre-built desktop app (PyInstaller output)
