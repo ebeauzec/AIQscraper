@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.128] - 2026-09-27
+
+### Changed
+- AFF A150 (and ASA A150) rear panels now use the A220-style layout from NetApp's A150 install guide (onboard e0a/e0b cluster, unified e0c-e0f, SAS, console and management) instead of the FAS2820 mezzanine layout, so its e0c/e0d/e0e/e0f (or FC 0e/0f) ports are drawn. Checked every ONTAP system in the fleet: all reported ports now have a position on the drawing except FC ports 0e/0f on the FAS50, which are listed under the drawing.
+
+---
+
 ## [5.6.127] - 2026-09-27
 
 ### Changed

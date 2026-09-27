@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.127";
+const APP_VERSION = "5.6.128";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.128",
+    date: "27 September 2026",
+    title: "AFF A150 Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "AFF A150 (and ASA A150) rear panels now use the A220-style layout from NetApp's A150 install guide (onboard e0a/e0b cluster, unified e0c-e0f, SAS, console and management) instead of the FAS2820 mezzanine layout, so its e0c/e0d/e0e/e0f (or FC 0e/0f) ports are drawn. Checked every ONTAP system in the fleet: all reported ports now have a position on the drawing except FC ports 0e/0f on the FAS50, which are listed under the drawing.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.127",
     date: "27 September 2026",
@@ -36313,11 +36328,11 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     items: [['psu', 36, 3, 92, 56, 'PSU'], ['f', 'CON', 'rj45', 180, 30, 'b'], ['f', 'USB', 'usb', 216, 34, 'b'], ['f', 'μUSB', 'umicro', 246, 46, 't'], ['p', 'e0M', 'rj45', 270, 34, 't'], ['led', 322, 22, 4],
       ['p', 'e0a', 'rj45', 350, 34, 't'], ['p', 'e0b', 'rj45', 380, 34, 't'], ['bay', 1, 430, 4, 100, 26, 'h'], ['bay', 2, 542, 4, 92, 26, 'h'], ['p', 'e0c', 'sfp', 456, 38, 't'], ['p', 'e0d', 'sfp', 486, 38, 't']] };
   // FAS2820 / AFF A150
-  _LAY.fas2800 = { W: 256, H: 122, mode: 'side', gap: 8, zoom: 3.0, sub: 'FAS2820 / AFF A150: two controllers side by side (2U), one PSU each · 1 mezzanine slot',
+  _LAY.fas2800 = { W: 256, H: 122, mode: 'side', gap: 8, zoom: 3.0, sub: 'FAS2820: two controllers side by side (2U), one PSU each · 1 mezzanine slot (AFF A150 uses the A220-style layout)',
     items: [['p', 'e0M', 'rj45', 24, 12, 't'], ['f', 'CON', 'rj45', 54, 12, 'b'], ['f', 'μUSB', 'umicro', 86, 18, 't'], ['f', 'USB', 'usb', 106, 15, 't'], ..._sasRow(['0a', '0b'], 146, 15, 21),
       ['p', 'e0a', 'sfp', 190, 14, 't'], ['p', 'e0b', 'sfp', 216, 14, 't'], ['bay', 1, 24, 40, 130, 30, 'h'], ['psu', 24, 76, 220, 40, 'PSU']] };
   // AFF A220 / C190, FAS2720 / FAS2750 (and FAS2650)
-  _LAY.a220 = { W: 282, H: 122, mode: 'side', gap: 14, zoom: 2.9, sub: 'AFF A220/C190, FAS2720/2750: two controllers side by side (2U), one PSU each',
+  _LAY.a220 = { W: 282, H: 122, mode: 'side', gap: 14, zoom: 2.9, sub: 'AFF A220/C190/A150, FAS2720/2750: two controllers side by side (2U), one PSU each · e0c-e0f = unified / 10GbE ports (in FC mode they appear as 0e/0f)',
     items: [..._sasRow(['0a', '0b'], 8, 18, 20), ['p', 'e0a', 'sfp', 50, 18, 't'], ['p', 'e0b', 'sfp', 75, 18, 't'], ['p', 'e0c', 'sfp', 106, 32, 't'], ['p', 'e0d', 'sfp', 131, 32, 't'], ['p', 'e0e', 'sfp', 166, 18, 't'], ['p', 'e0f', 'sfp', 191, 18, 't'],
       ['f', 'USB', 'usb', 226, 14, 't'], ['f', 'CON', 'rj45', 224, 34, 'b'], ['p', 'e0M', 'rj45', 252, 16, 't'], ['psu', 14, 70, 244, 46, 'PSU']] };
   // AFF A1K / A70 / A90, FAS70 / FAS90 (11 slot positions, NVRAM 4&5)
@@ -36454,8 +36469,8 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   else if (_has('a800', 'c800')) layout = 'a800';
   else if (_has('8200', 'a300')) layout = 'fas8200';
   else if (_has('a250', 'c250', '500f')) layout = 'a250';
-  else if (_has('2820', '2850', 'a150', '150')) layout = 'fas2800';
-  else if (_has('a220', 'c190', '2720', '2750', '2650', '2620', 'a200')) layout = 'a220';
+  else if (_has('2820', '2850')) layout = 'fas2800';
+  else if (_has('a220', 'c190', 'a150', '150', '2720', '2750', '2650', '2620', 'a200')) layout = 'a220';
   else if (_has('a1k', 'a70', 'a90', '70', '90')) layout = 'gen11';
   else if (_has('a20', 'a30', 'a50', 'c30', 'c60', '50')) layout = 'a20';
 
