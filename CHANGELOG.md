@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.123] - 2026-09-27
+
+### Changed
+- Technical Audit node view: the port table now sits to the right of the rear-panel drawing, with the LIF inventory below both (it wraps under the drawing on narrow windows); the always-empty Link Partner and Target Port columns were dropped from the port table to save width.
+
+---
+
 ## [5.6.122] - 2026-09-27
 
 ### Changed

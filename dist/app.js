@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.122";
+const APP_VERSION = "5.6.123";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.123",
+    date: "27 September 2026",
+    title: "Ports Beside The Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Technical Audit node view: the port table now sits to the right of the rear-panel drawing, with the LIF inventory below both (it wraps under the drawing on narrow windows); the always-empty Link Partner and Target Port columns were dropped from the port table to save width.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.122",
     date: "27 September 2026",
@@ -36510,8 +36525,6 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           </span>
         </td>
         <td style="padding: 10px;">${_cfgInf || configDetail}</td>
-        <td style="padding: 10px; font-weight: 500;">${partnerCell}</td>
-        <td style="padding: 10px;">${partnerPortCell}</td>
         <td style="padding: 10px;">${statusBadge}</td>
       </tr>
     `;
@@ -36525,7 +36538,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     const _emptyMsg = _isEseriesSys
       ? 'Active IQ does not expose per-port Ethernet telemetry for E-Series/SANtricity systems (only available for ONTAP systems).'
       : 'No per-port telemetry reported by Active IQ for this system.';
-    tableRowsHtml = `<tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">${_emptyMsg}</td></tr>`;
+    tableRowsHtml = `<tr><td colspan="5" style="padding: 16px; text-align: center; color: var(--text-muted); font-style: italic;">${_emptyMsg}</td></tr>`;
   }
 
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
@@ -36638,11 +36651,13 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   container.innerHTML = `
     ${tabsHtml}
 
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">
     <!-- Physical Controller Rear Panel -->
-    ${backplateHtml}
+    <div style="flex:1 1 620px;min-width:0;">${backplateHtml}</div>
 
-    <!-- Cabling Audit Table (full-width) -->
-    <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto; background: rgba(15,22,38,0.3);">
+    <!-- Port table, beside the drawing -->
+    <div style="flex:1 1 430px;min-width:0;">
+    <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: auto; max-height: 760px; background: rgba(15,22,38,0.3);">
       <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
         <thead>
           <tr style="background: rgba(255, 255, 255, 0.015); border-bottom: 1px solid var(--border-color); text-align: left;">
@@ -36650,8 +36665,6 @@ function renderNodeVisualLayout(selectedSystems, sys) {
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Port</th>
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Type</th>
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Speed / Configuration</th>
-            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Partner Device</th>
-            <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Target Port</th>
             <th style="padding: 10px; font-weight: 600; color: var(--text-secondary);">Link Status</th>
           </tr>
         </thead>
@@ -36659,6 +36672,9 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           ${tableRowsHtml}
         </tbody>
       </table>
+    </div>
+    <div style="font-size:0.62rem;color:var(--text-muted);margin-top:6px;">Link partner and target port are not available from the Active IQ API. Click a row (or a connector) to keep it lit.</div>
+    </div>
     </div>
 
     ${lifTableHtml}
