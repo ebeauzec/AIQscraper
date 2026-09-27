@@ -27,9 +27,41 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.137";
+const APP_VERSION = "5.6.138";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.138",
+    date: "27 September 2026",
+    title: "Shelf Firmware Currency, Live",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "The currently-installed shelf module firmware was never shown anywhere -- only the recommended baseline. Root cause: Active IQ's GraphQL schema has no per-shelf firmware field at all (confirmed via live schema introspection: Shelf, ShelfModuleHardwareModel and Bays all lack one); the field that does carry it, shelvesSummary { firmware { currentVersion recommendedVersion } } }, was never queried. Added as its own harvest pass (server.py, SHELVES_SUMMARY_FIELDS) after an inline attempt broke the main systems query (Active IQ's GraphQL 'maximum height' query-complexity limit) and silently degraded the whole harvest to a thinner tier -- caught and reverted before it reached production data.",
+          "Two more shelf-firmware code paths were fixed at the same time, both dead since they were written: the As-Built Document / Technical Audit 'Shelf Module Firmware' table (was grouping by sh.moduleType, not a real Shelf field, so it always fell through empty) and the Action Plan Phase 2 'shelf firmware drift' detector (same wrong field names, plus the never-populated firmware field -- shelfDrift was permanently empty regardless of fleet state).",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Added",
+        color: "#38bdf8",
+        items: [
+          "Shelf firmware currency now flows through every consumer of the shared computeFleetFirmwareSummary()/_resolveShelfModules() helpers: a new 'Shelf FW Current' KPI tile and per-system 'Shelf:' badge in the Action Planner's Firmware Currency section, a fifth component (15% weight) in the HW Firmware Currency composite score everywhere it's quoted (rebalanced from SP 25/MB 25/DQP 20/Drive 30 to SP 20/MB 20/DQP 15/Shelf 15/Drive 30), and the Shelf % breakdown in all customer-facing deliverables that cite HW Firmware Currency.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Improved",
+        color: "#38bdf8",
+        items: [
+          "Cluster node pairs (e.g. CLUSDR-01/-02) were left in raw harvest-fetch order in the Firmware Currency system list and the Technical Audit's Recommended OS Upgrades list, which could interleave unrelated clusters' nodes. Both now sort by cluster, then system name, so a cluster's nodes are always adjacent.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.137",
     date: "27 September 2026",
@@ -7882,7 +7914,26 @@ function _demoHydrateSystem(s, ctx) {
         else { const synth = _demoSynthPorts(bucket, rng, s.serialNumber); if (synth) out.networkPorts = synth; else fill('networkPorts', prof.networkPorts); }
       }
       if (prof.shelves) fill('shelves', prof.shelves);
-      if (prof.vservers) fill('vservers', _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v)))));
+      if (prof.vservers) {
+        const substituted = _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v))));
+        // worldWidePortName came verbatim from the curated profile with no substitution --
+        // when the same profile is reused across many demo systems (which it is; the
+        // candidate pool is small), every one of them got the exact literal same WWPN on
+        // every LIF, which is impossible on a real fabric (WWPNs are globally unique).
+        // Keep the adapter-index and OUI bytes (the part that already varied per-LIF and
+        // looks like a real vendor prefix) and re-derive only the node-identifying tail
+        // bytes from this system's own serial number, the same way _demoSynthPorts derives
+        // per-system MAC addresses above.
+        substituted.forEach(v => (v.logicalInterfaces || []).forEach(l => {
+          if (!l.worldWidePortName) return;
+          const parts = l.worldWidePortName.split(':');
+          if (parts.length !== 8) return;
+          const h = _demoHash(s.serialNumber + '|wwpn|' + (l.name || ''));
+          for (let i = 5; i < 8; i++) parts[i] = ((h >>> ((i - 5) * 8)) & 0xff).toString(16).padStart(2, '0');
+          l.worldWidePortName = parts.join(':');
+        }));
+        fill('vservers', substituted);
+      }
       // The vservers/LIFs above came from `prof` (matched loosely, by product line, for realistic SVM/
       // protocol/service-policy shapes) while networkPorts above came from a stricter, chassis-accurate
       // match or the synthesized template -- two independent picks that can disagree on which specific
@@ -14099,6 +14150,7 @@ function renderTAMTab() {
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       upgradeItems.push({
         systemName: sys.systemName,
+        clusterName: sys.clusterName,
         currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion,
         targetVersion: sys.upgrades.targetVersion,
         urgency: sys.upgrades.urgency,
@@ -14107,7 +14159,16 @@ function renderTAMTab() {
       });
     }
   });
-  
+  // Group HA/cluster node pairs together instead of raw harvest-fetch order (which
+  // interleaves unrelated clusters' nodes so a cluster's two nodes can end up far
+  // apart in the list).
+  upgradeItems.sort((a, b) => {
+    const ca = a.clusterName || a.systemName || '', cb = b.clusterName || b.systemName || '';
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = a.systemName || '', nb = b.systemName || '';
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  });
+
   if (upgradeItems.length === 0) {
     upgradeBox.innerHTML = `
       <h3 style="color: var(--status-normal); margin-bottom: 12px;">✓ Systems Up to Date</h3>
@@ -19262,6 +19323,10 @@ function enrichSystemTelemetry(s) {
     diskQualificationPackage: s.diskQualificationPackage || {},
     recommendedDriveFirmwares: s.recommendedDriveFirmwares || {},
     shelves:               s.shelves || [],
+    // shelvesSummary -- separate from `shelves` above; Active IQ's per-shelf list has
+    // no installed-firmware field, only this module-type-grouped one does (see the
+    // Firmware Currency section's comment in _renderFirmwareCurrencySection).
+    shelvesSummary:        s.shelvesSummary || [],
     autoUpdateSettings: s.autoUpdateSettings || {},
     // ── Lifecycle Events & Licenses ──
     lifecycleEvents:   s.lifecycleEvents || [],
@@ -22102,12 +22167,17 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   });
 
   // ── Shelf firmware compliance ──
+  // Was keyed on sh.moduleType/sh.firmwareVersion/sh.model, none of which are real
+  // Shelf fields (the real ones are moduleHardwareModel.name/hardwareModel.name, and
+  // there is no per-shelf firmware field at all -- see _resolveShelfModules) so this
+  // always matched nothing and shelfDrift was permanently empty regardless of fleet
+  // state. Rewritten against the same shared module-group resolver the Action Planner
+  // UI and computeFleetFirmwareSummary() use.
   const shelfDrift = [];
   targetSystems.forEach(sys => {
-    (sys.shelves || []).forEach(sh => {
-      const baseline = (_getRefLibBaselines())[sh.moduleType];
-      if (baseline && sh.firmwareVersion && _isBehind(sh.firmwareVersion, baseline.recommended)) {
-        shelfDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
+    Object.values(_resolveShelfModules(sys)).forEach(info => {
+      if (info.currentFw && info.baseline && _isBehind(info.currentFw, info.baseline.recommended)) {
+        shelfDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: Array.from(info.shelfModels).join('/'), module: info.modName, current: info.currentFw, recommended: info.baseline.recommended });
       }
     });
   });
@@ -22277,7 +22347,7 @@ ${platformLines}
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
   - ARP Coverage:            ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported by Active IQ)' : ''}
   - OS Currency:             ${fwCurrent}/${fwKnown} (${fwKnown > 0 ? Math.round(fwCurrent/fwKnown*100) : 0}%) — running recommended OS baseline${fwKnown < systemCount ? ` (${systemCount - fwKnown} system${systemCount - fwKnown !== 1 ? 's' : ''} without a recommended version reported are excluded)` : ''}
-  - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Support Contract Coverage: ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active per Active IQ's contract data
 
 * FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
@@ -22870,7 +22940,7 @@ Prepared: ${_qbrPreparedBy}
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported by Active IQ)' : ''}
   OS Currency:              ${fwCurrent}/${fwKnown} systems (${fwPct}%) — running recommended OS version
-  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Support Contract Coverage: ${contractActive}/${total} systems (${contractPct}%) — active per Active IQ's contract data
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
@@ -23182,7 +23252,7 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Systems Under Management:  ${total}
   Support Contract Coverage: ${activeContracts}/${total} (${contractPct}%) active per Active IQ's contract data
   ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
-  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 ${avgAge !== '—' ? `  Average System Age:        ${avgAge} years\n` : ''}
 --------------------------------------------------------------------------------
 2. PER-CUSTOMER HEALTH DASHBOARD [METRICS]
@@ -23779,7 +23849,7 @@ ${compileSvmLifSummaryText(targetSystems)}
   ASUP Compliance:      ${asupPct}%
   ARP Coverage:         ${_ontapN > 0 ? arpPct + '%' : 'N/A (no ONTAP systems)'}
   Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
-  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 
   Top Issues Requiring Attention:
 ${topIssues}
@@ -24037,7 +24107,7 @@ ${kevAckBlock}
     OS Currency:              ${fwCurrent}/${fwKnown} on recommended version
 ${(fw || {}).ontapCount === 0 ? `    HW Firmware Attack Surface: N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)` : `    HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
       SP Firmware: ${(fw || {}).spPct || 0}% current | MB Firmware: ${(fw || {}).mbPct || 0}% current
-      DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current`}
+      DQP: ${(fw || {}).dqpPct || 0}% current | Shelf FW: ${(fw || {}).shelfPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current`}
     CISA KEV Exposure:        ${kevExposures}
 
   2. COST OF INACTION — SECURITY
@@ -24575,6 +24645,61 @@ function computeFleetWarrantyStatus(targetSystems) {
   return { warrantyActive, warrantyExpired, warrantyUnknown, expiring30, expiring90, active: warrantyActive, expired: warrantyExpired, tierDist, perSystem };
 }
 
+// Shelf module currency check against REFERENCE_LIBRARY_FIRMWARE_BASELINES -- shared by
+// computeFleetFirmwareSummary() (fleet-wide KPI + every deliverable that quotes it) and
+// _renderFirmwareCurrencySection() (Action Planner Section 15 UI), so "what's the
+// recommended firmware for module X" is one definition, not two that can disagree.
+function _shelfModuleCurrency(moduleModelName) {
+  if (!moduleModelName) return null;
+  // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
+  const baseline = _getRefLibBaselines()[moduleModelName];
+  if (baseline) return { recommended: baseline.recommended, label: baseline.label };
+  // Try prefix: "IOM12" from "IOM12 v0260". Baseline keys can themselves be
+  // prefixes of one another (e.g. "IOM12" vs "IOM12G"/"IOM12B") -- matching
+  // in object insertion order let the shorter, wrong key win whenever it
+  // happened to be defined first (e.g. "IOM12G v0270" silently matched the
+  // "IOM12" baseline instead of "IOM12G"). Sort candidates longest-first so
+  // the most specific real key always wins.
+  const candidates = Object.entries(_getRefLibBaselines())
+    .filter(([key]) => moduleModelName.startsWith(key) || key.startsWith(moduleModelName))
+    .sort((a, b) => b[0].length - a[0].length);
+  if (candidates.length > 0) {
+    const [, val] = candidates[0];
+    return { recommended: val.recommended, label: val.label };
+  }
+  return null;
+}
+
+// Resolves a system's shelf modules to {modName, currentFw, count, shelfModels, baseline}
+// groups, preferring Active IQ's own live shelvesSummary.firmware over the locally
+// maintained reference-library baseline. Shared by computeFleetFirmwareSummary() and
+// _renderFirmwareCurrencySection() so both compute shelf firmware currency identically.
+function _resolveShelfModules(sys) {
+  const shelves = sys.shelves || [];
+  const shelfFwByModule = {};
+  (sys.shelvesSummary || []).forEach(ss => {
+    const name = ss.shelfModuleName || (ss.moduleHardwareModel || {}).name || '';
+    if (name) shelfFwByModule[name] = ss;
+  });
+  const shelfModules = {};
+  shelves.forEach(sh => {
+    const modName = (sh.moduleHardwareModel || {}).name || '';
+    const shelfModel = (sh.hardwareModel || {}).name || '?';
+    const fwInfo = shelfFwByModule[modName];
+    const curFw = (fwInfo && fwInfo.firmware && fwInfo.firmware.currentVersion) || '';
+    if (!modName) return;
+    const key = modName + '|' + curFw;
+    if (!shelfModules[key]) {
+      const aiqRec = fwInfo && fwInfo.firmware && fwInfo.firmware.recommendedVersion;
+      const baseline = aiqRec ? { recommended: aiqRec, label: 'Active IQ reported' } : _shelfModuleCurrency(modName);
+      shelfModules[key] = { modName, currentFw: curFw, count: 0, shelfModels: new Set(), baseline };
+    }
+    shelfModules[key].count++;
+    shelfModules[key].shelfModels.add(shelfModel);
+  });
+  return shelfModules;
+}
+
 function computeFleetFirmwareSummary(allSystems) {
   // SP/BMC + motherboard BIOS + DQP + drive firmware is an ONTAP hardware model.
   // For E-Series the SANtricity OS was being treated as "SP firmware" and BIOS/DQP
@@ -24600,6 +24725,7 @@ function computeFleetFirmwareSummary(allSystems) {
   let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
   let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
   let driveFwCurrent = 0, driveFwBehind = 0, driveFwUnknown = 0;
+  let shelfFwCurrent = 0, shelfFwBehind = 0, shelfFwUnknown = 0;
   let totalDrives = 0, totalShelves = 0;
   const perSystem = [];
 
@@ -24627,10 +24753,7 @@ function computeFleetFirmwareSummary(allSystems) {
     totalShelves += shelfCount;
     let sysDrvCur = 0, sysDrvBeh = 0, sysDrvUnk = 0;
     const recDriveFw = sys.recommendedDriveFirmwares || {};
-    const shelfModules = [];
     shelves.forEach(sh => {
-      const modName = (sh.moduleHardwareModel || {}).name || '';
-      if (modName && !shelfModules.includes(modName)) shelfModules.push(modName);
       for (const drive of ((sh.drives || {}).drives || [])) {
         const model = (drive.hardwareModel || {}).name || 'Unknown';
         const fw = drive.firmwareRevision || 'Unknown';
@@ -24643,10 +24766,22 @@ function computeFleetFirmwareSummary(allSystems) {
       }
     });
 
-    // Compute per-system firmware currency score (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)
+    // Shelf module firmware (see _resolveShelfModules -- shared with the Action Planner UI)
+    const shelfModuleGroups = _resolveShelfModules(sys);
+    let sysShelfCur = 0, sysShelfBeh = 0, sysShelfUnk = 0;
+    Object.values(shelfModuleGroups).forEach(info => {
+      const shelfMatch = info.currentFw && info.baseline ? _fwCmp(info.currentFw, info.baseline.recommended) : null;
+      if (shelfMatch === true) { sysShelfCur += info.count; shelfFwCurrent += info.count; }
+      else if (shelfMatch === false) { sysShelfBeh += info.count; shelfFwBehind += info.count; }
+      else { sysShelfUnk += info.count; shelfFwUnknown += info.count; }
+    });
+    const _sysShelfTotal = sysShelfCur + sysShelfBeh + sysShelfUnk;
+
+    // Compute per-system firmware currency score (weighted: SP 20%, MB 20%, DQP 15%, Shelf 15%, Drive 30%)
     const _sysDrvTotal = sysDrvCur + sysDrvBeh + sysDrvUnk;
     const _sysScore = Math.round(
-      (spMatch ? 25 : 0) + (mbMatch ? 25 : 0) + (dqpMatch ? 20 : 0) +
+      (spMatch ? 20 : 0) + (mbMatch ? 20 : 0) + (dqpMatch ? 15 : 0) +
+      (_sysShelfTotal > 0 ? Math.round(sysShelfCur / _sysShelfTotal * 15) : 0) +
       (_sysDrvTotal > 0 ? Math.round(sysDrvCur / _sysDrvTotal * 30) : 0)
     );
     const _sysStatus = _sysScore >= 80 ? 'Current' : _sysScore >= 50 ? 'Partial' : 'Behind';
@@ -24658,8 +24793,9 @@ function computeFleetFirmwareSummary(allSystems) {
       mb: { current: mbfw.currentVersion || '', recommended: mbfw.recommendedVersion || '', match: mbMatch },
       dqp: { current: dqp.currentVersion || '', recommended: dqp.recommendedVersion || '', match: dqpMatch },
       drives: { current: sysDrvCur, behind: sysDrvBeh, unknown: sysDrvUnk, total: _sysDrvTotal },
+      shelfFirmware: { current: sysShelfCur, behind: sysShelfBeh, unknown: sysShelfUnk, total: _sysShelfTotal },
       shelves: shelfCount,
-      shelfModules: shelfModules.join(', '),
+      shelfModules: Object.values(shelfModuleGroups).map(m => m.modName).filter((v, i, a) => a.indexOf(v) === i).join(', '),
       score: _sysScore,
       status: _sysStatus
     });
@@ -24670,20 +24806,23 @@ function computeFleetFirmwareSummary(allSystems) {
   const mbTotal = mbCurrent + mbBehind + mbUnknown;
   const dqpTotal = dqpCurrent + dqpBehind + dqpUnknown;
   const drvTotal = driveFwCurrent + driveFwBehind + driveFwUnknown;
+  const shelfFwTotal = shelfFwCurrent + shelfFwBehind + shelfFwUnknown;
   const spPct = spTotal > 0 ? Math.round(spCurrent / spTotal * 100) : 0;
   const mbPct = mbTotal > 0 ? Math.round(mbCurrent / mbTotal * 100) : 0;
   const dqpPct = dqpTotal > 0 ? Math.round(dqpCurrent / dqpTotal * 100) : 0;
   const drivePct = drvTotal > 0 ? Math.round(driveFwCurrent / drvTotal * 100) : 0;
-  // Weighted composite: SP 25%, MB 25%, DQP 20%, Drive 30%
-  const overallFwScore = Math.round(spPct * 0.25 + mbPct * 0.25 + dqpPct * 0.20 + drivePct * 0.30);
+  const shelfPct = shelfFwTotal > 0 ? Math.round(shelfFwCurrent / shelfFwTotal * 100) : 0;
+  // Weighted composite: SP 20%, MB 20%, DQP 15%, Shelf 15%, Drive 30%
+  const overallFwScore = Math.round(spPct * 0.20 + mbPct * 0.20 + dqpPct * 0.15 + shelfPct * 0.15 + drivePct * 0.30);
 
   return {
     spCurrent, spBehind, spUnknown,
     mbCurrent, mbBehind, mbUnknown,
     dqpCurrent, dqpBehind, dqpUnknown,
     driveFwCurrent, driveFwBehind, driveFwUnknown,
+    shelfFwCurrent, shelfFwBehind, shelfFwUnknown,
     totalDrives, totalShelves,
-    spPct, mbPct, dqpPct, drivePct, overallFwScore,
+    spPct, mbPct, dqpPct, drivePct, shelfPct, overallFwScore,
     perSystem,
     ontapCount: targetSystems.length
   };
@@ -25259,9 +25398,10 @@ HARDWARE FIRMWARE CURRENCY (Detailed)${fw.ontapCount === 0 ? `
   SP/BMC:             ${fw.spCurrent}/${fw.ontapCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
   Motherboard BIOS:   ${fw.mbCurrent}/${fw.ontapCount} current (${fw.mbPct}%)${fw.mbBehind > 0 ? ' — ' + fw.mbBehind + ' need update' : ''}
   DQP:                ${fw.dqpCurrent}/${fw.ontapCount} current (${fw.dqpPct}%)${fw.dqpBehind > 0 ? ' — ' + fw.dqpBehind + ' need update' : ''}
+  Shelf Firmware:     ${fw.shelfFwCurrent}/${fw.shelfFwCurrent + fw.shelfFwBehind + fw.shelfFwUnknown} current (${fw.shelfPct}%)${fw.shelfFwBehind > 0 ? ' — ' + fw.shelfFwBehind + ' need update' : ''}
   Drive Firmware:     ${fw.driveFwCurrent}/${fw.totalDrives} current (${fw.drivePct}%)${fw.driveFwBehind > 0 ? ' — ' + fw.driveFwBehind + ' behind' : ''}
   Disk Shelves:       ${fw.totalShelves} total across fleet
-  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)`}
+  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 20%, MB 20%, DQP 15%, Shelf 15%, Drive 30%)`}
 
 ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unique CVEs (all severities), ${coi.capacityRed} capacity-red system${coi.capacityRed !== 1 ? 's' : ''}${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
@@ -25387,7 +25527,7 @@ OPERATIONAL HEALTH SNAPSHOT:
   ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
   ARP Protection:     ${_ontapNE > 0 ? pctArp + '% (' + arpEnabledCount + '/' + _ontapNE + ' ONTAP systems with Anti-Ransomware enabled)' : 'N/A (ARP is an ONTAP feature; no ONTAP systems in scope)'}
   OS Currency:        ${pctFw}% (${fwCurrentCount}/${fwKnownCount} on recommended OS version)
-  HW Firmware Score:  ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP: ' + fw.spPct + '%, MB: ' + fw.mbPct + '%, DQP: ' + fw.dqpPct + '%, Drives: ' + fw.drivePct + '%)'}
+  HW Firmware Score:  ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP: ' + fw.spPct + '%, MB: ' + fw.mbPct + '%, DQP: ' + fw.dqpPct + '%, Shelf: ' + fw.shelfPct + '%, Drives: ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} active per Active IQ's contract data)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
@@ -25429,7 +25569,7 @@ HEALTH METRICS:
   ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
   ARP Coverage:       ${_ontapNE > 0 ? pctArp + '% ' + (pctArp < 100 ? '⚠' : '✓') : 'N/A (no ONTAP systems)'}
   OS Currency:        ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
-  HW Firmware:        ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% ' + (fw.overallFwScore < 80 ? '⚠' : '✓') + ' (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
+  HW Firmware:        ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% ' + (fw.overallFwScore < 80 ? '⚠' : '✓') + ' (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Shelf ' + fw.shelfPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'} (active per Active IQ's contract data)
   Feature Adoption:   ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average' : 'N/A (ONTAP feature set)'}
   DR Coverage:        ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SM / ' + dr.mcSystems + ' MC)' : 'N/A (ONTAP-only)'}${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
@@ -25630,7 +25770,7 @@ OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
   ARP Coverage:           ${_covTxt(arpEnabledCount, _ontapNE)}
   OS Currency:            ${pctFw}% (${fwCurrentCount}/${fwKnownCount} systems)
-  HW Firmware Score:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
+  HW Firmware Score:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Shelf ' + fw.shelfPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} systems; active per Active IQ's contract data)
 
 PRIORITISED CORRECTIVE ACTIONS
@@ -27465,6 +27605,16 @@ function _toggleFwCard(cardId) {
 }
 
 function _renderFirmwareCurrencySection(systems) {
+  // Group HA/cluster node pairs together instead of leaving them in raw harvest-fetch
+  // order (which interleaves unrelated clusters' nodes, e.g. CLUSDR-02, INTCLUS-02,
+  // CLUSDR-01 -- the two CLUSDR nodes end up nowhere near each other). Sort by cluster
+  // first, then system name, so every cluster's nodes are always adjacent.
+  systems = [...systems].sort((a, b) => {
+    const ca = a.clusterName || a.systemName || '', cb = b.clusterName || b.systemName || '';
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = a.systemName || '', nb = b.systemName || '';
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  });
   // ── Helpers ──
   const _fwMatch = (cur, rec) => {
     if (!cur || !rec) return null; // unknown
@@ -27519,33 +27669,12 @@ function _renderFirmwareCurrencySection(systems) {
     return Object.values(byKey).sort((a, b) => b.count - a.count);
   };
 
-  // ── Shelf module currency check against REFERENCE_LIBRARY_FIRMWARE_BASELINES ──
-  const _shelfModuleCurrency = (moduleModelName) => {
-    if (!moduleModelName) return null;
-    // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
-    const baseline = _getRefLibBaselines()[moduleModelName];
-    if (baseline) return { recommended: baseline.recommended, label: baseline.label };
-    // Try prefix: "IOM12" from "IOM12 v0260". Baseline keys can themselves be
-    // prefixes of one another (e.g. "IOM12" vs "IOM12G"/"IOM12B") -- matching
-    // in object insertion order let the shorter, wrong key win whenever it
-    // happened to be defined first (e.g. "IOM12G v0270" silently matched the
-    // "IOM12" baseline instead of "IOM12G"). Sort candidates longest-first so
-    // the most specific real key always wins.
-    const candidates = Object.entries(_getRefLibBaselines())
-      .filter(([key]) => moduleModelName.startsWith(key) || key.startsWith(moduleModelName))
-      .sort((a, b) => b[0].length - a[0].length);
-    if (candidates.length > 0) {
-      const [, val] = candidates[0];
-      return { recommended: val.recommended, label: val.label };
-    }
-    return null;
-  };
-
   // ── Fleet-wide firmware stats ──
   let spCurrent = 0, spBehind = 0, spUnknown = 0;
   let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
   let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
   let driveFwCurrent = 0, driveFwBehind = 0, driveFwUnknown = 0;
+  let shelfFwCurrent = 0, shelfFwBehind = 0, shelfFwUnknown = 0;
   let totalDrives = 0, totalShelves = 0;
 
   const systemCards = [];
@@ -27596,17 +27725,26 @@ function _renderFirmwareCurrencySection(systems) {
       }
     });
 
-    // Shelf module info
-    const shelfModules = {};
-    shelves.forEach(sh => {
-      const modName = (sh.moduleHardwareModel || {}).name || '';
-      const shelfModel = (sh.hardwareModel || {}).name || '?';
-      if (modName) {
-        if (!shelfModules[modName]) shelfModules[modName] = { count: 0, shelfModels: new Set(), baseline: _shelfModuleCurrency(modName) };
-        shelfModules[modName].count++;
-        shelfModules[modName].shelfModels.add(shelfModel);
-      }
+    // Shelf module current firmware -- the per-shelf `shelves { }` list has no firmware
+    // field at all (confirmed via live GraphQL schema introspection: Shelf,
+    // ShelfModuleHardwareModel and Bays all lack one). The field that DOES carry it is a
+    // separate one, `shelvesSummary { firmware { currentVersion recommendedVersion } } }`,
+    // grouped by module type rather than per physical shelf -- fetched as its own pass in
+    // server.py (SHELVES_SUMMARY_FIELDS) since adding it inline to the main systems query
+    // pushed Active IQ's GraphQL "maximum height" query-complexity limit and silently
+    // degraded the whole harvest to a much thinner tier.
+    const shelfModules = _resolveShelfModules(sys);
+
+    // Shelf module firmware currency (fleet-wide tally AND per-system card badge, same
+    // current-vs-baseline comparison already used for SP/BMC, motherboard, DQP and drive
+    // firmware above)
+    let sysShelfCurrent = 0, sysShelfBehind = 0, sysShelfUnknown = 0;
+    Object.values(shelfModules).forEach(info => {
+      if (!info.currentFw || !info.baseline) { shelfFwUnknown += info.count; sysShelfUnknown += info.count; return; }
+      if (_fwMatch(info.currentFw, info.baseline.recommended)) { shelfFwCurrent += info.count; sysShelfCurrent += info.count; }
+      else { shelfFwBehind += info.count; sysShelfBehind += info.count; }
     });
+    const shelfMatch = shelfCount === 0 ? null : (sysShelfBehind > 0 ? false : (sysShelfCurrent > 0 ? true : null));
 
     // ── Build card HTML ──
     const cardId = `fw-card-${(sys.serialNumber || Math.random().toString(36).slice(2))}`;
@@ -27627,8 +27765,8 @@ function _renderFirmwareCurrencySection(systems) {
     const drvMatch = driveCount === 0 ? null : (sysDrvBehind > 0 ? false : (sysDrvCurrent > 0 ? true : null));
 
     // Determine worst-case status for the card header color
-    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false || drvMatch === false;
-    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null) && (drvMatch === true || drvMatch === null);
+    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false || drvMatch === false || shelfMatch === false;
+    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null) && (drvMatch === true || drvMatch === null) && (shelfMatch === true || shelfMatch === null);
     const headerColor = anyBehind ? 'rgba(245,158,11,0.12)' : (allCurrent ? 'rgba(16,185,129,0.08)' : 'rgba(99,102,241,0.08)');
     const headerBorder = anyBehind ? 'rgba(245,158,11,0.3)' : (allCurrent ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)');
 
@@ -27644,6 +27782,7 @@ function _renderFirmwareCurrencySection(systems) {
           <span title="Motherboard BIOS">MB: ${_badge(mbMatch)}</span>
           <span title="Disk Qualification Package">DQP: ${_badge(dqpMatch)}</span>
           <span title="Drive Firmware (${sysDrvCurrent} current, ${sysDrvBehind} behind)">Drv: ${_badge(drvMatch)}</span>
+          <span title="Shelf Module Firmware (${sysShelfCurrent} current, ${sysShelfBehind} behind, ${sysShelfUnknown} unknown)">Shelf: ${_badge(shelfMatch)}</span>
           <span style="color:var(--text-muted);">📦 ${shelfCount} shelf${shelfCount !== 1 ? 's' : ''} · ${driveCount} drive${driveCount !== 1 ? 's' : ''}</span>
         </span>
       </div>
@@ -27673,30 +27812,44 @@ function _renderFirmwareCurrencySection(systems) {
         </div>`;
 
     // ── Shelf modules table ──
+    // Active IQ's GraphQL schema has no per-shelf "currently installed firmware"
+    // field anywhere reachable from a shelf (Shelf, ShelfModuleHardwareModel and
+    // Bays were all checked via live introspection) -- Active IQ tracks shelf
+    // firmware currency only as a fleet-wide outdated COUNT internally, never the
+    // actual version string per shelf. So "Current FW" is genuinely unreported by
+    // the API for every shelf, not an ARIA harvesting gap -- shown honestly below
+    // instead of a silent blank column.
     const moduleEntries = Object.entries(shelfModules);
     if (moduleEntries.length > 0) {
+      const anyCurrentFwReported = moduleEntries.some(([, info]) => !!info.currentFw);
       cardHtml += `
         <div style="margin-bottom:12px;">
           <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Shelf Modules</div>
+          ${!anyCurrentFwReported ? '<div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:6px;">Active IQ did not report a currently-installed firmware version for this system\'s shelf module(s) this sync -- "Current FW" is blank below. Recommended baseline is still shown.</div>' : ''}
           <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
             <thead><tr>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Module</th>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Shelf Models</th>
               <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Count</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Current FW</th>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Recommended FW</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Status</th>
             </tr></thead><tbody>`;
-      moduleEntries.forEach(([modName, info]) => {
+      moduleEntries.forEach(([key, info]) => {
         const rec = info.baseline ? info.baseline.recommended : '—';
         const label = info.baseline ? info.baseline.label : '';
+        const shMatch = info.currentFw && info.baseline ? _fwMatch(info.currentFw, info.baseline.recommended) : null;
         cardHtml += `
             <tr>
-              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${modName}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${info.modName}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text-secondary);">${Array.from(info.shelfModels).join(', ')}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">${info.count}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);"><code style="color:var(--text-primary);">${_ver(info.currentFw)}</code></td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);">
                 <code style="color:var(--accent-cyan);">${rec}</code>
                 ${label ? `<div style="font-size:0.65rem;color:var(--text-muted);">${label}</div>` : ''}
               </td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);">${_badge(shMatch)}</td>
             </tr>`;
       });
       cardHtml += `</tbody></table></div>`;
@@ -27770,10 +27923,11 @@ function _renderFirmwareCurrencySection(systems) {
     </div>`;
   };
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+  let html = `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;">
     ${_kpiTile('SP/BMC Current', spCurrent, spBehind, spUnknown, '🔧', 'Service Processor / BMC firmware — manages remote console, power cycling, and out-of-band management. Updated automatically with ONTAP patches or manually via system service-processor image update.')}
     ${_kpiTile('Motherboard Current', mbCurrent, mbBehind, mbUnknown, '🖥️', 'Motherboard BIOS firmware — controls hardware initialization, PCIe enumeration, and boot sequence. Updated via system firmware update command.')}
     ${_kpiTile('DQP Current', dqpCurrent, dqpBehind, dqpUnknown, '💿', 'Disk Qualification Package — determines which drive models are supported. Outdated DQP may prevent new drives from being recognized. Updated via storage disk option modify or automatic updates.')}
+    ${_kpiTile('Shelf FW Current', shelfFwCurrent, shelfFwBehind, shelfFwUnknown, '📦', 'Shelf I/O module firmware (e.g. IOM12/IOM12B) — compares each shelf module\'s installed firmware (Active IQ\'s shelvesSummary field, reported per module type rather than per physical shelf) against the recommended version. "Unknown" means Active IQ didn\'t report a current version for that system this sync, or no baseline exists for that module.')}
     ${_kpiTile('Drive FW Current', driveFwCurrent, driveFwBehind, driveFwUnknown, '💾', 'Drive firmware currency — compares each drive\'s installed firmware revision against the recommended version bundled with the latest ONTAP release. Drives below recommended may lack bug fixes or performance improvements.')}
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total shelves and drives across all systems from Active IQ inventory.">
       <div style="font-size:0.85rem;margin-bottom:4px;">📦</div>
@@ -28697,56 +28851,32 @@ function _renderAsBuiltSection(systems) {
         }
         
         let recShelfFwHtml = '';
-        if (s.recommendedShelfFirmwares && Object.keys(s.recommendedShelfFirmwares).length > 0) {
-            // Cross-reference installed shelf modules with recommended baselines
-            const recFw = s.recommendedShelfFirmwares;
-            const installedModules = {};
-            // Gather current firmware from each shelf's moduleType
-            shelves.forEach(sh => {
-                const modType = sh.moduleType || (sh.moduleHardwareModel || {}).name || '';
-                const curFw = sh.firmwareVersion || '';
-                if (modType && !installedModules[modType]) {
-                    installedModules[modType] = [];
-                }
-                if (modType) {
-                    installedModules[modType].push({ shelfId: sh.shelfId || '', current: curFw, serial: sh.serialNumber || '' });
-                }
-            });
-            
+        {
+            // Was grouping installed shelves by sh.moduleType (not a real Shelf field) and
+            // sh.firmwareVersion (a field Active IQ's GraphQL schema doesn't expose at all --
+            // see _resolveShelfModules), so "Current" was permanently blank here regardless
+            // of fleet state. Rewritten against the shared resolver, which pulls current
+            // firmware from Active IQ's separate shelvesSummary field.
+            const shelfModuleGroups = _resolveShelfModules(s);
             let shelfFwRows = '';
-            // First: show models that are actually installed on this system with their current fw
-            Object.entries(recFw).forEach(([model, recVer]) => {
-                const installed = installedModules[model];
-                if (installed && installed.length > 0) {
-                    // Deduplicate by current firmware version
-                    const byVer = {};
-                    installed.forEach(inst => {
-                        const key = inst.current || '—';
-                        if (!byVer[key]) byVer[key] = { current: inst.current, count: 0, shelfIds: [] };
-                        byVer[key].count++;
-                        if (inst.shelfId) byVer[key].shelfIds.push(inst.shelfId);
-                    });
-                    Object.values(byVer).forEach(grp => {
-                        const status = _fwStatus(grp.current, recVer);
-                        const qtyLabel = grp.count > 1 ? ' <span style="color:var(--text-muted); font-size:0.75rem;">(' + grp.count + ' shelves)</span>' : '';
-                        const shelfIdLabel = grp.shelfIds.length > 0 ? ' <span style="color:var(--text-muted); font-size:0.7rem;">IDs: ' + grp.shelfIds.join(', ') + '</span>' : '';
-                        shelfFwRows += '<tr>'
-                            + '<td style="' + tdStyle + '">' + model + qtyLabel + '</td>'
-                            + '<td style="' + tdStyle + '">' + valOrDash(grp.current) + '</td>'
-                            + '<td style="' + tdStyle + '">' + valOrDash(recVer) + '</td>'
-                            + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(status) + '">' + valOrDash(status) + '</span></td>'
-                            + '</tr>';
-                    });
-                } else {
-                    // Module not matched to installed shelves — skip silently
-                    // (backend already filters to only installed module types)
-                }
+            Object.values(shelfModuleGroups).forEach(info => {
+                const rec = info.baseline ? info.baseline.recommended : '';
+                const recLabel = info.baseline ? info.baseline.label : '';
+                const status = info.currentFw && rec ? _fwStatus(info.currentFw, rec) : null;
+                const qtyLabel = info.count > 1 ? ' <span style="color:var(--text-muted); font-size:0.75rem;">(' + info.count + ' shelves)</span>' : '';
+                shelfFwRows += '<tr>'
+                    + '<td style="' + tdStyle + '">' + info.modName + qtyLabel + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(info.currentFw) + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(rec) + (recLabel ? ' <span style="color:var(--text-muted); font-size:0.65rem;">(' + recLabel + ')</span>' : '') + '</td>'
+                    + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(status) + '">' + valOrDash(status) + '</span></td>'
+                    + '</tr>';
             });
-            
-            recShelfFwHtml = '<div style="margin-top:16px;"><div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Shelf Module Firmware</div>'
-                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Module</th><th style="' + thStyle + '">Current</th><th style="' + thStyle + '">Recommended</th><th style="' + thStyle + '">Status</th></tr>'
-                + shelfFwRows
-                + '</table></div>';
+            if (shelfFwRows) {
+                recShelfFwHtml = '<div style="margin-top:16px;"><div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Shelf Module Firmware</div>'
+                    + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Module</th><th style="' + thStyle + '">Current</th><th style="' + thStyle + '">Recommended</th><th style="' + thStyle + '">Status</th></tr>'
+                    + shelfFwRows
+                    + '</table></div>';
+            }
         }
 
         html += `
@@ -29326,7 +29456,7 @@ function generateActionPlan() {
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 1h10v14H3V1zm2 2v10h6V3H5zm1 1h4v2H6V4zm0 3h3v1H6V7z" fill="${color}" opacity="0.9"/></svg>
             HW Firmware: ${score}%
           </span>
-          <span style="color:var(--text-muted);">SP ${fws.spPct}% · MB ${fws.mbPct}% · DQP ${fws.dqpPct}% · Drive ${fws.drivePct}%</span>
+          <span style="color:var(--text-muted);">SP ${fws.spPct}% · MB ${fws.mbPct}% · DQP ${fws.dqpPct}% · Shelf ${fws.shelfPct}% · Drive ${fws.drivePct}%</span>
           <span style="background:${color}26;border:1px solid ${color}4d;border-radius:8px;padding:1px 6px;font-size:0.6rem;font-weight:600;color:${color};">${label}</span>
         </div>`; })()}
       </div>` : '';

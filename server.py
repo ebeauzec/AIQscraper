@@ -1760,6 +1760,25 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     }
                   }"""
 
+        # Shelf module firmware currency (currentVersion/recommendedVersion) lives on a
+        # field the main TAM/Efficiency systems query never requested (shelves { } has no
+        # firmware field at all -- confirmed via live GraphQL schema introspection: Shelf,
+        # ShelfModuleHardwareModel and Bays all lack one). The field that DOES carry it,
+        # shelvesSummary { firmware { currentVersion recommendedVersion } }, was tried
+        # inline in the main query first and broke it ("Maximum height (field count) limit
+        # exceeded"), degrading the whole harvest to Minimal tier and losing systemFirmware/
+        # motherboardFirmware/DQP/shelves for every system. Fetched as its own small pass
+        # instead, the same way E-Series/StorageGRID capacity above is.
+        SHELVES_SUMMARY_FIELDS = """
+                  serialNumber
+                  ... on ONTAPSystem {
+                    shelvesSummary {
+                      shelfModuleName shelfModuleCount count
+                      moduleHardwareModel { name }
+                      firmware { currentVersion recommendedVersion postingDate autoUpdateEligible }
+                    }
+                  }"""
+
         # ── Early watchlist auto-discovery ──────────────────────────────────────
         # Fetch watchlists from REST *before* the systems query so we can use them
         # as a fallback scope when configured watchlists are stale or the account
@@ -2007,6 +2026,25 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             print(f"  [HARVEST] E-Series capacity merged for {_ecap_hits} systems, StorageGRID grid capacity for {_gcap_hits}", flush=True)
         except Exception as _e:
             print(f"  [HARVEST] WARNING: E-Series capacity fetch failed: {_e}", flush=True)
+
+        # ── Shelf module firmware currency merge (see SHELVES_SUMMARY_FIELDS) ──
+        try:
+            _shsum_by_serial = {}
+            for _shsum_scope in (list(watchlist_ids) if watchlist_ids else [None]):
+                _shsum_rows, _ = _fetch_systems_for_scope(SHELVES_SUMMARY_FIELDS, _shsum_scope)
+                for _r in _shsum_rows:
+                    _ss = _r.get("shelvesSummary")
+                    if _ss:
+                        _shsum_by_serial[_r.get("serialNumber")] = _ss
+            _shsum_hits = 0
+            for _s in all_systems:
+                _ss = _shsum_by_serial.get(_s.get("serialNumber"))
+                if _ss:
+                    _s["shelvesSummary"] = _ss
+                    _shsum_hits += 1
+            print(f"  [HARVEST] Shelf firmware summary merged for {_shsum_hits} systems", flush=True)
+        except Exception as _e:
+            print(f"  [HARVEST] WARNING: Shelf firmware summary fetch failed: {_e}", flush=True)
 
         print(f"  [HARVEST] Systems fetch complete: {len(all_systems)} total systems"
               f"{' (TAM/Efficiency tier)' if used_tam_query else ' (Minimal tier)'}", flush=True)
@@ -3408,6 +3446,14 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "nodeSvmCount": sum(1 for v in serial_to_cluster_vservers.get(serial, []) if (v.get("type") or "").lower() == "node"),
                 # ── Shelves, drives, ports, switches ──
                 "shelves": shelves_out,
+                # Active IQ's `shelves { ... }` list has no per-shelf installed-firmware
+                # field at all (confirmed via live GraphQL schema introspection: Shelf,
+                # ShelfModuleHardwareModel and Bays all lack one). The currently-installed
+                # version only exists on the separate `shelvesSummary { firmware {
+                # currentVersion recommendedVersion } } }` field, grouped by module type
+                # rather than per physical shelf -- that's what the UI's Firmware Currency
+                # panel now reads for "Current".
+                "shelvesSummary": s.get("shelvesSummary") or [],
                 "recommendedDriveFirmwares": _latest_drive_fw if _latest_drive_fw else (_drive_fw_by_os.get(_sys_os) or _drive_fw_by_os.get(s.get("recommendedOSVersion", "")) or {}),
                 # Filter shelf firmware to only modules actually installed on this system
                 "recommendedShelfFirmwares": {mod: _shelf_fw_by_os_module.get((_sys_os, mod)) or _latest_shelf_fw_by_module.get(mod, "") for mod in _latest_shelf_fw_by_module if mod in {(_sh.get("moduleHardwareModel") or {}).get("name", "") for _sh in shelves_out if (_sh.get("moduleHardwareModel") or {}).get("name", "")}} if not _is_eseries else {},

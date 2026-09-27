@@ -1,8 +1,8 @@
 {
-  "version": "5.6.137",
+  "version": "5.6.138",
   "major": 5,
   "minor": 6,
-  "patch": 137,
+  "patch": 138,
   "date": "2026-09-27",
-  "notes": "Action Planner navigation regrouped into labeled, described sections."
+  "notes": "Shelf firmware currency now live end-to-end: new shelvesSummary harvest field, fixed two dead shelf-firmware code paths, propagated through every deliverable and KPI tile."
 }

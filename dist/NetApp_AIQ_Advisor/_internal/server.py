@@ -45,6 +45,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 import html
 import urllib.parse
+import perf_integration
 
 
 # ASUP offline import parser (stdlib-only core, py7zr optional)
@@ -146,6 +147,7 @@ KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
 VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
 DISCOVERED_PRODUCTS_PATH = SCRIPT_DIR / "data" / "discovered_products.json"
 EOA_DATABASE_PATH = SCRIPT_DIR / "data" / "eoa_database.json"
+PLATFORM_HW_PATH = SCRIPT_DIR / "data" / "platform_hardware.json"
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -685,6 +687,8 @@ def _run_db_schema_setup(db):
             created_at      TEXT NOT NULL
         );
     """)
+    # StoragePerf (Plumb) performance integration -- see perf_integration.py
+    perf_integration.init_tables(db)
     # enrich_cache purge now happens in _maybe_purge_enrich_cache(), rate-
     # limited to once/hour rather than on every _init_db() call -- see there.
     # One-time migration: copy the legacy singleton harvest (id=1) into the
@@ -1756,6 +1760,25 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     }
                   }"""
 
+        # Shelf module firmware currency (currentVersion/recommendedVersion) lives on a
+        # field the main TAM/Efficiency systems query never requested (shelves { } has no
+        # firmware field at all -- confirmed via live GraphQL schema introspection: Shelf,
+        # ShelfModuleHardwareModel and Bays all lack one). The field that DOES carry it,
+        # shelvesSummary { firmware { currentVersion recommendedVersion } }, was tried
+        # inline in the main query first and broke it ("Maximum height (field count) limit
+        # exceeded"), degrading the whole harvest to Minimal tier and losing systemFirmware/
+        # motherboardFirmware/DQP/shelves for every system. Fetched as its own small pass
+        # instead, the same way E-Series/StorageGRID capacity above is.
+        SHELVES_SUMMARY_FIELDS = """
+                  serialNumber
+                  ... on ONTAPSystem {
+                    shelvesSummary {
+                      shelfModuleName shelfModuleCount count
+                      moduleHardwareModel { name }
+                      firmware { currentVersion recommendedVersion postingDate autoUpdateEligible }
+                    }
+                  }"""
+
         # ── Early watchlist auto-discovery ──────────────────────────────────────
         # Fetch watchlists from REST *before* the systems query so we can use them
         # as a fallback scope when configured watchlists are stale or the account
@@ -2003,6 +2026,25 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             print(f"  [HARVEST] E-Series capacity merged for {_ecap_hits} systems, StorageGRID grid capacity for {_gcap_hits}", flush=True)
         except Exception as _e:
             print(f"  [HARVEST] WARNING: E-Series capacity fetch failed: {_e}", flush=True)
+
+        # ── Shelf module firmware currency merge (see SHELVES_SUMMARY_FIELDS) ──
+        try:
+            _shsum_by_serial = {}
+            for _shsum_scope in (list(watchlist_ids) if watchlist_ids else [None]):
+                _shsum_rows, _ = _fetch_systems_for_scope(SHELVES_SUMMARY_FIELDS, _shsum_scope)
+                for _r in _shsum_rows:
+                    _ss = _r.get("shelvesSummary")
+                    if _ss:
+                        _shsum_by_serial[_r.get("serialNumber")] = _ss
+            _shsum_hits = 0
+            for _s in all_systems:
+                _ss = _shsum_by_serial.get(_s.get("serialNumber"))
+                if _ss:
+                    _s["shelvesSummary"] = _ss
+                    _shsum_hits += 1
+            print(f"  [HARVEST] Shelf firmware summary merged for {_shsum_hits} systems", flush=True)
+        except Exception as _e:
+            print(f"  [HARVEST] WARNING: Shelf firmware summary fetch failed: {_e}", flush=True)
 
         print(f"  [HARVEST] Systems fetch complete: {len(all_systems)} total systems"
               f"{' (TAM/Efficiency tier)' if used_tam_query else ' (Minimal tier)'}", flush=True)
@@ -3404,6 +3446,14 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "nodeSvmCount": sum(1 for v in serial_to_cluster_vservers.get(serial, []) if (v.get("type") or "").lower() == "node"),
                 # ── Shelves, drives, ports, switches ──
                 "shelves": shelves_out,
+                # Active IQ's `shelves { ... }` list has no per-shelf installed-firmware
+                # field at all (confirmed via live GraphQL schema introspection: Shelf,
+                # ShelfModuleHardwareModel and Bays all lack one). The currently-installed
+                # version only exists on the separate `shelvesSummary { firmware {
+                # currentVersion recommendedVersion } } }` field, grouped by module type
+                # rather than per physical shelf -- that's what the UI's Firmware Currency
+                # panel now reads for "Current".
+                "shelvesSummary": s.get("shelvesSummary") or [],
                 "recommendedDriveFirmwares": _latest_drive_fw if _latest_drive_fw else (_drive_fw_by_os.get(_sys_os) or _drive_fw_by_os.get(s.get("recommendedOSVersion", "")) or {}),
                 # Filter shelf firmware to only modules actually installed on this system
                 "recommendedShelfFirmwares": {mod: _shelf_fw_by_os_module.get((_sys_os, mod)) or _latest_shelf_fw_by_module.get(mod, "") for mod in _latest_shelf_fw_by_module if mod in {(_sh.get("moduleHardwareModel") or {}).get("name", "") for _sh in shelves_out if (_sh.get("moduleHardwareModel") or {}).get("name", "")}} if not _is_eseries else {},
@@ -4814,6 +4864,15 @@ class EnrichmentScheduler:
             else:
                 results['sitemap_discovery'] = self._scan_sitemap_discovery()
 
+            # Scanner 9: current hardware configuration, slot and port assignments from NetApp's official
+            # documentation (hw_docs_harvester.py -> data/platform_hardware.json). Gated on its own file's age.
+            hw_age = self._file_age_hours(PLATFORM_HW_PATH)
+            if hw_age is not None and hw_age < interval_h:
+                print(f'  [ENRICH] [9] platform_hardware.json is {hw_age:.1f}h old (< {interval_h:.0f}h interval) - skipping hardware docs harvest', flush=True)
+                results['hardware_docs'] = {'skipped': 'fresh'}
+            else:
+                results['hardware_docs'] = self._scan_hardware_docs()
+
             elapsed = round(time.time() - scan_start, 1)
             results['_elapsed'] = elapsed
             self._last_kb_results = results
@@ -4828,6 +4887,19 @@ class EnrichmentScheduler:
         finally:
             self._kb_running = False
             self._schedule_next_kb()
+
+    # ── Scanner 9: hardware configuration / slot / port assignments from NetApp's documentation ──
+    def _scan_hardware_docs(self):
+        """Refresh data/platform_hardware.json from NetApp's official platform documentation (the same pages as
+        docs.netapp.com/us-en/ontap-systems/<platform>/install-cable.html). Facts only, offline-safe: any failure
+        leaves the previous file in place and the Technical Audit falls back to its built-in layouts."""
+        print('  [ENRICH] [9] Hardware documentation (slots, ports, modules) harvest...', flush=True)
+        try:
+            import hw_docs_harvester as _hw
+            return _hw.refresh(log=lambda m: print(m, flush=True))
+        except Exception as e:
+            print(f'  [ENRICH]   Hardware docs harvest failed: {e}', flush=True)
+            return {'updated': False, 'error': str(e)}
 
     # ── Scanner 8: Sitemap-Based Product/Integration Auto-Discovery ──────────
     def _scan_sitemap_discovery(self):
@@ -8087,6 +8159,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_list()
         elif self.path.startswith('/api/plan-progress'):
             self.handle_plan_progress_list()
+        elif self.path.startswith('/api/perf/'):
+            self.handle_perf('GET')
         elif self.path.startswith('/api/'):
             self.handle_proxy('GET')
         else:
@@ -8439,6 +8513,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_upsert()
         elif self.path == '/api/plan-progress':
             self.handle_plan_progress_create()
+        elif self.path.startswith('/api/perf/'):
+            self.handle_perf('POST')
         elif self.path.startswith('/api/') or self.path in ('/graphql', '/api/graphql'):
             self.handle_proxy('POST')
         else:
@@ -8451,6 +8527,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_tracker_delete()
         elif self.path.startswith('/api/plan-progress'):
             self.handle_plan_progress_delete()
+        elif self.path.startswith('/api/perf/'):
+            self.handle_perf('DELETE')
         else:
             self.send_error(404, "Not Found")
 
@@ -9310,6 +9388,74 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             print(f"  [PLAN-PROGRESS] Delete error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e)})
 
+    def handle_perf(self, method):
+        """StoragePerf (Plumb) integration -- sources, pull, file import, snapshots.
+        GET    /api/perf/sources | /api/perf/latest | /api/perf/snapshots[?customer=]
+        POST   /api/perf/sources | /api/perf/test | /api/perf/pull | /api/perf/import
+        DELETE /api/perf/sources?id= | /api/perf/snapshots?id=
+        Read-only towards StoragePerf and Active IQ; only ARIA's own SQLite tables are written."""
+        from urllib.parse import urlparse, parse_qs
+        try:
+            parsed = urlparse(self.path)
+            route = parsed.path[len('/api/perf/'):].strip('/')
+            params = parse_qs(parsed.query)
+            body = {}
+            if method == 'POST':
+                length = int(self.headers.get("Content-Length", 0))
+                if length > perf_integration.MAX_PAYLOAD_BYTES + 65536:
+                    self._json_response(413, {"ok": False, "error": "That file is too large to import."})
+                    return
+                body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            db = _init_db()
+            try:
+                if method == 'GET' and route == 'sources':
+                    self._json_response(200, {"ok": True, "sources": perf_integration.list_sources(db)})
+                elif method == 'GET' and route == 'latest':
+                    self._json_response(200, {"ok": True, "snapshots": perf_integration.latest_snapshots(db)})
+                elif method == 'GET' and route == 'snapshots':
+                    self._json_response(200, {"ok": True, "snapshots": perf_integration.list_snapshots(
+                        db, (params.get("customer") or [None])[0])})
+                elif method == 'POST' and route == 'sources':
+                    sid = perf_integration.upsert_source(db, body)
+                    self._json_response(200, {"ok": True, "id": sid})
+                elif method == 'POST' and route == 'test':
+                    src = perf_integration.get_source(db, body["id"]) if body.get("id") else None
+                    token = body.get("token") or (src or {}).get("token", "")
+                    verify = body.get("verifyTls", (src or {}).get("verifyTls", True))
+                    self._json_response(200, perf_integration.test_source(body.get("baseUrl") or (src or {}).get("baseUrl", ""), token, verify))
+                elif method == 'POST' and route == 'pull':
+                    src = perf_integration.get_source(db, body.get("id"))
+                    if not src:
+                        self._json_response(404, {"ok": False, "error": "Unknown source."})
+                    else:
+                        try:
+                            snap_id = perf_integration.pull_source(db, src)
+                            self._json_response(200, {"ok": True, "snapshotId": snap_id})
+                        except ValueError as exc:
+                            self._json_response(200, {"ok": False, "error": str(exc)})
+                elif method == 'POST' and route == 'import':
+                    try:
+                        snap_id = perf_integration.store_snapshot(
+                            db, body.get("payload"), body.get("customerName"), "import", filename=(body.get("filename") or "")[:200])
+                        self._json_response(200, {"ok": True, "snapshotId": snap_id})
+                    except ValueError as exc:
+                        self._json_response(200, {"ok": False, "error": str(exc)})
+                elif method == 'DELETE' and route == 'sources':
+                    perf_integration.delete_source(db, int((params.get("id") or ["0"])[0]))
+                    self._json_response(200, {"ok": True})
+                elif method == 'DELETE' and route == 'snapshots':
+                    perf_integration.delete_snapshot(db, int((params.get("id") or ["0"])[0]))
+                    self._json_response(200, {"ok": True})
+                else:
+                    self._json_response(404, {"ok": False, "error": "Unknown perf endpoint"})
+            finally:
+                db.close()
+        except ValueError as e:
+            self._json_response(200, {"ok": False, "error": str(e)})
+        except Exception as e:
+            print(f"  [PERF] Handler error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e)})
+
     def handle_config_get(self):
         """GET /api/config — return current config (without sensitive tokens)."""
         try:
@@ -9324,6 +9470,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "enrichIntervalHours": cfg.get("enrichIntervalHours", 12),
                 "autoHarvestEnabled": cfg.get("autoHarvestEnabled", True),
                 "autoHarvestIntervalHours": cfg.get("autoHarvestIntervalHours", 4),
+                "kb_interval_hours": cfg.get("kb_interval_hours", 168),
                 "hasNvdKey": bool(cfg.get("nvdApiKey", "")),
                 "hasGithubToken": bool(cfg.get("githubToken", "")),
                 # Remediation SLA policy: days-to-remediate by severity, used by
@@ -9402,6 +9549,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["enrichEnabled"] = bool(body["enrichEnabled"])
             if "enrichIntervalHours" in body:
                 cfg["enrichIntervalHours"] = int(body["enrichIntervalHours"])
+            if "kb_interval_hours" in body:
+                cfg["kb_interval_hours"] = max(1, int(body["kb_interval_hours"]))
             if "autoHarvestEnabled" in body:
                 cfg["autoHarvestEnabled"] = bool(body["autoHarvestEnabled"])
             if "autoHarvestIntervalHours" in body:
@@ -9458,7 +9607,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if _enrichment_scheduler:
                 _enrichment_scheduler.update_config(
                     interval_hours=cfg.get('enrichIntervalHours', 12),
-                    nvd_api_key=cfg.get('nvdApiKey') or None
+                    nvd_api_key=cfg.get('nvdApiKey') or None,
+                    kb_interval_hours=cfg.get('kb_interval_hours', 168)
                 )
             # Update (or start/stop) the harvest scheduler if its config changed
             global _harvest_scheduler
@@ -10029,13 +10179,17 @@ if __name__ == '__main__':
 
     threading.Thread(target=_startup_advisory_scan, daemon=True, name="startup-advisory-scan").start()
 
+    # StoragePerf (Plumb) integration: pull whichever customer sources are due
+    perf_integration.PerfPuller(_init_db).start()
+
     # Start enrichment scheduler
     try:
         _cfg = json.loads(CONFIG_PATH.read_text(encoding='utf-8')) if CONFIG_PATH.exists() else {}
         if _cfg.get('enrichEnabled', True):
             _enrich_interval = int(_cfg.get('enrichIntervalHours', 6))
             _nvd_key = _cfg.get('nvdApiKey') or None
-            _enrichment_scheduler = EnrichmentScheduler(interval_hours=_enrich_interval, nvd_api_key=_nvd_key)
+            _kb_interval = int(_cfg.get('kb_interval_hours', 168))
+            _enrichment_scheduler = EnrichmentScheduler(interval_hours=_enrich_interval, nvd_api_key=_nvd_key, kb_interval_hours=_kb_interval)
             _enrichment_scheduler.start()
     except Exception as _sched_err:
         print(f'  [STARTUP] Enrichment scheduler failed to start: {_sched_err}', flush=True)
