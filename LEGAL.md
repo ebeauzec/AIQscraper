@@ -1,9 +1,10 @@
 # Legal Notice & Intellectual Property Declaration
 
 > This document accompanies the [LICENSE](LICENSE) file and provides the full
-> legal and intellectual property context for the **NetApp Active IQ Advisor
-> Dashboard**. Both documents together constitute the complete terms governing
-> this Software.
+> legal and intellectual property context for **ARIA** (Active IQ Risk
+> Intelligence Advisor, formerly named the NetApp Active IQ Advisor Dashboard).
+> Both documents together constitute the complete terms governing this
+> Software.
 
 ---
 

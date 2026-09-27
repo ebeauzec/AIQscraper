@@ -22,54 +22,70 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27 (Windows dev station, v5.6.85 -> v5.6.134)
+## Session handoff -- 2026-09-27 (Windows dev station, v5.6.134 -> v5.6.136 + repo rename + docs audit)
 
-Overlaps the cloud session's v5.6.83/84 (merged in 5.6.85). Everything below is pushed to `main`.
+Continues the same day's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
+harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main` except the
+CONTEXT.md/version.json fixes made at the very end of this handoff, which are about to be committed.
 
-**What was asked:** audit the Action Planner deliverables for contradictions and invented numbers, make them
-copy/paste-ready for customers, then keep reviewing them against real accounts.
+**What was asked, in order:** (1) fix the mock/demo data, which was putting the wrong controller's ports
+and wrong LIF-to-port roles onto systems; (2) rename the GitHub repo to ARIA and update in-repo references;
+(3) audit the documentation (README/CONTEXT/CLAUDE/version.json) for staleness, starting from a broken
+anchor link the user found.
 
-**What changed (all in `app.js`, client-side only -- no server restart needed):**
-- One definition per fact, used by every document: `_dfContractFacts` (active / expiring / lapsed),
-  `_dfArpFacts` (tri-state ARP), `_dfCveIndex` (real CVE ids only, systems de-duplicated), `_dfSustain`
-  (per-system score, never the account-wide "all tenants" one), `_dfRunwayText`, `_osKnown/_osIsCurrent`
-  (OS currency over systems it can be judged for), `_dfCollapseFindings`, `_dfCleanCause`.
-- SnapMirror: Active IQ gives a relationship COUNT only. `snapMirrorReported` flag; count-only relationship;
-  "unprotected" = confirmed no replication (unreported is "not reported", HA is not DR).
-- Corrective-action grouping (`_filterAndDeduplicateRisks`): an OS upgrade is the fix only for CVE / software-version
-  findings; groups no longer borrow the first finding's cause/steps. CVE findings get a CVE-specific plan in
-  `generateDynamicRemediationPlan`. Risk 506 flags pre-release ONTAP (RC/beta) as high.
-- Invented figures removed (TCO, savings, power/CO2, admin-time, 45% premium, "$X/TB"). FabricPool removed from the
-  adoption score, scorecards, dashboards and action lists.
-- New deliverable `customerReport` (`compileCustomerReport`): paste-ready Markdown health & lifecycle report.
-  Change Tickets / Implementation Plans skip systems with nothing to do and list them once ("not assessed" when no AutoSupport).
-- IMT interoperability: only from vCenter versions Active IQ reports (no substring guessing).
-- Documents are prepared by the TAM when assigned (was the sales rep).
+**Demo data fixes (`app.js`, client-side only):**
+- v5.6.135: `_demoPortBucket()` + `_DEMO_PORT_TEMPLATES` / `_demoSynthPorts()` -- mirrors the rear panel's
+  own platform-family dispatch so a fictional demo system's `networkPorts` come from the same chassis shape
+  its drawing uses, instead of a loosely-regex-matched, structurally different real profile.
+- v5.6.136: the LIF remap that's supposed to keep demo data LIFs (NFS/CIFS/iSCSI/etc.) off cluster-interconnect
+  ports was checking a flattened `v.lifs`/`l.homePort` shape that doesn't exist on the raw objects -- it silently
+  did nothing. Real shape is nested: `v.logicalInterfaces[].serviceConfiguration.dataProtocols` /
+  `.failoverConfiguration.{homePort,currentPort}`. Rewritten against the real shape; excludes FC LIFs (non-Ethernet
+  port names) and ifgroup LIFs (`a0a`-style home ports are legitimate, not a mismatch). Verified: 205 data LIFs
+  across 108 mock ONTAP systems, 0 mismatches after the fix.
 
-**Tooling:** `tools/audit_deliverables.py` generates every deliverable for every customer scope in parallel headless
-browsers (44 scopes in ~35 s) and flags placeholders, invented-figure phrases, NaN/undefined, cross-document
-disagreements, negative counts and other customers' names. Run it after any deliverable change:
-`ARIA_URL=http://127.0.0.1:8080/ python tools/audit_deliverables.py 8`. Known benign hits: an account's own ASP / site
-names that contain another customer's name.
+**Repo rename:** GitHub repo `ebeauzec/AIQscraper` -> `ebeauzec/ARIA` (old URL redirects). Local folder name
+unchanged (`AIQscraper`). `AIQSCRAPER_FIX_PLAN.md` -> `ARIA_FIX_PLAN.md` (`git mv` + H1 update). README clone
+URL and folder-tree root updated. Used the git-credential-manager's push token for the rename API call, not
+`aiq_config.json`'s `githubToken` (that one is scoped read-only for enrichment fetches and 403'd on the rename).
 
-**Gotchas hit this session:** heredoc Python scripts mangle backslashes (`\b` -> backspace, `\n` -> newline): write patch
-scripts with the Write tool and use `chr(92)` or raw strings. app.js is CRLF. A dropped line inside a template
-literal broke the whole page once (check the browser console after every edit).
+**Docs audit (v1d6ab79 + this handoff):**
+- README.md: fixed a genuinely broken anchor (`#6-action-planner--all-18-sections` -> `...-19-sections`, the
+  tab reorg years ago renumbered sections but the link text/anchor weren't updated) plus three related stale
+  numbers ("13 deliverables" -> 15, "5 feature checks" -> 4, one worked example rewritten for consistency).
+- `version.json`: `notes` field said "IOM6 upgrade-target check" (that was actually v5.6.105) while attached to
+  v5.6.136 (the LIF-remap fix above) -- corrected to match.
+- `CONTEXT.md`: header version bumped 4.1.0 -> 5.6.136; file-inventory table sizes/line-counts refreshed
+  (app.js is now 38k lines, not 24.9k); Section 4 rewritten for the current 8-tab nav (added Risk & Recommendation
+  Tracker and Success Plans, neither existed when Section 4 was last written) instead of the old 6. Sections 5-12
+  are still a frozen v4.0.7 snapshot (130+ versions behind) -- flagged with a note at the top rather than rewritten
+  wholesale, since fully re-deriving "what's done" for a 38k-line app wasn't in scope this pass. The two dated
+  addenda at the end of CONTEXT.md (Deliverables v5.6.83-104, rear panels v5.6.105-134) are current and are now
+  the pointed-to source of truth for anything sections 5-12 contradict.
+- Not yet done: LEGAL.md and ARIA_FIX_PLAN.md haven't been content-audited this pass. ARIA_FIX_PLAN.md in
+  particular is an old "Round 3" enrichment-scheduler fix-tracking doc that may be entirely obsolete/completed --
+  worth a look next session for archival rather than just the rename it already got.
 
-**Still open / not done:**
-- `.exe`: rebuilt with `build/build_windows.bat` at the end of the 5.6.97 session (see git log for the build commit).
-- Reviewed line by line: Vodacom (all documents), MIC Tanzania (about half), Saudi Telecom (health report),
-  Clicks (E-Series only), Shoprite (MetroCluster), Unemployment Insurance Fund (small). Others only by the audit tool.
-- The PPTX Customer Value Report was opened and corrected in 5.6.97 (Vodacom deck); other scopes not opened.
-- Source-data limits, not bugs: SnapMirror destination/lag not exposed; systems with no AutoSupport cannot be assessed;
-  Active IQ's own recommendation text can disagree with our facts (a note explains it in the QBR); effort estimates,
-  SLA targets and the cost-per-TB rate are defaults; some hardware EOA/EOS dates come from a maintained reference list.
+**Gotchas hit this session (in addition to the ones below from earlier in the day):** GitHub anchor slugs
+replace each space with a hyphen one-for-one and do NOT collapse consecutive hyphens -- a naive `re.sub(r'\s+',
+'-', ...)` audit script collapses a double-space (left behind after stripping an em-dash) into one hyphen and
+produces false "broken link" reports. My own test harness also produced two false positives while verifying the
+demo-data fix: testing `_demoHydrateSystem`/`applyDemoDataset()` without first setting `state.mockMode = true`
+(the function no-ops silently otherwise), and initially flagging FC LIFs and ifgroup LIFs as port mismatches
+when they're legitimately not on a plain `eNx` Ethernet port.
 
-**Git:** branch `main`, pushed. Working tree also shows harvest data files modified by the running server
-(`data/*.json`) -- not part of this work, do not commit them with code changes.
+**Still open / not done (rear-panel program, from the earlier v5.6.85-134 work):** no layout yet for FAS8000,
+older FAS25xx/26xx, unnamed StorageGRID models, or cloud platforms.
 
-**Added in 5.6.96-97:** `_dfActionPlan` / `_dfUpgradeWaves` / `_dfRefreshPlan` / `_dfCapacityTrend` (planning helpers before `compileCustomerReport`); 'Decisions needed' block inserted into every narrative document via `_bannerInsert`; capacity trend flags drained clusters.
+**Git:** branch `main`. Everything through `1d6ab79` (anchor-link fix) is pushed. This handoff's CONTEXT.md/
+version.json edits are uncommitted as of writing -- commit and push them (and this file) together. Working tree
+also shows harvest data files modified by the running server (`data/*.json`) -- not part of this work, don't
+commit them with code changes.
 
-**Added in 5.6.98-104:** risks vs CVEs explained in the health report; Customer Value Report as text (PowerPoint removed); downloads as txt/md/docx with a per-download format prompt and structured A4 Word files; MetroCluster card and deliverables per inferred pair (`_dfMetroClusters`); README/CONTEXT refreshed. Lesson: patch scripts written via heredoc turn `\\n` into real newlines inside JS strings -- use the Write tool and check the browser console after every edit (a broken line 21717 briefly took the live page down in 5.6.104 development).
-
-**Added in 5.6.105-134:** IOM6 upgrade-target cap; Plan-button fix (modals were nested in the hidden Settings tab); Technical Audit rear panels as SVG scale drawings for all ONTAP/E-Series/StorageGRID platforms with numbered ports, LIF->port highlighting, FC-port inference, breakout lanes, StorageGRID roles and internal connections, port table beside the drawing; `hw_docs_harvester.py` (scanner 9) + `data/platform_hardware.json` + documentation panel; `tools/verify_rear_panels.py`. Standing rule: rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never build_windows.bat). Still no layout: FAS8000, older FAS25xx/26xx, unnamed StorageGRID, cloud.
+**Earlier in the day, for reference (v5.6.85-134):** shared-fact deliverable helpers (`_dfContractFacts`,
+`_dfArpFacts`, `_dfCveIndex`, `_dfSustain`, etc.), SnapMirror count-only semantics, invented figures removed,
+IOM6 upgrade-target cap, Plan-button fix (modals nested in hidden Settings tab), Technical Audit rear panels as
+SVG scale drawings for all ONTAP/E-Series/StorageGRID platforms, `hw_docs_harvester.py` (scanner 9) +
+`data/platform_hardware.json` + documentation panel, `tools/verify_rear_panels.py`, `tools/audit_deliverables.py`.
+Standing rule: rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
+`build/build_windows.bat` -- destructive). Full detail in git log / CHANGELOG.md for that range.

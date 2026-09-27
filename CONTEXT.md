@@ -1,7 +1,11 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 4.1.0 (per `version.json`, dated 2026-08-06)
+> **Current Version**: 5.6.136 (per `version.json`, dated 2026-09-27)
+> **Note**: Sections 1-4 were refreshed 2026-09-27. Sections 5-12 still describe the app as of v4.0.7
+> (2026-08-04) and predate the two dated addenda below plus everything through v5.6.136 -- treat them
+> as a historical snapshot, not current state. For what's actually shipped since, read the two addenda
+> at the end of this file and `APP_CHANGELOG` in `app.js` (near line 32), not the tables in 5-8.
 
 ---
 
@@ -71,8 +75,8 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
    - `kb.netapp.com/on-prem/ontap/` — Fleet-specific KB sub-category crawling: Data Access, Data Protection, MetroCluster, SnapMirror, SnapLock, NAS, SAN (27+ articles)
    - `docs.netapp.com` security/remediation docs — direct links for antivirus, anti-ransomware, NAS audit, multi-admin verify, SnapLock, authentication
 6. **Version Catalog Auto-Detection** (v3.8.0+) — Scrapes docs.netapp.com to discover newly released ONTAP, StorageGRID, and SANtricity versions; auto-updates the client-side `SOFTWARE_VERSION_DATABASES` on each page load
-7. **Fleet-Aware Deliverable Mapper** (v4.0.0) — All 13 TAM deliverables receive fleet-relevant enrichment references. Articles scored by ONTAP version match (+30), platform family (+20), model match (+25), operational category (+10). Minimum score 5 required for inclusion.
-8. **Enrichment Intelligence UI** (v4.0.0) — KB Intelligence Summary Panel (aggregate stats, fleet profile, per-category breakdown), enrichment badges on all 13 deliverable cards (★ N KB refs pills), and rich contextual intelligence engine (`getArticleContext`) generating CLI commands, effort estimates, and fleet-specific remediation steps per matched article.
+7. **Fleet-Aware Deliverable Mapper** (v4.0.0, deliverable count later grew to 15 — see the "Deliverables" addendum below) — deliverables receive fleet-relevant enrichment references. Articles scored by ONTAP version match (+30), platform family (+20), model match (+25), operational category (+10). Minimum score 5 required for inclusion.
+8. **Enrichment Intelligence UI** (v4.0.0) — KB Intelligence Summary Panel (aggregate stats, fleet profile, per-category breakdown), enrichment badges on deliverable cards (★ N KB refs pills), and rich contextual intelligence engine (`getArticleContext`) generating CLI commands, effort estimates, and fleet-specific remediation steps per matched article.
 
 ---
 
@@ -82,12 +86,13 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 
 | File | Size | Purpose |
 |------|------|---------|
-| `server.py` | 284 KB | Central HTTP proxy, SQLite cache, GraphQL harvester, enrichment engine (7 external sources), version catalog, ASUP handler, TLS auto-config, cluster name derivation, E-Series hardware synthesis |
-| `app.js` | 1.40 MB / 24,893 lines | All frontend logic: state management, API calls, tab rendering, enrichment display, remediation plan generator, reference library, dynamic version management, platform-aware upgrade paths (ONTAP + StorageGRID + E-Series), deliverable DR/capacity/adoption intelligence |
-| `index.html` | 81KB | Production dashboard SPA (6 views, sidebar nav, search, modals) |
-| `index_src.html` | 85KB | Development/source version of dashboard — includes ASUP import modal DOM + enhanced error handling |
-| `styles.css` | 30 KB | Complete dark-mode design system with CSS custom properties, responsive layouts, animations |
+| `server.py` | 572 KB / 10,245 lines | Central HTTP proxy, SQLite cache, GraphQL harvester, enrichment engine (9 scanners including the hardware-docs harvester), version catalog, ASUP handler, TLS auto-config, cluster name derivation, E-Series hardware synthesis |
+| `app.js` | 2.30 MB / 38,337 lines | All frontend logic: state management, API calls, tab rendering, enrichment display, remediation plan generator, reference library, dynamic version management, platform-aware upgrade paths (ONTAP + StorageGRID + E-Series), deliverable DR/capacity/adoption intelligence, controller rear-panel SVG drawings |
+| `index.html` | 125KB / 1,597 lines | Production dashboard SPA (8 nav views, sidebar nav, search, modals) |
+| `index_src.html` | 129KB / 1,694 lines | Development/source version of dashboard — includes ASUP import modal DOM + enhanced error handling |
+| `styles.css` | 31 KB / 1,396 lines | Complete dark-mode design system with CSS custom properties, responsive layouts, animations |
 | `chart.js` | 208KB | Bundled Chart.js library |
+| `hw_docs_harvester.py` | — | Fetches NetApp's official hardware/cabling documentation per platform, writes `data/platform_hardware.json` |
 | `launcher.py` | 7.8KB | Desktop launcher (pywebview native window + embedded CORS proxy + fallback browser) |
 | `asup_parser.py` | 25KB | Offline ASUP bundle parser (ONTAP, StorageGRID, E-Series) with ARIA schema normalization |
 | `reference_harvester.py` | — | Dedicated reference harvester tool for harvesting and updating offline reference libraries, data catalogs, IMT interop (20+ vendors), and EOA databases |
@@ -97,7 +102,8 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 | File | Purpose |
 |------|---------|
 | `aiq_config.json` | Stores refresh token, watchlist IDs, TAM info |
-| `version.json` | Source of truth for version number (currently 4.0.7) |
+| `version.json` | Source of truth for version number (currently 5.6.136) |
+| `data/platform_hardware.json` | Harvested per-platform port/slot assignments from NetApp's official docs (feeds the rear-panel documentation panel) |
 | `data/firmware_baselines.json` | Ground-truth firmware recommendations (ONTAP, SP/BMC, shelf, disk, StorageGRID, SANtricity) |
 | `data/security_bulletins.json` | Local CVE/NTAP advisory database for offline security matching |
 | `data/imt_interop.json` | Interoperability matrix database covering 20+ vendors (was ~11) |
@@ -122,8 +128,8 @@ Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cros
 
 | File | Purpose |
 |------|---------|
-| `README.md` | Comprehensive user & developer manual (790+ lines) |
-| `CHANGELOG.md` | Full release history (v1.0.0 through v4.0.2) |
+| `README.md` | Comprehensive user & developer manual (1,000+ lines) |
+| `CHANGELOG.md` | Full release history (v1.0.0 through current) |
 | `LEGAL.md` | IP ownership declaration |
 | `LICENSE` | Proprietary license (Obi1 - FZCO, non-commercial free, commercial requires consent) |
 
@@ -135,52 +141,59 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 
 ---
 
-## 4. Dashboard Views (6 Primary Navigation Areas)
+## 4. Dashboard Views (8 Primary Navigation Areas — `index_src.html`'s sidebar, `data-tab` values shown)
 
-### View 1: Overview Dashboard
+### View 1: Overview (`overview`)
 - 4 KPI cards (Total Systems, Critical Risks, Active Warnings, Expiring Contracts)
 - Chart.js graphs (Storage Savings/Efficiency, Capacity by System)
 - Monitored Systems & Clusters table with sorting, CSV export, JSON import/export
 
-### View 2: Technical Audit (TAM Module)
+### View 2: Technical Audit (`tam`, TAM Module)
 - Multi-select system filtering
-- Controller Node Port & Link Topology visualization
+- Controller Node Port & Link Topology visualization — SVG rear-panel scale drawings per platform family, numbered ports, LIF-to-port highlighting, FC-port inference from LIFs, hardware documentation panel (see the "Technical Audit rear panels" addendum below)
 - SANtricity E-Series Hardware Audit card
 - SVM & Protocol Security Audit
 - Active Predictive Risk Signatures table with slide-out remediation modal
-- OS Upgrade Advisor with hop-by-hop upgrade path calculator
+- OS Upgrade Advisor with hop-by-hop upgrade path calculator (includes IOM6 shelf upgrade-target checks)
 - Network Switch & Fabric Validation table
 - Active Security & Technical Bulletins (CVE matching with CISA KEV integration)
 
-### View 3: Support & Ops (SAM Module)
+### View 3: Support & Ops (`sam`, SAM Module)
 - Contract status cards (SupportEdge, warranty, EOA/EOS lifecycle)
 - 3rd-Party Virtualization tracking
 - AutoSupport status monitoring
 - Logistics & Customer Sales Health
 - Active Support Cases table
 - Outstanding Field Actions (FA)
+- Capacity forecasting/growth projections, performance (IOPS/latency) trends
 
-### View 4: Value & ROI (CSM Module)
+### View 4: Value & ROI (`csm`, CSM Module)
 - Storage Efficiency Savings metrics
-- Cloud Tiering ROI (FabricPool)
-- SnapMirror data protection coverage
+- SnapMirror data protection coverage (count-only; Active IQ does not expose destination/lag)
 - Capacity & Performance Forecasting with runway projections
-- 25-Point Categorized TAM/MSP Remediation Readiness Checklist (2-column: Operations & Security, Data Protection & Lifecycle)
+- Feature adoption scorecard (25-point categorized TAM/MSP checklist, 2-column: Operations & Security, Data Protection & Lifecycle) — FabricPool is not part of this score
+- Historical trend vs. last week/month/quarter
 
-### View 5: Action Planner
-- Consolidated operational action plan generator
-- Phased remediation plans (20+ risk categories)
+### View 5: Action Planner (`plan`)
+- Fifteen customer-ready deliverables (A-O), generated by `compileExtendedDeliverables()` — QBR pack, security brief, risk & remediation brief, sustainability report, customer health report, and more
+- Phased remediation plans, recommended-plan table, upgrade sequence (`_dfActionPlan`/`_dfUpgradeWaves`)
 - ITIL change management governance
-- Downloadable deliverables: CSP, QBR Pack, MSP Report, Handover Brief, CLI Runbook
-- PDF print/save capability
+- Downloads as `.txt`/`.md`/structured A4 `.docx`, per-download format prompt
 
-### View 6: Settings & Config
+### View 6: Risk & Recommendation Tracker (`tracker`)
+- Persistent, cross-sync tracking of open risks, recommendations, and action items with status, owner, and due date — survives re-harvests instead of resetting on every refresh
+
+### View 7: Success Plans (`success`)
+- TAM-authored success plans per customer — owner, lifecycle stage, status, risk assessment
+- Mirrors NetApp Digital Advisor's Success Plans list; a workflow object the TAM creates, not something Active IQ's telemetry generates
+
+### View 8: Settings & Config (`settings`)
 - API Authentication (refresh token, base URL, offline demo toggle)
 - Watchlist Scope management
-- Quick Actions (sync, diagnostics, update)
+- Enrichment sources / Quick Actions (sync, diagnostics, update)
 - System Serial Numbers configuration
 - Custom Subgroups Manager
-- Full System Metadata & Logistics Editor (per-system identity, contacts, sales data)
+- Full System Metadata & Logistics Editor (per-system identity, contacts, sales data, CSAT)
 - GraphQL Query Console & Sandbox
 
 ---
@@ -225,7 +238,7 @@ Also includes: `brace_report.txt` (JS syntax audit), `fix_guidelines.ps1` (one-o
 - `linkify()` function auto-linking CVE IDs, TR references, NTAP IDs, KB articles — anchor-tag-safe (no double-wrapping)
 - Platform-aware upgrade path calculator: ONTAP (multi-hop), StorageGRID (11.x → 11.9), E-Series/SANtricity (version-range)
 - Cluster identity derivation from hostname when API lookup returns empty
-- Deliverable intelligence enrichment: DR coverage, capacity forecast, feature adoption sections injected into all 13 deliverables
+- Deliverable intelligence enrichment: DR coverage, capacity forecast, feature adoption sections injected into all 15 deliverables
 - Platform-specific controller rear-panel backplate visualization (8 hardware families)
 - SVM/LIF inventory harvesting via GraphQL vserver endpoint
 - Harvest merge-back guard preventing transient API failures from wiping cached data
