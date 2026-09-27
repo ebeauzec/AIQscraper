@@ -1,10 +1,10 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 5.6.136 (per `version.json`, dated 2026-09-27)
+> **Current Version**: 5.6.138 (per `version.json`, dated 2026-09-27)
 > **Note**: Sections 1-4 were refreshed 2026-09-27. Sections 5-12 still describe the app as of v4.0.7
-> (2026-08-04) and predate the two dated addenda below plus everything through v5.6.136 -- treat them
-> as a historical snapshot, not current state. For what's actually shipped since, read the two addenda
+> (2026-08-04) and predate the three dated addenda below plus everything through v5.6.138 -- treat them
+> as a historical snapshot, not current state. For what's actually shipped since, read the addenda
 > at the end of this file and `APP_CHANGELOG` in `app.js` (near line 32), not the tables in 5-8.
 
 ---
@@ -448,3 +448,11 @@ Key metric calculations are implemented in `app.js` at the following locations:
 - StorageGRID: network roles per connector (`_SGR`), internal compute<->storage interconnect diagram (`_sgTopo`), compute controller drawn above storage.
 - `hw_docs_harvester.py` -> `data/platform_hardware.json` (scanner 9 in `EnrichmentScheduler._do_kb_scan`); the app shows it in the collapsible documentation panel (`_bpFillDocs`). Source is the NetAppDocs `ontap-systems` AsciiDoc on GitHub (same text as docs.netapp.com/us-en/ontap-systems/<platform>/). `tools/verify_rear_panels.py` is the regression check that every documented port has a place on its drawing.
 - Rule that cost time: read each platform's install/cabling TEXT, not only the diagrams (slot roles and port names are in the text; the FAS50 and AFX 2K were wrong until the text was read).
+
+
+## Demo data fixes, Action Planner regroup, shelf firmware currency (v5.6.135 - v5.6.138)
+
+- Demo/mock data: `_demoPortBucket()`/`_DEMO_PORT_TEMPLATES`/`_demoSynthPorts()` match a curated profile's `networkPorts` to the SAME rear-panel layout bucket as the system's platform label, instead of a loose class regex that could hand a fictional system a completely different chassis's ports. The `vservers`/LIF remap in `_demoHydrateSystem` retargets any data LIF sitting on a port the node's own `networkPorts` calls non-DATA, operating on the real nested shape (`v.logicalInterfaces[].serviceConfiguration.dataProtocols` / `.failoverConfiguration.{homePort,currentPort}`), and now also gives every demo LIF's `worldWidePortName` a per-system-unique tail (was cloned verbatim from the curated profile, so every demo system sharing a profile had byte-for-byte identical WWPNs).
+- Action Planner's 19-section tab row is five bordered, labeled groups (Overview / Risk & Security / Operations & Health / Account & Commercial / ★ Customer Deliverables), each with a one-line description, instead of one flat button list. Section numbers/links/print output unchanged.
+- Shelf module firmware currency is live: Active IQ's GraphQL schema has no per-shelf "currently installed" field (confirmed via live introspection — `Shelf`, `ShelfModuleHardwareModel`, `Bays` all lack one); the field that has it, `shelvesSummary { firmware { currentVersion recommendedVersion } } }`, is fetched as its own harvest pass in `server.py` (`SHELVES_SUMMARY_FIELDS`) — adding it inline to the main systems query hit Active IQ's GraphQL query-complexity ("maximum height") limit and silently degraded the whole harvest to a thinner tier. `_resolveShelfModules(sys)` in `app.js` is the shared resolver (Active IQ's own reported values preferred over the local reference-library baseline); `computeFleetFirmwareSummary()`'s composite score is now SP 20% / MB 20% / DQP 15% / Shelf 15% / Drive 30% (was SP 25/MB 25/DQP 20/Drive 30), and every deliverable that quotes "HW Firmware Currency" shows the Shelf% component. Two previously-dead shelf-firmware code paths (As-Built Document's shelf table, Action Plan's shelf-drift detector) were keyed on `sh.moduleType`/`sh.firmwareVersion` — neither a real `Shelf` field — and fixed against the same shared resolver.
+- Cluster node pairs are sorted adjacent (by cluster name, then system name) in the Firmware Currency system list and the Recommended OS Upgrades list, instead of raw harvest-fetch order which could interleave unrelated clusters' nodes.

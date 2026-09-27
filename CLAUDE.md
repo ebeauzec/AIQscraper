@@ -22,70 +22,84 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27 (Windows dev station, v5.6.134 -> v5.6.136 + repo rename + docs audit)
+## Session handoff -- 2026-09-27 (Windows dev station, v5.6.134 -> v5.6.138 + repo rename + docs audit)
 
 Continues the same day's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
-harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main` except the
-CONTEXT.md/version.json fixes made at the very end of this handoff, which are about to be committed.
+harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
 
-**What was asked, in order:** (1) fix the mock/demo data, which was putting the wrong controller's ports
-and wrong LIF-to-port roles onto systems; (2) rename the GitHub repo to ARIA and update in-repo references;
-(3) audit the documentation (README/CONTEXT/CLAUDE/version.json) for staleness, starting from a broken
-anchor link the user found.
+**What was asked, in order:** (1) fix the mock/demo data (wrong controller's ports, wrong LIF-to-port roles,
+duplicate WWPNs); (2) rename the GitHub repo to ARIA; (3) audit the documentation for staleness; (4) build a
+distributable docx of the user-facing docs; (5) another LinkedIn post; (6) make the Action Planner's 19-section
+tab row less "lost in the page"; (7) a user screenshot asking why shelf firmware only ever showed the
+recommended baseline, never what's installed; (8) propagate that fix through every deliverable and report.
 
-**Demo data fixes (`app.js`, client-side only):**
-- v5.6.135: `_demoPortBucket()` + `_DEMO_PORT_TEMPLATES` / `_demoSynthPorts()` -- mirrors the rear panel's
-  own platform-family dispatch so a fictional demo system's `networkPorts` come from the same chassis shape
-  its drawing uses, instead of a loosely-regex-matched, structurally different real profile.
-- v5.6.136: the LIF remap that's supposed to keep demo data LIFs (NFS/CIFS/iSCSI/etc.) off cluster-interconnect
-  ports was checking a flattened `v.lifs`/`l.homePort` shape that doesn't exist on the raw objects -- it silently
-  did nothing. Real shape is nested: `v.logicalInterfaces[].serviceConfiguration.dataProtocols` /
-  `.failoverConfiguration.{homePort,currentPort}`. Rewritten against the real shape; excludes FC LIFs (non-Ethernet
-  port names) and ifgroup LIFs (`a0a`-style home ports are legitimate, not a mismatch). Verified: 205 data LIFs
-  across 108 mock ONTAP systems, 0 mismatches after the fix.
+**Demo data fixes (`app.js`, client-side only) -- v5.6.135/136:** `_demoPortBucket()` matches a curated
+profile's `networkPorts` to the SAME rear-panel layout bucket as the system's platform label. The LIF remap in
+`_demoHydrateSystem` was checking a flattened shape that doesn't exist on the raw objects (real shape is
+`v.logicalInterfaces[].serviceConfiguration.dataProtocols` / `.failoverConfiguration.{homePort,currentPort}`) --
+rewritten against the real shape. `worldWidePortName` was cloned verbatim from the curated profile with no
+per-system substitution, so every demo system sharing a profile had byte-for-byte identical WWPNs (user caught
+this from a screenshot: "how can these LIFs all have the same WWPN?") -- now re-derived per system+LIF from a
+hash of the serial number, keeping the adapter-index/OUI bytes that already varied.
 
 **Repo rename:** GitHub repo `ebeauzec/AIQscraper` -> `ebeauzec/ARIA` (old URL redirects). Local folder name
-unchanged (`AIQscraper`). `AIQSCRAPER_FIX_PLAN.md` -> `ARIA_FIX_PLAN.md` (`git mv` + H1 update). README clone
-URL and folder-tree root updated. Used the git-credential-manager's push token for the rename API call, not
-`aiq_config.json`'s `githubToken` (that one is scoped read-only for enrichment fetches and 403'd on the rename).
+unchanged (`AIQscraper`). Used the git-credential-manager's push token, not `aiq_config.json`'s `githubToken`
+(read-only scope, 403'd on the rename).
 
-**Docs audit (v1d6ab79 + this handoff):**
-- README.md: fixed a genuinely broken anchor (`#6-action-planner--all-18-sections` -> `...-19-sections`, the
-  tab reorg years ago renumbered sections but the link text/anchor weren't updated) plus three related stale
-  numbers ("13 deliverables" -> 15, "5 feature checks" -> 4, one worked example rewritten for consistency).
-- `version.json`: `notes` field said "IOM6 upgrade-target check" (that was actually v5.6.105) while attached to
-  v5.6.136 (the LIF-remap fix above) -- corrected to match.
-- `CONTEXT.md`: header version bumped 4.1.0 -> 5.6.136; file-inventory table sizes/line-counts refreshed
-  (app.js is now 38k lines, not 24.9k); Section 4 rewritten for the current 8-tab nav (added Risk & Recommendation
-  Tracker and Success Plans, neither existed when Section 4 was last written) instead of the old 6. Sections 5-12
-  are still a frozen v4.0.7 snapshot (130+ versions behind) -- flagged with a note at the top rather than rewritten
-  wholesale, since fully re-deriving "what's done" for a 38k-line app wasn't in scope this pass. The two dated
-  addenda at the end of CONTEXT.md (Deliverables v5.6.83-104, rear panels v5.6.105-134) are current and are now
-  the pointed-to source of truth for anything sections 5-12 contradict.
-- Not yet done: LEGAL.md and ARIA_FIX_PLAN.md haven't been content-audited this pass. ARIA_FIX_PLAN.md in
-  particular is an old "Round 3" enrichment-scheduler fix-tracking doc that may be entirely obsolete/completed --
-  worth a look next session for archival rather than just the rename it already got.
+**Docs audit + distributable docx (v1d6ab79, 8db6268, 43b9fc3):** fixed a genuinely broken README anchor
+(section renumbering never updated the link), several stale counts (13->15 deliverables, ~24.9k->38k app.js
+lines, 5->4 feature checks), `version.json`'s notes field pointing at the wrong version's change, and three more
+stale numbers found only by actually rendering the architecture/workflow SVGs for the docx ("14 outputs" ->15,
+"PPTX" -> the real txt/md/docx formats, "~33,000 lines" -> ~38,000). Built `docs/distribution/ARIA_Documentation.docx`
+(README + LEGAL + LICENSE, python-docx, SVGs rasterized via Playwright since Word can't place SVG) -- not
+committed to git (regenerate rather than maintain as a checked-in artifact; it goes stale on every version bump).
 
-**Gotchas hit this session (in addition to the ones below from earlier in the day):** GitHub anchor slugs
-replace each space with a hyphen one-for-one and do NOT collapse consecutive hyphens -- a naive `re.sub(r'\s+',
-'-', ...)` audit script collapses a double-space (left behind after stripping an em-dash) into one hyphen and
-produces false "broken link" reports. My own test harness also produced two false positives while verifying the
-demo-data fix: testing `_demoHydrateSystem`/`applyDemoDataset()` without first setting `state.mockMode = true`
-(the function no-ops silently otherwise), and initially flagging FC LIFs and ifgroup LIFs as port mismatches
-when they're legitimately not on a plain `eNx` Ethernet port.
+**Action Planner navigation regroup (v5.6.137):** the 19-section tab row was one flat list of look-alike
+buttons with two tiny inline labels users couldn't find deliverables in. Regrouped into five bordered blocks
+(Overview / Risk & Security / Operations & Health / Account & Commercial / gold ★ Customer Deliverables), each
+with a one-line description. Section numbers/links/print output unchanged.
 
-**Still open / not done (rear-panel program, from the earlier v5.6.85-134 work):** no layout yet for FAS8000,
-older FAS25xx/26xx, unnamed StorageGRID models, or cloud platforms.
+**Shelf firmware currency, live (v5.6.138) -- the big one this session:** current shelf module firmware was
+never shown anywhere, only the recommended baseline. Root cause, found via live GraphQL schema introspection
+against the running server's `/api/graphql` proxy: `Shelf`/`ShelfModuleHardwareModel`/`Bays` genuinely have no
+per-shelf firmware field. The field that has it, `ONTAPSystem.shelvesSummary { firmware { currentVersion
+recommendedVersion } } }`, was never queried. First attempt added it inline to the main TAM/Efficiency systems
+query and broke it -- Active IQ's GraphQL "maximum height" (query-complexity) limit, which silently degraded
+the WHOLE harvest to Minimal tier and lost SP/BMC/motherboard/DQP/shelves for every system. Caught it from the
+server log, reverted, re-harvested to confirm TAM tier was restored, then re-added `shelvesSummary` as its own
+small paginated pass (`server.py`: `SHELVES_SUMMARY_FIELDS`, merged into `all_systems` by serial, same pattern
+as the existing E-Series/StorageGRID capacity merge) -- confirmed live for 135+ real systems this session.
+Also found two more shelf-firmware code paths that were dead since they were written (found while wiring this
+up, unrelated to the API gap): the As-Built Document's shelf table and the Action Plan's shelf-drift detector
+were both keyed on `sh.moduleType`/`sh.firmwareVersion`, neither a real `Shelf` field.
+New shared helpers in `app.js`: `_shelfModuleCurrency(modName)` (hoisted out of `_renderFirmwareCurrencySection`,
+was a local closure) and `_resolveShelfModules(sys)` (prefers Active IQ's own live `recommendedVersion` over the
+local reference-library baseline). `computeFleetFirmwareSummary()`'s composite is now SP 20/MB 20/DQP 15/Shelf
+15/Drive 30 (was SP 25/MB 25/DQP 20/Drive 30) and every deliverable that quotes "HW Firmware Currency" shows
+the Shelf% component -- new "Shelf FW Current" KPI tile and per-system "Shelf:" badge in the Action Planner UI.
+Also fixed on request: cluster node pairs were left in raw harvest-fetch order in the Firmware Currency and
+Recommended OS Upgrades system lists (could interleave unrelated clusters); both now sort by cluster then
+system name.
 
-**Git:** branch `main`. Everything through `1d6ab79` (anchor-link fix) is pushed. This handoff's CONTEXT.md/
-version.json edits are uncommitted as of writing -- commit and push them (and this file) together. Working tree
-also shows harvest data files modified by the running server (`data/*.json`) -- not part of this work, don't
-commit them with code changes.
+**Gotchas hit this session:** GitHub anchor slugs replace each space with a hyphen one-for-one, no collapsing --
+a naive `re.sub(r'\s+', '-', ...)` audit script produces false "broken link" reports on a double-space left
+behind after stripping an em-dash. `_demoHydrateSystem`/`applyDemoDataset()` no-op silently unless
+`state.mockMode = true` is set first. The frontend's GraphQL sandbox (`callActiveIQGraphQL`) needs its own
+separately-configured refresh token, distinct from the server's harvest credentials -- use the server's
+`/api/graphql` proxy directly (curl) for schema introspection instead. Chrome's built-in standalone-SVG viewer
+stretches an SVG to fill the viewport with blank padding when screenshotted directly -- wrap it in a plain HTML
+page first. GraphQL `__type()` introspection needs enough `ofType { ofType { ... } }` nesting to reach past
+NON_NULL/LIST wrappers to the actual named type, and `Cluster` in this schema is an INTERFACE, not an OBJECT
+(its own fields still list `shelves`, but a shallow query can appear to return nothing if you only ask for
+`fields { name }` without kind on a type you assume is a plain object).
 
-**Earlier in the day, for reference (v5.6.85-134):** shared-fact deliverable helpers (`_dfContractFacts`,
-`_dfArpFacts`, `_dfCveIndex`, `_dfSustain`, etc.), SnapMirror count-only semantics, invented figures removed,
-IOM6 upgrade-target cap, Plan-button fix (modals nested in hidden Settings tab), Technical Audit rear panels as
-SVG scale drawings for all ONTAP/E-Series/StorageGRID platforms, `hw_docs_harvester.py` (scanner 9) +
-`data/platform_hardware.json` + documentation panel, `tools/verify_rear_panels.py`, `tools/audit_deliverables.py`.
-Standing rule: rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
-`build/build_windows.bat` -- destructive). Full detail in git log / CHANGELOG.md for that range.
+**Still open / not done:** rear-panel program has no layout yet for FAS8000, older FAS25xx/26xx, unnamed
+StorageGRID models, or cloud platforms (unchanged from earlier). LEGAL.md/ARIA_FIX_PLAN.md still not
+content-audited (ARIA_FIX_PLAN.md looks obsolete, worth archiving).
+
+**Git:** branch `main`, pushed through `88b453e`. Working tree also shows harvest data files modified by the
+running server (`data/*.json`) -- not part of this work, don't commit them with code changes.
+
+**Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
+`build/build_windows.bat` -- destructive). Server.py changes need an actual server restart (kill the running
+python process, relaunch) -- app.js is served fresh on every page load and needs neither.

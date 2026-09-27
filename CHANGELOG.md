@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.138] - 2026-09-27
+
+### Fixed
+- The currently-installed shelf module firmware was never shown anywhere -- only the recommended baseline. Root cause: Active IQ's GraphQL schema has no per-shelf firmware field at all (confirmed via live schema introspection: Shelf, ShelfModuleHardwareModel and Bays all lack one); the field that does carry it, shelvesSummary { firmware { currentVersion recommendedVersion } } }, was never queried. Added as its own harvest pass (server.py, SHELVES_SUMMARY_FIELDS) after an inline attempt broke the main systems query (Active IQ's GraphQL 'maximum height' query-complexity limit) and silently degraded the whole harvest to a thinner tier -- caught and reverted before it reached production data.
+- Two more shelf-firmware code paths were fixed at the same time, both dead since they were written: the As-Built Document / Technical Audit 'Shelf Module Firmware' table (was grouping by sh.moduleType, not a real Shelf field, so it always fell through empty) and the Action Plan Phase 2 'shelf firmware drift' detector (same wrong field names, plus the never-populated firmware field -- shelfDrift was permanently empty regardless of fleet state).
+
+### Added
+- Shelf firmware currency now flows through every consumer of the shared computeFleetFirmwareSummary()/_resolveShelfModules() helpers: a new 'Shelf FW Current' KPI tile and per-system 'Shelf:' badge in the Action Planner's Firmware Currency section, a fifth component (15% weight) in the HW Firmware Currency composite score everywhere it's quoted (rebalanced from SP 25/MB 25/DQP 20/Drive 30 to SP 20/MB 20/DQP 15/Shelf 15/Drive 30), and the Shelf % breakdown in all customer-facing deliverables that cite HW Firmware Currency.
+
+### Improved
+- Cluster node pairs (e.g. CLUSDR-01/-02) were left in raw harvest-fetch order in the Firmware Currency system list and the Technical Audit's Recommended OS Upgrades list, which could interleave unrelated clusters' nodes. Both now sort by cluster, then system name, so a cluster's nodes are always adjacent.
+
+---
+
+## [5.6.137] - 2026-09-27
+
+### Improved
+- The Action Planner's 19-section tab row was one long flat list of look-alike buttons with two tiny inline group labels that were easy to miss (users reported the sections 'get lost' in the page). Regrouped into five bordered, labeled blocks -- Overview, Risk & Security, Operations & Health, Account & Commercial, and a gold-highlighted Customer Deliverables -- each with a one-line description of what it covers, so the section numbers stay the same (still 1-19, no links or print output broken) but the row reads as five scannable groups instead of one.
+
+---
+
 ## [5.6.136] - 2026-09-27
 
 ### Fixed

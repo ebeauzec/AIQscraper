@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.136-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.138-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -451,7 +451,7 @@ API token management, sync interval, custom account groups, watchlist IDs, and s
 
 ## 6. Action Planner — All 19 Sections
 
-Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are built and the numbered tab row appears above the content area, grouped into **Fleet Analysis** (every detail/audit tab, in one continuous group) followed by **★ Customer Deliverables** (the two output tabs) last — the deliverables are the thing everything before them is building toward, so they're the final step, not buried in the middle of the detail tabs.
+Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are built and the tab row appears above the content area as five bordered, labeled groups, each with a one-line description of what it covers: **Overview** (the one-page summary), **Risk & Security** (technical risks, security advisories, OS upgrades, switch validation), **Operations & Health** (support cases, operational health, DR & replication, feature adoption, firmware currency, performance), **Account & Commercial** (contracts, lifecycle, sustainability, recommendations, account intelligence, logistics, guidelines), and **★ Customer Deliverables** last, gold-highlighted — the deliverables are the thing everything before them is building toward, so they're the final step, not buried in the middle of the detail tabs.
 
 | # | Section | What's Inside |
 |---|---|---|
@@ -469,7 +469,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 19 sections are 
 | **12** | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **13** | **DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
 | **14** | **Feature Adoption** | Per-system feature matrix — ARP, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 4 real feature checks (e.g. "3/4"), not a blended health score |
-| **15** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW baselines, drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown). Drive FW recommendations sourced from Active IQ DQP telemetry |
+| **15** | **Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW (current version and recommended baseline, current sourced live from Active IQ's `shelvesSummary` field — a separate harvest pass, since it's not on the per-shelf object), drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown) for every component including shelves. Drive FW recommendations sourced from Active IQ DQP telemetry |
 | **16** | **Logistics & Health** | Site locations (city/country/state), account contacts, support case health scores |
 | **17** | **Guidelines** | ITIL change control tiers — Non-Disruptive / Disruptive but Data-Safe / Destructive — with pre/post actions |
 | **18** | **Deliverables Suite** ★ | One-click downloadable report generators — each with KB intelligence badge showing enrichment article count |
@@ -542,7 +542,7 @@ Composite index measuring overall customer account posture. Used in: TAM tab gau
 | ASUP Compliance | 15% | Systems reporting AutoSupport within 7 days | % compliant × 15 |
 | ARP Enablement | 12% | Autonomous Ransomware Protection enabled | % enabled × 12 |
 | OS Firmware Currency | 12% | ONTAP version ≥ recommended minimum | % current × 12 |
-| HW Firmware Currency | 8% | SP/MB/DQP/Drive firmware composite score | (composite / 100) × 8 |
+| HW Firmware Currency | 8% | SP/MB/DQP/Shelf/Drive firmware composite score | (composite / 100) × 8 |
 | Support Contract Coverage | 13% | Real isContractActive status from Active IQ | % covered × 13 |
 | Risk Posture | 20% | Inverse of critical/high risk count | max(0, 1 - (criticals × 0.15 + highs × 0.05)) × 20 |
 | Data Reduction | 10% | Avg DR ratio, capped at 5:1 | (avg ratio / 5) × 10 |
