@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.129] - 2026-09-27
+
+### Changed
+- StorageGRID and E-Series rear panels completed against NetApp's hardware descriptions: SG110/SG1100/SG120/SG1200 and SGF6112/SGF6212 use their own 1U layout (admin RJ-45 ports in the centre, no serial port), SG6160/SG6260 are drawn with the SG6100-CN/SG6200-CN compute controller (one 100GbE interconnect port) and two E4000 storage controllers with a breakout-cable interconnect diagram, and the EF50/EF80 canister is drawn (approximate).
+
+---
+
 ## [5.6.128] - 2026-09-27
 
 ### Changed
