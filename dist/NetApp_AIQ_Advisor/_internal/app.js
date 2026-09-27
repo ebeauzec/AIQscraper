@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.123";
+const APP_VERSION = "5.6.124";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.124",
+    date: "27 September 2026",
+    title: "Logical Interfaces Toggle",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Technical Audit port table: interface groups and VLANs (rows with no physical connector) are hidden by default, with a 'Show logical interfaces' checkbox above the table that remembers your choice.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.123",
     date: "27 September 2026",
@@ -36513,7 +36528,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     const partnerPortCell = port.partnerPort ? `<code>${port.partnerPort}</code>` : '<span style="color:var(--text-muted);">—</span>';
 
     tableRowsHtml += `
-      <tr id="port-row-${port.name}" data-stat="${_sc}" style="border-bottom: 1px solid var(--border-color); border-left: 4px solid transparent; transition: background-color 0.15s ease; cursor: pointer;"
+      <tr id="port-row-${port.name}" data-stat="${_sc}"${_no ? '' : ' class="bp-logical-row"'} style="border-bottom: 1px solid var(--border-color); border-left: 4px solid transparent; transition: background-color 0.15s ease; cursor: pointer;"
           onmouseenter="hoverCablingPort('${port.name}')"
           onmouseleave="unhoverCablingPort('${port.name}')" onclick="bpPin('${port.name}')">
         <td style="padding: 10px; width: 44px;">${_no ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#0b0e14;border:2px solid ${_sc};color:#fff;font-size:0.7rem;font-weight:800;">${_no}</span>` : '<span style="color:var(--text-muted);" title="Logical interface (interface group / VLAN): no physical connector">—</span>'}</td>
@@ -36656,7 +36671,9 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     <div style="flex:1 1 620px;min-width:0;">${backplateHtml}</div>
 
     <!-- Port table, beside the drawing -->
-    <div style="flex:1 1 430px;min-width:0;">
+    <div id="bpPortWrap" class="${_bpShowLogical ? '' : 'bp-logical-hidden'}" style="flex:1 1 430px;min-width:0;">
+    <style>.bp-logical-hidden .bp-logical-row{display:none}</style>
+    ${ports.some(p => !_bpNum[p.name]) ? `<label style="display:flex;align-items:center;gap:6px;font-size:0.7rem;color:var(--text-secondary);margin-bottom:6px;cursor:pointer;"><input type="checkbox" ${_bpShowLogical ? 'checked' : ''} onchange="bpToggleLogical(this.checked)"> Show logical interfaces (${ports.filter(p => !_bpNum[p.name]).length} interface groups / VLANs, no physical connector)</label>` : ''}
     <div class="data-table-container" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: auto; max-height: 760px; background: rgba(15,22,38,0.3);">
       <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
         <thead>
@@ -36753,6 +36770,12 @@ function bpLifPorts(lifPort, ports) {
 // One source of truth for what is lit: the union of {hovered port, pinned port, hovered LIF row,
 // pinned LIF row}. Every change recomputes the set and clears anything no longer in it, so nothing
 // stays lit after the pointer or the selection moves on.
+let _bpShowLogical = false; try { _bpShowLogical = localStorage.getItem('aiq_bp_logical') === '1'; } catch (e) { }
+function bpToggleLogical(on) {
+  _bpShowLogical = !!on;
+  try { localStorage.setItem('aiq_bp_logical', on ? '1' : '0'); } catch (e) { }
+  const w = document.getElementById('bpPortWrap'); if (w) w.classList.toggle('bp-logical-hidden', !on);
+}
 let _bpHoverPort = null, _bpPinned = null, _bpLifHoverRow = null, _bpLifPinnedRow = null;
 function _bpReset() { _bpHoverPort = null; _bpPinned = null; _bpLifHoverRow = null; _bpLifPinnedRow = null; }
 function _bpRefresh() {

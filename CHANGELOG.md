@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.124] - 2026-09-27
+
+### Changed
+- Technical Audit port table: interface groups and VLANs (rows with no physical connector) are hidden by default, with a 'Show logical interfaces' checkbox above the table that remembers your choice.
+
+---
+
 ## [5.6.123] - 2026-09-27
 
 ### Changed
