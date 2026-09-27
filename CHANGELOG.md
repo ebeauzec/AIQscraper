@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.121] - 2026-09-27
+
+### Changed
+- StorageGRID appliance rear panels show the internal connections of each storage node: an interconnect diagram links the compute controller's interconnect ports to the storage controller(s) (SG5700: two 16Gb FC cables IC1-IC1 and IC2-IC2; SG5800: two 25GbE iSCSI cables; SG6060/SG6060X: four 16Gb FC cables, two to each of the two E2800 controllers, which are now both drawn), from NetApp's appliance cabling guides.
+
+---
+
 ## [5.6.120] - 2026-09-27
 
 ### Changed
