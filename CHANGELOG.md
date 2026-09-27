@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.141] - 2026-09-27
+
+### Fixed (Critical)
+- Found the actual root cause of switches (and several other fields) reporting empty despite the harvest correctly fetching them: loadConfig() -- a function whose real job is reading auth tokens/settings from localStorage -- also unconditionally re-hydrates state.systems from the localStorage cache as an undocumented side effect, every time it's called. loadProductionData() calls updateStatusIndicators() at its own end purely to refresh the connection-status dot, which called loadConfig() just for the token, which silently reloaded the ENTIRE system list from localStorage -- overwriting the correct, freshly-harvested in-memory data with whatever saveSystems() had just written to localStorage moments earlier in the SAME sync.
+- That localStorage write is quota-limited: the full dataset is 69.6MB on one real fleet, far over any browser's ~5-10MB localStorage quota, so saveSystems() falls back to a 'slim' save that strips switches, vservers, risks, supportCases, fieldActions, securityBulletins, hypervisors, projections, logistics, contacts, salesHealth, autosupport, and lifecycleEvents before writing. The result: every single harvest correctly populated all of these fields in memory, then silently wiped them seconds later on the SAME page load, with no second sync, no error, and nothing in between to suggest why -- confirmed live by instrumenting the actual load path: switches went from 295 systems populated to 0 within one page load, purely from this call chain.
+- Fixed by giving loadConfig() an explicit restoreSystemsFromCache parameter (default true, for the one genuine boot-time caller) and passing false from the two callers that only ever wanted the token (updateStatusIndicators(), runAPIDiagnostics()). Confirmed live after the fix: switches (295 systems) and vservers (360 systems) both now persist correctly through a full page load and stay stable.
+
+---
+
+## [5.6.140] - 2026-09-27
+
+### Fixed
+- Found and fixed the dominant cause of 'flaky/thin' switch rows: Active IQ's own cluster.switches field can report the SAME physical switch twice under two different device-name suffixes from two different discovery paths (e.g. a MAC-suffixed name and a serial-suffixed name), each with its own IP and differently-phrased firmware string -- confirmed live, 14 such duplicate pairs in one account's harvest alone. Deduplicated by normalized device name, keeping whichever duplicate Active IQ actually monitors (falling back to whichever has a real model, then the longer firmware string) instead of showing both -- one thin, one rich -- as separate rows.
+- Server-side switch model inference only ever checked the device hostname (e.g. 'SA-OOB-RDC47-F2A-01', which gives no hint at all) and never the firmware STRING, which nearly always names the real platform ('Cisco NX-OS(tm) n6000...', 'Huawei Switch...S5700...'). Now checks both, and recognizes Huawei, HP, Aruba, and Ubiquiti in addition to the existing Cisco/Brocade/NVIDIA/Broadcom coverage -- confirmed live: 'OTHER'/blank switch models across two real fleets dropped from 50 to 22 genuinely unidentifiable stragglers.
+
+### Added
+- Two real Active IQ switch fields were never queried: `network` (a reliable CLUSTER_NETWORK/MANAGEMENT_NETWORK/STORAGE_NETWORK/OTHER enum, more trustworthy than the free-text `role` field it's now preferred over) and `supportContract` (start/end date, offer description -- real switch warranty/EOS tracking, same as every other hardware component's contract data). Support-contract end date now shows as a badge in the Switch Validation table (color-coded by days remaining) and in the Action Plan's switch remediation cards, when Active IQ reports it.
+- A switch seen via local port connectivity but never in Active IQ's CSHM-monitored switches list now gets its own explicit row (status 'Unknown', with an explanation) instead of being silently absent -- and when the SAME switch is reported by both sources, they're now merged into one row carrying both the CSHM model/firmware data and the local port-cabling detail (which port, at what speed), shown in the Switch Validation table.
+
+---
+
+## [5.6.139] - 2026-09-27
+
+### Fixed
+- The As-Built Configuration Document's Download button already went through the same Text/Markdown/Word format dialog as every other deliverable -- confirmed live, including a successful .docx build -- but its tooltip still said 'plain-text file', left over from before that dialog existed. Tooltip corrected; no behavior change.
+
+---
+
 ## [5.6.138] - 2026-09-27
 
 ### Fixed

@@ -22,10 +22,29 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27 (Windows dev station, v5.6.134 -> v5.6.138 + repo rename + docs audit)
+## Session handoff -- 2026-09-27 (Windows dev station, v5.6.134 -> v5.6.141)
 
 Continues the same day's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
-harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main` through `01c6e9c`.
+
+**Read this first -- the headline finding (v5.6.141):** `loadConfig()` (reads auth tokens/settings from
+localStorage) also unconditionally re-hydrates `state.systems` from localStorage as an undocumented side
+effect, EVERY time it's called -- not just at boot. `loadProductionData()` calls `updateStatusIndicators()`
+at its own end just to refresh the connection dot; that called `loadConfig()` just for the token; that
+silently reloaded the whole system list from localStorage, overwriting the correct, freshly-harvested
+in-memory data with whatever `saveSystems()` had just written to localStorage MOMENTS EARLIER in the SAME
+sync. That localStorage write is quota-limited (full dataset is 69.6MB on one real fleet, localStorage is
+~5-10MB), so `saveSystems()`'s fallback strips `switches`, `vservers`, `risks`, `supportCases`,
+`fieldActions`, `securityBulletins`, `hypervisors`, `projections`, `logistics`, `contacts`, `salesHealth`,
+`autosupport`, `lifecycleEvents` before writing. Net effect: every single harvest correctly populated ALL of
+these fields, then silently wiped them seconds later on the SAME page load, for the whole session. This is
+very likely the real explanation behind most "flaky/thin data" reports across the app, not just switches.
+Fixed with a `restoreSystemsFromCache` param on `loadConfig()` (default true for the one genuine boot caller;
+`updateStatusIndicators()`/`runAPIDiagnostics()` now pass `false`). Confirmed live: switches (295 systems)
+and vservers (360 systems) both persist correctly through a full page load now, holding stable over 20+
+seconds of polling where they previously always landed on 0. If something STILL looks thin/flaky after this,
+check whether it's in that STRIP_KEYS list and whether some other caller reaches `loadConfig()` un-flagged --
+that's now the first thing to check, not the harvest query.
 
 **What was asked, in order:** (1) fix the mock/demo data (wrong controller's ports, wrong LIF-to-port roles,
 duplicate WWPNs); (2) rename the GitHub repo to ARIA; (3) audit the documentation for staleness; (4) build a
@@ -93,11 +112,27 @@ NON_NULL/LIST wrappers to the actual named type, and `Cluster` in this schema is
 (its own fields still list `shelves`, but a shallow query can appear to return nothing if you only ask for
 `fields { name }` without kind on a type you assume is a plain object).
 
+**Switch reporting audit (v5.6.140), which led to finding the above:** user reported "flaky/thin" switch data.
+Found two real, separate bugs in `server.py`'s switch assembly (not the loadConfig one): (1) Active IQ's own
+`cluster.switches` field can report the SAME physical switch twice under two different device-name suffixes
+from two discovery paths (MAC-suffixed vs serial-suffixed, different IP, differently-phrased firmware string)
+-- 14 such pairs in one account's harvest; deduped by normalized device name, keeping whichever duplicate is
+actually monitored. (2) Server-side model inference only ever checked the device hostname, never the
+firmware STRING (which nearly always names the real platform) -- extended to check both, and to recognize
+Huawei/HP/Aruba/Ubiquiti in addition to Cisco/Brocade/NVIDIA/Broadcom (`OTHER`/blank dropped 50->22). Also
+added two real switch fields Active IQ exposes but were never queried: `network` (reliable role enum) and
+`supportContract` (start/end date -- real switch EOS/warranty tracking, shown as a color-coded badge). A
+switch seen only via local port connectivity (never in CSHM's inventory) now gets an explicit "Unknown" row
+instead of silent absence; one reported by both sources merges into a single row. New shared helpers in
+`server.py`: `_sw_norm()`, the `_by_norm` dedup pass before the main switches loop.
+
 **Still open / not done:** rear-panel program has no layout yet for FAS8000, older FAS25xx/26xx, unnamed
 StorageGRID models, or cloud platforms (unchanged from earlier). LEGAL.md/ARIA_FIX_PLAN.md still not
-content-audited (ARIA_FIX_PLAN.md looks obsolete, worth archiving).
+content-audited (ARIA_FIX_PLAN.md looks obsolete, worth archiving). The loadConfig() fix only covers the two
+callers found this session (`updateStatusIndicators`, `runAPIDiagnostics`) -- worth a quick grep for any other
+`loadConfig()` call site before assuming this class of bug is fully closed.
 
-**Git:** branch `main`, pushed through `88b453e`. Working tree also shows harvest data files modified by the
+**Git:** branch `main`, pushed through `01c6e9c`. Working tree also shows harvest data files modified by the
 running server (`data/*.json`) -- not part of this work, don't commit them with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
