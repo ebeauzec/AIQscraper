@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.136";
+const APP_VERSION = "5.6.137";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.137",
+    date: "27 September 2026",
+    title: "Action Planner Navigation Regrouped",
+    sections: [
+      {
+        icon: "✨",
+        label: "Improved",
+        color: "#38bdf8",
+        items: [
+          "The Action Planner's 19-section tab row was one long flat list of look-alike buttons with two tiny inline group labels that were easy to miss (users reported the sections 'get lost' in the page). Regrouped into five bordered, labeled blocks -- Overview, Risk & Security, Operations & Health, Account & Commercial, and a gold-highlighted Customer Deliverables -- each with a one-line description of what it covers, so the section numbers stay the same (still 1-19, no links or print output broken) but the row reads as five scannable groups instead of one.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.136",
     date: "27 September 2026",
@@ -30372,28 +30387,56 @@ function generateActionPlan() {
   if (planTabsHeader) {
     planTabsHeader.style.display = "flex";
     planTabsHeader.innerHTML = `
-      <span class="plan-tab-group-label" style="margin-left:0;">FLEET ANALYSIS</span>
-      <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
-      <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">4. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">8. Contract Compliance</button>
-      <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
-      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">10. Recommendations</button>
-      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
-      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
-      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
-      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
-      <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
-      <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
-      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
-      <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
-      <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before this point is fleet analysis used to build them, not itself an exportable deliverable.">★ CUSTOMER DELIVERABLES</span>
-      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">18. Deliverables Suite (13)</button>
-      <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Overview</span></div>
+        <div class="plan-tab-group-desc">Where every reviewer should start — the one-page rollup of everything below.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
+        </div>
+      </div>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Risk &amp; Security</span></div>
+        <div class="plan-tab-group-desc">What could go wrong, and what NetApp or CVE advisories say to do about it.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security Advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">4. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
+        </div>
+      </div>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Operations &amp; Health</span></div>
+        <div class="plan-tab-group-desc">Day-to-day operational posture — support load, protection coverage, and hygiene.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
+          <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
+          <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
+          <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
+          <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
+        </div>
+      </div>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Account &amp; Commercial</span></div>
+        <div class="plan-tab-group-desc">Contracts, lifecycle, sustainability, and the account context behind the technical picture.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">8. Contract Compliance</button>
+          <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
+          <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">10. Recommendations</button>
+          <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
+          <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
+          <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
+        </div>
+      </div>
+      <div class="plan-tab-group featured-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">★ Customer Deliverables</span></div>
+        <div class="plan-tab-group-desc">Ready to export and present — everything above is the analysis that builds these.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">18. Deliverables Suite (13)</button>
+          <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
+        </div>
+      </div>
     `;
 
   }
