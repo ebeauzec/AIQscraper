@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.136] - 2026-09-27
+
+### Fixed
+- Fixed demo/mock data placing data LIFs (NFS/CIFS/S3/iSCSI/NVMe/FCP) on cluster-interconnect or unreported ports: the vservers/LIF templates and the node's physical port list are chosen independently (for realistic SVM shapes versus a chassis-accurate rear panel) and could disagree on which eNx name serves data; a data LIF whose home/current port isn't a real DATA-role port on that node is now retargeted onto one of the node's own DATA ports.
+
+---
+
 ## [5.6.135] - 2026-09-27
 
 ### Fixed

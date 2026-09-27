@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.135";
+const APP_VERSION = "5.6.136";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.136",
+    date: "27 September 2026",
+    title: "Demo LIF Port Consistency",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Fixed demo/mock data placing data LIFs (NFS/CIFS/S3/iSCSI/NVMe/FCP) on cluster-interconnect or unreported ports: the vservers/LIF templates and the node's physical port list are chosen independently (for realistic SVM shapes versus a chassis-accurate rear panel) and could disagree on which eNx name serves data; a data LIF whose home/current port isn't a real DATA-role port on that node is now retargeted onto one of the node's own DATA ports.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.135",
     date: "27 September 2026",
@@ -7853,6 +7868,37 @@ function _demoHydrateSystem(s, ctx) {
       }
       if (prof.shelves) fill('shelves', prof.shelves);
       if (prof.vservers) fill('vservers', _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v)))));
+      // The vservers/LIFs above came from `prof` (matched loosely, by product line, for realistic SVM/
+      // protocol/service-policy shapes) while networkPorts above came from a stricter, chassis-accurate
+      // match or the synthesized template -- two independent picks that can disagree on which specific
+      // eNx name is a data port versus a cluster/management port. Retarget any data-serving LIF sitting
+      // on a port that networkPorts calls CLUSTER or management, or that this node doesn't have at all,
+      // onto a real DATA port from THIS node's own (chassis-accurate) port list.
+      if (out.vservers && out.vservers.length && out.networkPorts && out.networkPorts.networkPorts) {
+        const np = out.networkPorts.networkPorts, roleOf = {}; np.forEach(x => { roleOf[x.port] = x.role; });
+        const dataPorts = np.filter(x => x.role === 'DATA').map(x => x.port);
+        if (dataPorts.length) {
+          const pick = seed => dataPorts[_demoHash(s.serialNumber + '|lifport|' + seed) % dataPorts.length];
+          // Only a genuine physical eNx port with the wrong role (or missing from this node's own list)
+          // is remapped -- interface groups (a0a), VLANs (e0c-107) and other logical port names are a
+          // legitimate, common real-world LIF home port and are never touched here.
+          const isPhys = v => /^e?\d{1,2}[a-z]$/i.test(String(v || ''));
+          out.vservers = out.vservers.map(v => ({
+            ...v, logicalInterfaces: (v.logicalInterfaces || []).map(l => {
+              const protoStr = ((l.serviceConfiguration && l.serviceConfiguration.dataProtocols) || []).join(',');
+              const isData = /(NFS|CIFS|SMB|S3|ISCSI|NVME_TCP)/i.test(protoStr) && !/(FCP|NVME_FC)/i.test(protoStr);
+              const fc = l.failoverConfiguration;
+              if (!isData || !fc) return l;
+              const homeOk = !isPhys(fc.homePort) || roleOf[fc.homePort] === 'DATA';
+              const curOk = !isPhys(fc.currentPort) || roleOf[fc.currentPort] === 'DATA';
+              if (homeOk && curOk) return l;
+              const homePort = homeOk ? fc.homePort : pick(l.name + '|home');
+              const currentPort = curOk ? fc.currentPort : (fc.currentPort === fc.homePort ? homePort : pick(l.name + '|cur'));
+              return { ...l, failoverConfiguration: { ...fc, homePort, currentPort } };
+            })
+          }));
+        }
+      }
       const isAFFish = /aff|asa|a\d{2,3}|c\d{2,3}|afx/i.test(platStr);
       if (out.isAllFlashOptimized == null || out.isAllFlashOptimized === '') out.isAllFlashOptimized = isAFFish;
       const verOk = !versionLt(String(s.ontapVersion || s.osVersion || '9.0'), '9.10.1');
