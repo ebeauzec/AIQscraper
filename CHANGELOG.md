@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.120] - 2026-09-27
+
+### Changed
+- StorageGRID appliance rear panels now label each port with its network role: Grid Network, Client Network, Admin Network (and its bond partner), BMC, SANtricity management, controller interconnect, drive expansion (used or not), and diagnostic/support ports. Roles are colour-coded on the connectors with a legend and a note explaining the default Fixed port bond mode (network ports 2 and 4 = Grid, 1 and 3 = Client) versus Aggregate mode; they come from NetApp's appliance documentation because Active IQ does not report the configured bond mode.
+
+---
+
 ## [5.6.119] - 2026-09-27
 
 ### Changed
