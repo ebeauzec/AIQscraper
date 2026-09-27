@@ -27,9 +27,39 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.125";
+const APP_VERSION = "5.6.127";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.127",
+    date: "27 September 2026",
+    title: "Port Speed And Connector Type",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Rear-panel connector shape follows the reported port speed more carefully: a slot with a port linked at 1 Gbps or slower (Active IQ's operational speed) is drawn with RJ-45 copper connectors instead of SFP cages, and speeds given in Mbps are no longer misread as Gbps.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.126",
+    date: "27 September 2026",
+    title: "AFF A700s Rear Panel",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "Added the AFF A700s rear panel (a 4U chassis with stacked controllers, NVRAM10 in slot 1, two PSUs, slots 2-5 and four onboard 40GbE ports, from NetApp's A700s install guide); it was being drawn with the 8U A700 layout because its name starts with 'A700'.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.125",
     date: "27 September 2026",
@@ -36040,7 +36070,8 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const _bn = () => _dim ? {} : _byNameAll;
   const _X = (x, w) => _mir ? _CW - x - (w || 0) : x;
   const _ZOOM = 1.4;   // one pixels-per-unit for every layout so a connector is the same size on every platform
-  const _speedKind = p => { const g = parseFloat((p.details && p.details.speed) || ''); return g >= 40 ? 'qsfp' : 'sfp'; };
+  const _gbps = p => { const t = String((p.details && p.details.speed) || ''), v = parseFloat(t); return isNaN(v) ? null : (/mbps/i.test(t) ? v / 1000 : v); };
+  const _speedKind = p => { const g = _gbps(p); return g != null && g >= 40 ? 'qsfp' : 'sfp'; };
   const _stat = p => p ? (p.status === 'online' ? '#22c55e' : p.status === 'offline' ? '#ef4444' : '#f59e0b') : '#4b5563';
   const _statTxt = p => p.status === 'online' ? 'UP' : p.status === 'offline' ? 'DOWN' : 'UNKNOWN';
   const _num = _bpNumberPorts(ports);
@@ -36148,7 +36179,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       const isBo = _lt.some(c => c >= 'e') && _lt.some(c => c !== 'a' && c !== 'e');   // a+e alone = a plain 2-port card
       let items;
       if (isBo) { const gm = {}; ps.forEach(q => { const k = Math.floor((q.name.toLowerCase().charCodeAt(q.name.length - 1) - 97) / 4); (gm[k] = gm[k] || []).push(q); }); items = Object.keys(gm).sort().map(k => ({ grp: gm[k], kind: 'qsfp' })); }
-      else items = ps.map(q => ({ p: q, kind: _speedKind(q) }));
+      else { const _cu = ps.some(q => { const g = _gbps(q); return g != null && g <= 1; }); items = ps.map(q => ({ p: q, kind: _cu ? 'rj45' : _speedKind(q) })); }   // a port linked at 1 Gbps or less: the card is copper (RJ-45) far more often than not; siblings in the slot follow
       const nat = items.map(it => _KIND[it.kind]), pw = Math.max(...nat.map(k => k[0])), ph = Math.max(...nat.map(k => k[1]));
       const LAB = 8, GX = 4, pad = 3, extra = isBo ? 7 : 0;
       let best = null;
@@ -36268,6 +36299,15 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
       return it.concat([['raw', () => `<rect x="${_X(168, 42)}" y="270" width="42" height="124" rx="3" fill="#161c29" stroke="#3b4557" stroke-width="0.7"/>`], ['f', 'USB', 'usb', 180, 286, 't'], ['f', 'CON', 'rj45', 178, 318, 't'], ['p', 'e0M', 'rj45', 178, 358, 't'],
         ['raw', () => `<rect x="${_X(170, 22)}" y="110" width="22" height="110" rx="3" fill="#7c4a12" opacity="0.4"/>`],
         ['psu', 0, 446, 72, 48, 'PSU ' + (_mir ? 3 : 1)], ['psu', 78, 446, 72, 48, 'PSU ' + (_mir ? 4 : 2)]]); })() };
+  // AFF A700s (4U, two controllers stacked; NetApp AFF A700s install and setup instructions): slot 1 (NVRAM10) top-left over
+  // two PSUs, slots 2/3 stacked in the middle, console/USB/e0M/BMC below them, slot 4 (40GbE) and slot 5 (SAS) top-right,
+  // four onboard 40GbE ports (e0j e0f | e0e e0a) bottom-right
+  _LAY.a700s = { W: 640, H: 128, mode: 'stack', sub: 'AFF A700s: two controllers stacked (4U), two PSUs per controller · 5 slots (slot 1 = NVRAM10) · four onboard 40GbE ports',
+    items: [['bay', 1, 71, 8, 160, 44, 'h'], ['psu', 21, 62, 105, 60, 'PSU 1'], ['psu', 137, 62, 105, 60, 'PSU 2'],
+      ['bay', 2, 262, 4, 150, 36, 'h'], ['bay', 3, 262, 44, 150, 36, 'h'],
+      ['f', 'CON', 'rj45', 268, 90, 'b'], ['f', 'USB', 'usb', 302, 92, 't'], ['p', 'e0M', 'rj45', 332, 90, 't'], ['f', 'BMC', 'rj45', 357, 90, 't'],
+      ['bay', 4, 464, 4, 160, 44, 'h'], ..._sasRow(['5a', '5b', '5c', '5d'], 484, 56, 26),
+      ['p', 'e0j', 'qsfp', 439, 92, 't'], ['p', 'e0f', 'qsfp', 472, 92, 't'], ['p', 'e0e', 'qsfp', 556, 92, 't'], ['p', 'e0a', 'qsfp', 590, 92, 't']] };
   // AFF A250 / C250 / FAS500f
   _LAY.a250 = { W: 640, H: 64, mode: 'stack', zoom: 1.4, sub: 'AFF A250/C250: two controllers stacked (2U), one PSU per controller · 2 PCIe slots',
     items: [['psu', 36, 3, 92, 56, 'PSU'], ['f', 'CON', 'rj45', 180, 30, 'b'], ['f', 'USB', 'usb', 216, 34, 'b'], ['f', 'μUSB', 'umicro', 246, 46, 't'], ['p', 'e0M', 'rj45', 270, 34, 't'], ['led', 322, 22, 4],
@@ -36408,6 +36448,7 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   const _has = (...codes) => codes.some(c => _code === c || _code.startsWith(c) && !/^\d/.test(_code.slice(c.length)));
   let layout = 'generic';
   if (isAFXPlat) layout = 'afx';
+  else if (_code === 'a700s') layout = 'a700s';
   else if (_has('a700', '9000', 'a900', '9500')) layout = 'chassis8u';
   else if (_has('8300', '8700', 'a400', 'c400')) layout = 'mid7';
   else if (_has('a800', 'c800')) layout = 'a800';

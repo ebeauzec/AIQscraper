@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.127] - 2026-09-27
+
+### Changed
+- Rear-panel connector shape follows the reported port speed more carefully: a slot with a port linked at 1 Gbps or slower (Active IQ's operational speed) is drawn with RJ-45 copper connectors instead of SFP cages, and speeds given in Mbps are no longer misread as Gbps.
+
+---
+
+## [5.6.126] - 2026-09-27
+
+### Changed
+- Added the AFF A700s rear panel (a 4U chassis with stacked controllers, NVRAM10 in slot 1, two PSUs, slots 2-5 and four onboard 40GbE ports, from NetApp's A700s install guide); it was being drawn with the 8U A700 layout because its name starts with 'A700'.
+
+---
+
 ## [5.6.125] - 2026-09-27
 
 ### Fixed
