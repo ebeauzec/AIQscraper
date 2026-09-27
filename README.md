@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.83-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.134-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -372,12 +372,30 @@ The **Official AIQ Health Score** KPI tile shows Active IQ's own real score — 
 
 The risk and security intelligence hub. Displays all Active IQ risks sorted by severity, security advisories with CVE cross-referencing, and Reference Library enrichment checks (Kerberos, SnapMirror, Varonis, firewall deprecation). Each advisory links to the NetApp Security Advisory portal.
 
-The Controller Node Port Assignments card now includes a **platform-specific rear-panel backplate** showing the physical slot layout, port types (color-coded), and live link status LEDs. Port hover interactions cross-highlight between the backplate and the cabling audit table. A new **LIF Inventory** table displays SVM logical interfaces per node.
+The **Controller Node Port Assignments** card draws the selected controller's **rear panel as a scale SVG drawing** traced from NetApp's own hardware diagrams and documentation, for every current ONTAP family (FAS/AFF/ASA/AFX/C-series), E-Series and StorageGRID appliance:
+
+- The selected controller is drawn in full beside its dimmed partner and the shared chassis (PSUs, IO slot bays, NVRAM, management module), with true connector shapes (SFP, QSFP, RJ-45, mini-SAS HD, USB). One common scale keeps port sizes the same on every platform.
+- Each reported physical port is **numbered**, coloured by role, and shows a link LED (green up, red down, orange unknown). **Hover or click** a port, a row in the port table, or a **LIF** to light the physical port(s) behind it with a callout; interface groups light all their member ports, VLAN LIFs their base port, and FC LIFs the FC port they sit on (FC ports are inferred from the LIFs because Active IQ reports Ethernet ports only, and are marked as inferred).
+- Connectors Active IQ did not report are dashed; **breakout** ports (e4a-e4h on one slot) are drawn as one QSFP connector with four lanes; interface groups and VLANs are listed in a table you can show or hide.
+- The port table sits beside the drawing with the LIF inventory below both. StorageGRID appliances are labelled with their **network roles** (Grid, Client, Admin, BMC, interconnect ...) and an **internal-connections** diagram between the compute and storage controllers.
+- A collapsible **NetApp documentation** panel lists the slot and port assignments the harvest pulled from NetApp's official documentation for the platform (see Harvest below).
 
 <p align="center">
-  <img src="docs/images/cabling-audit.png" alt="Technical Audit's Controller Node Port Assignments card showing a rendered AFF-A700 rear panel with color-coded slots, live link status per port, and a LIF inventory table" width="820">
+  <img src="docs/images/cabling-audit.png" alt="Technical Audit: an AFF A700 rear panel drawing with numbered ports, breakout lanes, a highlighted LIF port group and the port table beside it" width="900">
 </p>
-<p align="center"><sub>Real-time cabling and physical-layer (L1) audit for a live AFF A700 — rendered from actual port, MAC, and LIF data returned by Active IQ.</sub></p>
+<p align="center"><sub>An AFF A700 (8U, 11 slots, NVRAM in slot 6): breakout lanes, numbered ports with link status, and the port table beside the drawing. A selected LIF lights its physical ports.</sub></p>
+
+<p align="center">
+  <img src="docs/images/rear-panel-a90.png" alt="AFF A90 rear panel drawing with numbered ports" width="900">
+</p>
+<p align="center"><sub>An AFF A90: 11 slot positions, NVRAM in slots 4-5, PSUs above slots 6-7, management module, ports numbered and coloured by role and link state.</sub></p>
+
+<p align="center">
+  <img src="docs/images/rear-panel-fas50-docs.png" alt="FAS50 rear panel with the NetApp documentation slot and port assignments panel expanded" width="900">
+</p>
+<p align="center"><sub>A FAS50 with the documentation panel open: slot 2 = 4-port Ethernet/FC, slot 3 = SAS, slot 4 = 2-port 40/100GbE cluster/HA, each role with the NetApp sentence it came from.</sub></p>
+
+**Hardware documentation harvest.** `hw_docs_harvester.py` (scanner 9 of the standard enrichment cycle, refreshed weekly and on the post-harvest freshness check) reads NetApp's official platform documentation and writes `data/platform_hardware.json`: per platform the key specifications, the slots and ports the install/cabling text names, their roles and speeds, and the sentence behind each. It is offline-safe (a failed fetch keeps the previous file). Run `python hw_docs_harvester.py` to refresh manually, and `python tools/verify_rear_panels.py` to check every drawing places every port NetApp's text mentions.
 
 ### Support & Ops
 

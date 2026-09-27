@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-26 (Windows dev station, v5.6.85 -> v5.6.104)
+## Session handoff -- 2026-09-27 (Windows dev station, v5.6.85 -> v5.6.134)
 
 Overlaps the cloud session's v5.6.83/84 (merged in 5.6.85). Everything below is pushed to `main`.
 
@@ -71,3 +71,5 @@ literal broke the whole page once (check the browser console after every edit).
 **Added in 5.6.96-97:** `_dfActionPlan` / `_dfUpgradeWaves` / `_dfRefreshPlan` / `_dfCapacityTrend` (planning helpers before `compileCustomerReport`); 'Decisions needed' block inserted into every narrative document via `_bannerInsert`; capacity trend flags drained clusters.
 
 **Added in 5.6.98-104:** risks vs CVEs explained in the health report; Customer Value Report as text (PowerPoint removed); downloads as txt/md/docx with a per-download format prompt and structured A4 Word files; MetroCluster card and deliverables per inferred pair (`_dfMetroClusters`); README/CONTEXT refreshed. Lesson: patch scripts written via heredoc turn `\\n` into real newlines inside JS strings -- use the Write tool and check the browser console after every edit (a broken line 21717 briefly took the live page down in 5.6.104 development).
+
+**Added in 5.6.105-134:** IOM6 upgrade-target cap; Plan-button fix (modals were nested in the hidden Settings tab); Technical Audit rear panels as SVG scale drawings for all ONTAP/E-Series/StorageGRID platforms with numbered ports, LIF->port highlighting, FC-port inference, breakout lanes, StorageGRID roles and internal connections, port table beside the drawing; `hw_docs_harvester.py` (scanner 9) + `data/platform_hardware.json` + documentation panel; `tools/verify_rear_panels.py`. Standing rule: rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never build_windows.bat). Still no layout: FAS8000, older FAS25xx/26xx, unnamed StorageGRID, cloud.

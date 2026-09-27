@@ -426,3 +426,12 @@ Key metric calculations are implemented in `app.js` at the following locations:
 - Downloads: `triggerFileDownload()` writes `.txt`, `.md` or a structured A4-portrait `.docx` (built in-app by `_buildDocx`); `_askFormat()` prompts per download.
 - FabricPool is not part of the feature-adoption score or any scorecard; SnapMirror is a count only; MetroCluster pairs are inferred.
 - `tools/audit_deliverables.py` is the regression check for all of the above.
+
+
+## Technical Audit rear panels and hardware documentation (v5.6.105 - v5.6.134)
+
+- `_buildControllerBackplate()` in `app.js` draws the selected controller's rear panel as an SVG scale drawing (`_LAY` layouts per family: fas8200, mid7 (FAS8300/8700, A400/C400), a800, chassis8u (A700/A900/FAS9000/9500), a700s, a320, a250, fas2800, a220 (A220/C190/A150/FAS2720/2750), fas50, a20 (A20-A50/C30/C60), gen11 (A1K/A70/A90/FAS70/90), afx/afx2k, plus E-Series canisters and StorageGRID appliances). One `_ZOOM` for all. Reported ports (Active IQ `networkPorts`, Ethernet only) are placed by name; FC ports come from LIFs (`_bpAddLifPorts`, inferred); breakout lanes are grouped (`_pGroup`); unreported connectors are dashed.
+- Selection state is one function (`_bpRefresh`) over {hovered port, pinned port, hovered LIF row, pinned LIF row}; nothing else toggles highlight classes. LIF -> ports via `bpLifPorts` (ifgroup members from `interfaceGroupOwner`).
+- StorageGRID: network roles per connector (`_SGR`), internal compute<->storage interconnect diagram (`_sgTopo`), compute controller drawn above storage.
+- `hw_docs_harvester.py` -> `data/platform_hardware.json` (scanner 9 in `EnrichmentScheduler._do_kb_scan`); the app shows it in the collapsible documentation panel (`_bpFillDocs`). Source is the NetAppDocs `ontap-systems` AsciiDoc on GitHub (same text as docs.netapp.com/us-en/ontap-systems/<platform>/). `tools/verify_rear_panels.py` is the regression check that every documented port has a place on its drawing.
+- Rule that cost time: read each platform's install/cabling TEXT, not only the diagrams (slot roles and port names are in the text; the FAS50 and AFX 2K were wrong until the text was read).
