@@ -1,0 +1,2700 @@
+{
+ "fetchedAt": "2026-09-27T04:34:20Z",
+ "source": "NetApp documentation (NetAppDocs/ontap-systems, docs.netapp.com/us-en/ontap-systems)",
+ "platforms": {
+  "a20-30-50": {
+   "models": [
+    "AFF A20",
+    "AFF A30",
+    "AFF A50"
+   ],
+   "keySpecs": {},
+   "slots": {
+    "2": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "ports": [],
+     "evidence": [
+      "Cable the cluster/HA interconnect ports on the I/O modules in slots 2 and 4.",
+      "NOTE: The cluster interconnect traffic and the HA traffic share the same physical ports (on the I/O modules in slots 2 and 4). The ports are 40/100 GbE."
+     ],
+     "label": "CLUSTER/HA"
+    },
+    "4": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "ports": [],
+     "evidence": [
+      "Cable the cluster/HA interconnect ports on the I/O modules in slots 2 and 4.",
+      "NOTE: The cluster interconnect traffic and the HA traffic share the same physical ports (on the I/O modules in slots 2 and 4). The ports are 40/100 GbE."
+     ],
+     "label": "CLUSTER/HA"
+    },
+    "1": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "ports": [
+      "e1a",
+      "e1b"
+     ],
+     "evidence": [
+      " NSM100B modules use ports e1a and e1b on an I/O module in slot 1."
+     ],
+     "label": "SHELF/STORAGE"
+    }
+   },
+   "ports": {
+    "e2b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: I/O module ports e2b and e4b are unused and available for host network connectivity.",
+      "On each controller, cable ports e2b and e4b to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE",
+      "40/100 GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: I/O module ports e2b and e4b are unused and available for host network connectivity.",
+      ". Cable controller A port e4b to cluster network switch B."
+     ],
+     "speed": [
+      "40/100 GbE"
+     ]
+    },
+    "e4a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable controller A port e4a to cluster network switch A.",
+      ". Cable controller B port e4a to cluster network switch A."
+     ],
+     "speed": []
+    },
+    "e2a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable controller A port e2a to cluster network switch B.",
+      ". Cable controller B port e2a to cluster network switch B."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports 2a, 2b, 2c and 2d to the FC host network switches."
+     ],
+     "speed": [
+      "64 Gb/s FC"
+     ]
+    },
+    "e1a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100B modules use ports e1a and e1b on an I/O module in slot 1.",
+      ". Cable controller A port e3a to NSM A port e1a."
+     ],
+     "speed": []
+    },
+    "e1b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100B modules use ports e1a and e1b on an I/O module in slot 1.",
+      ". Cable controller A port e3b to NSM B port e1b."
+     ],
+     "speed": []
+    },
+    "e0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 modules use built-in (onboard) ports e0a and e0b."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 modules use built-in (onboard) ports e0a and e0b."
+     ],
+     "speed": []
+    },
+    "e3a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Cable controller A port e3a to NSM A port e1a.",
+      ". Cable controller B port e3a to NSM B port e1a."
+     ],
+     "speed": []
+    },
+    "e3b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Cable controller A port e3b to NSM B port e1b.",
+      ". Cable controller B port e3b to NSM A port e1b."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [
+    "AFF A30 or AFF A50 with two 2-port 40/100 GbE I/O modules",
+    "AFF A30 or AFF A50 with one 2-port 40/100 GbE I/O module",
+    "AFF A20 with one 2-port 10/25 GbE I/O module",
+    "AFF A20, AFF A30, or AFF A50 with one 4-port 10/25 GbE I/O module",
+    "AFF A20, AFF A30, or AFF A50 with one 4-port 64 Gb/s FC I/O module"
+   ],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/a20-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/a30-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/a50-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/install-cable.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/install-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/install-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/install-power-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/install-prepare.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/install-requirements.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a20-30-50/maintain-overview.html"
+   ]
+  },
+  "c30-60": {
+   "models": [
+    "AFF C30",
+    "AFF C60"
+   ],
+   "keySpecs": {},
+   "slots": {
+    "2": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "ports": [],
+     "evidence": [
+      "Cable the cluster/HA interconnect ports on the I/O modules in slots 2 and 4.",
+      "NOTE: The cluster interconnect traffic and the HA traffic share the same physical ports (on the I/O modules in slots 2 and 4). The ports are 40/100 GbE."
+     ],
+     "label": "CLUSTER/HA"
+    },
+    "4": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "ports": [],
+     "evidence": [
+      "Cable the cluster/HA interconnect ports on the I/O modules in slots 2 and 4.",
+      "NOTE: The cluster interconnect traffic and the HA traffic share the same physical ports (on the I/O modules in slots 2 and 4). The ports are 40/100 GbE."
+     ],
+     "label": "CLUSTER/HA"
+    },
+    "1": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "ports": [
+      "e1a",
+      "e1b"
+     ],
+     "evidence": [
+      " NSM100B modules use ports e1a and e1b on an I/O module in slot 1."
+     ],
+     "label": "SHELF/STORAGE"
+    }
+   },
+   "ports": {
+    "e2b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: I/O module ports e2b and e4b are unused and available for host network connectivity.",
+      "On each controller, cable ports e2b and e4b to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE",
+      "40/100 GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: I/O module ports e2b and e4b are unused and available for host network connectivity.",
+      ". Cable controller A port e4b to cluster network switch B."
+     ],
+     "speed": [
+      "40/100 GbE"
+     ]
+    },
+    "e4a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable controller A port e4a to cluster network switch A.",
+      ". Cable controller B port e4a to cluster network switch A."
+     ],
+     "speed": []
+    },
+    "e2a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable controller A port e2a to cluster network switch B.",
+      ". Cable controller B port e2a to cluster network switch B."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports 2a, 2b, 2c and 2d to the FC host network switches."
+     ],
+     "speed": [
+      "64 Gb/s FC"
+     ]
+    },
+    "e1a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100B modules use ports e1a and e1b on an I/O module in slot 1.",
+      ". Cable controller A port e3a to NSM A port e1a."
+     ],
+     "speed": []
+    },
+    "e1b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100B modules use ports e1a and e1b on an I/O module in slot 1.",
+      ". Cable controller A port e3b to NSM B port e1b."
+     ],
+     "speed": []
+    },
+    "e0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 modules use built-in (onboard) ports e0a and e0b."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 modules use built-in (onboard) ports e0a and e0b."
+     ],
+     "speed": []
+    },
+    "e3a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Cable controller A port e3a to NSM A port e1a.",
+      ". Cable controller B port e3a to NSM B port e1a."
+     ],
+     "speed": []
+    },
+    "e3b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Cable controller A port e3b to NSM B port e1b.",
+      ". Cable controller B port e3b to NSM A port e1b."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [
+    "AFF C30 or AFF C60 with two 2-port 40/100 GbE I/O modules",
+    "AFF C30 or AFF C60 with one 2-port 40/100 GbE I/O module",
+    "AFF C30 or AFF C60 with one 4-port 10/25 GbE I/O module",
+    "AFF C30 or AFF C60 with one 4-port 64 Gb/s FC I/O module"
+   ],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/c30-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/c60-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/install-cable.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/install-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/install-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/install-power-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/install-prepare.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/install-requirements.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c30-60/maintain-overview.html"
+   ]
+  },
+  "fas50": {
+   "models": [
+    "FAS50"
+   ],
+   "keySpecs": {
+    "Form Factor": "2U chassis with 2 HA controllers",
+    "PCIe Expansion Slots": "12"
+   },
+   "slots": {
+    "4": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "ports": [],
+     "evidence": [
+      "Cable the cluster/HA interconnect ports on the I/O module in slot 4.",
+      "NOTE: The cluster interconnect traffic and the HA traffic share the same physical ports (on the I/O module in slot 4). The ports are 40/100 GbE."
+     ],
+     "label": "CLUSTER/HA"
+    }
+   },
+   "ports": {
+    "e4a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable controller A port e4a to cluster network switch A.",
+      ". Cable controller B port e4a to cluster network switch A."
+     ],
+     "speed": []
+    },
+    "e4b": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable controller A port e4b to cluster network switch B.",
+      ". Cable controller B port e4b to cluster network switch B."
+     ],
+     "speed": []
+    },
+    "e2a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "e2d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports e2a, e2b, e2c and e2d to the Ethernet host network switches."
+     ],
+     "speed": [
+      "10/25 GbE"
+     ]
+    },
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "On each controller, cable ports 2a, 2b, 2c and 2d to the FC host network switches."
+     ],
+     "speed": [
+      "64 Gb/s FC"
+     ]
+    },
+    "3a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Cable controller A port 3a to IOMA port 1.",
+      ". Cable controller B port 3a to IOMB port 1."
+     ],
+     "speed": []
+    },
+    "3d": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Cable controller A port 3d to IOMB port 3.",
+      ". Cable controller B port 3d to IOMA port 3."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [
+    "FAS50 with one 2-port 40/100 GbE I/O module",
+    "FAS50 with one 4-port 10/25 GbE I/O module",
+    "FAS50 with one 4-port 64 Gb/s FC I/O module"
+   ],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/install-cable.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/install-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/install-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/install-power-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/install-prepare.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/install-requirements.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas50/overview.html"
+   ]
+  },
+  "a70-90": {
+   "models": [
+    "AFF A70",
+    "AFF A90"
+   ],
+   "keySpecs": {},
+   "slots": {
+    "1": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "ports": [
+      "e1a",
+      "e1b"
+     ],
+     "evidence": [
+      " NSM100B shelf modules use ports e1a and e1b in slot 1."
+     ],
+     "label": "SHELF/STORAGE 100 GbE"
+    }
+   },
+   "ports": {
+    "e1a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "shelf/storage"
+     ],
+     "evidence": [
+      "Use the Cluster/HA interconnect cable to connect ports e1a to e1a and ports e7a to e7a.",
+      "Use the 100 GbE cable to connect Controllers A and B ports e1a and e7a to cluster network switches A and B."
+     ],
+     "speed": [
+      "100 GbE"
+     ]
+    },
+    "e7a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      "Use the Cluster/HA interconnect cable to connect ports e1a to e1a and ports e7a to e7a.",
+      "Use the 100 GbE cable to connect Controllers A and B ports e1a and e7a to cluster network switches A and B."
+     ],
+     "speed": [
+      "100 GbE"
+     ]
+    },
+    "e9a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Connect ports e9a and e9b to your Ethernet data network switch."
+     ],
+     "speed": []
+    },
+    "e9b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Connect ports e9a and e9b to your Ethernet data network switch."
+     ],
+     "speed": []
+    },
+    "e1b": {
+     "roles": [
+      "host/data",
+      "shelf/storage"
+     ],
+     "evidence": [
+      "NOTE: Do not use ports e1b and e7b for host network connections. Use a separate host card.",
+      " NSM100B shelf modules use ports e1a and e1b in slot 1."
+     ],
+     "speed": []
+    },
+    "e7b": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: Do not use ports e1b and e7b for host network connections. Use a separate host card."
+     ],
+     "speed": []
+    },
+    "e0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 shelf modules use built-in ports e0a and e0b.",
+      ". Connect controller A port e11a to NSM A port e0a."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 shelf modules use built-in ports e0a and e0b.",
+      ". Connect controller A port e11b to NSM B port e0b."
+     ],
+     "speed": []
+    },
+    "e11a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Connect controller A port e11a to NSM A port e0a.",
+      ". Connect controller B port e11a to NSM B port e0a."
+     ],
+     "speed": []
+    },
+    "e11b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ". Connect controller A port e11b to NSM B port e0b.",
+      ". Connect controller B port e11b to NSM A port e0b."
+     ],
+     "speed": []
+    },
+    "e8b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e8b to shelf 1, NSM B port e0b.",
+      ".. Connect port e8b to shelf 1, NSM A port e0b."
+     ],
+     "speed": []
+    },
+    "e8a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e8a to shelf 2, NSM A port e0a.",
+      ".. Connect port e8a to shelf 2, NSM B port e0a."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/a70-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/a90-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/install-cable.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/install-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/install-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/install-power-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/install-prepare.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/install-requirements.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a70-90/maintain-overview.html"
+   ]
+  },
+  "fas-70-90": {
+   "models": [
+    "FAS70",
+    "FAS90"
+   ],
+   "keySpecs": {},
+   "slots": {
+    "1": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "ports": [
+      "e1a",
+      "e1b"
+     ],
+     "evidence": [
+      " NSM100B shelf modules use ports e1a and e1b in slot 1."
+     ],
+     "label": "SHELF/STORAGE 100 GbE"
+    }
+   },
+   "ports": {
+    "e1a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "shelf/storage"
+     ],
+     "evidence": [
+      "Use the Cluster/HA interconnect cable to connect ports e1a to e1a and ports e7a to e7a.",
+      "Use the 100 GbE cable to connect ports e1a to e1a and ports e7a to e7a."
+     ],
+     "speed": [
+      "100 GbE"
+     ]
+    },
+    "e7a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      "Use the Cluster/HA interconnect cable to connect ports e1a to e1a and ports e7a to e7a.",
+      "Use the 100 GbE cable to connect ports e1a to e1a and ports e7a to e7a."
+     ],
+     "speed": [
+      "100 GbE"
+     ]
+    },
+    "e9a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Connect ports e9a and e9b to your Ethernet data network switch."
+     ],
+     "speed": []
+    },
+    "e9b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Connect ports e9a and e9b to your Ethernet data network switch."
+     ],
+     "speed": []
+    },
+    "e1b": {
+     "roles": [
+      "host/data",
+      "shelf/storage"
+     ],
+     "evidence": [
+      "NOTE: Do not use ports e1b and e7b for host network connections. Use a separate host card.",
+      " NSM100B shelf modules use ports e1a and e1b in slot 1."
+     ],
+     "speed": []
+    },
+    "e7b": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: Do not use ports e1b and e7b for host network connections. Use a separate host card."
+     ],
+     "speed": []
+    },
+    "e0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 shelf modules use built-in ports e0a and e0b.",
+      ".. Connect port e11a to NSM A port e0a."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 shelf modules use built-in ports e0a and e0b.",
+      ".. Connect port e11b to NSM B port e0b."
+     ],
+     "speed": []
+    },
+    "e11a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e11a to NSM A port e0a.",
+      ".. Connect port e11a to NSM B port e0a."
+     ],
+     "speed": []
+    },
+    "e11b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e11b to NSM B port e0b.",
+      ".. Connect port e11b to NSM A port e0b."
+     ],
+     "speed": []
+    },
+    "e10b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e10b to shelf 1 NSM B port e0b.",
+      ".. Connect port e10b to shelf 1 NSM A port e0b."
+     ],
+     "speed": []
+    },
+    "e10a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e10a to shelf 2 NSM A port e0a.",
+      ".. Connect port e10a to shelf 2 NSM B port e0a."
+     ],
+     "speed": []
+    },
+    "e10c": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e10c to shelf 2 IOM A port 1",
+      ".. Connect port e10c to shelf 2 IOM B port 1."
+     ],
+     "speed": []
+    },
+    "e11d": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e11d to shelf 2 IOM B port 3.",
+      ".. Connect port e11d to shelf 2 IOM A port 3."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/fas70-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/fas90-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/install-cable.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/install-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/install-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/install-power-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/install-prepare.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/install-requirements.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas-70-90/maintain-overview.html"
+   ]
+  },
+  "a1k": {
+   "models": [
+    "AFF A1K"
+   ],
+   "keySpecs": {},
+   "slots": {
+    "1": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "ports": [
+      "e1a",
+      "e1b"
+     ],
+     "evidence": [
+      " NSM100B shelf modules use ports e1a and e1b in slot 1."
+     ],
+     "label": "SHELF/STORAGE 100 GbE"
+    }
+   },
+   "ports": {
+    "e1a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet",
+      "shelf/storage"
+     ],
+     "evidence": [
+      "Use the Cluster/HA interconnect cable to connect ports e1a to e1a and ports e7a to e7a.",
+      "Use the 100 GbE cable to connect Controllers A and B ports e1a and e7a to cluster network switches A and B."
+     ],
+     "speed": [
+      "100 GbE"
+     ]
+    },
+    "e7a": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      "Use the Cluster/HA interconnect cable to connect ports e1a to e1a and ports e7a to e7a.",
+      "Use the 100 GbE cable to connect Controllers A and B ports e1a and e7a to cluster network switches A and B."
+     ],
+     "speed": [
+      "100 GbE"
+     ]
+    },
+    "e9a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Connect ports e9a and e9b to your Ethernet data network switch."
+     ],
+     "speed": []
+    },
+    "e9b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Connect ports e9a and e9b to your Ethernet data network switch."
+     ],
+     "speed": []
+    },
+    "e1b": {
+     "roles": [
+      "host/data",
+      "shelf/storage"
+     ],
+     "evidence": [
+      "NOTE: Do not use ports e1b and e7b for host network connections. Use a separate host card.",
+      " NSM100B shelf modules use ports e1a and e1b in slot 1."
+     ],
+     "speed": []
+    },
+    "e7b": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: Do not use ports e1b and e7b for host network connections. Use a separate host card."
+     ],
+     "speed": []
+    },
+    "e0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 shelf modules use built-in port e0a and e0b.",
+      ".. Connect port e11a to NSM A port e0a."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " NSM100 shelf modules use built-in port e0a and e0b.",
+      ".. Connect port e11b to port NSM B port e0b."
+     ],
+     "speed": []
+    },
+    "e11a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e11a to NSM A port e0a.",
+      ".. Connect port e11a to NSM B port e0a."
+     ],
+     "speed": []
+    },
+    "e11b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e11b to port NSM B port e0b.",
+      ".. Connect port e11b to NSM A port e0b."
+     ],
+     "speed": []
+    },
+    "e10b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e10b to shelf 1 NSM B port e0b.",
+      ".. Connect port e10b to shelf 1 NSM A port e0b."
+     ],
+     "speed": []
+    },
+    "e10a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Connect port e10a to shelf 2 NSM A port e0a.",
+      ".. Connect port e10a to shelf 2 NSM B port e0a."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/install-cable.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/install-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/install-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/install-power-hardware.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/install-prepare.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/install-requirements.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a1k/overview.html"
+   ]
+  },
+  "a250": {
+   "models": [
+    "AFF A250"
+   ],
+   "keySpecs": {
+    "Form Factor": "2U chassis with 2 HA controllers and 24 drive slots",
+    "PCIe Expansion Slots": "4"
+   },
+   "slots": {
+    "1": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data",
+      "shelf/storage"
+     ],
+     "ports": [],
+     "evidence": [
+      "NOTE: NetApp Hardware Universe slot priority for host network cards (Fibre Channel or 25 GbE) is slot 2. However, if you have both cards, the Fibre Channel card goes in s"
+     ],
+     "label": "SHELF/STORAGE"
+    },
+    "2": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data",
+      "shelf/storage"
+     ],
+     "ports": [],
+     "evidence": [
+      "NOTE: NetApp Hardware Universe slot priority for host network cards (Fibre Channel or 25 GbE) is slot 2. However, if you have both cards, the Fibre Channel card goes in s"
+     ],
+     "label": "SHELF/STORAGE"
+    }
+   },
+   "ports": {
+    "e0a": {
+     "roles": [
+      "ethernet",
+      "management"
+     ],
+     "evidence": [
+      "Management network (BMC and wrench port) and Ethernet data (e0a and e0b)"
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "ethernet",
+      "management"
+     ],
+     "evidence": [
+      "Management network (BMC and wrench port) and Ethernet data (e0a and e0b)"
+     ],
+     "speed": []
+    },
+    "e0c": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      ". Use the 25 GbE cluster interconnect cable to connect the cluster interconnect ports e0c to e0c and e0d to e0d.",
+      ". Cable the cluster interconnect ports e0c and e0d to the 25 GbE cluster interconnect switches."
+     ],
+     "speed": [
+      "25 GbE"
+     ]
+    },
+    "e0d": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      ". Use the 25 GbE cluster interconnect cable to connect the cluster interconnect ports e0c to e0c and e0d to e0d.",
+      ". Cable the cluster interconnect ports e0c and e0d to the 25 GbE cluster interconnect switches."
+     ],
+     "speed": [
+      "25 GbE"
+     ]
+    },
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2b": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2c": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2d": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "e4a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a250/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a250/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a250/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a250/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a250/overview.html"
+   ]
+  },
+  "c250": {
+   "models": [
+    "AFF C250"
+   ],
+   "keySpecs": {
+    "Form Factor": "2U chassis with 2 HA controllers and 24 drive slots",
+    "PCIe Expansion Slots": "4"
+   },
+   "slots": {
+    "1": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data",
+      "shelf/storage"
+     ],
+     "ports": [],
+     "evidence": [
+      "NOTE: NetApp Hardware Universe slot priority for host network cards (Fibre Channel or 25 GbE) is slot 2. However, if you have both cards, the Fibre Channel card goes in s"
+     ],
+     "label": "SHELF/STORAGE"
+    },
+    "2": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data",
+      "shelf/storage"
+     ],
+     "ports": [],
+     "evidence": [
+      "NOTE: NetApp Hardware Universe slot priority for host network cards (Fibre Channel or 25 GbE) is slot 2. However, if you have both cards, the Fibre Channel card goes in s"
+     ],
+     "label": "SHELF/STORAGE"
+    }
+   },
+   "ports": {
+    "e0a": {
+     "roles": [
+      "ethernet",
+      "management"
+     ],
+     "evidence": [
+      "Management network (BMC and wrench port) and Ethernet data (e0a and e0b)"
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "ethernet",
+      "management"
+     ],
+     "evidence": [
+      "Management network (BMC and wrench port) and Ethernet data (e0a and e0b)"
+     ],
+     "speed": []
+    },
+    "e0c": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0c to e0c and e0d to e0d with the 25 GbE cluster interconnect cables.",
+      ". Cable the cluster interconnect ports e0c and e0d to the 25 GbE cluster interconnect switches."
+     ],
+     "speed": [
+      "25 GbE"
+     ]
+    },
+    "e0d": {
+     "roles": [
+      "cluster/ha",
+      "ethernet"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0c to e0c and e0d to e0d with the 25 GbE cluster interconnect cables.",
+      ". Cable the cluster interconnect ports e0c and e0d to the 25 GbE cluster interconnect switches."
+     ],
+     "speed": [
+      "25 GbE"
+     ]
+    },
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2b": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2c": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2d": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "e4a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      ". Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/c250/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c250/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c250/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c250/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c250/overview.html"
+   ]
+  },
+  "fas500f": {
+   "models": [
+    "FAS500f"
+   ],
+   "keySpecs": {
+    "Form Factor": "2U chassis with 2 HA controllers and 24 drive slots",
+    "PCIe Expansion Slots": "4"
+   },
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "ethernet",
+      "management"
+     ],
+     "evidence": [
+      "Management network (BMC and wrench port) and Ethernet data (e0a and e0b)"
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "ethernet",
+      "management"
+     ],
+     "evidence": [
+      "Management network (BMC and wrench port) and Ethernet data (e0a and e0b)"
+     ],
+     "speed": []
+    },
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2b": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2c": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "2d": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches."
+     ],
+     "speed": []
+    },
+    "e4a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas500f/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas500f/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas500f/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas500f/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas500f/overview.html"
+   ]
+  },
+  "a400": {
+   "models": [
+    "AFF A400"
+   ],
+   "keySpecs": {
+    "Form Factor": "4U chassis with 2 HA controllers",
+    "PCIe Expansion Slots": "10"
+   },
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha",
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: If you are cabling an MetroCluster IP configuration, ports e0a/e0b are available for hosting data LIFs (usually in Default IPSpace)."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha",
+      "host/data"
+     ],
+     "evidence": [
+      "NOTE: If you are cabling an MetroCluster IP configuration, ports e0a/e0b are available for hosting data LIFs (usually in Default IPSpace)."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a400/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a400/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a400/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a400/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a400/overview.html"
+   ]
+  },
+  "c400": {
+   "models": [
+    "AFF C400"
+   ],
+   "keySpecs": {
+    "Form Factor": "4U chassis with 2 HA controllers",
+    "PCIe Expansion Slots": "10"
+   },
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha",
+      "host/data"
+     ],
+     "evidence": [
+      " If you are cabling an MetroCluster IP configuration, ports e0a/e0b are available for hosting data LIFs (usually in Default IPSpace)."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha",
+      "host/data"
+     ],
+     "evidence": [
+      " If you are cabling an MetroCluster IP configuration, ports e0a/e0b are available for hosting data LIFs (usually in Default IPSpace)."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/c400/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c400/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c400/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c400/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c400/overview.html"
+   ]
+  },
+  "a800": {
+   "models": [
+    "AFF A800"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "2b": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "2c": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "2d": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "e4a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a800/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a800/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a800/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a800/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a800/overview.html"
+   ]
+  },
+  "c800": {
+   "models": [
+    "AFF C800"
+   ],
+   "keySpecs": {
+    "Form Factor": "4U chassis with 2 HA controllers and 48 drive slots",
+    "PCIe Expansion Slots": "10"
+   },
+   "slots": {},
+   "ports": {
+    "2a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "2b": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "2c": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "2d": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports 2a through 2d to the FC host switches.image:../media/drwaffa800fchostcabling.png[Fibre Channel host network cabling]"
+     ],
+     "speed": []
+    },
+    "e4a": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4b": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e4d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      "Cable ports e4a through e4d to the 10GbE host network switches.image:../media/drwaffa80010gbehostcabling.png[Host network cabling]"
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/c800/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c800/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c800/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c800/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c800/overview.html"
+   ]
+  },
+  "a900": {
+   "models": [
+    "AFF A900"
+   ],
+   "keySpecs": {},
+   "slots": {
+    "4": {
+     "roles": [
+      "cluster/ha",
+      "host/data"
+     ],
+     "ports": [
+      "e4a"
+     ],
+     "evidence": [
+      "Cable host‐side b ports in slot A4 and",
+      " Slot A4 and B4 (e4a) to the cluster network switch."
+     ],
+     "label": "CLUSTER/HA"
+    }
+   },
+   "ports": {
+    "e4a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      " Slot A4 and B4 (e4a) to the cluster network switch."
+     ],
+     "speed": []
+    },
+    "e0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Connect controller A port e2a to port e0a on NSM A on the shelf.",
+      " Connect controller B port e2a to port e0a on NSM B on the shelf."
+     ],
+     "speed": []
+    },
+    "e2a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Connect controller A port e2a to port e0a on NSM A on the shelf.",
+      " Connect controller B port e2a to port e0a on NSM B on the shelf."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Connect controller A port e10b to port e0b on NSM B on the shelf.",
+      " Connect controller B port e10b to port e0b on NSM A on the shelf."
+     ],
+     "speed": []
+    },
+    "e10b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Connect controller A port e10b to port e0b on NSM B on the shelf.",
+      " Connect controller B port e10b to port e0b on NSM A on the shelf."
+     ],
+     "speed": []
+    },
+    "e2b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Connect controller A port e2b to NSM B e0b on shelf 2.",
+      " Connect controller B port e2b to NSM A e0b on shelf 2."
+     ],
+     "speed": []
+    },
+    "e10a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Connect controller A port e10a to NSM A e0a on shelf 2.",
+      " Connect controller B port e10a to NSM B e0a on shelf 2."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a900/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a900/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a900/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a900/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a900/overview.html"
+   ]
+  },
+  "fas9500": {
+   "models": [
+    "FAS9500"
+   ],
+   "keySpecs": {
+    "Form Factor": "8U chassis with 2 HA controllers",
+    "PCIe Expansion Slots": "20"
+   },
+   "slots": {
+    "4": {
+     "roles": [
+      "cluster/ha",
+      "host/data"
+     ],
+     "ports": [
+      "e4a"
+     ],
+     "evidence": [
+      "Cable host-side b ports in slot A4 and",
+      " Slot A4 and B4 (e4a) to the cluster network switch."
+     ],
+     "label": "CLUSTER/HA"
+    }
+   },
+   "ports": {
+    "e4a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      " Slot A4 and B4 (e4a) to the cluster network switch."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas9500/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9500/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9500/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9500/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9500/overview.html"
+   ]
+  },
+  "a700": {
+   "models": [
+    "AFF A700"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a700/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a700/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a700/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a700/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a700/x91148a-module-install-overview.html"
+   ]
+  },
+  "fas9000": {
+   "models": [
+    "FAS9000"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas9000/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9000/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9000/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9000/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas9000/x91148a-module-install-overview.html"
+   ]
+  },
+  "a700s": {
+   "models": [
+    "AFF A700s"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a700s/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a700s/maintain-overview.html"
+   ]
+  },
+  "a320": {
+   "models": [
+    "AFF A320"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      " e0a on both controllers to the cluster/HA switch"
+     ],
+     "speed": []
+    },
+    "e0d": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      " e0d on both controllers to the cluster/HA switch"
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a320/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a320/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a320/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a320/maintain-overview.html"
+   ]
+  },
+  "a300": {
+   "models": [
+    "AFF A300"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a300/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a300/maintain-overview.html"
+   ]
+  },
+  "fas8200": {
+   "models": [
+    "FAS8200"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas8200/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas8200/maintain-overview.html"
+   ]
+  },
+  "fas8300": {
+   "models": [
+    "FAS8300",
+    "FAS8700"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas8300/fas8300-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas8300/fas8700-key-specifications.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas8300/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas8300/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas8300/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas8300/maintain-overview.html"
+   ]
+  },
+  "fas2800": {
+   "models": [
+    "FAS2820"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0a to e0a and e0b to e0b with the cluster interconnect cable:"
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0a to e0a and e0b to e0b with the cluster interconnect cable:"
+     ],
+     "speed": []
+    },
+    "e1a": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Ethernet data network, cable ports e1a through e1d to your Ethernet data network.",
+      ".. If you have a 22 card (2 ports with Ethernet connections and 2 ports with Fiber Channel connections), cable ports e1a and e1b to your FC data network and ports e1c and"
+     ],
+     "speed": []
+    },
+    "e1b": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Ethernet data network, cable ports e1a through e1d to your Ethernet data network.",
+      ".. If you have a 22 card (2 ports with Ethernet connections and 2 ports with Fiber Channel connections), cable ports e1a and e1b to your FC data network and ports e1c and"
+     ],
+     "speed": []
+    },
+    "e1c": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Ethernet data network, cable ports e1a through e1d to your Ethernet data network.",
+      ".. If you have a 22 card (2 ports with Ethernet connections and 2 ports with Fiber Channel connections), cable ports e1a and e1b to your FC data network and ports e1c and"
+     ],
+     "speed": []
+    },
+    "e1d": {
+     "roles": [
+      "ethernet",
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Ethernet data network, cable ports e1a through e1d to your Ethernet data network.",
+      ".. If you have a 22 card (2 ports with Ethernet connections and 2 ports with Fiber Channel connections), cable ports e1a and e1b to your FC data network and ports e1c and"
+     ],
+     "speed": []
+    },
+    "1a": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Fiber Channel data network, cable ports 1a through 1d for your FC network."
+     ],
+     "speed": []
+    },
+    "1b": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Fiber Channel data network, cable ports 1a through 1d for your FC network."
+     ],
+     "speed": []
+    },
+    "1c": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Fiber Channel data network, cable ports 1a through 1d for your FC network."
+     ],
+     "speed": []
+    },
+    "1d": {
+     "roles": [
+      "fc",
+      "host/data"
+     ],
+     "evidence": [
+      ".. If you have a 4-port Fiber Channel data network, cable ports 1a through 1d for your FC network."
+     ],
+     "speed": []
+    },
+    "0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      "IMPORTANT: Do not use port 0b2 on a FAS2820. This SAS port is not used by ONTAP and is always disabled. See Install a shelf in a new storage system for more information.",
+      ".. Controller A port 0b1 to IOM A port 3 on the last drive shelf in the stack."
+     ],
+     "speed": []
+    },
+    "0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      ".. Controller A port 0a to IOM B port 1 on first drive shelf in the stack.",
+      ".. Controller B port 0a to IOM A port 1 on first drive shelf in the stack."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas2800/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2800/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2800/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2800/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2800/overview.html"
+   ]
+  },
+  "a150": {
+   "models": [
+    "AFF A150"
+   ],
+   "keySpecs": {
+    "Form Factor": "2U chassis with 2 HA controllers and 24 drive slots"
+   },
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0a to e0a and e0b to e0b with the cluster interconnect cable.",
+      ". For each controller module, cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0a to e0a and e0b to e0b with the cluster interconnect cable.",
+      ". For each controller module, cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable."
+     ],
+     "speed": []
+    },
+    "e0c": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      " For an 10GbE system, use e0c and e0d or e0e and e0f.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network, as shown in the following illustration."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e0d": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      " For an 10GbE system, use e0c and e0d or e0e and e0f.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network, as shown in the following illustration."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e0e": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      " For an 10GbE system, use e0c and e0d or e0e and e0f.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network, as shown in the following illustration."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "e0f": {
+     "roles": [
+      "ethernet",
+      "host/data"
+     ],
+     "evidence": [
+      " For an 10GbE system, use e0c and e0d or e0e and e0f.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network, as shown in the following illustration."
+     ],
+     "speed": [
+      "10GbE"
+     ]
+    },
+    "0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Controller 1 port 0b to IOM A port 3 on last drive shelf in the stack.",
+      " Controller 2 port 0b to IOM B port 3 on the last drive shelf in the stack."
+     ],
+     "speed": []
+    },
+    "0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Controller 2 port 0a to IOM A port 1 on the first drive shelf in the stack.",
+      " Controller 1 port 0a to IOM B port 1 on first drive shelf in the stack."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a150/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a150/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a150/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a150/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a150/overview.html"
+   ]
+  },
+  "a220": {
+   "models": [
+    "AFF A220"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      "Cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable:"
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      "Cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable:"
+     ],
+     "speed": []
+    },
+    "e0c": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "e0d": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "e0e": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "e0f": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Controller 1 port 0b to IOM A port 3 on last drive shelf in the stack.",
+      " Controller 2 port 0b to IOM B port 3 on the last drive shelf in the stack."
+     ],
+     "speed": []
+    },
+    "0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Controller 2 port 0a to IOM A port 1 on the first drive shelf in the stack.",
+      " Controller 1 port 0a to IOM B port 1 on first drive shelf in the stack."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/a220/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a220/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a220/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/a220/maintain-overview.html"
+   ]
+  },
+  "c190": {
+   "models": [
+    "AFF C190"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0a to e0a and e0b to e0b with the cluster interconnect cable.",
+      ". Cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable."
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      ". Cable the cluster interconnect ports e0a to e0a and e0b to e0b with the cluster interconnect cable.",
+      ". Cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable."
+     ],
+     "speed": []
+    },
+    "e0c": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use one of the following cable types to cable the e0c/0c and e0d/0d or e0e/0e and e0f/0f data ports to your host network.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network."
+     ],
+     "speed": []
+    },
+    "e0d": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use one of the following cable types to cable the e0c/0c and e0d/0d or e0e/0e and e0f/0f data ports to your host network.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network."
+     ],
+     "speed": []
+    },
+    "e0e": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use one of the following cable types to cable the e0c/0c and e0d/0d or e0e/0e and e0f/0f data ports to your host network.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network."
+     ],
+     "speed": []
+    },
+    "e0f": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use one of the following cable types to cable the e0c/0c and e0d/0d or e0e/0e and e0f/0f data ports to your host network.",
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/c190/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c190/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c190/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/c190/maintain-overview.html"
+   ]
+  },
+  "fas2700": {
+   "models": [
+    "FAS2720",
+    "FAS2750"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {
+    "e0a": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      "Cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable:"
+     ],
+     "speed": []
+    },
+    "e0b": {
+     "roles": [
+      "cluster/ha"
+     ],
+     "evidence": [
+      "Cable e0a and e0b to the cluster interconnect switches with the cluster interconnect cable:"
+     ],
+     "speed": []
+    },
+    "e0c": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "e0d": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "e0e": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "e0f": {
+     "roles": [
+      "host/data"
+     ],
+     "evidence": [
+      "Use the Cat 6 RJ45 cable to cable the e0c through e0f ports to your host network:"
+     ],
+     "speed": []
+    },
+    "0b": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Controller 1 port 0b to IOM A port 3 on last drive shelf in the stack.",
+      " Controller 2 port 0b to IOM B port 3 on the last drive shelf in the stack."
+     ],
+     "speed": []
+    },
+    "0a": {
+     "roles": [
+      "shelf/storage"
+     ],
+     "evidence": [
+      " Controller 2 port 0a to IOM A port 1 on the first drive shelf in the stack.",
+      " Controller 1 port 0a to IOM B port 1 on first drive shelf in the stack."
+     ],
+     "speed": []
+    }
+   },
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/fas2700/install-detailed-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2700/install-quick-guide.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2700/install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2700/maintain-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/fas2700/overview.html"
+   ]
+  },
+  "afx-1k": {
+   "models": [
+    "AFX 1K"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/afx-1k/afx-1k-install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/afx-1k/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/afx-1k/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/afx-1k/maintain-overview.html"
+   ]
+  },
+  "afx-2k": {
+   "models": [
+    "AFX 2K"
+   ],
+   "keySpecs": {},
+   "slots": {},
+   "ports": {},
+   "modules": [],
+   "slotTable": {
+    "1": "HA",
+    "4": "NVRAM12",
+    "5": "NVRAM12",
+    "9": "Network",
+    "2": "Cluster",
+    "6": "NVRAM12-EX",
+    "7": "NVRAM12-EX",
+    "10": "Storage",
+    "3": "Network",
+    "8": "Storage",
+    "11": "Optional Four-port 25GbE SFP28 for additional management connectivity"
+   },
+   "sources": [
+    "https://docs.netapp.com/us-en/ontap-systems/afx-2k/afx-2k-install-setup.html",
+    "https://docs.netapp.com/us-en/ontap-systems/afx-2k/io-module-add.html",
+    "https://docs.netapp.com/us-en/ontap-systems/afx-2k/io-module-overview.html",
+    "https://docs.netapp.com/us-en/ontap-systems/afx-2k/maintain-overview.html"
+   ]
+  }
+ }
+}

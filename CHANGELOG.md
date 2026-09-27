@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.134] - 2026-09-27
+
+### Added
+- Standard harvest now also pulls the current hardware configuration, slot and port assignments from NetApp's official platform documentation (new hw_docs_harvester.py, scanner 9, refreshed weekly or on the post-harvest freshness check) into data/platform_hardware.json, and the Technical Audit shows them for the selected platform in a collapsible 'NetApp documentation: slot and port assignments' panel with the documentation sentence behind each role and the harvest date. It is offline-safe: without the file the panel is simply absent.
+
+---
+
 ## [5.6.133] - 2026-09-27
 
 ### Changed

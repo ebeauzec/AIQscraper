@@ -147,6 +147,7 @@ KNOWLEDGE_PATH = SCRIPT_DIR / "data" / "knowledge_base.json"
 VERSION_CATALOG_PATH = SCRIPT_DIR / "data" / "version_catalog.json"
 DISCOVERED_PRODUCTS_PATH = SCRIPT_DIR / "data" / "discovered_products.json"
 EOA_DATABASE_PATH = SCRIPT_DIR / "data" / "eoa_database.json"
+PLATFORM_HW_PATH = SCRIPT_DIR / "data" / "platform_hardware.json"
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -4817,6 +4818,15 @@ class EnrichmentScheduler:
             else:
                 results['sitemap_discovery'] = self._scan_sitemap_discovery()
 
+            # Scanner 9: current hardware configuration, slot and port assignments from NetApp's official
+            # documentation (hw_docs_harvester.py -> data/platform_hardware.json). Gated on its own file's age.
+            hw_age = self._file_age_hours(PLATFORM_HW_PATH)
+            if hw_age is not None and hw_age < interval_h:
+                print(f'  [ENRICH] [9] platform_hardware.json is {hw_age:.1f}h old (< {interval_h:.0f}h interval) - skipping hardware docs harvest', flush=True)
+                results['hardware_docs'] = {'skipped': 'fresh'}
+            else:
+                results['hardware_docs'] = self._scan_hardware_docs()
+
             elapsed = round(time.time() - scan_start, 1)
             results['_elapsed'] = elapsed
             self._last_kb_results = results
@@ -4831,6 +4841,19 @@ class EnrichmentScheduler:
         finally:
             self._kb_running = False
             self._schedule_next_kb()
+
+    # ── Scanner 9: hardware configuration / slot / port assignments from NetApp's documentation ──
+    def _scan_hardware_docs(self):
+        """Refresh data/platform_hardware.json from NetApp's official platform documentation (the same pages as
+        docs.netapp.com/us-en/ontap-systems/<platform>/install-cable.html). Facts only, offline-safe: any failure
+        leaves the previous file in place and the Technical Audit falls back to its built-in layouts."""
+        print('  [ENRICH] [9] Hardware documentation (slots, ports, modules) harvest...', flush=True)
+        try:
+            import hw_docs_harvester as _hw
+            return _hw.refresh(log=lambda m: print(m, flush=True))
+        except Exception as e:
+            print(f'  [ENRICH]   Hardware docs harvest failed: {e}', flush=True)
+            return {'updated': False, 'error': str(e)}
 
     # ── Scanner 8: Sitemap-Based Product/Integration Auto-Discovery ──────────
     def _scan_sitemap_discovery(self):

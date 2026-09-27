@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.133";
+const APP_VERSION = "5.6.134";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.134",
+    date: "27 September 2026",
+    title: "Hardware Documentation Harvest",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Harvest",
+        color: "#22c55e",
+        items: [
+          "Standard harvest now also pulls the current hardware configuration, slot and port assignments from NetApp's official platform documentation (new hw_docs_harvester.py, scanner 9, refreshed weekly or on the post-harvest freshness check) into data/platform_hardware.json, and the Technical Audit shows them for the selected platform in a collapsible 'NetApp documentation: slot and port assignments' panel with the documentation sentence behind each role and the harvest date. It is offline-safe: without the file the panel is simply absent.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.133",
     date: "27 September 2026",
@@ -36883,8 +36898,11 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     </div>
     </div>
 
+    <div id="bpDocsPanel"></div>
+
     ${lifTableHtml}
   `;
+  _bpFillDocs(sys.platform);
 }
 
 function selectVisualNode(serial) {
@@ -36933,6 +36951,37 @@ function _bpNodePos(sy) {
   const peers = (state.systems || []).filter(x => x.clusterName && x.clusterName === sy.clusterName).map(x => x.systemName).sort();
   const i = peers.indexOf(sy.systemName);
   return i > 0 && i % 2 === 1 ? 1 : 0;
+}
+// Slot / port roles harvested from NetApp's platform documentation (hw_docs_harvester.py -> data/platform_hardware.json)
+let _HW_DOCS = null, _HW_DOCS_LOADING = false;
+function _hwDocsEntry(platform) {
+  if (!_HW_DOCS || !_HW_DOCS.platforms) return null;
+  const norm = v => String(v || '').toLowerCase().replace(/^(aff|asa|fas)[-_\s]*/, '').replace(/^r2[-_\s]*/, '').replace(/[-_\s]+/g, '');
+  const code = norm(platform);
+  for (const [dir, e] of Object.entries(_HW_DOCS.platforms)) if ((e.models || []).some(m => norm(m) === code)) return { dir, e };
+  return null;
+}
+async function _bpFillDocs(platform) {
+  const el = document.getElementById('bpDocsPanel'); if (!el) return;
+  if (!_HW_DOCS && !_HW_DOCS_LOADING) {
+    _HW_DOCS_LOADING = true;
+    try { const r = await fetch('data/platform_hardware.json', { cache: 'no-cache' }); if (r.ok) _HW_DOCS = await r.json(); } catch (e) { }
+    _HW_DOCS_LOADING = false;
+  }
+  const hit = _hwDocsEntry(platform), el2 = document.getElementById('bpDocsPanel'); if (!el2) return;
+  if (!hit) { el2.innerHTML = ''; return; }
+  const esc = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const e = hit.e, th = 'text-align:left;padding:5px 8px;font-size:0.66rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:5px 8px;font-size:0.72rem;border-bottom:1px solid rgba(255,255,255,0.05);vertical-align:top;';
+  const slotRows = Object.keys(e.slots || {}).sort((a, b) => a - b).map(k => { const s = e.slots[k]; return `<tr><td style="${td}font-weight:700;">${esc(k)}</td><td style="${td}">${esc(s.label || s.roles.join(', '))}</td><td style="${td}font-family:monospace;">${esc((s.ports || []).join(' '))}</td><td style="${td}color:var(--text-muted);">${esc((s.evidence || [])[0])}</td></tr>`; }).join('');
+  const tbl = Object.keys(e.slotTable || {}).sort((a, b) => a - b).map(k => `<tr><td style="${td}font-weight:700;">${esc(k)}</td><td style="${td}" colspan="3">${esc(e.slotTable[k])}</td></tr>`).join('');
+  const portRows = Object.keys(e.ports || {}).sort().map(k => { const p = e.ports[k]; return `<tr><td style="${td}font-family:monospace;font-weight:700;">${esc(k)}</td><td style="${td}">${esc((p.roles || []).join(', '))}</td><td style="${td}">${esc((p.speed || []).join(' / '))}</td><td style="${td}color:var(--text-muted);">${esc((p.evidence || [])[0])}</td></tr>`; }).join('');
+  const ks = Object.entries(e.keySpecs || {}).map(([k, v]) => `${esc(k)}: ${esc(Array.isArray(v) ? v.join('; ') : v)}`).join(' · ');
+  el2.innerHTML = `<details style="margin-top:12px;border:1px solid var(--border-color);border-radius:var(--radius-sm);background:rgba(15,22,38,0.3);"><summary style="cursor:pointer;padding:10px 12px;font-size:0.78rem;font-weight:700;color:#fff;">NetApp documentation: slot and port assignments for ${esc((e.models || []).join(' / '))} <span style="font-weight:400;color:var(--text-muted);font-size:0.68rem;">(harvested ${esc(String(_HW_DOCS.fetchedAt || '').slice(0, 10))} from NetApp's official documentation)</span></summary><div style="padding:0 12px 12px;">` +
+    (ks ? `<div style="font-size:0.7rem;color:var(--text-secondary);margin:4px 0 8px;">${ks}</div>` : '') +
+    (tbl ? `<div style="font-size:0.66rem;color:var(--text-muted);text-transform:uppercase;margin:6px 0 2px;">I/O slot numbering</div><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Slot</th><th style="${th}" colspan="3">Documented role</th></tr></thead><tbody>${tbl}</tbody></table>` : '') +
+    (slotRows ? `<div style="font-size:0.66rem;color:var(--text-muted);text-transform:uppercase;margin:8px 0 2px;">Slots the documentation names</div><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Slot</th><th style="${th}">Role</th><th style="${th}">Ports</th><th style="${th}">Documentation says</th></tr></thead><tbody>${slotRows}</tbody></table>` : '') +
+    (portRows ? `<div style="font-size:0.66rem;color:var(--text-muted);text-transform:uppercase;margin:8px 0 2px;">Ports the documentation names</div><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Port</th><th style="${th}">Role</th><th style="${th}">Speed</th><th style="${th}">Documentation says</th></tr></thead><tbody>${portRows}</tbody></table>` : '') +
+    `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:8px;">Source: ${esc((e.sources || [])[0] || '')}. Roles are read from the documentation text by the harvest and can be partial; the drawing itself follows NetApp's hardware diagrams. Refreshed automatically with the harvest (weekly).</div></div></details>`;
 }
 // Physical Ethernet ports get a number (e0M first, then by slot and letter) shown on the drawing and
 // in the first column of the port table, so a row and its connector can be matched at a glance.

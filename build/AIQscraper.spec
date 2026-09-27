@@ -36,6 +36,8 @@ web_datas = [
     # Demo (mock) mode overlay -- anonymized, real-shaped telemetry (see tools/build_demo_dataset.py)
     (os.path.join(SPECPATH, '..', 'data', 'demo_dataset.json'), 'data'),
     (os.path.join(SPECPATH, '..', 'data', 'demo_storageperf.json'), 'data'),
+    # Current slot/port assignments harvested from NetApp's documentation (hw_docs_harvester.py)
+    (os.path.join(SPECPATH, '..', 'data', 'platform_hardware.json'), 'data'),
 ]
 
 # ---------------------------------------------------------------------------
@@ -45,7 +47,7 @@ webview_datas, webview_binaries, webview_hidden = collect_all('webview')
 
 all_datas    = web_datas    + webview_datas
 all_binaries = webview_binaries
-all_hidden   = webview_hidden + collect_submodules('webview')
+all_hidden   = webview_hidden + collect_submodules('webview') + ['hw_docs_harvester']
 
 # Platform-specific hidden imports
 if IS_WIN:
