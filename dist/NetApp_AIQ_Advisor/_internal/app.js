@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.121";
+const APP_VERSION = "5.6.122";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.122",
+    date: "27 September 2026",
+    title: "StorageGRID Controller Order",
+    sections: [
+      {
+        icon: "\u2705",
+        label: "Technical Audit",
+        color: "#22c55e",
+        items: [
+          "StorageGRID rear panels and internal-connection diagrams now show the compute controller above the storage controller(s) for every model (SG5700, SG5800 and SG6060), as confirmed for these appliances; the internal-connection diagram uses the same order.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.121",
     date: "27 September 2026",
@@ -36278,24 +36293,41 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     ..._sgNet(0, 0, 22, [110, 136, 208, 232]),
     ['f', 'BMC', 'rj45', 94, 58, 't', 'bmc'], ['f', 'VGA', 'rj45', 118, 58, 't', 'sup'], ['f', 'COM', 'rj45', 142, 58, 't', 'sup'], ['f', 'USB', 'usb', 166, 62, 't', 'sup'], ['f', 'USB', 'usb', 186, 62, 't', 'sup'],
     ['f', 'ADM1', 'rj45', 208, 58, 't', 'admin'], ['f', 'ADM2', 'rj45', 232, 58, 't', 'adminb']] };
+  // compute controller above the storage controller for every model (operator-confirmed)
+  const _sgPair = (side, a, b) => b + a;   // a = storage drawing, b = compute drawing: compute first (above), storage below
   const _sgLegend = `<div style="margin-top:8px;display:flex;gap:10px 14px;justify-content:center;flex-wrap:wrap;">` + ['grid', 'client', 'admin', 'adminb', 'bmc', 'sanm', 'ic', 'exp', 'sup', 'unused'].map(k => `<span style="font-size:0.5rem;color:#94a3b8;display:flex;align-items:center;gap:4px;" title="${_esc(_SGR[k][2])}"><span style="width:9px;height:9px;border-radius:2px;border:1.5px solid ${_SGR[k][1]};background:#0d1520;"></span><b style="color:${_SGR[k][1]};">${_SGR[k][0]}</b> ${_esc(_SGR[k][2].split(':')[0].replace(/ \(.*/, ''))}</span>`).join('') + `</div>`;
-  // Internal wiring of a storage node: compute controller -> storage controller(s), from NetApp's appliance
-  // cabling guide (SG5700: E2800 IC1-E5700SG IC1, IC2-IC2, 2 FC cables; SG5800: 2 iSCSI cables;
-  // SG6060: two FC cables from the SG6000-CN to each of the two E2800 controllers).
+  // Internal wiring of a storage node. Drawn with the compute controller ABOVE the storage controller(s) for every
+  // model, as confirmed by the operator (NetApp's SG5760/SG5860 diagrams show the storage controller on top and the
+  // SG5712/SG5812 diagrams side by side; the SG6060 has the 1U compute controller on top). Cabling from NetApp's
+  // appliance cabling guides.
+  // cfg: { A: [nodes], B: [nodes], links: [[ai, aPort, bi, bPort]], h: bool, media, note }; node = { name, sub, ports }
   const _sgTopo = (cfg) => {
-    const W = 600, cw = Math.max(230, 70 + cfg.comp.ports.length * 52), cx = (W - cw) / 2, cy = 16, ch = 40, m = cfg.stor.length, sw = 250, gap = 30, tot = m * sw + (m - 1) * gap, sx0 = (W - tot) / 2, sy = 112, sh = 52;
-    const cp = i => [cx + cw * (i + 0.5) / cfg.comp.ports.length, cy + ch];
-    const sp = (si, j) => [sx0 + si * (sw + gap) + sw * (j + 0.5) / cfg.stor[si].ports.length, sy];
-    let g = `<rect x="${cx}" y="${cy}" width="${cw}" height="${ch}" rx="4" fill="#1a2030" stroke="#3b4557"/><text x="${cx + cw / 2}" y="${cy + 15}" font-size="8" font-weight="800" text-anchor="middle" fill="#e5e7eb">${_esc(cfg.comp.name)}</text><text x="${cx + cw / 2}" y="${cy + 26}" font-size="5.6" text-anchor="middle" fill="#94a3b8">${_esc(cfg.comp.sub)}</text>`;
-    cfg.stor.forEach((st, si) => { const x = sx0 + si * (sw + gap); g += `<rect x="${x}" y="${sy}" width="${sw}" height="${sh}" rx="4" fill="#1a2030" stroke="#3b4557"/><text x="${x + sw / 2}" y="${sy + 31}" font-size="8" font-weight="800" text-anchor="middle" fill="#e5e7eb">${_esc(st.name)}</text><text x="${x + sw / 2}" y="${sy + 42}" font-size="5.6" text-anchor="middle" fill="#94a3b8">${_esc(st.sub)}</text>`; });
-    cfg.links.forEach(([ci, si, sj], k) => {
-      const a = cp(ci), b = sp(si, sj), ym = (a[1] + b[1]) / 2 + (k % 2 ? 4 : -4);
-      g += `<path d="M ${a[0]} ${a[1] + 6} C ${a[0]} ${ym}, ${b[0]} ${ym}, ${b[0]} ${b[1] - 6}" fill="none" stroke="#ec4899" stroke-width="2" opacity="0.9"/>`;
+    const W = 600; let g = '', H;
+    const port = (x, y, lab, lx, ly, anchor) => `<rect x="${x - 8}" y="${y - 5.5}" width="16" height="11" rx="2" fill="#0d1520" stroke="#ec4899" stroke-width="1.3"/><text x="${lx}" y="${ly}" font-size="5.2" font-family="monospace" font-weight="700" text-anchor="${anchor}" fill="#f9a8d4">${_esc(lab)}</text>`;
+    const box = (x, y, w, h, nd, ty) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#1a2030" stroke="#3b4557"/><text x="${x + w / 2}" y="${y + ty}" font-size="8" font-weight="800" text-anchor="middle" fill="#e5e7eb">${_esc(nd.name)}</text><text x="${x + w / 2}" y="${y + ty + 11}" font-size="5.6" text-anchor="middle" fill="#94a3b8">${_esc(nd.sub)}</text>`;
+    const pos = {};   // 'A0.1' -> [x, y]
+    if (!cfg.h) {
+      const row = (arr, y, h, edgeY, key, top) => {
+        const bw = arr.length === 1 ? Math.max(230, 70 + arr[0].ports.length * 52) : 250, gap = 30, tot = arr.length * bw + (arr.length - 1) * gap, x0 = (W - tot) / 2;
+        arr.forEach((nd, i) => { const x = x0 + i * (bw + gap); g += box(x, y, bw, h, nd, top ? 15 : 31); nd.ports.forEach((pn, j) => { const px = x + bw * (j + 0.5) / nd.ports.length; pos[key + i + '.' + j] = [px, edgeY]; }); });
+      };
+      row(cfg.A, 16, 40, 56, 'A', true); row(cfg.B, 112, 52, 112, 'B', false); H = 172;
+      cfg.A.forEach((nd, i) => nd.ports.forEach((pn, j) => { const q = pos['A' + i + '.' + j]; g += port(q[0], q[1], pn, q[0], q[1] - 8.5, 'middle'); }));
+      cfg.B.forEach((nd, i) => nd.ports.forEach((pn, j) => { const q = pos['B' + i + '.' + j]; g += port(q[0], q[1], pn, q[0], q[1] + 16, 'middle'); }));
+    } else {
+      const A = cfg.A[0], Bn = cfg.B[0], rows = Math.max(A.ports.length, Bn.ports.length), h = 34 + rows * 26, bw = 230, ax = 30, bx = W - 30 - bw;
+      g += box(ax, 16, bw, h, A, 22) + box(bx, 16, bw, h, Bn, 22); H = h + 24;
+      A.ports.forEach((pn, j) => { const q = [ax + bw, 52 + j * 26 + 8]; pos['A0.' + j] = q; g += port(q[0], q[1], pn, q[0] - 12, q[1] + 2, 'end'); });
+      Bn.ports.forEach((pn, j) => { const q = [bx, 52 + j * 26 + 8]; pos['B0.' + j] = q; g += port(q[0], q[1], pn, q[0] + 12, q[1] + 2, 'start'); });
+    }
+    cfg.links.forEach(([ai, aj, bi, bj], k) => {
+      const a = pos['A' + ai + '.' + aj], bq = pos['B' + bi + '.' + bj];
+      if (cfg.h) g += `<path d="M ${a[0] + 8} ${a[1]} C ${(a[0] + bq[0]) / 2} ${a[1]}, ${(a[0] + bq[0]) / 2} ${bq[1]}, ${bq[0] - 8} ${bq[1]}" fill="none" stroke="#ec4899" stroke-width="2" opacity="0.9"/>`;
+      else { const ym = (a[1] + bq[1]) / 2 + (k % 2 ? 4 : -4); g += `<path d="M ${a[0]} ${a[1] + 6} C ${a[0]} ${ym}, ${bq[0]} ${ym}, ${bq[0]} ${bq[1] - 6}" fill="none" stroke="#ec4899" stroke-width="2" opacity="0.9"/>`; }
     });
-    cfg.comp.ports.forEach((pn, i) => { const a = cp(i); g += `<rect x="${a[0] - 8}" y="${a[1] - 5}" width="16" height="11" rx="2" fill="#0d1520" stroke="#ec4899" stroke-width="1.3"/><text x="${a[0]}" y="${a[1] - 8}" font-size="5.2" font-family="monospace" font-weight="700" text-anchor="middle" fill="#f9a8d4">${_esc(pn)}</text>`; });
-    cfg.stor.forEach((st, si) => st.ports.forEach((pn, j) => { const b = sp(si, j); g += `<rect x="${b[0] - 8}" y="${b[1] - 5}" width="16" height="11" rx="2" fill="#0d1520" stroke="#ec4899" stroke-width="1.3"/><text x="${b[0]}" y="${b[1] + 16}" font-size="5.2" font-family="monospace" font-weight="700" text-anchor="middle" fill="#f9a8d4">${_esc(pn)}</text>`; }));
-    g += `<text x="${W / 2}" y="${(cy + ch + sy) / 2 + 2}" font-size="6" font-weight="800" text-anchor="middle" fill="#ec4899" stroke="#0a0c14" stroke-width="2.4" paint-order="stroke">${_esc(cfg.media)}</text>`;
-    return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:8px 0 2px;">INTERNAL CONNECTIONS: compute controller to storage controller${m > 1 ? 's' : ''} (storage node backplane cabling)</div><svg viewBox="0 0 ${W} ${sy + sh + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(W * _ZOOM)}px;display:block;">${g}</svg><div style="font-size:0.5rem;color:#6b7280;margin-top:2px;">${_esc(cfg.note)}</div></div>`;
+    g += cfg.h ? `<text x="${W / 2}" y="${H + 8}" font-size="6" font-weight="800" text-anchor="middle" fill="#ec4899">${_esc(cfg.media)}</text>` : `<text x="${W / 2}" y="${(56 + 112) / 2 + 2}" font-size="6" font-weight="800" text-anchor="middle" fill="#ec4899" stroke="#0a0c14" stroke-width="2.4" paint-order="stroke">${_esc(cfg.media)}</text>`;
+    const vh = cfg.h ? H + 16 : H + 8;
+    return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:8px 0 2px;">INTERNAL CONNECTIONS: compute controller to storage controller${cfg.B.length + cfg.A.length > 2 ? 's' : ''} (${_esc(cfg.order)})</div><svg viewBox="0 0 ${W} ${vh}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round(W * _ZOOM)}px;display:block;">${g}</svg><div style="font-size:0.5rem;color:#6b7280;margin-top:2px;">${_esc(cfg.note)}</div></div>`;
   };
   const _one = (L, label) => { _dim = false; _mir = false; _CW = L.W; const s = _run(L); return `<div><div style="font-size:0.5rem;color:#94a3b8;margin:4px 0 2px;">${label}</div><svg viewBox="-4 -4 ${L.W + 8} ${L.H + 8}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${Math.round((L.W + 8) * _ZOOM)}px;display:block;">${s}</svg></div>`; };
 
@@ -36304,14 +36336,15 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
   if (isStorageGrid) {
     let inner2 = '', sub2 = '';
     if (/sg(1[012]0|1[012]00|f?6[12]12|f?6212)|^sg(100|110|120|1000|1100|1200)/.test(_plat2)) { sub2 = 'StorageGRID 1U appliance: 2 PSUs, 4 network ports, BMC, admin ports'; inner2 = _one(_SG_1U, 'SERVICES / COMPUTE APPLIANCE (1U)'); }
-    else if (/sg57(12|60)/.test(_plat2)) { const _x = /x$/.test(_plat2); sub2 = `StorageGRID SG5700${_x ? 'X' : ''}: ${_x ? 'E2800B' : 'E2800A'} storage controller + E5700SG compute controller`; inner2 = _one(_SG_E2800(_x, false), `STORAGE CONTROLLER (${_x ? 'E2800B' : 'E2800A'}) - interconnect ports link it to the compute controller (16Gb FC); drive expansion unused`) + _one(_SG_E5700, 'COMPUTE CONTROLLER (E5700SG) - network ports 1-4 (10/25GbE) to the Grid and Client networks; P1/P2 = management ports (Admin network); IC1/IC2 = interconnect to the storage controller'); }
-    else if (/sg58(12|60)/.test(_plat2)) { sub2 = 'StorageGRID SG5800: SG5800 compute controller + E4000 storage controller'; inner2 = _one(_SG_E4000, 'STORAGE CONTROLLER (E4000) - management, drive expansion (unused), interconnect ports 1-2 (25GbE iSCSI) to the compute controller') + _one(_SG_5800C, 'COMPUTE CONTROLLER (SG5800) - network ports 1-4 (e1a-e1d, 10/25GbE) to the Grid and Client networks; management port = Admin network; IC1/IC2 = interconnect to the storage controller'); }
+    else if (/sg57(12|60)/.test(_plat2)) { const _x = /x$/.test(_plat2); sub2 = `StorageGRID SG5700${_x ? 'X' : ''}: ${_x ? 'E2800B' : 'E2800A'} storage controller + E5700SG compute controller`; inner2 = _sgPair(/sg5712/.test(_plat2), _one(_SG_E2800(_x, false), `STORAGE CONTROLLER (${_x ? 'E2800B' : 'E2800A'}) - interconnect ports link it to the compute controller (16Gb FC); drive expansion unused`), _one(_SG_E5700, 'COMPUTE CONTROLLER (E5700SG) - network ports 1-4 (10/25GbE) to the Grid and Client networks; P1/P2 = management ports (Admin network); IC1/IC2 = interconnect to the storage controller')); }
+    else if (/sg58(12|60)/.test(_plat2)) { sub2 = 'StorageGRID SG5800: SG5800 compute controller + E4000 storage controller'; inner2 = _sgPair(/sg5812/.test(_plat2), _one(_SG_E4000, 'STORAGE CONTROLLER (E4000) - management, drive expansion (unused), interconnect ports 1-2 (25GbE iSCSI) to the compute controller'), _one(_SG_5800C, 'COMPUTE CONTROLLER (SG5800) - network ports 1-4 (e1a-e1d, 10/25GbE) to the Grid and Client networks; management port = Admin network; IC1/IC2 = interconnect to the storage controller')); }
     else if (/sg6060|sg6160/.test(_plat2)) { const _x6 = /x$/.test(_plat2); sub2 = `StorageGRID SG6060${_x6 ? 'X' : ''}: SG6000-CN 1U compute controller + two ${_x6 ? 'E2800B' : 'E2800A'} storage controllers in the E2860 shelf`; inner2 = _one(_SG_6000CN, 'COMPUTE CONTROLLER (SG6000-CN, 1U) - IC1-IC4 = 16Gb FC interconnect (two to each storage controller); network ports 1-4 (10/25GbE); BMC; ADM1/ADM2 = Admin network') + _one(_SG_E2800(_x6, true), `STORAGE CONTROLLER A (${_x6 ? 'E2800B' : 'E2800A'}) - interconnect ports link it to the SG6000-CN; drive expansion ports go to an expansion shelf`) + _one(_SG_E2800(_x6, true), `STORAGE CONTROLLER B (${_x6 ? 'E2800B' : 'E2800A'}) - identical duplex partner`); }
     else return _frame('STORAGEGRID NODE', 'Appliance model not identified: no physical layout drawn', '<div style="font-size:0.6rem;color:#94a3b8;">Grid/Admin/Client networks bond across the appliance network ports; see the port table below.</div>', '');
-    { const _xb = /x$/.test(_plat2);
-      if (/sg57(12|60)/.test(_plat2)) inner2 += _sgTopo({ comp: { name: 'E5700SG compute controller', sub: 'IC1 / IC2 = interconnect ports', ports: ['IC1', 'IC2'] }, stor: [{ name: _xb ? 'E2800B storage controller' : 'E2800A storage controller', sub: _xb ? 'interconnect = HIC ports 0e / 0f' : 'IC1 / IC2 = interconnect ports', ports: _xb ? ['0e', '0f'] : ['IC1', 'IC2'] }], links: [[0, 0, 0], [1, 0, 1]], media: '2 x 16Gb/s FC optical cables: IC1-IC1, IC2-IC2', note: 'The compute controller runs StorageGRID and is the initiator; the E2800 controller manages the drives and is the target (NetApp SG5700 cabling guide).' });
-      else if (/sg58(12|60)/.test(_plat2)) inner2 += _sgTopo({ comp: { name: 'SG5800 compute controller', sub: 'IC1 / IC2 = interconnect ports', ports: ['IC1', 'IC2'] }, stor: [{ name: 'E4000 storage controller', sub: 'IC1 / IC2 = interconnect ports', ports: ['IC1', 'IC2'] }], links: [[0, 0, 0], [1, 0, 1]], media: '2 x 25GbE iSCSI cables: IC1-IC1, IC2-IC2', note: 'The SG5800 controller runs StorageGRID and is the initiator; the E4000 controller manages the drives and is the target (NetApp SG5800 cabling guide).' });
-      else if (/sg6060|sg6160/.test(_plat2)) inner2 += _sgTopo({ comp: { name: 'SG6000-CN compute controller (1U)', sub: 'IC1-IC4 = 16Gb FC interconnect ports', ports: ['IC1', 'IC2', 'IC3', 'IC4'] }, stor: [{ name: `${_xb ? 'E2800B' : 'E2800A'} storage controller A`, sub: _xb ? 'interconnect = HIC ports 0e / 0f' : 'IC1 / IC2 = interconnect ports', ports: _xb ? ['0e', '0f'] : ['IC1', 'IC2'] }, { name: `${_xb ? 'E2800B' : 'E2800A'} storage controller B`, sub: _xb ? 'interconnect = HIC ports 0e / 0f' : 'IC1 / IC2 = interconnect ports', ports: _xb ? ['0e', '0f'] : ['IC1', 'IC2'] }], links: [[0, 0, 0], [1, 0, 1], [2, 1, 0], [3, 1, 1]], media: '4 x 16Gb/s FC optical cables: two to each storage controller', note: 'Two connections from the SG6000-CN to each E2800 controller (NetApp SG6000 cabling guide). Which CN port goes to which controller follows the order shown here; confirm on the appliance labels.' });
+    { const _xb = /x$/.test(_plat2), _side = false;
+      const ic = _xb ? ['0e', '0f'] : ['IC1', 'IC2'], e28 = _xb ? 'E2800B' : 'E2800A', e28sub = _xb ? 'interconnect = HIC ports 0e / 0f' : 'IC1 / IC2 = interconnect ports';
+      if (/sg57(12|60)/.test(_plat2)) inner2 += _sgTopo({ h: false, order: 'compute controller on top, storage controller below', A: [{ name: 'E5700SG compute controller', sub: 'IC1 / IC2 = interconnect ports', ports: ['IC1', 'IC2'] }], B: [{ name: e28 + ' storage controller', sub: e28sub, ports: ic }], links: [[0, 0, 0, 0], [0, 1, 0, 1]], media: '2 x 16Gb/s FC optical cables: IC1-IC1, IC2-IC2', note: 'The compute controller runs StorageGRID and is the initiator; the E2800 controller manages the drives and is the target (NetApp SG5700 hardware description and cabling guide).' });
+      else if (/sg58(12|60)/.test(_plat2)) inner2 += _sgTopo({ h: false, order: 'compute controller on top, storage controller below', A: [{ name: 'SG5800 compute controller', sub: 'IC1 / IC2 = interconnect ports', ports: ['IC1', 'IC2'] }], B: [{ name: 'E4000 storage controller', sub: 'IC1 / IC2 = interconnect ports', ports: ['IC1', 'IC2'] }], links: [[0, 0, 0, 0], [0, 1, 0, 1]], media: '2 x 25GbE iSCSI cables: IC1-IC1, IC2-IC2', note: 'The SG5800 controller runs StorageGRID and is the initiator; the E4000 controller manages the drives and is the target (NetApp SG5800 hardware description and cabling guide).' });
+      else if (/sg6060|sg6160/.test(_plat2)) inner2 += _sgTopo({ h: false, order: 'compute controller (1U) on top, the two storage controllers below', A: [{ name: 'SG6000-CN compute controller (1U)', sub: 'IC1-IC4 = 16Gb FC interconnect ports', ports: ['IC1', 'IC2', 'IC3', 'IC4'] }], B: [{ name: e28 + ' storage controller A', sub: e28sub, ports: ic }, { name: e28 + ' storage controller B', sub: e28sub, ports: ic }], links: [[0, 0, 0, 0], [0, 1, 0, 1], [0, 2, 1, 0], [0, 3, 1, 1]], media: '4 x 16Gb/s FC optical cables: two to each storage controller', note: 'Two connections from the SG6000-CN to each E2800 controller (NetApp SG6000 cabling guide). Which CN port goes to which controller follows the order shown here; confirm on the appliance labels.' });
     }
     return _frame('STORAGEGRID NODE — REAR', sub2, inner2, '<div style="margin-top:6px;font-size:0.55rem;color:#94a3b8;line-height:1.5;">Network roles shown are the appliance defaults (Fixed port bond mode): network ports 2 and 4 = Grid Network (bonded), ports 1 and 3 = Client Network (optional, bonded). In Aggregate bond mode all four ports form one LACP bond carrying Grid and Client traffic. The Admin Network uses the Admin port, optionally bonded with the second RJ-45 port. Active IQ does not report the configured bond mode or port state for StorageGRID, so roles come from the NetApp documentation, not from this node.</div>', _sgLegend);
   }

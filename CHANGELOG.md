@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.122] - 2026-09-27
+
+### Changed
+- StorageGRID rear panels and internal-connection diagrams now show the compute controller above the storage controller(s) for every model (SG5700, SG5800 and SG6060), as confirmed for these appliances; the internal-connection diagram uses the same order.
+
+---
+
 ## [5.6.121] - 2026-09-27
 
 ### Changed
