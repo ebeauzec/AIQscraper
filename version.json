@@ -1,8 +1,8 @@
 {
-  "version": "5.6.153",
+  "version": "5.6.154",
   "major": 5,
   "minor": 6,
-  "patch": 153,
+  "patch": 154,
   "date": "2026-09-28",
-  "notes": "New fleet-wide VMware Inventory section (Action Planner 17) -- registered vCenters, versions, attached systems/customers, and IMT compatibility findings in one place. Risk trend section replaced with fixed 30/60/90-day windows instead of an ambiguous 'since last sync' framing that could be misread as tracking TAM-customer meetings, which ARIA does not do."
+  "notes": "Capacity Breakdown by Node table (CSM tab) is now click-to-sort on all 8 columns, with its TOTAL row pinned at the bottom instead of being sorted like a data row. Also removed all display numbers from the Action Planner's 21 tab buttons/section headings after the VMware Inventory addition exposed pre-existing numbering collisions."
 }

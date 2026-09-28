@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.153";
+const APP_VERSION = "5.6.154";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.154",
+    date: "28 September 2026",
+    title: "Sortable Capacity Breakdown, and the Action Planner's Numbering Removed",
+    sections: [
+      {
+        icon: "✅",
+        label: "New -- Sortable Capacity Breakdown by Node",
+        color: "#22c55e",
+        items: [
+          "The Capacity Breakdown by Node table (CSM tab, Per-Node capacity view) was fixed-sort (used TB descending) with no way to reorder it -- flagged from a screenshot. All 8 columns (Node/System, Model, Raw TB, Used TB, Utilization, Growth/day, Runway, Source) are now click-to-sort, reusing the same sortTamTable()/_sth() mechanism already used across the Action Planner's other tables rather than a second implementation. The TOTAL summary row (renderNodeBreakdownTable()'s footer) now opts out of sorting via a tam-total-row class so it stays pinned at the bottom instead of being interleaved into the sort like a data row -- sortTamTable() itself was extended to recognize and pin that class generically. Verified live against the real 2,898-system fleet: ascending/descending numeric sort on Used TB and Runway both correct, TOTAL row stays last in both directions.",
+        ],
+      },
+      {
+        icon: "🩹",
+        label: "Fixed -- Action Planner Tab Numbering",
+        color: "#f87171",
+        items: [
+          "The prior session's VMware Inventory addition first shipped as tab \"17.\", colliding with the pre-existing \"17. Guidelines\" button; fixed to \"20.\" -- which then made a second, PRE-EXISTING collision visible (\"16.\" used by both Performance and Logistics & Health) plus the new button visually out of sequence within its group. Rather than renumber two already-inconsistent schemes across ~40 locations, removed all display numbers from all 21 Action Planner tab buttons and their section headings -- the tab groups (Overview / Risk & Security / Operations & Health / Account & Commercial / Customer Deliverables) and each button's descriptive title/tooltip are unchanged and remain the primary navigation aid.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.153",
     date: "28 September 2026",
@@ -17512,6 +17535,7 @@ function renderNodeBreakdownTable(systems) {
 
   // Append totals footer via createElement to avoid the slow innerHTML += re-parse
   const _footerRow = document.createElement('tr');
+  _footerRow.className = 'tam-total-row';
   _footerRow.style.cssText = 'border-top:2px solid var(--border-color);font-weight:700;background:rgba(255,255,255,0.03);';
   _footerRow.innerHTML = `
     <td style="padding:9px 10px;" colspan="2">TOTAL (${sorted.length} nodes)</td>
@@ -27066,8 +27090,13 @@ function sortTamTable(th) {
   const tbody = table.querySelector('tbody');
   if (!tbody) return;
   const colIdx = Array.from(th.parentElement.children).indexOf(th);
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-  
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  // Totals/footer rows (e.g. the Capacity Breakdown by Node TOTAL row) opt out
+  // of sorting via this class -- they stay pinned at the bottom instead of
+  // being interleaved into the sort like a regular data row.
+  const pinnedRows = allRows.filter(r => r.classList.contains('tam-total-row'));
+  const rows = allRows.filter(r => !r.classList.contains('tam-total-row'));
+
   // Toggle direction
   const curDir = th.getAttribute('data-sort-dir') || 'none';
   const newDir = curDir === 'asc' ? 'desc' : 'asc';
@@ -27109,6 +27138,7 @@ function sortTamTable(th) {
   });
   
   rows.forEach(r => tbody.appendChild(r));
+  pinnedRows.forEach(r => tbody.appendChild(r));
 }
 
 // Helper: generate a sortable TH element
@@ -30302,7 +30332,7 @@ function generateActionPlan() {
       <!-- Executive Summary Section -->
       <div style="margin-top: 32px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-          <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">1. Executive Summary</h2>
+          <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Executive Summary</h2>
           <div style="display: flex; gap: 8px;">
             <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(1)" data-tooltip="Download Section 1 text report as a TXT file.">Download Summary</button>
             <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadDeliverable('CSV')" data-tooltip="Download full filtered systems inventory list as a CSV spreadsheet.">Export Inventory (CSV)</button>
@@ -30392,7 +30422,7 @@ function generateActionPlan() {
     <!-- Technical Risks Section -->
     <div class="plan-section" data-section-index="2" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">2. Prioritized Technical Risks & Remediation Steps</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Prioritized Technical Risks & Remediation Steps</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(2)" data-tooltip="Download Section 2 prioritized risks report as a TXT file.">Download Risks</button>
       </div>
   `;
@@ -30519,7 +30549,7 @@ function generateActionPlan() {
     <!-- Security & Technical Bulletins Section -->
     <div class="plan-section" data-section-index="3" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">3. Security Bulletins & Vulnerability Mitigations</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Security Bulletins & Vulnerability Mitigations</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(3)" data-tooltip="Download Section 3 security advisories report as a TXT file.">Download Advisories</button>
       </div>
   `;
@@ -30581,7 +30611,7 @@ function generateActionPlan() {
     <!-- Open Support Cases Section -->
     <div class="plan-section" data-section-index="4" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">6. Support Cases & Service Activity</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Support Cases & Service Activity</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(4)" data-tooltip="Download Section 4 support cases report as a TXT file.">Download Cases</button>
       </div>
   `;
@@ -30679,7 +30709,7 @@ function generateActionPlan() {
     <!-- OS/Firmware Upgrades Section -->
     <div class="plan-section" data-section-index="5" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">4. Recommended OS Upgrade Roadmaps</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Recommended OS Upgrade Roadmaps</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps</button>
       </div>
   `;
@@ -30793,7 +30823,7 @@ function generateActionPlan() {
     <!-- Network Switch & Fabric Infrastructure Remediation Section -->
     <div class="plan-section" data-section-index="6" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">5. Network Switch & Fabric Infrastructure Remediation</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Network Switch & Fabric Infrastructure Remediation</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(6)" data-tooltip="Download Section 6 switch validation roadmap as a TXT file.">Download Switch Report</button>
       </div>
   `;
@@ -30873,7 +30903,7 @@ function generateActionPlan() {
     <!-- Site Logistics, Contacts & Health Details Section -->
     <div class="plan-section" data-section-index="7" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. Site Logistics, Contacts, & Customer Health</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Site Logistics, Contacts, & Customer Health</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(7)" data-tooltip="Download Section 7 logistics and contacts catalog as a TXT file.">Download Logistics</button>
       </div>
   `;
@@ -30929,7 +30959,7 @@ function generateActionPlan() {
     <!-- Guidelines and Proceeding Steps Section -->
     <div class="plan-section" data-section-index="8" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">17. Operational Guidelines & Proceeding Steps</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Operational Guidelines & Proceeding Steps</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(8)" data-tooltip="Download Section 8 change control guidelines as a TXT file.">Download Guidelines</button>
       </div>
       
@@ -31213,7 +31243,7 @@ function generateActionPlan() {
     <!-- ═══ SECTION 10: Contracts & Lifecycle ═══ -->
     <div class="plan-section" data-section-index="10" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">7. Contracts & Lifecycle Events</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Contracts & Lifecycle Events</h2>
       </div>
       ${_renderContractsLifecycleSection(targetSystems)}
     </div>
@@ -31221,7 +31251,7 @@ function generateActionPlan() {
     <!-- ═══ SECTION 11: Sustainability & ESG ═══ -->
     <div class="plan-section" data-section-index="11" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">9. Sustainability & ESG Report</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Sustainability & ESG Report</h2>
       </div>
       ${_renderSustainabilitySection(targetSystems)}
     </div>
@@ -31229,7 +31259,7 @@ function generateActionPlan() {
     <!-- ═══ SECTION 12: Recommendations ═══ -->
     <div class="plan-section" data-section-index="12" style="display: none; margin-top: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">10. TAM Recommendations</h2>
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">TAM Recommendations</h2>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(12)" data-tooltip="Download Section 12 TAM recommendations report as a TXT file.">Download Recommendations</button>
       </div>
       ${_renderRecommendationsSection(targetSystems)}
@@ -31246,7 +31276,7 @@ function generateActionPlan() {
   sec13.style.marginTop = '32px';
   sec13.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">11. Account Intelligence</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Account Intelligence</h2>
     </div>
     ${_renderAccountIntelligenceSection(targetSystems)}`;
   planBody.appendChild(sec13);
@@ -31258,7 +31288,7 @@ function generateActionPlan() {
   sec14.style.marginTop = '32px';
   sec14.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">8. Contract Compliance</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Contract Compliance</h2>
     </div>
     ${_renderLicenseComplianceSection(targetSystems)}`;
   planBody.appendChild(sec14);
@@ -31270,7 +31300,7 @@ function generateActionPlan() {
   sec15.style.marginTop = '32px';
   sec15.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">12. Operational Health</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Operational Health</h2>
     </div>
     ${_renderMonthlySLASection(targetSystems)}`;
   planBody.appendChild(sec15);
@@ -31282,7 +31312,7 @@ function generateActionPlan() {
   sec16.style.marginTop = '32px';
   sec16.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">13. DR & Replication Health</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">DR & Replication Health</h2>
     </div>
     ${_renderDRReplicationSection(targetSystems)}`;
   planBody.appendChild(sec16);
@@ -31294,7 +31324,7 @@ function generateActionPlan() {
   sec17.style.marginTop = '32px';
   sec17.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">14. Feature Adoption</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Feature Adoption</h2>
     </div>
     ${_renderFeatureAdoptionSection(targetSystems)}`;
   planBody.appendChild(sec17);
@@ -31306,7 +31336,7 @@ function generateActionPlan() {
   sec18.style.marginTop = '32px';
   sec18.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">15. Firmware Currency</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Firmware Currency</h2>
     </div>
     ${_renderFirmwareCurrencySection(targetSystems)}`;
   planBody.appendChild(sec18);
@@ -31318,7 +31348,7 @@ function generateActionPlan() {
   sec19.style.marginTop = '32px';
   sec19.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">19. As-Built Configuration Document</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">As-Built Configuration Document</h2>
       <div style="display:flex; gap:8px;">
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="printAsBuiltSection()" data-tooltip="Open As-Built Document in a print-ready window for PDF export.">🖨 Print / PDF</button>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(19)" data-tooltip="Download the As-Built Configuration Document -- choose Text, Markdown or Word (.docx), same as every other deliverable.">⬇ Download</button>
@@ -31334,7 +31364,7 @@ function generateActionPlan() {
   sec20.style.marginTop = '32px';
   sec20.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">16. Performance (StoragePerf)</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Performance (StoragePerf)</h2>
     </div>
     ${_renderPerformanceSection(targetSystems)}`;
   planBody.appendChild(sec20);
@@ -31346,7 +31376,7 @@ function generateActionPlan() {
   sec21.style.marginTop = '32px';
   sec21.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
-      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">20. VMware Inventory</h2>
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">VMware Inventory</h2>
     </div>
     ${_renderVMwareInventorySection(targetSystems)}`;
   planBody.appendChild(sec21);
@@ -31361,51 +31391,51 @@ function generateActionPlan() {
         <div class="plan-tab-group-header"><span class="plan-tab-group-label">Overview</span></div>
         <div class="plan-tab-group-desc">Where every reviewer should start — the one-page rollup of everything below.</div>
         <div class="plan-tab-group-row">
-          <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
+          <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">Summary</button>
         </div>
       </div>
       <div class="plan-tab-group">
         <div class="plan-tab-group-header"><span class="plan-tab-group-label">Risk &amp; Security</span></div>
         <div class="plan-tab-group-desc">What could go wrong, and what NetApp or CVE advisories say to do about it.</div>
         <div class="plan-tab-group-row">
-          <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
-          <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security Advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
-          <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">4. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
-          <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">Security Advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
         </div>
       </div>
       <div class="plan-tab-group">
         <div class="plan-tab-group-header"><span class="plan-tab-group-label">Operations &amp; Health</span></div>
         <div class="plan-tab-group-desc">Day-to-day operational posture — support load, protection coverage, and hygiene.</div>
         <div class="plan-tab-group-row">
-          <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
-          <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
-          <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
-          <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
-          <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
-          <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
-          <button class="plan-tab-btn" data-tab-index="21" onclick="switchPlanTab(21)" title="Fleet-wide VMware/vSphere inventory -- every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vcenters only rendered per-system in the As-Built Document.">🖥 20. VMware Inventory</button>
+          <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">Operational Health</button>
+          <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 DR &amp; Replication Health</button>
+          <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ Feature Adoption</button>
+          <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 Firmware Currency</button>
+          <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ Performance</button>
+          <button class="plan-tab-btn" data-tab-index="21" onclick="switchPlanTab(21)" title="Fleet-wide VMware/vSphere inventory -- every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vcenters only rendered per-system in the As-Built Document.">🖥 VMware Inventory</button>
         </div>
       </div>
       <div class="plan-tab-group">
         <div class="plan-tab-group-header"><span class="plan-tab-group-label">Account &amp; Commercial</span></div>
         <div class="plan-tab-group-desc">Contracts, lifecycle, sustainability, and the account context behind the technical picture.</div>
         <div class="plan-tab-group-row">
-          <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
-          <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">8. Contract Compliance</button>
-          <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
-          <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">10. Recommendations</button>
-          <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
-          <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
-          <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
+          <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">Contract Compliance</button>
+          <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">Sustainability</button>
+          <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">Recommendations</button>
+          <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">Account Intelligence</button>
+          <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">Logistics &amp; Health</button>
+          <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">Guidelines</button>
         </div>
       </div>
       <div class="plan-tab-group featured-group">
         <div class="plan-tab-group-header"><span class="plan-tab-group-label">★ Customer Deliverables</span></div>
         <div class="plan-tab-group-desc">Ready to export and present — everything above is the analysis that builds these.</div>
         <div class="plan-tab-group-row">
-          <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">18. Deliverables Suite (13)</button>
-          <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
+          <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">Deliverables Suite (13)</button>
+          <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">As-Built Document</button>
         </div>
       </div>
     `;

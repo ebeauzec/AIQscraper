@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.154] - 2026-09-28
+
+### Added
+- Capacity Breakdown by Node table (CSM tab, Per-Node capacity view) is now click-to-sort on all 8 columns (Node/System, Model, Raw TB, Used TB, Utilization, Growth/day, Runway, Source), reusing the existing `sortTamTable()`/`_sth()` mechanism already used across the Action Planner's other tables.
+
+### Changed
+- `sortTamTable()` now recognizes a `tam-total-row` class and pins matching rows at the bottom instead of sorting them like data rows -- applied to the Capacity Breakdown table's TOTAL footer row, which was previously getting interleaved into the sort.
+- Removed all display numbers from the Action Planner's 21 tab buttons and section headings. The VMware Inventory addition first shipped as "17.", colliding with the pre-existing "17. Guidelines" button; the fix to "20." then exposed a second, pre-existing collision ("16." used by both Performance and Logistics & Health). Rather than renumber two already-inconsistent schemes, removed the numbers entirely -- tab groups and each button's descriptive tooltip are unchanged.
+
+---
+
 ## [5.6.153] - 2026-09-28
 
 ### Added
