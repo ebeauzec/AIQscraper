@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.159] - 2026-09-28
+
+### Fixed
+- As-Built Excel export triggered Excel's "unreadable content" repair prompt. Root causes, both confirmed by reproducing the file structure in Python and validating with `openpyxl`: `xl/_rels/workbook.xml.rels` never declared a relationship to `styles.xml`; `styles.xml` had no `cellStyles`/`Normal` entry (openpyxl's own diagnostic: "Workbook contains no default style"). Both added.
+
+---
+
 ## [5.6.158] - 2026-09-28
 
 ### Added

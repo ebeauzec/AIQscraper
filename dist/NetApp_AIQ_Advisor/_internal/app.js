@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.158";
+const APP_VERSION = "5.6.159";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.159",
+    date: "28 September 2026",
+    title: "Fix Excel Asking to Repair the As-Built Export",
+    sections: [
+      {
+        icon: "🩹",
+        label: "Fixed -- Excel Repair Prompt on the As-Built .xlsx Export",
+        color: "#f87171",
+        items: [
+          "The v5.6.158 Excel export opened with an 'Excel found unreadable content, do you want to recover' repair prompt. Two real defects in the from-scratch XLSX writer, both confirmed by reproducing the same file structure in Python and validating with openpyxl (a real OOXML reader, not just eyeballing the XML): (1) xl/_rels/workbook.xml.rels declared relationships for every worksheet but never for styles.xml, even though [Content_Types].xml listed it and cell styles referenced it -- added the missing styles relationship. (2) styles.xml's cellXfs had no matching cellStyles entry (openpyxl's own diagnostic: 'Workbook contains no default style') -- added a cellStyle/Normal/builtinId=0 entry, which is what a real Excel-authored styles.xml always includes and this hand-written one was missing. Verified the corrected structure opens cleanly with no warnings.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.158",
     date: "28 September 2026",
@@ -31409,21 +31424,21 @@ function generateActionPlan() {
           <div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
               <h2 style="font-size: 1.25rem; margin: 0; border: none; padding: 0; color: #ffd700;">★ Executable Account Deliverables Suite</h2>
-              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">14 DELIVERABLES</span>
+              <span style="background: linear-gradient(135deg, #ffd700, #ff9500); color: #0a0e14; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;">15 DELIVERABLES</span>
             </div>
             <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0; line-height: 1.5; max-width: 700px;">
-              Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT, Markdown or Word file for distribution to stakeholders.
+              Pre-compiled operational documents generated from Active IQ telemetry and TAM account intelligence. Each deliverable is scoped to the selected customer/group and can be downloaded as a standalone TXT, Markdown or Word file for distribution to stakeholders. Split into three tabs below by audience -- this one, Risk &amp; Remediation, plus Customer &amp; Sales and TAM / MSP alongside it.
             </p>
             <p style="font-size: 0.72rem; color: var(--text-muted); margin: 6px 0 0; line-height: 1.5; max-width: 700px;">
               Equally usable by enterprise end-customers managing their own fleet: scope to a business unit, data center, or environment instead of an external customer to get the same security, licensing, capacity, and lifecycle deliverables for internal reporting and audit.
             </p>
           </div>
-          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download every deliverable as an individual file in the format chosen on the left.">⬇ Download All</button>
+          <button class="action-btn secondary" style="font-size: 0.72rem; padding: 6px 14px; white-space: nowrap; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadAllDeliverables()" data-tooltip="Download all 15 deliverables across all three tabs as individual files in the format chosen on the left.">⬇ Download All (15)</button>
         </div>
         <div style="display: flex; gap: 16px; margin-top: 8px;">
-          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C)</span>
-          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--accent-cyan);">Customer &amp; Sales</span> (D–F)</span>
-          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-normal);">TAM / MSP Operations</span> (G–J)</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-critical);">Risk &amp; Remediation</span> (A–C, this tab)</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--accent-cyan);">Customer &amp; Sales</span> (D–I)</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted);">⬥ <span style="color: var(--status-normal);">TAM / MSP Operations</span> (J–O)</span>
         </div>
       </div>
 
@@ -32780,8 +32795,8 @@ function _buildXlsx(sheets) {   // sheets: [{name, headers, rows}]
     { name: '[Content_Types].xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${overrides}</Types>`) },
     { name: '_rels/.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`) },
     { name: 'xl/workbook.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${_xe(safeName(s.name))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`) },
-    { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`) },
-    { name: 'xl/styles.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><name val="Calibri"/><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2E5597"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`) },
+    { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`) },
+    { name: 'xl/styles.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><name val="Calibri"/><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2E5597"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`) },
     ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: enc.encode(_xlsxSheetXml(s.headers, s.rows)) })),
   ];
   return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.158",
+  "version": "5.6.159",
   "major": 5,
   "minor": 6,
-  "patch": 158,
+  "patch": 159,
   "date": "2026-09-28",
-  "notes": "As-Built Configuration Document can now export as a real 4-sheet Excel workbook (Systems, Shelves, SVMs & LIFs, Risks) -- built from scratch, no library, same approach as the existing docx writer. Scoped to the As-Built document only since it's the one deliverable whose data is genuinely tabular."
+  "notes": "Fixed the As-Built Excel export triggering Excel's repair-file prompt: the XLSX writer's workbook.xml.rels was missing a relationship to styles.xml, and styles.xml was missing a cellStyles/Normal entry. Verified by reproducing the same OOXML structure in Python and validating with openpyxl."
 }
