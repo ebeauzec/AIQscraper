@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.149";
+const APP_VERSION = "5.6.150";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.150",
+    date: "28 September 2026",
+    title: "Demo Mode Had Zero Shelf Firmware Data -- Fixed",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "The Firmware Currency section's Shelf FW tile showed 0/N unknown for every single demo-mode system -- the one KPI on that card with zero demo representation. Root cause: no curated MOCK_SYSTEMS profile ever carried the shelvesSummary field _resolveShelfModules() actually compares (some DO have a rich, hand-authored shelves array with real module names, but none paired it with a matching firmware-currency entry).",
+          "Synthesized shelvesSummary from the same reference-library baselines (REFERENCE_LIBRARY_FIRMWARE_BASELINES) the real feature compares against, so demo mode now exercises the identical current/behind/unknown logic real data does. Where a curated profile already has real shelf hardware, the firmware entry is derived from that hardware's own module name so the two fields never disagree; where none exists, both are synthesized together, seeded per-system like the existing networkPorts synthesis. Correctly excludes Cloud Volumes ONTAP, ONTAP Select, and Astra -- these are virtualized with no physical shelves at all, same as the real 'Virtual Appliance, no physical rear panel' treatment those platforms already get elsewhere.",
+          "Verified live: 108/108 physical ONTAP demo systems now have shelf firmware data (was 0/108), with a realistic current/behind/unknown mix (55/40/13) instead of every system reporting unknown.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.149",
     date: "28 September 2026",
@@ -8011,6 +8028,63 @@ function _demoSynthPorts(bucket, rng, seed) {
   return { totalCount: ports.length, networkPorts: ports };
 }
 
+// Shelf module + firmware currency, synthesized from the same reference-library
+// baselines the real Firmware Currency feature compares against (REFERENCE_LIBRARY_
+// FIRMWARE_BASELINES) so demo mode exercises the identical current/behind/unknown
+// logic real data does, instead of the feature having zero demo representation at
+// all (mock systems never carried `shelvesSummary` before this -- some curated
+// profiles DO carry a rich, hand-authored `shelves` array with real module names,
+// but none of them paired it with the separate shelvesSummary firmware-currency
+// field _resolveShelfModules() actually reads).
+// Module choice follows the same NSM100/NSM100B (NVMe, current-gen AFF/C-Series/ASA
+// r2/newer FAS) vs IOM12/IOM12B/IOM12G (SAS, classic-gen) split the real baseline
+// table's own comments document; NSM140 is AFX-only and never mixed with the rest.
+function _demoPickShelfModule(platStr, rng) {
+  const p = (platStr || '').toLowerCase();
+  if (p.includes('afx')) return { modName: 'NSM140', shelfModel: 'NX224' };
+  if (/a900|a800|a700|c800|a400|c400|a320|a300|a250|c250|a220|c190|a150|a1k|a90|a70|a50|a30|c80|c60|500f|asa/.test(p)) {
+    return { modName: rng() < 0.6 ? 'NSM100' : 'NSM100B', shelfModel: 'NS224' };
+  }
+  const r = rng();
+  const modName = r < 0.55 ? 'IOM12' : (r < 0.85 ? 'IOM12B' : 'IOM12G');
+  return { modName, shelfModel: modName === 'IOM12G' ? 'DS460C' : 'DS224C' };
+}
+// Builds a shelvesSummary entry for a known module name -- shared by both the
+// "no shelves at all yet" synthesis path and the "curated profile already has real
+// shelf hardware, just needs a matching firmware-currency entry" path, so the two
+// never disagree on which module a system's shelves actually use.
+function _demoShelfSummaryForModule(modName, shelfCount, rng) {
+  const baseline = REFERENCE_LIBRARY_FIRMWARE_BASELINES[modName] || {};
+  const rec = baseline.recommended || '0200';
+  // ~65% current, ~25% one step behind, ~10% "unknown" (Active IQ didn't report a
+  // current version this sync, the same real-world gap the KPI tile explains).
+  const roll = rng();
+  const isNumericVer = /^\d+$/.test(rec);
+  let curFw;
+  if (roll < 0.10) curFw = '';
+  else if (roll < 0.35 && isNumericVer) curFw = String(Math.max(0, parseInt(rec, 10) - (10 + Math.floor(rng() * 20)))).padStart(rec.length, '0');
+  else curFw = rec;
+  return [{
+    shelfModuleName: modName, shelfModuleCount: (shelfCount || 1) * 2, count: shelfCount || 1,
+    moduleHardwareModel: { name: modName },
+    firmware: { currentVersion: curFw || null, recommendedVersion: rec, postingDate: null, autoUpdateEligible: false },
+  }];
+}
+function _demoSynthShelves(platStr, rng, serial) {
+  const { modName, shelfModel } = _demoPickShelfModule(platStr, rng);
+  const shelfCount = 1 + Math.floor(rng() * 3);
+  const shelves = [];
+  for (let i = 0; i < shelfCount; i++) {
+    shelves.push({
+      serialNumber: `${serial}-SH${i}`, shelfId: i,
+      hardwareModel: { name: shelfModel, endOfAvailability: null, endOfHwSupport: null },
+      moduleHardwareModel: { name: modName },
+      drives: { totalCount: 24, drives: [] },
+    });
+  }
+  return { shelves, shelvesSummary: _demoShelfSummaryForModule(modName, shelfCount, rng) };
+}
+
 function _demoHydrateSystem(s, ctx) {
   const { ds, baselines, now, delta, nodesByCluster } = ctx;
   const rng = _demoRng(s.serialNumber);
@@ -8209,6 +8283,28 @@ function _demoHydrateSystem(s, ctx) {
     if (osEntry) {
       fill('swReleaseDate', osEntry.releaseDate); fill('swEndOfFullSupport', osEntry.endOfVersionFullSupport);
       fill('swEndOfLimitedSupport', osEntry.endOfVersionLimitedSupport); fill('swEndOfSelfService', osEntry.endOfSelfServiceSupport);
+    }
+    // No curated MOCK_SYSTEMS profile has ever carried shelvesSummary (some DO carry a
+    // rich, hand-authored `shelves` array with real module names -- but none paired it
+    // with the separate shelvesSummary firmware-currency field _resolveShelfModules()
+    // actually reads) -- Firmware Currency's Shelf FW tile showed 0/N "unknown" for
+    // every single demo system, the one KPI on that whole card with zero demo
+    // representation, even for systems whose curated shelf hardware was otherwise
+    // detailed. Virtualized platforms (Cloud Volumes ONTAP, ONTAP Select, Astra) get
+    // neither field -- they have no physical shelves at all, same as the real "Virtual
+    // Appliance, no physical rear panel" rendering these platforms already get.
+    const _isVirtualizedDemo = /cloud|ontap[\s-]?select|astra/i.test(platStr);
+    if (!_isVirtualizedDemo && _demoEmpty(out.shelvesSummary)) {
+      if (!_demoEmpty(out.shelves)) {
+        // Curated shelf hardware already exists -- derive the currency entry from
+        // its own module name so the two fields never disagree with each other.
+        const existingMod = ((out.shelves[0] || {}).moduleHardwareModel || {}).name || '';
+        if (existingMod) out.shelvesSummary = _demoShelfSummaryForModule(existingMod, out.shelves.length, rng);
+      } else {
+        const synthShelf = _demoSynthShelves(platStr, rng, s.serialNumber);
+        out.shelves = synthShelf.shelves;
+        out.shelvesSummary = synthShelf.shelvesSummary;
+      }
     }
   }
 

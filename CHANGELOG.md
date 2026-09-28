@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.150] - 2026-09-28
+
+### Fixed
+- The Firmware Currency section's Shelf FW tile showed 0/N unknown for every single demo-mode system. No curated MOCK_SYSTEMS profile ever carried the `shelvesSummary` field the real feature compares against (some have a rich hand-authored `shelves` array, but none paired it with a matching firmware-currency entry). Synthesized `shelvesSummary` from the same reference-library baselines the real feature uses, deriving from existing curated shelf hardware where present so the two fields never disagree, and synthesizing both together where neither exists. Correctly excludes Cloud Volumes ONTAP/ONTAP Select/Astra (virtualized, no physical shelves). Verified live: 108/108 physical ONTAP demo systems now have shelf firmware data with a realistic current/behind/unknown mix, instead of every system reporting unknown.
+
+---
+
 ## [5.6.149] - 2026-09-28
 
 ### Fixed

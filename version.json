@@ -1,8 +1,8 @@
 {
-  "version": "5.6.149",
+  "version": "5.6.150",
   "major": 5,
   "minor": 6,
-  "patch": 149,
+  "patch": 150,
   "date": "2026-09-28",
-  "notes": "Critical: fixed two silent data caps in server.py's harvester -- the clusters() query was unscoped by watchlist (SVM/capacity/HA data missing for newly-discovered watchlists) and the watchlist metadata resolution loop was hard-capped at 20. Verified live: SVM/LIF data population went from 14% to 64% of ONTAP systems."
+  "notes": "Fixed demo mode showing 0/N unknown shelf firmware for every system -- synthesized shelvesSummary from the real reference-library firmware baselines, correctly excluding virtualized platforms (CVO/ONTAP Select/Astra) which have no physical shelves."
 }

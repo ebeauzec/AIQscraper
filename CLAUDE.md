@@ -22,10 +22,26 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.149)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.150)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, part 6 (v5.6.150):** the shelf-firmware investigation from part 5 led to a screenshot of "0/42
+unknown" on the Firmware Currency Shelf FW tile -- turned out to be demo/mock mode, not live data, once asked.
+No curated `MOCK_SYSTEMS` profile ever carried `shelvesSummary` (some have real, detailed `shelves` hardware,
+just never paired with the separate firmware-currency field `_resolveShelfModules()` reads) -- every demo
+system showed unknown regardless. Added `_demoSynthShelves()`/`_demoShelfSummaryForModule()` (`app.js` ~8014),
+synthesizing shelf module + firmware from the same `REFERENCE_LIBRARY_FIRMWARE_BASELINES` table the real
+feature uses -- derives from existing curated shelf hardware's own module name when present (so the two
+fields can't disagree), synthesizes both together when neither exists. **Caught by testing, not inspection**:
+first pass gave Cloud Volumes ONTAP demo systems fake physical shelves -- added an explicit virtualized-
+platform exclusion (CVO/ONTAP Select/Astra) before fixing forward. Verified live: 108/108 physical ONTAP demo
+systems now have shelf firmware (was 0/108), realistic 55/40/13 current/behind/unknown split, 0 virtualized
+systems wrongly populated. **Also answered directly when asked**: yes, real (non-demo) shelf firmware IS
+being harvested correctly -- 107/1393 live ONTAP systems, verified with real installed-vs-recommended
+version numbers (e.g. IOM12 0401 installed vs 0412 recommended) -- the earlier sparse-data finding (part 5)
+was real upstream telemetry gaps for specific customers, not a harvest bug, already correctly not touched.
 
 **Also today, the biggest one, part 5 (v5.6.149):** user noticed a node showed no LIFs on its rear panel.
 Traced it all the way down: 0 vservers -> the cluster's SVM/capacity/HA data was entirely missing ->
