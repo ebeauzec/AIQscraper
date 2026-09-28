@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.146] - 2026-09-28
+
+### Fixed
+- The `_platformFamily()` fix (v5.6.145) only covered that one function. Found the same E-Series/StorageGRID platform/model guessing independently reimplemented in three more places, none checking `platformType`: `enrichSystemTelemetry()` (drives `isONTAPBased`, support-level labels, capacity multipliers for every system) and two TAM-tab node-visualizer functions that toggle the E-Series Hardware Audit card. All three now check `platformType` first, with the old guessing kept as a fallback. Verified live: 0 of 2,450 real systems misclassify (was 13). Confirmed no new false positives against real ONTAP systems either.
+
+### Found, not fixed
+- NetApp HCI storage nodes (platformType "HCI", models "H410S-2"/"SolidFire", 9 real systems) run Element OS, not ONTAP, but fall into the `'ontap'` catch-all family and get scored on ONTAP-only features they don't have. Active IQ reuses the `ontapVersion` field to carry Element OS version strings for these. Needs a new family bucket and a feature-check audit -- bigger than this session's scope, flagged for a follow-up decision.
+
+---
+
 ## [5.6.145] - 2026-09-28
 
 ### Fixed

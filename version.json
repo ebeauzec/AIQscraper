@@ -1,8 +1,8 @@
 {
-  "version": "5.6.145",
+  "version": "5.6.146",
   "major": 5,
   "minor": 6,
-  "patch": 145,
+  "patch": 146,
   "date": "2026-09-28",
-  "notes": "Critical: fixed E-Series systems (platformType E-SERIES) silently misclassified as ONTAP when model number didn't match a guessed digit pattern -- 13 real systems affected (scoring, CLI, rear panel). _platformFamily() now trusts Active IQ's own platformType field."
+  "notes": "Found and fixed the same platformType-blind classification bug in 3 more places (enrichSystemTelemetry + 2 TAM node-visualizer toggles). Verified 0 of 2450 real systems misclassify now. HCI Element OS storage nodes flagged as a separate, unfixed gap (no dedicated family bucket)."
 }

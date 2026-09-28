@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.145";
+const APP_VERSION = "5.6.146";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.146",
+    date: "28 September 2026",
+    title: "Same Classification Bug Found in Three More Places",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Asked explicitly to check for other misclassified systems beyond the '560' case. The _platformFamily() fix (v5.6.145) only covered the one function of that name -- three other functions independently reimplement the exact same E-Series/StorageGRID platform/model guessing, none of them checking Active IQ's authoritative platformType field either: enrichSystemTelemetry() (the core per-system enrichment pass -- drives isONTAPBased, support-level labels, and mock-data capacity multipliers for EVERY system, live or demo) and the two TAM-tab node-visualizer functions that toggle the E-Series Hardware Audit card on/off when switching nodes. All three now check platformType first (via _genericFamily in enrichSystemTelemetry, via _platformFamily(activeSys) in the two node-visualizer copies), with the old string/regex guessing kept as a fallback.",
+          "Verified live across the full real fleet (2,450 systems): 0 misclassify via _platformFamily() (was 13 before v5.6.145). Also checked the reverse direction -- no real ONTAP system's platform/model string accidentally collides with the E-Series numeric-guess patterns (28xx/29xx/40xx/57xx), so broadening the check introduced no new false positives.",
+          "Found but NOT fixed, flagged for a decision: NetApp HCI storage nodes (platformType \"HCI\", models \"H410S-2\"/\"SolidFire\" -- 9 real systems) run Element OS (SolidFire), not ONTAP, but there's no dedicated family bucket for them -- they fall into the 'ontap' catch-all and get scored on ONTAP-only features (ARP/SnapMirror/FabricPool/HA) they don't have. Active IQ even reuses the ontapVersion field to carry Element OS version strings (e.g. \"12.3.2.3\", a format ONTAP never uses) for these nodes. The 6 HCI compute nodes (\"H410C\") are unaffected -- they report a real ONTAP Select version and are correctly ONTAP-based. Fixing this properly needs a new family bucket plus an audit of every ONTAP-specific feature check, a bigger change than this session's scope.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.145",
     date: "28 September 2026",
@@ -14039,7 +14056,9 @@ function renderTAMTab() {
     renderNodeVisualLayout(selectedSystems, activeSys);
     
     const _aPlatLower = activeSys ? (activeSys.platform || '').toLowerCase() : '';
-    const isEseries = activeSys && (activeSys.eseriesHardware || !!activeSys.santricityVersion || _aPlatLower.includes("e-series") || _aPlatLower.includes("ef600") || _aPlatLower.includes("ef300") || _aPlatLower.includes("e5700") || _aPlatLower.includes("e2800") || _aPlatLower.includes("ef50") || _aPlatLower.includes("ef80") || _aPlatLower.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower.trim()));
+    // _platformFamily() checks the authoritative platformType field first (fixed v5.6.145);
+    // kept the old string/regex guessing here too as a belt-and-suspenders fallback.
+    const isEseries = activeSys && (_platformFamily(activeSys) === 'eseries' || activeSys.eseriesHardware || !!activeSys.santricityVersion || _aPlatLower.includes("e-series") || _aPlatLower.includes("ef600") || _aPlatLower.includes("ef300") || _aPlatLower.includes("e5700") || _aPlatLower.includes("e2800") || _aPlatLower.includes("ef50") || _aPlatLower.includes("ef80") || _aPlatLower.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower.trim()));
     if (eseriesCard) {
       if (isEseries) {
         eseriesCard.style.display = "block";
@@ -18091,7 +18110,15 @@ function enrichSystemTelemetry(s) {
   // 'SG100', 'SG1000') — NOT the human-readable 'StorageGRID' string.  This is the
   // root cause of the corporate-network misclassification: these codes must be explicitly
   // matched here. Note: 'sg1' would also match unintended strings, so we use precise prefixes.
-  const isStorageGrid = modelLower.includes("storagegrid") || modelLower.includes("webscale") ||
+  // platformType is Active IQ's own authoritative family field, already computed above
+  // as _genericFamily — check it first. Found live: an E-Series system reporting model
+  // "560" (3 digits, older EF560/E5600-family board, ontapVersion "08.40.60.01" which
+  // doesn't match the 11.x SANtricity-version fallback below either) matched NONE of the
+  // string/regex guesses and was silently treated as ONTAP by this whole function —
+  // wrong support-level label, wrong capacity multipliers, isONTAPBased=true. Same class
+  // of bug as _platformFamily() (fixed v5.6.145), independently reimplemented here.
+  const isStorageGrid = _genericFamily.includes("STORAGEGRID") ||
+    modelLower.includes("storagegrid") || modelLower.includes("webscale") ||
     // SG6xxx: SG6060, SG6160, SG6112, SG6024, SG6000-CN
     modelLower.includes("sg60") || modelLower.includes("sg61") || modelLower.includes("sg6") ||
     // SG5xxx: SG5712, SG5760, SG5612
@@ -18108,7 +18135,8 @@ function enrichSystemTelemetry(s) {
   // Also detect bare model numbers (2824, 5700, 4000, etc.) and SANtricity OS version pattern (11.xx.x)
   const _santricityVer = s.santricityVersion || '';
   const _osLooksLikeSANtricity = /^11\.\d{2}/.test(osVer);
-  const isEseries = modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800") || modelLower.includes("ef50") || modelLower.includes("ef80") || modelLower.includes("e4000") ||
+  const isEseries = _genericFamily.includes("E-SERIES") ||
+    modelLower.includes("e-series") || modelLower.includes("ef600") || modelLower.includes("e5700") || modelLower.includes("ef300") || modelLower.includes("e2800") || modelLower.includes("ef50") || modelLower.includes("ef80") || modelLower.includes("e4000") ||
     !!_santricityVer ||
     /^(28|57|40)\d{2}$/.test(modelLower.trim()) ||
     (!isAFF && !isASA && !isFAS && !isCVO && !isStorageGrid && _osLooksLikeSANtricity);
@@ -37407,7 +37435,9 @@ function selectVisualNode(serial) {
     // Dynamically update E-Series visual health panel and SVM security panel to remain context-aware
     const eseriesCard = document.getElementById("tamEseriesVisualCard");
     const _aPlatLower2 = activeSys ? (activeSys.platform || '').toLowerCase() : '';
-    const isEseries = activeSys && (activeSys.eseriesHardware || !!activeSys.santricityVersion || _aPlatLower2.includes("e-series") || _aPlatLower2.includes("ef600") || _aPlatLower2.includes("ef300") || _aPlatLower2.includes("e5700") || _aPlatLower2.includes("e2800") || _aPlatLower2.includes("ef50") || _aPlatLower2.includes("ef80") || _aPlatLower2.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower2.trim()));
+    // _platformFamily() checks the authoritative platformType field first (fixed v5.6.145);
+    // kept the old string/regex guessing here too as a belt-and-suspenders fallback.
+    const isEseries = activeSys && (_platformFamily(activeSys) === 'eseries' || activeSys.eseriesHardware || !!activeSys.santricityVersion || _aPlatLower2.includes("e-series") || _aPlatLower2.includes("ef600") || _aPlatLower2.includes("ef300") || _aPlatLower2.includes("e5700") || _aPlatLower2.includes("e2800") || _aPlatLower2.includes("ef50") || _aPlatLower2.includes("ef80") || _aPlatLower2.includes("e4000") || /^(28|57|40)\d{2}$/.test(_aPlatLower2.trim()));
     if (eseriesCard) {
       if (isEseries) {
         eseriesCard.style.display = "block";

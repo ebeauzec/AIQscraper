@@ -22,12 +22,29 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.145)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.146)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
 
-**Also today, the big one (v5.6.145):** a user screenshot of ANOTHER blank rear panel (model "560",
+**Also today, part 2 (v5.6.146):** asked explicitly to check for other misclassified systems beyond "560".
+The v5.6.145 fix only touched `_platformFamily()` itself -- the exact same E-Series/StorageGRID guessing was
+independently reimplemented (copy-pasted, not shared) in three more places, none checking `platformType`
+either: `enrichSystemTelemetry()` (`app.js` ~18022, the core per-system enrichment pass -- drives
+`isONTAPBased`, support-level labels, capacity multipliers for EVERY system) and two near-identical
+TAM-tab node-visualizer functions that toggle the E-Series Hardware Audit card when switching nodes. All
+three now check `platformType`/`_platformFamily()` first, old guessing kept as fallback. Verified live
+across the full real fleet (2,450 systems): 0 misclassify now (was 13). Also confirmed no real ONTAP system
+false-positives into E-Series from the broadened check. **Found but explicitly NOT fixed**: NetApp HCI
+storage nodes (`platformType: "HCI"`, models "H410S-2"/"SolidFire", 9 real systems) run Element OS, not
+ONTAP -- `_platformFamily()` has only 3 buckets (storagegrid/eseries/ontap), none for Element OS, so these
+fall into `'ontap'` and get scored on ARP/SnapMirror/FabricPool/HA they don't have. Active IQ also reuses
+`ontapVersion` to carry Element OS version strings for these (e.g. "12.3.2.3", a format real ONTAP never
+uses). The 6 "H410C" compute nodes are fine (real ONTAP Select version reported, correctly ONTAP-based).
+Needs a 4th family bucket + a feature-check audit -- bigger than a classification patch, flagged for the
+user to decide whether it's worth doing.
+
+**Also today, part 1 (v5.6.145):** a user screenshot of ANOTHER blank rear panel (model "560",
 `platformType: "E-SERIES"`) led to a deeper bug than a missing chassis layout. `_platformFamily()`
 (`app.js` ~17707) -- which decides ONTAP vs. E-Series vs. StorageGRID for feature scoring
 (ARP/SnapMirror/FabricPool/HA), CLI generation, change-verification steps, AND the rear-panel renderer --
