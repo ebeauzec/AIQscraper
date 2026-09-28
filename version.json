@@ -1,8 +1,8 @@
 {
-  "version": "5.6.160",
+  "version": "5.6.161",
   "major": 5,
   "minor": 6,
-  "patch": 160,
+  "patch": 161,
   "date": "2026-09-28",
-  "notes": "Fixed invisible (white-on-white) header row in the As-Built Excel export -- header style now uses the standard OOXML fills convention and default-color bold text instead of a non-standard fill index with explicit white text. Also split the Deliverables Suite into three tabs (Risk & Remediation, Customer & Sales, TAM/MSP), each with its own scoped Download All."
+  "notes": "As-Built export (Excel and TXT): fixed risk titles, contract dates, and firmware columns reading from fields that never existed in the real data model (r.title, sys.contracts.hwEndDate/swEndDate, sys.firmware.*). Replaced with the real fields (r.description, sys.contracts.endDate/supportLevel, sys.systemFirmware/motherboardFirmware/_resolveShelfModules) used correctly elsewhere in the app."
 }

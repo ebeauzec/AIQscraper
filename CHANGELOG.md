@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.161] - 2026-09-28
+
+### Fixed
+- As-Built export (Excel and TXT): risk titles, contract dates, and firmware columns were reading from fields that never existed (`r.title`, `sys.contracts.hwEndDate`/`swEndDate`, `sys.firmware.*`) and always came out blank. Replaced with the real fields (`r.description`, `sys.contracts.endDate`/`supportLevel`, `sys.systemFirmware`/`motherboardFirmware`/`_resolveShelfModules()`) already used correctly elsewhere in the app; also added a real per-system drive firmware current/behind/unknown count in place of the fake single "Disk FW" value.
+
+---
+
 ## [5.6.160] - 2026-09-28
 
 ### Fixed

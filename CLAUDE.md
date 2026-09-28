@@ -22,7 +22,27 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-28 (Windows dev station, v5.6.153 -> v5.6.160)
+## Session handoff -- 2026-09-28 (Windows dev station, v5.6.153 -> v5.6.161)
+
+**v5.6.161, right after v5.6.160 shipped: the As-Built export's DATA had three more field-name bugs, found by the
+user actually reading the Excel output row by row.** All three were "read a field that never existed, always
+blank" -- the exact same class of bug, each one copied from the pre-existing As-Built TXT generator into the
+new Excel export, so both were fixed together each time: (1) risk titles read `r.title` (real field is
+`r.description` -- confirmed against the fallback chain already used correctly at `app.js` ~19183); (2)
+contract dates read `sys.contracts.hwEndDate`/`swEndDate`, which never existed -- the real `contracts` object
+(confirmed live: `{status, endDate, daysRemaining, supportLevel}`) only has one unified `endDate` plus a real
+`supportLevel` that was never surfaced anywhere in this export; (3) firmware read `sys.firmware.systemVersion`/
+`diskVersion`/`shelfVersion`, also nonexistent -- replaced with the real `sys.systemFirmware.currentVersion`,
+`sys.motherboardFirmware.currentVersion`, and `_resolveShelfModules(sys)` (the shared helper the working
+Firmware Currency section already uses), plus a new per-system drive-firmware current/behind/unknown count
+since individual drive firmware has no single per-system value to collapse to. Verified live against one real
+system's actual row data (not just "no exception thrown") for every fix this time.
+**Pattern worth remembering**: the As-Built TXT generator (`downloadPlanSection(19)`, `app.js` ~32120) is old
+enough that a meaningful fraction of its field references may be stale/wrong in ways nothing ever surfaced
+before, because it was write-only (generated, downloaded, presumably rarely read cell-by-cell). Building the
+Excel export against it just made the same latent bugs visible for the first time. If another field in that
+export looks suspiciously always-blank, check it against a real system's actual JSON shape
+(`state.systems.find(...)`) before assuming the harvest data itself is just sparse.
 
 Continues the same multi-day stretch (v5.6.85 -> v5.6.153 -- rear-panel accuracy program, hardware-docs
 harvester, Digital Advisor competitive-differentiation work, VMware Inventory section, trend redesign; see

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.160";
+const APP_VERSION = "5.6.161";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.161",
+    date: "28 September 2026",
+    title: "As-Built Export: Fixed Blank Risk Titles, Contract Dates, and Firmware Columns",
+    sections: [
+      {
+        icon: "🩹",
+        label: "Fixed -- Three More Fields Reading From Fields That Never Existed",
+        color: "#f87171",
+        items: [
+          "Found via user testing of the new Excel export, then traced to the identical bug in the As-Built TXT export it was built from (both fixed together): Risk titles read r.title, but a risk's real text lives in r.description (title is only populated on a different object shape elsewhere in the app) -- risk rows showed severity/category with a blank title. Contract HW/SW End Date read sys.contracts.hwEndDate/swEndDate, fields that don't exist; the real contracts object only ever had a single unified endDate plus a real supportLevel field that was never surfaced at all -- both columns replaced with the real ones. Firmware (System/Disk/Shelf FW) read sys.firmware.*, also nonexistent; replaced with the real fields used everywhere else in the app (sys.systemFirmware.currentVersion, sys.motherboardFirmware.currentVersion, and _resolveShelfModules(sys) for shelf module firmware) plus a new Drive FW current/behind/unknown count, since per-drive firmware has no single per-system value to report. Verified live against a real system: risk titles, contract status/end date/support level, and all four firmware columns now show real harvested values instead of blanks.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.160",
     date: "28 September 2026",
@@ -32279,17 +32294,17 @@ ${sepThin}
 5. SUPPORT CONTRACT & LIFECYCLE
 ${sepThin}
   Contract Status:    ${sys.contracts ? _v(sys.contracts.status) : '—'}
-  HW End Date:        ${sys.contracts ? _v(sys.contracts.hwEndDate) : '—'}
-  SW End Date:        ${sys.contracts ? _v(sys.contracts.swEndDate) : '—'}
+  Contract End Date:  ${sys.contracts ? _v(sys.contracts.endDate) : '—'}
+  Support Level:      ${sys.contracts ? _v(sys.contracts.supportLevel) : '—'}
   Days Remaining:     ${sys.contracts ? _v(sys.contracts.daysRemaining) : '—'}
   HW EOA:             ${_v(sys.hwEndOfAvailability)}
   HW EOS:             ${_v(sys.hwEndOfSupport)}
 
 6. FIRMWARE
 ${sepThin}
-  System FW:          ${_v(sys.firmware ? sys.firmware.systemVersion : undefined)}
-  Disk FW:            ${_v(sys.firmware ? sys.firmware.diskVersion : undefined)}
-  Shelf FW:           ${_v(sys.firmware ? sys.firmware.shelfVersion : undefined)}
+  System FW (SP/BMC): ${_v(sys.systemFirmware && sys.systemFirmware.currentVersion)}
+  Motherboard FW:     ${_v(sys.motherboardFirmware && sys.motherboardFirmware.currentVersion)}
+  Shelf Module FW:    ${_v(Object.values(_resolveShelfModules(sys)).map(m => `${m.modName}: ${m.currentFw || 'unknown'}`).join('; '))}
 
 `;
       // Shelves detail
@@ -32356,7 +32371,7 @@ ${sepThin}\n`;
         body += '  No risks reported.\n';
       } else {
         _sysRisks.slice(0, 20).forEach(r => {
-          body += `  [${_v(r.severity).toUpperCase()}] ${_v(r.category)} — ${_v(r.title)}\n`;
+          body += `  [${_v(r.severity).toUpperCase()}] ${_v(r.category)} — ${_v(r.description || r.shortName || r.riskDetail || r.riskDescription || r.title)}\n`;
         });
         if (_sysRisks.length > 20) body += `  ...and ${_sysRisks.length - 20} more\n`;
       }
@@ -32883,21 +32898,31 @@ function downloadAsBuiltXlsx() {
     'OS Version', 'Recommended OS', 'End of Full Support', 'End of Ltd Support',
     'Usable TB', 'Physical Used TB', 'Data Reduction Ratio', 'Cluster Utilization %',
     'Local Tiers', 'Volumes', 'LUNs', 'Data SVMs', 'Node SVMs', 'SnapMirror Count', 'Shelf Count',
-    'Contract Status', 'Contract HW End Date', 'Contract SW End Date', 'Contract Days Remaining', 'HW EOA', 'HW EOS',
-    'System FW', 'Disk FW', 'Shelf FW',
+    'Contract Status', 'Contract End Date', 'Support Level', 'Contract Days Remaining', 'HW EOA', 'HW EOS',
+    'System FW (SP/BMC)', 'Motherboard FW', 'Shelf Module FW', 'Drive FW (current/behind/unknown)',
     'Sales Rep', 'Technical Account Mgr', 'Support Account Mgr',
     'Growth Rate (GB/day)', 'Days to Limit', 'Projected Limit Date',
     'Open Risks'];
   const sysRows = targetSystems.map(sys => {
     const eff = sys.efficiency || {}, proj = sys.projections || {};
+    const shelfFwSummary = Object.values(_resolveShelfModules(sys)).map(m => `${m.modName}: ${m.currentFw || 'unknown'}`).join('; ');
+    const recDriveFw = sys.recommendedDriveFirmwares || {};
+    let drvCur = 0, drvBeh = 0, drvUnk = 0;
+    (sys.shelves || []).forEach(sh => (((sh.drives || {}).drives) || []).forEach(drive => {
+      const model = (drive.hardwareModel || {}).name || 'Unknown';
+      const fw = drive.firmwareRevision || 'Unknown';
+      const rec = recDriveFw[model];
+      if (rec && fw !== 'Unknown') { if (fw === rec) drvCur++; else drvBeh++; } else drvUnk++;
+    }));
+    const driveFwSummary = (drvCur + drvBeh + drvUnk) > 0 ? `${drvCur}/${drvBeh}/${drvUnk}` : '';
     return [
       _v(sys.systemName), _v(sys.serialNumber), _v(sys.systemId), _v(sys.customerName), _v(sys.clusterName), _v(sys.platform), _v(sys.model), _v(sys.platformType),
       _v([sys.siteName, sys.siteCity, sys.siteCountry].filter(Boolean).join(', ')), _v((sys.originalShipDate || '').substring(0, 10)), _num(sys.ageInYears), _v(sys.status),
       _v(sys.ontapVersion || sys.sgVersion || sys.santricityVersion), _v(sys.recommendedOSVersion), _v(sys.swEndOfFullSupport), _v(sys.swEndOfLimitedSupport),
       _num(eff.usableCapacityTB), _num(eff.physicalUsedTB), _v(eff.dataReductionRatio || sys.dataReductionRatio), _num(sys.clusterCapacityUtilPct),
       _num(sys.localTierCount), _num(sys.volumeCount), _num(sys.lunCount), _num(sys.dataSvmCount), _num(sys.nodeSvmCount), _num(sys.snapMirrorCount), (sys.shelves || []).length,
-      sys.contracts ? _v(sys.contracts.status) : '', sys.contracts ? _v(sys.contracts.hwEndDate) : '', sys.contracts ? _v(sys.contracts.swEndDate) : '', sys.contracts ? _num(sys.contracts.daysRemaining) : '', _v(sys.hwEndOfAvailability), _v(sys.hwEndOfSupport),
-      _v(sys.firmware ? sys.firmware.systemVersion : ''), _v(sys.firmware ? sys.firmware.diskVersion : ''), _v(sys.firmware ? sys.firmware.shelfVersion : ''),
+      sys.contracts ? _v(sys.contracts.status) : '', sys.contracts ? _v(sys.contracts.endDate) : '', sys.contracts ? _v(sys.contracts.supportLevel) : '', sys.contracts ? _num(sys.contracts.daysRemaining) : '', _v(sys.hwEndOfAvailability), _v(sys.hwEndOfSupport),
+      _v(sys.systemFirmware && sys.systemFirmware.currentVersion), _v(sys.motherboardFirmware && sys.motherboardFirmware.currentVersion), _v(shelfFwSummary), _v(driveFwSummary),
       _v(sys.salesRepName), _v(sys.csmName), _v(sys.samName),
       _num(proj.growthRateGBPerDay), _num(proj.daysToLimit), _v(proj.limitDate),
       (sys.risks || []).length,
@@ -32925,7 +32950,7 @@ function downloadAsBuiltXlsx() {
 
   const riskHeaders = ['System Name', 'Severity', 'Category', 'Title'];
   const riskRows = [];
-  targetSystems.forEach(sys => (sys.risks || []).forEach(r => riskRows.push([_v(sys.systemName), _v(r.severity), _v(r.category), _v(r.title)])));
+  targetSystems.forEach(sys => (sys.risks || []).forEach(r => riskRows.push([_v(sys.systemName), _v(r.severity), _v(r.category), _v(r.description || r.shortName || r.riskDetail || r.riskDescription || r.title)])));
 
   const sheets = [{ name: 'Systems', headers: sysHeaders, rows: sysRows }];
   if (shelfRows.length) sheets.push({ name: 'Shelves', headers: shelfHeaders, rows: shelfRows });
