@@ -18,6 +18,10 @@ It is designed for **NetApp SEs, TAMs, SAMs, CSMs, and partners** who need to ge
 ### Key Value Proposition
 Active IQ's web portal is single-system-focused. ARIA provides **fleet-wide cross-customer views**: aggregated risk registers, fleet firmware audits, hop-by-hop upgrade path calculators, per-system CVE cross-referencing, capacity runway projections, and downloadable deliverables (CSP, QBR Pack, MSP Report, Handover Brief, CLI Runbook).
 
+For how ARIA actually compares to NetApp's own Digital Advisor product -- verified overlap, genuine structural
+edges, one previously-claimed edge that turned out to be false, and prioritized next work -- see the
+"Competitive positioning vs NetApp Digital Advisor" addendum near the end of this file.
+
 ---
 
 ## 2. Architecture
@@ -528,3 +532,79 @@ Key metric calculations are implemented in `app.js` at the following locations:
 - Added `_demoSynthShelves()`/`_demoShelfSummaryForModule()`/`_demoPickShelfModule()` (`app.js` ~8014), synthesizing shelf module + firmware currency from the same `REFERENCE_LIBRARY_FIRMWARE_BASELINES` table the real feature compares against, so demo mode exercises the identical current/behind/unknown logic. Module choice follows the real NSM100/NSM100B (NVMe, current-gen AFF/C-Series/ASA r2) vs IOM12/IOM12B/IOM12G (SAS, classic-gen) split; ~65/25/10 current/behind/unknown mix, seeded per-system like the existing `_demoSynthPorts` networkPorts fallback. Wired into `_demoHydrateSystem`: when a curated profile already has real shelf hardware, the firmware entry is derived FROM that hardware's own module name (so the two fields can't disagree); when neither exists, both are synthesized together.
 - First pass wrongly gave Cloud Volumes ONTAP demo systems fake physical shelf hardware (caught by testing, not by inspection) -- these are virtualized with no physical shelves at all, the same reasoning behind the real "Virtual Appliance, no physical rear panel" card CVO/ONTAP Select/Astra already get elsewhere. Added an explicit exclusion (`/cloud|ontap[\s-]?select|astra/i` on the platform string) before synthesizing anything.
 - Verified live in demo mode: 108/108 physical ONTAP systems now have shelf firmware data (was 0/108), with a realistic 55/40/13 current/behind/unknown split across 417 total shelves; 0 virtualized systems incorrectly got shelf data.
+
+
+## Competitive positioning vs NetApp Digital Advisor (2026-09-28)
+
+Asked to compare ARIA against NetApp's own product -- Active IQ Digital Advisor, recently renamed "Digital
+Advisor" and folded into BlueXP. Researched live (not from training-data memory) via NetApp's own docs/
+community pages, then cross-checked every claim against ARIA's actual code, not assumption. Recorded here so
+a future session doesn't have to redo the research, and so deliverable copy doesn't oversell a claim already
+found to be false.
+
+**What Digital Advisor actually does** (sourced 2026-09-28): watchlists (up to 100, 15,000 systems each,
+cross-customer within one login's access); Upgrade Advisor (step-by-step GUI+CLI plans, ANDU-aware, now
+handles mixed-patch-level clusters and EOL-with-grace-period targets, PDF/Excel export); Security Report
+(unified ONTAP security posture across clusters/SVMs/volumes); sustainability score (power/carbon/heat,
+now on E-Series/StorageGRID too); VMware inventory (vCenter/ESXi/VMs) for interop checks; tiered feature
+depth per platform (e.g. ClusterViewer is ONTAP/CVO-only -- the same "not every platform gets equal
+treatment" pattern this session spent hours untangling in ARIA's own `_platformFamily()`).
+Sources: [Digital Advisor features](https://docs.netapp.com/us-en/active-iq/concept_understand_activeiq_features.html),
+[What's new](https://docs.netapp.com/us-en/active-iq/reference_new_activeiq.html),
+[Upgrade Advisor](https://docs.netapp.com/us-en/active-iq/upgrade_advisor_overview.html),
+[Watchlists](https://community.netapp.com/t5/Active-IQ-and-AutoSupport-Docs-and-Resources/Active-IQ-now-has-unified-Digital-Advisor-and-Discovery-Dashboard-watchlists/ta-p/165773),
+[Sustainability/StorageGRID](https://community.netapp.com/t5/Tech-ONTAP-Blogs/The-GRID-is-coming-into-view-in-Active-IQ/ba-p/165454).
+
+**Overlap is wider than ARIA's own code comments claim credit for.** Checked each area against the actual
+codebase: watchlist-scoped fleet views, upgrade planning with CLI steps, firmware currency (SP/MB/DQP/Shelf/
+Drive composite), security/CVE posture (Security Posture Brief), sustainability score, VMware inventory
+(`vcenters`, harvested and surfaced), and tiered multi-vendor coverage (E-Series/StorageGRID/HCI) are all
+real parity, not ARIA-only. Before claiming any of these as a differentiator in a pitch or deliverable copy,
+assume parity, not an edge, unless a specific depth difference is verified (see below).
+
+**One claim corrected**: sustainability was wrongly listed as an ARIA strength in the first pass of this
+analysis. Checked `computeHonestSustainabilityScore()` (`app.js` ~24528) -- it's a pass-through of Active
+IQ's own `sustainabilityScorePercentage` field, not an independent carbon/power model. This is parity at
+best (possibly sub-parity vs Digital Advisor's own native UI polish around the same number), not an edge.
+Don't repeat this claim.
+
+**Genuine structural edges** (verified, not assumed):
+1. **Multi-tenant fusion.** Digital Advisor's watchlists span customers within *one* login's access.
+   `_sync_all_accounts()` (`server.py` ~4049) harvests *separate* Active IQ accounts and
+   `_merge_account_results()` (`server.py` ~1237) merges them -- not just concatenation: systems are
+   deduped by serial and `tamRecommendations` cards are deduped by content (found live: overlapping accounts
+   produced literal duplicate "ACTIVE_SUPPORT_CONTRACTS" cards before this fix). This is a partner/MSP shape
+   Digital Advisor's single-tenant model has no equivalent for.
+2. **Physical rear-panel diagrams.** Digital Advisor shows telemetry, not a chassis. ARIA's rear-panel
+   program (the majority of this session's earlier work) draws the actual physical layout -- real port
+   roles, cabling legend, LIF-to-physical-port mapping. Nothing in Active IQ's own UI does this. Hardest to
+   replicate, highest-value edge.
+3. **Offline/dark-site path.** Digital Advisor is SaaS-only -- a customer that won't send AutoSupport to
+   NetApp's cloud cannot use it at all. `asup_parser` (see architecture diagram, section 2) ingests raw ASUP
+   bundles locally, no cloud dependency. Real structural gap in Digital Advisor that ARIA already closes, but
+   currently reads as an internal fallback rather than a marketed capability.
+4. **TAM-authored, branded deliverables.** Digital Advisor exports fixed-format PDF/Excel. ARIA generates 15
+   narrative, editable deliverables (QBR pack, handover brief, as-built doc, CLI runbook) as structured
+   `.docx`/`.md`/`.txt` in the TAM's own voice.
+5. **CISA KEV-first CVE triage.** `_check_acknowledged_risks_vs_kev` cross-references NetApp's own advisory
+   data against the CISA Known Exploited Vulnerabilities catalog -- "is this being actively exploited right
+   now" is a different, often more actionable signal than CVSS severity alone, and unlikely to be a vendor's
+   own dashboard's lead sort key.
+
+**Concrete, prioritized next work** (not yet done, ranked by value/effort):
+1. **Wire up `runIMTInteropCheck()` (`app.js` ~13441) -- currently dead code, zero call sites anywhere.**
+   A complete, sophisticated engine already exists: cross-references each system's ONTAP version against
+   `IMT_INTEROP_MATRIX` (`app.js` ~11542, covers VMware/OTV, Astra Trident, SnapCenter, etc. with min/max
+   ONTAP versions, EOL-imminent tool versions, and baked-in CVEs like Trident's CVE-2026-24051) and links to
+   NetApp's own IMT tool per finding. Its `detectedSignals` input is *also* never built anywhere. Digital
+   Advisor's Upgrade Advisor checks ONTAP-internal prerequisites only, not third-party compatibility -- this
+   closes that gap and is the highest-value, lowest-effort item here (the `vmware` signal is free: `vcenters`
+   is already harvested). Wire into the upgrade-plan deliverable as an "Interop Compatibility Warnings" block.
+2. **Promote CISA KEV to the primary sort key** in the Security Posture Brief's CVE Remediation Priority
+   Matrix, not a secondary annotation.
+3. **Extend shelf firmware drift detection to SP/BMC and motherboard firmware** (currently shelf-only, per
+   the Action Plan's shelf-drift detector, v5.6.140-era work) -- a fleet-wide "this component doesn't match
+   its peer group" view a single-system dashboard can't naturally produce.
+4. **Audit `_dfUpgradeWaves` against Digital Advisor's two newest upgrade rules** (mixed-patch-level cluster
+   handling, EOL-with-grace-period targets) -- not yet verified whether ARIA's upgrade sequencing replicates
+   either. Highest-overlap area; easiest place to be quietly wrong where Digital Advisor is right.

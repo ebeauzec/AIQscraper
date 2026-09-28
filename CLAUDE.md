@@ -22,10 +22,28 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.150)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.150 + docs)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
-harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+harvester -- see git log / CHANGELOG.md for that range). All code changes below are pushed to `main` through
+`d2c2839`; the competitive-analysis doc update (below, no code/version change) is pending commit as of this
+handoff -- push it before starting new work if it isn't already in `git log`.
+
+**Also today, docs-only, no version bump:** asked to compare ARIA against NetApp's own Digital Advisor
+product and update docs to reflect it. Researched live via NetApp's docs/community pages (not from training
+memory), then verified every claim against ARIA's actual code before writing anything down -- full writeup
+is in `CONTEXT.md`'s new "Competitive positioning vs NetApp Digital Advisor" addendum (near the end), with
+a pointer from section 1. Don't re-derive this from scratch next time; read that addendum first.
+**Headline finding**: `runIMTInteropCheck()` (`app.js` ~13441) is a complete, sophisticated engine --
+cross-references fleet ONTAP versions against `IMT_INTEROP_MATRIX` (VMware/OTV, Trident, SnapCenter, with
+min/max ONTAP versions and baked-in CVEs) -- with **zero call sites anywhere**. Its `detectedSignals` input
+is also never built. This is the highest-value, lowest-effort next feature: wiring it into the upgrade-plan
+deliverable would let ARIA flag third-party compatibility breaks Digital Advisor's own Upgrade Advisor
+doesn't check (it's ONTAP-internal-prerequisite-only). Not yet implemented -- user was asked whether to do
+it now and the session moved to docs first; **this is the natural next task to pick up**.
+Also corrected a claim from the first pass of this analysis: sustainability scoring was wrongly listed as an
+ARIA strength -- `computeHonestSustainabilityScore()` is a pass-through of Active IQ's own field, not an
+independent model. Parity at best, not an edge. Don't repeat that claim in any deliverable copy.
 
 **Also today, part 6 (v5.6.150):** the shelf-firmware investigation from part 5 led to a screenshot of "0/42
 unknown" on the Firmware Currency Shelf FW tile -- turned out to be demo/mock mode, not live data, once asked.
