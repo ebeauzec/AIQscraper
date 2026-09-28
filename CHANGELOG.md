@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.162] - 2026-09-28
+
+### Changed
+- TAM Success & Posture Optimization Plan is now a real, executable plan instead of a summary a TAM would have to re-derive targets from: removed the "+N more" truncation on affected-system lists (every system is now named), and ACTION 3.2 (Capacity)/ACTION 4.3 (ARP) now name the actual systems needing action instead of just a count or percentage. Active IQ's harvest has no per-volume identifiers, so system name is the deepest real granularity available -- not fabricated further.
+
+---
+
 ## [5.6.161] - 2026-09-28
 
 ### Fixed

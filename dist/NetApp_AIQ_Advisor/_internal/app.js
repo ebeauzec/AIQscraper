@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.161";
+const APP_VERSION = "5.6.162";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.162",
+    date: "28 September 2026",
+    title: "TAM Success Plan: Named Systems, Not Just Counts",
+    sections: [
+      {
+        icon: "✅",
+        label: "Changed -- The Success Plan Now Names What to Act On",
+        color: "#22c55e",
+        items: [
+          "Asked to make the TAM Success & Posture Optimization Plan a real, executable plan -- the kind uploaded into Active IQ Digital Advisor's own Success Plans and committed against -- rather than a document a TAM has to go re-derive targets for. Three fixes: (1) the risk-group system list (\"IDENTIFIED PHASE 1 ITEMS\") truncated to '+N more' past 3 systems -- removed the truncation; a plan meant to be executed needs every affected system named, not a count hiding which ones. (2) ACTION 3.2 (Capacity Management) only ever gave a generic 'volume show' command with no target -- now lists the actual named systems approaching their capacity threshold (reusing computeFleetCapacityForecast()'s real per-system atRisk data), sorted soonest-first. (3) ACTION 4.3 (Anti-Ransomware Protection) only ever showed a coverage percentage -- now lists the actual named ONTAP systems with ARP confirmed disabled. **Honest limit, not fixed**: the request's own example asked for actual volume names specifically -- checked, and Active IQ's GraphQL schema this tool queries never returns individual volume objects, only per-system/per-cluster volume counts, so no per-volume identifier exists anywhere in the harvest to surface. Every fix above names the deepest real identifier ARIA actually has (the system), not a fabricated volume name.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.161",
     date: "28 September 2026",
@@ -22830,9 +22845,16 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const _ontapN = _ontapSys.length;
   const arpKnownSys = _ontapSys.filter(s => s.isARPEnabled != null);
   const arpCount = arpKnownSys.filter(s => s.isARPEnabled === true).length;
+  // Confirmed disabled only (not "unknown") -- named so ACTION 4.3 can list which
+  // systems actually need the command run, not just a coverage percentage.
+  const arpGapSystems = arpKnownSys.filter(s => s.isARPEnabled === false).map(s => `${s.systemName} (${s.platform || s.model || ''})`);
   const fwCurrent = targetSystems.filter(_osIsCurrent).length;
   const fwKnown = targetSystems.filter(_osKnown).length;
   const contractActive = targetSystems.filter(s => s.contractActive === true).length;
+  // Named at-risk-capacity systems (ARIA has no per-volume harvest -- Active IQ's
+  // GraphQL schema this tool queries never returns individual volume objects, only
+  // counts -- so this names the SYSTEM to check, not the volume within it).
+  const capAtRisk = computeFleetCapacityForecast(targetSystems).atRisk.slice().sort((a, b) => (a.runway || 0) - (b.runway || 0));
 
   // ── Risk groups ──
   const fixGroups = _filterAndDeduplicateRisks(allRisks, targetSystems);
@@ -23007,7 +23029,10 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
       const sys = targetSystems.find(s => s.systemName === name) || {};
       return sys.platform ? `${name} (${sys.platform})` : name;
     });
-    const sysLabel = sysNames.length <= 3 ? sysNames.join(', ') : `${sysNames.slice(0, 3).join(', ')} +${sysNames.length - 3} more`;
+    // This plan is meant to be committed/executed against, not skimmed -- a
+    // TAM acting on it needs every system name, not a truncated "+N more"
+    // that hides which systems actually need the fix.
+    const sysLabel = sysNames.join(', ');
     const refUrl = g.fixUrl || '';
     const refLine = refUrl ? `\n   -> Reference: ${refUrl}` : '';
     const stepsBlock = (() => {
@@ -23283,8 +23308,9 @@ ${_ontapN === 0 ? '* SnapMirror actions do not apply (ONTAP-only). Replication f
   - Mediator status (active sync): 'snapmirror mediator show'
 
 * ACTION 3.2: Capacity Management
-  - Identify full volumes: 'volume show -fields percent-used,available,state' | filter >80%
+  - Identify full volumes on the systems below: 'volume show -fields percent-used,available,state' | filter >80%
   - Enable auto-grow: 'volume modify -vserver <svm> -volume <vol> -autosize-mode grow'
+${capAtRisk.length > 0 ? '  SYSTEMS APPROACHING CAPACITY LIMIT (Active IQ reports no per-volume detail -- run the command above on each):\n' + capAtRisk.map(a => `    ⚠ ${a.name}${a.platform ? ' (' + a.platform + ')' : ''} — ${a.utilPct != null ? a.utilPct + '% used, ' : ''}${a.runway === 0 ? 'at threshold now' : a.runway + 'd runway'}`).join('\n') : '  ✓ No system in this scope is projected to reach its capacity threshold within 10 years.'}
 
 `}PHASE 4: OPERATIONAL AUDITS & BEST PRACTICE COMPLIANCE (DAYS 31 - 90) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 --------------------------------------------------------------------
@@ -23303,6 +23329,7 @@ ${_ontapN === 0 ? '' : `* ACTION 4.2: Enable SVM Configuration Change Auditing
   - ONTAP 9.10.1+: enable ARP per volume: 'security anti-ransomware volume enable -vserver <svm> -volume <vol>'
   - ONTAP 9.16.1+: ARP/AI enabled by default on new volumes (zero learning period).
   - Current coverage: ${_covTxt(arpCount, _ontapN)}
+${arpGapSystems.length > 0 ? '  SYSTEMS WITH ARP CONFIRMED DISABLED (run the command above on each):\n' + arpGapSystems.map(n => `    ⚠ ${n}`).join('\n') : '  ✓ No ONTAP system in this scope has ARP confirmed disabled.'}
 
 * ACTION 4.4: Third-Party Backup Integration Compliance
   - Avoid schedule collision with Veeam/Commvault/Rubrik: 'volume modify -vserver <svm_name> -volume <vol_name> -snapshot-policy none'

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.161",
+  "version": "5.6.162",
   "major": 5,
   "minor": 6,
-  "patch": 161,
+  "patch": 162,
   "date": "2026-09-28",
-  "notes": "As-Built export (Excel and TXT): fixed risk titles, contract dates, and firmware columns reading from fields that never existed in the real data model (r.title, sys.contracts.hwEndDate/swEndDate, sys.firmware.*). Replaced with the real fields (r.description, sys.contracts.endDate/supportLevel, sys.systemFirmware/motherboardFirmware/_resolveShelfModules) used correctly elsewhere in the app."
+  "notes": "TAM Success Plan is now a real, executable plan: removed the '+N more' truncation on affected-system lists, and named the actual systems (not just counts/percentages) needing capacity or ARP action. Active IQ's harvest has no per-volume identifiers to name individually -- system name is the deepest real granularity available."
 }
