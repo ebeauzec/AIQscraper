@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.156";
+const APP_VERSION = "5.6.157";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.157",
+    date: "28 September 2026",
+    title: "Fix Header Row Sorting Into the Body on the New Portfolio Tables",
+    sections: [
+      {
+        icon: "🩹",
+        label: "Fixed -- Header Row Dropped Into the Sorted Results",
+        color: "#f87171",
+        items: [
+          "The four tables added in v5.6.156 (Portfolio Dashboard's Accounts Needing Attention / Shared CVE Exposure / Shared Refresh Opportunities, and Security Advisories' Portfolio Exposure) built their header as a plain &lt;tr&gt; with no &lt;thead&gt;/&lt;tbody&gt; split -- flagged from a screenshot showing the header row sorted into the middle of the data. Every other sortable table in the app already wraps its header in &lt;thead&gt;, so sortTamTable()'s `table.querySelector('tbody')` only ever touched the data rows; these four, lacking that split, put the header in the browser's implicit tbody along with everything else, so it sorted like a data row. Wrapped all four in explicit &lt;thead&gt;/&lt;tbody&gt;. Verified live against the real fleet: sorting Accounts Needing Attention by Critical now keeps the header row fixed at the top in both directions.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.156",
     date: "28 September 2026",
@@ -28560,14 +28575,15 @@ function _renderPortfolioExecutiveDashboard() {
     <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Accounts Needing Attention</h3>
     <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px; margin-bottom:24px;">
       <table style="${tblStyle}">
-        <tr>
+        <thead><tr>
           ${_sth(thStyle, 'Customer')}
           ${_sth(thStyleR, 'Systems')}
           ${_sth(thStyleR, 'Critical')}
           ${_sth(thStyleR, 'High')}
           ${_sth(thStyleR, 'Open S1/S2')}
           ${_sth(thStyleR, '&le;1yr EOS')}
-        </tr>
+        </tr></thead>
+        <tbody>
         ${d.rows.map(r => `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04);${r.urgency > 0 ? '' : 'opacity:0.6;'}">
             <td style="padding:6px 10px;font-weight:600;">${r.name}</td>
@@ -28577,6 +28593,7 @@ function _renderPortfolioExecutiveDashboard() {
             <td style="padding:6px 10px;text-align:right;">${r.openCases}</td>
             <td style="padding:6px 10px;text-align:right;">${r.eosSoon}</td>
           </tr>`).join('')}
+        </tbody>
       </table>
     </div>`;
 
@@ -28585,13 +28602,14 @@ function _renderPortfolioExecutiveDashboard() {
     <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Shared CVE Exposure <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;text-transform:none;">-- affecting 2+ managed customers</span></h3>
     <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px; margin-bottom:24px;">
       <table style="${tblStyle}">
-        <tr>
+        <thead><tr>
           ${_sth(thStyle, 'CVE')}
           ${_sth(thStyle, 'Severity')}
           ${_sth(thStyle, 'CISA KEV')}
           ${_sth(thStyleR, 'Customers')}
           ${_sth(thStyleR, 'Systems')}
-        </tr>
+        </tr></thead>
+        <tbody>
         ${d.sharedCves.map(c => `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
             <td style="padding:6px 10px;font-weight:600;">${c.id}</td>
@@ -28600,6 +28618,7 @@ function _renderPortfolioExecutiveDashboard() {
             <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--accent-cyan);">${c.customerCount}</td>
             <td style="padding:6px 10px;text-align:right;">${c.systemCount}</td>
           </tr>`).join('')}
+        </tbody>
       </table>
     </div>`;
   }
@@ -28609,12 +28628,13 @@ function _renderPortfolioExecutiveDashboard() {
     <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Shared Refresh Opportunities <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;text-transform:none;">-- models nearing EOS (&le;730 days) for 2+ managed customers</span></h3>
     <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
       <table style="${tblStyle}">
-        <tr>
+        <thead><tr>
           ${_sth(thStyle, 'Model')}
           ${_sth(thStyleR, 'Customers')}
           ${_sth(thStyleR, 'Systems')}
           ${_sth(thStyleR, 'Soonest EOS')}
-        </tr>
+        </tr></thead>
+        <tbody>
         ${d.sharedRefresh.map(g => `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
             <td style="padding:6px 10px;font-weight:600;">${g.model}</td>
@@ -28622,6 +28642,7 @@ function _renderPortfolioExecutiveDashboard() {
             <td style="padding:6px 10px;text-align:right;">${g.count}</td>
             <td style="padding:6px 10px;text-align:right;${g.minDays <= 90 ? 'color:#ef4444;font-weight:700;' : g.minDays <= 365 ? 'color:#f59e0b;' : ''}">${g.minDays <= 0 ? 'past EOS' : g.minDays + 'd'}</td>
           </tr>`).join('')}
+        </tbody>
       </table>
     </div>`;
   }
@@ -30887,14 +30908,15 @@ function generateActionPlan() {
         <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Portfolio Exposure <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;text-transform:none;">-- also affecting other managed customers</span></h3>
         <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
           <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
-            <tr>
+            <thead><tr>
               ${_sth('text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'CVE')}
               ${_sth('text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'Severity')}
               ${_sth('text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'CISA KEV')}
               ${_sth('text-align:right;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'This Scope')}
               ${_sth('text-align:right;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'Other Customers')}
               <th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Also Affects</th>
-            </tr>
+            </tr></thead>
+            <tbody>
             ${_portfolioCveExposure.map(c => `
               <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
                 <td style="padding:6px 10px;font-weight:600;">${c.id}</td>
@@ -30905,6 +30927,7 @@ function generateActionPlan() {
                 <td style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);">${c.otherCustomers.slice(0, 4).join(', ')}${c.otherCustomers.length > 4 ? ` +${c.otherCustomers.length - 4} more` : ''}</td>
               </tr>
             `).join('')}
+            </tbody>
           </table>
         </div>
       </div>

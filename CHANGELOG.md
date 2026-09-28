@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.157] - 2026-09-28
+
+### Fixed
+- The four tables added in v5.6.156 (Portfolio Dashboard's three tables, Security Advisories' Portfolio Exposure) built their header as a plain `<tr>` with no `<thead>`/`<tbody>` split, so `sortTamTable()` sorted the header row into the data. Wrapped all four in explicit `<thead>`/`<tbody>`.
+
+---
+
 ## [5.6.156] - 2026-09-28
 
 ### Added

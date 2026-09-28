@@ -1,8 +1,8 @@
 {
-  "version": "5.6.156",
+  "version": "5.6.157",
   "major": 5,
   "minor": 6,
-  "patch": 156,
+  "patch": 157,
   "date": "2026-09-28",
-  "notes": "New Portfolio Dashboard (Action Planner) -- a cross-customer book-of-business rollup (urgency-ranked accounts, fleet-wide risk trend, shared CVE exposure, shared refresh opportunities) a single-tenant dashboard structurally cannot produce. Also adds cross-customer CVE exposure to the Security Advisories section and Security Posture Brief / MSP Report deliverables."
+  "notes": "Fixed the four new Portfolio Dashboard / Portfolio Exposure tables sorting their own header row into the results -- they were missing the thead/tbody split every other sortable table in the app already has."
 }
