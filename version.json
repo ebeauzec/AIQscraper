@@ -1,8 +1,8 @@
 {
-  "version": "5.6.150",
+  "version": "5.6.151",
   "major": 5,
   "minor": 6,
-  "patch": 150,
+  "patch": 151,
   "date": "2026-09-28",
-  "notes": "Fixed demo mode showing 0/N unknown shelf firmware for every system -- synthesized shelvesSummary from the real reference-library firmware baselines, correctly excluding virtualized platforms (CVO/ONTAP Select/Astra) which have no physical shelves."
+  "notes": "Wired up the dormant IMT interop-check engine (VMware/switch compatibility warnings in the upgrade plan), extended firmware drift detection to SP/BMC and motherboard, promoted CISA KEV to the primary CVE sort key, and confirmed upgrade-sequencing parity with Digital Advisor's two newest rules -- all four items from the competitive-analysis follow-up list."
 }

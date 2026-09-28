@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.151] - 2026-09-28
+
+### Added
+- Wired up `runIMTInteropCheck()` -- a complete third-party interoperability engine that existed with zero call sites -- into the Risk & Remediation Brief's Upgrade Sequence as an "Interop Compatibility Warnings" subsection. `_buildDetectedSignals()` derives only the integrations Active IQ actually reports (VMware via `vcenters`, Cisco/Brocade/Broadcom via `switches[].vendor`); every signal with no honest detection path stays unset.
+- Extended firmware drift detection (systems below recommended version) from shelf-only to SP/BMC and motherboard firmware, matching the other two components of the existing composite Firmware Currency score. New ACTION 2.6 (Motherboard) and drift details added to ACTION 2.5 (SP/BMC).
+- CISA KEV status is now the primary sort key in the CVE Remediation Priority Matrix, ahead of CVSS severity -- confirmed active exploitation now outranks unexploited Critical findings.
+
+### Verified, no change needed
+- Audited `_dfUpgradeWaves()`/`calculateUpgradePath()` against Digital Advisor's two newest upgrade rules (mixed-patch-level clusters, EOL-with-grace-period targets). Both already behave correctly -- confirmed parity.
+
+---
+
 ## [5.6.150] - 2026-09-28
 
 ### Fixed

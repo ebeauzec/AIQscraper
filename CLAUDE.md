@@ -22,28 +22,38 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.150 + docs)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.151)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
-harvester -- see git log / CHANGELOG.md for that range). All code changes below are pushed to `main` through
-`d2c2839`; the competitive-analysis doc update (below, no code/version change) is pending commit as of this
-handoff -- push it before starting new work if it isn't already in `git log`.
+harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
 
-**Also today, docs-only, no version bump:** asked to compare ARIA against NetApp's own Digital Advisor
-product and update docs to reflect it. Researched live via NetApp's docs/community pages (not from training
-memory), then verified every claim against ARIA's actual code before writing anything down -- full writeup
-is in `CONTEXT.md`'s new "Competitive positioning vs NetApp Digital Advisor" addendum (near the end), with
-a pointer from section 1. Don't re-derive this from scratch next time; read that addendum first.
-**Headline finding**: `runIMTInteropCheck()` (`app.js` ~13441) is a complete, sophisticated engine --
-cross-references fleet ONTAP versions against `IMT_INTEROP_MATRIX` (VMware/OTV, Trident, SnapCenter, with
-min/max ONTAP versions and baked-in CVEs) -- with **zero call sites anywhere**. Its `detectedSignals` input
-is also never built. This is the highest-value, lowest-effort next feature: wiring it into the upgrade-plan
-deliverable would let ARIA flag third-party compatibility breaks Digital Advisor's own Upgrade Advisor
-doesn't check (it's ONTAP-internal-prerequisite-only). Not yet implemented -- user was asked whether to do
-it now and the session moved to docs first; **this is the natural next task to pick up**.
-Also corrected a claim from the first pass of this analysis: sustainability scoring was wrongly listed as an
-ARIA strength -- `computeHonestSustainabilityScore()` is a pass-through of Active IQ's own field, not an
-independent model. Parity at best, not an edge. Don't repeat that claim in any deliverable copy.
+**Also today, part 7 (v5.6.151):** user said to build everything from the competitive-analysis follow-up
+list. All four items done -- full details (what changed, exact line numbers, live verification results) are
+in `CONTEXT.md`'s "Closed all four items from the Digital Advisor follow-up list" addendum, don't re-derive.
+Summary: (1) `runIMTInteropCheck()` wired up via a new `_buildDetectedSignals()` that only sets `vmware`
+(from real `vcenters`) and the switch-vendor signals (from real `switches[].vendor`) -- every other signal in
+the matrix stays unset since Active IQ has no field for it, and the engine skips an integration's checks
+entirely when its signal isn't set, so this can't false-positive. Renders as an "Interop Compatibility
+Warnings" subsection in the Upgrade Sequence; verified live with 9 real findings in demo mode. (2) CISA KEV
+now sorts ahead of CVSS severity in the CVE Remediation Priority Matrix (`_dfCveIndex()` tracks a `kev` flag
+per CVE now) -- can't be verified in demo mode since demo data never populates the KEV fields, same
+pre-existing limitation the KEV health-score component already had. (3) SP/BMC and motherboard firmware
+drift detection added (`spDrift`/`mbDrift`, same pattern as existing `shelfDrift`), new ACTION 2.6 for
+motherboard, ACTION 2.5 (SP/BMC) now shows real drift instead of only generic commands -- verified live, 29
+systems with SP/BMC drift in demo mode. (4) Audited `_dfUpgradeWaves()`/`calculateUpgradePath()` against
+Digital Advisor's two newest upgrade rules by reading the code, not guessing -- both already handle mixed
+patch levels correctly (patch-only differences need zero hops; nothing blocks on a cluster with mixed node
+versions), confirmed parity, no code change needed. No exact equivalent of Digital Advisor's specific
+"9-month EOL grace period" boundary exists or was added -- ARIA already treats past-limited-support as an
+urgency signal rather than a hard block (same practical effect), but the specific 9-month figure was never
+checked against anything, since Active IQ doesn't expose that boundary to verify it against.
+**Prior session's docs-only pass** (now superseded by the above, kept for how the research was done): asked
+to compare ARIA against NetApp's own Digital Advisor product. Researched live via NetApp's docs/community
+pages (not training memory), then verified every claim against ARIA's actual code before writing anything
+down -- see `CONTEXT.md`'s "Competitive positioning vs NetApp Digital Advisor" addendum, pointer from
+section 1. One correction from that pass still stands: sustainability scoring is NOT an ARIA edge --
+`computeHonestSustainabilityScore()` is a pass-through of Active IQ's own field, not an independent model.
+Don't repeat that claim in deliverable copy.
 
 **Also today, part 6 (v5.6.150):** the shelf-firmware investigation from part 5 led to a screenshot of "0/42
 unknown" on the Firmware Currency Shelf FW tile -- turned out to be demo/mock mode, not live data, once asked.

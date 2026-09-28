@@ -591,20 +591,61 @@ Don't repeat this claim.
    now" is a different, often more actionable signal than CVSS severity alone, and unlikely to be a vendor's
    own dashboard's lead sort key.
 
-**Concrete, prioritized next work** (not yet done, ranked by value/effort):
-1. **Wire up `runIMTInteropCheck()` (`app.js` ~13441) -- currently dead code, zero call sites anywhere.**
-   A complete, sophisticated engine already exists: cross-references each system's ONTAP version against
-   `IMT_INTEROP_MATRIX` (`app.js` ~11542, covers VMware/OTV, Astra Trident, SnapCenter, etc. with min/max
-   ONTAP versions, EOL-imminent tool versions, and baked-in CVEs like Trident's CVE-2026-24051) and links to
-   NetApp's own IMT tool per finding. Its `detectedSignals` input is *also* never built anywhere. Digital
-   Advisor's Upgrade Advisor checks ONTAP-internal prerequisites only, not third-party compatibility -- this
-   closes that gap and is the highest-value, lowest-effort item here (the `vmware` signal is free: `vcenters`
-   is already harvested). Wire into the upgrade-plan deliverable as an "Interop Compatibility Warnings" block.
-2. **Promote CISA KEV to the primary sort key** in the Security Posture Brief's CVE Remediation Priority
-   Matrix, not a secondary annotation.
-3. **Extend shelf firmware drift detection to SP/BMC and motherboard firmware** (currently shelf-only, per
-   the Action Plan's shelf-drift detector, v5.6.140-era work) -- a fleet-wide "this component doesn't match
-   its peer group" view a single-system dashboard can't naturally produce.
-4. **Audit `_dfUpgradeWaves` against Digital Advisor's two newest upgrade rules** (mixed-patch-level cluster
-   handling, EOL-with-grace-period targets) -- not yet verified whether ARIA's upgrade sequencing replicates
-   either. Highest-overlap area; easiest place to be quietly wrong where Digital Advisor is right.
+**Concrete next work -- all four items done as of v5.6.151, see that version's addendum below for the
+verified results:**
+1. ~~Wire up `runIMTInteropCheck()`~~ -- **done**. `_buildDetectedSignals()` (`app.js` ~13439) added, only
+   setting the two signals honestly derivable from real harvested fields (`vmware` from `vcenters`,
+   `cisco_san`/`brocade_fc`/`broadcom_eth` from `switches[].vendor`). Wired into `compileCustomerReport()`'s
+   Upgrade Sequence section as an "Interop Compatibility Warnings" subsection.
+2. ~~Promote CISA KEV to the primary sort key~~ -- **done**. `_dfCveIndex()` now tracks KEV status per CVE;
+   the CVE Remediation Priority Matrix sorts KEV-confirmed findings ahead of CVSS severity.
+3. ~~Extend shelf firmware drift detection to SP/BMC and motherboard~~ -- **done**. New ACTION 2.6
+   (Motherboard) and drift details added to ACTION 2.5 (SP/BMC) in `compileCustomerSuccessPlanText()`.
+4. ~~Audit `_dfUpgradeWaves` against Digital Advisor's two newest upgrade rules~~ -- **done, confirmed
+   parity, no code change needed** (see v5.6.151 addendum for why).
+
+
+## Closed all four items from the Digital Advisor follow-up list (v5.6.151)
+
+- **Interop compatibility warnings.** `_buildDetectedSignals(systems)` (`app.js` ~13439, right before
+  `runIMTInteropCheck()`) builds the `{signalKey: true}` map the engine needs -- deliberately narrow: only
+  `vmware` (from `vcenters.length > 0`, a real harvested field) and `cisco_san`/`brocade_fc`/`broadcom_eth`
+  (from `switches[].vendor`, confirmed real by the earlier switch-reporting audit) are ever set. Every other
+  signal in `IMT_INTEROP_MATRIX` (kubernetes, snapcenter, veeam, commvault, rubrik, cohesity, hycu, kvm_linux,
+  hyperv, oracle_db, mssql, sap_hana, splunk, varonis) stays unset on purpose -- `getSystemIntegrations()`'s
+  own comment documents that Active IQ's GraphQL API has no field exposing any of these, and a prior bug
+  fabricated a fake vendor stack from a hash of the serial number. Since `runIMTInteropCheck()` skips an
+  integration's checks entirely (including its CVE advisory) when its signal isn't set, leaving them unset is
+  safe, not just conservative -- it can't produce a false positive for something Active IQ never reported.
+  Wired into `compileCustomerReport()` right after the "## 10. Upgrade Sequence" table as an "Interop
+  Compatibility Warnings" subsection, rendered only when a real finding exists. Verified live in demo mode:
+  9 real findings across VMware/OTV, VMware vSphere (ESXi), Cisco NX-OS, and Cisco MDS for a 2,077-system
+  fleet with real `vcenters` and `switches` data -- e.g. "ONTAP 9.5 is below minimum ONTAP 9.12.1 required for
+  ONTAP Tools for VMware vSphere (OTV) 10.3".
+- **CISA KEV as primary CVE sort key.** `_dfCveIndex()` (`app.js` ~18133) now tracks a `kev` flag per CVE ID,
+  sourced from `securityBulletins[].cisaKEV`/`cisaKev`/`tags` (the same real field the existing "No CISA KEV
+  Active Exploitation Alerts" health-score component already reads) and `risks[].knownExploited`. The CVE
+  Remediation Priority Matrix (`app.js` ~24457) now sorts KEV-confirmed CVEs ahead of everything else,
+  severity as the tiebreaker; KEV-flagged entries are labeled inline
+  ("[CISA KEV -- confirmed active exploitation]"). Demo mode never populates either source field (same
+  limitation the pre-existing KEV health-score component already has, not something this change introduced),
+  so this can only be verified against real harvested data, not demo mode.
+- **SP/BMC and motherboard firmware drift.** Same pattern as the existing `switchDrift`/`shelfDrift` in
+  `compileCustomerSuccessPlanText()` (`app.js` ~22562): `spDrift` reads `sys.systemFirmware` (array or object,
+  `currentVersion`/`recommendedVersion`), `mbDrift` reads `sys.motherboardFirmware` (object, same shape). Risk
+  Posture Summary gained matching drift-count lines; ACTION 2.5 (SP/BMC, already existed as generic CLI
+  commands with no per-system list) now shows real drift; new ACTION 2.6 (Motherboard) added, since no action
+  item existed for it at all before. Verified live in demo mode: 29 systems with SP/BMC drift, motherboard
+  drift lines rendering real current/target version pairs (e.g. "netapp-aff-01: current=18.9, target=18.17").
+- **Upgrade-rule audit result.** Read `calculateUpgradePath()` (`app.js` ~13144) and `_dfUpgradeWaves()`
+  (`app.js` ~25272) end to end rather than testing behaviorally. `calculateUpgradePath()` strips the
+  `P`-number before comparing `currentBase`/`targetBase` (`cleanCurrent.split("P")[0]`), so two versions that
+  only differ by patch level are treated as needing zero hops -- mixed patch levels across a cluster's nodes
+  can never trigger spurious multi-hop blocking. `_dfUpgradeWaves()` has no code path that treats a cluster
+  with multiple distinct `ontapVersion` values among its nodes as an error condition -- it collects them into
+  a `Set`, lists them in the "Running" column, and proceeds to recommend one common target regardless. Both
+  match Digital Advisor's stated behavior (don't block on mixed patch levels within a major release) without
+  any change needed. No equivalent of Digital Advisor's explicit "9-month EOL grace period" rule was found or
+  added -- ARIA already treats past-end-of-limited-support as an urgency signal (`_unsupported()`'s
+  `pastLimited` check) rather than a hard block, which has the same practical effect, but this wasn't verified
+  against a specific 9-month boundary since Active IQ doesn't expose one to check against.

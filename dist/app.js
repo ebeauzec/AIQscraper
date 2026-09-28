@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.150";
+const APP_VERSION = "5.6.151";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.151",
+    date: "28 September 2026",
+    title: "Closing the Gaps Found in the Digital Advisor Comparison",
+    sections: [
+      {
+        icon: "✅",
+        label: "New",
+        color: "#22c55e",
+        items: [
+          "Wired up runIMTInteropCheck() -- a complete third-party interoperability engine (VMware/OTV, Cisco NX-OS/MDS, Brocade FOS, Broadcom EFOS, with min/max ONTAP versions and baked-in CVEs) that existed in the codebase with zero call sites anywhere. Added _buildDetectedSignals(), which derives ONLY the integrations Active IQ actually reports (vcenters for VMware, switches[].vendor for Cisco/Brocade/Broadcom -- every other signal in the matrix stays unset since there's no honest way to detect kubernetes/snapcenter/veeam/etc. from what Active IQ exposes). The Risk & Remediation Brief's Upgrade Sequence now includes an \"Interop Compatibility Warnings\" subsection whenever a real finding exists: a target that satisfies the cluster's own prerequisites can still be too old for a vCenter/OTV pairing or fall outside a switch firmware's supported ONTAP range -- neither of which the cluster-only check above it covers.",
+          "Extended the shelf-firmware drift detector pattern (systems below their recommended module firmware) to SP/BMC and motherboard firmware, the other two components computeFleetFirmwareSummary()'s composite score already tracks but this deliverable never listed individually. ACTION 2.5 (SP/BMC) now shows which systems are actually behind instead of only generic CLI commands; added ACTION 2.6 (Motherboard) with the same per-system drift list. Risk Posture Summary gained matching SP/BMC and Motherboard drift line items alongside the existing Switch and Shelf ones.",
+          "CISA KEV status is now the primary sort key in the CVE Remediation Priority Matrix, ahead of CVSS severity -- a Medium CVE with confirmed active exploitation now outranks a Critical one that isn't being exploited, and is labeled inline. Severity remains the tiebreaker. _dfCveIndex() now tracks KEV status per CVE from both securityBulletins and risks[].cveDetails sources.",
+        ],
+      },
+      {
+        icon: "🔍",
+        label: "Audited",
+        color: "#3b82f6",
+        items: [
+          "Checked _dfUpgradeWaves()/calculateUpgradePath() against Digital Advisor's two newest upgrade rules (mixed-patch-level clusters within a major release shouldn't block; EOL-with-grace-period targets). Both already behave correctly with no changes needed: calculateUpgradePath() strips the P-number before comparing current vs. target, so same-major/minor patch differences never trigger unnecessary multi-hop treatment, and _dfUpgradeWaves() has no code path that blocks on a cluster whose nodes report different running versions -- it lists them and proceeds. Confirmed parity, not a gap.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.150",
     date: "28 September 2026",
@@ -13435,6 +13460,34 @@ function buildIMTUrl(product, ontapVersion) {
   return `https://imt.netapp.com/matrix/#search&searchByProductIdAndFamilyName=search&productNameForSearch=${product}&userSelectedTargetFamilyList=ONTAP&userSelectedTargetProductList=ONTAP+${encodeURIComponent(ontapVersion || '9.16.1')}`;
 }
 
+// ── _buildDetectedSignals(systems) ────────────────────────────────────────────
+// runIMTInteropCheck() needs a {signalKey: true} map of which ecosystem
+// integrations IMT_INTEROP_MATRIX covers are actually present in this fleet.
+// Active IQ's GraphQL API has NO field exposing hypervisor/database/backup
+// software attached to a system -- see getSystemIntegrations()'s own comment,
+// which documents a prior bug that fabricated a fake vendor stack from a hash
+// of the serial number and presented it as detected telemetry. Only set a
+// signal here when it comes from a field that's genuinely harvested: vcenters
+// (real, `server.py` queries `vcenters { id name version }`) for VMware, and
+// switches[].vendor (real, confirmed by the switch-reporting audit) for the
+// SAN/cluster switch vendors. Every other signal in the matrix (kubernetes,
+// snapcenter, veeam, commvault, rubrik, cohesity, hycu, kvm_linux, hyperv,
+// oracle_db, mssql, sap_hana, splunk, varonis) stays unset on purpose --
+// there is no honest way to detect them from what Active IQ reports, and
+// runIMTInteropCheck() skips an integration's checks entirely (including its
+// CVE advisory) whenever its signal isn't set, so leaving them unset is safe,
+// not just conservative.
+function _buildDetectedSignals(systems) {
+  const signals = {};
+  if ((systems || []).some(s => (s.vcenters || []).length > 0)) signals.vmware = true;
+  const vendors = new Set();
+  (systems || []).forEach(s => (s.switches || []).forEach(sw => { if (sw.vendor) vendors.add(String(sw.vendor).toUpperCase()); }));
+  if (vendors.has('CISCO')) signals.cisco_san = true;
+  if (vendors.has('BROCADE')) signals.brocade_fc = true;
+  if (vendors.has('BROADCOM')) signals.broadcom_eth = true;
+  return signals;
+}
+
 // ── runIMTInteropCheck(systems, detectedSignals) ──────────────────────────────
 // Cross-references each system's ONTAP version against IMT_INTEROP_MATRIX for
 // all fleet-detected integrations. Returns structured findings array.
@@ -18104,21 +18157,26 @@ function _dfRunwayText(days) {
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
 function _dfCveIndex(systems) {
   const map = {};
-  const add = (id, sev, cvss, title, sys) => {
+  // kev: true if ANY source flags this CVE as CISA Known Exploited (confirmed active
+  // real-world exploitation, not just a CVSS score) -- once true for a CVE ID, stays
+  // true even if a later source for the same ID doesn't carry the flag.
+  const add = (id, sev, cvss, title, sys, kev) => {
     id = String(id || '').trim().toUpperCase();
     if (!/^CVE-\d{4}-\d{4,}$/.test(id)) return;
-    const c = map[id] = map[id] || { id, sev: '', cvss: 0, title: '', systems: new Set() };
+    const c = map[id] = map[id] || { id, sev: '', cvss: 0, title: '', systems: new Set(), kev: false };
     c.systems.add(sys.systemName || sys.serialNumber);
     c.sev = c.sev || String(sev || '').toLowerCase();
     c.cvss = Math.max(c.cvss, parseFloat(cvss) || 0);
     c.title = c.title || title || '';
+    if (kev) c.kev = true;
   };
   (systems || []).forEach(sys => {
     (sys.securityBulletins || []).forEach(b => {
       const ids = new Set([...(String(b.cve || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.cveId || b.id || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.title || '').match(/CVE-\d{4}-\d{4,}/gi) || [])]);
-      ids.forEach(id => add(id, b.severity, b.cvss || b.cvssScore, b.title, sys));
+      const isKev = b.cisaKEV === true || b.cisaKev === true || (b.tags || []).includes('CISA-KEV');
+      ids.forEach(id => add(id, b.severity, b.cvss || b.cvssScore, b.title, sys, isKev));
     });
-    (sys.risks || []).forEach(r => (r.cveDetails || []).forEach(d => { if (d) add(d.id, d.severity, d.cvss || d.cvssScore, d.title || d.description, sys); }));
+    (sys.risks || []).forEach(r => (r.cveDetails || []).forEach(d => { if (d) add(d.id, d.severity, d.cvss || d.cvssScore, d.title || d.description, sys, !!r.knownExploited); }));
   });
   return map;
 }
@@ -22551,6 +22609,26 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     });
   });
 
+  // ── SP/BMC and motherboard firmware compliance ──
+  // Same drift pattern as switchDrift/shelfDrift above, for the other two
+  // per-system firmware types computeFleetFirmwareSummary()'s composite score
+  // already covers (SP/BMC 20%, motherboard 20%) but this deliverable never
+  // surfaced individually -- ACTION 2.5 (SP/BMC) below only ever had generic
+  // CLI commands, no fleet-wide "which systems are actually behind" list, and
+  // motherboard had no dedicated action item at all.
+  const spDrift = [], mbDrift = [];
+  targetSystems.forEach(sys => {
+    const sfwRaw = sys.systemFirmware;
+    const sfw = (Array.isArray(sfwRaw) ? sfwRaw[0] : sfwRaw) || {};
+    if (sfw.currentVersion && sfw.recommendedVersion && _isBehind(sfw.currentVersion, sfw.recommendedVersion)) {
+      spDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, current: sfw.currentVersion, recommended: sfw.recommendedVersion });
+    }
+    const mbfw = sys.motherboardFirmware || {};
+    if (mbfw.currentVersion && mbfw.recommendedVersion && _isBehind(mbfw.currentVersion, mbfw.recommendedVersion)) {
+      mbDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, current: mbfw.currentVersion, recommended: mbfw.recommendedVersion });
+    }
+  });
+
   // ── Security bulletins -- unique CVEs, not one row per (system, bulletin) ──
   // This used to push one full-detail entry per system a bulletin applied to,
   // so a single CVE affecting all 13 systems in a fleet printed 13 near-
@@ -22731,6 +22809,8 @@ ${platformLines}
   - Security-Related Risk Findings: ${secCount} (distinct from the unique CVE count in Section 3 below -- one CVE can produce multiple findings across systems)
   - Switch Firmware Drift: ${switchDrift.length} switch${switchDrift.length !== 1 ? 'es' : ''} below validated baseline
   - Shelf Firmware Drift: ${shelfDrift.length} shelf module${shelfDrift.length !== 1 ? 's' : ''} below recommended version
+  - SP/BMC Firmware Drift: ${spDrift.length} system${spDrift.length !== 1 ? 's' : ''} below recommended version
+  - Motherboard Firmware Drift: ${mbDrift.length} system${mbDrift.length !== 1 ? 's' : ''} below recommended version
   - AutoSupport Issues: ${asupIssues.length}
   - Open Support Cases: ${allSupportCases.length}
 
@@ -22899,6 +22979,12 @@ ${shelfDrift.length > 0 ? '  SHELF FIRMWARE DRIFT DETECTED:\n' + shelfDrift.map(
 * ACTION 2.5: Service Processor / BMC Firmware
   - Update: 'system service-processor image update -node * -update-type latest'
   - Verify: 'system service-processor show -fields firmware-version'
+${spDrift.length > 0 ? '  SP/BMC FIRMWARE DRIFT DETECTED:\n' + spDrift.map(sp => `    ⚠ ${sp.systemName}: current=${sp.current}, target=${sp.recommended}`).join('\n') : '  ✓ All SP/BMC firmware at recommended baseline.'}
+
+* ACTION 2.6: Motherboard Firmware
+  - Update: 'system node firmware download' then 'system node firmware update -node * -type motherboard'
+  - Verify: 'system node firmware show -type motherboard -fields firmware-version'
+${mbDrift.length > 0 ? '  MOTHERBOARD FIRMWARE DRIFT DETECTED:\n' + mbDrift.map(mb => `    ⚠ ${mb.systemName}: current=${mb.current}, target=${mb.recommended}`).join('\n') : '  ✓ All motherboard firmware at recommended baseline.'}
 
 `}PHASE 3: REPLICATION & DATA PROTECTION HYGIENE (DAYS 15 - 30) [REMEDIATION PLAN + STANDARDS & ADOPTION]
 -----------------------------------------------------------
@@ -24416,13 +24502,18 @@ ${_kevAckLines}
   const cveMap = new Map();
   Object.values(_cveIdx).forEach(c => {
     const info = _cveInfo[c.id] || {};
-    cveMap.set(c.id, { severity: c.sev || 'not rated', cvss: c.cvss || null, count: c.systems.size, systems: c.systems,
+    cveMap.set(c.id, { severity: c.sev || 'not rated', cvss: c.cvss || null, count: c.systems.size, systems: c.systems, kev: !!c.kev,
       advisory: info.link || `https://nvd.nist.gov/vuln/detail/${c.id}`,
       recommended: info.fix || 'See the linked advisory for the fixed release; no NetApp remediation text is recorded for this CVE' });
   });
 
   let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
+  // CISA KEV status sorts ahead of CVSS severity: "confirmed being exploited right now"
+  // is a different, more actionable signal for what to patch first than a theoretical
+  // severity score -- a Medium CVE that's actively exploited belongs above a Critical
+  // one that isn't. Severity remains the tiebreaker within/across KEV status.
   cveArray.sort((a, b) => {
+    if (a.kev !== b.kev) return a.kev ? -1 : 1;
     const sevMap = { 'critical': 4, 'CRITICAL': 4, 'high': 3, 'HIGH': 3, 'medium': 2, 'MEDIUM': 2, 'low': 1, 'LOW': 1 };
     let sA = sevMap[a.severity] || 0;
     let sB = sevMap[b.severity] || 0;
@@ -24436,7 +24527,7 @@ ${_kevAckLines}
   // per-item list for actually working a backlog).
   const CVE_MATRIX_CAP = 15;
   const cveArrayShown = cveArray.slice(0, CVE_MATRIX_CAP);
-  let matrixLines = cveArrayShown.map((c, i) => `    Priority ${i + 1}: ${c.title}${c.cvss != null ? ` (CVSS ${c.cvss})` : ''}
+  let matrixLines = cveArrayShown.map((c, i) => `    Priority ${i + 1}: ${c.title}${c.kev ? ' [CISA KEV -- confirmed active exploitation]' : ''}${c.cvss != null ? ` (CVSS ${c.cvss})` : ''}
       Severity:     ${c.severity}
       Affected:     ${c.count} system(s)
       Systems:      ${Array.from(c.systems).join(', ')}
@@ -25542,6 +25633,24 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   if (_waves.wave1.length || _waves.wave2.length) {
     const row = (c, w) => `| ${w} | ${c.name} | ${c.nodes.map(x => x.systemName || x.serialNumber).join(', ')} | ${[...c.vers].filter(Boolean).join(', ') || 'not reported'} | ${c.target || 'a supported release (see Upgrade Advisor)'} | ${c.reasons.join('; ') || 'not on the recommended release'}${c.mc ? ' (MetroCluster: upgrade the DR site first, then the primary)' : ''} |`;
     o += `## 10. Upgrade Sequence\n\nUpgrade one cluster at a time; each cluster is upgraded non-disruptively, one HA pair at a time. Validate cluster health before and after each cluster (\`cluster image validate\`, \`system health alert show\`, \`storage failover show\`).\n\n| Wave | Cluster | Nodes (upgrade one HA pair at a time) | Running | Target | Reason |\n|---|---|---|---|---|---|\n` + _waves.wave1.map(c => row(c, '1 (first)')).join('\n') + (_waves.wave1.length && _waves.wave2.length ? '\n' : '') + _waves.wave2.map(c => row(c, '2')).join('\n') + '\n\n';
+  }
+
+  // 10a Interop compatibility warnings -- the cluster prerequisites above are
+  // ONTAP-internal only. This cross-references detected ecosystem integrations
+  // (VMware vCenter, SAN/cluster switches) that Active IQ's own Upgrade Advisor
+  // does not check: a target that satisfies the cluster can still be too old
+  // (or too new) for a vCenter/OTV pairing, or fall outside a switch firmware's
+  // supported ONTAP range. Only rendered when a real signal was detected AND a
+  // real finding resulted -- never a generic "check compatibility" filler.
+  const _interopFindings = runIMTInteropCheck(targetSystems, _buildDetectedSignals(targetSystems));
+  if (_interopFindings.length) {
+    o += `### Interop Compatibility Warnings\n\nDetected ecosystem integrations in this fleet (VMware vCenter and/or SAN/cluster switches) were cross-referenced against the NetApp Interoperability Matrix (IMT) independently of the cluster-level upgrade prerequisites above. The ${_dfPlural(_interopFindings.length, 'finding')} below ${_interopFindings.length === 1 ? 'is' : 'are'} not covered by the Upgrade Sequence table and should be checked before finalizing any target version.\n\n`;
+    o += `| Integration | Finding | Recommendation |\n|---|---|---|\n`;
+    _interopFindings.forEach(f => {
+      const rec = f.imtUrl ? `${f.recommendation} ([IMT](${f.imtUrl}))` : f.recommendation;
+      o += `| ${f.integration} | ${f.message.replace(/\|/g, '/')} | ${rec.replace(/\|/g, '/')} |\n`;
+    });
+    o += '\n';
   }
 
   // 11 Hardware refresh planning
