@@ -1,8 +1,8 @@
 {
-  "version": "5.6.147",
+  "version": "5.6.148",
   "major": 5,
   "minor": 6,
-  "patch": 147,
+  "patch": 148,
   "date": "2026-09-28",
-  "notes": "Added 4th platform family 'element' for NetApp HCI storage nodes (Element OS/SolidFire, not ONTAP). Automatically excluded from ARP/SnapMirror/FabricPool/HA scoring and ONTAP CLI generation everywhere those already filter on _platformFamily(s) === 'ontap'. HCI compute nodes correctly stay 'ontap'."
+  "notes": "Raised the harvest poll timeout to 20 minutes (was 6) to match real multi-watchlist harvest time now that auto-discovery correctly finds all of an account's watchlists; on timeout, falls back to cached data instead of an alarming failure alert. Watchlist sidebar list now sorted alphabetically."
 }

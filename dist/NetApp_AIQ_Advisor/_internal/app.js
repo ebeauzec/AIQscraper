@@ -27,9 +27,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.147";
+const APP_VERSION = "5.6.148";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.148",
+    date: "28 September 2026",
+    title: "Sync Timeout Was Too Short for the Now-Correct Watchlist Count",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "User saw a 'Sync failed: Sync timed out after 6 minutes' alert telling them to check the launcher. Checked /api/sync-status live while it was showing: isSyncing was still true, well past the 6-minute mark -- the server was working correctly the whole time, the client just gave up watching too early and threw a misleading failure. Traced the cause to this session's own watchlist auto-discovery fix (v5.6.142): both accounts now correctly auto-discover their real watchlists (20 combined, confirmed live in aiq_config.json) instead of the old broken discovery silently finding 0 -- a real, larger, and entirely expected increase in harvest work (each watchlist is its own paginated GraphQL query with its own tier-fallback retries) that the hardcoded 6-minute client poll timeout was never sized for.",
+          "Raised the poll timeout to 20 minutes, and, more importantly, changed what happens when it's hit: the harvest runs server-side independent of the browser tab, so a client poll timeout was never actually a sync failure -- it only meant this page stopped watching. Instead of throwing an alarming alert that wrongly suggested restarting the app, the client now falls back to loading whatever's currently cached (a prior completed sync) and shows 'still refreshing in background — reload in a few minutes for the latest' in the status bar, which is what's actually true.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Improved",
+        color: "#3b82f6",
+        items: [
+          "User feedback: the sidebar's Active IQ Watchlists list should be in some kind of order. It rendered in whatever order the harvest/auto-discovery returned watchlists (API/pagination order, meaningless to a reader) -- barely noticeable with a couple of watchlists, much more so now that a real account correctly shows its full set (up to 20). Now sorted alphabetically by name.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.147",
     date: "28 September 2026",
@@ -32021,7 +32045,14 @@ function renderSidebarGroups() {
     wlHeader.innerText = "Active IQ Watchlists";
     container.appendChild(wlHeader);
 
-    state.watchlists.forEach(wl => {
+    // Sorted alphabetically for a stable, scannable list -- state.watchlists is in
+    // whatever order the harvest/auto-discovery returned them (API/pagination order,
+    // not meaningful to a reader), which got a lot more noticeable once auto-discovery
+    // started correctly finding a real account's full watchlist set (up to 20) instead
+    // of silently finding none.
+    const _sortedWatchlists = [...state.watchlists].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base', numeric: true }));
+    _sortedWatchlists.forEach(wl => {
       const item = document.createElement("div");
       item.className = "tree-item";
       if (state.activeFilterType === "WATCHLIST" && state.activeFilterValue === wl.id) {
@@ -33818,9 +33849,18 @@ async function loadProductionData(forceRefresh = false) {
         if (indicator)  indicator.className = "indicator warning";
 
         const pollStart = Date.now();
-        const POLL_TIMEOUT = 6 * 60 * 1000;
+        // A full harvest walks every watchlist the account has (auto-discovered via
+        // GET /v2/watchlist/list since v5.6.142 -- previously broken and silently
+        // finding 0, so this timeout was never tested against real watchlist counts).
+        // Confirmed live: a real 2-account setup auto-discovers 20 real watchlists
+        // between them, each its own paginated GraphQL query with its own
+        // TAM->Efficiency->Minimal fallback tier retries -- routinely well past 6
+        // minutes for two accounts. 20 minutes gives real multi-account/many-watchlist
+        // harvests room to actually finish instead of the client giving up early.
+        const POLL_TIMEOUT = 20 * 60 * 1000;
         const POLL_INTERVAL = 3000;
         let pollDot = 0;
+        let _pollTimedOut = false;
         await new Promise((resolve, reject) => {
           const timer = setInterval(async () => {
             try {
@@ -33835,8 +33875,15 @@ async function loadProductionData(forceRefresh = false) {
                 if (ss.lastError) reject(new Error(`Sync error: ${ss.lastError}`));
                 else resolve(ss);
               } else if (Date.now() - pollStart > POLL_TIMEOUT) {
+                // The harvest itself runs server-side, independent of this browser
+                // tab -- a client poll timeout does NOT mean the sync failed or that
+                // the app isn't running, only that this page gave up watching. Fall
+                // back to whatever's currently cached (a prior completed sync, or
+                // partial data already written) instead of an alarming failure alert
+                // that used to wrongly tell the user to check the launcher.
                 clearInterval(timer);
-                reject(new Error("Sync timed out after 6 minutes"));
+                _pollTimedOut = true;
+                resolve(ss);
               }
             } catch (pe) {
               clearInterval(timer);
@@ -33845,15 +33892,22 @@ async function loadProductionData(forceRefresh = false) {
           }, POLL_INTERVAL);
         });
 
-        // Sync done — re-fetch the now-populated cache
-        console.log("[AIQ] Background sync complete. Re-fetching cached data...");
-        if (textLabel) textLabel.innerText = "Loading refreshed data...";
+        if (_pollTimedOut) {
+          console.log("[AIQ] Poll gave up after 20 minutes; sync is still running server-side. Loading current cache.");
+          if (textLabel) textLabel.innerText = "Still syncing in background — showing latest cached data...";
+        } else {
+          // Sync done — re-fetch the now-populated cache
+          console.log("[AIQ] Background sync complete. Re-fetching cached data...");
+          if (textLabel) textLabel.innerText = "Loading refreshed data...";
+        }
         const cacheResp = await fetch(`/api/harvest?t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" }
         });
         if (!cacheResp.ok) throw new Error(`Cache re-fetch failed: HTTP ${cacheResp.status}`);
-        return cacheResp.json();
+        const cacheResult = await cacheResp.json();
+        if (_pollTimedOut) cacheResult._stillSyncingInBackground = true;
+        return cacheResult;
       }
 
       // 200: cached data served immediately
@@ -34079,7 +34133,9 @@ async function loadProductionData(forceRefresh = false) {
     const cacheStatus = cacheInfo.hit ? (cacheInfo.stale ? 'stale cache' : 'cached') : 'live';
     const lastSyncTime = cacheInfo.lastSync ? new Date(cacheInfo.lastSync).toLocaleTimeString() : '';
     const statusSuffix = cacheInfo.hit ? ` (${cacheStatus}${lastSyncTime ? ', synced ' + lastSyncTime : ''})` : '';
-    if (textLabel) textLabel.innerText = `Synced: ${state.systems.length} systems, ${result.totalClusters || 0} clusters${statusSuffix}`;
+    if (textLabel) textLabel.innerText = result._stillSyncingInBackground
+      ? `Synced: ${state.systems.length} systems, ${result.totalClusters || 0} clusters (still refreshing in background — reload in a few minutes for the latest)`
+      : `Synced: ${state.systems.length} systems, ${result.totalClusters || 0} clusters${statusSuffix}`;
     if (indicator)  indicator.className = "indicator connected";
     console.log(`[AIQ] Sync complete: ${state.systems.length} systems [${cacheStatus}]`);
     if (cacheInfo.hit && !forceRefresh) {

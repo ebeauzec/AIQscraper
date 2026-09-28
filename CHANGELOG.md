@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.148] - 2026-09-28
+
+### Fixed
+- A "Sync failed: Sync timed out after 6 minutes" alert (telling the user to check the launcher) fired while the server was still correctly harvesting -- confirmed live via `/api/sync-status` showing `isSyncing: true` well past that point. Root cause: this session's own watchlist auto-discovery fix (v5.6.142) now correctly finds a real account's full watchlist set (20 combined across 2 accounts, was silently 0 before), a genuine increase in harvest work the hardcoded 6-minute client poll timeout was never sized for. Raised to 20 minutes, and changed the timeout behavior: the harvest runs server-side independent of the browser tab, so a client timeout was never actually a failure -- it now falls back to loading the current cache and shows "still refreshing in background" instead of an alarming, misleading alert.
+
+### Improved
+- The sidebar's Active IQ Watchlists list is now sorted alphabetically (was harvest/API discovery order, not meaningful to a reader) -- requested after the watchlist auto-discovery fix made a real account's full 20-watchlist list visible for the first time.
+
+---
+
 ## [5.6.147] - 2026-09-28
 
 ### Fixed

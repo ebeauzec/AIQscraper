@@ -22,10 +22,28 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.147)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.148)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, part 4 (v5.6.148):** user hit a "Sync failed: Sync timed out after 6 minutes" alert telling
+them to check the launcher. Checked `/api/sync-status` live while it was showing -- `isSyncing: true`, well
+past 6 minutes -- the server was harvesting correctly the whole time, the client poll just gave up and threw
+a scared, wrong message. Root cause: this session's OWN earlier fix (watchlist auto-discovery, v5.6.142) now
+correctly finds a real account's full watchlist set (20 combined across 2 accounts, confirmed live in
+`aiq_config.json` -- both accounts' `watchlistId` now blank, relying entirely on auto-discovery, up from
+silently finding 0 before). 20 real watchlists x their own paginated queries x tier-fallback retries is
+genuinely more work than the pre-existing 6-minute timeout (written before this fix existed) was ever sized
+for. Fixed two ways: raised `POLL_TIMEOUT` to 20 minutes, and changed what a timeout DOES -- the harvest runs
+server-side independent of the browser tab, so a client timeout was never really "sync failed", only this
+page giving up watching. It now falls back to loading the current cache and shows "still refreshing in
+background" instead of an alarming failure alert. **Also fixed, same session, user request**: the sidebar's
+Active IQ Watchlists list was in harvest/discovery order (meaningless to a reader, much more noticeable now
+that a real account's full 20-watchlist list is visible for the first time) -- sorted alphabetically.
+**Worth remembering**: any future feature that increases legitimate per-harvest work (more watchlists, more
+accounts, richer per-system queries) should be checked against this same client-side poll timeout before
+shipping -- it's not auto-scaling, it's a hardcoded constant that can silently fall behind reality.
 
 **Also today, part 3 (v5.6.147):** user said to go ahead and fix the HCI gap flagged in v5.6.146. Added a
 4th `_platformFamily()` bucket, `'element'`, for NetApp HCI storage nodes (Element OS/SolidFire) -- detected
