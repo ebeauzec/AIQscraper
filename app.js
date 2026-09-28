@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.143";
+const APP_VERSION = "5.6.144";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.144",
+    date: "28 September 2026",
+    title: "Astra Data Store Hits the Same Blank Rear Panel as ONTAP Select",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Follow-up sweep for other virtualized platforms (requested after the ONTAP Select fix): of the 7 distinct platformType values in a real fleet, one more -- ASTRA (NetApp Astra Data Store, Kubernetes-native ONTAP; confirmed ONTAP-based by a real ontapVersion being reported despite no physical chassis) -- hit the identical blank 'physical layout for this model is not built in' panel, for the same reason as ONTAP Select: it fell through to the chassis SVG engine, which has no layout for model \"ASTRA\" because none was ever going to exist. Now shows the same 'Virtual Appliance, no physical rear panel' card, with copy specific to Astra ('vNICs provisioned by the Kubernetes cluster network (CNI)') rather than reusing the VM-hypervisor or cloud-provider wording written for the other two cases. Verified live against the one real Astra system in the fleet.",
+          "Also checked: HCI (platformType \"HCI\", models like H410S-2/H410C) is real rack-mounted physical hardware, not virtualized -- correctly out of scope for this fix. It has no rear-panel chassis layout built either, but that's a different bug (missing physical layout for real hardware, not a false 'not built in' on something with no chassis at all) and hasn't been fixed here.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.143",
     date: "28 September 2026",
@@ -36580,11 +36596,15 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     // of unknown -- only label a provider when the platform string actually
     // names one.
     const isSelect = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
+    // Astra Data Store: Kubernetes-native ONTAP, reported as platformType "ASTRA" with
+    // model/platform "ASTRA" and a real ontapVersion. No hypervisor VM and no cloud
+    // provider either -- interfaces are provisioned by the K8s CNI, not a vNIC driver.
+    const isAstra = (sys.platformType || '').toUpperCase() === 'ASTRA' || _plat === 'astra';
     const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : ((sys.platform || '').includes('GCP') || (sys.platform || '').includes('Google') ? 'GCP' : null));
-    const label = isSelect ? 'ONTAP Select (Software-Defined)' : `${provider || 'Cloud'} Cloud`;
-    const vnicSource = isSelect ? "the VM's hypervisor (VMware/KVM)" : `the ${provider || 'cloud'} hypervisor`;
+    const label = isSelect ? 'ONTAP Select (Software-Defined)' : (isAstra ? 'Astra Data Store (Kubernetes-Native)' : `${provider || 'Cloud'} Cloud`);
+    const vnicSource = isSelect ? "the VM's hypervisor (VMware/KVM)" : (isAstra ? 'the Kubernetes cluster network (CNI)' : `the ${provider || 'cloud'} hypervisor`);
     return `<div style="background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(30,64,175,0.15));border:2px dashed rgba(59,130,246,0.4);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
-      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">${isSelect ? '\u{1F4BB}' : '☁️'}</div>
+      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">${isSelect ? '\u{1F4BB}' : (isAstra ? '\u{2638}️' : '☁️')}</div>
       <div style="flex:1;">
         <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${label}</div>
         <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${vnicSource}. Logical interfaces shown in table below.</div>
@@ -37208,7 +37228,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   // no layout bucket for "M300" and rendered a blank panel with a "not built in" caption --
   // technically true but misleading, since no chassis was ever going to exist for a VM.
   const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud")
-    || (sys.platformType || '').toUpperCase().includes("ONTAP-SELECT") || _plat.includes("ontap select") || _plat.includes("ontap-select");
+    || (sys.platformType || '').toUpperCase().includes("ONTAP-SELECT") || _plat.includes("ontap select") || _plat.includes("ontap-select")
+    || (sys.platformType || '').toUpperCase() === "ASTRA" || _plat === "astra";
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
   // Update the card title to be platform-appropriate
@@ -37220,7 +37241,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
       _cardTitleEl.textContent = 'E-Series Controller Port Assignments \u0026 Drive Shelf Topology';
     } else if (isCloud) {
       const _isSelectTitle = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
-      _cardTitleEl.textContent = _isSelectTitle ? 'ONTAP Select Virtual Network Interface Topology' : 'Cloud Volumes ONTAP Network Interface Topology';
+      const _isAstraTitle = (sys.platformType || '').toUpperCase() === 'ASTRA' || _plat === 'astra';
+      _cardTitleEl.textContent = _isSelectTitle ? 'ONTAP Select Virtual Network Interface Topology' : (_isAstraTitle ? 'Astra Data Store Network Interface Topology' : 'Cloud Volumes ONTAP Network Interface Topology');
     } else {
       _cardTitleEl.textContent = 'Controller Node Port Assignments \u0026 Link Topology';
     }

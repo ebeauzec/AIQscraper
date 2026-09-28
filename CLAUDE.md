@@ -22,20 +22,33 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.143)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.144)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
 
-**Also today (v5.6.143):** ONTAP Select systems (`platformType: "ONTAP-SELECT"`, model reported as a VM
-size like "M300"/"FDvM300", not a real chassis) hit the rear-panel's `isCloud` detection, which only matched
-"cloud" in the platform string/type -- so they fell through to the physical-chassis engine and rendered a
-blank panel. Fixed by broadening `isCloud` in `renderNodeVisualLayout()` to also catch `ONTAP-SELECT`, and
-fixing the "Virtual Appliance" card's provider-label logic (it defaulted to "GCP" for anything that wasn't
-AWS/Azure -- would've been wrong for Select) to say "ONTAP Select (Software-Defined)" / "the VM's hypervisor
-(VMware/KVM)" instead. Asked explicitly to sweep for other broken REST endpoints using the same
-find-the-real-endpoint technique -- found none; everything else is either the confirmed-working token
-exchange or GraphQL (a different technique entirely).
+**Also today (v5.6.144):** asked explicitly to check for other virtualized platform types beyond ONTAP
+Select. Enumerated all 7 `platformType` values in a real fleet -- two needed a look: ASTRA (1 system, has a
+real `ontapVersion` despite the odd model name) and HCI (15 systems, models H410S-2/H410C). **ASTRA is
+NetApp Astra Data Store, Kubernetes-native ONTAP, no physical chassis** -- hit the identical blank "not built
+in" rear panel as ONTAP Select, for the identical reason (`isCloud` didn't match `platformType === "ASTRA"`).
+Fixed the same way: `isCloud` now also matches `ASTRA`, card gets Astra-specific copy ("Astra Data Store
+(Kubernetes-Native)" / "vNICs provisioned by the Kubernetes cluster network (CNI)"). Verified live. **HCI is
+real physical rack hardware, correctly left alone** -- it still shows the blank panel today, but that's the
+*other* bug class (missing chassis layout for real hardware, like FAS50/AFX2K earlier), not something this
+fix should touch. Noted but not fixed: `_platformFamily()` (`app.js` ~17691) only returns
+`storagegrid`/`eseries`/`ontap` -- ASTRA and HCI both fall into the `ontap` catch-all wherever else that
+function is used (upgrade paths, CLI generation), not just the rear panel.
+
+**Also earlier today (v5.6.143):** ONTAP Select systems (`platformType: "ONTAP-SELECT"`, model reported as a
+VM size like "M300"/"FDvM300", not a real chassis) hit the rear-panel's `isCloud` detection, which only
+matched "cloud" in the platform string/type -- so they fell through to the physical-chassis engine and
+rendered a blank panel. Fixed by broadening `isCloud` in `renderNodeVisualLayout()` to also catch
+`ONTAP-SELECT`, and fixing the "Virtual Appliance" card's provider-label logic (it defaulted to "GCP" for
+anything that wasn't AWS/Azure -- would've been wrong for Select) to say "ONTAP Select (Software-Defined)" /
+"the VM's hypervisor (VMware/KVM)" instead. Asked explicitly to sweep for other broken REST endpoints using
+the same find-the-real-endpoint technique -- found none; everything else is either the confirmed-working
+token exchange or GraphQL (a different technique entirely).
 
 **Yesterday's finding (v5.6.142):** Watchlist auto-discovery in `server.py` was
 silently broken since it was written -- every candidate REST path/header combo it tried (five of them, across
@@ -156,8 +169,9 @@ content-audited (ARIA_FIX_PLAN.md looks obsolete, worth archiving). The loadConf
 callers found this session (`updateStatusIndicators`, `runAPIDiagnostics`) -- worth a quick grep for any other
 `loadConfig()` call site before assuming this class of bug is fully closed.
 
-**Git:** branch `main`, pushed through `eb7351c`. Working tree also shows harvest data files modified by the
-running server (`data/*.json`) -- not part of this work, don't commit them with code changes.
+**Git:** branch `main`, pushed through `2773735` (as of the ONTAP Select commit; the Astra commit lands right
+after). Working tree also shows harvest data files modified by the running server (`data/*.json`) -- not part
+of this work, don't commit them with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart (kill the running

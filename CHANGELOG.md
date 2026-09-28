@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.144] - 2026-09-28
+
+### Fixed
+- Follow-up sweep for other virtualized platforms (requested after the ONTAP Select fix): of the 7 distinct platformType values in a real fleet, one more -- ASTRA (NetApp Astra Data Store, Kubernetes-native ONTAP; confirmed ONTAP-based by a real ontapVersion being reported despite no physical chassis) -- hit the identical blank 'physical layout for this model is not built in' panel, for the same reason as ONTAP Select: it fell through to the chassis SVG engine, which has no layout for model "ASTRA" because none was ever going to exist. Now shows the same 'Virtual Appliance, no physical rear panel' card, with copy specific to Astra ('vNICs provisioned by the Kubernetes cluster network (CNI)') rather than reusing the VM-hypervisor or cloud-provider wording written for the other two cases. Verified live against the one real Astra system in the fleet.
+- Also checked: HCI (platformType "HCI", models like H410S-2/H410C) is real rack-mounted physical hardware, not virtualized -- correctly out of scope for this fix. It has no rear-panel chassis layout built either, but that's a different bug (missing physical layout for real hardware, not a false 'not built in' on something with no chassis at all) and hasn't been fixed here.
+
+---
+
 ## [5.6.143] - 2026-09-28
 
 ### Fixed

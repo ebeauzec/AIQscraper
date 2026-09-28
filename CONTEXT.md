@@ -1,9 +1,9 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 5.6.143 (per `version.json`, dated 2026-09-28)
+> **Current Version**: 5.6.144 (per `version.json`, dated 2026-09-28)
 > **Note**: Sections 1-4 were refreshed 2026-09-27. Sections 5-12 still describe the app as of v4.0.7
-> (2026-08-04) and predate the six dated addenda below plus everything through v5.6.143 -- treat them
+> (2026-08-04) and predate the six dated addenda below plus everything through v5.6.144 -- treat them
 > as a historical snapshot, not current state. For what's actually shipped since, read the addenda
 > at the end of this file and `APP_CHANGELOG` in `app.js` (near line 32), not the tables in 5-8.
 
@@ -472,3 +472,11 @@ Key metric calculations are implemented in `app.js` at the following locations:
 ## ONTAP Select: no physical rear panel (v5.6.143)
 
 - `renderNodeVisualLayout()`'s `isCloud` detection (`app.js`, feeds `_buildControllerBackplate`) only matched the platform string or `platformType` containing "cloud" -- catching Cloud Volumes ONTAP but not ONTAP Select, which reports `platformType: "ONTAP-SELECT"` and a `platform`/`model` string that's a VM *size* ("M300", "FDvM300"), not a chassis name. ONTAP Select fell through to the physical-chassis SVG engine, found no layout bucket for "M300", and rendered a blank panel captioned "physical layout for this model is not built in" -- true but misleading, since it's a VM with no chassis at all, the same situation Cloud Volumes ONTAP already has a dedicated "Virtual Appliance, no physical rear panel" card for. `isCloud` now also matches `ONTAP-SELECT`; the card's provider-label logic (previously defaulted to "GCP" for anything that wasn't AWS/Azure -- would have been wrong for Select) now checks for an actual cloud-provider name and falls back to "ONTAP Select (Software-Defined)" / "the VM's hypervisor (VMware/KVM)" instead of guessing a cloud provider that doesn't exist.
+
+
+## Astra Data Store: same blank rear panel as ONTAP Select (v5.6.144)
+
+- Asked explicitly to check for other virtualized platform types beyond ONTAP Select. Enumerated all 7 distinct `platformType` values in a real fleet: ASTRA (1 system), Cloud Volumes ONTAP (12), E-SERIES (214), HCI (15), ONTAP (888, all 33 models confirmed real physical chassis names), ONTAP-SELECT (644, fixed in v5.6.143), STORAGEGRID (514). Two needed investigation: ASTRA (has a real `ontapVersion` reported despite the unusual model name, suggesting ONTAP-based) and HCI (real rack hardware model names like H410S-2/H410C, suspected NOT virtualized).
+- **ASTRA confirmed virtualized and fixed**: it's NetApp Astra Data Store, Kubernetes-native ONTAP -- no physical chassis, same "no rear panel exists" case as ONTAP Select, and it hit the identical blank "not built in" panel for the identical reason (`isCloud` didn't match `platformType === "ASTRA"`). `isCloud` now also matches `ASTRA`; the Virtual Appliance card gets Astra-specific copy ("Astra Data Store (Kubernetes-Native)" / "vNICs provisioned by the Kubernetes cluster network (CNI)") rather than reusing the VM-hypervisor or cloud-provider wording written for the other two cases. Verified live against the one real Astra system in the fleet (rendered correctly after the fix; an earlier live-verification attempt appeared to show an E-Series panel instead, which turned out to be a navigation artifact -- the "Google Inc." customer scope has ~19 other nodes and the node-tabs UI defaulted to a different one, not a rendering bug in the Astra fix itself).
+- **HCI confirmed real hardware, correctly out of scope**: `platformType: "HCI"`, models H410S-2 (storage node)/H410C (compute node) are genuine physical rack-mounted chassis, not virtualized -- explicitly NOT given the Virtual Appliance treatment. It still has no rear-panel chassis layout built (so it also shows the blank "not built in" panel today), but that's a *different* bug class -- missing physical layout for real hardware, the same kind of gap FAS50/AFX2K had in earlier sessions -- not something this fix addresses. Flagged here as a known gap, not yet fixed.
+- Also worth noting for future work: `_platformFamily()` (`app.js` ~line 17691) only returns `'storagegrid'` / `'eseries'` / `'ontap'` -- both ASTRA and HCI fall into the `'ontap'` catch-all for any code path keyed off that function (upgrade-path logic, CLI generation, etc.), not just the rear-panel renderer. Not investigated or changed this pass.

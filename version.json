@@ -1,8 +1,8 @@
 {
-  "version": "5.6.143",
+  "version": "5.6.144",
   "major": 5,
   "minor": 6,
-  "patch": 143,
+  "patch": 144,
   "date": "2026-09-28",
-  "notes": "ONTAP Select rear panel fix: VM-based systems (platformType ONTAP-SELECT, model like M300) now show a 'Virtual Appliance, no physical rear panel' card instead of a blank 'not built in' panel."
+  "notes": "Astra Data Store rear panel fix: platformType ASTRA (Kubernetes-native ONTAP) hit the same blank 'not built in' panel as ONTAP Select and now shows the same Virtual Appliance card. HCI confirmed real hardware, out of scope, not fixed."
 }
