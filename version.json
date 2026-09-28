@@ -1,8 +1,8 @@
 {
-  "version": "5.6.155",
+  "version": "5.6.156",
   "major": 5,
   "minor": 6,
-  "patch": 155,
+  "patch": 156,
   "date": "2026-09-28",
-  "notes": "The v5.6.154 sortable-columns fix was applied to index.html (the compiled build artifact), not index_src.html (the file server.py actually serves in dev mode) -- fixed for real this time, verified with a genuine click event. Also adds a sortable Customer column to the Capacity Breakdown by Node table."
+  "notes": "New Portfolio Dashboard (Action Planner) -- a cross-customer book-of-business rollup (urgency-ranked accounts, fleet-wide risk trend, shared CVE exposure, shared refresh opportunities) a single-tenant dashboard structurally cannot produce. Also adds cross-customer CVE exposure to the Security Advisories section and Security Posture Brief / MSP Report deliverables."
 }

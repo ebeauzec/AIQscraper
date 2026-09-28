@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.155";
+const APP_VERSION = "5.6.156";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.156",
+    date: "28 September 2026",
+    title: "Portfolio Dashboard and Cross-Customer CVE Exposure",
+    sections: [
+      {
+        icon: "✅",
+        label: "New -- Portfolio Executive Dashboard",
+        color: "#22c55e",
+        items: [
+          "New Action Planner section, Portfolio Dashboard (computePortfolioExecutiveDashboard()/_renderPortfolioExecutiveDashboard()) -- a book-of-business rollup across every managed customer, independent of the scope selector above it. KPI tiles (customers, systems, critical risks, open S1/S2 cases, systems within a year of EOS), fleet-wide 30/60/90-day risk trend (reusing the same trend engine with no customer filter), an Accounts Needing Attention table ranked by a critical/high/open-case/EOS urgency score, a Shared CVE Exposure table (CVEs affecting 2+ customers), and a Shared Refresh Opportunities table (hardware models nearing EOS for 2+ customers) -- all sortable. This is a genuine structural edge: a single-tenant dashboard only ever sees one customer's systems and cannot produce a cross-account view like this at all. Gates on having at least 2 customers' worth of systems, same 'degrade honestly' discipline as the other portfolio functions. Verified live against the real 78-customer, 2,898-system fleet: 385 critical risks, 109 systems within a year of EOS, real accounts correctly ranked by urgency, a real CVE affecting 74 of 78 customers, real FAS8200/AFF-A300/AFF-A220 refresh overlaps.",
+        ],
+      },
+      {
+        icon: "✅",
+        label: "New -- Cross-Customer CVE Exposure",
+        color: "#22c55e",
+        items: [
+          "_dfCveIndex() now also tracks which customers (not just which systems) are affected by each CVE. New _dfPortfolioCveExposure()/_dfPortfolioCveExposureText(): for a given scope, finds CVEs that also affect systems belonging to OTHER managed customers elsewhere in the fleet -- unlike the portfolio benchmark, this needs no minimum-size gate, since even one other exposed customer is directly actionable (a shared remediation push or vendor escalation). Rendered as a 'Portfolio Exposure' table in the Security Advisories Action Planner section, and as text in the Security Posture Brief and MSP Service Delivery Report deliverables. Verified live: a real CVE in one customer's scope shown to also affect 73 other customers across 805 systems.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.155",
     date: "28 September 2026",
@@ -18342,8 +18365,9 @@ function _dfCveIndex(systems) {
   const add = (id, sev, cvss, title, sys, kev) => {
     id = String(id || '').trim().toUpperCase();
     if (!/^CVE-\d{4}-\d{4,}$/.test(id)) return;
-    const c = map[id] = map[id] || { id, sev: '', cvss: 0, title: '', systems: new Set(), kev: false };
+    const c = map[id] = map[id] || { id, sev: '', cvss: 0, title: '', systems: new Set(), customers: new Set(), kev: false };
     c.systems.add(sys.systemName || sys.serialNumber);
+    if (sys.customerName) c.customers.add(sys.customerName);
     c.sev = c.sev || String(sev || '').toLowerCase();
     c.cvss = Math.max(c.cvss, parseFloat(cvss) || 0);
     c.title = c.title || title || '';
@@ -25635,6 +25659,115 @@ function _dfPortfolioBenchmark(targetSystems) {
   };
 }
 
+// CVEs affecting this scope that ALSO affect systems belonging to OTHER
+// customers elsewhere in the fleet -- "you are not the only account exposed
+// to this CVE" is information a single-tenant view structurally cannot
+// produce, since it never sees past one customer's own systems. Unlike the
+// benchmark above, this needs no minimum-portfolio-size gate: even one other
+// exposed customer is directly actionable (a shared remediation push, or
+// evidence for prioritizing a CVE NetApp's own severity field underrates).
+// Requires _dfCveIndex()'s customers Set (added alongside this function).
+function _dfPortfolioCveExposure(targetSystems) {
+  const allSystems = (typeof state !== 'undefined' && state.systems) || [];
+  const scopeCustomers = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+  const rest = allSystems.filter(s => s.customerName && !scopeCustomers.has(s.customerName));
+  if (!rest.length) return [];
+  const scopeIdx = _dfCveIndex(targetSystems);
+  const scopeIds = Object.keys(scopeIdx);
+  if (!scopeIds.length) return [];
+  const portfolioIdx = _dfCveIndex(rest);
+  return scopeIds.filter(id => portfolioIdx[id]).map(id => {
+    const s = scopeIdx[id], p = portfolioIdx[id];
+    return {
+      id, sev: s.sev, cvss: s.cvss, kev: s.kev || p.kev, title: s.title || p.title,
+      scopeSystemCount: s.systems.size,
+      otherCustomerCount: p.customers.size,
+      otherSystemCount: p.systems.size,
+      otherCustomers: [...p.customers].sort(),
+    };
+  }).sort((a, b) => (b.kev - a.kev) || (b.otherCustomerCount - a.otherCustomerCount) || (b.cvss - a.cvss));
+}
+// Plain-text "Portfolio Exposure" section for deliverables, or '' when this
+// scope's CVEs don't reach into any other managed customer.
+function _dfPortfolioCveExposureText(targetSystems) {
+  const rows = _dfPortfolioCveExposure(targetSystems);
+  if (!rows.length) return '';
+  const lines = rows.map(c =>
+    `  ${c.id}  ${(c.sev || 'unknown').toUpperCase()}${c.kev ? ' [CISA KEV]' : ''} -- also affects ${c.otherCustomerCount} other customer${c.otherCustomerCount !== 1 ? 's' : ''} (${c.otherSystemCount} systems): ${c.otherCustomers.slice(0, 6).join(', ')}${c.otherCustomers.length > 6 ? ` +${c.otherCustomers.length - 6} more` : ''}`
+  ).join('\n');
+  return `\n## Portfolio Exposure (Also Affecting Other Managed Customers)\n\n` +
+    `${rows.length} CVE${rows.length !== 1 ? 's' : ''} in this scope also affect systems belonging to other customers in the managed fleet -- a shared remediation push or vendor escalation may be more efficient than handling each account separately.\n\n${lines}\n\n`;
+}
+
+// ── Portfolio Executive Dashboard ─────────────────────────────────────────────
+// A book-of-business rollup across every managed customer, independent of the
+// Action Planner's own scope selector -- a single-tenant view structurally
+// cannot produce this at all, since it never sees more than one customer's
+// systems. Gates on having a real portfolio (>=2 customers) and returns null
+// otherwise, same "degrade honestly" discipline as the other portfolio
+// functions above.
+function computePortfolioExecutiveDashboard() {
+  const allSystems = (typeof state !== 'undefined' && state.systems) || [];
+  const byCustomer = {};
+  allSystems.forEach(s => {
+    const name = s.customerName || 'Unknown';
+    (byCustomer[name] = byCustomer[name] || []).push(s);
+  });
+  const customerNames = Object.keys(byCustomer);
+  if (customerNames.length < 2) return null;
+
+  const openCritCasesFor = s => (s.supportCases || []).filter(c => {
+    const sevStr = (c.severity || '').toUpperCase();
+    const statStr = (c.status || '').toUpperCase();
+    const isClosed = statStr.includes('CLOSED') || statStr.includes('CANCELLED') || statStr.includes('PENDING CLOSE');
+    return !isClosed && (sevStr.startsWith('S1') || sevStr.startsWith('S2'));
+  }).length;
+
+  const rows = customerNames.map(name => {
+    const sys = byCustomer[name];
+    const critical = sys.reduce((n, s) => n + (s.risks || []).filter(r => r.severity === 'critical').length, 0);
+    const high = sys.reduce((n, s) => n + (s.risks || []).filter(r => r.severity === 'high').length, 0);
+    const openCases = sys.reduce((n, s) => n + openCritCasesFor(s), 0);
+    const eosSoon = sys.filter(s => { const d = _dfDays(s.hwEndOfSupport); return d != null && d <= 365; }).length;
+    const urgency = critical * 10 + high * 3 + openCases * 5 + eosSoon * 4;
+    return { name, systemCount: sys.length, critical, high, openCases, eosSoon, urgency };
+  }).sort((a, b) => b.urgency - a.urgency);
+
+  const totals = rows.reduce((t, r) => ({
+    systemCount: t.systemCount + r.systemCount, critical: t.critical + r.critical,
+    high: t.high + r.high, openCases: t.openCases + r.openCases, eosSoon: t.eosSoon + r.eosSoon,
+  }), { systemCount: 0, critical: 0, high: 0, openCases: 0, eosSoon: 0 });
+
+  // CVEs affecting 2+ customers fleet-wide -- the same signal
+  // _dfPortfolioCveExposure surfaces per-scope, computed here across the whole
+  // portfolio at once instead of scope-vs-rest.
+  const cveIdx = _dfCveIndex(allSystems);
+  const sharedCves = Object.values(cveIdx).filter(c => c.customers.size >= 2)
+    .map(c => ({ id: c.id, sev: c.sev, cvss: c.cvss, kev: c.kev, customerCount: c.customers.size, systemCount: c.systems.size }))
+    .sort((a, b) => (b.kev - a.kev) || (b.customerCount - a.customerCount) || (b.cvss - a.cvss))
+    .slice(0, 10);
+
+  // Hardware models approaching EOS (<=730 days) shared by 2+ customers --
+  // the fleet-wide version of _dfPortfolioEosOverlap's per-scope check.
+  const modelG = {};
+  allSystems.forEach(s => {
+    const d = _dfDays(s.hwEndOfSupport);
+    if (d == null || d > 730) return;
+    const model = s.model || s.platform || 'Unknown';
+    const g = modelG[model] = modelG[model] || { model, customers: new Set(), count: 0, minDays: Infinity };
+    g.customers.add(s.customerName || 'Unknown'); g.count++; g.minDays = Math.min(g.minDays, d);
+  });
+  const sharedRefresh = Object.values(modelG).filter(g => g.customers.size >= 2)
+    .map(g => ({ model: g.model, customerCount: g.customers.size, count: g.count, minDays: g.minDays }))
+    .sort((a, b) => b.customerCount - a.customerCount).slice(0, 10);
+
+  return {
+    customerCount: customerNames.length, totals, rows,
+    sharedCves, sharedRefresh,
+    trend: _dfTrendWindows(null), // null customerName = fleet-wide, per _get_fleet_trend()'s own contract
+  };
+}
+
 // Capacity growth from Active IQ's monthly cluster history (one series per cluster).
 function _dfCapacityTrend(systems) {
   const seen = {}, series = [];
@@ -26984,6 +27117,7 @@ ${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.len
 
   // 9. MSP Service Delivery Report
   let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
+  mspReport += _dfPortfolioCveExposureText(targetSystems);
 
   // 10. Account Handover Brief
   let handoverBrief = compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -26995,6 +27129,7 @@ ${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.len
   // 12. Security Posture Executive Brief
   let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
   if (_riskTrendText) securityBrief += _riskTrendText;
+  securityBrief += _dfPortfolioCveExposureText(targetSystems);
 
   // 13. Sustainability & ESG Report
   let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -28381,6 +28516,119 @@ function _renderDRReplicationSection(allSystems) {
 // the shape of NetApp Digital Advisor's own VMware asset inventory feature
 // (vCenters/ESXi hosts/VMs, full-stack interop checks).
 // ─────────────────────────────────────────────────────────────────────────────
+function _renderPortfolioExecutiveDashboard() {
+  const d = computePortfolioExecutiveDashboard();
+  if (!d) {
+    return `<div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">This account currently has systems from only one customer. The Portfolio Dashboard aggregates across every managed customer -- it has nothing to compare once a second customer's systems are present.</div>`;
+  }
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+  const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
+  const thStyleR = thStyle.replace('text-align:left', 'text-align:right');
+
+  const kpi = (label, value, color) => `
+    <div style="flex:1; min-width: 150px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+      <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">${label}</h4>
+      <div style="font-size: 1.5rem; color: ${color || 'var(--accent-cyan)'}; margin-bottom: 4px;">${value}</div>
+    </div>`;
+
+  let html = `
+    <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+      ${kpi('Managed Customers', d.customerCount)}
+      ${kpi('Total Systems', d.totals.systemCount)}
+      ${kpi('Critical Risks', d.totals.critical, d.totals.critical > 0 ? '#ef4444' : '#10b981')}
+      ${kpi('Open S1/S2 Cases', d.totals.openCases, d.totals.openCases > 0 ? '#f59e0b' : '#10b981')}
+      ${kpi('Systems &le;1yr EOS', d.totals.eosSoon, d.totals.eosSoon > 0 ? '#f59e0b' : '#10b981')}
+    </div>`;
+
+  if (d.trend) {
+    const dir = n => n > 0 ? `up ${n}` : n < 0 ? `down ${Math.abs(n)}` : 'unchanged';
+    html += `
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Fleet-Wide Risk Trend</h3>
+    <div style="display:flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
+      ${d.trend.map(w => `
+        <div style="flex:1; min-width: 180px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05); font-size:0.78rem;">
+          <div style="color:var(--text-secondary); font-weight:700; margin-bottom:6px;">${w.windowDays} Days${w.partial ? ' *' : ''}</div>
+          <div>Critical: ${dir(w.criticalDelta)} (${w.criticalThen}&rarr;${w.criticalNow})</div>
+          <div>High: ${dir(w.highDelta)} (${w.highThen}&rarr;${w.highNow})</div>
+          <div>Open Crit. Cases: ${dir(w.casesDelta)} (${w.casesThen}&rarr;${w.casesNow})</div>
+        </div>`).join('')}
+    </div>
+    ${d.trend.some(w => w.partial) ? `<div style="font-size:0.72rem;color:var(--text-muted);margin:-16px 0 24px 0;">* fewer than this many days of sync history exist yet -- delta is over the actual tracked span, not the full window</div>` : ''}`;
+  }
+
+  html += `
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Accounts Needing Attention</h3>
+    <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px; margin-bottom:24px;">
+      <table style="${tblStyle}">
+        <tr>
+          ${_sth(thStyle, 'Customer')}
+          ${_sth(thStyleR, 'Systems')}
+          ${_sth(thStyleR, 'Critical')}
+          ${_sth(thStyleR, 'High')}
+          ${_sth(thStyleR, 'Open S1/S2')}
+          ${_sth(thStyleR, '&le;1yr EOS')}
+        </tr>
+        ${d.rows.map(r => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);${r.urgency > 0 ? '' : 'opacity:0.6;'}">
+            <td style="padding:6px 10px;font-weight:600;">${r.name}</td>
+            <td style="padding:6px 10px;text-align:right;">${r.systemCount}</td>
+            <td style="padding:6px 10px;text-align:right;${r.critical > 0 ? 'color:#ef4444;font-weight:700;' : ''}">${r.critical}</td>
+            <td style="padding:6px 10px;text-align:right;${r.high > 0 ? 'color:#f59e0b;' : ''}">${r.high}</td>
+            <td style="padding:6px 10px;text-align:right;">${r.openCases}</td>
+            <td style="padding:6px 10px;text-align:right;">${r.eosSoon}</td>
+          </tr>`).join('')}
+      </table>
+    </div>`;
+
+  if (d.sharedCves.length > 0) {
+    html += `
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Shared CVE Exposure <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;text-transform:none;">-- affecting 2+ managed customers</span></h3>
+    <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px; margin-bottom:24px;">
+      <table style="${tblStyle}">
+        <tr>
+          ${_sth(thStyle, 'CVE')}
+          ${_sth(thStyle, 'Severity')}
+          ${_sth(thStyle, 'CISA KEV')}
+          ${_sth(thStyleR, 'Customers')}
+          ${_sth(thStyleR, 'Systems')}
+        </tr>
+        ${d.sharedCves.map(c => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:6px 10px;font-weight:600;">${c.id}</td>
+            <td style="padding:6px 10px;text-transform:capitalize;">${c.sev || '-'}</td>
+            <td style="padding:6px 10px;">${c.kev ? '<span style="color:#ef4444;font-weight:700;">Yes</span>' : '—'}</td>
+            <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--accent-cyan);">${c.customerCount}</td>
+            <td style="padding:6px 10px;text-align:right;">${c.systemCount}</td>
+          </tr>`).join('')}
+      </table>
+    </div>`;
+  }
+
+  if (d.sharedRefresh.length > 0) {
+    html += `
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Shared Refresh Opportunities <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;text-transform:none;">-- models nearing EOS (&le;730 days) for 2+ managed customers</span></h3>
+    <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
+      <table style="${tblStyle}">
+        <tr>
+          ${_sth(thStyle, 'Model')}
+          ${_sth(thStyleR, 'Customers')}
+          ${_sth(thStyleR, 'Systems')}
+          ${_sth(thStyleR, 'Soonest EOS')}
+        </tr>
+        ${d.sharedRefresh.map(g => `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+            <td style="padding:6px 10px;font-weight:600;">${g.model}</td>
+            <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--accent-cyan);">${g.customerCount}</td>
+            <td style="padding:6px 10px;text-align:right;">${g.count}</td>
+            <td style="padding:6px 10px;text-align:right;${g.minDays <= 90 ? 'color:#ef4444;font-weight:700;' : g.minDays <= 365 ? 'color:#f59e0b;' : ''}">${g.minDays <= 0 ? 'past EOS' : g.minDays + 'd'}</td>
+          </tr>`).join('')}
+      </table>
+    </div>`;
+  }
+
+  return html;
+}
+
 function _renderVMwareInventorySection(allSystems) {
   const withVc = allSystems.filter(s => s.vcenters && s.vcenters.length > 0);
   if (withVc.length === 0) {
@@ -30629,6 +30877,40 @@ function generateActionPlan() {
     });
   }
 
+  // Portfolio Exposure -- CVEs in this scope also affecting other managed
+  // customers elsewhere in the fleet. A structural edge a single-tenant view
+  // can't produce; see _dfPortfolioCveExposure() for the gating rationale.
+  const _portfolioCveExposure = _dfPortfolioCveExposure(targetSystems);
+  if (_portfolioCveExposure.length > 0) {
+    html += `
+      <div style="margin-top:20px;">
+        <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 0 0 8px 0;">Portfolio Exposure <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;text-transform:none;">-- also affecting other managed customers</span></h3>
+        <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+            <tr>
+              ${_sth('text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'CVE')}
+              ${_sth('text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'Severity')}
+              ${_sth('text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'CISA KEV')}
+              ${_sth('text-align:right;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'This Scope')}
+              ${_sth('text-align:right;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;', 'Other Customers')}
+              <th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Also Affects</th>
+            </tr>
+            ${_portfolioCveExposure.map(c => `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:6px 10px;font-weight:600;">${c.id}</td>
+                <td style="padding:6px 10px;text-transform:capitalize;">${c.sev || '-'}</td>
+                <td style="padding:6px 10px;">${c.kev ? '<span style="color:#ef4444;font-weight:700;">Yes</span>' : '—'}</td>
+                <td style="padding:6px 10px;text-align:right;">${c.scopeSystemCount}</td>
+                <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--accent-cyan);">${c.otherCustomerCount} (${c.otherSystemCount} systems)</td>
+                <td style="padding:6px 10px;font-size:0.75rem;color:var(--text-muted);">${c.otherCustomers.slice(0, 4).join(', ')}${c.otherCustomers.length > 4 ? ` +${c.otherCustomers.length - 4} more` : ''}</td>
+              </tr>
+            `).join('')}
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   html += `
     </div>
 
@@ -31405,6 +31687,18 @@ function generateActionPlan() {
     ${_renderVMwareInventorySection(targetSystems)}`;
   planBody.appendChild(sec21);
 
+  const sec22 = document.createElement('div');
+  sec22.className = 'plan-section';
+  sec22.setAttribute('data-section-index', '22');
+  sec22.style.display = 'none';
+  sec22.style.marginTop = '32px';
+  sec22.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Portfolio Dashboard</h2>
+    </div>
+    ${_renderPortfolioExecutiveDashboard()}`;
+  planBody.appendChild(sec22);
+
 
   // Render plan sub-tabs bar dynamically
   const planTabsHeader = document.getElementById("planTabsHeader");
@@ -31416,6 +31710,7 @@ function generateActionPlan() {
         <div class="plan-tab-group-desc">Where every reviewer should start — the one-page rollup of everything below.</div>
         <div class="plan-tab-group-row">
           <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">Summary</button>
+          <button class="plan-tab-btn" data-tab-index="22" onclick="switchPlanTab(22)" title="Book-of-business rollup across every managed customer, independent of the scope selector above -- accounts ranked by urgency, fleet-wide risk trend, CVEs and hardware refresh windows shared by 2+ customers. Needs at least 2 customers' worth of systems to show anything.">📊 Portfolio Dashboard</button>
         </div>
       </div>
       <div class="plan-tab-group">

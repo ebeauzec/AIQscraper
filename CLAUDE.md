@@ -22,69 +22,74 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-28 (Windows dev station, v5.6.153 -> v5.6.155)
+## Session handoff -- 2026-09-28 (Windows dev station, v5.6.153 -> v5.6.156)
 
 Continues the same multi-day stretch (v5.6.85 -> v5.6.153 -- rear-panel accuracy program, hardware-docs
 harvester, Digital Advisor competitive-differentiation work, VMware Inventory section, trend redesign; see
 git log / CHANGELOG.md for that range, don't re-derive). Everything below is pushed to `main`.
 
-**Investigated, turned out NOT to be a bug:** user reported "i also see nothing listed when i click vmware
-inventory" (the section added last session). Traced `generateActionPlan()` -> `_renderVMwareInventorySection()`
-end to end, live. Root cause: the Action Planner's target-scope selector was set to a single system that
-genuinely has `vcenters: []` -- the honest empty-state message was correct, not broken. Verified the feature
-actually works against a real vCenter-bearing customer and the full 2,898-system fleet. No code change.
+**v5.6.154 -> v5.6.155: sortable Capacity Breakdown table + Customer column.** See CHANGELOG.md for the
+detail; the one thing worth repeating here since it cost real time: v5.6.154's sort fix was applied to
+`index.html` only, and "verified" by calling `sortTamTable(th)` directly from the console, which proves the
+function works but NOT that the page wires it up. **`server.py`'s `do_GET()` (~line 8294) rewrites every
+request for `/` to `/index_src.html`** specifically so dev-mode edits take effect without recompiling --
+`index.html` is only the compiled artifact `build/AIQscraper.spec` bundles into the packaged exe, never what
+`python server.py` actually serves. User correctly reported the columns were still unsortable. v5.6.155 fixed
+it for real in `index_src.html` (kept `index.html` in sync too) and re-verified with an actual `th.click()`.
+**Rule for this codebase going forward: any HTML change must land in BOTH `index.html` and `index_src.html`,
+and "verified" means a real DOM event, not a direct function call from the console.**
 
-**v5.6.154, then found to be INCOMPLETE by the user in this same session -- read this before touching
-`index.html`/`index_src.html` again:** user screenshotted the Capacity Breakdown by Node table (CSM tab) and
-asked to make all its columns sortable. First pass added click-to-sort headers to `index.html` only, reusing
-the existing `sortTamTable()`/`_sth()` mechanism, plus extended `sortTamTable()` (`app.js` ~27063) to pin any
-row with a `tam-total-row` class at the bottom instead of sorting it like data (applied to
-`renderNodeBreakdownTable()`'s TOTAL footer row). Verified "live" -- but the verification only ever called
-`sortTamTable(th)` directly in the browser console, which works regardless of whether the onclick attribute
-actually made it into the served page. It hadn't: **`server.py`'s `do_GET()` (~line 8294) rewrites every
-request for `/` (and `/index.html`) to `/index_src.html`** -- a comment there explains this is deliberate, so
-dev-mode edits take effect without recompiling. `index.html` is only the *compiled* artifact
-`build/AIQscraper.spec` bundles into the packaged exe; it is never what `python server.py` actually serves.
-User correctly reported "columns are not sortable" after v5.6.154 shipped, because the real served file was
-never touched. **Lesson for next time:** on this codebase, a fix to `index.html` alone is not verified until
-tested with a real `th.click()` (or equivalent DOM event) against `http://localhost:8080/` specifically --
-calling the target function directly from the console proves the function works, not that the page wires it
-up. And remember `index_src.html` is the file that matters for anything server.py serves at `/`.
+**v5.6.156, this session's main work: asked to "think more about further differentiating from AIQ Digital
+Advisor," then "do both" on the two ideas offered.** Both lean on the same already-established structural
+edge -- multi-tenant fusion (`_merge_account_results()`, `server.py` ~1237) -- which every earlier portfolio
+feature (EOS overlap, SLA benchmark) surfaced *inside* a single customer's deliverable. These two instead
+surface the cross-account view directly.
+1. **Portfolio Executive Dashboard** (`app.js`: `computePortfolioExecutiveDashboard()` / `_renderPortfolioExecutiveDashboard()`,
+   right before `_renderVMwareInventorySection()`). New Action Planner section (`data-tab-index`/`data-section-index`
+   22, in the Overview tab group) -- reads `state.systems` directly, ignores the scope selector entirely, since
+   the whole point is seeing every managed customer at once. KPI tiles, fleet-wide 30/60/90-day risk trend
+   (`_dfTrendWindows(null)` -- confirmed `_get_fleet_trend()` on the server side already treats a null
+   `customer_name` as fleet-wide, no server change needed), an "Accounts Needing Attention" table ranked by an
+   urgency score (critical*10 + high*3 + openCases*5 + eosSoon*4), Shared CVE Exposure (CVEs hitting 2+
+   customers), Shared Refresh Opportunities (hardware models nearing EOS for 2+ customers). Gated on >=2
+   customers existing in `state.systems`, same pattern as `_dfPortfolioBenchmark()`. Verified live against the
+   real 78-customer, 2,898-system fleet: 385 critical risks, 109 systems <=1yr from EOS, real per-account
+   ranking, a real CVE (CVE-2026-4747) affecting 74 of 78 customers, real FAS8200/AFF-A300/AFF-A220 refresh
+   overlaps shared by up to 16 customers -- and confirmed sorting works via a real header click, learning
+   applied from the v5.6.155 lesson above.
+2. **Cross-customer CVE exposure** (`_dfCveIndex()` extended with a `customers` Set per CVE; new
+   `_dfPortfolioCveExposure()` / `_dfPortfolioCveExposureText()`, right after `_dfPortfolioBenchmark()`).
+   Unlike the benchmark, this needs no minimum-portfolio-size gate -- even one other exposed customer is
+   directly actionable. Rendered as a "Portfolio Exposure" table inserted into the existing Security Advisories
+   Action Planner section (data-section-index 3, right after the advisories loop), and as text appended to the
+   Security Posture Brief and MSP Service Delivery Report deliverables. Verified live: scoped to one real
+   customer (STC), a real CVE found to also affect 73 other customers across 805 systems.
 
-**v5.6.155 (this fix, done right):** applied the identical sortable-header markup to `index_src.html`;
-`index.html` kept in sync since the exe still bundles it. Re-verified with a genuine `th.click()` against the
-live-served page (not a direct function call) -- sorts correctly on Used TB and Runway (mixed "> 10 Yrs" /
-numeric text), TOTAL row stays pinned last in both directions. Also added the Customer column the user asked
-for in the same message: `renderNodeBreakdownTable()` (`app.js` ~17490) now emits `s.customerName` in a new
-`<td>` between Node/System and Model, sortable like every other column; both HTML files' TOTAL footer row
-colspan widened 2 -> 3 to still span the three identity columns.
-
-**Noted, not fixed -- possible pre-existing packaging gap, unconfirmed, out of scope for what was asked:**
-`do_GET()`'s `/` -> `/index_src.html` rewrite is unconditional, but `build/AIQscraper.spec`'s `web_datas` only
-bundles `index.html` into the packaged exe, not `index_src.html`. Whether the shipped .exe actually serves
-correctly (falls back somehow) or has always 404'd on its own HTML was not checked this session -- worth a
-quick look next time the exe itself (not `python server.py`) is being tested, since it predates this session's
-changes and isn't something today's fix touched either way.
-
-**Build/release housekeeping done this session:** `APP_VERSION`/`APP_CHANGELOG` bumped to 5.6.154 then
-5.6.155 (`app.js` ~30), `version.json`, `CHANGELOG.md` updated for both. PyInstaller rebuilt twice, once per
-version, to fresh temp dirs (`%LOCALAPPDATA%\Temp\aiqbuild5`, then `aiqbuild6` -- per standing rule below,
+**Build/release housekeeping done this session:** three versions shipped (`APP_VERSION`/`APP_CHANGELOG` in
+`app.js`, `version.json`, `CHANGELOG.md`, all bumped each time): 5.6.154 (sortable table, first attempt),
+5.6.155 (the real fix + Customer column), 5.6.156 (Portfolio Dashboard + CVE exposure). PyInstaller rebuilt
+to a fresh temp dir each time (`aiqbuild5`/`6`/`7` under `%LOCALAPPDATA%\Temp` -- per standing rule below,
 never `build/build_windows.bat`), exe + `_internal/base_library.zip` + `_internal/app.js` + `_internal/index.html`
 + top-level `dist/app.js` copied into the committed `dist/NetApp_AIQ_Advisor/` tree each time.
 
 **Still open / not done:** rear-panel program still has no layout for FAS8000, older FAS25xx/26xx, unnamed
 StorageGRID models, or cloud platforms. LEGAL.md/ARIA_FIX_PLAN.md still not content-audited. Only the
-Capacity Breakdown by Node table is sortable -- the rest of `index.html`/`index_src.html`'s ~59 `<th>`
-elements (and whatever app.js generates dynamically elsewhere) are still not, deferred by explicit user choice
-last session, only in scope if asked again.
+Capacity Breakdown by Node table (CSM tab) is sortable -- the rest of `index.html`/`index_src.html`'s other
+`<th>` elements are still not, out of scope unless asked again. The Portfolio Dashboard's "Accounts Needing
+Attention" urgency score is a simple hand-picked weighting (critical*10/high*3/openCases*5/eosSoon*4), not
+validated against real TAM triage priorities -- worth a second look if a TAM says the ranking feels off.
+Whether the packaged `.exe` itself actually serves correctly given `do_GET()`'s unconditional
+`index_src.html` rewrite (which isn't bundled into the exe per `AIQscraper.spec`) is still unconfirmed --
+flagged last session, still not checked.
 
-**Git:** branch `main`. v5.6.154 and v5.6.155 both committed and pushed. Working tree also shows harvest data
-files modified by the running server (`data/*.json`) -- not part of this work, never commit those with code
-changes.
+**Git:** branch `main`. v5.6.154, v5.6.155, and v5.6.156 all committed and pushed. Working tree also shows
+harvest data files modified by the running server (`data/*.json`) -- not part of this work, never commit
+those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart (kill the running
-python process, relaunch) -- app.js is served fresh on every page load and needs neither. **New this
-session:** `index.html` edits alone are NOT sufficient for anything the dev server serves at `/` -- always
-mirror the change into `index_src.html` too (that's the file `do_GET()` actually serves), and verify with a
-real DOM click/event, not a direct function call.
+python process, relaunch) -- app.js is served fresh on every page load and needs neither. **HTML changes must
+land in both `index.html` and `index_src.html`** -- `do_GET()` serves `index_src.html` at `/` in dev mode;
+`index.html` is only what the packaged exe bundles. **Verify UI wiring with a real DOM event** (`.click()`,
+not calling the handler function directly) -- calling the function proves the logic works, not that the page
+actually wires it up.

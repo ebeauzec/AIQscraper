@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.156] - 2026-09-28
+
+### Added
+- Portfolio Dashboard: new Action Planner section aggregating across every managed customer (independent of the scope selector) -- KPI tiles, fleet-wide 30/60/90-day risk trend, an Accounts Needing Attention table ranked by urgency, Shared CVE Exposure (2+ customers), and Shared Refresh Opportunities (hardware models nearing EOS for 2+ customers). Gated on having at least 2 customers' worth of systems.
+- Cross-customer CVE exposure: `_dfCveIndex()` now tracks affected customers per CVE. New "Portfolio Exposure" table in the Security Advisories section, and text in the Security Posture Brief / MSP Service Delivery Report, showing which other managed customers are also exposed to a CVE found in the current scope.
+
+---
+
 ## [5.6.155] - 2026-09-28
 
 ### Fixed
