@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.143] - 2026-09-28
+
+### Fixed
+- ONTAP Select systems (platformType "ONTAP-SELECT" -- on-prem ONTAP running as a VM under the customer's own hypervisor, reported with a VM-size model like "M300"/"FDvM300" rather than a real chassis) fell through to the physical-chassis rear-panel engine, which has no layout for a VM size that isn't a chassis at all, and rendered a blank panel captioned 'physical layout for this model is not built in' -- technically true but misleading, since no chassis was ever going to exist for a VM. The exact same 'no physical rear panel' card already built for Cloud Volumes ONTAP now also covers ONTAP Select, with copy that doesn't guess a cloud provider it doesn't have ('vNICs provisioned by the VM's hypervisor (VMware/KVM)' instead of falsely saying AWS/Azure/GCP). Reported network ports still show in the table below the card, same as before.
+
+---
+
 ## [5.6.142] - 2026-09-28
 
 ### Fixed

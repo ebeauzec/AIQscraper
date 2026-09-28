@@ -22,12 +22,22 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.142)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.143)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
 
-**Read this first -- today's finding (v5.6.142, 2026-09-28):** Watchlist auto-discovery in `server.py` was
+**Also today (v5.6.143):** ONTAP Select systems (`platformType: "ONTAP-SELECT"`, model reported as a VM
+size like "M300"/"FDvM300", not a real chassis) hit the rear-panel's `isCloud` detection, which only matched
+"cloud" in the platform string/type -- so they fell through to the physical-chassis engine and rendered a
+blank panel. Fixed by broadening `isCloud` in `renderNodeVisualLayout()` to also catch `ONTAP-SELECT`, and
+fixing the "Virtual Appliance" card's provider-label logic (it defaulted to "GCP" for anything that wasn't
+AWS/Azure -- would've been wrong for Select) to say "ONTAP Select (Software-Defined)" / "the VM's hypervisor
+(VMware/KVM)" instead. Asked explicitly to sweep for other broken REST endpoints using the same
+find-the-real-endpoint technique -- found none; everything else is either the confirmed-working token
+exchange or GraphQL (a different technique entirely).
+
+**Yesterday's finding (v5.6.142):** Watchlist auto-discovery in `server.py` was
 silently broken since it was written -- every candidate REST path/header combo it tried (five of them, across
 three call sites) returned 404 or 401. User supplied the real endpoint from NetApp's internal API catalog:
 `GET /v2/watchlist/list`, header `authorizationToken` (raw token, **no** `Bearer ` prefix, **not** the

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.142";
+const APP_VERSION = "5.6.143";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.143",
+    date: "28 September 2026",
+    title: "ONTAP Select Rear Panel: Fixed Blank 'Not Built In' Panel",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "ONTAP Select systems (platformType \"ONTAP-SELECT\" -- on-prem ONTAP running as a VM under the customer's own hypervisor, reported with a VM-size model like \"M300\"/\"FDvM300\" rather than a real chassis) fell through to the physical-chassis rear-panel engine, which has no layout for a VM size that isn't a chassis at all, and rendered a blank panel captioned 'physical layout for this model is not built in' -- technically true but misleading, since no chassis was ever going to exist for a VM. The exact same 'no physical rear panel' card already built for Cloud Volumes ONTAP now also covers ONTAP Select, with copy that doesn't guess a cloud provider it doesn't have ('vNICs provisioned by the VM's hypervisor (VMware/KVM)' instead of falsely saying AWS/Azure/GCP). Reported network ports still show in the table below the card, same as before.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.142",
     date: "28 September 2026",
@@ -36558,12 +36573,21 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
 
   // ── Cloud / StorageGRID / E-Series — special-case returns ─────────────────
   if (isCloud) {
-    const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : 'GCP');
+    // Two genuinely different "no physical chassis" cases share this branch:
+    // Cloud Volumes ONTAP (a real public-cloud provider) and ONTAP Select (an
+    // on-prem VM under the customer's own hypervisor, no cloud provider at
+    // all). Guessing AWS/Azure/GCP for the latter would just be wrong instead
+    // of unknown -- only label a provider when the platform string actually
+    // names one.
+    const isSelect = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
+    const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : ((sys.platform || '').includes('GCP') || (sys.platform || '').includes('Google') ? 'GCP' : null));
+    const label = isSelect ? 'ONTAP Select (Software-Defined)' : `${provider || 'Cloud'} Cloud`;
+    const vnicSource = isSelect ? "the VM's hypervisor (VMware/KVM)" : `the ${provider || 'cloud'} hypervisor`;
     return `<div style="background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(30,64,175,0.15));border:2px dashed rgba(59,130,246,0.4);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
-      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">☁️</div>
+      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">${isSelect ? '\u{1F4BB}' : '☁️'}</div>
       <div style="flex:1;">
-        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${provider} Cloud</div>
-        <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${provider} hypervisor. Logical interfaces shown in table below.</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${label}</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${vnicSource}. Logical interfaces shown in table below.</div>
       </div>
       <div style="font-size:0.55rem;color:var(--accent-cyan);font-family:monospace;background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:4px;">${sys.platform}</div>
     </div>`;
@@ -37175,7 +37199,16 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
   const _plat = (sys.platform || '').toLowerCase();
   const isEseries = _platformFamily(sys) === "eseries" || !!sys.santricityVersion || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
-  const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud");
+  // "Cloud" here really means "software-defined ONTAP with no physical chassis at all" --
+  // Cloud Volumes ONTAP (AWS/Azure/GCP) was the only case originally handled, but ONTAP
+  // Select (on-prem ONTAP running as a VM under VMware/KVM, reported as platformType
+  // "ONTAP-SELECT" with a platform string like "M300"/"FDvM300" -- a VM *size*, not a
+  // chassis model) is the exact same case: no physical rear panel exists to draw. Without
+  // this, ONTAP Select fell through to the physical-chassis SVG engine below, which had
+  // no layout bucket for "M300" and rendered a blank panel with a "not built in" caption --
+  // technically true but misleading, since no chassis was ever going to exist for a VM.
+  const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud")
+    || (sys.platformType || '').toUpperCase().includes("ONTAP-SELECT") || _plat.includes("ontap select") || _plat.includes("ontap-select");
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
   // Update the card title to be platform-appropriate
@@ -37186,7 +37219,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     } else if (isEseries) {
       _cardTitleEl.textContent = 'E-Series Controller Port Assignments \u0026 Drive Shelf Topology';
     } else if (isCloud) {
-      _cardTitleEl.textContent = 'Cloud Volumes ONTAP Network Interface Topology';
+      const _isSelectTitle = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
+      _cardTitleEl.textContent = _isSelectTitle ? 'ONTAP Select Virtual Network Interface Topology' : 'Cloud Volumes ONTAP Network Interface Topology';
     } else {
       _cardTitleEl.textContent = 'Controller Node Port Assignments \u0026 Link Topology';
     }

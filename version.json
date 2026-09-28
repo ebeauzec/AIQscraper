@@ -1,8 +1,8 @@
 {
-  "version": "5.6.142",
+  "version": "5.6.143",
   "major": 5,
   "minor": 6,
-  "patch": 142,
+  "patch": 143,
   "date": "2026-09-28",
-  "notes": "Found the real watchlist-discovery REST endpoint (GET /v2/watchlist/list, authorizationToken header) -- auto-discovery was silently broken since it was written, trying only wrong paths/header names."
+  "notes": "ONTAP Select rear panel fix: VM-based systems (platformType ONTAP-SELECT, model like M300) now show a 'Virtual Appliance, no physical rear panel' card instead of a blank 'not built in' panel."
 }
