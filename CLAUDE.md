@@ -22,20 +22,47 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.152)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.153)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, part 9 (v5.6.153):** two follow-ups after part 8 shipped, both from user questions, not a
+pre-planned task list -- full details in `CONTEXT.md`'s "Full deliverable-suite expansion" addendum
+(now updated in place, don't read v5.6.152's description of the trend feature as current -- it changed
+twice the same day). (1) **New Action Planner section 20, VMware Inventory** (`app.js`, `_renderVMwareInventorySection`,
+right after `_renderDRReplicationSection`) -- asked "where is all the vSphere data shown?" and found the
+answer was "only per-system in the As-Built Document, nowhere fleet-wide." Fleet-wide vCenter rollup (KPI
+tiles, a table, IMT compatibility findings inline), wired into the "Operations & Health" tab group as
+`data-tab-index`/`data-section-index` 21, display label "20." (first shipped as "17." -- user immediately
+caught that it collided with the pre-existing "17. Guidelines" button; fixed to "20.", confirmed free by
+grep before use). Verified live: 5 of 2,898 real systems with a registered vCenter.
+**Lesson**: this codebase's Action Planner already has TWO pre-existing display-number collisions ("16."
+used by both Performance and Logistics & Health) that predate this session -- when adding a new tab, grep
+for the exact display number string (`grep '">N\.'`) before using it, don't just reason about it, and don't
+assume the existing numbering is internally consistent enough to eyeball.
+(2) **The trend feature from v5.6.152 was redesigned, not just renamed.** Asked "how does ARIA know when I
+had my last meeting with a customer?" -- it doesn't; the "Since Last Sync"/"Since Last Check-In" headings
+wrongly implied a calendar/CRM/meeting-log integration that doesn't exist anywhere in this tool, only
+harvest-sync history. User then asked to replace the single ambiguous window with explicit 30/60/90-day
+deltas. `_dfTrendWindows()` now fetches the 90-day series once and computes all three windows' deltas from
+within it (no extra fetches), flagging `partial: true` per-window when less sync history exists than that
+window asks for -- verified with a synthetic 4-point series producing one exact 30-day window and two
+correctly-flagged-partial 60/90-day windows. `_dfTrendText()` renders all three as one table. The internal
+variable was renamed `_sinceLastSyncText` -> `_riskTrendText` throughout `compileExtendedDeliverables()` to
+match. Same fix applied to `README.md`'s Digital Advisor comparison table row. **Also answered, not
+implemented**: asked separately whether ARIA works with the TAM's own machine offline (distinct from the
+dark-site/ASUP-import capability, which is about the *customer's* system not phoning home) -- yes, once one
+sync has completed, since `server.py` and every deliverable/section are pure local computation with no
+network calls except to `server.py`'s own localhost endpoints. Offered to add this as a README FAQ; not
+requested, not added.
 
 **Also today, part 8 (v5.6.152):** asked to review all 15 deliverables (A-O) for further differentiation,
 then "build everything" found. Full details in `CONTEXT.md`'s "Full deliverable-suite expansion, all 15
 deliverables reviewed" addendum -- read that first, don't re-derive. Two more dormant backend engines found:
 **`/api/history/trend`** (`_get_fleet_trend()`, server.py ~1057 -- aggregates the already-populated
 `system_snapshots` table into a daily risk-count series) had zero client-side call sites, same as
-`runIMTInteropCheck()` last time. Wired up via `_dfTrendData()`/`_dfTrendDelta()`/`_dfTrendText()` (app.js
-~18155): client-cached, fetched on first use, renders nothing until real history exists (never blocks,
-never fabricates) -- now a "Since Last Sync" section in QBR Pack, Risk & Remediation Brief, Security Brief,
-Customer Advisory emails, and customer-safe variants in the Customer Value/Health reports.
+`runIMTInteropCheck()` last time -- **superseded by part 9 above, read that for the current design.**
 **Bigger find**: `compileExtendedDeliverables()` already had a precise, deliberately-narrow `imtFindings`
 array (exact vCenter-version matching, built after a documented past fabrication bug) feeding 9+ deliverables
 and a UI badge -- but nothing populated it beyond vSphere, since `runIMTInteropCheck()` (wired up last

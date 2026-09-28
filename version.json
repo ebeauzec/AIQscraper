@@ -1,8 +1,8 @@
 {
-  "version": "5.6.152",
+  "version": "5.6.153",
   "major": 5,
   "minor": 6,
-  "patch": 152,
+  "patch": 153,
   "date": "2026-09-28",
-  "notes": "Wired up a second dormant backend engine (/api/history/trend) into a 'Since Last Sync' section across 6 deliverables; merged the broader IMT interop check into an existing pipeline reaching 9+ more deliverables in one line; added cross-customer portfolio benchmarking (MSP Report) and EOS-overlap detection (Sales Proposals) -- the full deliverable-suite expansion from the Digital Advisor differentiation analysis."
+  "notes": "New fleet-wide VMware Inventory section (Action Planner 17) -- registered vCenters, versions, attached systems/customers, and IMT compatibility findings in one place. Risk trend section replaced with fixed 30/60/90-day windows instead of an ambiguous 'since last sync' framing that could be misread as tracking TAM-customer meetings, which ARIA does not do."
 }

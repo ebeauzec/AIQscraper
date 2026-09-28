@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.152";
+const APP_VERSION = "5.6.153";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.153",
+    date: "28 September 2026",
+    title: "Fleet-Wide VMware Inventory, and a Fixed 30/60/90-Day Risk Trend",
+    sections: [
+      {
+        icon: "✅",
+        label: "New -- VMware Inventory",
+        color: "#22c55e",
+        items: [
+          "vCenter data (a real harvested Active IQ field) previously only ever rendered per-system, one collapsible panel at a time, inside the As-Built Configuration Document -- there was no fleet-wide view, the gap found when asked where vSphere data is shown. New Action Planner section 20, VMware Inventory: registered systems / total, distinct vCenters and versions in use, a vCenter Inventory table (name, version, datacenters, attached systems, customer(s), compatibility status), and any NetApp IMT compatibility findings for those integrations surfaced inline instead of buried in a downloaded document. Matches the shape of Digital Advisor's own VMware asset inventory feature. Verified live against real data: 5 of 2,898 systems with a registered vCenter, 3 distinct vCenters across 2 versions.",
+        ],
+      },
+      {
+        icon: "🩹",
+        label: "Changed -- Risk Trend Is Now Fixed 30/60/90-Day Windows",
+        color: "#f87171",
+        items: [
+          "The v5.6.152 trend section's customer-facing headings ('Since Last Check-In' / 'Since Last Review') implied ARIA tracks when a TAM actually met with or spoke to a customer. It doesn't, and never has: there is no calendar, CRM, or meeting-log integration anywhere in this tool, only harvest-sync history (system_snapshots, captured automatically every sync, by default every 4 hours). Rather than just rename the heading, replaced the single ambiguous window entirely: _dfTrendWindows() now computes real 30/60/90-day critical/high-risk and open-case deltas from one fetch of the widest series, each window explicitly labeled by calendar days ('30 days', '60 days', '90 days') with no claim about anything except the data -- and a '*' flag plus footnote when less sync history exists than a window asks for, so a short-history fleet never gets a misleading full-window number. Now in the QBR Pack, Risk & Remediation Brief, Security Brief, Customer Advisory emails, and both customer-facing reports. Same fix applied to README.md's Digital Advisor comparison table.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.152",
     date: "28 September 2026",
@@ -18214,27 +18237,51 @@ function _dfTrendData(customerName, days) {
   }
   return undefined; // not yet available this render
 }
-// {fromDate, toDate, spanDays, criticalNow/Then/Delta, highNow/Then/Delta, casesNow/Then/Delta} or null
-function _dfTrendDelta(customerName, days) {
-  const trend = _dfTrendData(customerName, days);
-  if (!trend) return null; // undefined (loading) or null (no/insufficient history) both mean "don't render a trend section"
-  const first = trend[0], last = trend[trend.length - 1];
-  return {
-    fromDate: first.date, toDate: last.date, spanDays: trend.length,
-    criticalNow: last.critical || 0, criticalThen: first.critical || 0, criticalDelta: (last.critical || 0) - (first.critical || 0),
-    highNow: last.high || 0, highThen: first.high || 0, highDelta: (last.high || 0) - (first.high || 0),
-    casesNow: last.openCriticalCases || 0, casesThen: first.openCriticalCases || 0, casesDelta: (last.openCriticalCases || 0) - (first.openCriticalCases || 0),
-  };
+// Three fixed windows (30/60/90 days) computed from ONE fetch of the widest
+// (90-day) series, rather than three separate requests. Deliberately NOT
+// framed as "since last sync"/"since last check-in" -- that wording (used in
+// an earlier pass) implied ARIA tracks when a TAM actually engaged a
+// customer, which it doesn't: there is no calendar, CRM, or meeting-log
+// integration anywhere in this tool, only harvest-sync history
+// (system_snapshots, captured automatically every sync). Fixed windows in
+// calendar days sidesteps that ambiguity entirely -- "risk trend over the
+// last 30/60/90 days" makes no claim about anything except the data itself.
+// Returns null (not an array of nulls) if there's no history at all yet.
+function _dfTrendWindows(customerName) {
+  const trend = _dfTrendData(customerName, 90);
+  if (!trend) return null; // undefined (loading) or null (no/insufficient history)
+  const last = trend[trend.length - 1];
+  const lastTime = Date.parse(last.date);
+  return [30, 60, 90].map(n => {
+    const cutoff = new Date(lastTime - n * 86400000).toISOString().slice(0, 10);
+    const start = trend.find(t => t.date >= cutoff) || trend[0];
+    return {
+      windowDays: n, fromDate: start.date, toDate: last.date,
+      // true when the actual tracked history is shorter than this window asks
+      // for (e.g. only 12 days of snapshots exist for a "60 day" window) --
+      // the delta is still real, just over a shorter span than the label says.
+      partial: start.date > cutoff,
+      criticalNow: last.critical || 0, criticalThen: start.critical || 0, criticalDelta: (last.critical || 0) - (start.critical || 0),
+      highNow: last.high || 0, highThen: start.high || 0, highDelta: (last.high || 0) - (start.high || 0),
+      casesNow: last.openCriticalCases || 0, casesThen: start.openCriticalCases || 0, casesDelta: (last.openCriticalCases || 0) - (start.openCriticalCases || 0),
+    };
+  });
 }
-// Plain-text "Since Last Sync" section, or '' when there's nothing to show yet.
-function _dfTrendText(customerName, days, heading) {
-  const d = _dfTrendDelta(customerName, days);
-  if (!d) return '';
+// Plain-text "Risk Trend (30/60/90 Days)" section, or '' when there's nothing to show yet.
+function _dfTrendText(customerName, heading) {
+  const windows = _dfTrendWindows(customerName);
+  if (!windows) return '';
   const dir = n => n > 0 ? `up ${n}` : n < 0 ? `down ${Math.abs(n)}` : 'unchanged';
-  return `\n${heading || '## Since Last Sync'} (${d.fromDate} to ${d.toDate}, ${d.spanDays} sync${d.spanDays !== 1 ? 's' : ''} tracked)\n\n` +
-    `  Critical risks:      ${dir(d.criticalDelta)} (${d.criticalThen} -> ${d.criticalNow})\n` +
-    `  High risks:          ${dir(d.highDelta)} (${d.highThen} -> ${d.highNow})\n` +
-    `  Open critical cases: ${dir(d.casesDelta)} (${d.casesThen} -> ${d.casesNow})\n\n`;
+  const pad = (s, n) => String(s).padEnd(n);
+  const rows = windows.map(w =>
+    `  ${pad(w.windowDays + ' day' + (w.windowDays !== 1 ? 's' : '') + (w.partial ? ' *' : ''), 10)}` +
+    `Critical: ${pad(dir(w.criticalDelta) + ` (${w.criticalThen}->${w.criticalNow})`, 20)}` +
+    `High: ${pad(dir(w.highDelta) + ` (${w.highThen}->${w.highNow})`, 20)}` +
+    `Open Crit. Cases: ${dir(w.casesDelta)} (${w.casesThen}->${w.casesNow})`
+  ).join('\n');
+  const anyPartial = windows.some(w => w.partial);
+  return `\n${heading || '## Risk Trend (30/60/90 Days)'}\n\n${rows}\n` +
+    (anyPartial ? `\n  * fewer than this many days of sync history exist yet -- delta is over the actual tracked span, not the full window\n` : '') + '\n';
 }
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
@@ -25839,13 +25886,13 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
 
-  // "Since Last Sync" trend, if this scope maps to exactly one real customerName
+  // 30/60/90-day risk trend, if this scope maps to exactly one real customerName
   // (matches what system_snapshots stores it keyed by server-side) -- a watchlist
   // or custom group spanning multiple customers falls back to the fleet-wide
   // trend instead of guessing which customer it "really" means.
   const _trendCustNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
   const _trendCustomer = _trendCustNames.size === 1 ? [..._trendCustNames][0] : null;
-  const _sinceLastSyncText = _dfTrendText(_trendCustomer, 90);
+  const _riskTrendText = _dfTrendText(_trendCustomer);
 
   // ── Canonical facts (see _dfContractFacts) ──
   // Support cases arrive sorted (closed last) but never filtered, so every "open cases"
@@ -26885,7 +26932,7 @@ ${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.len
 
   // 8. TAM QBR Pack
   let qbrPack = compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw);
-  if (_sinceLastSyncText) qbrPack += _sinceLastSyncText;
+  if (_riskTrendText) qbrPack += _riskTrendText;
 
   // 9. MSP Service Delivery Report
   let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -26895,11 +26942,11 @@ ${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.len
 
   // 11. Risk & Remediation Brief
   let riskRemediationBrief = compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
-  if (_sinceLastSyncText) riskRemediationBrief += _sinceLastSyncText;
+  if (_riskTrendText) riskRemediationBrief += _riskTrendText;
 
   // 12. Security Posture Executive Brief
   let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
-  if (_sinceLastSyncText) securityBrief += _sinceLastSyncText;
+  if (_riskTrendText) securityBrief += _riskTrendText;
 
   // 13. Sustainability & ESG Report
   let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -26951,7 +26998,7 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     changeTickets += _imtBlock;
     sustainabilityReport += `\n  INTEROPERABILITY NOTE: ${imtFindings.length} IMT finding(s) detected — see full details in Security Brief or Solution Proposal deliverables.\n`;
   }
-  if (_sinceLastSyncText) customerComms += _sinceLastSyncText;
+  if (_riskTrendText) customerComms += _riskTrendText;
 
   // Decisions needed, up front, in the documents a reader opens first.
   const _bannerInsert = (t, block) => { const L = t.split('\n'); let eq = 0; for (let i = 0; i < L.length && i < 12; i++) { if (/^={20,}$/.test(L[i].trim())) { eq++; if (eq === 2) { L.splice(i + 1, 0, '', block.trimEnd(), ''); return L.join('\n'); } } } return block + '\n' + t; };
@@ -26991,8 +27038,13 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     riskRemediationBrief,
     securityBrief,
     sustainabilityReport,
-    customerReport: compileCustomerReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) + (_sinceLastSyncText ? _dfTrendText(_trendCustomer, 90, '## Fleet Health, Since Last Check-In') : ''),
-    valueReport: compileValueReport(targetSystems, allRisks, allSupportCases, scopeTitle) + (_sinceLastSyncText ? _dfTrendText(_trendCustomer, 90, '## Progress Since Last Review') : ''),
+    // Headings deliberately say "90-Day Trend", not "Since Last Check-In/Review" --
+    // this is a trend over harvest-sync history (system_snapshots, captured
+    // automatically every sync, by default every 4 hours), not a record of when
+    // a TAM actually last spoke with or met this customer. ARIA has no calendar,
+    // CRM, or meeting-log integration of any kind; don't imply one.
+    customerReport: compileCustomerReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) + (_riskTrendText ? _dfTrendText(_trendCustomer, '## Fleet Health, Risk Trend (30/60/90 Days)') : ''),
+    valueReport: compileValueReport(targetSystems, allRisks, allSupportCases, scopeTitle) + (_riskTrendText ? _dfTrendText(_trendCustomer, '## Progress, Risk Trend (30/60/90 Days)') : ''),
     _enrichmentCounts: enrichSections._counts || {},
     _fleetProfile: enrichSections._fleetProfile || '',
     _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0),
@@ -28261,6 +28313,105 @@ function _renderDRReplicationSection(allSystems) {
   }
 
 
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section: VMware/vSphere Inventory — fleet-wide rollup of vcenters (a real,
+// harvested Active IQ field: server.py queries `vcenters { id name version }`).
+// Before this, vcenters only ever rendered per-system in the As-Built Document
+// (one collapsible panel per system with a vCenter attached) -- there was no
+// fleet-wide "how many systems have VMware integration, which vCenters, which
+// versions, any compatibility concerns" view anywhere in the dashboard, the
+// gap a user found by asking "where is all the vSphere data shown?". Matches
+// the shape of NetApp Digital Advisor's own VMware asset inventory feature
+// (vCenters/ESXi hosts/VMs, full-stack interop checks).
+// ─────────────────────────────────────────────────────────────────────────────
+function _renderVMwareInventorySection(allSystems) {
+  const withVc = allSystems.filter(s => s.vcenters && s.vcenters.length > 0);
+  if (withVc.length === 0) {
+    return `<div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">No systems in this scope report a registered vCenter. Active IQ only reports this when a cluster has an active vSphere/OTV integration -- absence here means none is registered, not that VMware isn't in use.</div>`;
+  }
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+  const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
+  const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;';
+
+  // Cross-reference against the same interop-finding sources the deliverables use
+  // (the precise vCenter-version-matched check, plus the broader OTV/switch engine)
+  // so a compatibility concern found there is visible here too, not just buried in
+  // a downloaded document.
+  const _signals = _buildDetectedSignals(allSystems);
+  const _findings = runIMTInteropCheck(allSystems, _signals).filter(f => f.integrationKey === 'vmware_otv' || f.integrationKey === 'vmware_vsphere' || f.integrationKey === 'host_utilities_esxi');
+  const _findingsBySystem = {};
+  _findings.forEach(f => { const key = f.system || (f.affectedSystems || [])[0]; if (key) (_findingsBySystem[key] = _findingsBySystem[key] || []).push(f); });
+
+  // Group by vCenter identity (name + version -- the same vCenter registered
+  // against multiple clusters shows as one row with every attached system).
+  const byVc = {};
+  withVc.forEach(s => {
+    s.vcenters.forEach(vc => {
+      const key = (vc.name || 'Unknown') + '|' + (vc.version || '');
+      const g = byVc[key] = byVc[key] || { name: vc.name || 'Unknown', version: vc.version || 'Not reported', datacenters: vc.datacenters, systems: [], customers: new Set() };
+      g.systems.push(s);
+      if (s.customerName) g.customers.add(s.customerName);
+    });
+  });
+  const vcGroups = Object.values(byVc).sort((a, b) => b.systems.length - a.systems.length);
+  const distinctVersions = new Set(vcGroups.map(g => g.version)).size;
+  const flaggedSystems = withVc.filter(s => _findingsBySystem[s.systemName || s.serialNumber]).length;
+
+  let html = `
+    <div style="display:flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">VMware Integration</h4>
+        <div style="font-size: 1.5rem; color: var(--accent-cyan); margin-bottom: 4px;">${withVc.length} / ${allSystems.length}</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary);">systems with a registered vCenter</div>
+      </div>
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Distinct vCenters</h4>
+        <div style="font-size: 1.5rem; color: var(--accent-cyan); margin-bottom: 4px;">${vcGroups.length}</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary);">${distinctVersions} distinct version${distinctVersions !== 1 ? 's' : ''} in use</div>
+      </div>
+      <div style="flex:1; min-width: 200px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
+        <h4 style="margin:0 0 8px 0; color:var(--text-secondary); font-size:0.75rem; text-transform:uppercase;">Compatibility Concerns</h4>
+        <div style="font-size: 1.5rem; color: ${flaggedSystems > 0 ? '#f59e0b' : '#10b981'}; margin-bottom: 4px;">${flaggedSystems}</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary);">system${flaggedSystems !== 1 ? 's' : ''} flagged by the NetApp IMT cross-reference</div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">vCenter Inventory</h3>
+    <div class="tam-table-wrapper" style="overflow-x:auto; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:16px;">
+      <table style="${tblStyle}">
+        <tr>
+          <th style="${thStyle}">vCenter</th>
+          <th style="${thStyle}">Version</th>
+          <th style="${thStyle}">Datacenters</th>
+          <th style="${thStyle}">Systems</th>
+          <th style="${thStyle}">Customer(s)</th>
+          <th style="${thStyle}">Compatibility</th>
+        </tr>
+        ${vcGroups.map(g => {
+          const flagged = g.systems.filter(s => _findingsBySystem[s.systemName || s.serialNumber]);
+          const compatCell = flagged.length > 0
+            ? `<span style="color:#f59e0b;">⚠ ${flagged.length} finding${flagged.length !== 1 ? 's' : ''}</span>`
+            : `<span style="color:#10b981;">✓ No findings</span>`;
+          return `<tr>
+            <td style="${tdStyle}">${g.name}</td>
+            <td style="${tdStyle}font-family:monospace;">${g.version}</td>
+            <td style="${tdStyle}">${g.datacenters != null ? g.datacenters : '—'}</td>
+            <td style="${tdStyle}">${g.systems.map(s => s.systemName || s.serialNumber).join(', ')}</td>
+            <td style="${tdStyle}">${[...g.customers].join(', ') || '—'}</td>
+            <td style="${tdStyle}">${compatCell}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+    </div>
+    ${_findings.length > 0 ? `
+    <h3 style="font-size: 0.9rem; color: var(--text-primary); margin: 24px 0 8px 0;">Compatibility Findings</h3>
+    <div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid #f59e0b; padding: 12px 16px; font-size: 0.82rem; line-height:1.6;">
+      ${_findings.map(f => `<div style="margin-bottom:8px;">${f.severity === 'critical' ? '‼' : f.severity === 'warning' ? '⚠' : 'ℹ'} ${f.message}${f.recommendation ? `<br><span style="color:var(--text-muted);">Recommendation: ${f.recommendation}</span>` : ''}</div>`).join('')}
+    </div>` : ''}
+  `;
   return html;
 }
 
@@ -31188,6 +31339,18 @@ function generateActionPlan() {
     ${_renderPerformanceSection(targetSystems)}`;
   planBody.appendChild(sec20);
 
+  const sec21 = document.createElement('div');
+  sec21.className = 'plan-section';
+  sec21.setAttribute('data-section-index', '21');
+  sec21.style.display = 'none';
+  sec21.style.marginTop = '32px';
+  sec21.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">20. VMware Inventory</h2>
+    </div>
+    ${_renderVMwareInventorySection(targetSystems)}`;
+  planBody.appendChild(sec21);
+
 
   // Render plan sub-tabs bar dynamically
   const planTabsHeader = document.getElementById("planTabsHeader");
@@ -31221,6 +31384,7 @@ function generateActionPlan() {
           <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
           <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
           <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
+          <button class="plan-tab-btn" data-tab-index="21" onclick="switchPlanTab(21)" title="Fleet-wide VMware/vSphere inventory -- every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vcenters only rendered per-system in the As-Built Document.">🖥 20. VMware Inventory</button>
         </div>
       </div>
       <div class="plan-tab-group">

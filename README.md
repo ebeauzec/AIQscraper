@@ -21,7 +21,7 @@
 
 ## Table of Contents
 
-1. [Why This Tool — vs. Active IQ Directly](#1-why-this-tool--vs-active-iq-directly)
+1. [Why This Tool — vs. Active IQ Directly](#1-why-this-tool--vs-active-iq-directly) *(includes a dedicated [vs. NetApp Digital Advisor](#vs-netapp-digital-advisor-specifically) comparison)*
 2. [What It Delivers](#2-what-it-delivers)
 3. [Use Cases](#3-use-cases)
 4. [Getting Started](#4-getting-started)
@@ -90,6 +90,27 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 <p align="center">
   <img src="docs/images/workflow.svg" alt="Four-step ARIA pipeline: Harvest pulls the full fleet from Active IQ in one sync, Enrich cross-references it against a local reference library, Aggregate computes fleet-wide rollups once, and Deliver turns that into 15 customer-ready outputs" width="820">
 </p>
+
+### vs. NetApp Digital Advisor specifically
+
+The comparison above is against Active IQ's own web portal. NetApp also ships **Digital Advisor** (formerly
+Active IQ Digital Advisor, now part of BlueXP) — a real product, not a strawman, with its own watchlists,
+step-by-step Upgrade Advisor, unified Security Report, sustainability scoring, and VMware inventory. Where it
+genuinely overlaps with this tool, we say so rather than pretend otherwise. The differentiation is structural,
+not feature-count:
+
+| | Digital Advisor | ARIA |
+|---|---|---|
+| **Scope** | One login's Active IQ access, watchlists span customers *within* that access | Fuses **separate Active IQ accounts/tenants** into one fleet — the shape a partner/MSP managing sub-orgs actually needs, with real duplicate-system dedup across overlapping accounts, not just concatenation |
+| **Physical hardware** | Telemetry only — no chassis view | Renders the actual rear-panel layout: real port roles, cabling legend, LIF-to-physical-port mapping, for 8+ hardware families. Nothing in Active IQ's own UI does this at all |
+| **Air-gapped / dark-site fleets** | Cloud SaaS only — a customer that won't send AutoSupport to NetApp's cloud cannot use it | Ingests raw ASUP bundles locally via an offline import path — no cloud dependency beyond the one required Active IQ pull |
+| **Output format** | Dashboards; fixed-format PDF/Excel upgrade plans | 15 narrative, editable deliverables (QBR pack, handover brief, as-built doc, CLI runbook) as structured `.docx`/`.md`/`.txt`, in the TAM's own voice, not NetApp's template |
+| **Third-party compatibility in upgrade planning** | Checks ONTAP-internal cluster prerequisites only | Cross-references detected VMware/OTV and SAN/cluster switch integrations against the NetApp IMT and flags findings Digital Advisor's own Upgrade Advisor doesn't check, directly inside the upgrade plan |
+| **CVE triage priority** | CVSS-severity ordered | CISA Known Exploited Vulnerabilities (confirmed active real-world exploitation) sorts *ahead* of CVSS severity — a Medium CVE being actively exploited outranks an unexploited Critical |
+| **Historical risk/case trend** | None — live dashboard, current state only | A fixed 30/60/90-day trend section (critical/high risk and open-case deltas, from harvest-sync history — not a meeting or CRM log; ARIA has neither) in the QBR Pack, Risk & Remediation Brief, Security Brief, and customer-facing reports |
+| **Cross-customer portfolio intelligence** | Not applicable — single-tenant view | SLA compliance benchmarked against every other managed customer in the fleet (MSP Report); hardware-refresh timing cross-referenced across customers to surface bundled-pricing/consolidation opportunities (Sales Proposals) |
+
+**Where Digital Advisor is ahead, honestly:** it's the official, vendor-maintained product — first access to schema/API changes, native iOS/Android apps, and a growing on-ramp into the broader BlueXP ecosystem (backup, ransomware protection, classification) that this tool doesn't try to be. Sustainability scoring is genuine parity, not an ARIA advantage — both tools surface the same underlying Active IQ score.
 
 ---
 

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.153] - 2026-09-28
+
+### Added
+- New Action Planner section 20, VMware Inventory: fleet-wide vCenter rollup (registered/total systems, distinct vCenters and versions, a vCenter table with attached systems/customers, and IMT compatibility findings surfaced inline) -- vCenter data previously only rendered per-system in the As-Built Configuration Document, with no fleet-wide view.
+
+### Changed
+- The v5.6.152 trend section's customer-facing headings ("Since Last Check-In" / "Since Last Review") implied ARIA tracks TAM-customer meetings. It doesn't -- no calendar, CRM, or meeting-log integration exists anywhere in this tool, only harvest-sync history. Replaced the single ambiguous window entirely: the trend now computes real 30/60/90-day deltas from one fetch, each window labeled by calendar days with no claim about anything except the data, flagging (`*`) when less sync history exists than a window asks for. Same fix applied to README.md's Digital Advisor comparison table.
+
+---
+
 ## [5.6.152] - 2026-09-28
 
 ### Added

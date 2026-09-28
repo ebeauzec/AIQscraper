@@ -660,17 +660,41 @@ v5.6.151.
 - **`/api/history/trend` was a second complete dead engine.** `_get_fleet_trend()` (`server.py` ~1057)
   aggregates `system_snapshots` (already captured on every harvest, one dated row per system per day) into a
   daily critical/high-risk and open-critical-case series, fleet-wide or per customer -- with zero call sites
-  anywhere in `app.js`. Added `_dfTrendData()`/`_dfTrendDelta()`/`_dfTrendText()` (`app.js` ~18155, right
-  before `_dfCveIndex()`): client-side cached (`_trendCache`/`_trendInFlight` Maps), fetched on first use per
-  scope, returns `undefined` (not yet loaded, render nothing) rather than blocking or fabricating -- the
-  section simply appears on the next re-render once cached, the same degrade-honestly pattern used for
-  `state.imt_interop`. Wired into `compileExtendedDeliverables()`: computes `_trendCustomer` (the scope's
-  single customerName if all systems share one, else `null` for a fleet-wide/portfolio trend) once, appends
-  `_sinceLastSyncText` to QBR Pack, Risk & Remediation Brief, Security Brief, and Customer Advisory emails,
-  and a differently-headed customer-safe version ("Fleet Health, Since Last Check-In" / "Progress Since Last
-  Review") to the Customer Health & Lifecycle Report and Customer Value Report -- deliberately NOT the raw
-  IMT/interop technical detail added below, since those two are explicitly customer-facing/sanitized
-  documents.
+  anywhere in `app.js`. Added `_dfTrendData()` (`app.js` ~18155, right before `_dfCveIndex()`): client-side
+  cached (`_trendCache`/`_trendInFlight` Maps), fetched on first use per scope, returns `undefined` (not yet
+  loaded, render nothing) rather than blocking or fabricating -- the section simply appears on the next
+  re-render once cached, the same degrade-honestly pattern used for `state.imt_interop`.
+  **Two corrections, same day, after the first version shipped**: (1) user asked "how does ARIA know when I
+  had my last meeting with a customer?" -- the original heading ("Since Last Sync"/"Since Last Check-In"/
+  "Since Last Review") implied ARIA tracks actual TAM-customer engagements. It doesn't -- there is no
+  calendar, CRM, or meeting-log integration anywhere in this tool, only harvest-sync history. (2) User then
+  asked to replace the single ambiguous window with explicit 30/60/90-day deltas. Rather than just rename
+  the heading, replaced the whole design: `_dfTrendWindows(customerName)` fetches the widest (90-day) series
+  once, then computes 30/60/90-day critical/high/open-case deltas from within that same series by finding
+  the earliest entry on/after each window's cutoff date -- no extra fetches. Each window is flagged `partial:
+  true` when the actual tracked history is shorter than the window asks for (e.g. only 12 days of snapshots
+  exist for a "60 day" window), so a short-history fleet gets an honest delta over the real span instead of a
+  number implying a full window it doesn't have. `_dfTrendText()` renders all three windows as one table,
+  each row explicitly labeled by calendar days ("30 days" / "60 days *" / "90 days *"), with a footnote when
+  any window is partial. Verified live: synthetic 4-point series correctly produced 30-day (exact match, not
+  partial), 60-day (partial, real span ~44 days), and 90-day (partial, real span ~89 days) deltas.
+  Wired into `compileExtendedDeliverables()` (variable renamed `_riskTrendText`, was `_sinceLastSyncText`):
+  appends to QBR Pack, Risk & Remediation Brief, Security Brief, and Customer Advisory emails, and a
+  differently-headed customer-safe version ("Fleet Health, Risk Trend (30/60/90 Days)" / "Progress, Risk
+  Trend (30/60/90 Days)") to the Customer Health & Lifecycle Report and Customer Value Report -- deliberately
+  NOT the raw IMT/interop technical detail added below, since those two are explicitly customer-facing/
+  sanitized documents. Same fix applied to `README.md`'s Digital Advisor comparison table (row was titled
+  "What changed since I last engaged this customer" -- renamed to "Historical risk/case trend", now describes
+  the 30/60/90-day design with an explicit "not a meeting or CRM log" note).
+- **Separately, same day**: user asked whether ARIA works while their own machine is offline (distinct from
+  the dark-site/ASUP-import capability, which is about the *customer's* storage system not phoning home to
+  NetApp). Answer, confirmed against the architecture: yes, once at least one sync has completed. `server.py`
+  runs entirely locally (SQLite + local JSON reference files); the dashboard, all 21 Action Planner sections,
+  and every deliverable (including the new trend/VMware/portfolio features) are pure local computation over
+  already-harvested `state.systems` with no network calls except to `server.py`'s own `localhost` endpoints.
+  Only two things need connectivity: pulling *fresh* data from Active IQ, and the enrichment engine
+  discovering *new* KB articles it hasn't cached yet. Not yet added to the README as an explicit FAQ --
+  offered, not requested this session.
 - **The IMT interop pipeline was already built for 9+ deliverables -- just never fed anything but vSphere.**
   Found, while wiring in the trend section, that `compileExtendedDeliverables()` already had a precise,
   deliberately-scoped `imtFindings` array (`app.js` ~25877) matching vCenter's *actual reported version*
