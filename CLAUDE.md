@@ -22,85 +22,92 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-28 (Windows dev station, v5.6.153 -> v5.6.158)
+## Session handoff -- 2026-09-28 (Windows dev station, v5.6.153 -> v5.6.160)
 
 Continues the same multi-day stretch (v5.6.85 -> v5.6.153 -- rear-panel accuracy program, hardware-docs
 harvester, Digital Advisor competitive-differentiation work, VMware Inventory section, trend redesign; see
 git log / CHANGELOG.md for that range, don't re-derive). Everything below is pushed to `main`.
 
-**v5.6.154 -> v5.6.155: sortable Capacity Breakdown table + Customer column.** Repeating the lesson because it
-cost real time twice this stretch: v5.6.154's sort fix landed in `index.html` only, "verified" by calling
-`sortTamTable(th)` directly from the console -- which proves the function works, not that the page wires it
-up. **`server.py`'s `do_GET()` (~line 8294) rewrites every request for `/` to `/index_src.html`** so dev-mode
-edits take effect without recompiling; `index.html` is only the compiled artifact `build/AIQscraper.spec`
-bundles into the exe. v5.6.155 fixed it for real in `index_src.html` (kept `index.html` in sync) and
-re-verified with an actual `th.click()`.
+**v5.6.154 -> v5.6.155: sortable Capacity Breakdown table + Customer column.** `server.py`'s `do_GET()`
+(~line 8294) rewrites `/` to `/index_src.html` in dev mode; `index.html` is only the compiled artifact the
+packaged exe bundles. A fix landed in `index.html` alone is never actually live. Fixed for real in
+`index_src.html`, kept `index.html` in sync. **Rule reinforced repeatedly this stretch: verify with a real
+DOM event (`.click()`), never by calling the handler function directly** -- a direct call proves the logic
+works, not that the page wires it up, and can't catch a missing `<thead>`/`<tbody>` split either (v5.6.157
+hit exactly that on 4 new tables).
 
-**v5.6.156: asked to "think more about further differentiating from AIQ Digital Advisor," then "do both" on
-the two ideas offered.** Both lean on the multi-tenant fusion edge (`_merge_account_results()`, `server.py`
-~1237) that earlier portfolio features only surfaced *inside* a single customer's deliverable:
-1. **Portfolio Executive Dashboard** (`computePortfolioExecutiveDashboard()`/`_renderPortfolioExecutiveDashboard()`,
-   right before `_renderVMwareInventorySection()`). New Action Planner section (tab/section index 22, Overview
-   group) -- reads `state.systems` directly, ignores the scope selector, since the point is seeing every
-   managed customer at once. KPI tiles, fleet-wide 30/60/90-day trend (`_dfTrendWindows(null)` -- confirmed
-   `_get_fleet_trend()` already treats `customer_name=None` as fleet-wide), an urgency-ranked Accounts
-   table, Shared CVE Exposure, Shared Refresh Opportunities. Gated on >=2 customers.
-2. **Cross-customer CVE exposure** (`_dfCveIndex()` extended with a `customers` Set per CVE; new
-   `_dfPortfolioCveExposure()`/`_dfPortfolioCveExposureText()`, after `_dfPortfolioBenchmark()`). No
-   minimum-size gate -- even one other exposed customer is actionable. New "Portfolio Exposure" table in the
-   Security Advisories section (data-section-index 3), plus text in the Security Posture Brief / MSP Report.
+**v5.6.156/157: Portfolio Dashboard + cross-customer CVE exposure**, both leaning on the multi-tenant fusion
+edge (`_merge_account_results()`, `server.py` ~1237). `computePortfolioExecutiveDashboard()` /
+`_renderPortfolioExecutiveDashboard()`: new Action Planner section (tab/section index 22, Overview group),
+ignores the scope selector entirely, gated on >=2 customers in `state.systems`. `_dfCveIndex()` extended with
+a `customers` Set per CVE; `_dfPortfolioCveExposure()` surfaces "this CVE also affects N other customers" with
+no minimum-size gate (even 1 other customer is actionable). v5.6.157 fixed a real bug found from a
+screenshot: all 4 new tables sorted their own header row into the data because they lacked `<thead>`/`<tbody>`
+(every other sortable table in the app already has this split).
 
-**v5.6.157: the four new tables from v5.6.156 sorted their own header row into the results** -- screenshot
-showed the header dropping to the bottom mid-sort. Root cause: those four tables built their header as a
-plain `<tr>` with no `<thead>`/`<tbody>` split, unlike every other sortable table in the app -- the browser's
-implicit tbody caught the header row too, so `sortTamTable()`'s `table.querySelector('tbody')` sorted it
-along with the data. Wrapped all four in explicit `<thead>`/`<tbody>`. **Rule reinforced again**: verify
-sorting with a real `th.click()`, not a direct `sortTamTable(th)` call -- the latter can't catch a missing
-`<thead>` since it only ever looks at whatever `querySelector('tbody')` finds, header row included.
+**v5.6.158/159/160: As-Built Excel export, shipped broken twice, now genuinely fixed and verified.** Asked
+"does it make sense to have the As-Built document downloadable as xlsx?", then "do it all." Built
+`_buildXlsx()`/`_xlsxSheetXml()`/`_colLetter()` (`app.js`, right after `_buildDocx()`) -- a from-scratch
+minimal XLSX writer (no library), 4 sheets (Systems/Shelves/SVMs & LIFs/Risks) from the same fields the
+As-Built TXT export already uses. **Two real corruption bugs, in sequence, both only caught by user testing
+in real Excel -- my own "verification" both times only proved the zip/XML was well-formed, never that Excel
+would actually accept it:**
+1. (v5.6.158 -> v5.6.159) Excel prompted to repair the file. Root cause: `xl/_rels/workbook.xml.rels` declared
+   relationships for every worksheet but never for `styles.xml`, and `styles.xml`'s `cellXfs` had no matching
+   `cellStyles` entry. Found and fixed by reproducing the exact file structure in a standalone Python script
+   and validating with `openpyxl` (`pip install openpyxl` -- not present by default in this environment) until
+   it loaded with zero warnings, THEN applying the identical fix to the real `_buildXlsx()`.
+2. (v5.6.159 -> v5.6.160) File opened clean but the header row was invisible -- screenshotted as blank cells
+   with working autofilter dropdowns, i.e. the text was there but unreadable. Root cause: white bold header
+   text (`color rgb="FFFFFFFF"`) sitting on a fill that used a non-standard fill-index layout (custom solid
+   fill at index 1, when real Excel-generated files always reserve index 0/1 for `none`/`gray125` and start
+   custom fills at 2) -- whatever Excel did with that irregular layout, the practical effect was white-on-
+   nothing. Fixed by conforming to the standard fills convention AND dropping the white color override
+   entirely (header text now just bold, default/black), so visibility no longer depends on the fill
+   rendering at all. Verified this time by extracting the REAL generated `styles.xml` from a live browser
+   export (not just the Python mirror) and confirming the fix landed in the actual `_buildXlsx()` output.
+   **Lesson for next time a hand-rolled OOXML writer (docx or xlsx) is touched: reproduce the exact part
+   structure in Python and load it with `python-docx`/`openpyxl` before calling anything "verified" --
+   well-formed XML and a valid zip are necessary but nowhere near sufficient for Excel/Word to accept it
+   without complaint, and this cost two extra round-trips (found by the user, not by testing) before that
+   discipline was actually followed.**
 
-**v5.6.158: asked "does it make sense to have the As-Built document downloadable as xlsx?", then "do it all."**
-Scoped to the As-Built Configuration Document only (not the narrative deliverables -- QBR pack, briefs,
-proposals -- which stay txt/md/docx, since reflowing prose into cells isn't more useful than the document).
-New `_buildXlsx()`/`_xlsxSheetXml()`/`_colLetter()` (`app.js`, right after `_buildDocx()`): a from-scratch
-minimal XLSX writer, same hand-rolled-OOXML-in-a-zip approach as the existing docx writer, reusing its
-`_zipStored()`/`_xe()` helpers -- no library. New `downloadAsBuiltXlsx()` (right after) reads the exact same
-fields the As-Built TXT export (`downloadPlanSection(19)`) already uses, reshaped into 4 sheets: Systems (one
-row per system), Shelves, SVMs & LIFs, Risks (one row each of the latter three). New "📊 Export Excel" button
-next to the As-Built section's existing Print/Download buttons.
-**Caught and fixed a real bug before shipping**: first version of `_xlsxSheetXml()`'s column-width
-calculation had a paren-counting mistake (9 open, 10 close on one line) that broke ALL of app.js -- caught via
-`read_console_messages` showing a page-wide `Uncaught SyntaxError`, confirmed the exact line via a Python
-`.count('(')`/`.count(')')` sweep (no `node` binary available in this Bash environment to just run `node -c`),
-rewrote the expression as a small named-variable block instead of one deeply nested one-liner to make it
-harder to miscount next time. Verified live after the fix: real 4-sheet zip (checked local file headers
-byte-by-byte for the `PK\x03\x04` signature and file names), real cell data (system name, serial, customer,
-cluster, model, site, ONTAP version) for a real customer scope.
+**Also v5.6.160: Deliverables Suite split into 3 tabs**, per explicit user request (then user specified the
+exact 3 category names to use: "risk & remediation, Customer and Sales, and tam/msp" -- matching the suite's
+own PRE-EXISTING internal category dividers exactly, so no new categorization judgment was needed, just
+splitting the existing single section along its own existing seams). Section 9 (data-section-index 9) now
+holds only cards A-C; two new sections 23 (D-I) and 24 (J-O) hold the rest; tab row now has 3 featured buttons
+instead of 1. New `_DELIVERABLE_CATEGORIES` map (`app.js`, right before `downloadAllDeliverables()`) feeds
+both the new per-tab `downloadDeliverableCategory()` buttons and `downloadAllDeliverables()` itself -- the
+latter was found to be silently missing 2 of the 15 real deliverables (`VALUE_REPORT`/`CUSTOMER_REPORT`,
+added after it was last touched), fixed as part of the same edit since both are now built from one shared list.
 
-**Build/release housekeeping done this session:** five versions shipped this stretch (`APP_VERSION`/
-`APP_CHANGELOG` in `app.js`, `version.json`, `CHANGELOG.md`, bumped each time): 5.6.154, 5.6.155, 5.6.156,
-5.6.157, 5.6.158. PyInstaller rebuilt to a fresh temp dir every time (`aiqbuild5` through `aiqbuild9` under
-`%LOCALAPPDATA%\Temp` -- per standing rule below, never `build/build_windows.bat`), exe +
-`_internal/base_library.zip` + `_internal/app.js` (+ `_internal/index.html` on the two versions that touched
-it) + top-level `dist/app.js` copied into the committed `dist/NetApp_AIQ_Advisor/` tree each time.
+**Build/release housekeeping done this session:** seven versions shipped (`APP_VERSION`/`APP_CHANGELOG` in
+`app.js`, `version.json`, `CHANGELOG.md`, bumped every time): 5.6.154 through 5.6.160. PyInstaller rebuilt to
+a fresh temp dir every time (`aiqbuild5` through `aiqbuild11` under `%LOCALAPPDATA%\Temp` -- per standing rule
+below, never `build/build_windows.bat`), exe + `_internal/base_library.zip` + `_internal/app.js` (+
+`_internal/index.html` on the versions that touched it) + top-level `dist/app.js` copied into the committed
+`dist/NetApp_AIQ_Advisor/` tree each time.
 
 **Still open / not done:** rear-panel program still has no layout for FAS8000, older FAS25xx/26xx, unnamed
 StorageGRID models, or cloud platforms. LEGAL.md/ARIA_FIX_PLAN.md still not content-audited. Only the
 Capacity Breakdown by Node table (CSM tab) is sortable among `index.html`/`index_src.html`'s other `<th>`
-elements -- out of scope unless asked again. The Portfolio Dashboard's urgency-score weighting
-(critical*10/high*3/openCases*5/eosSoon*4) is hand-picked, not validated against real TAM triage priorities.
-Whether the packaged `.exe` itself serves correctly given `do_GET()`'s unconditional `index_src.html` rewrite
-(not bundled into the exe per `AIQscraper.spec`) is still unconfirmed, flagged two sessions running now.
+elements. The Portfolio Dashboard's urgency-score weighting is hand-picked, not validated against real TAM
+triage priorities. Whether the packaged `.exe` itself serves correctly given `do_GET()`'s unconditional
+`index_src.html` rewrite (not bundled into the exe per `AIQscraper.spec`) is still unconfirmed, flagged three
+sessions running now -- worth just checking directly next time, this has been noted long enough.
 
-**Git:** branch `main`. v5.6.154 through v5.6.158 all committed and pushed individually. Working tree also
+**Git:** branch `main`. v5.6.154 through v5.6.160 all committed and pushed individually. Working tree also
 shows harvest data files modified by the running server (`data/*.json`) -- not part of this work, never
 commit those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is
 served fresh on every page load and needs neither. **HTML changes must land in both `index.html` and
-`index_src.html`** -- `do_GET()` serves `index_src.html` at `/` in dev mode; `index.html` is only what the
-packaged exe bundles. **Verify UI wiring with a real DOM event** (`.click()`, not calling the handler function
-directly) -- calling the function proves the logic works, not that the page actually wires it up, and can't
-catch a missing `<thead>`/`<tbody>` split either. **No `node` binary in this Bash environment** -- can't run
-`node -c file.js` to syntax-check; a `new Function(text)` eval against the fetched file in the browser
-console works as a substitute, or a Python paren/brace/bracket-count sweep to narrow down a bad line.
+`index_src.html`.** **Verify UI wiring with a real DOM event**, never a direct function call. **No `node`
+binary in this Bash environment** -- `new Function(text)` on the fetched file in a browser console substitutes
+for `node -c`; a Python paren/brace/bracket-count sweep narrows down a bad line. **Any hand-rolled OOXML
+(docx/xlsx) change must be validated by reproducing the file structure in Python and loading it with
+`python-docx`/`openpyxl`** (installed via pip in this environment, not present by default) **before calling it
+verified** -- a well-formed zip/XML is not sufficient evidence that real Excel/Word will accept it; this
+stretch shipped the xlsx feature broken twice before that discipline was actually applied.

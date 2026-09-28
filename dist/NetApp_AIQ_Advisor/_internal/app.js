@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.159";
+const APP_VERSION = "5.6.160";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.160",
+    date: "28 September 2026",
+    title: "Deliverables Suite Split Into 3 Tabs, and Invisible Excel Headers Fixed",
+    sections: [
+      {
+        icon: "🩹",
+        label: "Fixed -- Excel Header Row Was Invisible (White-on-White)",
+        color: "#f87171",
+        items: [
+          "The v5.6.159 repair-prompt fix made the As-Built Excel export open cleanly, but the header row appeared blank -- screenshotted as empty cells with working autofilter dropdowns, meaning the text was there but invisible. Root cause: the header style used explicit white bold text (<w:color rgb=\"FFFFFFFF\"/>) intended to sit on a dark blue fill, but the fill's index (1) wasn't following the standard OOXML convention real Excel-generated files use (fills 0/1 reserved for 'none'/'gray125', custom fills starting at 2) -- whatever went wrong in Excel's own interpretation of that non-standard layout, the practical effect was white text with no visible fill under it. Rebuilt the header style the safe way: fills now follow the standard 0=none/1=gray125/2=custom-solid convention, and header text stays the default (black) bold color instead of white, so it's never dependent on the fill actually rendering. Verified by extracting the real generated styles.xml from a live export and confirming with openpyxl that the header cell's font has no white override and its fill resolves to the intended light blue.",
+        ],
+      },
+      {
+        icon: "✅",
+        label: "Changed -- Deliverables Suite Split Into 3 Tabs",
+        color: "#22c55e",
+        items: [
+          "The single 'Deliverables Suite (13)' tab (actually 15 documents, badge was stale) held all 15 deliverables on one long scrolling page. Split into three tabs matching the suite's own existing category dividers -- Risk &amp; Remediation (A-C), Customer &amp; Sales (D-I), TAM / MSP (J-O) -- each with its own 'Download All' button scoped to just that tab. New shared _DELIVERABLE_CATEGORIES map feeds both the new per-tab downloads and downloadAllDeliverables() (which had silently drifted out of sync with the real deliverable list -- it was missing Customer Value Report and Customer Health & Lifecycle Report, added after it was last touched; both now included). Verified live: each tab shows exactly its own cards (3/6/6), switching tabs and the per-tab downloads all confirmed with real click events.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.159",
     date: "28 September 2026",
@@ -31476,6 +31499,15 @@ function generateActionPlan() {
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Step-by-step remediation runbooks with exact ONTAP CLI syntax, multi-hop upgrade paths, and platform-specific checks (ASA SAN, E-Series).</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.implementationPlans}</textarea>
       </div>
+    </div>
+
+    <!-- Deliverables Suite, tab 2 of 3: Customer & Sales (D-I) -->
+    <div class="plan-section" data-section-index="23" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Customer &amp; Sales Deliverables</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadDeliverableCategory('SALES')" data-tooltip="Download all 6 deliverables in this tab as individual files in the format chosen on the left.">⬇ Download All (6)</button>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 20px; line-height: 1.5; max-width: 700px;">Part of the ★ Executable Account Deliverables Suite (15 total, split by audience across three tabs) -- customer communications, technical and sales proposals, and the risk/security briefs a sales cycle needs.</p>
 
       <!-- Category 2: Customer & Sales -->
       <div style="margin-bottom: 8px; margin-top: 32px; display: flex; align-items: center; gap: 8px;">
@@ -31537,6 +31569,15 @@ function generateActionPlan() {
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Sustainability score, data reduction impact, capacity growth and optimization recommendations.</p>
         <textarea style="width: 100%; height: 160px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; padding: 10px; border-radius: var(--radius-sm); resize: vertical;" readonly>${docs.sustainabilityReport}</textarea>
       </div>
+    </div>
+
+    <!-- Deliverables Suite, tab 3 of 3: TAM / MSP Operations (J-O) -->
+    <div class="plan-section" data-section-index="24" style="display: none; margin-top: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+        <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">TAM / MSP Operations Deliverables</h2>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px; border-color: rgba(255,215,0,0.3); color: #ffd700;" onclick="downloadDeliverableCategory('TAM')" data-tooltip="Download all 6 deliverables in this tab as individual files in the format chosen on the left.">⬇ Download All (6)</button>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 20px; line-height: 1.5; max-width: 700px;">Part of the ★ Executable Account Deliverables Suite (15 total, split by audience across three tabs) -- account plans, QBR/handover material, and customer-facing lifecycle reporting.</p>
 
       <!-- Category 3: TAM/MSP Operations -->
       <div style="margin-bottom: 8px; margin-top: 32px; display: flex; align-items: center; gap: 8px;">
@@ -31807,7 +31848,9 @@ function generateActionPlan() {
         <div class="plan-tab-group-header"><span class="plan-tab-group-label">★ Customer Deliverables</span></div>
         <div class="plan-tab-group-desc">Ready to export and present — everything above is the analysis that builds these.</div>
         <div class="plan-tab-group-row">
-          <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">Deliverables Suite (13)</button>
+          <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Risk &amp; Remediation deliverables (A-C): Executive Risk Assessment, ITIL Change Control Tickets, CLI Runbooks &amp; Upgrade Plans.">Risk &amp; Remediation</button>
+          <button class="plan-tab-btn featured" data-tab-index="23" onclick="switchPlanTab(23)" title="Customer &amp; Sales deliverables (D-I): Customer Advisory/QBR Comms, Solution &amp; Sales Proposals, Risk &amp; Security Briefs, Sustainability Report.">Customer &amp; Sales</button>
+          <button class="plan-tab-btn featured" data-tab-index="24" onclick="switchPlanTab(24)" title="TAM / MSP Operations deliverables (J-O): TAM Success Plan, QBR Pack, MSP Service Report, Handover Brief, Customer Value &amp; Health Reports.">TAM / MSP</button>
           <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">As-Built Document</button>
         </div>
       </div>
@@ -32331,18 +32374,35 @@ ${sepThin}\n`;
 }
 
 // Download all 13 deliverables at once (staggered to avoid browser popup blockers)
+// The Deliverables Suite's three tabs (A-C Risk & Remediation, D-I Customer &
+// Sales, J-O TAM/MSP Operations) as their downloadDeliverable() type keys --
+// shared by the per-tab "Download All" buttons and by downloadAllDeliverables()
+// below, so the two can't silently drift out of sync with each other again
+// (downloadAllDeliverables() previously omitted VALUE_REPORT/CUSTOMER_REPORT,
+// the two deliverables added after it was last touched).
+const _DELIVERABLE_CATEGORIES = {
+  RISK: ['PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION'],
+  SALES: ['EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL', 'RISK_REMEDIATION_BRIEF', 'SECURITY_BRIEF', 'SUSTAINABILITY_REPORT'],
+  TAM: ['SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'VALUE_REPORT', 'CUSTOMER_REPORT'],
+};
 function downloadAllDeliverables() {
   if (!window.__dlFmtOverride) return _askFormat(() => downloadAllDeliverables(), 'Applies to all deliverables in this download', 6000);
-  const types = [
-    'PROBLEM_STATEMENTS', 'TICKET', 'IMPLEMENTATION',
-    'EMAIL', 'SOLUTION_PROPOSAL', 'SALES_PROPOSAL',
-    'SUCCESS_PLAN', 'QBR_PACK', 'MSP_REPORT', 'HANDOVER_BRIEF', 'RISK_REMEDIATION_BRIEF',
-    'SECURITY_BRIEF', 'SUSTAINABILITY_REPORT'
-  ];
+  const types = [..._DELIVERABLE_CATEGORIES.RISK, ..._DELIVERABLE_CATEGORIES.SALES, ..._DELIVERABLE_CATEGORIES.TAM];
   let delay = 0;
   const _fmtAll = window.__dlFmtOverride;
   types.forEach(type => {
     setTimeout(() => { window.__dlFmtOverride = _fmtAll; try { downloadDeliverable(type); } finally { window.__dlFmtOverride = null; } }, delay);   // each compile takes a while, so the choice is re-applied per file
+    delay += 200;
+  });
+}
+// Download just one Deliverables Suite tab's worth (Risk/Sales/TAM).
+function downloadDeliverableCategory(cat) {
+  if (!window.__dlFmtOverride) return _askFormat(() => downloadDeliverableCategory(cat), 'Applies to every deliverable in this tab', 6000);
+  const types = _DELIVERABLE_CATEGORIES[cat] || [];
+  let delay = 0;
+  const _fmtAll = window.__dlFmtOverride;
+  types.forEach(type => {
+    setTimeout(() => { window.__dlFmtOverride = _fmtAll; try { downloadDeliverable(type); } finally { window.__dlFmtOverride = null; } }, delay);
     delay += 200;
   });
 }
@@ -32796,7 +32856,7 @@ function _buildXlsx(sheets) {   // sheets: [{name, headers, rows}]
     { name: '_rels/.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`) },
     { name: 'xl/workbook.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${_xe(safeName(s.name))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`) },
     { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`) },
-    { name: 'xl/styles.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><name val="Calibri"/><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2E5597"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`) },
+    { name: 'xl/styles.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><name val="Calibri"/><b/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9E1F2"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`) },
     ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: enc.encode(_xlsxSheetXml(s.headers, s.rows)) })),
   ];
   return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

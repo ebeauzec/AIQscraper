@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.160] - 2026-09-28
+
+### Fixed
+- As-Built Excel export's header row was invisible (white text, non-standard fill index that didn't render). Rebuilt the header style using the standard fills convention (0=none, 1=gray125, 2=custom) and default-color bold text.
+
+### Changed
+- Deliverables Suite split into three tabs (Risk & Remediation A-C, Customer & Sales D-I, TAM/MSP J-O), each with its own scoped "Download All". `downloadAllDeliverables()` fixed to include all 15 deliverables (was missing Customer Value Report and Customer Health & Lifecycle Report).
+
+---
+
 ## [5.6.159] - 2026-09-28
 
 ### Fixed

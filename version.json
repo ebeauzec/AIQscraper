@@ -1,8 +1,8 @@
 {
-  "version": "5.6.159",
+  "version": "5.6.160",
   "major": 5,
   "minor": 6,
-  "patch": 159,
+  "patch": 160,
   "date": "2026-09-28",
-  "notes": "Fixed the As-Built Excel export triggering Excel's repair-file prompt: the XLSX writer's workbook.xml.rels was missing a relationship to styles.xml, and styles.xml was missing a cellStyles/Normal entry. Verified by reproducing the same OOXML structure in Python and validating with openpyxl."
+  "notes": "Fixed invisible (white-on-white) header row in the As-Built Excel export -- header style now uses the standard OOXML fills convention and default-color bold text instead of a non-standard fill index with explicit white text. Also split the Deliverables Suite into three tabs (Risk & Remediation, Customer & Sales, TAM/MSP), each with its own scoped Download All."
 }
