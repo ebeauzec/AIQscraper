@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.152] - 2026-09-28
+
+### Added
+- Wired up `/api/history/trend` (a second complete backend engine with zero client-side call sites) into a "Since Last Sync" section, appended to QBR Pack, Risk & Remediation Brief, Security Posture Brief, Customer Advisory emails, Customer Value Report, and Customer Health & Lifecycle Report -- never fabricated, absent until real cached history exists.
+- Merged the broader IMT interop check (`runIMTInteropCheck()`) into an already-existing, previously vSphere-only findings pipeline that reaches 9+ deliverables and a UI badge -- one change retroactively added OTV/switch coverage everywhere instead of building a second parallel implementation.
+- MSP Service Delivery Report: new Portfolio Benchmark comparing this customer's SLA compliance against every other managed customer in the fleet.
+- Sales Refresh & Renewal Proposals: new Portfolio Refresh Overlap flagging hardware models approaching EOS across multiple managed customers in the same window -- a bundled-pricing angle only visible with a multi-tenant view.
+
+---
+
 ## [5.6.151] - 2026-09-28
 
 ### Added

@@ -27,9 +27,41 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.151";
+const APP_VERSION = "5.6.152";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.152",
+    date: "28 September 2026",
+    title: "Deliverable Suite Overhaul: Trend History and Cross-Customer Portfolio Intelligence",
+    sections: [
+      {
+        icon: "✅",
+        label: "New -- Since Last Sync",
+        color: "#22c55e",
+        items: [
+          "Wired up /api/history/trend (server.py's _get_fleet_trend()) -- a second complete backend engine with zero client-side call sites, aggregating the system_snapshots table (already captured on every harvest) into a daily critical/high-risk and open-critical-case series, fleet-wide or per customer. A live dashboard structurally can't answer 'what changed since I last talked to this customer' without the TAM tracking it themselves; this data already existed and was never surfaced. New _dfTrendText()/_dfTrendDelta() render a 'Since Last Sync' section (never fabricated -- absent until real cached history exists) now appended to the QBR Pack, Risk & Remediation Brief, Security Posture Brief, Customer Advisory emails, Customer Value Report, and Customer Health & Lifecycle Report.",
+        ],
+      },
+      {
+        icon: "🔗",
+        label: "New -- Interop Findings Now Reach Almost Every Deliverable",
+        color: "#3b82f6",
+        items: [
+          "Found that a precise, already-deployed VMware-vSphere-only interop check (exact vCenter-version matching, deliberately scoped narrow after a prior fabrication bug) already fed an extensive existing pipeline across 9+ deliverables and a UI badge -- all starved of switch/OTV coverage because nothing populated it beyond vSphere. One line now merges runIMTInteropCheck()'s broader-but-still-honest findings (OTV, Cisco NX-OS/MDS, Brocade, Broadcom) into that same array instead of building a second parallel implementation, retroactively enriching the Executive Risk Assessment, Customer Advisory emails, Solution Proposals, CLI Runbooks, Change Tickets, Sales Proposals, TAM Success Plan, QBR Pack, MSP Report, Handover Brief, Risk & Remediation Brief, and Security Brief in one change.",
+        ],
+      },
+      {
+        icon: "🏢",
+        label: "New -- Multi-Account Portfolio Intelligence",
+        color: "#8b5cf6",
+        items: [
+          "MSP Service Delivery Report: a new Portfolio Benchmark section compares this customer's ASUP/ARP/contract-coverage compliance against the same rates computed across every OTHER managed customer in the fleet -- a comparison only possible because ARIA sees a TAM/MSP's whole book of business in one place, not one customer's dashboard at a time. Gated on at least 20 other systems existing to benchmark against, so it never fabricates a comparison from a handful of unrelated systems.",
+          "Sales Refresh & Renewal Proposals: a new Portfolio Refresh Overlap section flags when a hardware model approaching end-of-support in this account is ALSO approaching EOS for other managed customers in the same window -- a bundled-pricing/coordinated-refresh angle invisible to a single-tenant view. Verified live: found a real 5-customer overlap on AFF-A300 EOS timing.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.151",
     date: "28 September 2026",
@@ -18152,6 +18184,58 @@ function _dfRunwayText(days) {
   if (days > 3650) return '> 10 years';
   return days >= 365 ? (days / 365).toFixed(1) + ' years' : days + ' days';
 }
+// ── Fleet/customer risk trend, from server.py's /api/history/trend ──────────
+// The endpoint (_get_fleet_trend(), server.py ~1057) aggregates the
+// system_snapshots table -- already captured on every harvest, one dated row
+// per system per day -- into a daily {date, critical, high, openCriticalCases,
+// systemCount} series, fleet-wide or scoped to one customer. It had zero
+// call sites anywhere in this file. A live telemetry dashboard structurally
+// can't answer "what changed since I last talked to this customer" without
+// the TAM tracking it themselves outside the tool; this data already exists
+// here and was never surfaced. Deliverable text is generated synchronously
+// from already-loaded state, so this can't block on a fetch -- results are
+// cached client-side and a scope's trend section is simply absent the FIRST
+// time it's viewed (fetch in flight) and present on the next re-render, the
+// same "degrade honestly, never fabricate" discipline used everywhere else
+// in this file (e.g. state.imt_interop).
+const _trendCache = new Map();     // "customer|days" -> trend array | null (no data)
+const _trendInFlight = new Set();
+function _dfTrendData(customerName, days) {
+  days = days || 90;
+  const key = (customerName || '') + '|' + days;
+  if (_trendCache.has(key)) return _trendCache.get(key);
+  if (!_trendInFlight.has(key)) {
+    _trendInFlight.add(key);
+    const qs = '?days=' + days + (customerName ? '&customer=' + encodeURIComponent(customerName) : '');
+    fetch('/api/history/trend' + qs).then(r => r.ok ? r.json() : null)
+      .then(j => { _trendCache.set(key, (j && j.ok && Array.isArray(j.trend) && j.trend.length >= 2) ? j.trend : null); })
+      .catch(() => { _trendCache.set(key, null); })
+      .finally(() => { _trendInFlight.delete(key); });
+  }
+  return undefined; // not yet available this render
+}
+// {fromDate, toDate, spanDays, criticalNow/Then/Delta, highNow/Then/Delta, casesNow/Then/Delta} or null
+function _dfTrendDelta(customerName, days) {
+  const trend = _dfTrendData(customerName, days);
+  if (!trend) return null; // undefined (loading) or null (no/insufficient history) both mean "don't render a trend section"
+  const first = trend[0], last = trend[trend.length - 1];
+  return {
+    fromDate: first.date, toDate: last.date, spanDays: trend.length,
+    criticalNow: last.critical || 0, criticalThen: first.critical || 0, criticalDelta: (last.critical || 0) - (first.critical || 0),
+    highNow: last.high || 0, highThen: first.high || 0, highDelta: (last.high || 0) - (first.high || 0),
+    casesNow: last.openCriticalCases || 0, casesThen: first.openCriticalCases || 0, casesDelta: (last.openCriticalCases || 0) - (first.openCriticalCases || 0),
+  };
+}
+// Plain-text "Since Last Sync" section, or '' when there's nothing to show yet.
+function _dfTrendText(customerName, days, heading) {
+  const d = _dfTrendDelta(customerName, days);
+  if (!d) return '';
+  const dir = n => n > 0 ? `up ${n}` : n < 0 ? `down ${Math.abs(n)}` : 'unchanged';
+  return `\n${heading || '## Since Last Sync'} (${d.fromDate} to ${d.toDate}, ${d.spanDays} sync${d.spanDays !== 1 ? 's' : ''} tracked)\n\n` +
+    `  Critical risks:      ${dir(d.criticalDelta)} (${d.criticalThen} -> ${d.criticalNow})\n` +
+    `  High risks:          ${dir(d.highDelta)} (${d.highThen} -> ${d.highNow})\n` +
+    `  Open critical cases: ${dir(d.casesDelta)} (${d.casesThen} -> ${d.casesNow})\n\n`;
+}
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -23727,7 +23811,19 @@ ${dashboardLines}
   Support Contract Coverage ${String(slaThresholds.contract).padEnd(3)}%      ${String(contractPct).padStart(3)}%      ${slaStatus(contractPct, slaThresholds.contract)}
   Risk Posture (Crit<=${slaThresholds.critRisks})   ${String(slaThresholds.critRisks).padEnd(3)}       ${String(critCount).padStart(3)}       ${critCount <= slaThresholds.critRisks ? 'MET' : 'MISSED'}
   Case MTTR (<=${mttrTarget}d)        ${String(mttrTarget).padEnd(3)}d      ${mttrDays != null ? String(mttrDays).padStart(3) + 'd' : ' N/A'}      ${mttrDays != null ? (parseFloat(mttrDays) <= mttrTarget ? 'MET' : 'MISSED') : 'NO DATA'}
-
+${(() => {
+  const bm = _dfPortfolioBenchmark(targetSystems);
+  if (!bm) return '';
+  const cmp = (mine, theirs) => theirs == null || mine == null ? '' : (mine > theirs ? ` (portfolio avg ${theirs}%, above)` : mine < theirs ? ` (portfolio avg ${theirs}%, below)` : ` (portfolio avg ${theirs}%, even)`);
+  return `
+--------------------------------------------------------------------------------
+3a. PORTFOLIO BENCHMARK -- vs. ${bm.portfolioCustomerCount} other managed customer(s) [${bm.portfolioSystemCount} systems]
+--------------------------------------------------------------------------------
+  ASUP Compliance           ${String(asupPct).padStart(3)}%${cmp(parseFloat(asupPct), bm.asupPct)}
+  ARP Enablement            ${_ontapN > 0 ? String(arpPct).padStart(3) + '%' : ' N/A'}${_ontapN > 0 ? cmp(parseFloat(arpPct), bm.arpPct) : ''}
+  Support Contract Coverage ${String(contractPct).padStart(3)}%${cmp(parseFloat(contractPct), bm.contractPct)}
+`;
+})()}
 --------------------------------------------------------------------------------
 4. CAPACITY CONSUMPTION & RUNWAY REPORT [METRICS]
 --------------------------------------------------------------------------------
@@ -25380,6 +25476,70 @@ function _dfRefreshPlan(systems) {
   });
 }
 
+// ── Multi-account portfolio analytics ────────────────────────────────────────
+// Both functions below read the global `state.systems` directly (the full,
+// already-deduped multi-account fleet -- see _merge_account_results() in
+// server.py) rather than the scope-filtered `targetSystems` a deliverable is
+// generated for. This is a genuine structural edge a single-tenant dashboard
+// can't produce: it sees one customer's data at a time, never a TAM/MSP's
+// whole book of business in one place. Both gate on having enough of a wider
+// portfolio to compare against (never fabricate a benchmark from 1-2 other
+// systems) and return null/[] when there isn't one -- same "degrade honestly"
+// discipline as the trend section above.
+
+// Hardware models approaching EOS in THIS scope that are ALSO approaching EOS
+// for OTHER customers in the fleet within the same window -- a genuine
+// negotiating/consolidation opportunity ("you're not the only one refreshing
+// this model this year") that only exists because ARIA sees every managed
+// customer's fleet, not just this one.
+function _dfPortfolioEosOverlap(targetSystems) {
+  const allSystems = (typeof state !== 'undefined' && state.systems) || [];
+  const scopeCustomers = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+  const scopeModels = new Set();
+  targetSystems.forEach(s => {
+    const d = _dfDays(s.hwEndOfSupport);
+    if (d != null && d <= 730) scopeModels.add(s.model || s.platform || 'Unknown');
+  });
+  if (!scopeModels.size) return [];
+  const byModel = {};
+  allSystems.forEach(s => {
+    const model = s.model || s.platform || 'Unknown';
+    if (!scopeModels.has(model) || scopeCustomers.has(s.customerName)) return;
+    const d = _dfDays(s.hwEndOfSupport);
+    if (d == null || d > 730) return;
+    const g = byModel[model] = byModel[model] || { model, customers: new Set(), count: 0 };
+    g.customers.add(s.customerName || 'Unknown'); g.count++;
+  });
+  return Object.values(byModel).filter(g => g.customers.size > 0)
+    .map(g => ({ model: g.model, count: g.count, customers: [...g.customers] }))
+    .sort((a, b) => b.customers.length - a.customers.length);
+}
+
+// This scope's SLA-relevant compliance rates (ASUP reporting, ARP enablement,
+// active support contract coverage) against the same rates computed across
+// every OTHER customer in the fleet. Requires at least 20 systems' worth of
+// other customers before showing anything -- a "portfolio average" from a
+// handful of unrelated systems isn't a meaningful benchmark.
+function _dfPortfolioBenchmark(targetSystems) {
+  const allSystems = (typeof state !== 'undefined' && state.systems) || [];
+  const scopeCustomers = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+  const rest = allSystems.filter(s => s.customerName && !scopeCustomers.has(s.customerName));
+  if (rest.length < 20) return null;
+  const pctFor = (systems, pred, denomPred) => {
+    const denom = denomPred ? systems.filter(denomPred) : systems;
+    if (!denom.length) return null;
+    return Math.round(denom.filter(pred).length / denom.length * 100);
+  };
+  const ontapOnly = s => _platformFamily(s) === 'ontap';
+  return {
+    portfolioCustomerCount: new Set(rest.map(s => s.customerName)).size,
+    portfolioSystemCount: rest.length,
+    asupPct: pctFor(rest, s => { const a = _realAutosupportStatus(s); return a.enabled && !a.unknown; }),
+    arpPct: pctFor(rest, s => s.isARPEnabled === true, ontapOnly),
+    contractPct: pctFor(rest, s => s.contractActive !== false),
+  };
+}
+
 // Capacity growth from Active IQ's monthly cluster history (one series per cluster).
 function _dfCapacityTrend(systems) {
   const seen = {}, series = [];
@@ -25679,6 +25839,14 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
 
+  // "Since Last Sync" trend, if this scope maps to exactly one real customerName
+  // (matches what system_snapshots stores it keyed by server-side) -- a watchlist
+  // or custom group spanning multiple customers falls back to the fleet-wide
+  // trend instead of guessing which customer it "really" means.
+  const _trendCustNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
+  const _trendCustomer = _trendCustNames.size === 1 ? [..._trendCustNames][0] : null;
+  const _sinceLastSyncText = _dfTrendText(_trendCustomer, 90);
+
   // ── Canonical facts (see _dfContractFacts) ──
   // Support cases arrive sorted (closed last) but never filtered, so every "open cases"
   // figure and list in every document counted closed and cancelled cases. Documents get
@@ -25843,6 +26011,15 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
       });
     });
   }
+  // Broader coverage for OTV and SAN/cluster switches, using the shared runIMTInteropCheck()
+  // engine (app.js ~13450) instead of hand-rolling a second parallel implementation. Less
+  // precise than the vSphere check above -- it flags "any node's ONTAP is below what the
+  // CURRENT-RECOMMENDED target requires" rather than matching an actual installed version,
+  // since Active IQ doesn't report one for these the way it reports vc.version -- but still
+  // honest: it never claims what's actually installed, only what the recommended target
+  // needs. vmware_vsphere is excluded here since the precise, version-matched check above
+  // already covers it and is strictly better.
+  imtFindings.push(...runIMTInteropCheck(targetSystems, _buildDetectedSignals(targetSystems)).filter(f => f.integrationKey !== 'vmware_vsphere'));
   const imtCritical = imtFindings.filter(f => f.severity === 'critical');
   const imtWarnings = imtFindings.filter(f => f.severity === 'warning');
   const imtInfo = imtFindings.filter(f => f.severity === 'info' || f.type === 'tool_eol_warning');
@@ -26690,11 +26867,25 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
     salesProposals += `No urgent hardware refreshes, contract renewals, or security gaps identified.\n`;
   }
 
+  // ── Portfolio EOS overlap -- other managed customers hitting the same model's
+  // end of support in the same window. A negotiating/consolidation angle only
+  // visible because this fleet spans multiple customers/accounts in one place.
+  { const _eosOverlap = _dfPortfolioEosOverlap(targetSystems);
+    if (_eosOverlap.length) {
+      salesProposals += `\nPORTFOLIO REFRESH OVERLAP [OWNERSHIP]
+--------------------------------------------------------------------------------
+The following hardware refresh(es) are not unique to this account -- other customers in your managed portfolio are approaching end of support on the same model within the same window, a potential angle for bundled pricing or a coordinated refresh conversation:
+${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.length} other customer${g.customers.length !== 1 ? 's' : ''} (${g.customers.slice(0, 5).join(', ')}${g.customers.length > 5 ? ' and ' + (g.customers.length - 5) + ' more' : ''})`).join('\n')}
+`;
+    }
+  }
+
   // 7. TAM Success Plan
   let customerSuccessPlan = compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts, allSupportCases, fw);
 
   // 8. TAM QBR Pack
   let qbrPack = compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle, fw);
+  if (_sinceLastSyncText) qbrPack += _sinceLastSyncText;
 
   // 9. MSP Service Delivery Report
   let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -26704,9 +26895,11 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
 
   // 11. Risk & Remediation Brief
   let riskRemediationBrief = compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
+  if (_sinceLastSyncText) riskRemediationBrief += _sinceLastSyncText;
 
   // 12. Security Posture Executive Brief
   let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
+  if (_sinceLastSyncText) securityBrief += _sinceLastSyncText;
 
   // 13. Sustainability & ESG Report
   let sustainabilityReport = compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
@@ -26758,6 +26951,7 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     changeTickets += _imtBlock;
     sustainabilityReport += `\n  INTEROPERABILITY NOTE: ${imtFindings.length} IMT finding(s) detected — see full details in Security Brief or Solution Proposal deliverables.\n`;
   }
+  if (_sinceLastSyncText) customerComms += _sinceLastSyncText;
 
   // Decisions needed, up front, in the documents a reader opens first.
   const _bannerInsert = (t, block) => { const L = t.split('\n'); let eq = 0; for (let i = 0; i < L.length && i < 12; i++) { if (/^={20,}$/.test(L[i].trim())) { eq++; if (eq === 2) { L.splice(i + 1, 0, '', block.trimEnd(), ''); return L.join('\n'); } } } return block + '\n' + t; };
@@ -26797,8 +26991,8 @@ Reference: mysupport.netapp.com/matrix (NetApp Interoperability Matrix Tool)
     riskRemediationBrief,
     securityBrief,
     sustainabilityReport,
-    customerReport: compileCustomerReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle),
-    valueReport: compileValueReport(targetSystems, allRisks, allSupportCases, scopeTitle),
+    customerReport: compileCustomerReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle) + (_sinceLastSyncText ? _dfTrendText(_trendCustomer, 90, '## Fleet Health, Since Last Check-In') : ''),
+    valueReport: compileValueReport(targetSystems, allRisks, allSupportCases, scopeTitle) + (_sinceLastSyncText ? _dfTrendText(_trendCustomer, 90, '## Progress Since Last Review') : ''),
     _enrichmentCounts: enrichSections._counts || {},
     _fleetProfile: enrichSections._fleetProfile || '',
     _totalEnrichmentArticles: Object.values(enrichSections._counts || {}).reduce((a, b) => a + b, 0),

@@ -22,10 +22,36 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.151)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.152)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, part 8 (v5.6.152):** asked to review all 15 deliverables (A-O) for further differentiation,
+then "build everything" found. Full details in `CONTEXT.md`'s "Full deliverable-suite expansion, all 15
+deliverables reviewed" addendum -- read that first, don't re-derive. Two more dormant backend engines found:
+**`/api/history/trend`** (`_get_fleet_trend()`, server.py ~1057 -- aggregates the already-populated
+`system_snapshots` table into a daily risk-count series) had zero client-side call sites, same as
+`runIMTInteropCheck()` last time. Wired up via `_dfTrendData()`/`_dfTrendDelta()`/`_dfTrendText()` (app.js
+~18155): client-cached, fetched on first use, renders nothing until real history exists (never blocks,
+never fabricates) -- now a "Since Last Sync" section in QBR Pack, Risk & Remediation Brief, Security Brief,
+Customer Advisory emails, and customer-safe variants in the Customer Value/Health reports.
+**Bigger find**: `compileExtendedDeliverables()` already had a precise, deliberately-narrow `imtFindings`
+array (exact vCenter-version matching, built after a documented past fabrication bug) feeding 9+ deliverables
+and a UI badge -- but nothing populated it beyond vSphere, since `runIMTInteropCheck()` (wired up last
+session) was a totally separate implementation nobody had connected. One line merges them (keeps the
+precise vSphere check, adds broader-but-honest OTV/Cisco/Brocade/Broadcom coverage), retroactively enriching
+essentially the whole deliverable suite in one change -- verified live, 9 real findings flowing through.
+**New this pass**: `_dfPortfolioBenchmark()`/`_dfPortfolioEosOverlap()` (app.js, after `_dfRefreshPlan()`)
+read `state.systems` directly (the full multi-account fleet, not the scope-filtered `targetSystems`) for
+genuine cross-customer analytics a single-tenant dashboard can't produce -- SLA benchmarking in the MSP
+Report, EOS-overlap detection in Sales Proposals. Both gate on enough real portfolio breadth before showing
+anything. Verified live against the real fleet: real AFF-A300 5-customer EOS overlap found, real
+ASUP/ARP/contract percentages compared against a 138-system/13-customer portfolio.
+**Worth remembering**: before building a "new" feature, grep for existing arrays/pipelines that already
+plumb similar data into deliverables (like `imtFindings` here) -- this session found TWO cases where a
+complete consumer-side pipeline already existed and just needed its one upstream data source connected,
+which is far less work and far more consistent than adding a third parallel implementation.
 
 **Also today, part 7 (v5.6.151):** user said to build everything from the competitive-analysis follow-up
 list. All four items done -- full details (what changed, exact line numbers, live verification results) are

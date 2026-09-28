@@ -649,3 +649,62 @@ verified results:**
   added -- ARIA already treats past-end-of-limited-support as an urgency signal (`_unsupported()`'s
   `pastLimited` check) rather than a hard block, which has the same practical effect, but this wasn't verified
   against a specific 9-month boundary since Active IQ doesn't expose one to check against.
+
+
+## Full deliverable-suite expansion, all 15 deliverables reviewed (v5.6.152)
+
+Asked to review every deliverable (A-O) and expand differentiation across the whole suite, then build
+everything found. Two more dormant/underused backend capabilities found and closed, on top of the four from
+v5.6.151.
+
+- **`/api/history/trend` was a second complete dead engine.** `_get_fleet_trend()` (`server.py` ~1057)
+  aggregates `system_snapshots` (already captured on every harvest, one dated row per system per day) into a
+  daily critical/high-risk and open-critical-case series, fleet-wide or per customer -- with zero call sites
+  anywhere in `app.js`. Added `_dfTrendData()`/`_dfTrendDelta()`/`_dfTrendText()` (`app.js` ~18155, right
+  before `_dfCveIndex()`): client-side cached (`_trendCache`/`_trendInFlight` Maps), fetched on first use per
+  scope, returns `undefined` (not yet loaded, render nothing) rather than blocking or fabricating -- the
+  section simply appears on the next re-render once cached, the same degrade-honestly pattern used for
+  `state.imt_interop`. Wired into `compileExtendedDeliverables()`: computes `_trendCustomer` (the scope's
+  single customerName if all systems share one, else `null` for a fleet-wide/portfolio trend) once, appends
+  `_sinceLastSyncText` to QBR Pack, Risk & Remediation Brief, Security Brief, and Customer Advisory emails,
+  and a differently-headed customer-safe version ("Fleet Health, Since Last Check-In" / "Progress Since Last
+  Review") to the Customer Health & Lifecycle Report and Customer Value Report -- deliberately NOT the raw
+  IMT/interop technical detail added below, since those two are explicitly customer-facing/sanitized
+  documents.
+- **The IMT interop pipeline was already built for 9+ deliverables -- just never fed anything but vSphere.**
+  Found, while wiring in the trend section, that `compileExtendedDeliverables()` already had a precise,
+  deliberately-scoped `imtFindings` array (`app.js` ~25877) matching vCenter's *actual reported version*
+  against `_getImtInterop().vmware_vsphere`'s version-keyed compat table -- built after a documented prior
+  bug where a cruder substring-search fabricated Proxmox/Hyper-V/Cisco/Brocade estates a customer might not
+  have. That array already fed `problemStatements`, `customerComms`, `solutionProposals`,
+  `implementationPlans`, `changeTickets`, `salesProposals`, `customerSuccessPlan`, `qbrPack`, `mspReport`,
+  `handoverBrief`, `riskRemediationBrief`, `securityBrief`, `sustainabilityReport`, and a UI badge on the
+  Deliverables tab -- but nothing populated it beyond vSphere, since `runIMTInteropCheck()` (wired up in
+  v5.6.151) was a completely separate, parallel implementation nobody had connected to it. One line
+  (`imtFindings.push(...runIMTInteropCheck(...).filter(f => f.integrationKey !== 'vmware_vsphere'))`) merges
+  the two: keeps the precise version-matched vSphere check as-is (strictly better where Active IQ reports an
+  actual version), adds the broader-but-still-honest OTV/Cisco/Brocade/Broadcom findings for everything else.
+  Retroactively enriched every deliverable in that list with switch/OTV coverage in one change. Verified
+  live: a real fleet slice produced 9 findings spanning `vmware_otv`, `cisco_nxos`, `cisco_mds`,
+  `broadcom_efos`, and `host_utilities_esxi`, all flowing correctly into `qbrPack` and the rest.
+- **Multi-account portfolio analytics, the genuine structural edge.** Two new functions (`app.js`, right
+  after `_dfRefreshPlan()`) read `state.systems` directly (the full, already-deduped multi-account fleet)
+  rather than the scope-filtered `targetSystems` a deliverable is generated for -- a comparison a
+  single-tenant dashboard structurally cannot produce. Both gate on having enough of a wider portfolio to
+  compare against and return `null`/`[]` otherwise, never fabricating a benchmark from a handful of unrelated
+  systems: `_dfPortfolioBenchmark()` (needs >=20 other systems) computes ASUP/ARP/contract-coverage rates
+  across every OTHER customer in the fleet, now a "Portfolio Benchmark" section in the MSP Service Delivery
+  Report right after its existing SLA Compliance Matrix. `_dfPortfolioEosOverlap()` finds hardware models
+  approaching EOS in this scope that are ALSO approaching EOS for other managed customers in the same window,
+  now a "Portfolio Refresh Overlap" section in Sales Refresh & Renewal Proposals. Verified live against the
+  real fleet: MSP Report showed "vs. 13 other managed customers [138 systems]" with real ASUP/ARP/contract
+  percentages; Sales Proposals found a genuine 5-customer AFF-A300 EOS overlap.
+- **Deliverable roster confirmed complete** (A-O plus the As-Built Configuration Document, cross-checked
+  against the actual Action Planner UI labels, not assumed): A Executive Risk Assessment, B ITIL Change
+  Control Tickets, C CLI Runbooks & Upgrade Plans, D Customer Advisory & QBR Comms, E Technical Solution
+  Proposals, F Sales Refresh & Renewal Proposals, G Risk & Remediation Brief, H Security Posture Brief, I
+  Sustainability & ESG Report, J TAM Success & Posture Plan, K TAM QBR Pack, L MSP Service Delivery Report, M
+  Account Handover Brief, N Customer Value Report, O Customer Health & Lifecycle Report. As-Built Document
+  untouched this pass -- already ARIA's strongest edge (rear-panel diagrams), no gap found there. Sustainability
+  (I) deliberately left alone -- still a pass-through of Active IQ's own score, not something to fake a
+  differentiator on top of.
