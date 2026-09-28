@@ -22,10 +22,26 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.144)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.145)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, the big one (v5.6.145):** a user screenshot of ANOTHER blank rear panel (model "560",
+`platformType: "E-SERIES"`) led to a deeper bug than a missing chassis layout. `_platformFamily()`
+(`app.js` ~17707) -- which decides ONTAP vs. E-Series vs. StorageGRID for feature scoring
+(ARP/SnapMirror/FabricPool/HA), CLI generation, change-verification steps, AND the rear-panel renderer --
+**never checked Active IQ's own authoritative `platformType` field**, only guessed family from the
+platform/model string (numeric-model regex required exactly 4 digits starting with 28/29/40/57). A 3-digit
+E-Series model ("560", an EF560/E5600-family board) fell through every check and was silently treated as
+ONTAP everywhere in the app, not just the rear panel. Fixed by adding `platformType` as one more signal to
+the same test (kept the old guessing as a fallback). Auditing the blast radius found a second, bigger
+instance of the same bug: `_isPlatformStorageGRID()`'s substring list was missing `sg58`, so 12 real
+StorageGRID SG5800-family appliances ("SG5860") were ALSO silently misclassified as ONTAP. Fixed. Verified
+live: 13 of 215 real E-Series-platformType systems misclassified before the fix, 0 after. **Worth
+remembering**: any "why does this non-ONTAP system look wrong" report from now on should start by checking
+`_platformFamily(sys)` against the system's own `platformType`, not by assuming it's a missing-layout issue
+like the two before it.
 
 **Also today (v5.6.144):** asked explicitly to check for other virtualized platform types beyond ONTAP
 Select. Enumerated all 7 `platformType` values in a real fleet -- two needed a look: ASTRA (1 system, has a

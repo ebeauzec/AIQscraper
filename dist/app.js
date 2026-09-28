@@ -27,9 +27,175 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.136";
+const APP_VERSION = "5.6.145";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.145",
+    date: "28 September 2026",
+    title: "E-Series Systems Silently Misclassified as ONTAP",
+    sections: [
+      {
+        icon: "✅",
+        label: "Critical Fix",
+        color: "#ef4444",
+        items: [
+          "User-reported blank rear panel led to a deeper bug: _platformFamily() -- which decides ONTAP vs. E-Series vs. StorageGRID for scoring (ARP/SnapMirror/FabricPool/HA), CLI generation, change-verification steps, and the rear-panel renderer -- never once checked Active IQ's own authoritative platformType field. It only tried to guess family from the platform/model string, on the theory that real E-Series systems report a bare number ('2800', '5700') never the words 'e-series'. That guess had its own gap: the numeric pattern required exactly 4 digits starting with 28/29/40/57, so an older E-Series board reporting a 3-digit model ('560', an EF560/E5600-family canister, platformType \"E-SERIES\") fell through every check and was silently scored, CLI'd, and rendered as if it were ONTAP -- which is why its rear panel showed the ONTAP fallback caption ('ports are grouped by e0x/eNx slot naming') instead of any E-Series-specific message.",
+          "Fixed by adding platformType into the same family-detection test as one more authoritative signal, rather than replacing the existing platform/model guessing (kept as a fallback for older data that may not carry platformType). Also found and fixed a second, larger instance of the identical gap: 12 StorageGRID SG5800-family appliances (platform \"SG5860\") were misclassified as ONTAP because _isPlatformStorageGRID()'s substring list covered sg57/sg60/sg61/sg10/sg516/sg6/sg1 but not sg58 -- added. Confirmed live: 0 of 215 real E-Series systems now misclassify as ONTAP (was 13, all fixed); the \"560\" system's rear panel now correctly shows the E-Series 'unrecognised model' message instead of the wrong ONTAP one.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.144",
+    date: "28 September 2026",
+    title: "Astra Data Store Hits the Same Blank Rear Panel as ONTAP Select",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Follow-up sweep for other virtualized platforms (requested after the ONTAP Select fix): of the 7 distinct platformType values in a real fleet, one more -- ASTRA (NetApp Astra Data Store, Kubernetes-native ONTAP; confirmed ONTAP-based by a real ontapVersion being reported despite no physical chassis) -- hit the identical blank 'physical layout for this model is not built in' panel, for the same reason as ONTAP Select: it fell through to the chassis SVG engine, which has no layout for model \"ASTRA\" because none was ever going to exist. Now shows the same 'Virtual Appliance, no physical rear panel' card, with copy specific to Astra ('vNICs provisioned by the Kubernetes cluster network (CNI)') rather than reusing the VM-hypervisor or cloud-provider wording written for the other two cases. Verified live against the one real Astra system in the fleet.",
+          "Also checked: HCI (platformType \"HCI\", models like H410S-2/H410C) is real rack-mounted physical hardware, not virtualized -- correctly out of scope for this fix. It has no rear-panel chassis layout built either, but that's a different bug (missing physical layout for real hardware, not a false 'not built in' on something with no chassis at all) and hasn't been fixed here.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.143",
+    date: "28 September 2026",
+    title: "ONTAP Select Rear Panel: Fixed Blank 'Not Built In' Panel",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "ONTAP Select systems (platformType \"ONTAP-SELECT\" -- on-prem ONTAP running as a VM under the customer's own hypervisor, reported with a VM-size model like \"M300\"/\"FDvM300\" rather than a real chassis) fell through to the physical-chassis rear-panel engine, which has no layout for a VM size that isn't a chassis at all, and rendered a blank panel captioned 'physical layout for this model is not built in' -- technically true but misleading, since no chassis was ever going to exist for a VM. The exact same 'no physical rear panel' card already built for Cloud Volumes ONTAP now also covers ONTAP Select, with copy that doesn't guess a cloud provider it doesn't have ('vNICs provisioned by the VM's hypervisor (VMware/KVM)' instead of falsely saying AWS/Azure/GCP). Reported network ports still show in the table below the card, same as before.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.142",
+    date: "28 September 2026",
+    title: "Real Watchlist Discovery Endpoint Found",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Watchlist auto-discovery (server.py) -- the fallback used when a configured watchlist ID is stale or an account relies entirely on auto-discovery -- was silently broken since it was written: every candidate REST path/header combination it tried returned 404 or 401. Found the real, documented endpoint via NetApp's internal API catalog: GET /v2/watchlist/list, authenticated with a header literally named `authorizationToken` (the raw access token, with NO \"Bearer \" prefix) -- not the standard `Authorization: Bearer <token>` every other call in this file uses. The two 401s seen while probing (on paths that do exist, e.g. /v2/watchlist/action) were this exact header-name mismatch, not a wrong path. Response is nested at results.watchlist[] with snake_case fields (watchlist_id/watchlist_name), also different from what was guessed before. Confirmed live against a real account: correctly discovers all 4 of its real watchlists, none of which auto-discovery could ever find before.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.141",
+    date: "27 September 2026",
+    title: "Root Cause Found: Data Silently Wiped After Every Sync",
+    sections: [
+      {
+        icon: "✅",
+        label: "Critical Fix",
+        color: "#ef4444",
+        items: [
+          "Found the actual root cause of switches (and, it turns out, several other fields) reporting empty despite the harvest correctly fetching them: loadConfig() -- a function whose real job is reading auth tokens/settings from localStorage -- also unconditionally re-hydrates state.systems from the localStorage cache as an undocumented side effect, every time it's called. loadProductionData() calls updateStatusIndicators() at its own end purely to refresh the connection-status dot, which called loadConfig() just for the token, which silently reloaded the ENTIRE system list from localStorage -- overwriting the correct, freshly-harvested in-memory data with whatever saveSystems() had just written to localStorage moments earlier in the SAME sync.",
+          "That localStorage write is quota-limited: the full dataset is 69.6MB on one real fleet, far over any browser's ~5-10MB localStorage quota, so saveSystems() falls back to a 'slim' save that strips switches, vservers, risks, supportCases, fieldActions, securityBulletins, hypervisors, projections, logistics, contacts, salesHealth, autosupport, and lifecycleEvents before writing. The result: every single harvest correctly populated all of these fields in memory, then silently wiped them seconds later on the SAME page load, with no second sync, no error, and nothing in between to suggest why -- confirmed live by instrumenting the actual load path: switches went from 295 systems populated to 0 within one page load, purely from this call chain.",
+          "Fixed by giving loadConfig() an explicit restoreSystemsFromCache parameter (default true, for the one genuine boot-time caller) and passing false from the two callers that only ever wanted the token (updateStatusIndicators(), runAPIDiagnostics()). Confirmed live after the fix: switches (295 systems) and vservers (360 systems) both now persist correctly through a full page load and stay stable.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.140",
+    date: "27 September 2026",
+    title: "Switch Reporting: Duplicates, Vendors, Support Contracts",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Found and fixed the dominant cause of 'flaky/thin' switch rows: Active IQ's own cluster.switches field can report the SAME physical switch twice under two different device-name suffixes from two different discovery paths (e.g. a MAC-suffixed name and a serial-suffixed name), each with its own IP and differently-phrased firmware string -- confirmed live, 14 such duplicate pairs in one account's harvest alone. Deduplicated by normalized device name, keeping whichever duplicate Active IQ actually monitors (falling back to whichever has a real model, then the longer firmware string) instead of showing both -- one thin, one rich -- as separate rows.",
+          "Server-side switch model inference only ever checked the device hostname (e.g. 'SA-OOB-RDC47-F2A-01', which gives no hint at all) and never the firmware STRING, which nearly always names the real platform ('Cisco NX-OS(tm) n6000...', 'Huawei Switch...S5700...'). Now checks both, and recognizes Huawei, HP, Aruba, and Ubiquiti in addition to the existing Cisco/Brocade/NVIDIA/Broadcom coverage -- confirmed live: 'OTHER'/blank switch models across two real fleets dropped from 50 to 22 genuinely unidentifiable stragglers.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Added",
+        color: "#38bdf8",
+        items: [
+          "Two real Active IQ switch fields were never queried: `network` (a reliable CLUSTER_NETWORK/MANAGEMENT_NETWORK/STORAGE_NETWORK/OTHER enum, more trustworthy than the free-text `role` field it's now preferred over) and `supportContract` (start/end date, offer description -- real switch warranty/EOS tracking, same as every other hardware component's contract data). Support-contract end date now shows as a badge in the Switch Validation table (color-coded by days remaining) and in the Action Plan's switch remediation cards, when Active IQ reports it.",
+          "A switch seen via local port connectivity but never in Active IQ's CSHM-monitored switches list now gets its own explicit row (status 'Unknown', with an explanation) instead of being silently absent -- and when the SAME switch is reported by both sources, they're now merged into one row carrying both the CSHM model/firmware data and the local port-cabling detail (which port, at what speed), shown in the Switch Validation table.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.139",
+    date: "27 September 2026",
+    title: "As-Built Download Tooltip Fix",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "The As-Built Configuration Document's Download button already went through the same Text/Markdown/Word format dialog as every other deliverable -- confirmed live, including a successful .docx build -- but its tooltip still said 'plain-text file', left over from before that dialog existed. Tooltip corrected; no behavior change.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.138",
+    date: "27 September 2026",
+    title: "Shelf Firmware Currency, Live",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "The currently-installed shelf module firmware was never shown anywhere -- only the recommended baseline. Root cause: Active IQ's GraphQL schema has no per-shelf firmware field at all (confirmed via live schema introspection: Shelf, ShelfModuleHardwareModel and Bays all lack one); the field that does carry it, shelvesSummary { firmware { currentVersion recommendedVersion } } }, was never queried. Added as its own harvest pass (server.py, SHELVES_SUMMARY_FIELDS) after an inline attempt broke the main systems query (Active IQ's GraphQL 'maximum height' query-complexity limit) and silently degraded the whole harvest to a thinner tier -- caught and reverted before it reached production data.",
+          "Two more shelf-firmware code paths were fixed at the same time, both dead since they were written: the As-Built Document / Technical Audit 'Shelf Module Firmware' table (was grouping by sh.moduleType, not a real Shelf field, so it always fell through empty) and the Action Plan Phase 2 'shelf firmware drift' detector (same wrong field names, plus the never-populated firmware field -- shelfDrift was permanently empty regardless of fleet state).",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Added",
+        color: "#38bdf8",
+        items: [
+          "Shelf firmware currency now flows through every consumer of the shared computeFleetFirmwareSummary()/_resolveShelfModules() helpers: a new 'Shelf FW Current' KPI tile and per-system 'Shelf:' badge in the Action Planner's Firmware Currency section, a fifth component (15% weight) in the HW Firmware Currency composite score everywhere it's quoted (rebalanced from SP 25/MB 25/DQP 20/Drive 30 to SP 20/MB 20/DQP 15/Shelf 15/Drive 30), and the Shelf % breakdown in all customer-facing deliverables that cite HW Firmware Currency.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Improved",
+        color: "#38bdf8",
+        items: [
+          "Cluster node pairs (e.g. CLUSDR-01/-02) were left in raw harvest-fetch order in the Firmware Currency system list and the Technical Audit's Recommended OS Upgrades list, which could interleave unrelated clusters' nodes. Both now sort by cluster, then system name, so a cluster's nodes are always adjacent.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.137",
+    date: "27 September 2026",
+    title: "Action Planner Navigation Regrouped",
+    sections: [
+      {
+        icon: "✨",
+        label: "Improved",
+        color: "#38bdf8",
+        items: [
+          "The Action Planner's 19-section tab row was one long flat list of look-alike buttons with two tiny inline group labels that were easy to miss (users reported the sections 'get lost' in the page). Regrouped into five bordered, labeled blocks -- Overview, Risk & Security, Operations & Health, Account & Commercial, and a gold-highlighted Customer Deliverables -- each with a one-line description of what it covers, so the section numbers stay the same (still 1-19, no links or print output broken) but the row reads as five scannable groups instead of one.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.136",
     date: "27 September 2026",
@@ -7867,7 +8033,26 @@ function _demoHydrateSystem(s, ctx) {
         else { const synth = _demoSynthPorts(bucket, rng, s.serialNumber); if (synth) out.networkPorts = synth; else fill('networkPorts', prof.networkPorts); }
       }
       if (prof.shelves) fill('shelves', prof.shelves);
-      if (prof.vservers) fill('vservers', _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v)))));
+      if (prof.vservers) {
+        const substituted = _demoClone(prof.vservers).map(v => JSON.parse(subst(JSON.stringify(v))));
+        // worldWidePortName came verbatim from the curated profile with no substitution --
+        // when the same profile is reused across many demo systems (which it is; the
+        // candidate pool is small), every one of them got the exact literal same WWPN on
+        // every LIF, which is impossible on a real fabric (WWPNs are globally unique).
+        // Keep the adapter-index and OUI bytes (the part that already varied per-LIF and
+        // looks like a real vendor prefix) and re-derive only the node-identifying tail
+        // bytes from this system's own serial number, the same way _demoSynthPorts derives
+        // per-system MAC addresses above.
+        substituted.forEach(v => (v.logicalInterfaces || []).forEach(l => {
+          if (!l.worldWidePortName) return;
+          const parts = l.worldWidePortName.split(':');
+          if (parts.length !== 8) return;
+          const h = _demoHash(s.serialNumber + '|wwpn|' + (l.name || ''));
+          for (let i = 5; i < 8; i++) parts[i] = ((h >>> ((i - 5) * 8)) & 0xff).toString(16).padStart(2, '0');
+          l.worldWidePortName = parts.join(':');
+        }));
+        fill('vservers', substituted);
+      }
       // The vservers/LIFs above came from `prof` (matched loosely, by product line, for realistic SVM/
       // protocol/service-policy shapes) while networkPorts above came from a stricter, chassis-accurate
       // match or the synthesized template -- two independent picks that can disagree on which specific
@@ -8434,7 +8619,21 @@ function safeSetItem(key, value) {
 }
 
 // 3. Storage & Groups Helpers
-function loadConfig() {
+// restoreSystemsFromCache: true only for the genuine one-time boot call. This
+// function is ALSO called later, mid-session, by code that only wants the
+// {refresh, access, expiry} token triple (updateStatusIndicators(),
+// runAPIDiagnostics()) -- but it unconditionally re-hydrated state.systems/
+// groups/watchlists from localStorage as a side effect every single call.
+// Real impact: loadProductionData() ends with updateStatusIndicators(), which
+// called loadConfig() (restoreSystemsFromCache defaulted true), which re-read
+// aiq_systems_db -- the copy saveSystems() had JUST written moments earlier,
+// quota-stripped of switches/vservers/risks/supportCases/etc. because the full
+// dataset (69.6MB in one real fleet) exceeds localStorage's quota. So every
+// single harvest correctly populated state.systems in memory, then silently
+// wiped those same fields seconds later on the very same page load --
+// confirmed live: switches went 295 systems -> 0 within the same load, purely
+// from this call chain, with no network activity or second harvest involved.
+function loadConfig(restoreSystemsFromCache = true) {
   const mockModeVal = safeGetItem("aiq_mock_mode");
   state.mockMode = mockModeVal === "true";
   
@@ -8465,7 +8664,8 @@ function loadConfig() {
   
   // Note: mock mode safeguard removed — server-side /api/harvest reads
   // the refresh token from aiq_config.json, no browser-side token needed.
-  
+
+  if (restoreSystemsFromCache) {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
@@ -8538,7 +8738,8 @@ function loadConfig() {
   } else {
     state.watchlists = state.mockMode ? [...MOCK_WATCHLISTS] : [];
   }
-  
+  } // end if (restoreSystemsFromCache)
+
   return { refresh, access, expiry };
 }
 
@@ -14084,6 +14285,7 @@ function renderTAMTab() {
     if (sys.upgrades && sys.upgrades.targetVersion !== "Up to Date") {
       upgradeItems.push({
         systemName: sys.systemName,
+        clusterName: sys.clusterName,
         currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion,
         targetVersion: sys.upgrades.targetVersion,
         urgency: sys.upgrades.urgency,
@@ -14092,7 +14294,16 @@ function renderTAMTab() {
       });
     }
   });
-  
+  // Group HA/cluster node pairs together instead of raw harvest-fetch order (which
+  // interleaves unrelated clusters' nodes so a cluster's two nodes can end up far
+  // apart in the list).
+  upgradeItems.sort((a, b) => {
+    const ca = a.clusterName || a.systemName || '', cb = b.clusterName || b.systemName || '';
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = a.systemName || '', nb = b.systemName || '';
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  });
+
   if (upgradeItems.length === 0) {
     upgradeBox.innerHTML = `
       <h3 style="color: var(--status-normal); margin-bottom: 12px;">✓ Systems Up to Date</h3>
@@ -14276,16 +14487,35 @@ function renderTAMTab() {
         rcfBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--status-warning);" title="Active IQ recommends RCF ${sw.rcfVersion}; running firmware ${sw.firmware}">⚠ RCF Mismatch — recommended: ${sw.rcfVersion}</span></div>`;
       }
 
+      // Support contract (Active IQ's switches.supportContract — start/end date,
+      // offer description). Real EOS/warranty tracking for the switch, same as
+      // every other hardware component's contract data.
+      let supportBadge = '';
+      if (sw.supportContractEnd) {
+        const endMs = Date.parse(sw.supportContractEnd);
+        const daysLeft = isNaN(endMs) ? null : Math.round((endMs - Date.now()) / 86400000);
+        const color = daysLeft == null ? 'var(--text-muted)' : daysLeft < 0 ? 'var(--status-critical)' : daysLeft <= 90 ? 'var(--status-warning)' : 'var(--status-normal)';
+        const label = daysLeft == null ? '' : daysLeft < 0 ? ` (expired ${Math.abs(daysLeft)}d ago)` : daysLeft <= 90 ? ` (${daysLeft}d left)` : '';
+        supportBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:${color};" title="${sw.supportContractDesc || 'Switch support contract'}">🛡 Support ends ${sw.supportContractEnd.substring(0, 10)}${label}</span></div>`;
+      }
+
+      // Local port-cabling detail (which of this system's ports this switch is
+      // connected to) — from portInterface connectivity, merged onto the same row
+      // as this switch's CSHM model/firmware data (see server.py conn_by_dev).
+      const portNote = sw.connectedPort
+        ? `<div style="font-size: 0.68rem; color: var(--text-muted);">via ${sw.sourcePort || '?'} → ${sw.connectedPort}${sw.portSpeed ? ' @ ' + sw.portSpeed : ''}</div>`
+        : '';
+
       switchRows += `
         <tr>
           <td><strong style="color: var(--text-primary); font-size: 0.85rem;">${sw.systemName}</strong></td>
           <td>
-            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${sw.model}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">S/N: ${sw.serialNumber}</div>
+            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${sw.model || '—'}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">S/N: ${sw.serialNumber || '—'}</div>
           </td>
-          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}</td>
+          <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}${portNote}</td>
           <td>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware}</code></div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware || '—'}</code></div>
             ${sw.targetFirmware ? `<div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>` : `<div style="font-size: 0.75rem; color: var(--text-muted);">No RCF published by Active IQ for this switch — current firmware only.</div>`}
             <div style="margin-top:4px;">
               <a href="${fwLink.url}" target="_blank"
@@ -14293,6 +14523,7 @@ function renderTAMTab() {
                  onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label}</a>
             </div>
             ${rcfBadge}
+            ${supportBadge}
           </td>
           <td>${statusBadge}</td>
           <td>
@@ -17494,9 +17725,15 @@ function _platformFamily(s) {
   if (_isPlatformStorageGRID(s)) return 'storagegrid';
   const p = String(s.platform || '').trim();
   const m = String(s.model || '').trim();
+  const pt = String(s.platformType || '').trim();
   const isNumericES = (v) => /^(28|29|40|57)\d{2}$/.test(v);
+  // Active IQ's own platformType is authoritative when present -- trust it over
+  // guessing from platform/model number patterns. Found live: a real E-Series
+  // system reporting platformType "E-SERIES" but model "560" (3 digits, an
+  // older EF560/E5600-family board) fell through every pattern above (all
+  // require exactly 4 digits) and was silently scored/rendered as ONTAP.
   if (s.santricityVersion || s.eseriesCapacity || isNumericES(p) || isNumericES(m) ||
-      /e-series|santricity/i.test(p + ' ' + m + ' ' + (s.productType || '')) || /^ef\d{2,3}/i.test(p) || /^ef\d{2,3}/i.test(m)) return 'eseries';
+      /e-series|santricity/i.test(p + ' ' + m + ' ' + (s.productType || '') + ' ' + pt) || /^ef\d{2,3}/i.test(p) || /^ef\d{2,3}/i.test(m)) return 'eseries';
   return 'ontap';
 }
 
@@ -19247,6 +19484,10 @@ function enrichSystemTelemetry(s) {
     diskQualificationPackage: s.diskQualificationPackage || {},
     recommendedDriveFirmwares: s.recommendedDriveFirmwares || {},
     shelves:               s.shelves || [],
+    // shelvesSummary -- separate from `shelves` above; Active IQ's per-shelf list has
+    // no installed-firmware field, only this module-type-grouped one does (see the
+    // Firmware Currency section's comment in _renderFirmwareCurrencySection).
+    shelvesSummary:        s.shelvesSummary || [],
     autoUpdateSettings: s.autoUpdateSettings || {},
     // ── Lifecycle Events & Licenses ──
     lifecycleEvents:   s.lifecycleEvents || [],
@@ -22087,12 +22328,17 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   });
 
   // ── Shelf firmware compliance ──
+  // Was keyed on sh.moduleType/sh.firmwareVersion/sh.model, none of which are real
+  // Shelf fields (the real ones are moduleHardwareModel.name/hardwareModel.name, and
+  // there is no per-shelf firmware field at all -- see _resolveShelfModules) so this
+  // always matched nothing and shelfDrift was permanently empty regardless of fleet
+  // state. Rewritten against the same shared module-group resolver the Action Planner
+  // UI and computeFleetFirmwareSummary() use.
   const shelfDrift = [];
   targetSystems.forEach(sys => {
-    (sys.shelves || []).forEach(sh => {
-      const baseline = (_getRefLibBaselines())[sh.moduleType];
-      if (baseline && sh.firmwareVersion && _isBehind(sh.firmwareVersion, baseline.recommended)) {
-        shelfDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: sh.model, module: sh.moduleType, current: sh.firmwareVersion, recommended: baseline.recommended });
+    Object.values(_resolveShelfModules(sys)).forEach(info => {
+      if (info.currentFw && info.baseline && _isBehind(info.currentFw, info.baseline.recommended)) {
+        shelfDrift.push({ systemName: `${sys.systemName} (${sys.platform || sys.model || ''})`, model: Array.from(info.shelfModels).join('/'), module: info.modName, current: info.currentFw, recommended: info.baseline.recommended });
       }
     });
   });
@@ -22262,7 +22508,7 @@ ${platformLines}
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
   - ARP Coverage:            ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported by Active IQ)' : ''}
   - OS Currency:             ${fwCurrent}/${fwKnown} (${fwKnown > 0 ? Math.round(fwCurrent/fwKnown*100) : 0}%) — running recommended OS baseline${fwKnown < systemCount ? ` (${systemCount - fwKnown} system${systemCount - fwKnown !== 1 ? 's' : ''} without a recommended version reported are excluded)` : ''}
-  - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  - HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   - Support Contract Coverage: ${contractActive}/${systemCount} (${systemCount > 0 ? Math.round(contractActive/systemCount*100) : 0}%) — active per Active IQ's contract data
 
 * FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
@@ -22855,7 +23101,7 @@ Prepared: ${_qbrPreparedBy}
   AutoSupport Compliance:   ${asupCompliant}/${total} systems (${asupPct}%) — received ASUP within 7 days
   ARP Coverage:             ${_covTxt(arpCount, _ontapN)} — Anti-Ransomware Protection enabled${arpKnownSys.length < _ontapN ? ' (' + (_ontapN - arpKnownSys.length) + ' not reported by Active IQ)' : ''}
   OS Currency:              ${fwCurrent}/${fwKnown} systems (${fwPct}%) — running recommended OS version
-  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
   Support Contract Coverage: ${contractActive}/${total} systems (${contractPct}%) — active per Active IQ's contract data
 
   Overall Health Grade:     ${grade} (avg ${avgPct.toFixed(0)}%)
@@ -23167,7 +23413,7 @@ Account Health Score: ${formatHealthScoreText(targetSystems)}
   Systems Under Management:  ${total}
   Support Contract Coverage: ${activeContracts}/${total} (${contractPct}%) active per Active IQ's contract data
   ASUP Telemetry Compliance: ${asupCompliant}/${total} (${asupPct}%) within 7-day SLA
-  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 ${avgAge !== '—' ? `  Average System Age:        ${avgAge} years\n` : ''}
 --------------------------------------------------------------------------------
 2. PER-CUSTOMER HEALTH DASHBOARD [METRICS]
@@ -23764,7 +24010,7 @@ ${compileSvmLifSummaryText(targetSystems)}
   ASUP Compliance:      ${asupPct}%
   ARP Coverage:         ${_ontapN > 0 ? arpPct + '%' : 'N/A (no ONTAP systems)'}
   Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
-  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
+  HW Firmware Currency:    ${(fw || {}).overallFwScore || 'N/A'}% composite (SP ${(fw || {}).spPct || 0}% / MB ${(fw || {}).mbPct || 0}% / DQP ${(fw || {}).dqpPct || 0}% / Shelf ${(fw || {}).shelfPct || 0}% / Drive ${(fw || {}).drivePct || 0}%)
 
   Top Issues Requiring Attention:
 ${topIssues}
@@ -24022,7 +24268,7 @@ ${kevAckBlock}
     OS Currency:              ${fwCurrent}/${fwKnown} on recommended version
 ${(fw || {}).ontapCount === 0 ? `    HW Firmware Attack Surface: N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)` : `    HW Firmware Attack Surface: ${100 - ((fw || {}).overallFwScore || 0)}% of fleet running non-current hardware firmware
       SP Firmware: ${(fw || {}).spPct || 0}% current | MB Firmware: ${(fw || {}).mbPct || 0}% current
-      DQP: ${(fw || {}).dqpPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current`}
+      DQP: ${(fw || {}).dqpPct || 0}% current | Shelf FW: ${(fw || {}).shelfPct || 0}% current | Drive FW: ${(fw || {}).drivePct || 0}% current`}
     CISA KEV Exposure:        ${kevExposures}
 
   2. COST OF INACTION — SECURITY
@@ -24560,6 +24806,61 @@ function computeFleetWarrantyStatus(targetSystems) {
   return { warrantyActive, warrantyExpired, warrantyUnknown, expiring30, expiring90, active: warrantyActive, expired: warrantyExpired, tierDist, perSystem };
 }
 
+// Shelf module currency check against REFERENCE_LIBRARY_FIRMWARE_BASELINES -- shared by
+// computeFleetFirmwareSummary() (fleet-wide KPI + every deliverable that quotes it) and
+// _renderFirmwareCurrencySection() (Action Planner Section 15 UI), so "what's the
+// recommended firmware for module X" is one definition, not two that can disagree.
+function _shelfModuleCurrency(moduleModelName) {
+  if (!moduleModelName) return null;
+  // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
+  const baseline = _getRefLibBaselines()[moduleModelName];
+  if (baseline) return { recommended: baseline.recommended, label: baseline.label };
+  // Try prefix: "IOM12" from "IOM12 v0260". Baseline keys can themselves be
+  // prefixes of one another (e.g. "IOM12" vs "IOM12G"/"IOM12B") -- matching
+  // in object insertion order let the shorter, wrong key win whenever it
+  // happened to be defined first (e.g. "IOM12G v0270" silently matched the
+  // "IOM12" baseline instead of "IOM12G"). Sort candidates longest-first so
+  // the most specific real key always wins.
+  const candidates = Object.entries(_getRefLibBaselines())
+    .filter(([key]) => moduleModelName.startsWith(key) || key.startsWith(moduleModelName))
+    .sort((a, b) => b[0].length - a[0].length);
+  if (candidates.length > 0) {
+    const [, val] = candidates[0];
+    return { recommended: val.recommended, label: val.label };
+  }
+  return null;
+}
+
+// Resolves a system's shelf modules to {modName, currentFw, count, shelfModels, baseline}
+// groups, preferring Active IQ's own live shelvesSummary.firmware over the locally
+// maintained reference-library baseline. Shared by computeFleetFirmwareSummary() and
+// _renderFirmwareCurrencySection() so both compute shelf firmware currency identically.
+function _resolveShelfModules(sys) {
+  const shelves = sys.shelves || [];
+  const shelfFwByModule = {};
+  (sys.shelvesSummary || []).forEach(ss => {
+    const name = ss.shelfModuleName || (ss.moduleHardwareModel || {}).name || '';
+    if (name) shelfFwByModule[name] = ss;
+  });
+  const shelfModules = {};
+  shelves.forEach(sh => {
+    const modName = (sh.moduleHardwareModel || {}).name || '';
+    const shelfModel = (sh.hardwareModel || {}).name || '?';
+    const fwInfo = shelfFwByModule[modName];
+    const curFw = (fwInfo && fwInfo.firmware && fwInfo.firmware.currentVersion) || '';
+    if (!modName) return;
+    const key = modName + '|' + curFw;
+    if (!shelfModules[key]) {
+      const aiqRec = fwInfo && fwInfo.firmware && fwInfo.firmware.recommendedVersion;
+      const baseline = aiqRec ? { recommended: aiqRec, label: 'Active IQ reported' } : _shelfModuleCurrency(modName);
+      shelfModules[key] = { modName, currentFw: curFw, count: 0, shelfModels: new Set(), baseline };
+    }
+    shelfModules[key].count++;
+    shelfModules[key].shelfModels.add(shelfModel);
+  });
+  return shelfModules;
+}
+
 function computeFleetFirmwareSummary(allSystems) {
   // SP/BMC + motherboard BIOS + DQP + drive firmware is an ONTAP hardware model.
   // For E-Series the SANtricity OS was being treated as "SP firmware" and BIOS/DQP
@@ -24585,6 +24886,7 @@ function computeFleetFirmwareSummary(allSystems) {
   let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
   let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
   let driveFwCurrent = 0, driveFwBehind = 0, driveFwUnknown = 0;
+  let shelfFwCurrent = 0, shelfFwBehind = 0, shelfFwUnknown = 0;
   let totalDrives = 0, totalShelves = 0;
   const perSystem = [];
 
@@ -24612,10 +24914,7 @@ function computeFleetFirmwareSummary(allSystems) {
     totalShelves += shelfCount;
     let sysDrvCur = 0, sysDrvBeh = 0, sysDrvUnk = 0;
     const recDriveFw = sys.recommendedDriveFirmwares || {};
-    const shelfModules = [];
     shelves.forEach(sh => {
-      const modName = (sh.moduleHardwareModel || {}).name || '';
-      if (modName && !shelfModules.includes(modName)) shelfModules.push(modName);
       for (const drive of ((sh.drives || {}).drives || [])) {
         const model = (drive.hardwareModel || {}).name || 'Unknown';
         const fw = drive.firmwareRevision || 'Unknown';
@@ -24628,10 +24927,22 @@ function computeFleetFirmwareSummary(allSystems) {
       }
     });
 
-    // Compute per-system firmware currency score (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)
+    // Shelf module firmware (see _resolveShelfModules -- shared with the Action Planner UI)
+    const shelfModuleGroups = _resolveShelfModules(sys);
+    let sysShelfCur = 0, sysShelfBeh = 0, sysShelfUnk = 0;
+    Object.values(shelfModuleGroups).forEach(info => {
+      const shelfMatch = info.currentFw && info.baseline ? _fwCmp(info.currentFw, info.baseline.recommended) : null;
+      if (shelfMatch === true) { sysShelfCur += info.count; shelfFwCurrent += info.count; }
+      else if (shelfMatch === false) { sysShelfBeh += info.count; shelfFwBehind += info.count; }
+      else { sysShelfUnk += info.count; shelfFwUnknown += info.count; }
+    });
+    const _sysShelfTotal = sysShelfCur + sysShelfBeh + sysShelfUnk;
+
+    // Compute per-system firmware currency score (weighted: SP 20%, MB 20%, DQP 15%, Shelf 15%, Drive 30%)
     const _sysDrvTotal = sysDrvCur + sysDrvBeh + sysDrvUnk;
     const _sysScore = Math.round(
-      (spMatch ? 25 : 0) + (mbMatch ? 25 : 0) + (dqpMatch ? 20 : 0) +
+      (spMatch ? 20 : 0) + (mbMatch ? 20 : 0) + (dqpMatch ? 15 : 0) +
+      (_sysShelfTotal > 0 ? Math.round(sysShelfCur / _sysShelfTotal * 15) : 0) +
       (_sysDrvTotal > 0 ? Math.round(sysDrvCur / _sysDrvTotal * 30) : 0)
     );
     const _sysStatus = _sysScore >= 80 ? 'Current' : _sysScore >= 50 ? 'Partial' : 'Behind';
@@ -24643,8 +24954,9 @@ function computeFleetFirmwareSummary(allSystems) {
       mb: { current: mbfw.currentVersion || '', recommended: mbfw.recommendedVersion || '', match: mbMatch },
       dqp: { current: dqp.currentVersion || '', recommended: dqp.recommendedVersion || '', match: dqpMatch },
       drives: { current: sysDrvCur, behind: sysDrvBeh, unknown: sysDrvUnk, total: _sysDrvTotal },
+      shelfFirmware: { current: sysShelfCur, behind: sysShelfBeh, unknown: sysShelfUnk, total: _sysShelfTotal },
       shelves: shelfCount,
-      shelfModules: shelfModules.join(', '),
+      shelfModules: Object.values(shelfModuleGroups).map(m => m.modName).filter((v, i, a) => a.indexOf(v) === i).join(', '),
       score: _sysScore,
       status: _sysStatus
     });
@@ -24655,20 +24967,23 @@ function computeFleetFirmwareSummary(allSystems) {
   const mbTotal = mbCurrent + mbBehind + mbUnknown;
   const dqpTotal = dqpCurrent + dqpBehind + dqpUnknown;
   const drvTotal = driveFwCurrent + driveFwBehind + driveFwUnknown;
+  const shelfFwTotal = shelfFwCurrent + shelfFwBehind + shelfFwUnknown;
   const spPct = spTotal > 0 ? Math.round(spCurrent / spTotal * 100) : 0;
   const mbPct = mbTotal > 0 ? Math.round(mbCurrent / mbTotal * 100) : 0;
   const dqpPct = dqpTotal > 0 ? Math.round(dqpCurrent / dqpTotal * 100) : 0;
   const drivePct = drvTotal > 0 ? Math.round(driveFwCurrent / drvTotal * 100) : 0;
-  // Weighted composite: SP 25%, MB 25%, DQP 20%, Drive 30%
-  const overallFwScore = Math.round(spPct * 0.25 + mbPct * 0.25 + dqpPct * 0.20 + drivePct * 0.30);
+  const shelfPct = shelfFwTotal > 0 ? Math.round(shelfFwCurrent / shelfFwTotal * 100) : 0;
+  // Weighted composite: SP 20%, MB 20%, DQP 15%, Shelf 15%, Drive 30%
+  const overallFwScore = Math.round(spPct * 0.20 + mbPct * 0.20 + dqpPct * 0.15 + shelfPct * 0.15 + drivePct * 0.30);
 
   return {
     spCurrent, spBehind, spUnknown,
     mbCurrent, mbBehind, mbUnknown,
     dqpCurrent, dqpBehind, dqpUnknown,
     driveFwCurrent, driveFwBehind, driveFwUnknown,
+    shelfFwCurrent, shelfFwBehind, shelfFwUnknown,
     totalDrives, totalShelves,
-    spPct, mbPct, dqpPct, drivePct, overallFwScore,
+    spPct, mbPct, dqpPct, drivePct, shelfPct, overallFwScore,
     perSystem,
     ontapCount: targetSystems.length
   };
@@ -25244,9 +25559,10 @@ HARDWARE FIRMWARE CURRENCY (Detailed)${fw.ontapCount === 0 ? `
   SP/BMC:             ${fw.spCurrent}/${fw.ontapCount} current (${fw.spPct}%)${fw.spBehind > 0 ? ' — ' + fw.spBehind + ' need update' : ''}
   Motherboard BIOS:   ${fw.mbCurrent}/${fw.ontapCount} current (${fw.mbPct}%)${fw.mbBehind > 0 ? ' — ' + fw.mbBehind + ' need update' : ''}
   DQP:                ${fw.dqpCurrent}/${fw.ontapCount} current (${fw.dqpPct}%)${fw.dqpBehind > 0 ? ' — ' + fw.dqpBehind + ' need update' : ''}
+  Shelf Firmware:     ${fw.shelfFwCurrent}/${fw.shelfFwCurrent + fw.shelfFwBehind + fw.shelfFwUnknown} current (${fw.shelfPct}%)${fw.shelfFwBehind > 0 ? ' — ' + fw.shelfFwBehind + ' need update' : ''}
   Drive Firmware:     ${fw.driveFwCurrent}/${fw.totalDrives} current (${fw.drivePct}%)${fw.driveFwBehind > 0 ? ' — ' + fw.driveFwBehind + ' behind' : ''}
   Disk Shelves:       ${fw.totalShelves} total across fleet
-  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 25%, MB 25%, DQP 20%, Drive 30%)`}
+  HW Currency Score:  ${fw.overallFwScore}% (weighted: SP 20%, MB 20%, DQP 15%, Shelf 15%, Drive 30%)`}
 
 ACCOUNT HEALTH SCORE: ${healthScore}/100 (Grade ${healthGrade})
 COST OF INACTION:     ${coi.score} (${coiLabel}) — ${coi.critRisks} critical risks, ${coi.cves} unique CVEs (all severities), ${coi.capacityRed} capacity-red system${coi.capacityRed !== 1 ? 's' : ''}${_ontapNE > 0 ? ', ' + coi.noArp + ' with ARP confirmed disabled' : ''}
@@ -25372,7 +25688,7 @@ OPERATIONAL HEALTH SNAPSHOT:
   ASUP Compliance:    ${pctAsup}% (${asupCompliant}/${sysCount} systems reporting within 7 days)
   ARP Protection:     ${_ontapNE > 0 ? pctArp + '% (' + arpEnabledCount + '/' + _ontapNE + ' ONTAP systems with Anti-Ransomware enabled)' : 'N/A (ARP is an ONTAP feature; no ONTAP systems in scope)'}
   OS Currency:        ${pctFw}% (${fwCurrentCount}/${fwKnownCount} on recommended OS version)
-  HW Firmware Score:  ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP: ' + fw.spPct + '%, MB: ' + fw.mbPct + '%, DQP: ' + fw.dqpPct + '%, Drives: ' + fw.drivePct + '%)'}
+  HW Firmware Score:  ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP: ' + fw.spPct + '%, MB: ' + fw.mbPct + '%, DQP: ' + fw.dqpPct + '%, Shelf: ' + fw.shelfPct + '%, Drives: ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} active per Active IQ's contract data)
 
 ACCOUNT HEALTH: ${healthScore}/100 (Grade ${healthGrade})
@@ -25414,7 +25730,7 @@ HEALTH METRICS:
   ASUP Compliance:    ${pctAsup}% ${pctAsup < 100 ? '⚠' : '✓'}
   ARP Coverage:       ${_ontapNE > 0 ? pctArp + '% ' + (pctArp < 100 ? '⚠' : '✓') : 'N/A (no ONTAP systems)'}
   OS Currency:        ${pctFw}% ${pctFw < 100 ? '⚠' : '✓'}
-  HW Firmware:        ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% ' + (fw.overallFwScore < 80 ? '⚠' : '✓') + ' (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
+  HW Firmware:        ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% ' + (fw.overallFwScore < 80 ? '⚠' : '✓') + ' (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Shelf ' + fw.shelfPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% ${pctContract < 100 ? '⚠' : '✓'} (active per Active IQ's contract data)
   Feature Adoption:   ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average' : 'N/A (ONTAP feature set)'}
   DR Coverage:        ${dr.ontapCount > 0 ? dr.drCoveragePct + '% (' + dr.smSystems + ' SM / ' + dr.mcSystems + ' MC)' : 'N/A (ONTAP-only)'}${dr.mcSystems > 0 ? ` ${(dr.mcMediatorIssues.length > 0 || dr.mcAusoDisabled.length > 0) ? '⚠' : '✓'} MC: Mediator ${dr.mcMediatorIssues.length > 0 ? 'DOWN' : 'OK'}/AUSO ${dr.mcAusoDisabled.length > 0 ? 'OFF' : 'ON'}` : ''}
@@ -25615,7 +25931,7 @@ OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)
   ARP Coverage:           ${_covTxt(arpEnabledCount, _ontapNE)}
   OS Currency:            ${pctFw}% (${fwCurrentCount}/${fwKnownCount} systems)
-  HW Firmware Score:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Drive ' + fw.drivePct + '%)'}
+  HW Firmware Score:      ${fw.ontapCount === 0 ? 'N/A (SP/BMC, BIOS, DQP and drive-firmware tracking is ONTAP-only)' : fw.overallFwScore + '% (SP ' + fw.spPct + '% / MB ' + fw.mbPct + '% / DQP ' + fw.dqpPct + '% / Shelf ' + fw.shelfPct + '% / Drive ' + fw.drivePct + '%)'}
   Support Contract Coverage: ${pctContract}% (${contractActiveCount}/${sysCount} systems; active per Active IQ's contract data)
 
 PRIORITISED CORRECTIVE ACTIONS
@@ -27450,6 +27766,16 @@ function _toggleFwCard(cardId) {
 }
 
 function _renderFirmwareCurrencySection(systems) {
+  // Group HA/cluster node pairs together instead of leaving them in raw harvest-fetch
+  // order (which interleaves unrelated clusters' nodes, e.g. CLUSDR-02, INTCLUS-02,
+  // CLUSDR-01 -- the two CLUSDR nodes end up nowhere near each other). Sort by cluster
+  // first, then system name, so every cluster's nodes are always adjacent.
+  systems = [...systems].sort((a, b) => {
+    const ca = a.clusterName || a.systemName || '', cb = b.clusterName || b.systemName || '';
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = a.systemName || '', nb = b.systemName || '';
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  });
   // ── Helpers ──
   const _fwMatch = (cur, rec) => {
     if (!cur || !rec) return null; // unknown
@@ -27504,33 +27830,12 @@ function _renderFirmwareCurrencySection(systems) {
     return Object.values(byKey).sort((a, b) => b.count - a.count);
   };
 
-  // ── Shelf module currency check against REFERENCE_LIBRARY_FIRMWARE_BASELINES ──
-  const _shelfModuleCurrency = (moduleModelName) => {
-    if (!moduleModelName) return null;
-    // Try exact match, then prefix match (e.g. "IOM12" matches "IOM12")
-    const baseline = _getRefLibBaselines()[moduleModelName];
-    if (baseline) return { recommended: baseline.recommended, label: baseline.label };
-    // Try prefix: "IOM12" from "IOM12 v0260". Baseline keys can themselves be
-    // prefixes of one another (e.g. "IOM12" vs "IOM12G"/"IOM12B") -- matching
-    // in object insertion order let the shorter, wrong key win whenever it
-    // happened to be defined first (e.g. "IOM12G v0270" silently matched the
-    // "IOM12" baseline instead of "IOM12G"). Sort candidates longest-first so
-    // the most specific real key always wins.
-    const candidates = Object.entries(_getRefLibBaselines())
-      .filter(([key]) => moduleModelName.startsWith(key) || key.startsWith(moduleModelName))
-      .sort((a, b) => b[0].length - a[0].length);
-    if (candidates.length > 0) {
-      const [, val] = candidates[0];
-      return { recommended: val.recommended, label: val.label };
-    }
-    return null;
-  };
-
   // ── Fleet-wide firmware stats ──
   let spCurrent = 0, spBehind = 0, spUnknown = 0;
   let mbCurrent = 0, mbBehind = 0, mbUnknown = 0;
   let dqpCurrent = 0, dqpBehind = 0, dqpUnknown = 0;
   let driveFwCurrent = 0, driveFwBehind = 0, driveFwUnknown = 0;
+  let shelfFwCurrent = 0, shelfFwBehind = 0, shelfFwUnknown = 0;
   let totalDrives = 0, totalShelves = 0;
 
   const systemCards = [];
@@ -27581,17 +27886,26 @@ function _renderFirmwareCurrencySection(systems) {
       }
     });
 
-    // Shelf module info
-    const shelfModules = {};
-    shelves.forEach(sh => {
-      const modName = (sh.moduleHardwareModel || {}).name || '';
-      const shelfModel = (sh.hardwareModel || {}).name || '?';
-      if (modName) {
-        if (!shelfModules[modName]) shelfModules[modName] = { count: 0, shelfModels: new Set(), baseline: _shelfModuleCurrency(modName) };
-        shelfModules[modName].count++;
-        shelfModules[modName].shelfModels.add(shelfModel);
-      }
+    // Shelf module current firmware -- the per-shelf `shelves { }` list has no firmware
+    // field at all (confirmed via live GraphQL schema introspection: Shelf,
+    // ShelfModuleHardwareModel and Bays all lack one). The field that DOES carry it is a
+    // separate one, `shelvesSummary { firmware { currentVersion recommendedVersion } } }`,
+    // grouped by module type rather than per physical shelf -- fetched as its own pass in
+    // server.py (SHELVES_SUMMARY_FIELDS) since adding it inline to the main systems query
+    // pushed Active IQ's GraphQL "maximum height" query-complexity limit and silently
+    // degraded the whole harvest to a much thinner tier.
+    const shelfModules = _resolveShelfModules(sys);
+
+    // Shelf module firmware currency (fleet-wide tally AND per-system card badge, same
+    // current-vs-baseline comparison already used for SP/BMC, motherboard, DQP and drive
+    // firmware above)
+    let sysShelfCurrent = 0, sysShelfBehind = 0, sysShelfUnknown = 0;
+    Object.values(shelfModules).forEach(info => {
+      if (!info.currentFw || !info.baseline) { shelfFwUnknown += info.count; sysShelfUnknown += info.count; return; }
+      if (_fwMatch(info.currentFw, info.baseline.recommended)) { shelfFwCurrent += info.count; sysShelfCurrent += info.count; }
+      else { shelfFwBehind += info.count; sysShelfBehind += info.count; }
     });
+    const shelfMatch = shelfCount === 0 ? null : (sysShelfBehind > 0 ? false : (sysShelfCurrent > 0 ? true : null));
 
     // ── Build card HTML ──
     const cardId = `fw-card-${(sys.serialNumber || Math.random().toString(36).slice(2))}`;
@@ -27612,8 +27926,8 @@ function _renderFirmwareCurrencySection(systems) {
     const drvMatch = driveCount === 0 ? null : (sysDrvBehind > 0 ? false : (sysDrvCurrent > 0 ? true : null));
 
     // Determine worst-case status for the card header color
-    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false || drvMatch === false;
-    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null) && (drvMatch === true || drvMatch === null);
+    const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false || drvMatch === false || shelfMatch === false;
+    const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null) && (drvMatch === true || drvMatch === null) && (shelfMatch === true || shelfMatch === null);
     const headerColor = anyBehind ? 'rgba(245,158,11,0.12)' : (allCurrent ? 'rgba(16,185,129,0.08)' : 'rgba(99,102,241,0.08)');
     const headerBorder = anyBehind ? 'rgba(245,158,11,0.3)' : (allCurrent ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)');
 
@@ -27629,6 +27943,7 @@ function _renderFirmwareCurrencySection(systems) {
           <span title="Motherboard BIOS">MB: ${_badge(mbMatch)}</span>
           <span title="Disk Qualification Package">DQP: ${_badge(dqpMatch)}</span>
           <span title="Drive Firmware (${sysDrvCurrent} current, ${sysDrvBehind} behind)">Drv: ${_badge(drvMatch)}</span>
+          <span title="Shelf Module Firmware (${sysShelfCurrent} current, ${sysShelfBehind} behind, ${sysShelfUnknown} unknown)">Shelf: ${_badge(shelfMatch)}</span>
           <span style="color:var(--text-muted);">📦 ${shelfCount} shelf${shelfCount !== 1 ? 's' : ''} · ${driveCount} drive${driveCount !== 1 ? 's' : ''}</span>
         </span>
       </div>
@@ -27658,30 +27973,44 @@ function _renderFirmwareCurrencySection(systems) {
         </div>`;
 
     // ── Shelf modules table ──
+    // Active IQ's GraphQL schema has no per-shelf "currently installed firmware"
+    // field anywhere reachable from a shelf (Shelf, ShelfModuleHardwareModel and
+    // Bays were all checked via live introspection) -- Active IQ tracks shelf
+    // firmware currency only as a fleet-wide outdated COUNT internally, never the
+    // actual version string per shelf. So "Current FW" is genuinely unreported by
+    // the API for every shelf, not an ARIA harvesting gap -- shown honestly below
+    // instead of a silent blank column.
     const moduleEntries = Object.entries(shelfModules);
     if (moduleEntries.length > 0) {
+      const anyCurrentFwReported = moduleEntries.some(([, info]) => !!info.currentFw);
       cardHtml += `
         <div style="margin-bottom:12px;">
           <div style="font-size:0.7rem;color:var(--accent-cyan);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Shelf Modules</div>
+          ${!anyCurrentFwReported ? '<div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:6px;">Active IQ did not report a currently-installed firmware version for this system\'s shelf module(s) this sync -- "Current FW" is blank below. Recommended baseline is still shown.</div>' : ''}
           <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
             <thead><tr>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Module</th>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Shelf Models</th>
               <th style="text-align:center;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Count</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Current FW</th>
               <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Recommended FW</th>
+              <th style="text-align:left;padding:5px 8px;border-bottom:1px solid var(--border-color);color:var(--text-secondary);font-size:0.7rem;">Status</th>
             </tr></thead><tbody>`;
-      moduleEntries.forEach(([modName, info]) => {
+      moduleEntries.forEach(([key, info]) => {
         const rec = info.baseline ? info.baseline.recommended : '—';
         const label = info.baseline ? info.baseline.label : '';
+        const shMatch = info.currentFw && info.baseline ? _fwMatch(info.currentFw, info.baseline.recommended) : null;
         cardHtml += `
             <tr>
-              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${modName}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">${info.modName}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text-secondary);">${Array.from(info.shelfModels).join(', ')}</td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">${info.count}</td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);"><code style="color:var(--text-primary);">${_ver(info.currentFw)}</code></td>
               <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);">
                 <code style="color:var(--accent-cyan);">${rec}</code>
                 ${label ? `<div style="font-size:0.65rem;color:var(--text-muted);">${label}</div>` : ''}
               </td>
+              <td style="padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);">${_badge(shMatch)}</td>
             </tr>`;
       });
       cardHtml += `</tbody></table></div>`;
@@ -27755,10 +28084,11 @@ function _renderFirmwareCurrencySection(systems) {
     </div>`;
   };
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+  let html = `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;">
     ${_kpiTile('SP/BMC Current', spCurrent, spBehind, spUnknown, '🔧', 'Service Processor / BMC firmware — manages remote console, power cycling, and out-of-band management. Updated automatically with ONTAP patches or manually via system service-processor image update.')}
     ${_kpiTile('Motherboard Current', mbCurrent, mbBehind, mbUnknown, '🖥️', 'Motherboard BIOS firmware — controls hardware initialization, PCIe enumeration, and boot sequence. Updated via system firmware update command.')}
     ${_kpiTile('DQP Current', dqpCurrent, dqpBehind, dqpUnknown, '💿', 'Disk Qualification Package — determines which drive models are supported. Outdated DQP may prevent new drives from being recognized. Updated via storage disk option modify or automatic updates.')}
+    ${_kpiTile('Shelf FW Current', shelfFwCurrent, shelfFwBehind, shelfFwUnknown, '📦', 'Shelf I/O module firmware (e.g. IOM12/IOM12B) — compares each shelf module\'s installed firmware (Active IQ\'s shelvesSummary field, reported per module type rather than per physical shelf) against the recommended version. "Unknown" means Active IQ didn\'t report a current version for that system this sync, or no baseline exists for that module.')}
     ${_kpiTile('Drive FW Current', driveFwCurrent, driveFwBehind, driveFwUnknown, '💾', 'Drive firmware currency — compares each drive\'s installed firmware revision against the recommended version bundled with the latest ONTAP release. Drives below recommended may lack bug fixes or performance improvements.')}
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:help;" title="Total shelves and drives across all systems from Active IQ inventory.">
       <div style="font-size:0.85rem;margin-bottom:4px;">📦</div>
@@ -28682,56 +29012,32 @@ function _renderAsBuiltSection(systems) {
         }
         
         let recShelfFwHtml = '';
-        if (s.recommendedShelfFirmwares && Object.keys(s.recommendedShelfFirmwares).length > 0) {
-            // Cross-reference installed shelf modules with recommended baselines
-            const recFw = s.recommendedShelfFirmwares;
-            const installedModules = {};
-            // Gather current firmware from each shelf's moduleType
-            shelves.forEach(sh => {
-                const modType = sh.moduleType || (sh.moduleHardwareModel || {}).name || '';
-                const curFw = sh.firmwareVersion || '';
-                if (modType && !installedModules[modType]) {
-                    installedModules[modType] = [];
-                }
-                if (modType) {
-                    installedModules[modType].push({ shelfId: sh.shelfId || '', current: curFw, serial: sh.serialNumber || '' });
-                }
-            });
-            
+        {
+            // Was grouping installed shelves by sh.moduleType (not a real Shelf field) and
+            // sh.firmwareVersion (a field Active IQ's GraphQL schema doesn't expose at all --
+            // see _resolveShelfModules), so "Current" was permanently blank here regardless
+            // of fleet state. Rewritten against the shared resolver, which pulls current
+            // firmware from Active IQ's separate shelvesSummary field.
+            const shelfModuleGroups = _resolveShelfModules(s);
             let shelfFwRows = '';
-            // First: show models that are actually installed on this system with their current fw
-            Object.entries(recFw).forEach(([model, recVer]) => {
-                const installed = installedModules[model];
-                if (installed && installed.length > 0) {
-                    // Deduplicate by current firmware version
-                    const byVer = {};
-                    installed.forEach(inst => {
-                        const key = inst.current || '—';
-                        if (!byVer[key]) byVer[key] = { current: inst.current, count: 0, shelfIds: [] };
-                        byVer[key].count++;
-                        if (inst.shelfId) byVer[key].shelfIds.push(inst.shelfId);
-                    });
-                    Object.values(byVer).forEach(grp => {
-                        const status = _fwStatus(grp.current, recVer);
-                        const qtyLabel = grp.count > 1 ? ' <span style="color:var(--text-muted); font-size:0.75rem;">(' + grp.count + ' shelves)</span>' : '';
-                        const shelfIdLabel = grp.shelfIds.length > 0 ? ' <span style="color:var(--text-muted); font-size:0.7rem;">IDs: ' + grp.shelfIds.join(', ') + '</span>' : '';
-                        shelfFwRows += '<tr>'
-                            + '<td style="' + tdStyle + '">' + model + qtyLabel + '</td>'
-                            + '<td style="' + tdStyle + '">' + valOrDash(grp.current) + '</td>'
-                            + '<td style="' + tdStyle + '">' + valOrDash(recVer) + '</td>'
-                            + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(status) + '">' + valOrDash(status) + '</span></td>'
-                            + '</tr>';
-                    });
-                } else {
-                    // Module not matched to installed shelves — skip silently
-                    // (backend already filters to only installed module types)
-                }
+            Object.values(shelfModuleGroups).forEach(info => {
+                const rec = info.baseline ? info.baseline.recommended : '';
+                const recLabel = info.baseline ? info.baseline.label : '';
+                const status = info.currentFw && rec ? _fwStatus(info.currentFw, rec) : null;
+                const qtyLabel = info.count > 1 ? ' <span style="color:var(--text-muted); font-size:0.75rem;">(' + info.count + ' shelves)</span>' : '';
+                shelfFwRows += '<tr>'
+                    + '<td style="' + tdStyle + '">' + info.modName + qtyLabel + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(info.currentFw) + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(rec) + (recLabel ? ' <span style="color:var(--text-muted); font-size:0.65rem;">(' + recLabel + ')</span>' : '') + '</td>'
+                    + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(status) + '">' + valOrDash(status) + '</span></td>'
+                    + '</tr>';
             });
-            
-            recShelfFwHtml = '<div style="margin-top:16px;"><div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Shelf Module Firmware</div>'
-                + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Module</th><th style="' + thStyle + '">Current</th><th style="' + thStyle + '">Recommended</th><th style="' + thStyle + '">Status</th></tr>'
-                + shelfFwRows
-                + '</table></div>';
+            if (shelfFwRows) {
+                recShelfFwHtml = '<div style="margin-top:16px;"><div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-secondary); margin-bottom:8px; letter-spacing:0.5px;">Shelf Module Firmware</div>'
+                    + '<table style="' + tblStyle + '"><tr><th style="' + thStyle + '">Module</th><th style="' + thStyle + '">Current</th><th style="' + thStyle + '">Recommended</th><th style="' + thStyle + '">Status</th></tr>'
+                    + shelfFwRows
+                    + '</table></div>';
+            }
         }
 
         html += `
@@ -28756,7 +29062,7 @@ function _renderAsBuiltSection(systems) {
         let swHtml = '<div style="padding:16px; color:var(--text-muted);">No switch data available</div>';
         if (switches && switches.length > 0) {
             swHtml = '<div style="padding:16px;"><table style="' + tblStyle + '">'
-                + '<tr><th style="' + thStyle + '">Type</th><th style="' + thStyle + '">Model</th><th style="' + thStyle + '">Serial</th><th style="' + thStyle + '">Firmware</th><th style="' + thStyle + '">Target</th><th style="' + thStyle + '">Status</th><th style="' + thStyle + '">IP</th></tr>'
+                + '<tr><th style="' + thStyle + '">Type</th><th style="' + thStyle + '">Model</th><th style="' + thStyle + '">Serial</th><th style="' + thStyle + '">Firmware</th><th style="' + thStyle + '">Target</th><th style="' + thStyle + '">Status</th><th style="' + thStyle + '">IP</th><th style="' + thStyle + '">Support Ends</th></tr>'
                 + switches.map(sw => '<tr>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.type) + '</td>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.model) + '</td>'
@@ -28765,6 +29071,7 @@ function _renderAsBuiltSection(systems) {
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.targetFirmware) + '</td>'
                     + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(sw.status) + '">' + valOrDash(sw.status) + '</span></td>'
                     + '<td style="' + tdStyle + 'font-family:monospace;">' + valOrDash(sw.ipAddress) + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(sw.supportContractEnd) + '</td>'
                     + '</tr>').join('')
                 + '</table></div>';
         }
@@ -29167,14 +29474,17 @@ function generateActionPlan() {
   targetSystems.forEach(sys => {
     const sws = getSystemSwitches(sys);
     sws.forEach(sw => {
-      // s.switches merges two unrelated real Active IQ sources: per-port
-      // connected-device entries (deviceName/connectedPort/portSpeed only --
-      // never assessed by CSHM, so they have no `status`/`model`/`firmware`
-      // at all) and real cluster-level switch validation entries (which do).
-      // `sw.status !== "Optimal"` is true for BOTH an actual warning AND an
-      // unvalidated connectivity entry (undefined !== "Optimal"), so without
-      // this guard every connected-device port became a false switch alert
-      // and crashed downstream rendering that assumes a real `sw.model`.
+      // s.switches merges two real Active IQ sources (server.py): per-port
+      // connected-device entries and cluster.switches' CSHM validation data.
+      // A switch reported by both is now ONE row (matched by normalized device
+      // name and merged), not two -- previously there was no cross-source dedup,
+      // so the same physical switch could appear twice: once "thin" (no model/
+      // firmware/status at all) and once "rich", which is what most of the
+      // flaky/duplicate-looking switch rows users saw actually was. A switch
+      // seen ONLY via port connectivity (never in CSHM's inventory at all) still
+      // gets its own row with an explicit "Unknown" status and an explanatory
+      // validationDetails message, so it surfaces as a real "not monitored by
+      // CSHM" gap instead of being silently invisible.
       if (sw.status && sw.status !== "Optimal") {
         switchAlerts.push({ systemName: sys.systemName, ...sw });
       }
@@ -29311,7 +29621,7 @@ function generateActionPlan() {
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 1h10v14H3V1zm2 2v10h6V3H5zm1 1h4v2H6V4zm0 3h3v1H6V7z" fill="${color}" opacity="0.9"/></svg>
             HW Firmware: ${score}%
           </span>
-          <span style="color:var(--text-muted);">SP ${fws.spPct}% · MB ${fws.mbPct}% · DQP ${fws.dqpPct}% · Drive ${fws.drivePct}%</span>
+          <span style="color:var(--text-muted);">SP ${fws.spPct}% · MB ${fws.mbPct}% · DQP ${fws.dqpPct}% · Shelf ${fws.shelfPct}% · Drive ${fws.drivePct}%</span>
           <span style="background:${color}26;border:1px solid ${color}4d;border-radius:8px;padding:1px 6px;font-size:0.6rem;font-weight:600;color:${color};">${label}</span>
         </div>`; })()}
       </div>` : '';
@@ -29886,6 +30196,7 @@ function generateActionPlan() {
           <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
             <strong>Validation Drift:</strong> ${sw.validationDetails}
           </div>
+          ${sw.supportContractEnd ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Support contract ends: <strong>${sw.supportContractEnd.substring(0, 10)}</strong>${sw.supportContractDesc ? ' — ' + sw.supportContractDesc : ''}</div>` : ''}
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
             ${stepGuide}
           </div>
@@ -30348,7 +30659,7 @@ function generateActionPlan() {
       <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">19. As-Built Configuration Document</h2>
       <div style="display:flex; gap:8px;">
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="printAsBuiltSection()" data-tooltip="Open As-Built Document in a print-ready window for PDF export.">🖨 Print / PDF</button>
-        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(19)" data-tooltip="Download As-Built Configuration Document as a plain-text file.">⬇ Download</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(19)" data-tooltip="Download the As-Built Configuration Document -- choose Text, Markdown or Word (.docx), same as every other deliverable.">⬇ Download</button>
       </div>
     </div>
     ${_renderAsBuiltSection(targetSystems)}`;
@@ -30372,28 +30683,56 @@ function generateActionPlan() {
   if (planTabsHeader) {
     planTabsHeader.style.display = "flex";
     planTabsHeader.innerHTML = `
-      <span class="plan-tab-group-label" style="margin-left:0;">FLEET ANALYSIS</span>
-      <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
-      <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">4. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
-      <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">8. Contract Compliance</button>
-      <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
-      <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">10. Recommendations</button>
-      <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
-      <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
-      <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
-      <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
-      <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
-      <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
-      <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
-      <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
-      <span class="plan-tab-group-label" title="These are the customer-facing documents this tool generates — everything before this point is fleet analysis used to build them, not itself an exportable deliverable.">★ CUSTOMER DELIVERABLES</span>
-      <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">18. Deliverables Suite (13)</button>
-      <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Overview</span></div>
+        <div class="plan-tab-group-desc">Where every reviewer should start — the one-page rollup of everything below.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn active" data-tab-index="1" onclick="switchPlanTab(1)" title="Executive overview of the entire fleet — system count, risk summary, capacity snapshot, and key action items at a glance.">1. Summary</button>
+        </div>
+      </div>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Risk &amp; Security</span></div>
+        <div class="plan-tab-group-desc">What could go wrong, and what NetApp or CVE advisories say to do about it.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn" data-tab-index="2" onclick="switchPlanTab(2)" title="Active IQ risk advisories ranked by severity. Covers hardware, software, configuration, and data-protection risks requiring attention.">2. Technical Risks ${allRisks.length > 0 ? `(${allRisks.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="3" onclick="switchPlanTab(3)" title="NetApp security bulletins and CVE advisories affecting your fleet. Includes severity ratings, affected systems, and remediation guidance.">3. Security Advisories ${allSecurityAdvisories.length > 0 ? `(${allSecurityAdvisories.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="5" onclick="switchPlanTab(5)" title="ONTAP, StorageGRID, and SANtricity upgrade recommendations. Compares current vs. recommended versions with urgency ratings.">4. OS Upgrades ${allUpgrades.length > 0 ? `(${allUpgrades.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="6" onclick="switchPlanTab(6)" title="Interconnect and cluster switch firmware validation. Flags switches running outdated firmware or missing recommended RCF files.">5. Switch Validation ${switchAlerts.length > 0 ? `(${switchAlerts.length})` : ''}</button>
+        </div>
+      </div>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Operations &amp; Health</span></div>
+        <div class="plan-tab-group-desc">Day-to-day operational posture — support load, protection coverage, and hygiene.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn" data-tab-index="4" onclick="switchPlanTab(4)" title="Open and recent NetApp support cases across all systems. Shows case priority, age, status, and escalation indicators.">6. Support Cases ${allSupportCases.length > 0 ? `(${allSupportCases.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="15" onclick="switchPlanTab(15)" title="Operational hygiene checks -- AutoSupport recency, Anti-Ransomware Protection status, firmware currency, and reboot history. Uptime %/downtime-event trend data lives in the Operational Health &amp; Uptime panel of the As-Built Document instead.">12. Operational Health</button>
+          <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 13. DR &amp; Replication Health</button>
+          <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ 14. Feature Adoption</button>
+          <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 15. Firmware Currency</button>
+          <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ 16. Performance</button>
+        </div>
+      </div>
+      <div class="plan-tab-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">Account &amp; Commercial</span></div>
+        <div class="plan-tab-group-desc">Contracts, lifecycle, sustainability, and the account context behind the technical picture.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn" data-tab-index="10" onclick="switchPlanTab(10)" title="Contract status, warranty dates, and hardware lifecycle analysis. Highlights expiring contracts and systems approaching end-of-support.">7. Contracts &amp; Lifecycle ${expiringContracts.length > 0 ? `(${expiringContracts.length})` : ''}</button>
+          <button class="plan-tab-btn" data-tab-index="14" onclick="switchPlanTab(14)" title="Contract and warranty status by system, plus a licensed-feature package table -- does not perform SLA MET/MISSED, NRD, or hardware/software contract-alignment validation (that logic lives only in the MSP Service Report deliverable).">8. Contract Compliance</button>
+          <button class="plan-tab-btn" data-tab-index="11" onclick="switchPlanTab(11)" title="Environmental sustainability metrics — power consumption estimates, carbon footprint tracking, and efficiency scoring per system.">9. Sustainability</button>
+          <button class="plan-tab-btn" data-tab-index="12" onclick="switchPlanTab(12)" title="Active IQ's own recommendations, grouped by its real taxonomy: version/OS currency, AutoSupport health, best practices, configuration, and support entitlements.">10. Recommendations</button>
+          <button class="plan-tab-btn" data-tab-index="13" onclick="switchPlanTab(13)" title="Account personnel (sales rep, TAM, SAM, ASP, propensity category) and the account's real Active IQ sites -- no parent-account hierarchy, reseller field, or engagement history is available from the API.">11. Account Intelligence</button>
+          <button class="plan-tab-btn" data-tab-index="7" onclick="switchPlanTab(7)" title="System logistics, site locations, shipping details, and contact information for each storage controller in the fleet.">16. Logistics &amp; Health</button>
+          <button class="plan-tab-btn" data-tab-index="8" onclick="switchPlanTab(8)" title="Best-practice guidelines and operational recommendations tailored to your fleet's platform mix, OS versions, and configuration.">17. Guidelines</button>
+        </div>
+      </div>
+      <div class="plan-tab-group featured-group">
+        <div class="plan-tab-group-header"><span class="plan-tab-group-label">★ Customer Deliverables</span></div>
+        <div class="plan-tab-group-desc">Ready to export and present — everything above is the analysis that builds these.</div>
+        <div class="plan-tab-group-row">
+          <button class="plan-tab-btn featured" data-tab-index="9" onclick="switchPlanTab(9)" title="Customer-ready deliverable documents — SOW, Health Check Report, Executive Summary, and more. Ready to export and present.">18. Deliverables Suite (13)</button>
+          <button class="plan-tab-btn featured" data-tab-index="19" onclick="switchPlanTab(19)" title="Complete as-built configuration document — every parameter and setting needed to audit or rebuild each system from scratch.">19. As-Built Document</button>
+        </div>
+      </div>
     `;
 
   }
@@ -32372,7 +32711,7 @@ function deleteCustomGroup(groupId) {
 // ── API Diagnostics ───────────────────────────────────────────────────────────
 // Probes all key endpoints and shows results in a visible modal (no DevTools needed)
 async function runAPIDiagnostics() {
-  const { refresh } = loadConfig();
+  const { refresh } = loadConfig(false); // only need the token -- don't re-hydrate state.systems from cache
   if (!refresh) {
     alert("No API refresh token found.\n\nPaste your Active IQ refresh token into the field above and click 'Save Configuration', then run diagnostics again.");
     return;
@@ -33276,7 +33615,15 @@ async function manualRefresh() {
 function updateStatusIndicators() {
   const indicators = document.querySelectorAll(".indicator");
   const textLabel = document.getElementById("connectionStatusText");
-  const { refresh } = loadConfig();
+  // Only need the token here -- NOT restoreSystemsFromCache. This function is
+  // called at the end of every loadProductionData() (and elsewhere) purely to
+  // refresh the connection-status dot/label; it used to also silently re-hydrate
+  // state.systems from localStorage every time, discarding whatever
+  // saveSystems() had just quota-stripped (switches, vservers, risks,
+  // supportCases, etc.) moments earlier in the SAME load -- the actual root
+  // cause of fields that were correctly harvested going empty within the same
+  // page load, with no second sync involved. See loadConfig()'s own comment.
+  const { refresh } = loadConfig(false);
   const hasLiveData = state.systems?.some(s => s._source === 'graphql');
 
   indicators.forEach(ind => {
@@ -35933,7 +36280,7 @@ function _isPlatformStorageGRID(sys) {
   const p = (sys.platform || sys.platformModel || sys.model || '').toLowerCase();
   const pt = (sys.productType || sys.systemType || '').toLowerCase();
   return p.includes('storagegrid') || p.includes('sg60') || p.includes('sg61') || p.includes('sg10') ||
-         p.includes('sg57') || p.includes('sg57') || p.includes('sg10') || p.includes('sg516') ||
+         p.includes('sg57') || p.includes('sg58') || p.includes('sg10') || p.includes('sg516') ||
          p.includes('sg6') || p.includes('sg1') ||
          pt.includes('storagegrid') || pt.includes('object') ||
          (sys.systemType || '').toLowerCase() === 'storagegrid';
@@ -36264,12 +36611,25 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
 
   // ── Cloud / StorageGRID / E-Series — special-case returns ─────────────────
   if (isCloud) {
-    const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : 'GCP');
+    // Two genuinely different "no physical chassis" cases share this branch:
+    // Cloud Volumes ONTAP (a real public-cloud provider) and ONTAP Select (an
+    // on-prem VM under the customer's own hypervisor, no cloud provider at
+    // all). Guessing AWS/Azure/GCP for the latter would just be wrong instead
+    // of unknown -- only label a provider when the platform string actually
+    // names one.
+    const isSelect = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
+    // Astra Data Store: Kubernetes-native ONTAP, reported as platformType "ASTRA" with
+    // model/platform "ASTRA" and a real ontapVersion. No hypervisor VM and no cloud
+    // provider either -- interfaces are provisioned by the K8s CNI, not a vNIC driver.
+    const isAstra = (sys.platformType || '').toUpperCase() === 'ASTRA' || _plat === 'astra';
+    const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : ((sys.platform || '').includes('GCP') || (sys.platform || '').includes('Google') ? 'GCP' : null));
+    const label = isSelect ? 'ONTAP Select (Software-Defined)' : (isAstra ? 'Astra Data Store (Kubernetes-Native)' : `${provider || 'Cloud'} Cloud`);
+    const vnicSource = isSelect ? "the VM's hypervisor (VMware/KVM)" : (isAstra ? 'the Kubernetes cluster network (CNI)' : `the ${provider || 'cloud'} hypervisor`);
     return `<div style="background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(30,64,175,0.15));border:2px dashed rgba(59,130,246,0.4);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
-      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">☁️</div>
+      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">${isSelect ? '\u{1F4BB}' : (isAstra ? '\u{2638}️' : '☁️')}</div>
       <div style="flex:1;">
-        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${provider} Cloud</div>
-        <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${provider} hypervisor. Logical interfaces shown in table below.</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${label}</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${vnicSource}. Logical interfaces shown in table below.</div>
       </div>
       <div style="font-size:0.55rem;color:var(--accent-cyan);font-family:monospace;background:rgba(0,0,0,0.3);padding:4px 8px;border-radius:4px;">${sys.platform}</div>
     </div>`;
@@ -36881,7 +37241,17 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   // ── Build accurate per-platform rear-panel backplate ──────────────────────
   const _plat = (sys.platform || '').toLowerCase();
   const isEseries = _platformFamily(sys) === "eseries" || !!sys.santricityVersion || _plat.includes("e-series") || _plat.includes("ef600") || _plat.includes("ef300") || _plat.includes("e5700") || _plat.includes("e2800") || _plat.includes("ef50") || _plat.includes("ef80") || _plat.includes("e4000");
-  const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud");
+  // "Cloud" here really means "software-defined ONTAP with no physical chassis at all" --
+  // Cloud Volumes ONTAP (AWS/Azure/GCP) was the only case originally handled, but ONTAP
+  // Select (on-prem ONTAP running as a VM under VMware/KVM, reported as platformType
+  // "ONTAP-SELECT" with a platform string like "M300"/"FDvM300" -- a VM *size*, not a
+  // chassis model) is the exact same case: no physical rear panel exists to draw. Without
+  // this, ONTAP Select fell through to the physical-chassis SVG engine below, which had
+  // no layout bucket for "M300" and rendered a blank panel with a "not built in" caption --
+  // technically true but misleading, since no chassis was ever going to exist for a VM.
+  const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud")
+    || (sys.platformType || '').toUpperCase().includes("ONTAP-SELECT") || _plat.includes("ontap select") || _plat.includes("ontap-select")
+    || (sys.platformType || '').toUpperCase() === "ASTRA" || _plat === "astra";
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
   // Update the card title to be platform-appropriate
@@ -36892,7 +37262,9 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     } else if (isEseries) {
       _cardTitleEl.textContent = 'E-Series Controller Port Assignments \u0026 Drive Shelf Topology';
     } else if (isCloud) {
-      _cardTitleEl.textContent = 'Cloud Volumes ONTAP Network Interface Topology';
+      const _isSelectTitle = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
+      const _isAstraTitle = (sys.platformType || '').toUpperCase() === 'ASTRA' || _plat === 'astra';
+      _cardTitleEl.textContent = _isSelectTitle ? 'ONTAP Select Virtual Network Interface Topology' : (_isAstraTitle ? 'Astra Data Store Network Interface Topology' : 'Cloud Volumes ONTAP Network Interface Topology');
     } else {
       _cardTitleEl.textContent = 'Controller Node Port Assignments \u0026 Link Topology';
     }

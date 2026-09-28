@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.145] - 2026-09-28
+
+### Fixed
+- **Critical**: `_platformFamily()` -- which decides ONTAP vs. E-Series vs. StorageGRID for scoring (ARP/SnapMirror/FabricPool/HA), CLI generation, change-verification steps, and the rear-panel renderer -- never checked Active IQ's own authoritative `platformType` field, only guessed from the platform/model string. The numeric-model guess required exactly 4 digits starting with 28/29/40/57, so an older E-Series board reporting a 3-digit model ("560", platformType "E-SERIES") fell through every check and was silently scored/rendered as ONTAP. Fixed by adding `platformType` as an authoritative signal alongside the existing guess. Also fixed a second instance of the same gap: 12 StorageGRID SG5800-family appliances ("SG5860") were misclassified as ONTAP because `_isPlatformStorageGRID()`'s substring list covered sg57/sg60/sg61 but not sg58. Confirmed live: 0 of 215 real E-Series systems now misclassify as ONTAP (was 13).
+
+---
+
 ## [5.6.144] - 2026-09-28
 
 ### Fixed

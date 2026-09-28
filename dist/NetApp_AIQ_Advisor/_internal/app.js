@@ -27,9 +27,41 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.143";
+const APP_VERSION = "5.6.145";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.145",
+    date: "28 September 2026",
+    title: "E-Series Systems Silently Misclassified as ONTAP",
+    sections: [
+      {
+        icon: "✅",
+        label: "Critical Fix",
+        color: "#ef4444",
+        items: [
+          "User-reported blank rear panel led to a deeper bug: _platformFamily() -- which decides ONTAP vs. E-Series vs. StorageGRID for scoring (ARP/SnapMirror/FabricPool/HA), CLI generation, change-verification steps, and the rear-panel renderer -- never once checked Active IQ's own authoritative platformType field. It only tried to guess family from the platform/model string, on the theory that real E-Series systems report a bare number ('2800', '5700') never the words 'e-series'. That guess had its own gap: the numeric pattern required exactly 4 digits starting with 28/29/40/57, so an older E-Series board reporting a 3-digit model ('560', an EF560/E5600-family canister, platformType \"E-SERIES\") fell through every check and was silently scored, CLI'd, and rendered as if it were ONTAP -- which is why its rear panel showed the ONTAP fallback caption ('ports are grouped by e0x/eNx slot naming') instead of any E-Series-specific message.",
+          "Fixed by adding platformType into the same family-detection test as one more authoritative signal, rather than replacing the existing platform/model guessing (kept as a fallback for older data that may not carry platformType). Also found and fixed a second, larger instance of the identical gap: 12 StorageGRID SG5800-family appliances (platform \"SG5860\") were misclassified as ONTAP because _isPlatformStorageGRID()'s substring list covered sg57/sg60/sg61/sg10/sg516/sg6/sg1 but not sg58 -- added. Confirmed live: 0 of 215 real E-Series systems now misclassify as ONTAP (was 13, all fixed); the \"560\" system's rear panel now correctly shows the E-Series 'unrecognised model' message instead of the wrong ONTAP one.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.144",
+    date: "28 September 2026",
+    title: "Astra Data Store Hits the Same Blank Rear Panel as ONTAP Select",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Follow-up sweep for other virtualized platforms (requested after the ONTAP Select fix): of the 7 distinct platformType values in a real fleet, one more -- ASTRA (NetApp Astra Data Store, Kubernetes-native ONTAP; confirmed ONTAP-based by a real ontapVersion being reported despite no physical chassis) -- hit the identical blank 'physical layout for this model is not built in' panel, for the same reason as ONTAP Select: it fell through to the chassis SVG engine, which has no layout for model \"ASTRA\" because none was ever going to exist. Now shows the same 'Virtual Appliance, no physical rear panel' card, with copy specific to Astra ('vNICs provisioned by the Kubernetes cluster network (CNI)') rather than reusing the VM-hypervisor or cloud-provider wording written for the other two cases. Verified live against the one real Astra system in the fleet.",
+          "Also checked: HCI (platformType \"HCI\", models like H410S-2/H410C) is real rack-mounted physical hardware, not virtualized -- correctly out of scope for this fix. It has no rear-panel chassis layout built either, but that's a different bug (missing physical layout for real hardware, not a false 'not built in' on something with no chassis at all) and hasn't been fixed here.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.143",
     date: "28 September 2026",
@@ -17693,9 +17725,15 @@ function _platformFamily(s) {
   if (_isPlatformStorageGRID(s)) return 'storagegrid';
   const p = String(s.platform || '').trim();
   const m = String(s.model || '').trim();
+  const pt = String(s.platformType || '').trim();
   const isNumericES = (v) => /^(28|29|40|57)\d{2}$/.test(v);
+  // Active IQ's own platformType is authoritative when present -- trust it over
+  // guessing from platform/model number patterns. Found live: a real E-Series
+  // system reporting platformType "E-SERIES" but model "560" (3 digits, an
+  // older EF560/E5600-family board) fell through every pattern above (all
+  // require exactly 4 digits) and was silently scored/rendered as ONTAP.
   if (s.santricityVersion || s.eseriesCapacity || isNumericES(p) || isNumericES(m) ||
-      /e-series|santricity/i.test(p + ' ' + m + ' ' + (s.productType || '')) || /^ef\d{2,3}/i.test(p) || /^ef\d{2,3}/i.test(m)) return 'eseries';
+      /e-series|santricity/i.test(p + ' ' + m + ' ' + (s.productType || '') + ' ' + pt) || /^ef\d{2,3}/i.test(p) || /^ef\d{2,3}/i.test(m)) return 'eseries';
   return 'ontap';
 }
 
@@ -36242,7 +36280,7 @@ function _isPlatformStorageGRID(sys) {
   const p = (sys.platform || sys.platformModel || sys.model || '').toLowerCase();
   const pt = (sys.productType || sys.systemType || '').toLowerCase();
   return p.includes('storagegrid') || p.includes('sg60') || p.includes('sg61') || p.includes('sg10') ||
-         p.includes('sg57') || p.includes('sg57') || p.includes('sg10') || p.includes('sg516') ||
+         p.includes('sg57') || p.includes('sg58') || p.includes('sg10') || p.includes('sg516') ||
          p.includes('sg6') || p.includes('sg1') ||
          pt.includes('storagegrid') || pt.includes('object') ||
          (sys.systemType || '').toLowerCase() === 'storagegrid';
@@ -36580,11 +36618,15 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
     // of unknown -- only label a provider when the platform string actually
     // names one.
     const isSelect = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
+    // Astra Data Store: Kubernetes-native ONTAP, reported as platformType "ASTRA" with
+    // model/platform "ASTRA" and a real ontapVersion. No hypervisor VM and no cloud
+    // provider either -- interfaces are provisioned by the K8s CNI, not a vNIC driver.
+    const isAstra = (sys.platformType || '').toUpperCase() === 'ASTRA' || _plat === 'astra';
     const provider = (sys.platform || '').includes('AWS') ? 'AWS' : ((sys.platform || '').includes('Azure') ? 'Azure' : ((sys.platform || '').includes('GCP') || (sys.platform || '').includes('Google') ? 'GCP' : null));
-    const label = isSelect ? 'ONTAP Select (Software-Defined)' : `${provider || 'Cloud'} Cloud`;
-    const vnicSource = isSelect ? "the VM's hypervisor (VMware/KVM)" : `the ${provider || 'cloud'} hypervisor`;
+    const label = isSelect ? 'ONTAP Select (Software-Defined)' : (isAstra ? 'Astra Data Store (Kubernetes-Native)' : `${provider || 'Cloud'} Cloud`);
+    const vnicSource = isSelect ? "the VM's hypervisor (VMware/KVM)" : (isAstra ? 'the Kubernetes cluster network (CNI)' : `the ${provider || 'cloud'} hypervisor`);
     return `<div style="background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(30,64,175,0.15));border:2px dashed rgba(59,130,246,0.4);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;">
-      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">${isSelect ? '\u{1F4BB}' : '☁️'}</div>
+      <div style="font-size:1.8rem;filter:drop-shadow(0 0 6px rgba(59,130,246,0.4));">${isSelect ? '\u{1F4BB}' : (isAstra ? '\u{2638}️' : '☁️')}</div>
       <div style="flex:1;">
         <div style="font-size:0.72rem;font-weight:700;color:#fff;margin-bottom:2px;">Virtual Appliance — ${label}</div>
         <div style="font-size:0.6rem;color:var(--text-muted);">No physical rear panel — vNICs provisioned by ${vnicSource}. Logical interfaces shown in table below.</div>
@@ -37208,7 +37250,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   // no layout bucket for "M300" and rendered a blank panel with a "not built in" caption --
   // technically true but misleading, since no chassis was ever going to exist for a VM.
   const isCloud = _plat.includes("cloud") || (sys.platformType || '').toLowerCase().includes("cloud")
-    || (sys.platformType || '').toUpperCase().includes("ONTAP-SELECT") || _plat.includes("ontap select") || _plat.includes("ontap-select");
+    || (sys.platformType || '').toUpperCase().includes("ONTAP-SELECT") || _plat.includes("ontap select") || _plat.includes("ontap-select")
+    || (sys.platformType || '').toUpperCase() === "ASTRA" || _plat === "astra";
   const isStorageGrid = _isPlatformStorageGRID(sys);
 
   // Update the card title to be platform-appropriate
@@ -37220,7 +37263,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
       _cardTitleEl.textContent = 'E-Series Controller Port Assignments \u0026 Drive Shelf Topology';
     } else if (isCloud) {
       const _isSelectTitle = (sys.platformType || '').toUpperCase().includes('ONTAP-SELECT') || _plat.includes('ontap select') || _plat.includes('ontap-select');
-      _cardTitleEl.textContent = _isSelectTitle ? 'ONTAP Select Virtual Network Interface Topology' : 'Cloud Volumes ONTAP Network Interface Topology';
+      const _isAstraTitle = (sys.platformType || '').toUpperCase() === 'ASTRA' || _plat === 'astra';
+      _cardTitleEl.textContent = _isSelectTitle ? 'ONTAP Select Virtual Network Interface Topology' : (_isAstraTitle ? 'Astra Data Store Network Interface Topology' : 'Cloud Volumes ONTAP Network Interface Topology');
     } else {
       _cardTitleEl.textContent = 'Controller Node Port Assignments \u0026 Link Topology';
     }

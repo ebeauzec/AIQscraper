@@ -1,8 +1,8 @@
 {
-  "version": "5.6.144",
+  "version": "5.6.145",
   "major": 5,
   "minor": 6,
-  "patch": 144,
+  "patch": 145,
   "date": "2026-09-28",
-  "notes": "Astra Data Store rear panel fix: platformType ASTRA (Kubernetes-native ONTAP) hit the same blank 'not built in' panel as ONTAP Select and now shows the same Virtual Appliance card. HCI confirmed real hardware, out of scope, not fixed."
+  "notes": "Critical: fixed E-Series systems (platformType E-SERIES) silently misclassified as ONTAP when model number didn't match a guessed digit pattern -- 13 real systems affected (scoring, CLI, rear panel). _platformFamily() now trusts Active IQ's own platformType field."
 }
