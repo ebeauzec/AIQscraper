@@ -1,8 +1,8 @@
 {
-  "version": "5.6.157",
+  "version": "5.6.158",
   "major": 5,
   "minor": 6,
-  "patch": 157,
+  "patch": 158,
   "date": "2026-09-28",
-  "notes": "Fixed the four new Portfolio Dashboard / Portfolio Exposure tables sorting their own header row into the results -- they were missing the thead/tbody split every other sortable table in the app already has."
+  "notes": "As-Built Configuration Document can now export as a real 4-sheet Excel workbook (Systems, Shelves, SVMs & LIFs, Risks) -- built from scratch, no library, same approach as the existing docx writer. Scoped to the As-Built document only since it's the one deliverable whose data is genuinely tabular."
 }

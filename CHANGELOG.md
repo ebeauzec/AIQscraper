@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.158] - 2026-09-28
+
+### Added
+- As-Built Configuration Document: new "Export Excel" button producing a real 4-sheet .xlsx workbook (Systems, Shelves, SVMs & LIFs, Risks) -- one row per system/shelf/LIF/risk, frozen header row, autofilter. Built from scratch (`_buildXlsx()`/`_xlsxSheetXml()`/`_colLetter()`), no library, reusing the existing docx writer's zip/escaping helpers. Scoped to the As-Built document only, since it's the one deliverable whose data is genuinely tabular.
+
+---
+
 ## [5.6.157] - 2026-09-28
 
 ### Fixed

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.157";
+const APP_VERSION = "5.6.158";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.158",
+    date: "28 September 2026",
+    title: "As-Built Document: Excel Export",
+    sections: [
+      {
+        icon: "✅",
+        label: "New -- As-Built Document Excel Export",
+        color: "#22c55e",
+        items: [
+          "Asked whether an Excel export made sense for the As-Built Configuration Document specifically (not the narrative deliverables, which stay txt/md/docx) -- yes, since a lot of its data is genuinely tabular and a large scope is better filtered/sorted/pivoted in a spreadsheet than read top to bottom. New '📊 Export Excel' button next to the As-Built section's existing Print/Download buttons. Built a minimal XLSX writer from scratch (_buildXlsx()/_xlsxSheetXml()/_colLetter(), same hand-rolled-OOXML-in-a-zip approach as the existing docx writer, reusing its _zipStored()/_xe() helpers -- no library) producing a real 4-sheet workbook: Systems (one row per system -- identity, software, capacity, contract/lifecycle, firmware, account team, growth projection, all sourced from the exact same fields the As-Built TXT export already uses), Shelves, SVMs & LIFs, and Risks (one row each). Frozen header row and autofilter on every sheet. Verified live: real zip structure (4 worksheet parts, valid local file headers), real data in cells (system name, serial, customer, cluster, model, site, ONTAP version) for a real customer scope.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.157",
     date: "28 September 2026",
@@ -31681,6 +31696,7 @@ function generateActionPlan() {
       <div style="display:flex; gap:8px;">
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="printAsBuiltSection()" data-tooltip="Open As-Built Document in a print-ready window for PDF export.">🖨 Print / PDF</button>
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(19)" data-tooltip="Download the As-Built Configuration Document -- choose Text, Markdown or Word (.docx), same as every other deliverable.">⬇ Download</button>
+        <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadAsBuiltXlsx()" data-tooltip="Download as an Excel workbook -- one row per system (Systems sheet) plus Shelves, SVMs &amp; LIFs, and Risks sheets, so a large scope can be filtered/sorted/pivoted instead of read top to bottom.">📊 Export Excel</button>
       </div>
     </div>
     ${_renderAsBuiltSection(targetSystems)}`;
@@ -32726,6 +32742,127 @@ function _buildDocx(title, text) {
     { name: 'word/document.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>${_docxBody(text, isMd)}${sect}</w:body></w:document>`) }
   ];
   return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+// ── Minimal XLSX writer (no library, same approach as the docx writer above:
+// hand-built OOXML zipped with _zipStored()). Only the As-Built Configuration
+// Document exports this way -- it's the one deliverable whose underlying data
+// is genuinely tabular (one row per system/shelf/LIF/risk); the narrative
+// deliverables (QBR pack, briefs, proposals) stay txt/md/docx since reflowing
+// prose into spreadsheet cells wouldn't be more useful than the document.
+// Inline strings (t="inlineStr") avoid needing a separate sharedStrings.xml part.
+function _colLetter(n) {   // 0-based column index -> A, B, ..., Z, AA, ...
+  let s = ''; n++;
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function _xlsxCell(ref, val, headerStyle) {
+  if (val === null || val === undefined || val === '') return `<c r="${ref}"${headerStyle ? ' s="1"' : ''}/>`;
+  if (typeof val === 'number' && isFinite(val)) return `<c r="${ref}"${headerStyle ? ' s="1"' : ''}><v>${val}</v></c>`;
+  return `<c r="${ref}" t="inlineStr"${headerStyle ? ' s="1"' : ''}><is><t xml:space="preserve">${_xe(val)}</t></is></c>`;
+}
+function _xlsxSheetXml(headers, rows) {
+  const colWidths = headers.map((h, ci) => {
+    const dataLen = rows.length ? Math.max(...rows.map(r => String(r[ci] == null ? '' : r[ci]).length)) : 0;
+    return Math.max(8, Math.min(40, Math.max(dataLen, String(h).length) + 2));
+  });
+  const cols = `<cols>${colWidths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`;
+  const headRow = `<row r="1">${headers.map((h, ci) => _xlsxCell(_colLetter(ci) + '1', h, true)).join('')}</row>`;
+  const dataRows = rows.map((r, ri) => `<row r="${ri + 2}">${headers.map((h, ci) => _xlsxCell(_colLetter(ci) + (ri + 2), r[ci])).join('')}</row>`).join('');
+  const dim = `A1:${_colLetter(Math.max(0, headers.length - 1))}${rows.length + 1}`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="${dim}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${headRow}${dataRows}</sheetData><autoFilter ref="${dim}"/></worksheet>`;
+}
+function _buildXlsx(sheets) {   // sheets: [{name, headers, rows}]
+  const enc = new TextEncoder();
+  const safeName = n => String(n).replace(/[\[\]\*\/\\\?:]/g, ' ').slice(0, 31) || 'Sheet';
+  const overrides = sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('');
+  const files = [
+    { name: '[Content_Types].xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${overrides}</Types>`) },
+    { name: '_rels/.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`) },
+    { name: 'xl/workbook.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${_xe(safeName(s.name))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`) },
+    { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`) },
+    { name: 'xl/styles.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><name val="Calibri"/><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2E5597"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`) },
+    ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: enc.encode(_xlsxSheetXml(s.headers, s.rows)) })),
+  ];
+  return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+// As-Built Excel export -- reads the same scope selector and the same real
+// fields as downloadPlanSection(19)'s TXT export above, just reshaped into
+// one row per system/shelf/LIF/risk instead of narrative text, so a large
+// scope can be filtered/sorted/pivoted in Excel.
+function downloadAsBuiltXlsx() {
+  const selectValue = document.getElementById("planTargetSelect").value;
+  let targetSystems = [], scopeTitle = "";
+  if (selectValue === "ALL") { targetSystems = getFilteredSystems(); scopeTitle = "Total Portfolio"; }
+  else if (selectValue.startsWith("CUST:")) { const custName = selectValue.substring(5); targetSystems = state.systems.filter(s => s.customerName === custName); scopeTitle = `Customer: ${custName}`; }
+  else if (selectValue.startsWith("GRP:")) { const groupId = selectValue.substring(4); const grp = state.groups.find(g => g.id === groupId); if (grp) { targetSystems = state.systems.filter(s => grp.systemSerials.includes(s.serialNumber)); scopeTitle = `Group: ${grp.name}`; } }
+  else if (selectValue.startsWith("WL:")) { const wlId = selectValue.substring(3); const wl = state.watchlists.find(w => w.id === wlId); if (wl) { targetSystems = state.systems.filter(s => wl.systemSerials.includes(s.serialNumber)); scopeTitle = `Watchlist: ${wl.name}`; } }
+  else if (selectValue.startsWith("SYS:")) { const serial = selectValue.substring(4); const found = state.systems.find(s => s.serialNumber === serial); if (found) targetSystems = [found]; scopeTitle = `System: ${found ? found.systemName : serial}`; }
+
+  if (!targetSystems.length) { alert("No systems in the current scope to export."); return; }
+  const cleanScope = scopeTitle.replace(/[^a-z0-9]/gi, '_');
+  const _v = v => (v !== undefined && v !== null && v !== '') ? v : '';
+  const _num = v => (v !== undefined && v !== null && v !== '' && isFinite(parseFloat(v))) ? parseFloat(v) : '';
+
+  const sysHeaders = ['System Name', 'Serial Number', 'System ID', 'Customer', 'Cluster', 'Platform', 'Model', 'Platform Type', 'Site', 'Original Ship Date', 'Age (yrs)', 'Status',
+    'OS Version', 'Recommended OS', 'End of Full Support', 'End of Ltd Support',
+    'Usable TB', 'Physical Used TB', 'Data Reduction Ratio', 'Cluster Utilization %',
+    'Local Tiers', 'Volumes', 'LUNs', 'Data SVMs', 'Node SVMs', 'SnapMirror Count', 'Shelf Count',
+    'Contract Status', 'Contract HW End Date', 'Contract SW End Date', 'Contract Days Remaining', 'HW EOA', 'HW EOS',
+    'System FW', 'Disk FW', 'Shelf FW',
+    'Sales Rep', 'Technical Account Mgr', 'Support Account Mgr',
+    'Growth Rate (GB/day)', 'Days to Limit', 'Projected Limit Date',
+    'Open Risks'];
+  const sysRows = targetSystems.map(sys => {
+    const eff = sys.efficiency || {}, proj = sys.projections || {};
+    return [
+      _v(sys.systemName), _v(sys.serialNumber), _v(sys.systemId), _v(sys.customerName), _v(sys.clusterName), _v(sys.platform), _v(sys.model), _v(sys.platformType),
+      _v([sys.siteName, sys.siteCity, sys.siteCountry].filter(Boolean).join(', ')), _v((sys.originalShipDate || '').substring(0, 10)), _num(sys.ageInYears), _v(sys.status),
+      _v(sys.ontapVersion || sys.sgVersion || sys.santricityVersion), _v(sys.recommendedOSVersion), _v(sys.swEndOfFullSupport), _v(sys.swEndOfLimitedSupport),
+      _num(eff.usableCapacityTB), _num(eff.physicalUsedTB), _v(eff.dataReductionRatio || sys.dataReductionRatio), _num(sys.clusterCapacityUtilPct),
+      _num(sys.localTierCount), _num(sys.volumeCount), _num(sys.lunCount), _num(sys.dataSvmCount), _num(sys.nodeSvmCount), _num(sys.snapMirrorCount), (sys.shelves || []).length,
+      sys.contracts ? _v(sys.contracts.status) : '', sys.contracts ? _v(sys.contracts.hwEndDate) : '', sys.contracts ? _v(sys.contracts.swEndDate) : '', sys.contracts ? _num(sys.contracts.daysRemaining) : '', _v(sys.hwEndOfAvailability), _v(sys.hwEndOfSupport),
+      _v(sys.firmware ? sys.firmware.systemVersion : ''), _v(sys.firmware ? sys.firmware.diskVersion : ''), _v(sys.firmware ? sys.firmware.shelfVersion : ''),
+      _v(sys.salesRepName), _v(sys.csmName), _v(sys.samName),
+      _num(proj.growthRateGBPerDay), _num(proj.daysToLimit), _v(proj.limitDate),
+      (sys.risks || []).length,
+    ];
+  });
+
+  const shelfHeaders = ['System Name', 'Shelf #', 'Model', 'Shelf ID', 'Serial Number', 'Module'];
+  const shelfRows = [];
+  targetSystems.forEach(sys => (sys.shelves || []).forEach((sh, si) => {
+    const hm = sh.hardwareModel || {}, mm = sh.moduleHardwareModel || {};
+    shelfRows.push([_v(sys.systemName), si + 1, _v(sh.model || hm.name), _v(sh.shelfId), _v(sh.serialNumber), _v(mm.name)]);
+  }));
+
+  const lifHeaders = ['System Name', 'SVM', 'SVM Type', 'SVM Status', 'Protocols', 'LIF Name', 'IP / WWPN', 'Home Node', 'Home Port', 'Homed', 'Oper Status'];
+  const lifRows = [];
+  targetSystems.forEach(sys => {
+    const svms = typeof getSystemSvms === 'function' ? getSystemSvms(sys) : [];
+    (svms || []).forEach(svm => {
+      const protos = (svm.protocols || []).join(', ');
+      (svm.lifs || []).forEach(lif => {
+        lifRows.push([_v(sys.systemName), _v(svm.name), _v(svm.svmType), _v(svm.status), protos, _v(lif.name), _v(lif.ipAddress || lif.wwpn), _v(lif.homeNode), _v(lif.homePort), lif.isHomed ? 'Yes' : 'No', _v(lif.operStatus)]);
+      });
+    });
+  });
+
+  const riskHeaders = ['System Name', 'Severity', 'Category', 'Title'];
+  const riskRows = [];
+  targetSystems.forEach(sys => (sys.risks || []).forEach(r => riskRows.push([_v(sys.systemName), _v(r.severity), _v(r.category), _v(r.title)])));
+
+  const sheets = [{ name: 'Systems', headers: sysHeaders, rows: sysRows }];
+  if (shelfRows.length) sheets.push({ name: 'Shelves', headers: shelfHeaders, rows: shelfRows });
+  if (lifRows.length) sheets.push({ name: 'SVMs & LIFs', headers: lifHeaders, rows: lifRows });
+  if (riskRows.length) sheets.push({ name: 'Risks', headers: riskHeaders, rows: riskRows });
+
+  try {
+    _dlBlob(`as_built_config_${cleanScope}.xlsx`, _buildXlsx(sheets));
+  } catch (e) {
+    console.error('[xlsx] build failed:', e);
+    alert('Excel export failed to build. Check the browser console for details.');
+  }
 }
 window.__dlFmtOverride = null;
 function _askFormat(run, label, keepMs) {
