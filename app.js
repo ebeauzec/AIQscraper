@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.148";
+const APP_VERSION = "5.6.149";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.149",
+    date: "28 September 2026",
+    title: "Two More Silent Data Caps Found in the Harvester",
+    sections: [
+      {
+        icon: "✅",
+        label: "Critical Fixes",
+        color: "#ef4444",
+        items: [
+          "User noticed a node's rear panel showed no LIFs; investigation traced it through the system having 0 vservers reported, to the cluster's own SVM/capacity/HA data being entirely missing, to the root cause: server.py's clusters() GraphQL query takes no watchlist argument at all (unlike systems(), which is explicitly queried per watchlist) and only sees whatever default privilege scope the token has. Once watchlist auto-discovery started finding a real account's full set (v5.6.142), that unscoped call kept returning a real but badly incomplete count (109 clusters for 2900+ systems -- ~27 systems per cluster, implausible for real ONTAP HA pairs). The account's existing 'retry scoped to each watchlist' fallback only ever fired when the unscoped call returned exactly 0 clusters, never for a non-zero-but-incomplete result, so this never recovered on its own. Now always runs when any watchlists are known, merging by cluster id. Verified live: NetApp account's cluster count went from 43 to 313; ONTAP systems with SVM/LIF data went from 196/1393 (14%) to 890/1393 (64%); several watchlists that were completely empty are now fully populated.",
+          "Asked explicitly to check for any other silent caps: found one more, already close to being hit live. The per-watchlist loop that resolves each watchlist's system membership for the sidebar (used to build state.watchlists) was hard-capped at the first 20 watchlists -- with a real account now auto-discovering 23, the last 3 (Barclays Bank PLC, AXA, Orange Business Services -- 97/148/116 systems respectively) silently never got resolved. The risk-instances and cases loops elsewhere in the same function already iterate every configured watchlist with no such cap, so there was no real reason this one should differ. Cap removed. Verified live: all 23 watchlists now resolve.",
+          "Also investigated on request: shelf and motherboard firmware showing as unknown for an unusually large number of systems. Verified directly against the live API (not a code path) that this is real, accurate upstream data, not a bug -- it isolates specifically to one customer (Google: 0/30 systems with motherboard firmware, 0/5 with shelf firmware reported, all clean empty responses with no GraphQL errors), while a same-day newly-discovered watchlist for a different customer (STC) reports 30/30 perfectly. Consistent with that one customer running restricted AutoSupport telemetry, not a harvest scoping gap -- nothing changed here.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.148",
     date: "28 September 2026",

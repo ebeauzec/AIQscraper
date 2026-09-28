@@ -2127,59 +2127,72 @@ def _do_full_harvest(watchlist_ids=None, account=None):
 
         print(f"  [HARVEST] Clusters: {len(all_clusters)}", flush=True)
 
-        # RC-3 Fix: if unscoped clusters returned 0 (privilege-restricted corp account)
-        # retry scoped to each known watchlist to recover SnapMirror/HA/switch/shelf data.
-        if len(all_clusters) == 0:
-            _wl_ids_for_cl = list(watchlist_ids or [])
-            for _w in _early_watchlists:
-                if _w not in set(_wl_ids_for_cl):
-                    _wl_ids_for_cl.append(_w)
-            if _wl_ids_for_cl:
-                print(f"  [HARVEST] Clusters=0 — retrying scoped to {len(_wl_ids_for_cl)} watchlist(s)...", flush=True)
-                _seen_cl_ids: set = set()
-                for _wl_cl_id in _wl_ids_for_cl[:10]:  # cap at 10 watchlists
-                    _cl_wl_cursor = None
-                    while True:
-                        _cl_after_arg = f', after: "{_cl_wl_cursor}"' if _cl_wl_cursor else ""
-                        _cl_wl_query = (
-                            '{ clusters(pageSize: 100, watchlistId: "' + _wl_cl_id + '"' + _cl_after_arg + ') {'
-                            ' cursor clusters {'
-                            ' id name managementIPAddress osVersion isHAConfigured ageInYears'
-                            ' osRecommendation { recommendedVersion }'
-                            ' snapMirrorRelationships { totalCount }'
-                            ' systems { serialNumber }'
-                            ' switches { switchSerialNumber deviceName role network vendor model ipAddress'
-                            '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion }'
-                            '   supportContract { startDate endDate offerDescription } }'
-                            ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
-                            ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
-                            ' capacity {'
-                            '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
-                            '             qoqUtilizationPercentage yoyUtilizationPercentage }'
-                            '   logical { usedKiB } reportedOn }'
-                            ' monthlyCapacity { month'
-                            '   physical { usedKiB rawMarketingKiB qoqUtilizationPercentage } }'
-                            ' } } }'
-                        )
-                        _, _cl_r = _gql(token, _cl_wl_query)
-                        if not isinstance(_cl_r, dict):
-                            break
-                        if _cl_r.get("errors"):
-                            _cl_err = _cl_r["errors"][0].get("message", "")[:150]
-                            print(f"  [HARVEST] Clusters watchlist retry error (skipping): {_cl_err}", flush=True)
-                            break
-                        _cl_wl_data = (_cl_r.get("data") or {}).get("clusters") or {}
-                        _cl_wl_page = _cl_wl_data.get("clusters") or [] if isinstance(_cl_wl_data, dict) else []
-                        for _cl in _cl_wl_page:
-                            _cl_uid = _cl.get("id") or _cl.get("name")
-                            if _cl_uid and _cl_uid not in _seen_cl_ids:
-                                _seen_cl_ids.add(_cl_uid)
-                                all_clusters.append(_cl)
-                        _cl_new_cur = _cl_wl_data.get("cursor") if isinstance(_cl_wl_data, dict) else None
-                        if not _cl_wl_page or not _cl_new_cur or _cl_new_cur == _cl_wl_cursor:
-                            break
-                        _cl_wl_cursor = _cl_new_cur
-                print(f"  [HARVEST] Clusters (after watchlist retry): {len(all_clusters)}", flush=True)
+        # RC-3 Fix, broadened: the unscoped clusters() call above only sees whatever
+        # default privilege scope the token has -- it takes no watchlist argument at
+        # all, unlike systems() which is explicitly queried per watchlist. Originally
+        # this retry only fired when the unscoped call returned exactly 0 clusters
+        # (a fully privilege-restricted account), on the assumption that any non-zero
+        # count meant the unscoped call saw everything. Confirmed live that's false:
+        # after watchlist auto-discovery started finding a real account's full set
+        # (v5.6.142), the unscoped call kept returning a small, real, non-zero but
+        # badly incomplete count (109 clusters for 2900+ systems -- ~27 systems per
+        # cluster, implausible for real ONTAP HA pairs) because it can't see clusters
+        # only reachable via the newly-discovered watchlists. Systems from those
+        # watchlists still harvested fine (systems() is per-watchlist), but their
+        # cluster-level merge data -- vservers/SVMs, capacity, HA status -- silently
+        # stayed empty since their cluster never appeared in the unscoped result, with
+        # no fallback ever running to recover it. Now always runs when any watchlists
+        # are known, merging by cluster id instead of only replacing an empty list.
+        _wl_ids_for_cl = list(watchlist_ids or [])
+        for _w in _early_watchlists:
+            if _w not in set(_wl_ids_for_cl):
+                _wl_ids_for_cl.append(_w)
+        if _wl_ids_for_cl:
+            print(f"  [HARVEST] Clusters: {len(all_clusters)} from unscoped call -- also scoping to {len(_wl_ids_for_cl)} watchlist(s) to recover any clusters outside the token's default visibility...", flush=True)
+            _seen_cl_ids: set = {(_cl.get("id") or _cl.get("name")) for _cl in all_clusters if (_cl.get("id") or _cl.get("name"))}
+            for _wl_cl_id in _wl_ids_for_cl[:30]:  # cap at 30 watchlists
+                _cl_wl_cursor = None
+                while True:
+                    _cl_after_arg = f', after: "{_cl_wl_cursor}"' if _cl_wl_cursor else ""
+                    _cl_wl_query = (
+                        '{ clusters(pageSize: 100, watchlistId: "' + _wl_cl_id + '"' + _cl_after_arg + ') {'
+                        ' cursor clusters {'
+                        ' id name managementIPAddress osVersion isHAConfigured ageInYears'
+                        ' osRecommendation { recommendedVersion }'
+                        ' snapMirrorRelationships { totalCount }'
+                        ' systems { serialNumber }'
+                        ' switches { switchSerialNumber deviceName role network vendor model ipAddress'
+                        '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion }'
+                        '   supportContract { startDate endDate offerDescription } }'
+                        ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
+                        ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
+                        ' capacity {'
+                        '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
+                        '             qoqUtilizationPercentage yoyUtilizationPercentage }'
+                        '   logical { usedKiB } reportedOn }'
+                        ' monthlyCapacity { month'
+                        '   physical { usedKiB rawMarketingKiB qoqUtilizationPercentage } }'
+                        ' } } }'
+                    )
+                    _, _cl_r = _gql(token, _cl_wl_query)
+                    if not isinstance(_cl_r, dict):
+                        break
+                    if _cl_r.get("errors"):
+                        _cl_err = _cl_r["errors"][0].get("message", "")[:150]
+                        print(f"  [HARVEST] Clusters watchlist retry error (skipping): {_cl_err}", flush=True)
+                        break
+                    _cl_wl_data = (_cl_r.get("data") or {}).get("clusters") or {}
+                    _cl_wl_page = _cl_wl_data.get("clusters") or [] if isinstance(_cl_wl_data, dict) else []
+                    for _cl in _cl_wl_page:
+                        _cl_uid = _cl.get("id") or _cl.get("name")
+                        if _cl_uid and _cl_uid not in _seen_cl_ids:
+                            _seen_cl_ids.add(_cl_uid)
+                            all_clusters.append(_cl)
+                    _cl_new_cur = _cl_wl_data.get("cursor") if isinstance(_cl_wl_data, dict) else None
+                    if not _cl_wl_page or not _cl_new_cur or _cl_new_cur == _cl_wl_cursor:
+                        break
+                    _cl_wl_cursor = _cl_new_cur
+            print(f"  [HARVEST] Clusters (after watchlist scoping): {len(all_clusters)}", flush=True)
 
         # 6. Fetch risk instances (paginated, 500 per page)
         # Accounts without the `unfiltered_system_access` privilege (the same
@@ -3854,7 +3867,13 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             # customer name is a far more useful label than a random ID
             # fragment.
             _serial_to_customer = {s.get("serialNumber"): s.get("customerName") for s in systems_out if s.get("serialNumber")}
-            for wl in watchlists_out[:20]:  # Limit to 20 watchlists to avoid excessive API calls
+            # No cap here (previously [:20] -- found live, once auto-discovery started
+            # finding a real account's full set, that a 23-watchlist account silently
+            # lost systemSerials resolution for its last 3 watchlists, same class of
+            # bug as the clusters() scoping gap above: risks/cases loops elsewhere in
+            # this function already iterate every configured watchlist with no cap,
+            # so there was no real reason for this one to differ).
+            for wl in watchlists_out:
                 wl_id = wl.get("id", "")
                 if not wl_id:
                     continue
@@ -3905,9 +3924,9 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 except Exception as wl_err:
                     wl.pop("_isPlaceholderName", None)
                     print(f"    Watchlist '{wl.get('name', wl_id)}' serial resolve failed: {wl_err}", flush=True)
-            # Any watchlist beyond the [:20] processing cap above never ran
-            # through the try/except that pops this internal marker -- strip
-            # it from all of them so it never leaks into the JSON response.
+            # Belt-and-suspenders: any watchlist whose loop iteration above raised
+            # before reaching the try's own pop() would leak this internal marker
+            # into the JSON response -- strip it from all of them here regardless.
             for wl in watchlists_out:
                 wl.pop("_isPlaceholderName", None)
             # Persist any newly-resolved customer names so the next harvest's

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.149] - 2026-09-28
+
+### Fixed
+- **Critical**: `server.py`'s `clusters()` GraphQL query took no watchlist argument at all (unlike `systems()`, explicitly queried per watchlist), so it only saw whatever default privilege scope the token had. Once watchlist auto-discovery started finding a real account's full set (v5.6.142), the unscoped call kept returning a real-but-incomplete count (109 clusters for 2900+ systems), silently losing SVM/vserver, capacity, and HA data for every system whose cluster wasn't in that capped set. The existing "retry scoped to each watchlist" fallback only fired when the unscoped call returned exactly 0 clusters, never for a non-zero-but-incomplete result. Now always runs when watchlists are known, merging by cluster id. Verified live: NetApp account's cluster count went from 43 to 313; ONTAP systems with SVM/LIF data went from 14% to 64% of the fleet.
+- The per-watchlist loop that resolves each watchlist's system membership (for the sidebar) was hard-capped at the first 20 watchlists. With a real account now auto-discovering 23, the last 3 silently never resolved. Cap removed, matching the risk-instances/cases loops elsewhere that already had none.
+
+### Investigated, not a bug
+- Shelf/motherboard firmware showing as unknown for an unusually large number of systems was reported and investigated directly against the live API. It's real, accurate data isolating to one specific customer's restricted AutoSupport telemetry (0/30 systems with reported firmware), not a harvest scoping gap -- a same-day newly-discovered watchlist for a different customer reports perfectly (30/30). Nothing changed.
+
+---
+
 ## [5.6.148] - 2026-09-28
 
 ### Fixed

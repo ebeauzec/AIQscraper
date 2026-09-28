@@ -22,10 +22,38 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.148)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.149)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, the biggest one, part 5 (v5.6.149):** user noticed a node showed no LIFs on its rear panel.
+Traced it all the way down: 0 vservers -> the cluster's SVM/capacity/HA data was entirely missing ->
+`server.py`'s `clusters()` GraphQL query (~2062) takes NO watchlist argument at all, unlike `systems()`
+(explicitly per-watchlist) -- it only sees the token's default privilege scope. Once watchlist auto-discovery
+started finding a real account's full set (v5.6.142), that unscoped call kept returning a real but badly
+incomplete count (109 clusters for 2900+ systems -- ~27/cluster, implausible for real HA pairs). An existing
+"retry scoped to each watchlist" fallback for exactly this only fired when the unscoped call returned exactly
+0 -- never for non-zero-but-incomplete, so it never kicked in. Fixed: now always runs when watchlists are
+known, merging by cluster id. **Verified live, the payoff**: NetApp account's cluster count 43 -> 313; ONTAP
+systems with SVM/LIF data 14% -> 64% of the fleet (196/1393 -> 890/1393). Several watchlists that were
+COMPLETELY empty (Vodacom Tanzania, IEC ONTAP, Mauritius Commercial Bank) are now fully populated.
+Asked explicitly to check for other silent caps -- found one more, already close to being hit: the loop that
+resolves each watchlist's system membership for the sidebar was hard-capped at `[:20]`; a real account now
+has 23 watchlists, so the last 3 (Barclays/AXA/Orange, 97/148/116 systems) silently never resolved. Cap
+removed (risks/cases loops elsewhere already had none). Also investigated a related report (shelf/motherboard
+firmware showing unknown for many systems) with direct standalone GraphQL probe scripts against the live
+API, not just reading code -- confirmed it's real data, isolating to ONE customer (Google: 0/30 systems with
+firmware reported, clean empty responses, no errors) while a same-day newly-discovered watchlist for a
+DIFFERENT customer (STC) reports perfectly (30/30) -- restricted AutoSupport telemetry on that one customer's
+side, not a scoping bug, nothing changed. Systematically swept the rest of the file for the same cap-class
+bug: systems/risks/cases/E-Series-capacity/shelf-summary loops all already iterate every watchlist with no
+cap -- only generous pagination safety bounds (5,000 systems/watchlist) remain, not a real-world risk.
+**Lesson for next time**: watchlist auto-discovery (v5.6.142) exposed a LOT of latent scoping assumptions
+elsewhere in the harvester that were written back when accounts only ever had a handful of watchlists (or
+effectively zero, since discovery was broken) -- if something looks like sparse/missing data after a big
+watchlist-count jump, check whether the query touching it takes a watchlist argument at all before assuming
+the upstream data is just sparse.
 
 **Also today, part 4 (v5.6.148):** user hit a "Sync failed: Sync timed out after 6 minutes" alert telling
 them to check the launcher. Checked `/api/sync-status` live while it was showing -- `isSyncing: true`, well
