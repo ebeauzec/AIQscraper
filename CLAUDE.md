@@ -156,7 +156,7 @@ content-audited (ARIA_FIX_PLAN.md looks obsolete, worth archiving). The loadConf
 callers found this session (`updateStatusIndicators`, `runAPIDiagnostics`) -- worth a quick grep for any other
 `loadConfig()` call site before assuming this class of bug is fully closed.
 
-**Git:** branch `main`, pushed through `e18929f`. Working tree also shows harvest data files modified by the
+**Git:** branch `main`, pushed through `eb7351c`. Working tree also shows harvest data files modified by the
 running server (`data/*.json`) -- not part of this work, don't commit them with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
