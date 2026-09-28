@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.141";
+const APP_VERSION = "5.6.142";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.142",
+    date: "28 September 2026",
+    title: "Real Watchlist Discovery Endpoint Found",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "Watchlist auto-discovery (server.py) -- the fallback used when a configured watchlist ID is stale or an account relies entirely on auto-discovery -- was silently broken since it was written: every candidate REST path/header combination it tried returned 404 or 401. Found the real, documented endpoint via NetApp's internal API catalog: GET /v2/watchlist/list, authenticated with a header literally named `authorizationToken` (the raw access token, with NO \"Bearer \" prefix) -- not the standard `Authorization: Bearer <token>` every other call in this file uses. The two 401s seen while probing (on paths that do exist, e.g. /v2/watchlist/action) were this exact header-name mismatch, not a wrong path. Response is nested at results.watchlist[] with snake_case fields (watchlist_id/watchlist_name), also different from what was guessed before. Confirmed live against a real account: correctly discovers all 4 of its real watchlists, none of which auto-discovery could ever find before.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.141",
     date: "27 September 2026",

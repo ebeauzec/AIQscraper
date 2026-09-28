@@ -1784,28 +1784,34 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # as a fallback scope when configured watchlists are stale or the account
         # lacks unfiltered_system_access.
         # Always runs — even when watchlist_ids is configured (they may be stale).
+        #
+        # The real, documented endpoint (confirmed live via NetApp's internal API
+        # catalog, aiq.netapp.com/catalog/.../watchlist-v2) is GET /v2/watchlist/list,
+        # authenticated with a header literally named `authorizationToken` (the raw
+        # access token, NO "Bearer " prefix) -- not the standard `Authorization:
+        # Bearer <token>` every other REST/GraphQL call in this file uses. That
+        # mismatch is why every previously-tried path/header combination here
+        # returned 404 ("Unsupported endpoint") or 401 -- the 401s (on paths that DO
+        # exist, e.g. /v2/watchlist/action) were this exact auth-header problem, not
+        # a wrong path. Response shape is nested at results.watchlist[], with
+        # snake_case fields (watchlist_id/watchlist_name), not the camelCase guessed
+        # here before.
         _early_watchlists = []  # list of watchlist id strings
-        # 1. Try REST paths first
         try:
-            for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action",
-                             "/v1/watchlist", "/v1/watchlists"]:
-                try:
-                    wl_st, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
-                        {"Authorization": f"Bearer {token}", "Accept": "application/json"})
-                    if wl_st == 200:
-                        wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
-                        wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", wl_data.get("data", [])))
-                        if isinstance(wl_list, list):
-                            for wl in wl_list:
-                                if isinstance(wl, dict):
-                                    wid = wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", "")
-                                    if wid:
-                                        _early_watchlists.append(wid)
-                        if _early_watchlists:
-                            print(f"  [HARVEST] Auto-discovered {len(_early_watchlists)} watchlist(s) via REST ({wl_path})", flush=True)
-                            break
-                except Exception:
-                    pass
+            wl_st, wl_raw = _http("GET", f"{REST_BASE}/v2/watchlist/list",
+                {"authorizationToken": token, "Accept": "application/json"})
+            if wl_st == 200:
+                wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
+                wl_list = ((wl_data.get("results") or {}).get("watchlist")) or []
+                for wl in wl_list:
+                    if isinstance(wl, dict):
+                        wid = wl.get("watchlist_id") or ""
+                        if wid:
+                            _early_watchlists.append(wid)
+                if _early_watchlists:
+                    print(f"  [HARVEST] Auto-discovered {len(_early_watchlists)} watchlist(s) via REST (GET /v2/watchlist/list)", flush=True)
+            else:
+                print(f"  [HARVEST] Watchlist REST pre-discovery: GET /v2/watchlist/list returned HTTP {wl_st}", flush=True)
         except Exception as _wl_disc_err:
             print(f"  [HARVEST] Watchlist REST pre-discovery skipped: {_wl_disc_err}", flush=True)
 
@@ -3755,35 +3761,35 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         tam_customer_recommendations.append(_result)
             print(f"  [HARVEST] Per-customer recommendations: {_rec_ok}/{len(_customer_ids)} customers reported", flush=True)
 
-        # 14. Try fetching watchlists from REST API
+        # 14. Fetch watchlists from REST API -- GET /v2/watchlist/list, header
+        # `authorizationToken: <token>` (no "Bearer " prefix), results nested at
+        # results.watchlist[] with snake_case fields. See the early-discovery block
+        # above for how this was found (NetApp's internal API catalog).
         watchlists_out = []
         try:
-            for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action"]:
-                try:
-                    wl_status, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
-                        {"Authorization": f"Bearer {token}", "Accept": "application/json"})
-                    if wl_status == 200:
-                        wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
-                        wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", []))
-                        if isinstance(wl_list, list) and len(wl_list) > 0:
-                            for wl in wl_list:
-                                if isinstance(wl, dict):
-                                    wid = wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", "")
-                                    wname = wl.get("watchListName") or wl.get("watchlistName") or wl.get("name", "Watchlist")
-                                    if wid:
-                                        watchlists_out.append({"id": wid, "name": wname, "systemSerials": []})
-                            if watchlists_out:
-                                print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from {wl_path}", flush=True)
-                                # Persist resolved names so fallback runs keep real names
-                                try:
-                                    _cfg_w = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
-                                    _cfg_w["watchlistNames"] = {w["id"]: w["name"] for w in watchlists_out}
-                                    CONFIG_PATH.write_text(json.dumps(_cfg_w, indent=2), encoding="utf-8")
-                                except Exception:
-                                    pass
-                                break
-                except Exception:
-                    pass
+            wl_status, wl_raw = _http("GET", f"{REST_BASE}/v2/watchlist/list",
+                {"authorizationToken": token, "Accept": "application/json"})
+            if wl_status == 200:
+                wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
+                wl_list = ((wl_data.get("results") or {}).get("watchlist")) or []
+                for wl in wl_list:
+                    if isinstance(wl, dict):
+                        wid = wl.get("watchlist_id") or ""
+                        wname = wl.get("watchlist_name") or "Watchlist"
+                        if wid:
+                            watchlists_out.append({"id": wid, "name": wname, "systemSerials": [],
+                                                    "level": wl.get("wl_level", ""), "category": wl.get("wl_category", "")})
+                if watchlists_out:
+                    print(f"  [HARVEST] Watchlists: {len(watchlists_out)} from GET /v2/watchlist/list", flush=True)
+                    # Persist resolved names so fallback runs keep real names
+                    try:
+                        _cfg_w = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+                        _cfg_w["watchlistNames"] = {w["id"]: w["name"] for w in watchlists_out}
+                        CONFIG_PATH.write_text(json.dumps(_cfg_w, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
+            else:
+                print(f"  [HARVEST] Watchlists: GET /v2/watchlist/list returned HTTP {wl_status}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] Watchlist fetch skipped: {e}", flush=True)
 
@@ -10025,27 +10031,26 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if not token:
                 raise Exception("No access token")
 
-            # Fetch watchlists
+            # Fetch watchlists -- GET /v2/watchlist/list, header `authorizationToken`
+            # (raw token, no "Bearer " prefix). See the harvest-side comment for how
+            # this was found.
             watchlists = []
-            for wl_path in ["/v1/watchlists/list", "/v1/watchlist/all", "/v2/watchlist/action"]:
-                try:
-                    wl_status, wl_raw = _http("GET", f"{REST_BASE}{wl_path}",
-                        {"Authorization": f"Bearer {token}", "Accept": "application/json"})
-                    if wl_status == 200:
-                        wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
-                        wl_list = wl_data if isinstance(wl_data, list) else wl_data.get("results", wl_data.get("watchlists", []))
-                        if isinstance(wl_list, list) and len(wl_list) > 0:
-                            for wl in wl_list:
-                                if isinstance(wl, dict):
-                                    watchlists.append({
-                                        "id": wl.get("watchListId") or wl.get("watchlistId") or wl.get("id", ""),
-                                        "name": wl.get("watchListName") or wl.get("watchlistName") or wl.get("name", "Watchlist"),
-                                        "systemCount": wl.get("systemCount") or wl.get("system_count") or 0,
-                                    })
-                            if watchlists:
-                                break
-                except Exception:
-                    pass
+            wl_status, wl_raw = _http("GET", f"{REST_BASE}/v2/watchlist/list",
+                {"authorizationToken": token, "Accept": "application/json"})
+            if wl_status == 200:
+                wl_data = json.loads(wl_raw.decode("utf-8", errors="replace"))
+                wl_list = ((wl_data.get("results") or {}).get("watchlist")) or []
+                for wl in wl_list:
+                    if isinstance(wl, dict):
+                        wid = wl.get("watchlist_id") or ""
+                        if wid:
+                            watchlists.append({
+                                "id": wid,
+                                "name": wl.get("watchlist_name") or "Watchlist",
+                                "level": wl.get("wl_level", ""),
+                                "category": wl.get("wl_category", ""),
+                                "createdDate": wl.get("created_date", ""),
+                            })
 
             res_bytes = json.dumps({"watchlists": watchlists}).encode("utf-8")
             self.send_response(200)

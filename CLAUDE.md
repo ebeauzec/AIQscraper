@@ -22,12 +22,26 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27 (Windows dev station, v5.6.134 -> v5.6.141)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.142)
 
-Continues the same day's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
-harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main` through `01c6e9c`.
+Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
+harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
 
-**Read this first -- the headline finding (v5.6.141):** `loadConfig()` (reads auth tokens/settings from
+**Read this first -- today's finding (v5.6.142, 2026-09-28):** Watchlist auto-discovery in `server.py` was
+silently broken since it was written -- every candidate REST path/header combo it tried (five of them, across
+three call sites) returned 404 or 401. User supplied the real endpoint from NetApp's internal API catalog:
+`GET /v2/watchlist/list`, header `authorizationToken` (raw token, **no** `Bearer ` prefix, **not** the
+standard `Authorization` header every other call in this file uses) -- that header mismatch is exactly what
+produced the 401s on paths that DO exist (e.g. `/v2/watchlist/action`, which turned out to be a *create*
+endpoint anyway, not list). Response shape is `results.watchlist[]` with snake_case fields
+(`watchlist_id`/`watchlist_name`), different from every shape previously guessed. All three call sites fixed;
+confirmed live against a real account whose own `watchlistId` config was always blank (it relied entirely on
+this broken auto-discovery) -- now correctly finds all 4 of its real watchlists. **Lesson for next time an API
+integration seems unfixable by guessing**: ask the user for the internal API catalog/docs link before trying
+more path variations -- this took minutes to fix once the real spec was in hand, versus the prior sessions'
+worth of guessing that never found it.
+
+**Yesterday's headline finding (v5.6.141):** `loadConfig()` (reads auth tokens/settings from
 localStorage) also unconditionally re-hydrates `state.systems` from localStorage as an undocumented side
 effect, EVERY time it's called -- not just at boot. `loadProductionData()` calls `updateStatusIndicators()`
 at its own end just to refresh the connection dot; that called `loadConfig()` just for the token; that

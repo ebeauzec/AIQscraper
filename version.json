@@ -1,8 +1,8 @@
 {
-  "version": "5.6.141",
+  "version": "5.6.142",
   "major": 5,
   "minor": 6,
-  "patch": 141,
-  "date": "2026-09-27",
-  "notes": "Critical fix: loadConfig() was silently re-hydrating state.systems from a quota-stripped localStorage cache after every sync, wiping switches/vservers/risks/cases/etc. within the same page load. Also: switch reporting audit (dedup, vendor inference, network+supportContract fields)."
+  "patch": 142,
+  "date": "2026-09-28",
+  "notes": "Found the real watchlist-discovery REST endpoint (GET /v2/watchlist/list, authorizationToken header) -- auto-discovery was silently broken since it was written, trying only wrong paths/header names."
 }
