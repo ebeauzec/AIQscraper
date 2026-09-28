@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.155] - 2026-09-28
+
+### Fixed
+- v5.6.154's sortable-column fix was applied to `index.html` (the compiled build artifact PyInstaller bundles into the exe), not `index_src.html` -- the file `server.py`'s `do_GET()` actually rewrites `/` to in dev mode, so the live app was still unsortable after that release. Applied the same fix to `index_src.html`; `index.html` kept in sync.
+
+### Added
+- Capacity Breakdown by Node table: sortable Customer column (real `customerName`), between Node/System and Model.
+
+---
+
 ## [5.6.154] - 2026-09-28
 
 ### Added

@@ -649,14 +649,15 @@
               <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
                 <thead>
                   <tr style="border-bottom:2px solid var(--border-color);color:var(--text-muted);text-align:left;">
-                    <th style="padding:8px 10px;font-weight:600;">Node / System</th>
-                    <th style="padding:8px 10px;font-weight:600;">Model</th>
-                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Raw TB</th>
-                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Used TB</th>
-                    <th style="padding:8px 10px;font-weight:600;min-width:160px;">Utilization</th>
-                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Growth/day</th>
-                    <th style="padding:8px 10px;font-weight:600;text-align:right;">Runway</th>
-                    <th style="padding:8px 10px;font-weight:600;">Source</th>
+                    <th style="padding:8px 10px;font-weight:600;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Node / System <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Customer <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Model <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Raw TB <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Used TB <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;min-width:160px;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Utilization <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Growth/day <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;text-align:right;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Runway <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
+                    <th style="padding:8px 10px;font-weight:600;cursor:pointer;user-select:none;" onclick="sortTamTable(this)">Source <span class="tam-sort-icon" style="opacity:0.4;font-size:0.6rem;">⇅</span></th>
                   </tr>
                 </thead>
                 <tbody id="csmNodeBreakdownBody"></tbody>

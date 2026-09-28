@@ -1,8 +1,8 @@
 {
-  "version": "5.6.154",
+  "version": "5.6.155",
   "major": 5,
   "minor": 6,
-  "patch": 154,
+  "patch": 155,
   "date": "2026-09-28",
-  "notes": "Capacity Breakdown by Node table (CSM tab) is now click-to-sort on all 8 columns, with its TOTAL row pinned at the bottom instead of being sorted like a data row. Also removed all display numbers from the Action Planner's 21 tab buttons/section headings after the VMware Inventory addition exposed pre-existing numbering collisions."
+  "notes": "The v5.6.154 sortable-columns fix was applied to index.html (the compiled build artifact), not index_src.html (the file server.py actually serves in dev mode) -- fixed for real this time, verified with a genuine click event. Also adds a sortable Customer column to the Capacity Breakdown by Node table."
 }

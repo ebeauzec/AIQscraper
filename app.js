@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.154";
+const APP_VERSION = "5.6.155";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.155",
+    date: "28 September 2026",
+    title: "The Sortable-Columns Fix Actually Applied, Plus a Customer Column",
+    sections: [
+      {
+        icon: "🩹",
+        label: "Fixed -- v5.6.154's Sort Fix Was Applied to the Wrong File",
+        color: "#f87171",
+        items: [
+          "v5.6.154 added click-to-sort headers to index.html, but server.py's do_GET() (~8294) rewrites every request for '/' to '/index_src.html' specifically so dev-mode code changes take effect without recompiling -- index.html is only the compiled build artifact PyInstaller bundles into the packaged exe. The live app was never reading the file that got fixed, which is why the columns still weren't sortable after that release. Applied the identical fix to index_src.html (the file actually served); index.html is kept in sync too since it's what the exe bundles. Verified this time with a real th.click() (not a direct sortTamTable() call, which is what silently passed last time despite the wiring being absent) against the live 2,898-system fleet -- sorts correctly, TOTAL row stays pinned.",
+        ],
+      },
+      {
+        icon: "✅",
+        label: "New -- Customer Column",
+        color: "#22c55e",
+        items: [
+          "Capacity Breakdown by Node table (CSM tab) now has a Customer column (real s.customerName, sortable like every other column) between Node/System and Model -- requested alongside the sort fix. renderNodeBreakdownTable() (app.js ~17490) and both HTML files' TOTAL footer row (colspan 2 -> 3 to still span Node+Customer+Model) updated to match.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.154",
     date: "28 September 2026",
@@ -17509,6 +17532,7 @@ function renderNodeBreakdownTable(systems) {
 
     return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rowBg}">
       <td style="padding:9px 10px;font-weight:600;">${s.systemName || '-'}</td>
+      <td style="padding:9px 10px;color:var(--text-secondary);font-size:0.78rem;">${s.customerName || '-'}</td>
       <td style="padding:9px 10px;color:var(--text-secondary);font-size:0.78rem;">${model}</td>
       <td style="padding:9px 10px;text-align:right;">${rawDisplay}</td>
       <td style="padding:9px 10px;text-align:right;">${usedDisplay}</td>
@@ -17538,7 +17562,7 @@ function renderNodeBreakdownTable(systems) {
   _footerRow.className = 'tam-total-row';
   _footerRow.style.cssText = 'border-top:2px solid var(--border-color);font-weight:700;background:rgba(255,255,255,0.03);';
   _footerRow.innerHTML = `
-    <td style="padding:9px 10px;" colspan="2">TOTAL (${sorted.length} nodes)</td>
+    <td style="padding:9px 10px;" colspan="3">TOTAL (${sorted.length} nodes)</td>
     <td style="padding:9px 10px;text-align:right;">${totalRaw > 0 ? totalRaw.toFixed(1) : '<span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">N/A</span>'}</td>
     <td style="padding:9px 10px;text-align:right;">${totalUsed.toFixed(1)}</td>
     <td style="padding:9px 10px;">
