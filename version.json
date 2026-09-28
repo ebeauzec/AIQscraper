@@ -1,8 +1,8 @@
 {
-  "version": "5.6.146",
+  "version": "5.6.147",
   "major": 5,
   "minor": 6,
-  "patch": 146,
+  "patch": 147,
   "date": "2026-09-28",
-  "notes": "Found and fixed the same platformType-blind classification bug in 3 more places (enrichSystemTelemetry + 2 TAM node-visualizer toggles). Verified 0 of 2450 real systems misclassify now. HCI Element OS storage nodes flagged as a separate, unfixed gap (no dedicated family bucket)."
+  "notes": "Added 4th platform family 'element' for NetApp HCI storage nodes (Element OS/SolidFire, not ONTAP). Automatically excluded from ARP/SnapMirror/FabricPool/HA scoring and ONTAP CLI generation everywhere those already filter on _platformFamily(s) === 'ontap'. HCI compute nodes correctly stay 'ontap'."
 }

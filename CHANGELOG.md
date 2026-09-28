@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.147] - 2026-09-28
+
+### Fixed
+- Fixed the HCI classification gap flagged in v5.6.146: NetApp HCI storage nodes (platformType "HCI", models "H410S-2"/"SolidFire") run Element OS, not ONTAP, but `_platformFamily()` had only 3 buckets, so they were scored on ARP/SnapMirror/FabricPool/HA/MetroCluster and given ONTAP CLI/change-verification guidance that doesn't apply. Added a 4th family, `'element'`, detected via NetApp's own node-naming convention (storage nodes = "H\<model\>S" or "SolidFire"; compute nodes = "H\<model\>C", which correctly stay ONTAP since they run a real ONTAP Select instance). Because almost every feature check in the app already filters on `_platformFamily(s) === 'ontap'` explicitly, the new bucket was automatically excluded fleet-wide with no further changes needed at most call sites. Added Element-specific verification/rollback guidance and excluded these systems from the ONTAP security-bulletin auto-match (same false-CVE-match risk E-Series already had). Verified live: 9 of 15 real HCI systems (storage nodes) now classify correctly; the 6 compute nodes stay ONTAP; 0 false positives elsewhere in the fleet.
+
+---
+
 ## [5.6.146] - 2026-09-28
 
 ### Fixed

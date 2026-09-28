@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.146";
+const APP_VERSION = "5.6.147";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.147",
+    date: "28 September 2026",
+    title: "HCI Storage Nodes Get Their Own Family: Element OS, Not ONTAP",
+    sections: [
+      {
+        icon: "✅",
+        label: "Fixes",
+        color: "#22c55e",
+        items: [
+          "The HCI classification gap flagged (not fixed) in v5.6.146: NetApp HCI storage nodes (platformType \"HCI\", models \"H410S-2\"/\"SolidFire\") run Element OS (SolidFire), not ONTAP, but _platformFamily() only had 3 buckets -- storagegrid/eseries/ontap -- so they fell into the 'ontap' catch-all and were scored on ARP/SnapMirror/FabricPool/HA/MetroCluster, given ONTAP CLI commands and ONTAP change-verification steps, none of which apply to Element OS. Active IQ compounds it by reusing the ontapVersion field to carry the Element OS version for these nodes (e.g. \"12.3.2.3\", a format real ONTAP never produces) or reporting \"UNKNOWN\".",
+          "Added a 4th family, 'element', detected the same way NetApp itself names the hardware: storage nodes are \"H<model>S\" (\"H410S-2\") or literally \"SolidFire\"; compute nodes are \"H<model>C\" (\"H410C\") and correctly stay 'ontap' since they run a real ONTAP Select instance (confirmed live: real ONTAP version 9.12.1 reported). Because nearly every feature-scoring/CLI-generation/report check in the app already filters explicitly on `_platformFamily(s) === 'ontap'` rather than excluding eseries/storagegrid by name, the new bucket was automatically excluded from ARP/SnapMirror/FabricPool/HA/MetroCluster scoring, dedupe/compression ratios, and ONTAP CLI generation with no further changes needed there. Added Element-specific change-verification/rollback guidance (SolidFire management UI health checks, iSCSI path counts) in place of the StorageGRID guidance these nodes were incorrectly getting, and excluded them from the ONTAP security-bulletin auto-match (same false-CVE-match risk as E-Series' SANtricity version numbers).",
+          "Verified live: 9 of 15 real HCI systems (all storage nodes) now classify as 'element'; the 6 compute nodes stay 'ontap'; 0 false positives against the other 2,435 systems in the fleet. The enriched ontapVersion field for a storage node now correctly comes back null instead of the bogus Element OS version string.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.146",
     date: "28 September 2026",
@@ -8333,7 +8350,7 @@ function _demoBuildRoots(systems, ctx) {
   // renewals (Active IQ's renewals feed shape)
   state.tamRenewals = systems.map(s => {
     const end = s.contractEndDate || (s.contracts && s.contracts.endDate ? _demoIso(Date.parse(s.contracts.endDate)) : '');
-    return { serialNumber: s.serialNumber, hostName: s.systemName, platformType: _platformFamily(s) === 'ontap' ? 'ONTAP' : _platformFamily(s) === 'eseries' ? 'E-SERIES' : 'STORAGEGRID',
+    return { serialNumber: s.serialNumber, hostName: s.systemName, platformType: _platformFamily(s) === 'ontap' ? 'ONTAP' : _platformFamily(s) === 'eseries' ? 'E-SERIES' : _platformFamily(s) === 'element' ? 'HCI' : 'STORAGEGRID',
       serviceTier: s.serviceTier || 'PREMIUM', techRefreshStatus: s.techRefreshStatus || 'Lost',
       contract: { expiryDate: end, isContractActive: s.contractActive !== false, hardwareServiceLevel: s.serviceLevel || 'R-HW Support,Premium2,4hr', hardwareContractEndDate: end, softwareContractEndDate: end, overallContractEndDate: end, hardwareWarrantyEndDate: s.warrantyEndDate || '' },
       hardwareModel: { name: s.model || s.platform, endOfAvailability: s.hwEndOfAvailability || null, endOfSupport: s.hwEndOfSupport || null },
@@ -17753,6 +17770,16 @@ function _platformFamily(s) {
   // require exactly 4 digits) and was silently scored/rendered as ONTAP.
   if (s.santricityVersion || s.eseriesCapacity || isNumericES(p) || isNumericES(m) ||
       /e-series|santricity/i.test(p + ' ' + m + ' ' + (s.productType || '') + ' ' + pt) || /^ef\d{2,3}/i.test(p) || /^ef\d{2,3}/i.test(m)) return 'eseries';
+  // NetApp HCI storage nodes run Element OS (SolidFire), not ONTAP -- no real ONTAP
+  // install exists on them at all. HCI *compute* nodes DO run a genuine ONTAP Select
+  // instance and correctly stay 'ontap' (confirmed live: they report a real ONTAP
+  // version like "9.12.1"). NetApp's own naming distinguishes them by suffix --
+  // storage nodes are "H<model>S" ("H410S-2"), compute nodes are "H<model>C"
+  // ("H410C") -- or the node is literally named "SolidFire". Active IQ compounds
+  // the confusion by reusing the ontapVersion field to carry the Element OS version
+  // for storage nodes (e.g. "12.3.2.3", a format real ONTAP never produces) or
+  // reporting "UNKNOWN".
+  if (pt.toUpperCase() === 'HCI' && (/^h\d+s(-|$)/i.test(p) || /solidfire/i.test(p) || /solidfire/i.test(m))) return 'element';
   return 'ontap';
 }
 
@@ -17762,12 +17789,20 @@ function _platformFamily(s) {
 // none of which exists on E-Series or StorageGRID. Deliberately generic: no
 // invented commands, only checks the platforms' own consoles actually provide.
 function _nonOntapVerifyLines(sys) {
-  if (_platformFamily(sys) === 'eseries') {
+  const _fam = _platformFamily(sys);
+  if (_fam === 'eseries') {
     return [
       'Confirm the array reports Optimal in SANtricity System Manager (Home > Recover from problems: no open failures)',
       'Confirm both controllers are Optimal and volumes are on their preferred controller/paths',
       'Confirm no drive, volume group or disk pool is degraded or reconstructing',
       'Confirm host multipathing shows all paths active before closing the change',
+    ];
+  }
+  if (_fam === 'element') {
+    return [
+      'Confirm the node and cluster report Healthy in the Element/SolidFire management UI (System > Health)',
+      'Confirm no volumes are in a degraded or syncing state and all nodes are participating in the cluster',
+      'Confirm iSCSI session/path counts on connected hosts match the expected count before closing the change',
     ];
   }
   return [
@@ -17777,7 +17812,8 @@ function _nonOntapVerifyLines(sys) {
   ];
 }
 function _nonOntapRollbackLines(sys) {
-  const nm = _platformFamily(sys) === 'eseries' ? 'SANtricity OS/NVSRAM' : 'StorageGRID software';
+  const _fam = _platformFamily(sys);
+  const nm = _fam === 'eseries' ? 'SANtricity OS/NVSRAM' : (_fam === 'element' ? 'Element OS' : 'StorageGRID software');
   return [
     `Do not assume a self-service downgrade path for ${nm}: engage NetApp Support before any rollback.`,
     'Keep the pre-change configuration backup/recovery package and export it before starting.',
@@ -18152,9 +18188,13 @@ function enrichSystemTelemetry(s) {
   const isAFX = personalityRaw === "AFX" || personalityRaw === "DISAGGREGATED" ||
                 (s.isDisaggregated === true && !isASAr2);
 
+  // NetApp HCI storage nodes run Element OS (SolidFire), not ONTAP -- see
+  // _platformFamily()'s own comment for the storage-node-vs-compute-node detection.
+  const isElement = _platformFamily(s) === 'element';
+
   // Unknown platform — treat as generic ONTAP (AFF-equivalent) so dashboard remains functional
   const isKnownPlatform = isAFF || isASA || isFAS || isCVO || isStorageGrid || isEseries || isASAr2 || isAFX;
-  const isONTAPBased = !isStorageGrid && !isEseries; // All AFF/ASA/FAS/CVO/ASAr2/AFX and unknown
+  const isONTAPBased = !isStorageGrid && !isEseries && !isElement; // All AFF/ASA/FAS/CVO/ASAr2/AFX and unknown
 
   // Detect live API systems — these must NEVER get fabricated placeholder data.
   // Also detect live data from markers present in server-normalised systems even
@@ -19242,8 +19282,11 @@ function enrichSystemTelemetry(s) {
     // SANtricity OS version ("11.70.5") parses like an ONTAP version and, being past
     // every affected range's upper bound in the 'through current' entries, was matched
     // to ~79 ONTAP CVEs per array. E-Series gets only Active IQ's own security risks.
+    // Same risk for HCI storage nodes: Active IQ reports their Element OS version
+    // ("12.3.2.3") in the same field it uses for a real ONTAP version, which would
+    // parse and false-match the same way -- excluded too.
     const _bulletinFam = _platformFamily({ ...s, model: s.model || model, platform: s.platform || model, osVersion: s.osVersion || osVer });
-    const dbMatches = _bulletinFam === 'eseries' ? [] : getApplicableSecurityBulletins(osVer, model);
+    const dbMatches = (_bulletinFam === 'eseries' || _bulletinFam === 'element') ? [] : getApplicableSecurityBulletins(osVer, model);
     const existingCveIds = new Set(
       securityBulletins.flatMap(b =>
         (b.cve || b.id || '').split(/[,\s]+/).map(x => x.trim()).filter(x => x.startsWith('CVE-'))
@@ -25207,7 +25250,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const plural = (n, w, w2) => `${n} ${n === 1 ? w : (w2 || w + 's')}`;
   const nameOf = s => s.systemName || s.clusterName || s.serialNumber;
   const verOf = s => s.ontapVersion || s.santricityVersion || s.sgVersion || s.softwareVersionFull || 'not reported';
-  const famLabel = { ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID' };
+  const famLabel = { ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element OS (HCI)' };
   const fams = {}; targetSystems.forEach(s => { const f = _platformFamily(s); fams[f] = (fams[f] || 0) + 1; });
   const famText = Object.keys(fams).map(f => `${fams[f]} ${famLabel[f] || f}`).join(', ');
   const models = [...new Set(targetSystems.map(s => s.model || s.platform).filter(Boolean))];
@@ -26156,7 +26199,7 @@ ACTION ${rIdx + 1}: [${(r.severity||'').toUpperCase()}] [${itilTier}] ${r.descri
       const hops = calculateUpgradePath(sys.platform, origVer, sys.upgrades.targetVersion);
       implementationPlans += `
 --------------------------------------------------------------------------------
-${_platformFamily(sys) === 'eseries' ? 'SANtricity' : _platformFamily(sys) === 'storagegrid' ? 'StorageGRID' : 'ONTAP/OS'} UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
+${_platformFamily(sys) === 'eseries' ? 'SANtricity' : _platformFamily(sys) === 'storagegrid' ? 'StorageGRID' : _platformFamily(sys) === 'element' ? 'Element OS' : 'ONTAP/OS'} UPGRADE: ${origVer} -> ${sys.upgrades.targetVersion}
 --------------------------------------------------------------------------------\n`;
       if (hops.length > 1) {
         implementationPlans += `  Multi-hop upgrade required — do NOT skip intermediate versions.\n`;
@@ -26390,7 +26433,7 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   const _hwModels = [...new Set(_hwWindow.map(s => s.model || s.platform).filter(Boolean))];
   salesProposals += `\nCOMMERCIAL CONTEXT [METRICS + OWNERSHIP]
 --------------------------------------------------------------------------------
-  Estate:                      ${sysCount} systems (${Object.entries(targetSystems.reduce((a, s) => { const f = _platformFamily(s); a[f] = (a[f] || 0) + 1; return a; }, {})).map(([f, c]) => c + ' ' + ({ ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID' }[f] || f)).join(', ')})
+  Estate:                      ${sysCount} systems (${Object.entries(targetSystems.reduce((a, s) => { const f = _platformFamily(s); a[f] = (a[f] || 0) + 1; return a; }, {})).map(([f, c]) => c + ' ' + ({ ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element OS (HCI)' }[f] || f)).join(', ')})
   Support entitlement:         ${_contractFactsSales.active.length} active${_contractFactsSales.expired.length ? ', ' + _contractFactsSales.expired.length + ' lapsed' : ''}${_contractFactsSales.expiring90.length ? ', ' + _contractFactsSales.expiring90.length + ' expiring within 90 days' : ''}
   Hardware support ending within 24 months (or already ended): ${_hwWindow.length ? _hwWindow.length + ' system' + (_hwWindow.length !== 1 ? 's' : '') + ' (' + _hwModels.join(', ') + ')' : 'none reported'}
   Data reduction (ONTAP):      ${avgDRRatio === 'N/A' ? 'ratio not reported by Active IQ' : avgDRRatio + ':1, ' + savedTotalTB.toFixed(1) + ' TB saved'}

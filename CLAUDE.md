@@ -22,10 +22,26 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.146)
+## Session handoff -- 2026-09-27/28 (Windows dev station, v5.6.134 -> v5.6.147)
 
 Continues the same stretch's earlier v5.6.85 -> v5.6.134 work (rear-panel accuracy program, hardware-docs
 harvester -- see git log / CHANGELOG.md for that range). Everything below is pushed to `main`.
+
+**Also today, part 3 (v5.6.147):** user said to go ahead and fix the HCI gap flagged in v5.6.146. Added a
+4th `_platformFamily()` bucket, `'element'`, for NetApp HCI storage nodes (Element OS/SolidFire) -- detected
+via NetApp's own naming convention (`H<model>S`/"SolidFire" = storage node = Element OS; `H<model>C` =
+compute node = a real ONTAP Select instance, correctly stays `'ontap'`, confirmed live via its real ONTAP
+9.12.1 version). Audited every `_platformFamily(s) === ...` call site (~90 matches) first: almost all of
+them already filter explicitly on `=== 'ontap'` for feature scoring/CLI/reports, so the new bucket was
+excluded from ARP/SnapMirror/FabricPool/HA/etc. automatically, no changes needed there. Only the genuinely
+three-way branches needed explicit updates: `_nonOntapVerifyLines()`/`_nonOntapRollbackLines()` (were giving
+Element OS nodes StorageGRID guidance -- now SolidFire-specific), `enrichSystemTelemetry()`'s `isONTAPBased`
+(now excludes `'element'` too, so its `ontapVersion` field returns `null` instead of a bogus Element OS
+version), the security-bulletin auto-match (excluded, same false-CVE risk E-Series had), and a handful of
+cosmetic family-label maps. Verified live: 9 of 15 real HCI systems (storage nodes) now classify as
+`'element'`; the 6 compute nodes stay `'ontap'`; 0 false positives elsewhere in the fleet. Deliberately left
+the rear-panel renderer alone -- HCI's missing physical chassis layout is a different bug class, not part of
+what was asked.
 
 **Also today, part 2 (v5.6.146):** asked explicitly to check for other misclassified systems beyond "560".
 The v5.6.145 fix only touched `_platformFamily()` itself -- the exact same E-Series/StorageGRID guessing was
