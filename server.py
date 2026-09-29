@@ -1760,6 +1760,35 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     }
                   }"""
 
+        # LUN and NAS volume inventory summary — requested by the user for SAN/NAS
+        # capacity reporting and best-practice alignment. Confirmed live via schema
+        # introspection: igroups, initiator groups and multipathing do NOT exist
+        # anywhere in Active IQ's GraphQL schema, so this covers capacity/provisioning
+        # only, not LUN-to-host mapping. Volume.capacity.sizeKB/availableKB are treated
+        # as KiB (1024-based, matching every other *KiB field in this schema) though
+        # NetApp's own field naming has already proven unreliable once (LUN's
+        # usableKiB turned out to be bytes, confirmed by cross-checking against a
+        # known-good cluster usable capacity) -- there was no equivalent cross-check
+        # available for volumes, so this is a best-effort convention match, not a
+        # confirmed fact the way the LUN bytes-vs-KiB finding was.
+        # pageSize: 50 per system -- bounds a single system's cost but under-counts
+        # (and under-sums capacity for) any system with more than 50 LUNs or volumes;
+        # totalCount is still exact, so the summary flags when it fetched a partial set.
+        LUN_VOLUME_FIELDS = """
+                  serialNumber
+                  ... on ONTAPSystem {
+                    luns(pageSize: 50) { totalCount luns { capacity { usableKiB } } }
+                    storageVolumes(pageSize: 50) {
+                      totalCount
+                      volumes {
+                        isRoot
+                        protocols
+                        capacity { sizeKB availableKB logical { usedSnapshotsKiB } efficiency { saved { totalSavedPercentage } } }
+                        provisioning { isThinProvisioned }
+                      }
+                    }
+                  }"""
+
         # Shelf module firmware currency (currentVersion/recommendedVersion) lives on a
         # field the main TAM/Efficiency systems query never requested (shelves { } has no
         # firmware field at all -- confirmed via live GraphQL schema introspection: Shelf,
@@ -2098,6 +2127,62 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             print(f"  [HARVEST] ASA r2 LUN/namespace capacity merged for {_asar2_hits} systems ({len(_asar2_by_serial)} ASA r2 systems found)", flush=True)
         except Exception as _e:
             print(f"  [HARVEST] WARNING: ASA r2 capacity fetch failed: {_e}", flush=True)
+
+        # ── LUN / NAS volume inventory summary merge (see LUN_VOLUME_FIELDS) ──
+        try:
+            _lv_by_serial = {}
+            for _lv_scope in (list(watchlist_ids) if watchlist_ids else [None]):
+                _lv_rows, _ = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, _lv_scope)
+                for _r in _lv_rows:
+                    _luns = (_r.get("luns") or {}).get("luns") or []
+                    _lun_total = (_r.get("luns") or {}).get("totalCount") or 0
+                    _lun_kib = round(sum((l.get("capacity") or {}).get("usableKiB") or 0 for l in _luns) / 1024)
+                    _vols = (_r.get("storageVolumes") or {}).get("volumes") or []
+                    _vol_total = (_r.get("storageVolumes") or {}).get("totalCount") or 0
+                    _vol_size_kib = 0
+                    _vol_thin = 0
+                    _vol_no_efficiency = 0
+                    _vol_high_snap = 0
+                    _protocols = set()
+                    for _v in _vols:
+                        _cap = _v.get("capacity") or {}
+                        # sizeKB/availableKB/usedSnapshotsKiB are mislabeled -- actually bytes,
+                        # not KB/KiB, same units bug confirmed on LUN.capacity.usableKiB (cross-
+                        # checked live: a single volume's raw sizeKB implied a 420 TiB volume on
+                        # an ASA-A70 whose whole cluster is 2.4 PB raw -- as bytes, that volume is
+                        # a plausible ~420 GiB, and the system's total volume footprint drops from
+                        # 72x its raw cluster capacity to a sane ~7%). Divide by 1024 to store as
+                        # real KiB, matching every other *KiB field in this codebase.
+                        _size = (_cap.get("sizeKB") or 0) / 1024
+                        _avail = (_cap.get("availableKB") or 0) / 1024
+                        _snap = ((_cap.get("logical") or {}).get("usedSnapshotsKiB") or 0) / 1024
+                        _vol_size_kib += _size
+                        if (_v.get("provisioning") or {}).get("isThinProvisioned"):
+                            _vol_thin += 1
+                        _saved_pct = ((_cap.get("efficiency") or {}).get("saved") or {}).get("totalSavedPercentage")
+                        if not _v.get("isRoot") and (_saved_pct or 0) == 0:
+                            _vol_no_efficiency += 1
+                        _used = max(0, _size - _avail)
+                        if _used > 0 and _snap / _used > 0.3:
+                            _vol_high_snap += 1
+                        for _p in (_v.get("protocols") or []):
+                            _protocols.add(_p)
+                    _lv_by_serial[_r.get("serialNumber")] = {
+                        "lunCount": _lun_total, "lunUsableKiB": _lun_kib, "lunFetchTruncated": _lun_total > len(_luns),
+                        "volumeCount": _vol_total, "volumeSizeKiB": round(_vol_size_kib),
+                        "volumeThinProvisionedCount": _vol_thin, "volumeNoEfficiencyCount": _vol_no_efficiency,
+                        "volumeHighSnapshotCount": _vol_high_snap, "volumeProtocols": sorted(_protocols),
+                        "volumeFetchTruncated": _vol_total > len(_vols),
+                    }
+            _lv_hits = 0
+            for _s in all_systems:
+                _lv = _lv_by_serial.get(_s.get("serialNumber"))
+                if _lv and (_lv["lunCount"] or _lv["volumeCount"]):
+                    _s["lunVolumeSummary"] = _lv
+                    _lv_hits += 1
+            print(f"  [HARVEST] LUN/volume inventory merged for {_lv_hits} systems", flush=True)
+        except Exception as _e:
+            print(f"  [HARVEST] WARNING: LUN/volume inventory fetch failed: {_e}", flush=True)
 
         # ── Shelf module firmware currency merge (see SHELVES_SUMMARY_FIELDS) ──
         try:
@@ -3565,6 +3650,11 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 # separate from the saz* fields since it's a different, confirmed-real
                 # data source, not the (unconfirmed) Storage Availability Zone API.
                 "asaLunUsableKiB": (s.get("asaR2Capacity") or {}).get("usableKiB") or 0,
+                # LUN (SAN) and NAS volume inventory summary (see the "LUN / NAS volume
+                # inventory summary merge" pass above) -- capacity, thin-provisioning and
+                # efficiency signals for SAN/NAS best-practice reporting. None of this
+                # covers igroup mapping or multipathing (confirmed not in the API schema).
+                "lunVolumeSummary": s.get("lunVolumeSummary") or None,
                 # ── Contacts & personnel ──
                 "contactFirstName": contact.get("firstName", ""),
                 "contactLastName": contact.get("lastName", ""),

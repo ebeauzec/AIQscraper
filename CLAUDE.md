@@ -92,28 +92,55 @@ e.g. `"TAM Quarterly Business Review Pack - Customer Liberty Group Ltd. - 29 Sep
 `generateCVRPptx` (PPTX export, ~line 33021) was checked and confirmed to be dead code (no call sites) --
 left untouched.
 
-**4. LUN/NAS SAN reporting, requested but NOT started.** User, right after the ASA fix landed: wants LUN
-inventory (sizes, capacity used, mappings) and NAS volume inventory (capacities) built into "all existing
-tooling, reporting and deliverables", best-practice alignment, and new Action Planner sections if needed; a
-follow-up message added "lun to igroups mapping, capacities, paths, best practices, multipathing etc."
-**Checked against the live schema (the same introspection used for the ASA fix) before committing to
-anything:** LUN capacity (name, svmName, path, capacity.usableKiB, iops, consistencyGroup) and NAS Volume
-capacity (name, aggregate, vserver, capacity incl. logical/efficiency/snapshots, IOPS/latency, provisioning
-thin/thick, tieringPolicy, protocols, volumeRecommendations) both exist and are rich. **igroups, initiator
-groups, and multipathing do NOT exist anywhere in the schema — confirmed via the same live `__schema`
-introspection, not an assumption.** So LUN/volume inventory + capacity + a best-practice layer built from what
-the API actually has is buildable; igroup mapping and multipathing specifically are not, at least not from
-this API. This is a large feature (new harvester queries, new data model fields, new sections across
-multiple existing deliverables, possibly new Action Planner section(s)) that was not scoped or started this
-session -- next session should confirm priority/scope with the user (which deliverables first, whether the
-igroup/multipathing gap changes what they want) before writing code.
+**4. LUN/NAS SAN reporting, shipped (v5.6.181).** User, right after the ASA fix landed: wants LUN inventory
+(sizes, capacity, mappings) and NAS volume inventory built into "all existing tooling, reporting and
+deliverables", best-practice alignment, and new Action Planner sections if needed; a follow-up added "lun to
+igroups mapping, capacities, paths, best practices, multipathing etc." **Checked the live schema first (same
+introspection as the ASA fix) before committing to anything:** LUN and NAS Volume capacity both exist and are
+rich; **igroups, initiator groups, and multipathing do NOT exist anywhere in the schema** — confirmed live,
+not assumed. Asked the user via AskUserQuestion how to handle that gap and what to prioritize; they said
+proceed LUN/NAS-capacity-only, and build all three of harvester+data model, an Action Planner section, and
+deliverable integration.
+- **server.py** (~line 2131, "LUN / NAS volume inventory summary merge", same small-query-merged-by-serial
+  pattern as ESERIES_CAP_FIELDS/the ASA r2 merge): fetches `luns`/`storageVolumes` (pageSize 50 each, capped
+  to bound cost — `lunFetchTruncated`/`volumeFetchTruncated` flag when a system has more than that) for every
+  ONTAP system across the configured watchlists, and computes per-system LUN count/capacity, volume
+  count/capacity, thin-provisioning count, zero-efficiency count, high-snapshot count, and protocol mix, into
+  a new `lunVolumeSummary` field.
+  **Caught a second units bug before shipping** (same class as the LUN `usableKiB` mislabeling from the ASA
+  fix): Volume `capacity.sizeKB`/`availableKB`/`usedSnapshotsKiB` are ALSO mislabeled — actually bytes, not
+  KB. Caught by a sanity check on real data: one system's raw sum implied a single 420 TiB NAS volume on a
+  cluster with 2.4 PB raw capacity total — divided by 1024 (treating as bytes) it became a plausible ~420 GiB
+  volume, and the system's total volume footprint dropped from 72x its raw cluster capacity to a sane ~7%.
+  Fixed before shipping (server.py now divides by 1024 when reading these three fields).
+- **app.js**: `_sanNasStorageSummary(systems)` (~line 26316, right before `_dfActionPlan`) aggregates
+  `lunVolumeSummary` across a scope into totals + best-practice findings (thin-provisioning adoption rate,
+  volumes with 0% measured data-reduction, volumes with snapshot reserve over 30% of used capacity).
+  `enrichSystemTelemetry` passes `lunVolumeSummary` through unchanged (~line 20547).
+- **Action Planner**: new section 25, "SAN & NAS Storage" (tab button + `_renderSanNasStorageSection`,
+  ~line 29313) — KPI tiles, best-practice findings, per-system inventory table (capped to top 50 by capacity).
+- **Deliverables**: new per-system "LUN & Volume Inventory" subsection in the As-Built Configuration Document
+  (`_renderAsBuiltSection`, inserted after the existing VMware Integration subsection) — this section's DOM
+  content is what `downloadPlanSection(19)` reads for txt/docx export, so it flows into that download for free.
+- **Verified**: `enrichSystemTelemetry()` called directly (not the UI) with a synthetic system built from the
+  corrected real numbers (405 volumes, 165.3 TB total vs. 2403 TB raw cluster capacity) produces sane
+  aggregate stats and the two expected best-practice findings. The Action Planner tab was verified via real
+  DOM events (`.click()` on the actual tab-nav button, not `switchPlanTab()` called directly) rendering the
+  empty-state correctly for a scope with no data.
+  **Known gap, not resolved this session:** end-to-end verification through the running app's own
+  `/api/harvest` cache was inconclusive — that endpoint kept serving pre-fix cached values for a known system
+  even after a server restart + forced re-sync confirmed fresh in the harvest log ("LUN/volume inventory
+  merged for 143 systems"). Isolated correctness was proven via a direct GQL call bypassing the app entirely,
+  so the fix itself is confirmed right, but there's an unexplained harvest-cache staleness behavior (unrelated
+  to this fix — worth checking next session, possibly the same class of issue as the Thread 1 security/
+  localStorage mystery below) that meant this could not be confirmed rendering live through a real click in
+  the running app before running out of session time.
 
-**Git:** branch `main`, v5.6.178, v5.6.179 and v5.6.180 committed and pushed individually (exe rebuilt each
-time via PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`/`aiqbuild179`/`aiqbuild180`, synced into
-`dist/NetApp_AIQ_Advisor/` + `dist/app.js`; v5.6.180 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py`
-since that's the first fix this session that touched the harvester). Working tree otherwise shows harvest
-data files modified by the running server (`data/*.json`) and untracked docs images -- never commit those
-with code changes.
+**Git:** branch `main`, v5.6.178 through v5.6.181 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild181`, synced into `dist/NetApp_AIQ_Advisor/` +
+`dist/app.js`; v5.6.180+ also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those are the first
+fixes this session that touched the harvester). Working tree otherwise shows harvest data files modified by
+the running server (`data/*.json`) and untracked docs images -- never commit those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is

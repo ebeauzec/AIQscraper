@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.180";
+const APP_VERSION = "5.6.181";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.181",
+    date: "29 September 2026",
+    title: "New: SAN & NAS Storage Reporting (LUN and Volume Inventory)",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- LUN and NAS Volume Capacity, Best-Practice Findings",
+        color: "#3b82f6",
+        items: [
+          "New Action Planner section, 'SAN & NAS Storage': LUN (block) and NAS volume inventory and capacity for the current scope, with best-practice findings (thin-provisioning adoption, volumes with zero measured data-reduction savings, high snapshot reserve). Also added to the As-Built Configuration Document as a per-system 'LUN & Volume Inventory' subsection. Does not cover igroup-to-LUN mapping or multipathing -- confirmed live via GraphQL schema introspection that neither exists anywhere in Active IQ's API, for any platform.",
+          "Confirmed live and fixed before shipping: NAS volume capacity fields (sizeKB/availableKB/usedSnapshotsKiB) are mislabeled the same way LUN capacity was in v5.6.180 -- actually bytes, not KB. Caught by a sanity check (one system's raw volume total implied a single 420 TiB volume on a 2.4 PB raw cluster); corrected to real KiB before this shipped.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.180",
     date: "29 September 2026",
@@ -20545,6 +20561,11 @@ function enrichSystemTelemetry(s) {
     // aggregates() enrichment -- only present for ONTAP systems that report
     // aggregate-level ASUP data (see the harvest-side comment in server.py).
     aggregateDetail:   s.aggregateDetail || null,
+    // LUN (SAN) / NAS volume inventory summary from server.py's harvest (counts,
+    // capacity, thin-provisioning/efficiency/snapshot signals). null for systems
+    // with no LUNs or volumes reported (E-Series, StorageGRID, systems with none).
+    // Does not cover igroup mapping or multipathing -- confirmed not in Active IQ's API.
+    lunVolumeSummary:  s.lunVolumeSummary || null,
     // ── As-Built: Additional Identity & Site ──
     siteState:         s.siteState || '',
     systemId:          s.systemId || '',
@@ -26307,6 +26328,59 @@ function _dfCapacityTrend(systems) {
            from: ok[0].h[0].month, to: ok[0].h[ok[0].h.length - 1].month };
 }
 
+// SAN (LUN) / NAS (volume) inventory + capacity + best-practice summary for a scope
+// of systems. Built from server.py's lunVolumeSummary (see the harvest-side "LUN /
+// NAS volume inventory summary merge" comment) -- LUN-to-igroup mapping and
+// multipathing are NOT covered: confirmed live via GraphQL schema introspection that
+// neither exists anywhere in Active IQ's API, not a gap in what this harvests.
+function _sanNasStorageSummary(systems) {
+  const withData = (systems || []).filter(s => s.lunVolumeSummary);
+  if (!withData.length) return null;
+  let lunCount = 0, lunUsableKiB = 0, lunTruncated = 0;
+  let volCount = 0, volSizeKiB = 0, volThin = 0, volNoEff = 0, volHighSnap = 0, volTruncated = 0;
+  const protocols = new Set();
+  const bySystem = [];
+  withData.forEach(s => {
+    const lv = s.lunVolumeSummary;
+    lunCount += lv.lunCount || 0;
+    lunUsableKiB += lv.lunUsableKiB || 0;
+    if (lv.lunFetchTruncated) lunTruncated++;
+    volCount += lv.volumeCount || 0;
+    volSizeKiB += lv.volumeSizeKiB || 0;
+    volThin += lv.volumeThinProvisionedCount || 0;
+    volNoEff += lv.volumeNoEfficiencyCount || 0;
+    volHighSnap += lv.volumeHighSnapshotCount || 0;
+    if (lv.volumeFetchTruncated) volTruncated++;
+    (lv.volumeProtocols || []).forEach(p => protocols.add(p));
+    if ((lv.lunCount || 0) + (lv.volumeCount || 0) > 0) {
+      bySystem.push({ systemName: s.systemName, clusterName: s.clusterName, customerName: s.customerName,
+        lunCount: lv.lunCount || 0, lunTB: (lv.lunUsableKiB || 0) / (1024 ** 3),
+        volumeCount: lv.volumeCount || 0, volumeTB: (lv.volumeSizeKiB || 0) / (1024 ** 3),
+        thinPct: lv.volumeCount ? (lv.volumeThinProvisionedCount || 0) / lv.volumeCount * 100 : 0 });
+    }
+  });
+  const findings = [];
+  const thinPct = volCount > 0 ? (volThin / volCount * 100) : null;
+  if (volCount > 0 && thinPct < 50) {
+    findings.push(`Only ${thinPct.toFixed(0)}% of ${_dfPlural(volCount, 'NAS volume')} across ${_dfPlural(withData.length, 'system')} are thin-provisioned. NetApp best practice is thin provisioning by default for space efficiency; review thick-provisioned volumes for conversion where the workload allows it.`);
+  }
+  if (volNoEff > 0) {
+    findings.push(`${_dfPlural(volNoEff, 'NAS volume')} show 0% data reduction savings (no dedupe/compression benefit measured). Confirm efficiency policies are enabled where appropriate.`);
+  }
+  if (volHighSnap > 0) {
+    findings.push(`${_dfPlural(volHighSnap, 'NAS volume')} have snapshot reserve consuming over 30% of used capacity. Review snapshot retention/schedule on these volumes.`);
+  }
+  return {
+    lunCount, lunUsableTB: lunUsableKiB / (1024 ** 3), lunTruncated,
+    volumeCount: volCount, volumeTotalTB: volSizeKiB / (1024 ** 3),
+    volumeThinProvisionedCount: volThin, volumeNoEfficiencyCount: volNoEff, volumeHighSnapshotCount: volHighSnap, volTruncated,
+    protocols: [...protocols].sort(),
+    systemsCovered: withData.length,
+    findings,
+    bySystem: bySystem.sort((a, b) => (b.lunTB + b.volumeTB) - (a.lunTB + a.volumeTB)),
+  };
+}
+
 // The plan: [{action, why, type, when, owner, sev}] in the order it should be worked.
 function _dfActionPlan(systems, allRisks, openCases) {
   const plan = [], sys = systems || [];
@@ -29252,6 +29326,59 @@ function _toggleFwCard(cardId) {
   if (d) d.style.display = d.style.display === 'none' ? 'block' : 'none';
 }
 
+function _renderSanNasStorageSection(systems) {
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
+  const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
+  const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem;';
+
+  const summary = _sanNasStorageSummary(systems);
+  if (!summary) {
+    return `<div style="text-align:center;color:var(--text-muted);padding:40px;">No LUN or NAS volume inventory reported by Active IQ for this scope (E-Series/StorageGRID-only scopes, or ONTAP systems with no LUNs/volumes, report nothing here).</div>`;
+  }
+
+  const kpi = (label, val) => `<div style="flex:1;min-width:140px;background:rgba(255,255,255,0.02);padding:12px;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,0.05);text-align:center;">
+    <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">${label}</div>
+    <div style="font-size:1.2rem;font-weight:700;">${val}</div>
+  </div>`;
+
+  const findingsHtml = summary.findings.length
+    ? `<div style="margin-top:16px;">${summary.findings.map(f => `<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px;font-size:0.82rem;">⚠ ${f}</div>`).join('')}</div>`
+    : `<div style="margin-top:16px;color:var(--status-normal);font-size:0.85rem;">✅ No SAN/NAS best-practice concerns found in this scope.</div>`;
+
+  const rows = summary.bySystem.slice(0, 50).map(r => `
+    <tr>
+      <td style="${tdStyle}">${r.systemName || ''}</td>
+      <td style="${tdStyle}">${r.customerName || ''}</td>
+      <td style="${tdStyle}">${r.lunCount || 0}</td>
+      <td style="${tdStyle}">${r.lunTB.toFixed(1)} TB</td>
+      <td style="${tdStyle}">${r.volumeCount || 0}</td>
+      <td style="${tdStyle}">${r.volumeTB.toFixed(1)} TB</td>
+      <td style="${tdStyle}">${r.thinPct.toFixed(0)}%</td>
+    </tr>`).join('');
+
+  return `
+    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:16px;">
+      LUN (SAN) and NAS volume capacity from Active IQ, across ${summary.systemsCovered} system(s) reporting storage. Does not include igroup-to-LUN mapping or multipathing configuration -- confirmed not available from Active IQ's API for any platform.
+      ${(summary.lunTruncated || summary.volTruncated) ? '<br>⚠ Some systems have more LUNs/volumes than this report samples per system; capacity totals for those systems are a partial (undercounted) sum.' : ''}
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+      ${kpi('Total LUNs', summary.lunCount.toLocaleString())}
+      ${kpi('LUN Capacity', summary.lunUsableTB.toFixed(1) + ' TB')}
+      ${kpi('NAS Volumes', summary.volumeCount.toLocaleString())}
+      ${kpi('Volume Capacity', summary.volumeTotalTB.toFixed(1) + ' TB')}
+      ${kpi('Thin-Provisioned', summary.volumeCount ? Math.round(summary.volumeThinProvisionedCount / summary.volumeCount * 100) + '%' : '—')}
+      ${kpi('Protocols', summary.protocols.join(', ') || '—')}
+    </div>
+    <h3 style="font-size:0.95rem;margin:0 0 8px 0;">Best-Practice Findings</h3>
+    ${findingsHtml}
+    <h3 style="font-size:0.95rem;margin:24px 0 8px 0;">Per-System Inventory${summary.bySystem.length > 50 ? ` (top 50 of ${summary.bySystem.length} by capacity)` : ''}</h3>
+    <table style="${tblStyle}">
+      <tr><th style="${thStyle}">System</th><th style="${thStyle}">Customer</th><th style="${thStyle}">LUNs</th><th style="${thStyle}">LUN Capacity</th><th style="${thStyle}">Volumes</th><th style="${thStyle}">Volume Capacity</th><th style="${thStyle}">Thin %</th></tr>
+      ${rows}
+    </table>
+  `;
+}
+
 function _renderFirmwareCurrencySection(systems) {
   // Group HA/cluster node pairs together instead of leaving them in raw harvest-fetch
   // order (which interleaves unrelated clusters' nodes, e.g. CLUSDR-02, INTCLUS-02,
@@ -30823,6 +30950,32 @@ function _renderAsBuiltSection(systems) {
             `;
         }
 
+        // ── 18. LUN & Volume Inventory (SAN/NAS capacity) ────────────────────────
+        // Does not cover igroup-to-LUN mapping or multipathing -- confirmed not
+        // available anywhere in Active IQ's API via live schema introspection.
+        if (s.lunVolumeSummary && ((s.lunVolumeSummary.lunCount || 0) + (s.lunVolumeSummary.volumeCount || 0) > 0)) {
+            const lv = s.lunVolumeSummary;
+            const lunTB = (lv.lunUsableKiB || 0) / (1024 ** 3);
+            const volTB = (lv.volumeSizeKiB || 0) / (1024 ** 3);
+            const thinPct = lv.volumeCount ? Math.round((lv.volumeThinProvisionedCount || 0) / lv.volumeCount * 100) : null;
+            const lvHtml = '<table style="' + tblStyle + '">'
+                + '<tr><th style="' + thStyle + '">LUNs (SAN)</th><td style="' + tdStyle + '">' + lv.lunCount + ' &middot; ' + lunTB.toFixed(1) + ' TB</td>'
+                + '<th style="' + thStyle + '">NAS Volumes</th><td style="' + tdStyle + '">' + lv.volumeCount + ' &middot; ' + volTB.toFixed(1) + ' TB</td></tr>'
+                + '<tr><th style="' + thStyle + '">Thin-Provisioned</th><td style="' + tdStyle + '">' + (thinPct != null ? thinPct + '%' : emptyDash) + '</td>'
+                + '<th style="' + thStyle + '">Protocols</th><td style="' + tdStyle + '">' + valOrDash((lv.volumeProtocols || []).join(', ')) + '</td></tr>'
+                + '</table>'
+                + ((lv.lunFetchTruncated || lv.volumeFetchTruncated) ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:6px;">Capacity is a partial sum -- this system has more LUNs/volumes than sampled.</div>' : '');
+
+            html += `
+                <details style="border:1px solid rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
+                    <summary style="padding:10px 16px; background:rgba(255,255,255,0.025); font-weight:600; cursor:pointer; font-size:0.9rem;">LUN &amp; Volume Inventory</summary>
+                    <div style="padding:16px;">
+                        ${lvHtml}
+                    </div>
+                </details>
+            `;
+        }
+
         // Close system card
         html += `
             </div> <!-- end card body -->
@@ -32190,6 +32343,18 @@ function generateActionPlan() {
     ${_renderFirmwareCurrencySection(targetSystems)}`;
   planBody.appendChild(sec18);
 
+  const sec25 = document.createElement('div');
+  sec25.className = 'plan-section';
+  sec25.setAttribute('data-section-index', '25');
+  sec25.style.display = 'none';
+  sec25.style.marginTop = '32px';
+  sec25.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">SAN &amp; NAS Storage</h2>
+    </div>
+    ${_renderSanNasStorageSection(targetSystems)}`;
+  planBody.appendChild(sec25);
+
   const sec19 = document.createElement('div');
   sec19.className = 'plan-section';
   sec19.setAttribute('data-section-index', '19');
@@ -32276,6 +32441,7 @@ function generateActionPlan() {
           <button class="plan-tab-btn" data-tab-index="16" onclick="switchPlanTab(16)" title="Data protection audit — SnapMirror relationship inventory and RPO/RTO lag-time risk, HA pair configuration, and SnapMirror/MetroCluster/SyncMirror coverage. MetroCluster Mediator/AUSO health detail is in Section 1's Executive Summary, not here.">🔄 DR &amp; Replication Health</button>
           <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ Feature Adoption</button>
           <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 Firmware Currency</button>
+          <button class="plan-tab-btn" data-tab-index="25" onclick="switchPlanTab(25)" title="LUN (SAN) and NAS volume inventory — counts, capacity, thin-provisioning and efficiency, with best-practice findings. Does not cover igroup-to-LUN mapping or multipathing (not available from Active IQ's API).">💾 SAN &amp; NAS Storage</button>
           <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ Performance</button>
           <button class="plan-tab-btn" data-tab-index="21" onclick="switchPlanTab(21)" title="Fleet-wide VMware/vSphere inventory -- every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vcenters only rendered per-system in the As-Built Document.">🖥 VMware Inventory</button>
         </div>

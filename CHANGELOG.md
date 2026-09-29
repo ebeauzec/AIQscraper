@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.181] - 2026-09-29
+
+### Added
+- New Action Planner section "SAN & NAS Storage": LUN and NAS volume inventory, capacity, and best-practice findings (thin-provisioning adoption, zero-efficiency volumes, high snapshot reserve) for the current scope. Also added as a per-system subsection in the As-Built Configuration Document. Does not cover igroup-to-LUN mapping or multipathing -- confirmed not available anywhere in Active IQ's API.
+
+### Fixed
+- NAS volume capacity fields were mislabeled the same way LUN capacity was in v5.6.180 (actually bytes, not KB) -- caught and corrected before shipping.
+
+---
+
 ## [5.6.180] - 2026-09-29
 
 ### Fixed
