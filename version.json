@@ -1,8 +1,8 @@
 {
-  "version": "5.6.166",
+  "version": "5.6.167",
   "major": 5,
   "minor": 6,
-  "patch": 166,
+  "patch": 167,
   "date": "2026-09-29",
-  "notes": "Word downloads: Handover Brief Capacity & Growth Outlook and similar Label: value blocks now render as key/value tables, and the Success Plan Status line is a Plan/Stage/Status/Health/Owner table."
+  "notes": "The 30/60/90-day Risk Trend section in the Customer Report, Customer Value Report and QBR is now a real table (Window / Critical / High / Open Crit. Cases) instead of ragged padded text lines in Word."
 }

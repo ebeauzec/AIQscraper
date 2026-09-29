@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.166";
+const APP_VERSION = "5.6.167";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.167",
+    date: "29 September 2026",
+    title: "Risk Trend (30/60/90 Days) as a Real Table",
+    sections: [
+      {
+        icon: "📈",
+        label: "Fixed -- Risk Trend Section Was Loose Text in the Customer Report, Value Report and QBR",
+        color: "#22c55e",
+        items: [
+          "The 'Risk Trend (30/60/90 Days)' section (Customer Report, Customer Value Report, QBR) was padded text lines ('30 days * Critical: unchanged (4->4)   High: ...') that came out as ragged run-on lines in Word, with its footnote turned into a stray bullet. It is now a Window | Critical | High | Open Crit. Cases table (Markdown table in the .md reports, pipe-delimited in text) with a plain 'Note: an asterisk (*) means fewer than that many days of sync history exist yet' line under it. The text QBR's heading no longer prints a literal '##'.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.166",
     date: "29 September 2026",
@@ -18504,16 +18519,20 @@ function _dfTrendText(customerName, heading) {
   const windows = _dfTrendWindows(customerName);
   if (!windows) return '';
   const dir = n => n > 0 ? `up ${n}` : n < 0 ? `down ${Math.abs(n)}` : 'unchanged';
-  const pad = (s, n) => String(s).padEnd(n);
-  const rows = windows.map(w =>
-    `  ${pad(w.windowDays + ' day' + (w.windowDays !== 1 ? 's' : '') + (w.partial ? ' *' : ''), 10)}` +
-    `Critical: ${pad(dir(w.criticalDelta) + ` (${w.criticalThen}->${w.criticalNow})`, 20)}` +
-    `High: ${pad(dir(w.highDelta) + ` (${w.highThen}->${w.highNow})`, 20)}` +
-    `Open Crit. Cases: ${dir(w.casesDelta)} (${w.casesThen}->${w.casesNow})`
-  ).join('\n');
+  const md = /^#/.test(heading || '');
+  // a real table (Markdown or pipe-delimited text), so the Word download gets a proper table too
+  const cells = windows.map(w => [
+    w.windowDays + ' day' + (w.windowDays !== 1 ? 's' : '') + (w.partial ? ' *' : ''),
+    `${dir(w.criticalDelta)} (${w.criticalThen}->${w.criticalNow})`,
+    `${dir(w.highDelta)} (${w.highThen}->${w.highNow})`,
+    `${dir(w.casesDelta)} (${w.casesThen}->${w.casesNow})`]);
+  const head = ['Window', 'Critical', 'High', 'Open Crit. Cases'];
+  const rows = md
+    ? ['| ' + head.join(' | ') + ' |', '|' + head.map(() => '---').join('|') + '|'].concat(cells.map(c => '| ' + c.join(' | ') + ' |')).join('\n')
+    : ['  ' + head.join(' | ')].concat(cells.map(c => '  ' + c.join(' | '))).join('\n');
   const anyPartial = windows.some(w => w.partial);
-  return `\n${heading || '## Risk Trend (30/60/90 Days)'}\n\n${rows}\n` +
-    (anyPartial ? `\n  * fewer than this many days of sync history exist yet -- delta is over the actual tracked span, not the full window\n` : '') + '\n';
+  return `\n${heading || 'RISK TREND (30/60/90 DAYS)'}\n\n${rows}\n` +
+    (anyPartial ? `\n${md ? '' : '  '}Note: an asterisk (*) means fewer than that many days of sync history exist yet -- the change is over the actual tracked span, not the full window.\n` : '') + '\n';
 }
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57

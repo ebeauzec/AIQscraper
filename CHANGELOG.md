@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.167] - 2026-09-29
+
+### Fixed
+- The 30/60/90-day Risk Trend section (Customer Report, Customer Value Report, QBR) was padded text lines that rendered as ragged run-on lines in Word, with its footnote as a stray bullet. It is now a Window | Critical | High | Open Crit. Cases table (Markdown table in the .md reports, pipe-delimited in text) with a plain Note line beneath; the text QBR heading no longer prints a literal "##".
+
+---
+
 ## [5.6.166] - 2026-09-29
 
 ### Fixed
