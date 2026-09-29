@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.170] - 2026-09-29
+
+### Changed
+- Word downloads: Decisions Needed, TAM roadmap actions, per-system upgrade plans, support cases and nested bullet groups are cards; shelf/firmware drift lists are tables; long card titles move their trailing counts/system lists into a Scope row; very tall card rows can split across pages.
+
+---
+
 ## [5.6.169] - 2026-09-29
 
 ### Changed

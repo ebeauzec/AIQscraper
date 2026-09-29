@@ -1,8 +1,8 @@
 {
-  "version": "5.6.169",
+  "version": "5.6.170",
   "major": 5,
   "minor": 6,
-  "patch": 169,
+  "patch": 170,
   "date": "2026-09-29",
-  "notes": "Security Brief: minimum fixed release per CVE (Fixed In / Upgrade To). Word: findings, CVE entries and actions across all documents are cards; upgrade lists are tables."
+  "notes": "Word: decisions, roadmap actions, upgrade plans, support cases and nested bullet groups are cards; drift lists are tables; long card titles tidied."
 }

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.169";
+const APP_VERSION = "5.6.170";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.170",
+    date: "29 September 2026",
+    title: "Word Documents: Cards Wherever They Fit",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- More Sections Are Cards; Long Titles Tidied",
+        color: "#22c55e",
+        items: [
+          "Decisions Needed items (Why / When / Owner), TAM roadmap actions (Steps / Verify / Reference), per-system upgrade plans (Benefit / Hop / Steps / Caveats / Reference), support cases, and bullet groups with nested bullets are now cards. Shelf and firmware drift lists are System / Platform / Component / Current / Target tables. Long card titles move their trailing (counts and system lists) into a Scope row, labelled '-> Fix:' and '\u2022 Fix:' lines become rows, and a very tall row can now break across pages instead of overflowing the page.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.169",
     date: "29 September 2026",
@@ -33034,12 +33049,20 @@ const _DX_CARD_LABELS = /^(Systems|Affected Systems|Effort|Root Cause|Impact|Fix
 const _DX_CARD_RANK = { 'Fixed In': 0, 'Upgrade To': 1, Firmware: 2, 'Already Fixed': 3, Effort: 4, Resolves: 5, 'Root Cause': 6, Impact: 7, 'Business Risk': 7, Finding: 7, 'Next step': 8, Fix: 8, 'CLI Steps': 9, 'Remediation Options': 9, Remediation: 9, 'Host/3rd-Party': 10, Exposure: 11, Systems: 12, 'Affected Systems': 12, Advisory: 13, Reference: 14 };
 function _dxSplitTop(s) { const items = []; let depth = 0, cur = ''; for (const ch of s) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { items.push(cur.trim()); cur = ''; } else cur += ch; } if (cur.trim()) items.push(cur.trim()); return items.filter(Boolean); }
 // returns { block, next } or null. m = the matched start line: {n, sev, cls, title, label}
+// long titles: the trailing parenthetical (counts / system lists) moves into a Scope row so the title bar stays one or two lines
+function _dxSplitTitle(title) {
+  let t = String(title).replace(/^FIX:\s*/i, '');
+  if (t.length > 110) { const k = t.search(/\s+\((?=[^()]*(?:\([^()]*\)[^()]*)*\)\s*$)/); if (k > 20) return { title: t.slice(0, k).trim(), scope: t.slice(k).trim().replace(/^\(|\)$/g, '') }; }
+  return { title: t, scope: '' };
+}
 function _dxCollectCard(L, i, m) {
   const ind0 = (L[i].match(/^\s*/) || [''])[0].length;
   let j = i + 1, seen = 0; const rows = []; let last = null;
   for (; j < L.length; j++) {
-    const raw = L[j], u = raw.trim();
+    const raw = L[j];
+    let u = raw.trim();
     if (!u) break;
+    u = u.replace(/^(?:[•\-*▪●]|->)\s+(?=[A-Z][A-Za-z\/ \-]{1,24}:)/, '');   // "• Fix: ..." / "-> Fix: ..." is a labelled row, not a bullet
     if (_dxIsRule(raw)) { if (j === i + 1 || (rows.length && !/^\s*[-─=]{10,}\s*$/.test(L[j + 1] || '') && (L[j + 1] || '').trim() && (L[j + 1].match(/^\s*/) || [''])[0].length > ind0)) continue; break; }
     const ind = (raw.match(/^\s*/) || [''])[0].length;
     if (ind <= ind0 && /^(\d+\.\s+\[|\[\d+\]\s+\[|ACTION \d+:|Priority \d+:)/.test(u)) break;   // next entry
@@ -33048,7 +33071,7 @@ function _dxCollectCard(L, i, m) {
     if ((mm = u.match(/^(?:Affected )?Systems:\s*(.*)$/))) { const items = _dxSplitTop(mm[1]); last = ['Systems (' + items.length + ')', items, 'Systems']; rows.push(last); seen++; }
     else if ((mm = u.match(/^Resolves\s+(.*?):?\s*$/))) { last = ['Resolves', [_dxClean('Resolves ' + mm[1])], 'Resolves']; rows.push(last); seen++; }
     else if ((mm = u.match(/^(CLI Steps|Steps|Remediation Options):\s*$/))) { last = [mm[1], [], mm[1]]; rows.push(last); seen++; }
-    else if ((mm = u.match(/^[•\-*▪●]\s+(.*)$/)) && last) last[1].push('• ' + _dxClean(mm[1]));
+    else if ((mm = u.match(/^[•\-*▪●]\s+(.*)$/))) { if (!last) { last = ['Findings', [], 'Finding']; rows.push(last); seen++; } last[1].push('• ' + _dxClean(mm[1])); }
     else if ((mm = u.match(/^(\d+)\.\s+(.*)$/)) && last && /Steps/.test(last[2])) last[1].push(mm[1] + '. ' + _dxClean(mm[2]));
     else if ((mm = u.match(/^(Ref|Reference):\s*(.*)$/))) { last = ['Reference', [mm[2]], 'Reference']; rows.push(last); }
     else if ((mm = u.match(/^([A-Z][A-Za-z\/ \-]{1,24}):\s*(.*)$/)) && _DX_CARD_LABELS.test(mm[1])) { last = [mm[1].trim(), mm[2] ? [_dxClean(mm[2])] : [], mm[1].trim()]; rows.push(last); seen++; }
@@ -33061,7 +33084,8 @@ function _dxCollectCard(L, i, m) {
   let sev = m.sev || '', body = rows.filter(r => r[1].length && r[2] !== 'Severity' && r[2] !== 'Affected');
   if (sevRow || affRow) { sev = sev || (sevRow ? String(sevRow[1][0]).toUpperCase() : ''); body.push(['Exposure', [[sevRow ? sevRow[1][0] : 'not rated', affRow ? affRow[1][0] : ''].filter(Boolean).join('  ·  ')], 'Exposure']); }
   body.sort((a, c) => (_DX_CARD_RANK[a[2]] ?? 9) - (_DX_CARD_RANK[c[2]] ?? 9));
-  return { block: { t: 'fix', n: m.n, sev, cls: m.cls || '', title: _dxClean(m.title), label: m.label || '', rows: body.map(r => [r[0], r[1]]) }, next: j };
+  const sp = _dxSplitTitle(_dxClean(m.title)), out = body.map(r => [r[0], r[1]]); if (sp.scope) out.unshift(['Scope', [sp.scope]]);
+  return { block: { t: 'fix', n: m.n, sev, cls: m.cls || '', title: sp.title, label: m.label || '', rows: out }, next: j };
 }
 function _dxCardStart(t) {
   let m;
@@ -33069,6 +33093,72 @@ function _dxCardStart(t) {
   if ((m = t.match(/^\[(\d+)\]\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/))) return { n: m[1], sev: m[2], cls: m[3], title: m[4], label: '' };
   if ((m = t.match(/^ACTION (\d+):\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/))) return { n: m[1], sev: m[2], cls: m[3], title: m[4], label: 'Action ' + m[1] };
   if ((m = t.match(/^Priority (\d+): (.+)$/))) return { n: m[1], sev: '', cls: '', title: m[2], label: 'Priority ' + m[1] };
+  return null;
+}
+
+// ---- more card shapes: decisions, roadmap actions, per-system upgrade plans, support cases ----
+function _dxIndent(s) { return (String(s).match(/^\s*/) || [''])[0].length; }
+function _dxSplitPipe(s) { return String(s).split(/\s+\|\s+/).map(x => _dxClean(x.trim())).filter(Boolean); }
+const _DX_DRIFT = /^\s*[⚠•*-]?\s*(.+?)\s+\(([^)]*)\)(?:\s+[—-]\s+([^:]+?):)?:?\s+current=(\S+?),\s*target=(\S+)\s*$/;
+function _dxSpecialCard(L, i) {
+  const l = L[i], t = l.trim(), ind = _dxIndent(l); let m;
+  const nextNonBlank = k => { while (k < L.length && !L[k].trim()) k++; return k; };
+  // decisions: "1. Do X" / "   Why: ..." / "   When: 8-30 days  |  Owner: ..."
+  if ((m = t.match(/^(\d+)\.\s+(.+)$/)) && ind < 4 && i + 1 < L.length && /^\s{3,}Why:/.test(L[i + 1])) {
+    const rows = []; let j = i + 1;
+    for (; j < L.length && L[j].trim() && _dxIndent(L[j]) > ind; j++) {
+      const u = L[j].trim(); let mm;
+      if ((mm = u.match(/^When:\s*(.*?)\s*\|\s*Owner:\s*(.*)$/))) { rows.push(['When', [_dxClean(mm[1])]]); rows.push(['Owner', [_dxClean(mm[2])]]); }
+      else if ((mm = u.match(/^([A-Z][A-Za-z ]{1,14}):\s*(.*)$/))) rows.push([mm[1], [_dxClean(mm[2])]]);
+      else if (rows.length) rows[rows.length - 1][1].push(_dxClean(u));
+    }
+    return { block: { t: 'fix', n: m[1], sev: '', cls: '', label: '', title: _dxClean(m[2]), rows }, next: j };
+  }
+  // roadmap action: "* ACTION 1.1: title" + "  - step" lines (+ Reference / Verify, and drift lists)
+  if ((m = t.match(/^\*\s+ACTION (\d+\.\d+):\s*(.+)$/))) {
+    const steps = [], ref = [], ver = [], drift = []; let j = i + 1, mode = 'steps';
+    for (; j < L.length && L[j].trim(); j++) {
+      const u = L[j].trim(); let mm;
+      if (/^\*\s+/.test(u) && _dxIndent(L[j]) <= ind) break;
+      if (/^-\s+Upgrade .+ \(.+\) from \S+ to \S+/.test(u)) break;   // the per-system upgrade plans that follow are their own cards
+      if ((mm = u.match(/^-\s+(Reference|Ref):\s*(.*)$/))) ref.push(_dxClean(mm[2]));
+      else if ((mm = u.match(/^-\s+(Verification|Verify)( post-update)?:\s*(.*)$/))) ver.push(_dxClean(mm[3]));
+      else if ((mm = u.match(/^[⚠]\s*(.*)$/))) drift.push(_dxClean(mm[1]));
+      else if (/^[A-Z][A-Z ]+:$/.test(u)) mode = 'drift';
+      else if ((mm = u.match(/^-\s+(.*)$/))) steps.push('• ' + _dxClean(mm[1]));
+      else steps.push(_dxClean(u));
+    }
+    const rows = []; if (steps.length) rows.push(['Steps', steps]); if (drift.length) rows.push(['Drift detected', drift]); if (ver.length) rows.push(['Verify', ver]); if (ref.length) rows.push(['Reference', ref]);
+    return { block: { t: 'fix', n: '', sev: '', cls: '', label: 'Action ' + m[1], title: _dxClean(m[2]), rows }, next: j };
+  }
+  // per-system upgrade plan: "- Upgrade sys (plat) from A to B (Recommended)" + "-> Benefit:", "* Hop", "Steps: 1. .. | 2. ..", "Caveats: a | b", "Ref:"
+  if ((m = t.match(/^-\s+Upgrade (.+?) \((.+?)\) from (\S+) to (\S+?)(?: \(Recommended\))?$/)) && i + 1 < L.length && _dxIndent(L[i + 1]) > ind) {
+    const rows = []; let j = i + 1;
+    for (; j < L.length && L[j].trim() && _dxIndent(L[j]) > ind; j++) {
+      const u = L[j].trim(); let mm;
+      if ((mm = u.match(/^->\s*Benefit:\s*(.*)$/))) rows.push(['Benefit', [_dxClean(mm[1])]]);
+      else if ((mm = u.match(/^\*\s+(Hop \d+):\s*(.*)$/))) rows.push([mm[1], [_dxClean(mm[2])]]);
+      else if ((mm = u.match(/^(Steps|Caveats):\s*(.*)$/))) rows.push([mm[1], _dxSplitPipe(mm[2])]);
+      else if ((mm = u.match(/^(Ref|Reference):\s*(.*)$/))) rows.push(['Reference', [mm[2]]]);
+      else if (rows.length) rows[rows.length - 1][1].push(_dxClean(u));
+    }
+    return { block: { t: 'fix', n: '', sev: 'RECOMMENDED', cls: '', label: '', title: 'Upgrade ' + m[1] + ' (' + m[2] + '):  ' + m[3] + ' → ' + m[4], rows }, next: j };
+  }
+  // support case: "- Case ID: n (system - family) | Sev: .. | Status: .. | Owner: .." + "-> Title: .."
+  if ((m = t.match(/^-\s+Case ID:\s*(\d+)\s*\((.+?)\)\s*\|\s*Sev:\s*(.+?)\s*\|\s*Status:\s*(.+?)\s*\|\s*Owner:\s*(.+)$/))) {
+    const rows = [['System', [_dxClean(m[2])]], ['Status', [_dxClean(m[4])]], ['Owner', [_dxClean(m[5])]]]; let j = i + 1, tm;
+    if (j < L.length && (tm = L[j].trim().match(/^->\s*Title:\s*(.*)$/))) { rows.push(['Title', [_dxClean(tm[1].replace(/\s{2,}/g, ' '))]]); j++; }
+    return { block: { t: 'fix', n: '', sev: m[3].toUpperCase(), cls: '', label: 'Case ' + m[1], title: _dxClean(m[2]), rows }, next: j };
+  }
+  // drift list: "sys (plat) -- comp: current=a, target=b" x n -> table
+  if (_DX_DRIFT.test(l)) {
+    const rows = []; let j = i, mm;
+    while (j < L.length && (mm = L[j].match(_DX_DRIFT))) { rows.push([mm[1], mm[2], (mm[3] || '').trim(), mm[4], mm[5]]); j++; }
+    if (rows.length >= 2 || true) {
+      const head = ['System', 'Platform', 'Component', 'Current', 'Target'], keep = head.map((h, c) => rows.some(r => r[c]));
+      return { block: { t: 'table', header: true, rows: [head.filter((h, c) => keep[c])].concat(rows.map(r => r.filter((x, c) => keep[c]))) }, next: j };
+    }
+  }
   return null;
 }
 
@@ -33152,12 +33242,13 @@ function _dxParse(text, isMd, ctx) {
         if (rows.length >= 3) { i = j - 1; push({ t: 'table', rows, header: true }); continue; }
       }
     }
+    { const sc = _dxSpecialCard(L, i); if (sc) { i = sc.next - 1; push(sc.block); continue; } }   // decisions, roadmap actions, upgrade plans, support cases, drift lists
     { const cs = ind < 6 ? _dxCardStart(t) : null; if (cs) {
       const cc = _dxCollectCard(L, i, cs);
       if (cc) { i = cc.next - 1; push(cc.block); continue; }
       // an entry with no detail lines, sitting among card entries, keeps the list uniform as a title-only card
       const pb = blocks[blocks.length - 1], more = L.slice(i + 1, i + 14).some(x => (x.match(/^\s*/) || [''])[0].length === ind && _dxCardStart(x.trim()));
-      if (cs.label === '' && ((pb && pb.t === 'fix' && !pb.label) || more) && cs.sev) { push({ t: 'fix', n: cs.n, sev: cs.sev, cls: cs.cls || '', title: _dxClean(cs.title), label: '', rows: [] }); continue; }
+      if (cs.label === '' && ((pb && pb.t === 'fix' && !pb.label) || more) && cs.sev) { const sp = _dxSplitTitle(_dxClean(cs.title)); push({ t: 'fix', n: cs.n, sev: cs.sev, cls: cs.cls || '', title: sp.title, label: '', rows: sp.scope ? [['Scope', [sp.scope]]] : [] }); continue; }
     } }   // an action / finding / CVE entry with its detail lines -> one card
     if (/^DECISIONS NEEDED/i.test(t)) { setSection(1, _dxClean(t.replace(/:$/, ''))); continue; }
     if ((m = t.match(/^---\s*(.+?)\s*---$/)) || (m = t.match(/^\u25ba\s*(.+)$/))) { setSub(_dxClean(m[1])); continue; }
@@ -33194,7 +33285,12 @@ function _dxParse(text, isMd, ctx) {
       const rest = _dxClean(m[3]);
       if (/^\d+\.\s/.test(rest)) { const nn = rest.match(/^(\d+)\.\s+(.*)$/); push({ t: 'step', n: nn[1], text: nn[2] }); continue; }
       if (_dxAllCaps(rest.replace(/\[.*?\]/g, '')) && !rest.includes(':') && rest.split(' ').length >= 2) { setSub(_dxClean(noTag(rest))); continue; }
-      const pb = blocks[blocks.length - 1]; if (!(pb && pb.t === 'bullet' && !gap)) bulletBase = m[1].length; const cm = rest.match(/^([A-Z][A-Z0-9 &\/()\-#]{3,30}):\s+(.*)$/); push({ t: 'bullet', lvl: m[1].length > bulletBase ? Math.min(2, Math.ceil((m[1].length - bulletBase) / 3)) : 0, text: cm && _dxAllCaps(cm[1]) ? _dxTitleCase(cm[1]) + ': ' + cm[2] : rest }); continue;
+      const pb = blocks[blocks.length - 1]; if (!(pb && pb.t === 'bullet' && !gap)) bulletBase = m[1].length;
+      if (m[1].length <= bulletBase) {   // a bullet with nested bullets under it -> one card (title = the bullet, Details = the nested bullets)
+        const kids = []; let j = i + 1;
+        while (j < L.length) { const bm = L[j].match(/^(\s*)([•\-*→▪●]|->)\s+(.*)$/); if (!bm || bm[1].length <= m[1].length) break; kids.push('• ' + _dxClean(bm[3])); j++; }
+        if (kids.length) { i = j - 1; push({ t: 'fix', n: '', sev: '', cls: '', label: '', title: rest, rows: [['Details', kids]] }); continue; }
+      } const cm = rest.match(/^([A-Z][A-Z0-9 &\/()\-#]{3,30}):\s+(.*)$/); push({ t: 'bullet', lvl: m[1].length > bulletBase ? Math.min(2, Math.ceil((m[1].length - bulletBase) / 3)) : 0, text: cm && _dxAllCaps(cm[1]) ? _dxTitleCase(cm[1]) + ': ' + cm[2] : rest }); continue;
     }
     if ((m = l.match(/^(\s*)(\d+)\.\s+(.*)$/))) { push({ t: m[1].length >= 6 ? 'step' : 'num', n: m[2], text: _dxClean(m[3]) }); continue; }
     if (_dxIsCli(l) || /^\s{2,}\$ /.test(l)) { push({ t: 'code', text: t }); continue; }
@@ -33257,8 +33353,8 @@ function _dxRender(doc) {
         const W1 = 1900, W2 = _DX.W - W1, cls = b.cls ? b.cls.charAt(0) + b.cls.slice(1).toLowerCase() : '';
         const paras = (lines, bold, keep) => lines.map(t => `<w:p><w:pPr><w:pStyle w:val="TableText"/>${keep ? '<w:keepNext/>' : ''}${/^• /.test(t) ? '<w:ind w:left="170" w:hanging="170"/>' : ''}</w:pPr>${_docxRuns(t, bold ? '<w:b/>' : '')}</w:p>`).join('');
         x += `<w:tbl><w:tblPr><w:tblW w:w="${_DX.W}" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="${_DX.RULE}"/></w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${W1}"/><w:gridCol w:w="${W2}"/></w:tblGrid>` +
-          `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${_DX.W}" w:type="dxa"/><w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.NAVY}"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/><w:keepNext/><w:spacing w:before="60" w:after="60"/></w:pPr>${_dxRun((b.label ? b.label + '  ·  ' : b.n + '.  ') + b.title, { b: 1, color: 'FFFFFF', sz: 21 })}${_dxRun('     ' + [b.sev, cls].filter(Boolean).join('  ·  '), { color: 'C9D8F0', sz: 17 })}</w:p></w:tc></w:tr>` +
-          b.rows.map((r, ri) => `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${W1}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.KV}"/></w:tcPr>${paras([r[0]], true, ri < b.rows.length - 1)}</w:tc><w:tc><w:tcPr><w:tcW w:w="${W2}" w:type="dxa"/></w:tcPr>${paras(r[1], false, ri < b.rows.length - 1)}</w:tc></w:tr>`).join('') +
+          `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${_DX.W}" w:type="dxa"/><w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.NAVY}"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/><w:keepNext/><w:spacing w:before="60" w:after="60"/></w:pPr>${_dxRun((b.label ? b.label + '  ·  ' : (b.n ? b.n + '.  ' : '')) + b.title, { b: 1, color: 'FFFFFF', sz: 21 })}${_dxRun('     ' + [b.sev, cls].filter(Boolean).join('  ·  '), { color: 'C9D8F0', sz: 17 })}</w:p></w:tc></w:tr>` +
+          b.rows.map((r, ri) => `<w:tr><w:trPr>${r[1].length <= 14 ? "<w:cantSplit/>" : ""}</w:trPr><w:tc><w:tcPr><w:tcW w:w="${W1}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.KV}"/></w:tcPr>${paras([r[0]], true, ri < b.rows.length - 1)}</w:tc><w:tc><w:tcPr><w:tcW w:w="${W2}" w:type="dxa"/></w:tcPr>${paras(r[1], false, ri < b.rows.length - 1)}</w:tc></w:tr>`).join('') +
           `</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="200" w:lineRule="exact"/></w:pPr></w:p>`;
         break;
       }
