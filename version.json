@@ -1,8 +1,8 @@
 {
-  "version": "5.6.168",
+  "version": "5.6.169",
   "major": 5,
   "minor": 6,
-  "patch": 168,
+  "patch": 169,
   "date": "2026-09-29",
-  "notes": "Word: each prioritised corrective action (Problem Statements, Solution Proposal) is now a readable card -- title bar, Effort, Resolves + findings, Systems one per line, Reference."
+  "notes": "Security Brief: minimum fixed release per CVE (Fixed In / Upgrade To). Word: findings, CVE entries and actions across all documents are cards; upgrade lists are tables."
 }

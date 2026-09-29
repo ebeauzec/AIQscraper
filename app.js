@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.168";
+const APP_VERSION = "5.6.169";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.169",
+    date: "29 September 2026",
+    title: "Word Documents: Cards, Tables and Minimum Fixed Versions",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- Word Deliverables Are Easier To Read, and the Security Brief Names the Fixed Release for Each CVE",
+        color: "#22c55e",
+        items: [
+          "The Security Brief now states, for every CVE in the priority matrix, the fixed release from the advisory data (Fixed In) and the minimum release each affected system must reach (Upgrade To -- the fix on the system's own branch, else the lowest later fixed release; BMC firmware fixes matched by model). Where the advisory data lists no release number, it quotes what the advisory does say and offers Active IQ's recommended release clearly labelled as such, and it flags systems already at or past the fix. In Word, CVE priority entries, ticket and runbook actions, QBR/MSP/Success Plan findings and corrective actions are now one card each (title bar, then Fixed In / Upgrade To / Effort / Root Cause / Impact / Systems rows), and the Solution Proposal's OS & Firmware Upgrades list is a System / Platform / Current / Target / Benefit table.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.168",
     date: "29 September 2026",
@@ -18549,6 +18564,92 @@ function _dfTrendText(customerName, heading) {
   return `\n${heading || 'RISK TREND (30/60/90 DAYS)'}\n\n${rows}\n` +
     (anyPartial ? `\n${md ? '' : '  '}Note: an asterisk (*) means fewer than that many days of sync history exist yet -- the change is over the actual tracked span, not the full window.\n` : '') + '\n';
 }
+// ── Minimum fixed release per CVE ────────────────────────────────────────────────────────────────
+// The advisory database (security_bulletins.json -> NETAPP_SECURITY_BULLETIN_DB) records, per advisory,
+// the releases that contain the fix -- as version strings ("9.16.1P9") or as the download URL of the
+// fixed release (".../download/62286/9.15.1P20", "SP_FW_308-10470_10.11.zip"). These helpers turn that
+// into what a reader needs: the actual release each affected system must reach at minimum. Nothing is
+// inferred: if the advisory data on file lists no fixed release for a system's product, the line says so.
+function _dfVerParse(v) {
+  let s = String(v || '').trim();
+  const fw = s.match(/_(\d+\.\d+)\.zip$/i); if (fw) s = fw[1];                       // firmware bundle URL -> "10.11"
+  else if (/^https?:\/\//i.test(s)) { const seg = s.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop(); s = seg; }   // download URL -> last segment
+  const m = s.replace(/^(netapp release|ontap|storagegrid|santricity os)\s*/i, '').match(/^v?(\d+(?:\.\d+){1,3})(?:P(\d+))?$/i);
+  if (!m) return null;
+  const n = m[1].split('.').map(Number); while (n.length < 4) n.push(0);
+  return { n, p: m[2] ? +m[2] : 0, text: m[1] + (m[2] ? 'P' + m[2] : ''), major: n[0] };
+}
+function _dfVerCmp(a, b) { for (let i = 0; i < 4; i++) if (a.n[i] !== b.n[i]) return a.n[i] - b.n[i]; return a.p - b.p; }
+function _dfSameBranch(a, b) { const k = a.major === 9 ? 3 : 2; for (let i = 0; i < k; i++) if (a.n[i] !== b.n[i]) return false; return true; }
+// fixed releases the advisory data lists for one CVE, grouped by product family
+function _dfFixedReleases(cveId, advisoryUrl) {
+  const id = String(cveId || '').toUpperCase(), ntap = ((String(advisoryUrl || '').match(/ntap-\d{8}-\d{4}/i) || [''])[0]).toUpperCase();
+  const out = { ontap: [], storagegrid: [], eseries: [], bmc: [], notes: [] };
+  (typeof NETAPP_SECURITY_BULLETIN_DB !== 'undefined' ? NETAPP_SECURITY_BULLETIN_DB : []).forEach(b => {
+    if (!((b.cve || []).some(c => String(c).toUpperCase() === id) || (ntap && String(b.id || '').toUpperCase() === ntap))) return;
+    Object.entries(b.fixedVersions || {}).forEach(([key, arr]) => {
+      const fam = /baseboard management controller/i.test(key) ? 'bmc' : /^ontap( 9)?$/i.test(key.trim()) ? 'ontap' : /^storagegrid/i.test(key) ? 'storagegrid' : /santricity|e-series/i.test(key) ? 'eseries' : null;
+      if (!fam) return;
+      const models = fam === 'bmc' ? (key.split(' - ')[1] || '').split('/').map(x => x.trim()).filter(Boolean) : [];
+      (arr || []).forEach(v => { const pv = _dfVerParse(v); if (pv) out[fam].push({ v: pv, models }); else if (fam !== 'bmc' && v && !/^https?:/i.test(v) && !out.notes.includes(v)) out.notes.push(String(v)); });
+    });
+  });
+  return out;
+}
+// "8 systems (now 9.15.1P7)" -- or the names when only a few systems, grouped by their current version
+function _dfGroupNow(list) {
+  const g = new Map(); list.forEach(x => { if (!g.has(x.cur)) g.set(x.cur, []); g.get(x.cur).push(x.name); });
+  return [...g.entries()].map(([cur, names]) => names.length > 3 ? `${names.length} systems (now ${cur})` : names.map(n => `${n} (now ${cur})`).join(', ')).join('; ');
+}
+// lines ("Fixed In: ...", "Upgrade To: ...") for the Security Brief's CVE matrix
+function _dfMinFixLines(cveId, advisoryUrl, systemNames, allSystems) {
+  const rel = _dfFixedReleases(cveId, advisoryUrl);
+  const byName = {}; allSystems.forEach(s => { byName[s.systemName || s.serialNumber] = s; });
+  const uniq = arr => { const seen = new Set(); return arr.filter(x => !seen.has(x.v.text) && seen.add(x.v.text)); };
+  const sortV = arr => uniq(arr).sort((a, b) => _dfVerCmp(a.v, b.v));
+  const label = { ontap: 'ONTAP', storagegrid: 'StorageGRID', eseries: 'SANtricity OS' };
+  const lines = [];
+  const fixedIn = ['ontap', 'storagegrid', 'eseries'].filter(f => rel[f].length).map(f => label[f] + ' ' + sortV(rel[f]).map(x => x.v.text).join(', '));
+  if (fixedIn.length) lines.push('Fixed In:     ' + fixedIn.join('  |  '));
+  const targets = new Map();   // "ONTAP 9.16.1P9" -> ["sys (now 9.15.1P7)", ...]
+  const missing = [], already = [];
+  systemNames.forEach(name => {
+    const s = byName[name]; if (!s) return;
+    const fam = _platformFamily(s), key = fam === 'storagegrid' ? 'storagegrid' : fam === 'eseries' ? 'eseries' : fam === 'ontap' ? 'ontap' : null;
+    const cur = _dfVerParse(fam === 'eseries' ? (s.santricityVersion || s.ontapVersion) : s.ontapVersion);
+    if (!key || !cur) return;
+    const cands = sortV(rel[key]).map(x => x.v);
+    if (!cands.length) { if (rel.ontap.length + rel.storagegrid.length + rel.eseries.length) missing.push(name); return; }
+    const same = cands.filter(v => _dfSameBranch(v, cur)), later = cands.filter(v => _dfVerCmp(v, cur) > 0);
+    let pick = same.length ? same[0] : (later[0] || null);
+    if (pick && _dfVerCmp(pick, cur) <= 0) { already.push(`${name} (${cur.text} is at or beyond ${pick.text})`); pick = null; }   // already at or beyond the fix on its own branch
+    if (!pick) return;
+    const k = label[key] + ' ' + pick.text;
+    if (!targets.has(k)) targets.set(k, []);
+    targets.get(k).push({ name, cur: cur.text });
+  });
+  [...targets.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).forEach(([k, v]) => lines.push('Upgrade To:   ' + k + ' or later  --  ' + _dfGroupNow(v)));
+  if (already.length) lines.push('Already Fixed: ' + already.join(', ') + '  --  confirm the finding has cleared in Active IQ');
+  // BMC / service-processor firmware fixes, matched to the system's model
+  const bmc = new Map();
+  systemNames.forEach(name => {
+    const s = byName[name]; if (!s || !rel.bmc.length) return;
+    const plat = String(s.platform || s.model || '').toUpperCase();
+    const hit = sortV(rel.bmc.filter(x => x.models.some(m => new RegExp('(^|[^A-Z0-9])' + m.toUpperCase().replace(/[^A-Z0-9]/g, '') + '([^A-Z0-9]|$)').test(plat.replace(/[- ]/g, ' ')))));
+    if (!hit.length) return;
+    const k = 'BMC / Service Processor firmware ' + hit[0].v.text; if (!bmc.has(k)) bmc.set(k, []); bmc.get(k).push(`${name} (${s.platform || s.model})`);
+  });
+  bmc.forEach((v, k) => lines.push('Firmware:     ' + k + ' or later  --  ' + v.join(', ')));
+  if (!fixedIn.length) {   // the advisory data on file names no fixed release: quote what it does say, and offer Active IQ's own recommended release, clearly labelled
+    if (rel.notes.length) lines.push('Fixed In:     ' + rel.notes.slice(0, 2).join('; ') + '  (no release number published in the advisory data on file)');
+    const rec = new Map();
+    systemNames.forEach(name => { const s = byName[name], t = s && s.upgrades && s.upgrades.targetVersion; if (t && t !== 'Up to Date') { const k = (_platformFamily(s) === 'storagegrid' ? 'StorageGRID ' : _platformFamily(s) === 'eseries' ? 'SANtricity OS ' : 'ONTAP ') + String(t).replace(/^(ontap|storagegrid|santricity os)\s*/i, ''); if (!rec.has(k)) rec.set(k, []); rec.get(k).push({ name, cur: String(s.santricityVersion || s.ontapVersion || '?') }); } });
+    [...rec.entries()].forEach(([k, v]) => lines.push('Upgrade To:   ' + k + '  (Active IQ recommended release -- confirm it contains this fix in the advisory)  --  ' + _dfGroupNow(v)));
+  }
+  if (missing.length && !targets.size && fixedIn.length) lines.push('Upgrade To:   the advisory data on file lists no fixed release for ' + missing.join(', ') + ' -- see the linked advisory');
+  return lines;
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -24927,7 +25028,8 @@ ${_kevAckLines}
     const info = _cveInfo[c.id] || {};
     cveMap.set(c.id, { severity: c.sev || 'not rated', cvss: c.cvss || null, count: c.systems.size, systems: c.systems, kev: !!c.kev,
       advisory: info.link || `https://nvd.nist.gov/vuln/detail/${c.id}`,
-      recommended: info.fix || 'See the linked advisory for the fixed release; no NetApp remediation text is recorded for this CVE' });
+      recommended: info.fix || 'See the linked advisory for the fixed release; no NetApp remediation text is recorded for this CVE',
+      fixLines: _dfMinFixLines(c.id, info.link, c.systems, targetSystems) });
   });
 
   let cveArray = Array.from(cveMap.entries()).map(([k, v]) => ({ title: k, ...v }));
@@ -24954,7 +25056,7 @@ ${_kevAckLines}
       Severity:     ${c.severity}
       Affected:     ${c.count} system(s)
       Systems:      ${Array.from(c.systems).join(', ')}
-      Advisory:     ${c.advisory}
+      Advisory:     ${c.advisory}${c.fixLines && c.fixLines.length ? '\n      ' + c.fixLines.join('\n      ') : ''}
       Remediation:  ${c.recommended}`).join('\n');
 
   if (matrixLines.trim() === '') {
@@ -32927,6 +33029,49 @@ function _dxLooksHeader(cols) { return cols.length >= 3 && cols.every(c => /^[A-
 function _dxIsRule(l) { return /^[\s=\-\u2500\u2550_*]{6,}$/.test(l) && /[=\-\u2500\u2550_]{6,}/.test(l); }
 function _dxIsCli(l) { return /^\s{2,}(cluster|system|storage|network|event|vserver|security|snapmirror|volume|metrocluster|qos|statistics|version|lun|igroup|esxcli|aggr|node|set |run |debug)\b/.test(l) || /^\s{2,}[$#] /.test(l); }
 
+// ---- cards: an action / finding / CVE entry followed by its labelled detail lines becomes one card ----
+const _DX_CARD_LABELS = /^(Systems|Affected Systems|Effort|Root Cause|Impact|Fix|Next step|Business Risk|Finding|Remediation Options|Resolves|CLI Steps|Reference|Ref|Host\/3rd-Party|Severity|Affected|Advisory|Fixed In|Upgrade To|Firmware|Already Fixed|Remediation|Benefit|Note)\b/;
+const _DX_CARD_RANK = { 'Fixed In': 0, 'Upgrade To': 1, Firmware: 2, 'Already Fixed': 3, Effort: 4, Resolves: 5, 'Root Cause': 6, Impact: 7, 'Business Risk': 7, Finding: 7, 'Next step': 8, Fix: 8, 'CLI Steps': 9, 'Remediation Options': 9, Remediation: 9, 'Host/3rd-Party': 10, Exposure: 11, Systems: 12, 'Affected Systems': 12, Advisory: 13, Reference: 14 };
+function _dxSplitTop(s) { const items = []; let depth = 0, cur = ''; for (const ch of s) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { items.push(cur.trim()); cur = ''; } else cur += ch; } if (cur.trim()) items.push(cur.trim()); return items.filter(Boolean); }
+// returns { block, next } or null. m = the matched start line: {n, sev, cls, title, label}
+function _dxCollectCard(L, i, m) {
+  const ind0 = (L[i].match(/^\s*/) || [''])[0].length;
+  let j = i + 1, seen = 0; const rows = []; let last = null;
+  for (; j < L.length; j++) {
+    const raw = L[j], u = raw.trim();
+    if (!u) break;
+    if (_dxIsRule(raw)) { if (j === i + 1 || (rows.length && !/^\s*[-─=]{10,}\s*$/.test(L[j + 1] || '') && (L[j + 1] || '').trim() && (L[j + 1].match(/^\s*/) || [''])[0].length > ind0)) continue; break; }
+    const ind = (raw.match(/^\s*/) || [''])[0].length;
+    if (ind <= ind0 && /^(\d+\.\s+\[|\[\d+\]\s+\[|ACTION \d+:|Priority \d+:)/.test(u)) break;   // next entry
+    if (ind <= ind0 && j > i + 1 && !/^[A-Z][A-Za-z\/ ]{1,22}:/.test(u)) break;
+    let mm;
+    if ((mm = u.match(/^(?:Affected )?Systems:\s*(.*)$/))) { const items = _dxSplitTop(mm[1]); last = ['Systems (' + items.length + ')', items, 'Systems']; rows.push(last); seen++; }
+    else if ((mm = u.match(/^Resolves\s+(.*?):?\s*$/))) { last = ['Resolves', [_dxClean('Resolves ' + mm[1])], 'Resolves']; rows.push(last); seen++; }
+    else if ((mm = u.match(/^(CLI Steps|Steps|Remediation Options):\s*$/))) { last = [mm[1], [], mm[1]]; rows.push(last); seen++; }
+    else if ((mm = u.match(/^[•\-*▪●]\s+(.*)$/)) && last) last[1].push('• ' + _dxClean(mm[1]));
+    else if ((mm = u.match(/^(\d+)\.\s+(.*)$/)) && last && /Steps/.test(last[2])) last[1].push(mm[1] + '. ' + _dxClean(mm[2]));
+    else if ((mm = u.match(/^(Ref|Reference):\s*(.*)$/))) { last = ['Reference', [mm[2]], 'Reference']; rows.push(last); }
+    else if ((mm = u.match(/^([A-Z][A-Za-z\/ \-]{1,24}):\s*(.*)$/)) && _DX_CARD_LABELS.test(mm[1])) { last = [mm[1].trim(), mm[2] ? [_dxClean(mm[2])] : [], mm[1].trim()]; rows.push(last); seen++; }
+    else if (last) last[1].push(_dxClean(u));
+    else if (ind > ind0) { last = ['Detail', [_dxClean(u)], 'Finding']; rows.push(last); }
+    else break;
+  }
+  if (!seen) return null;
+  const sevRow = rows.find(r => r[2] === 'Severity'), affRow = rows.find(r => r[2] === 'Affected');
+  let sev = m.sev || '', body = rows.filter(r => r[1].length && r[2] !== 'Severity' && r[2] !== 'Affected');
+  if (sevRow || affRow) { sev = sev || (sevRow ? String(sevRow[1][0]).toUpperCase() : ''); body.push(['Exposure', [[sevRow ? sevRow[1][0] : 'not rated', affRow ? affRow[1][0] : ''].filter(Boolean).join('  ·  ')], 'Exposure']); }
+  body.sort((a, c) => (_DX_CARD_RANK[a[2]] ?? 9) - (_DX_CARD_RANK[c[2]] ?? 9));
+  return { block: { t: 'fix', n: m.n, sev, cls: m.cls || '', title: _dxClean(m.title), label: m.label || '', rows: body.map(r => [r[0], r[1]]) }, next: j };
+}
+function _dxCardStart(t) {
+  let m;
+  if ((m = t.match(/^(\d+)\.\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/))) return { n: m[1], sev: m[2], cls: m[3], title: m[4], label: '' };
+  if ((m = t.match(/^\[(\d+)\]\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/))) return { n: m[1], sev: m[2], cls: m[3], title: m[4], label: '' };
+  if ((m = t.match(/^ACTION (\d+):\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/))) return { n: m[1], sev: m[2], cls: m[3], title: m[4], label: 'Action ' + m[1] };
+  if ((m = t.match(/^Priority (\d+): (.+)$/))) return { n: m[1], sev: '', cls: '', title: m[2], label: 'Priority ' + m[1] };
+  return null;
+}
+
 function _dxParse(text, isMd, ctx) {
   const L = String(text).replace(/\r/g, '').split('\n');
   const doc = { title: '', customer: (ctx && ctx.customer) || '', date: '', meta: [], blocks: [] };
@@ -32999,31 +33144,21 @@ function _dxParse(text, isMd, ctx) {
       if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t))); else setSub(_dxClean(noTag(t)));
       continue;
     }
-    // a corrective-action item ("1. [HIGH] [DISRUPTIVE-SAFE] Upgrade to ... / Systems: ... / Effort: ... / Resolves N findings: / bullets / Ref:") -> one card table per fix
-    const fx = ind < 4 ? t.match(/^(\d+)\.\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/) : null;
-    if (fx) {
-      let k = i + 1; while (k < L.length && k <= i + 8 && L[k].trim() && !/^\s{3,}(Affected )?Systems:/.test(L[k])) k++;
-      if (k < L.length && /^\s{3,}(Affected )?Systems:/.test(L[k])) {
-        const rank = k2 => /^Effort/.test(k2) ? 0 : /^Resolves/.test(k2) ? 1 : /^Systems/.test(k2) ? 3 : /^Reference/.test(k2) ? 4 : 2;
-        const rows = []; let last = null, j = i + 1;
-        for (; j < L.length; j++) {
-          const raw = L[j], u = raw.trim();
-          if (!u || _dxIsRule(raw) || (/^\d+\.\s/.test(u) && (raw.match(/^\s*/) || [''])[0].length < 4)) break;
-          let mm;
-          if ((mm = u.match(/^(?:Affected )?Systems:\s*(.*)$/))) {
-            const items = []; let depth = 0, cur = ''; for (const ch of mm[1]) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { items.push(cur.trim()); cur = ''; } else cur += ch; } if (cur.trim()) items.push(cur.trim());
-            last = ['Systems (' + items.length + ')', items.filter(Boolean)]; rows.push(last);
-          } else if ((mm = u.match(/^Resolves\s+(.*?):?\s*$/))) { last = ['Resolves', [_dxClean('Resolves ' + mm[1])]]; rows.push(last); }
-          else if ((mm = u.match(/^[•\-*▪●]\s+(.*)$/)) && last && last[0] === 'Resolves') last[1].push('• ' + _dxClean(mm[1]));
-          else if ((mm = u.match(/^(Ref|Reference):\s*(.*)$/))) { last = ['Reference', [mm[2]]]; rows.push(last); }
-          else if ((mm = u.match(/^([A-Z][A-Za-z ]{1,24}):\s*(.*)$/))) { last = [mm[1], [_dxClean(mm[2])]]; rows.push(last); }
-          else if (last) last[1].push(_dxClean(u));
-        }
-        i = j - 1;
-        push({ t: 'fix', n: fx[1], sev: fx[2], cls: fx[3] || '', title: _dxClean(fx[4]), rows: rows.filter(r => r[1].length).sort((a, c) => rank(a[0]) - rank(c[0])) });
-        continue;
+    {   // "sys (platform): 9.15.1P7 -> 9.16.1P9 (Recommended)" + "Benefit: ..." pairs -> one upgrade table
+      const UP = /^\s*(.+?)\s+\(([^)]*)\):\s+(\S+)\s+->\s+(\S+)(?:\s+\(Recommended\))?\s*$/;
+      if (UP.test(l)) {
+        const rows = [['System', 'Platform', 'Current', 'Target', 'Benefit']]; let j = i;
+        while (j < L.length) { let k = j; while (k < L.length && !L[k].trim()) k++; const a = (L[k] || '').match(UP); if (!a) break; const b = (L[k + 1] || '').match(/^\s*Benefit:\s*(.*)$/); rows.push([a[1], a[2], a[3], a[4], b ? _dxClean(b[1]) : '']); j = k + (b ? 2 : 1); }
+        if (rows.length >= 3) { i = j - 1; push({ t: 'table', rows, header: true }); continue; }
       }
     }
+    { const cs = ind < 6 ? _dxCardStart(t) : null; if (cs) {
+      const cc = _dxCollectCard(L, i, cs);
+      if (cc) { i = cc.next - 1; push(cc.block); continue; }
+      // an entry with no detail lines, sitting among card entries, keeps the list uniform as a title-only card
+      const pb = blocks[blocks.length - 1], more = L.slice(i + 1, i + 14).some(x => (x.match(/^\s*/) || [''])[0].length === ind && _dxCardStart(x.trim()));
+      if (cs.label === '' && ((pb && pb.t === 'fix' && !pb.label) || more) && cs.sev) { push({ t: 'fix', n: cs.n, sev: cs.sev, cls: cs.cls || '', title: _dxClean(cs.title), label: '', rows: [] }); continue; }
+    } }   // an action / finding / CVE entry with its detail lines -> one card
     if (/^DECISIONS NEEDED/i.test(t)) { setSection(1, _dxClean(t.replace(/:$/, ''))); continue; }
     if ((m = t.match(/^---\s*(.+?)\s*---$/)) || (m = t.match(/^\u25ba\s*(.+)$/))) { setSub(_dxClean(m[1])); continue; }
     if (/^\[\d+\]\s+\[/.test(t) || /^Priority \d+: /.test(t)) { setItem(_dxClean(t)); continue; }
@@ -33122,7 +33257,7 @@ function _dxRender(doc) {
         const W1 = 1900, W2 = _DX.W - W1, cls = b.cls ? b.cls.charAt(0) + b.cls.slice(1).toLowerCase() : '';
         const paras = (lines, bold, keep) => lines.map(t => `<w:p><w:pPr><w:pStyle w:val="TableText"/>${keep ? '<w:keepNext/>' : ''}${/^• /.test(t) ? '<w:ind w:left="170" w:hanging="170"/>' : ''}</w:pPr>${_docxRuns(t, bold ? '<w:b/>' : '')}</w:p>`).join('');
         x += `<w:tbl><w:tblPr><w:tblW w:w="${_DX.W}" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="${_DX.RULE}"/></w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${W1}"/><w:gridCol w:w="${W2}"/></w:tblGrid>` +
-          `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${_DX.W}" w:type="dxa"/><w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.NAVY}"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/><w:keepNext/><w:spacing w:before="60" w:after="60"/></w:pPr>${_dxRun(b.n + '.  ' + b.title, { b: 1, color: 'FFFFFF', sz: 21 })}${_dxRun('     ' + [b.sev, cls].filter(Boolean).join('  ·  '), { color: 'C9D8F0', sz: 17 })}</w:p></w:tc></w:tr>` +
+          `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${_DX.W}" w:type="dxa"/><w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.NAVY}"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/><w:keepNext/><w:spacing w:before="60" w:after="60"/></w:pPr>${_dxRun((b.label ? b.label + '  ·  ' : b.n + '.  ') + b.title, { b: 1, color: 'FFFFFF', sz: 21 })}${_dxRun('     ' + [b.sev, cls].filter(Boolean).join('  ·  '), { color: 'C9D8F0', sz: 17 })}</w:p></w:tc></w:tr>` +
           b.rows.map((r, ri) => `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${W1}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.KV}"/></w:tcPr>${paras([r[0]], true, ri < b.rows.length - 1)}</w:tc><w:tc><w:tcPr><w:tcW w:w="${W2}" w:type="dxa"/></w:tcPr>${paras(r[1], false, ri < b.rows.length - 1)}</w:tc></w:tr>`).join('') +
           `</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="200" w:lineRule="exact"/></w:pPr></w:p>`;
         break;

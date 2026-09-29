@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.169] - 2026-09-29
+
+### Changed
+- Security Brief CVE matrix now lists the fixed release (Fixed In) and the minimum release each affected system must reach (Upgrade To), from the advisory data on file, with honest fallbacks where no release number is published. Word downloads: CVE priority entries, ticket/runbook actions and QBR/MSP/Success Plan findings render as cards; the Solution Proposal upgrade list is a table.
+
+---
+
 ## [5.6.168] - 2026-09-29
 
 ### Changed
