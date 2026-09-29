@@ -1,8 +1,8 @@
 {
-  "version": "5.6.162",
+  "version": "5.6.163",
   "major": 5,
   "minor": 6,
-  "patch": 162,
-  "date": "2026-09-28",
-  "notes": "TAM Success Plan is now a real, executable plan: removed the '+N more' truncation on affected-system lists, and named the actual systems (not just counts/percentages) needing capacity or ARP action. Active IQ's harvest has no per-volume identifiers to name individually -- system name is the deepest real granularity available."
+  "patch": 163,
+  "date": "2026-09-29",
+  "notes": "Protocol Security Checklist (Technical Audit, SVM Hardening Audit) redesigned to one compact row per check instead of a title + full-sentence block -- explanation/remediation text moved to a hover tooltip. Dynamic per-system findings (e.g. a migrated-LIF count) stay visible inline as before."
 }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.163] - 2026-09-29
+
+### Changed
+- Protocol Security Checklist (Technical Audit, SVM Hardening Audit) redesigned to one compact row per check instead of a title + full-sentence explanation block that pushed the card well past a screen. Explanation/remediation text moved to a hover tooltip; dynamic per-system findings (e.g. a migrated-LIF count) stay directly visible in the status column as before.
+
+---
+
 ## [5.6.162] - 2026-09-28
 
 ### Changed

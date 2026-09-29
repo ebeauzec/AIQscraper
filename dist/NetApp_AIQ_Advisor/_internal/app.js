@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.162";
+const APP_VERSION = "5.6.163";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.163",
+    date: "29 September 2026",
+    title: "Protocol Security Checklist: Compact Rows",
+    sections: [
+      {
+        icon: "✅",
+        label: "Changed -- Protocol Security Checklist Redesigned to One Line Per Row",
+        color: "#22c55e",
+        items: [
+          "The SVM Hardening Audit's Protocol Security Checklist (Technical Audit) used a title + full-sentence explanation block per item, most of it repeating the same 'Not Reported by Active IQ' boilerplate -- five items easily ran past a full screen. Redesigned to one compact row per check (label left, status right), with the explanation/remediation CLI command moved to a hover tooltip instead of a permanent block. Dynamic, system-specific findings stay directly visible in the status column exactly as before (e.g. a real migrated-LIF count still reads '⚠ 1 Not Homed' inline, not buried in the tooltip) -- only the static boilerplate text moved off-screen by default.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.162",
     date: "28 September 2026",
@@ -39179,23 +39194,41 @@ function renderSvmSecurityAudit(sys) {
   // exposed via the Active IQ API -- when unreported, show that honestly
   // instead of a default "✓ Secure" that would look identical to a real
   // measurement confirming the setting is actually disabled.
-  const smb1StatusHtml = anySmb1
-    ? `<span style="color: var(--status-critical); font-weight: 700;">✗ At Risk (SMB1 Enabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Ransomware vulnerability. Remediation: Run <code>vserver cifs options modify -vserver &lt;svm&gt; -smb1-enabled false</code></div>`
-    : anyUnknownSecurity
-    ? `<span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SMBv1 status is not exposed via the Active IQ API. Verify manually with <code>vserver cifs options show -fields smb1-enabled</code>.</div>`
-    : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (SMBv1 Disabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Enforces secure SMB2/SMB3 communication channels.</div>`;
+  // Compact single-line checklist row: label + status on one line, full
+  // explanation/remediation command moved to a hover tooltip instead of a
+  // permanent multi-line block -- was taking up a lot of vertical space for
+  // mostly-static "Not Reported by Active IQ" boilerplate. Dynamic,
+  // system-specific findings (e.g. an actual migrated-LIF count) stay
+  // visible in the status text itself, never hidden in the tooltip.
+  const _checkRow = (label, statusText, color, tooltip) => `
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"${tooltip ? ` data-tooltip="${_xe(tooltip)}"` : ''}>
+      <span style="font-size: 0.78rem; color: #fff;">${label}</span>
+      <span style="font-size: 0.75rem; font-weight: 700; color: ${color}; white-space: nowrap; text-align: right;">${statusText}</span>
+    </div>`;
 
-  const nfsStatusHtml = anyInsecureNfs
-    ? `<span style="color: var(--status-critical); font-weight: 700;">✗ At Risk (Superuser root mount allowed)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Anonymous hosts can claim root ownership. Remediation: Squash root (superuser=none) in export policy rules.</div>`
+  const smb1Row = anySmb1
+    ? _checkRow('SMBv1 Protocol Status', '✗ SMB1 Enabled', 'var(--status-critical)', 'Ransomware vulnerability. Remediation: vserver cifs options modify -vserver <svm> -smb1-enabled false')
     : anyUnknownSecurity
-    ? `<span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">NFS export superuser mapping is not exposed via the Active IQ API. Verify manually with <code>vserver export-policy rule show</code>.</div>`
-    : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (NFS Export Controls)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">All NFS root mount superuser mappings are squashed or restricted.</div>`;
+    ? _checkRow('SMBv1 Protocol Status', 'Not Reported', 'var(--text-muted)', 'Not exposed via the Active IQ API. Verify manually: vserver cifs options show -fields smb1-enabled')
+    : _checkRow('SMBv1 Protocol Status', '✓ Disabled', 'var(--status-normal)', 'Enforces secure SMB2/SMB3 communication channels.');
 
-  const auditStatusHtml = anyDisabledAudit
-    ? `<span style="color: var(--status-warning); font-weight: 600;">⚠️ Warning (Audit Logging Disabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Config changes and file access auditing are disabled. Enable auditing to meet audit compliance.</div>`
+  const nfsRow = anyInsecureNfs
+    ? _checkRow('NFS Root Export Access', '✗ Root Mount Allowed', 'var(--status-critical)', 'Anonymous hosts can claim root ownership. Remediation: squash root (superuser=none) in export policy rules.')
     : anyUnknownSecurity
-    ? `<span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SVM audit logging status is not exposed via the Active IQ API. Verify manually with <code>vserver audit show</code>.</div>`
-    : `<span style="color: var(--status-normal); font-weight: 600;">✓ Secure (SVM Auditing Enabled)</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">SVM configuration changes are actively logged.</div>`;
+    ? _checkRow('NFS Root Export Access', 'Not Reported', 'var(--text-muted)', 'Not exposed via the Active IQ API. Verify manually: vserver export-policy rule show')
+    : _checkRow('NFS Root Export Access', '✓ Export Controls Enforced', 'var(--status-normal)', 'All NFS root mount superuser mappings are squashed or restricted.');
+
+  const auditRow = anyDisabledAudit
+    ? _checkRow('SVM Config Audit Logging', '⚠ Disabled', 'var(--status-warning)', 'Config changes and file access auditing are disabled. Enable auditing to meet audit compliance.')
+    : anyUnknownSecurity
+    ? _checkRow('SVM Config Audit Logging', 'Not Reported', 'var(--text-muted)', 'Not exposed via the Active IQ API. Verify manually: vserver audit show')
+    : _checkRow('SVM Config Audit Logging', '✓ Enabled', 'var(--status-normal)', 'SVM configuration changes are actively logged.');
+
+  const tlsRow = _checkRow('Management Port Security (SSL/TLS)', 'Not Reported', 'var(--text-muted)', 'TLS/SSL protocol configuration is not exposed via the Active IQ GraphQL API. Verify manually: security config show');
+
+  const lifRow = totalMigratedLifs > 0
+    ? _checkRow('LIF Failover Health', `⚠ ${totalMigratedLifs} Not Homed`, 'var(--status-warning)', 'LIFs have migrated from home port to a partner node. Remediation: network interface revert -vserver <svm> -lif *')
+    : _checkRow('LIF Failover Health', '✓ All Homed', 'var(--status-normal)', 'All logical interfaces are running on their designated home nodes and ports.');
 
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start;">
@@ -39221,41 +39254,10 @@ function renderSvmSecurityAudit(sys) {
       </div>
 
       <!-- Hardening Audit Checklist -->
-      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 18px 16px;">
-        <h4 style="font-size: 0.82rem; font-weight: 700; color: #fff; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">Protocol Security Checklist</h4>
-        
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          <div style="border-left: 3px solid ${anySmb1 ? 'var(--status-critical)' : (anyUnknownSecurity ? 'var(--text-muted)' : 'var(--status-normal)')}; padding-left: 10px;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">SMBv1 Protocol Status</div>
-            <div style="font-size: 0.75rem; margin-top: 2px;">${smb1StatusHtml}</div>
-          </div>
-
-          <div style="border-left: 3px solid ${anyInsecureNfs ? 'var(--status-critical)' : (anyUnknownSecurity ? 'var(--text-muted)' : 'var(--status-normal)')}; padding-left: 10px;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">NFS Root Export Access</div>
-            <div style="font-size: 0.75rem; margin-top: 2px;">${nfsStatusHtml}</div>
-          </div>
-
-          <div style="border-left: 3px solid ${anyDisabledAudit ? 'var(--status-warning)' : (anyUnknownSecurity ? 'var(--text-muted)' : 'var(--status-normal)')}; padding-left: 10px;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">SVM Configuration Audit Logging</div>
-            <div style="font-size: 0.75rem; margin-top: 2px;">${auditStatusHtml}</div>
-          </div>
-          
-          <div style="border-left: 3px solid var(--text-muted); padding-left: 10px;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">Management Port Security (SSL/TLS)</div>
-            <div style="font-size: 0.75rem; margin-top: 2px;">
-              <span style="color: var(--text-muted); font-weight: 600;">Not Reported by Active IQ</span>
-              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">TLS/SSL protocol configuration is not exposed via the Active IQ GraphQL API. Verify manually with <code>security config show</code>.</div>
-            </div>
-          </div>
-
-          <div style="border-left: 3px solid ${totalMigratedLifs > 0 ? 'var(--status-warning)' : 'var(--status-normal)'}; padding-left: 10px;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: #fff;">LIF Failover Health (Migrated LIFs)</div>
-            <div style="font-size: 0.75rem; margin-top: 2px;">
-              ${totalMigratedLifs > 0
-                ? `<span style="color: var(--status-warning); font-weight: 600;">⚠ ${totalMigratedLifs} LIF${totalMigratedLifs !== 1 ? 's' : ''} Not Homed</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">LIFs have migrated from home port to a partner node. Run <code>network interface revert -vserver &lt;svm&gt; -lif *</code> to remediate.</div>`
-                : `<span style="color: var(--status-normal); font-weight: 600;">✓ All LIFs Homed</span><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">All logical interfaces are running on their designated home nodes and ports.</div>`}
-            </div>
-          </div>
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px 16px;">
+        <h4 style="font-size: 0.82rem; font-weight: 700; color: #fff; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">Protocol Security Checklist <span style="font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--text-muted); font-size: 0.68rem;">(hover a row for detail)</span></h4>
+        <div>
+          ${smb1Row}${nfsRow}${auditRow}${tlsRow}${lifRow}
         </div>
       </div>
     </div>
