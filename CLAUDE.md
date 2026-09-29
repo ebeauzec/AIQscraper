@@ -256,18 +256,57 @@ in this session's transcript if auditing further. **Only checked plain-text/Mark
 not re-verify every deliverable's visual layout in an actual generated Word document end-to-end; if the user
 finds more corruption, it's a different bug class, not this one recurring.
 
-**10. Snapshot best-practice reporting -- requested, NOT started.** User, immediately after the column-table
-audit shipped: "also look at snapshots... align with best practices, and look for, for example, snapshots that
-are stale, large, etc." This is a new, similarly-sized feature request to the LUN/NAS work (point 7/8/9's
-sibling) -- **before writing any code, repeat the same discipline that worked for LUN/volume**: check the live
-GraphQL schema (the same `__schema` introspection technique, reusing `server.py`'s own `_gql`/token-exchange
-functions in a one-off script) for what snapshot fields Active IQ's API actually exposes (per-volume snapshot
-count/age/size, snapshot policy/schedule, snapshot reserve %, orphaned/locked snapshots, etc.) before assuming
-anything is buildable. Session ended before this was scoped or started.
+**10. Snapshot best-practice reporting + narrative integration across every deliverable (shipped, v5.6.186).**
+User: "also look at snapshots... align with best practices, and look for, for example, snapshots that are
+stale, large, etc." Same discipline as the LUN/NAS work: checked the live GraphQL schema first (same
+`__schema` introspection, one-off script reusing `server.py`'s `_gql`/token-exchange) before writing anything.
+**Confirmed live: there is no per-snapshot object anywhere in the schema** (no name, creation date, or lock
+state per snapshot) -- only two volume-level aggregates, `snapshotCount` and `snapshotReserveUsedPercentage`
+(the latter confirmed live to exceed 100% on real data -- 299% on one volume, meaning snapshots had overflowed
+the reserve and were consuming active/user data capacity). So **age-based "stale snapshot" detection is not
+possible from this API** -- flagged this to the user via AskUserQuestion before building anything; they said
+build what's real and label the gap clearly, fold into the existing SAN & NAS Storage section rather than a
+new tab. Added both fields to `LUN_VOLUME_FIELDS` (server.py) and to `_lv_by_serial`'s per-system summary
+(`volumeSnapshotReserveOverflowCount`, `volumeSnapshotCountTotal`); `_sanNasStorageSummary()` (app.js) now
+surfaces a reserve-overflow finding (checked first, most urgent) alongside the existing thin-provisioning/
+efficiency ones. Also relabelled "LUN/Volume Capacity" to "LUN/Volume Provisioned" with an explanatory note,
+per the user's question about what those columns actually meant (they're configured/usable size, not bytes
+written -- thin-provisioned objects can hold far less).
 
-**Git:** branch `main`, v5.6.178 through v5.6.185 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild185`, synced into `dist/NetApp_AIQ_Advisor/` +
-`dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
+User then asked, in three escalating messages, to (a) "update ALL of the deliverables to reflect the new
+values... how it plays into the narrative" and (b) "make sure that everything from today, and all previous
+deliverables are aligned and explained in compliance with best practice". Delegated both to a single
+background agent (general-purpose) with a precise brief: integrate `_sanNasStorageSummary()` into every
+`compile*` deliverable function proportionate to that document's purpose (a scorecard row for documents that
+already have one, prose for executive-audience documents, risk bullets for risk-focused documents), guard
+every integration point on `null`/empty `findings` so it degrades gracefully, and do a consistency pass on
+terminology and on today's earlier additions (ASA r2 capacity notes, the column-alignment fixes). It touched
+9 deliverable compilers: `compileCustomerSuccessPlanText` (TAM Success Plan), `compileMSPServiceReport`,
+`compileRiskRemediationBrief`, `compileAccountHandoverBrief`, `compileSecurityBrief` (framed snapshot overflow
+as a data-protection/recovery-point risk -- a genuinely different angle than the capacity framing elsewhere,
+not a copy-paste), `compileSustainabilityReport` (thin-provisioning's physical-footprint angle only, didn't
+force an ESG framing that doesn't fit), `compileValueReport`, `compileCustomerReport`, and
+`compileExtendedDeliverables` (which itself contains QBR Pack, Executive Risk Assessment, Technical Solution
+Proposal, and Sales Proposal -- four more touch points inside one function). Deliberately left
+`compileSvmLifSummaryText`/`compilePerformanceText` untouched (no natural SAN/NAS tie-in) and did not
+restructure the per-risk-driven Customer Communications/Change Control Ticket sections (would have gone beyond
+a surgical integration).
+**Verified, not just trusted the agent's report:** reviewed the full diff personally, confirmed every touched
+function still parses (`typeof fn === 'function'` on all of them post-reload), then called four of the nine
+directly with real data and real arguments (had to look up each function's actual parameter order first --
+`compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts,
+allSupportCases, fw)`, `compileMSPServiceReport`/`compileSecurityBrief(targetSystems, allRisks,
+expiringContracts, allSupportCases, scopeTitle, fw)` -- calling with guessed/wrong argument order or count is
+exactly the kind of thing that looks like a bug in the new code but isn't): confirmed real SAN/NAS text renders
+for a data-bearing scope, confirmed the `N/A` fallback renders cleanly for a no-data scope, confirmed a
+zero-overflow scope correctly omits the Security Brief's snapshot-risk line entirely rather than printing an
+empty one. Also re-confirmed the server-side snapshot fields end-to-end against a live re-harvest (both
+accounts; a real system showed `volumeSnapshotReserveOverflowCount: 5`, `volumeSnapshotCountTotal: 11135`) by
+reading the raw SQLite row directly, not just trusting the harvest log line.
+
+**Git:** branch `main`, v5.6.178 through v5.6.186 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild186`, synced into `dist/NetApp_AIQ_Advisor/` +
+`dist/app.js`; v5.6.180-181, v5.6.184 and v5.6.186 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
 harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
 session that touched HTML). Working tree otherwise shows harvest data files modified by the running server
 (`data/*.json`) and untracked docs images -- never commit those with code changes.

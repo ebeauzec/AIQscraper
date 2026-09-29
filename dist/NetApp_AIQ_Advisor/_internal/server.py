@@ -1774,6 +1774,15 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # pageSize: 50 per system -- bounds a single system's cost but under-counts
         # (and under-sums capacity for) any system with more than 50 LUNs or volumes;
         # totalCount is still exact, so the summary flags when it fetched a partial set.
+        # snapshotCount / snapshotReserveUsedPercentage confirmed live on Volume (not
+        # in the earlier LUN/volume capacity introspection pass -- found on a second,
+        # fuller field dump). There is NO per-snapshot object anywhere in the schema
+        # (no name, creation date, or lock state per snapshot) -- only these two
+        # volume-level aggregates, so age-based "stale snapshot" detection is not
+        # possible from this API, only reserve-overflow/footprint signals.
+        # snapshotReserveUsedPercentage can exceed 100 -- confirmed live (299% on a
+        # real volume) -- meaning snapshots have overflowed the reserved space and are
+        # now consuming active/user data capacity, a real and urgent condition.
         LUN_VOLUME_FIELDS = """
                   serialNumber
                   ... on ONTAPSystem {
@@ -1783,6 +1792,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                       volumes {
                         isRoot
                         protocols
+                        snapshotCount
+                        snapshotReserveUsedPercentage
                         capacity { sizeKB availableKB logical { usedSnapshotsKiB } efficiency { saved { totalSavedPercentage } } }
                         provisioning { isThinProvisioned }
                       }
@@ -2198,6 +2209,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     _vol_thin = 0
                     _vol_no_efficiency = 0
                     _vol_high_snap = 0
+                    _vol_snap_overflow = 0
+                    _vol_snapshot_count_total = 0
                     _protocols = set()
                     for _v in _vols:
                         _cap = _v.get("capacity") or {}
@@ -2220,13 +2233,20 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         _used = max(0, _size - _avail)
                         if _used > 0 and _snap / _used > 0.3:
                             _vol_high_snap += 1
+                        _reserve_pct = _v.get("snapshotReserveUsedPercentage")
+                        if (_reserve_pct or 0) > 100:
+                            _vol_snap_overflow += 1
+                        _vol_snapshot_count_total += _v.get("snapshotCount") or 0
                         for _p in (_v.get("protocols") or []):
                             _protocols.add(_p)
                     _lv_by_serial[_r.get("serialNumber")] = {
                         "lunCount": _lun_total, "lunUsableKiB": _lun_kib, "lunFetchTruncated": _lun_total > len(_luns),
                         "volumeCount": _vol_total, "volumeSizeKiB": round(_vol_size_kib),
                         "volumeThinProvisionedCount": _vol_thin, "volumeNoEfficiencyCount": _vol_no_efficiency,
-                        "volumeHighSnapshotCount": _vol_high_snap, "volumeProtocols": sorted(_protocols),
+                        "volumeHighSnapshotCount": _vol_high_snap,
+                        "volumeSnapshotReserveOverflowCount": _vol_snap_overflow,
+                        "volumeSnapshotCountTotal": _vol_snapshot_count_total,
+                        "volumeProtocols": sorted(_protocols),
                         "volumeFetchTruncated": _vol_total > len(_vols),
                     }
             _lv_hits = 0

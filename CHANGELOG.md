@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.186] - 2026-09-29
+
+### Added
+- Snapshot health added to SAN & NAS Storage: total snapshot count and snapshot reserve overflow (volumes where snapshots exceed 100% of reserved space, consuming active data capacity). No per-snapshot age/name/lock data exists anywhere in Active IQ's API -- only these volume-level aggregates -- so age-based "stale snapshot" detection is not claimed.
+- LUN/NAS volume/snapshot findings woven into every deliverable with a natural home for them: TAM Success Plan, MSP Service Report, Risk & Remediation Brief, Account Handover Brief, Security Posture Brief, Sustainability Report, Customer Value Report, Customer Report, QBR Pack, Executive Risk Assessment, Technical Solution Proposal, and Sales Proposal.
+
+### Changed
+- Relabelled "LUN/Volume Capacity" to "LUN/Volume Provisioned" with an explanatory note (these are configured size, not bytes written).
+
+---
+
 ## [5.6.185] - 2026-09-29
 
 ### Fixed
