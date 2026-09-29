@@ -22,51 +22,52 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-29 (Windows dev station, v5.6.164)
+## Session handoff -- 2026-09-29 (Windows dev station, v5.6.164 -> v5.6.175)
 
-Two things this session. (1) Asked to restyle a folder of 15 already-generated Word deliverables on the
-Desktop into consistent customer-facing documents -- done with a one-off python-docx script (output in
-`Desktop\Customer-Ready`, originals untouched; user then said to leave that as is). (2) The real ask:
-**make ARIA's own Word deliverables carry that standard so nobody reformats after download** -- shipped
-as v5.6.164.
+The whole session was one goal: **ARIA's Word (.docx) deliverables must download customer-ready, with no
+manual reformatting.** Started from 15 already-generated docs on the user's Desktop (restyled once with a
+throwaway python-docx script into `Desktop\Customer-Ready`; user then said leave those and build it into ARIA).
 
-- **What changed:** `_buildDocx()` in `app.js` (Downloads section, ~line 32790) was rewritten from a
-  line-by-line XML emitter into a two-stage builder: `_dxParse(text, isMd, ctx)` turns the plain-text/
-  Markdown deliverable into normalised blocks (title, headings on a 1-3 scale, tables, key/value lines,
-  bullets, numbered items, CLI blocks), `_dxRender()` writes them as WordprocessingML. Look-and-feel lives
-  in `_DX` (palette) + `_dxStyles()`. Adds: title block (title/customer/date), running header, footer
-  "Confidential -- prepared for <customer>" + Page X of Y (`titlePg`, first-page header blank), numbering
-  part for real bullets, navy-header banded tables, shaded CodeBlock style, redundant Scope/Account/Date
-  lines folded into the title block, ALL-CAPS -> title case, hard-wrap rejoin, float rounding, page break
-  per ticket/system for the Change Control Tickets and CLI Runbook. .txt/.md paths untouched.
-- **Customer name plumbing:** `downloadDeliverable()` sets `window.__dlScope`; `triggerFileDownload()`
-  reads-and-clears it (one-shot) and passes `{customer}` to `_buildDocx`. Downloads that don't set it
-  (e.g. the per-system export) fall back to the Account:/Scope: line in the text -- never a stale scope.
-- **How it was verified:** captured the real text of all 15 deliverables for the demo customer
-  "Harbourview Distribution" via Playwright (`/api/**` blocked, `aiq_mock_mode=true`, 152 systems
-  confirmed), built each .docx from the new builder, all 15 pass the docx skill's `validate.py`, exported
-  through desktop Word to PDF and inspected the pages; then a real click on the Security Brief download
-  button (format modal -> Word) against the live dev server produced a valid, correctly-titled file with
-  zero page errors. No Node on this machine -- JS was tested in a Playwright page, not Node.
-- **Known source-data glitches spotted (not fixed, outside this change):** MSP report Service Level table
-  row "Case MTTR (<=5d)   5  d" has a stray space in the value; the MSP per-customer dashboard truncates the
-  customer name ("Harbourview Distri") and its last header "DRR" is cut off. Demo/real system names,
-  `example.com` contacts, and -- importantly -- the MSP report and Security Brief name OTHER customers
-  ("also affects N other customers ... Apex Global Solutions, ...") : not safe to hand to a customer
-  as-is; needs a decision (redact vs. keep for internal MSP use). Account Handover / Sales Refresh / TAM
-  Success Plan / QBR are internal TAM documents by nature.
+- **Where it lives:** `app.js` Downloads section (~line 32800+): `_dxParse(text, isMd, ctx)` turns the
+  plain-text/Markdown deliverable into normalised blocks; `_dxRender()` writes WordprocessingML;
+  `_buildDocx()` adds title block, running header, "Confidential -- prepared for <customer>" footer with
+  Page X of Y, numbering part (real bullets), hyperlink rels (rId100+). Look-and-feel: `_DX` palette +
+  `_dxStyles()`. `.txt`/`.md` downloads are untouched. Customer name comes from `window.__dlScope`
+  (set in `downloadDeliverable`, read-and-cleared in `triggerFileDownload`), else the Account/Scope line.
+- **Cards** (`_dxCollectCard`, `_dxSpecialCard`, `_dxCardStart`, block type `fix`): corrective actions,
+  CVE priority entries, ticket/runbook actions, QBR/MSP/Success Plan findings, Decisions (Why/When/Owner),
+  roadmap actions, per-system upgrade plans, support cases, nested-bullet groups. Long titles split via
+  `_dxSplitTitle` (tail -> Findings + Systems rows). Tables: text/pipe/segmented-rule columns, key/value
+  runs, upgrade list, drift list. Also: URLs/bare NetApp domains/e-mails are hyperlinks (`_DX_LINK_RE`),
+  raw HTML is stripped (`_dxStripHtml`, keeps `<svm>`-style placeholders).
+- **Security Brief fixed releases (v5.6.169):** `_dfFixedReleases`/`_dfMinFixLines` read
+  `NETAPP_SECURITY_BULLETIN_DB` (data/security_bulletins.json) -> "Fixed In" + per-system "Upgrade To"
+  (same-branch fix, else lowest later fix; BMC firmware matched by model). Only 191 of 531 stored advisories
+  carry release numbers; where none, the brief quotes the advisory text and offers Active IQ's recommended
+  release *labelled as a recommendation*. NetApp's advisory pages are JS-rendered (WebFetch gets nothing),
+  so real numbers need the harvester to capture the fixed-release tables. Never invent versions.
+- **Generator fixes made along the way:** risk trend is a real table (`_dfTrendText`, md vs text), Success
+  Plan status is a pipe table, RACI table spacing, MSP tables no longer truncate the customer name,
+  Handover inventory no longer truncates platforms.
+- **How to test (no Node here):** Playwright with `/api/**` blocked except `/api/bulletins`, and
+  `localStorage aiq_mock_mode=true` (152 demo systems), capture text via `compileExtendedDeliverables`,
+  build docx in-page with `_buildDocx`, validate with the docx skill's `validate.py`, export through desktop
+  Word (COM) to PDF and look at pages. Real-click check: TAM/MSP tab -> download button -> `#dlFormatModal`
+  Word. Beware: heredoc python that writes `\n` into JS gets corrupted -- use the Edit tool or a file.
+  When the user's screenshot shows old output, first suspect a stale tab/exe (hard refresh / relaunch).
 
-**Still open / not done:** rear-panel program still has no layout for FAS8000, older FAS25xx/26xx, unnamed
-StorageGRID models, or cloud platforms. LEGAL.md/ARIA_FIX_PLAN.md still not content-audited. The Portfolio
-Dashboard's urgency-score weighting is hand-picked. Whether the packaged `.exe` serves correctly given
-`do_GET()`'s unconditional `index_src.html` rewrite is still unconfirmed. The Word standard is only
-verified against the demo customer's text; a real fleet may surface line shapes the parser has not seen
-(unusual indentation, new section types) -- if a real document looks off, capture its text and add the
-shape to `_dxParse`.
+**Known/not done:** other customers are named in the MSP report and Security Brief ("also affects N other
+customers ... Apex Global Solutions") -- not safe to send to a customer; needs a redact-vs-keep decision.
+Account Handover / Sales Refresh / TAM Success Plan / QBR are internal TAM documents by nature. Demo/real
+system names, `example.com` contacts appear as-is. Only demo-customer text was audited (rule-only rows,
+markup, truncation, pipes all clean); a real fleet may show new line shapes -- capture the text and add the
+shape to `_dxParse`. Rear-panel program gaps (FAS8000, older FAS25xx/26xx, unnamed StorageGRID, cloud) and
+the unconfirmed packaged-exe `index_src.html` question still stand from earlier sessions.
 
-**Git:** branch `main`. v5.6.164 committed and pushed (app.js, dist bundle, version.json, CHANGELOG.md,
-README.md, this note). Working tree also shows harvest data files modified by the running server
-(`data/*.json`) and untracked docs images -- not part of this work, never commit those with code changes.
+**Git:** branch `main`, v5.6.164 through v5.6.175 all committed and pushed individually (exe rebuilt each
+time, PyInstaller to `aiqbuild14`..`aiqbuild25` under `%LOCALAPPDATA%\Temp`). Working tree shows harvest data
+files modified by the running server (`data/*.json`) and untracked docs images -- never commit those with
+code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is
