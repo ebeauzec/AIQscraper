@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.173] - 2026-09-29
+
+### Changed
+- Word downloads: URLs, bare NetApp/web addresses (security.netapp.com, docs.netapp.com/...) and e-mail addresses are now clickable hyperlinks (blue, underlined); CLI blocks and <placeholder> templates stay plain.
+
+---
+
+## [5.6.172] - 2026-09-29
+
+### Changed
+- Word downloads: MSP report column tables (Capacity Consumption, Per-Customer Health) render as real tables via the underline segments; the customer-name column is no longer truncated to 18 characters; raw HTML (<br>, &nbsp;) in advisory text is cleaned in Word documents (CLI placeholders like <svm> kept).
+
+---
+
 ## [5.6.171] - 2026-09-29
 
 ### Changed

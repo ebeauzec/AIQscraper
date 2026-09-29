@@ -1,8 +1,8 @@
 {
-  "version": "5.6.171",
+  "version": "5.6.173",
   "major": 5,
   "minor": 6,
-  "patch": 171,
+  "patch": 173,
   "date": "2026-09-29",
-  "notes": "Word cards: the '(N findings across systems...)' tail moves out of the title into Findings and Systems rows -- no more nested brackets in title bars."
+  "notes": "Word deliverables: URLs, bare NetApp web addresses and e-mail addresses are clickable hyperlinks."
 }

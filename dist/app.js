@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.172";
+const APP_VERSION = "5.6.173";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.173",
+    date: "29 September 2026",
+    title: "Clickable Links in Word Documents",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- Every URL in a Word Deliverable Is a Clickable Link",
+        color: "#22c55e",
+        items: [
+          "Web addresses in the Word deliverables are now real hyperlinks: full https:// URLs (advisory links, NetApp KB and documentation links), bare NetApp/web addresses such as 'security.netapp.com' or 'docs.netapp.com/us-en/active-iq/', and e-mail addresses (mailto). They are blue and underlined, open in the browser, and trailing punctuation is left outside the link. URLs inside CLI command blocks and templates such as http://<proxy>:<port> stay plain text.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.172",
     date: "29 September 2026",
@@ -33058,11 +33073,29 @@ function _dxLongDate(s) {
   return mo ? (+m[3]) + ' ' + mo + ' ' + m[1] : null;
 }
 
-// ---- inline runs: **bold**, _italic_, `code` ----
+// ---- inline runs: **bold**, _italic_, `code`, and links ----
+let _dxLinks = [];   // link targets collected while a document is rendered; written to document.xml.rels as rId100+
+// http(s) URLs, e-mail addresses, and bare web addresses ("security.netapp.com", "docs.netapp.com/us-en/active-iq/")
+const _DX_LINK_RE = /https?:\/\/[^\s<>"]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+|(?<![@\w\/.-])(?:[a-z0-9-]+\.)+(?:com|org|net|gov|edu|io)\b(?:\/[^\s<>"|]*)?/;
 function _docxRuns(text, base) {
   const out = []; const re = /(\*\*(.+?)\*\*)|(`([^`]+)`)|((?:^|(?<=[\s(]))_(.+?)_(?=[\s).,;:]|$))/g; let last = 0, m;
-  const run = (t, extra) => t ? `<w:r><w:rPr>${extra || ''}${base || ''}</w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>` : '';
-  while ((m = re.exec(text))) { out.push(run(text.slice(last, m.index))); if (m[2] != null) out.push(run(m[2], '<w:b/>')); else if (m[4] != null) out.push(run(m[4], '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="18"/>')); else out.push(run(m[6], '<w:i/>')); last = m.index + m[0].length; }
+  const plain = (t, extra) => t ? `<w:r><w:rPr>${extra || ''}${base || ''}</w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>` : '';
+  const run = (t, extra, code) => {   // plain text: any URL, bare NetApp/web address or e-mail in it becomes a clickable link
+    if (!t) return '';
+    if (code) return plain(t, extra);
+    let o = '', at = 0, k; const rx = new RegExp(_DX_LINK_RE.source, 'gi');
+    while ((k = rx.exec(t))) {
+      let hit = k[0]; const trail = hit.match(/[).,;:'"\]]+$/); if (trail && !(hit.includes('(') && /\)$/.test(hit) && hit.split('(').length === hit.split(')').length)) hit = hit.slice(0, hit.length - trail[0].length);
+      if (!hit) continue;
+      const target = /^https?:\/\//i.test(hit) ? hit : /@/.test(hit) ? 'mailto:' + hit : 'https://' + hit;
+      let id = _dxLinks.indexOf(target); if (id < 0) { _dxLinks.push(target); id = _dxLinks.length - 1; }
+      o += plain(t.slice(at, k.index), extra);
+      o += `<w:hyperlink r:id="rId${100 + id}" w:history="1"><w:r><w:rPr>${extra || ''}${(base || '').replace(/<w:color[^>]*\/>/, '')}<w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${_xe(hit)}</w:t></w:r></w:hyperlink>`;
+      at = k.index + hit.length; rx.lastIndex = at;
+    }
+    return o + plain(t.slice(at), extra);
+  };
+  while ((m = re.exec(text))) { out.push(run(text.slice(last, m.index))); if (m[2] != null) out.push(run(m[2], '<w:b/>')); else if (m[4] != null) out.push(run(m[4], '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="18"/>', true)); else out.push(run(m[6], '<w:i/>')); last = m.index + m[0].length; }
   out.push(run(text.slice(last))); return out.join('');
 }
 
@@ -33458,6 +33491,7 @@ function _buildDocx(title, text, opts) {
   if (!doc.customer) doc.customer = scope;
   doc.customer = doc.customer.replace(/^(Customer|Group|Watchlist|System)[ :]+/i, '');
   if (!doc.date) { const d = new Date(); doc.date = d.getDate() + ' ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][d.getMonth()] + ' ' + d.getFullYear(); }
+  _dxLinks = [];
   const body = _dxRender(doc);
   const sect = `<w:sectPr><w:headerReference w:type="default" r:id="rId3"/><w:headerReference w:type="first" r:id="rId4"/><w:footerReference w:type="default" r:id="rId5"/><w:footerReference w:type="first" r:id="rId6"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1247" w:right="1134" w:bottom="1134" w:left="1134" w:header="560" w:footer="500" w:gutter="0"/><w:titlePg/></w:sectPr>`;
   const tabs = `<w:tabs><w:tab w:val="right" w:pos="${_DX.W}"/></w:tabs>`, rr = t => `<w:r><w:rPr><w:sz w:val="16"/><w:color w:val="${_DX.GREY}"/></w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>`;
@@ -33472,7 +33506,7 @@ function _buildDocx(title, text, opts) {
     { name: '[Content_Types].xml', data: xml(`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="${CT}document.main+xml"/><Override PartName="/word/styles.xml" ContentType="${CT}styles+xml"/><Override PartName="/word/numbering.xml" ContentType="${CT}numbering+xml"/><Override PartName="/word/header1.xml" ContentType="${CT}header+xml"/><Override PartName="/word/header2.xml" ContentType="${CT}header+xml"/><Override PartName="/word/footer1.xml" ContentType="${CT}footer+xml"/><Override PartName="/word/footer2.xml" ContentType="${CT}footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`) },
     { name: '_rels/.rels', data: xml(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`) },
     { name: 'docProps/core.xml', data: xml(`<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${_xe(doc.title + (doc.customer ? ' \u2014 ' + doc.customer : ''))}</dc:title><dc:subject>${_xe(doc.customer)}</dc:subject><dc:creator>ARIA</dc:creator></cp:coreProperties>`) },
-    { name: 'word/_rels/document.xml.rels', data: xml(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}styles" Target="styles.xml"/><Relationship Id="rId2" Type="${RT}numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="${RT}header" Target="header1.xml"/><Relationship Id="rId4" Type="${RT}header" Target="header2.xml"/><Relationship Id="rId5" Type="${RT}footer" Target="footer1.xml"/><Relationship Id="rId6" Type="${RT}footer" Target="footer2.xml"/></Relationships>`) },
+    { name: 'word/_rels/document.xml.rels', data: xml(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}styles" Target="styles.xml"/><Relationship Id="rId2" Type="${RT}numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="${RT}header" Target="header1.xml"/><Relationship Id="rId4" Type="${RT}header" Target="header2.xml"/><Relationship Id="rId5" Type="${RT}footer" Target="footer1.xml"/><Relationship Id="rId6" Type="${RT}footer" Target="footer2.xml"/>${_dxLinks.map((u, n) => `<Relationship Id="rId${100 + n}" Type="${RT}hyperlink" Target="${_xe(u)}" TargetMode="External"/>`).join('')}</Relationships>`) },
     { name: 'word/styles.xml', data: enc.encode(_dxStyles()) },
     { name: 'word/numbering.xml', data: enc.encode(numbering) },
     { name: 'word/header1.xml', data: enc.encode(hf('hdr', botB, rr(doc.title) + '<w:r><w:tab/></w:r>' + rr(doc.customer))) },
