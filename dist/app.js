@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.178";
+const APP_VERSION = "5.6.179";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.179",
+    date: "29 September 2026",
+    title: "ASA: Honest Note Instead of All-Zero Capacity",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Some ASA Systems Showed 'Ratio N/A, 0.0 TB' Instead of Reporting Anything",
+        color: "#22c55e",
+        items: [
+          "Active IQ returns no usable/physical/raw capacity at all for some ASA (All-SAN Array) clusters -- confirmed live on ASA-A70/A90/A30 systems. That used to render as a normal-looking capacity card full of 'N/A' and '0.0 TB', indistinguishable from a real empty system and easy to read as 'ARIA isn't reporting on ASA'. It now shows the same honest 'no capacity data' note already used for StorageGRID and E-Series gaps, labelled ASA Block SAN Array. ASA systems that do report capacity (most ASA-A800/A250 in the fleet) are unaffected.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.178",
     date: "29 September 2026",
@@ -17240,9 +17255,9 @@ function renderCSMTab() {
     `;
   } else if (sys.efficiency && sys.efficiency._capacityUnavailable) {
     const _sgNote = sys.efficiency.platformNote || 'No capacity data was returned by Active IQ for this system.';
-    const _sgIcon = _isPlatformStorageGRID(sys) ? '⬡' : '⬡';
-    const _sgColor = _isPlatformStorageGRID(sys) ? '#a855f7' : '#f59e0b';
-    const _sgLabel = _isPlatformStorageGRID(sys) ? 'StorageGRID Object Node' : 'E-Series Block Array';
+    const _sgIcon = '⬡';
+    const _sgColor = _isPlatformStorageGRID(sys) ? '#a855f7' : (isASA ? '#38bdf8' : '#f59e0b');
+    const _sgLabel = _isPlatformStorageGRID(sys) ? 'StorageGRID Object Node' : (isASA ? 'ASA Block SAN Array' : 'E-Series Block Array');
     document.getElementById("csmSavingsCard").innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 8px 0; text-align: center;">
         <div style="font-size: 2.4rem; color: ${_sgColor}; filter: drop-shadow(0 0 8px ${_sgColor}55);">${_sgIcon}</div>
@@ -19305,14 +19320,19 @@ function enrichSystemTelemetry(s) {
     // The overview chart now shows used vs available capacity instead.
     const fpTieredTB = 0;
 
-    // ── StorageGRID / E-Series capacity ─────────────────────────────────────
+    // ── StorageGRID / E-Series / ASA capacity ────────────────────────────────
     // The /clusters query returns nothing for these platform families, so
     // physTB/rawTB are 0 unless the systems query supplied capacity: E-Series
     // reports it via SantricitySystem.capacity (mapped by server.py into
-    // eseriesCapacity and the cluster*TB fields). What's left at zero is a
-    // real gap -- flag _capacityUnavailable so the UI renders an honest note
-    // instead of "0.0 TB / N/A" placeholders.
-    const _sgEseriesCapGap = (isStorageGrid || isEseries) && physTBfinal === 0 && rawTBfinal === 0;
+    // eseriesCapacity and the cluster*TB fields). ASA (classic and r2) is the
+    // same story confirmed live: some clusters return usedKiB/utilizationPercentage
+    // as null at both system and cluster level, leaving physical/raw/usable all
+    // 0 -- the per-system card then showed "Ratio N/A, Physical Used 0.0 TB,
+    // Usable 0.0 TB", which reads as "no capacity reporting at all" even though
+    // that's really an honest zero from Active IQ, not a rendering bug. What's
+    // left at zero is a real gap -- flag _capacityUnavailable so the UI renders
+    // an honest note instead of "0.0 TB / N/A" placeholders.
+    const _sgEseriesCapGap = (isStorageGrid || isEseries || isASA) && physTBfinal === 0 && rawTBfinal === 0;
 
     efficiency = {
       // When ratioVal can't be computed for a live ASA r2 system, do NOT show
@@ -19341,7 +19361,8 @@ function enrichSystemTelemetry(s) {
                    _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — capacity is reported per grid, on the admin-node system of each grid; Active IQ returned none for this system (an individual node, or a grid with no recent AutoSupport capacity report). Check the StorageGRID Grid Manager for current figures.' :
                    (isStorageGrid && s.storagegridCapacity) ? 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.' :
                    _sgEseriesCapGap && isEseries    ? 'E-Series — Active IQ returned no SANtricity capacity for this system (no recent AutoSupport capacity report). Check SANtricity System Manager for current figures.' :
-                   (isEseries && s.eseriesCapacity) ? 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.' : null,
+                   (isEseries && s.eseriesCapacity) ? 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.' :
+                   _sgEseriesCapGap && isASA        ? 'ASA — Active IQ returned no capacity for this all-SAN array cluster (no recent AutoSupport capacity report). Check System Manager for current figures.' : null,
     };
 
   } else if (!efficiency) {

@@ -22,9 +22,9 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-29 (Windows dev station, v5.6.177 -> v5.6.178)
+## Session handoff -- 2026-09-29 (Windows dev station, v5.6.177 -> v5.6.179)
 
-Three separate threads this session; only the third shipped.
+Three separate threads this session; the second and third shipped.
 
 **1. Security scare, unresolved.** User installed ARIA fresh on a Mac (unzipped straight from a GitHub
 download, no Google Drive involved) and it came up already connected to Active IQ with a refresh token,
@@ -39,15 +39,22 @@ files are served from it, so stale watchlists/credentials from a prior run on th
 not an anchor, so that line doesn't actually match the file. Harmless today only because the file was never
 `git add`ed; worth fixing for real given this thread was about credential hygiene.
 
-**2. ASA (All-SAN Array) capacity/reporting bug, unresolved.** User reports no capacity/advanced reporting
-for any ASA systems. Read through the ASA detection block in the big system-telemetry-enrichment function
-(app.js ~18969-19025: `isASA` is a broad model-string check, `isASAr2` is narrow and depends on
-`personality`/`isDisaggregated` API fields that may not always be populated -- a recurring theme with Active
-IQ's sparse fields). Working hypothesis, **not yet confirmed against real ASA data or fixed**: the SAZ
-capacity fallback at ~line 19267 (`if (isASAr2 && physTBfinal === 0 && (s.sazUsedKiB || 0) > 0) {...}`) is
-gated on the narrow `isASAr2` when it should be gated on `isASA`, since real ASA systems may report
-`sazUsedKiB` without `personality`/`isDisaggregated` being set. Next session: inspect real ASA system field
-values against the live fleet before touching the code.
+**2. ASA (All-SAN Array) capacity bug, fixed (shipped, v5.6.179).** User: no capacity/reporting for any ASA
+systems. The original SAZ-fallback hypothesis (narrow `isASAr2` gate at ~line 19267) turned out to be a dead
+end once checked against the real fleet (`state.systems` in the live browser session, 2898 systems, 22 real
+ASA nodes): `sazUsedKiB` is 0 for every real ASA system regardless of `isASAr2`, so broadening that gate
+would have changed nothing. The real cause, confirmed live: Active IQ genuinely returns null for
+usedKiB/utilizationPercentage/rawMarketingKiB at BOTH system and cluster level for some ASA clusters (seen on
+ASA-A70/A90/A30 -- 2 of 22 real systems had physical/raw/usable all stuck at 0; most ASA-A800/A250 systems
+report fine). That's not a mapping bug -- it's the same class of real API gap already handled for
+StorageGRID/E-Series via the `_capacityUnavailable` flag (app.js ~19308), which swaps the normal efficiency
+card for an honest "no capacity data" note instead of misleading "0.0 TB / N/A". Fix: extended
+`_sgEseriesCapGap` (app.js ~19315) to include `isASA`, added an ASA `platformNote` branch (~19344), and gave
+the UI card (`renderCSMTab()`, ~17241-17245) a third label/color case ("ASA Block SAN Array", cyan) alongside
+the existing StorageGRID/E-Series ones. Verified via a real DOM event flow (`focusOnSystem(serial)` +
+`switchTab('csm')`, not a direct function call) against three real systems: a zero-capacity ASA-A70 (now
+shows the honest note), a healthy ASA-A800 (unaffected, still shows its real 1.3:1 ratio), and an
+already-working StorageGRID system (unaffected, still purple "StorageGRID Object Node").
 
 **3. Deliverable filenames standardized (shipped, v5.6.178).** User: downloaded filenames should be
 `<Document Title> - <Customer> - <DD Month YYYY>` for every deliverable, uniformly. Added
@@ -64,10 +71,10 @@ e.g. `"TAM Quarterly Business Review Pack - Customer Liberty Group Ltd. - 29 Sep
 `generateCVRPptx` (PPTX export, ~line 33021) was checked and confirmed to be dead code (no call sites) --
 left untouched.
 
-**Git:** branch `main`, v5.6.178 committed and pushed (exe rebuilt via PyInstaller to
-`%LOCALAPPDATA%\Temp\aiqbuild178`, synced into `dist/NetApp_AIQ_Advisor/` + `dist/app.js`). Working tree
-otherwise shows harvest data files modified by the running server (`data/*.json`) and untracked docs
-images -- never commit those with code changes.
+**Git:** branch `main`, v5.6.178 and v5.6.179 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`/`aiqbuild179`, synced into `dist/NetApp_AIQ_Advisor/` +
+`dist/app.js`). Working tree otherwise shows harvest data files modified by the running server
+(`data/*.json`) and untracked docs images -- never commit those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is

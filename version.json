@@ -1,8 +1,8 @@
 {
-  "version": "5.6.178",
+  "version": "5.6.179",
   "major": 5,
   "minor": 6,
-  "patch": 178,
+  "patch": 179,
   "date": "2026-09-29",
-  "notes": "Downloaded deliverable filenames now follow one standard format: '<Document Title> - <Customer> - <DD Month YYYY>'."
+  "notes": "ASA systems with no capacity data from Active IQ now show an honest note instead of a misleading all-zero capacity card."
 }

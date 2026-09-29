@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.179] - 2026-09-29
+
+### Fixed
+- ASA (All-SAN Array) systems where Active IQ returns no usable/physical/raw capacity at all (confirmed live on ASA-A70/A90/A30) now show the same honest "no capacity data" note already used for StorageGRID/E-Series gaps, instead of a capacity card full of misleading "N/A" and "0.0 TB" values. ASA systems that do report capacity are unaffected.
+
+---
+
 ## [5.6.178] - 2026-09-29
 
 ### Changed
