@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.168] - 2026-09-29
+
+### Changed
+- Word downloads: each prioritised corrective action in the Executive Risk Assessment and Technical Solution Proposal is now a card (navy title bar with severity and change class; Effort, Resolves + findings, Systems one per line, Reference rows) instead of loose run-on lines.
+
+---
+
 ## [5.6.167] - 2026-09-29
 
 ### Fixed

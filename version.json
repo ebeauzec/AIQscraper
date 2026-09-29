@@ -1,8 +1,8 @@
 {
-  "version": "5.6.167",
+  "version": "5.6.168",
   "major": 5,
   "minor": 6,
-  "patch": 167,
+  "patch": 168,
   "date": "2026-09-29",
-  "notes": "The 30/60/90-day Risk Trend section in the Customer Report, Customer Value Report and QBR is now a real table (Window / Critical / High / Open Crit. Cases) instead of ragged padded text lines in Word."
+  "notes": "Word: each prioritised corrective action (Problem Statements, Solution Proposal) is now a readable card -- title bar, Effort, Resolves + findings, Systems one per line, Reference."
 }

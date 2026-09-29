@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.167";
+const APP_VERSION = "5.6.168";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.168",
+    date: "29 September 2026",
+    title: "Corrective Actions as Fix Cards in Word",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- Prioritised Corrective Actions Are Now One Card per Fix",
+        color: "#22c55e",
+        items: [
+          "In the Executive Risk Assessment (Problem Statements) and the Technical Solution Proposal, each prioritised corrective action was a run of loose lines (a long comma-run of systems, a findings list and a ref) that was hard to scan in Word. Each fix is now a card: a navy title bar with the action plus its severity and change class, then labelled rows -- Effort, Resolves (summary and the findings), Systems (one per line with the count) and Reference -- kept together on a page.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.167",
     date: "29 September 2026",
@@ -32984,6 +32999,31 @@ function _dxParse(text, isMd, ctx) {
       if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t))); else setSub(_dxClean(noTag(t)));
       continue;
     }
+    // a corrective-action item ("1. [HIGH] [DISRUPTIVE-SAFE] Upgrade to ... / Systems: ... / Effort: ... / Resolves N findings: / bullets / Ref:") -> one card table per fix
+    const fx = ind < 4 ? t.match(/^(\d+)\.\s+\[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(?:\[([A-Z][A-Z\- ]*)\]\s+)?(.+)$/) : null;
+    if (fx) {
+      let k = i + 1; while (k < L.length && k <= i + 8 && L[k].trim() && !/^\s{3,}(Affected )?Systems:/.test(L[k])) k++;
+      if (k < L.length && /^\s{3,}(Affected )?Systems:/.test(L[k])) {
+        const rank = k2 => /^Effort/.test(k2) ? 0 : /^Resolves/.test(k2) ? 1 : /^Systems/.test(k2) ? 3 : /^Reference/.test(k2) ? 4 : 2;
+        const rows = []; let last = null, j = i + 1;
+        for (; j < L.length; j++) {
+          const raw = L[j], u = raw.trim();
+          if (!u || _dxIsRule(raw) || (/^\d+\.\s/.test(u) && (raw.match(/^\s*/) || [''])[0].length < 4)) break;
+          let mm;
+          if ((mm = u.match(/^(?:Affected )?Systems:\s*(.*)$/))) {
+            const items = []; let depth = 0, cur = ''; for (const ch of mm[1]) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { items.push(cur.trim()); cur = ''; } else cur += ch; } if (cur.trim()) items.push(cur.trim());
+            last = ['Systems (' + items.length + ')', items.filter(Boolean)]; rows.push(last);
+          } else if ((mm = u.match(/^Resolves\s+(.*?):?\s*$/))) { last = ['Resolves', [_dxClean('Resolves ' + mm[1])]]; rows.push(last); }
+          else if ((mm = u.match(/^[•\-*▪●]\s+(.*)$/)) && last && last[0] === 'Resolves') last[1].push('• ' + _dxClean(mm[1]));
+          else if ((mm = u.match(/^(Ref|Reference):\s*(.*)$/))) { last = ['Reference', [mm[2]]]; rows.push(last); }
+          else if ((mm = u.match(/^([A-Z][A-Za-z ]{1,24}):\s*(.*)$/))) { last = [mm[1], [_dxClean(mm[2])]]; rows.push(last); }
+          else if (last) last[1].push(_dxClean(u));
+        }
+        i = j - 1;
+        push({ t: 'fix', n: fx[1], sev: fx[2], cls: fx[3] || '', title: _dxClean(fx[4]), rows: rows.filter(r => r[1].length).sort((a, c) => rank(a[0]) - rank(c[0])) });
+        continue;
+      }
+    }
     if (/^DECISIONS NEEDED/i.test(t)) { setSection(1, _dxClean(t.replace(/:$/, ''))); continue; }
     if ((m = t.match(/^---\s*(.+?)\s*---$/)) || (m = t.match(/^\u25ba\s*(.+)$/))) { setSub(_dxClean(m[1])); continue; }
     if (/^\[\d+\]\s+\[/.test(t) || /^Priority \d+: /.test(t)) { setItem(_dxClean(t)); continue; }
@@ -33078,6 +33118,15 @@ function _dxRender(doc) {
     switch (b.t) {
       case 'h': x += _dxP('Heading' + b.lvl, _dxRun(_dxHeadText(b.text)), { brk: b.brk && !firstBrk, keepNext: true }); if (b.brk) firstBrk = false; break;
       case 'table': x += _docxTable(b.rows, b); break;
+      case 'fix': {   // one card per corrective action: a navy title bar, then a label / detail row per field
+        const W1 = 1900, W2 = _DX.W - W1, cls = b.cls ? b.cls.charAt(0) + b.cls.slice(1).toLowerCase() : '';
+        const paras = (lines, bold, keep) => lines.map(t => `<w:p><w:pPr><w:pStyle w:val="TableText"/>${keep ? '<w:keepNext/>' : ''}${/^• /.test(t) ? '<w:ind w:left="170" w:hanging="170"/>' : ''}</w:pPr>${_docxRuns(t, bold ? '<w:b/>' : '')}</w:p>`).join('');
+        x += `<w:tbl><w:tblPr><w:tblW w:w="${_DX.W}" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="${_DX.RULE}"/></w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${W1}"/><w:gridCol w:w="${W2}"/></w:tblGrid>` +
+          `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${_DX.W}" w:type="dxa"/><w:gridSpan w:val="2"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.NAVY}"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/><w:keepNext/><w:spacing w:before="60" w:after="60"/></w:pPr>${_dxRun(b.n + '.  ' + b.title, { b: 1, color: 'FFFFFF', sz: 21 })}${_dxRun('     ' + [b.sev, cls].filter(Boolean).join('  ·  '), { color: 'C9D8F0', sz: 17 })}</w:p></w:tc></w:tr>` +
+          b.rows.map((r, ri) => `<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc><w:tcPr><w:tcW w:w="${W1}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${_DX.KV}"/></w:tcPr>${paras([r[0]], true, ri < b.rows.length - 1)}</w:tc><w:tc><w:tcPr><w:tcW w:w="${W2}" w:type="dxa"/></w:tcPr>${paras(r[1], false, ri < b.rows.length - 1)}</w:tc></w:tr>`).join('') +
+          `</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="200" w:lineRule="exact"/></w:pPr></w:p>`;
+        break;
+      }
       case 'code': { const g = [b]; while (B[i + 1] && B[i + 1].t === 'code') g.push(B[++i]); g.forEach((c, k) => { x += _dxP('CodeBlock', `<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/></w:rPr><w:t xml:space="preserve">${_xe(c.text)}</w:t></w:r>`, { spacing: k === g.length - 1 ? 'w:before="0" w:after="140" w:line="240" w:lineRule="auto"' : '' }); }); break; }
       case 'bullet': x += _dxP('BulletItem', _docxRuns(b.text), { num: b.lvl }); break;
       case 'num': { const nx = B[i + 1], dec = nx && nx.t === 'kv' && /^(Why|When)$/.test(nx.k); x += _dxP('NumItem', _dxRun(b.n + '.', { b: 1, color: _DX.ACC }) + '<w:r><w:tab/></w:r>' + _docxRuns(b.text, dec ? '<w:b/>' : '')); break; }
