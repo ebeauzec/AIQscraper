@@ -22,52 +22,52 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-29 (Windows dev station, v5.6.164 -> v5.6.175)
+## Session handoff -- 2026-09-29 (Windows dev station, v5.6.177 -> v5.6.178)
 
-The whole session was one goal: **ARIA's Word (.docx) deliverables must download customer-ready, with no
-manual reformatting.** Started from 15 already-generated docs on the user's Desktop (restyled once with a
-throwaway python-docx script into `Desktop\Customer-Ready`; user then said leave those and build it into ARIA).
+Three separate threads this session; only the third shipped.
 
-- **Where it lives:** `app.js` Downloads section (~line 32800+): `_dxParse(text, isMd, ctx)` turns the
-  plain-text/Markdown deliverable into normalised blocks; `_dxRender()` writes WordprocessingML;
-  `_buildDocx()` adds title block, running header, "Confidential -- prepared for <customer>" footer with
-  Page X of Y, numbering part (real bullets), hyperlink rels (rId100+). Look-and-feel: `_DX` palette +
-  `_dxStyles()`. `.txt`/`.md` downloads are untouched. Customer name comes from `window.__dlScope`
-  (set in `downloadDeliverable`, read-and-cleared in `triggerFileDownload`), else the Account/Scope line.
-- **Cards** (`_dxCollectCard`, `_dxSpecialCard`, `_dxCardStart`, block type `fix`): corrective actions,
-  CVE priority entries, ticket/runbook actions, QBR/MSP/Success Plan findings, Decisions (Why/When/Owner),
-  roadmap actions, per-system upgrade plans, support cases, nested-bullet groups. Long titles split via
-  `_dxSplitTitle` (tail -> Findings + Systems rows). Tables: text/pipe/segmented-rule columns, key/value
-  runs, upgrade list, drift list. Also: URLs/bare NetApp domains/e-mails are hyperlinks (`_DX_LINK_RE`),
-  raw HTML is stripped (`_dxStripHtml`, keeps `<svm>`-style placeholders).
-- **Security Brief fixed releases (v5.6.169):** `_dfFixedReleases`/`_dfMinFixLines` read
-  `NETAPP_SECURITY_BULLETIN_DB` (data/security_bulletins.json) -> "Fixed In" + per-system "Upgrade To"
-  (same-branch fix, else lowest later fix; BMC firmware matched by model). Only 191 of 531 stored advisories
-  carry release numbers; where none, the brief quotes the advisory text and offers Active IQ's recommended
-  release *labelled as a recommendation*. NetApp's advisory pages are JS-rendered (WebFetch gets nothing),
-  so real numbers need the harvester to capture the fixed-release tables. Never invent versions.
-- **Generator fixes made along the way:** risk trend is a real table (`_dfTrendText`, md vs text), Success
-  Plan status is a pipe table, RACI table spacing, MSP tables no longer truncate the customer name,
-  Handover inventory no longer truncates platforms.
-- **How to test (no Node here):** Playwright with `/api/**` blocked except `/api/bulletins`, and
-  `localStorage aiq_mock_mode=true` (152 demo systems), capture text via `compileExtendedDeliverables`,
-  build docx in-page with `_buildDocx`, validate with the docx skill's `validate.py`, export through desktop
-  Word (COM) to PDF and look at pages. Real-click check: TAM/MSP tab -> download button -> `#dlFormatModal`
-  Word. Beware: heredoc python that writes `\n` into JS gets corrupted -- use the Edit tool or a file.
-  When the user's screenshot shows old output, first suspect a stale tab/exe (hard refresh / relaunch).
+**1. Security scare, unresolved.** User installed ARIA fresh on a Mac (unzipped straight from a GitHub
+download, no Google Drive involved) and it came up already connected to Active IQ with a refresh token,
+account filters, and watchlist IDs visible in the GUI. Did exhaustive git forensics on `ebeauzec/ARIA`
+(`git ls-files`, `git ls-tree -r HEAD`, `git log --all --diff-filter=A --name-only`, `git grep` for
+secret-like patterns, direct inspection of every `data/*.json`) -- **the repo itself is clean, nothing
+committed.** Leading theory: `localStorage` for `http://localhost:8080` is scoped by origin, not by which
+files are served from it, so stale watchlists/credentials from a prior run on the same origin could look
+"pre-connected" regardless of which code deployed there. Gave the user Brave cache-clearing steps to test.
+**Not confirmed fixed or even correctly diagnosed -- follow up if it recurs.** Also flagged but not fixed:
+`.gitignore` has `aiq_config.json$` -- gitignore is glob syntax, the trailing `$` is a literal character,
+not an anchor, so that line doesn't actually match the file. Harmless today only because the file was never
+`git add`ed; worth fixing for real given this thread was about credential hygiene.
 
-**Known/not done:** other customers are named in the MSP report and Security Brief ("also affects N other
-customers ... Apex Global Solutions") -- not safe to send to a customer; needs a redact-vs-keep decision.
-Account Handover / Sales Refresh / TAM Success Plan / QBR are internal TAM documents by nature. Demo/real
-system names, `example.com` contacts appear as-is. Only demo-customer text was audited (rule-only rows,
-markup, truncation, pipes all clean); a real fleet may show new line shapes -- capture the text and add the
-shape to `_dxParse`. Rear-panel program gaps (FAS8000, older FAS25xx/26xx, unnamed StorageGRID, cloud) and
-the unconfirmed packaged-exe `index_src.html` question still stand from earlier sessions.
+**2. ASA (All-SAN Array) capacity/reporting bug, unresolved.** User reports no capacity/advanced reporting
+for any ASA systems. Read through the ASA detection block in the big system-telemetry-enrichment function
+(app.js ~18969-19025: `isASA` is a broad model-string check, `isASAr2` is narrow and depends on
+`personality`/`isDisaggregated` API fields that may not always be populated -- a recurring theme with Active
+IQ's sparse fields). Working hypothesis, **not yet confirmed against real ASA data or fixed**: the SAZ
+capacity fallback at ~line 19267 (`if (isASAr2 && physTBfinal === 0 && (s.sazUsedKiB || 0) > 0) {...}`) is
+gated on the narrow `isASAr2` when it should be gated on `isASA`, since real ASA systems may report
+`sazUsedKiB` without `personality`/`isDisaggregated` being set. Next session: inspect real ASA system field
+values against the live fleet before touching the code.
 
-**Git:** branch `main`, v5.6.164 through v5.6.175 all committed and pushed individually (exe rebuilt each
-time, PyInstaller to `aiqbuild14`..`aiqbuild25` under `%LOCALAPPDATA%\Temp`). Working tree shows harvest data
-files modified by the running server (`data/*.json`) and untracked docs images -- never commit those with
-code changes.
+**3. Deliverable filenames standardized (shipped, v5.6.178).** User: downloaded filenames should be
+`<Document Title> - <Customer> - <DD Month YYYY>` for every deliverable, uniformly. Added
+`_dlFilename(title, scope, ext)` in `app.js` (right before `triggerFileDownload`, ~line 32780) and wired it
+into every download call site: all ~16 types in `downloadDeliverable()` (~line 32791, each with its own
+title string -- e.g. `'Executive Risk Assessment'`, `'TAM Quarterly Business Review Pack'`), the As-Built TXT
+branch of `downloadPlanSection(19)` (~line 32281), and `downloadAsBuiltXlsx()`. `cleanScope`
+(underscore-mangled name) is now unused in those spots -- left alone in `downloadPlanSection`'s other
+section indices (1-18), which still use it. Since the filename `base` string also becomes the Word title
+block via `_buildDocx()`, this fixed the in-document title to match the filename for free. Verified against
+real production data (2898 systems, real customer "Liberty Group Ltd.") by monkey-patching `_dlBlob` to
+capture names instead of triggering save dialogs -- confirmed correct output across txt/docx/md/csv/xlsx,
+e.g. `"TAM Quarterly Business Review Pack - Customer Liberty Group Ltd. - 29 September 2026.docx"`.
+`generateCVRPptx` (PPTX export, ~line 33021) was checked and confirmed to be dead code (no call sites) --
+left untouched.
+
+**Git:** branch `main`, v5.6.178 committed and pushed (exe rebuilt via PyInstaller to
+`%LOCALAPPDATA%\Temp\aiqbuild178`, synced into `dist/NetApp_AIQ_Advisor/` + `dist/app.js`). Working tree
+otherwise shows harvest data files modified by the running server (`data/*.json`) and untracked docs
+images -- never commit those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.177";
+const APP_VERSION = "5.6.178";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.178",
+    date: "29 September 2026",
+    title: "Deliverable Filenames: One Standard Format",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- Downloaded Filenames Now Match Title, Customer and Date",
+        color: "#22c55e",
+        items: [
+          "Every downloadable deliverable (Customer Advisory Email, Executive Risk Assessment, QBR Pack, Customer Health and Lifecycle Report, Systems Audit CSV, Customer Value Report, As-Built Configuration Document, and the rest) now saves as '<Document Title> - <Customer> - <DD Month YYYY>' instead of each download inventing its own underscored filename fragment. The same title also becomes the Word document's own title block, so the file name and the page you open now match.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.177",
     date: "29 September 2026",
@@ -32572,7 +32587,7 @@ ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to l
   }).join('\n\n\n')}`;
   } else if (index === 19) {
     // As-Built Configuration Document — comprehensive per-system TXT export
-    filename = `as_built_config_${cleanScope}.txt`;
+    filename = _dlFilename('As-Built Configuration Document', scopeTitle, 'txt');
     const sep = '═'.repeat(80);
     const sepThin = '─'.repeat(80);
     const _v = (val) => (val !== undefined && val !== null && val !== '') ? String(val) : '—';
@@ -32822,9 +32837,8 @@ function downloadDeliverable(type) {
     return;
   }
 
-  // Sanitize filename scope string
-  const cleanScope = scopeTitle.replace(/[^a-z0-9_]/gi, '_');
-  window.__dlScope = scopeTitle.replace(/_/g, ' ');   // read by _buildDocx for the Word title block / footer
+  const scopeLabel = scopeTitle.replace(/_/g, ' ');
+  window.__dlScope = scopeLabel;   // read by _buildDocx for the Word title block / footer
 
   const allRisks = [];
   const allUpgrades = [];
@@ -32852,35 +32866,35 @@ function downloadDeliverable(type) {
   const docs = compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' '));
 
   if (type === 'EMAIL') {
-    triggerFileDownload(`advisory_email_${cleanScope}.txt`, docs.customerComms);
+    triggerFileDownload(_dlFilename('Customer Advisory Email', scopeLabel, 'txt'), docs.customerComms);
   } else if (type === 'PROPOSAL') {
-    triggerFileDownload(`upgrade_proposal_${cleanScope}.txt`, docs.salesProposals);
+    triggerFileDownload(_dlFilename('Upgrade Proposal', scopeLabel, 'txt'), docs.salesProposals);
   } else if (type === 'TICKET') {
-    triggerFileDownload(`change_ticket_${cleanScope}.txt`, docs.changeTickets);
+    triggerFileDownload(_dlFilename('ITIL Change Control and Dispatch Tickets', scopeLabel, 'txt'), docs.changeTickets);
   } else if (type === 'SUCCESS_PLAN') {
-    triggerFileDownload(`success_plan_${cleanScope}.txt`, docs.customerSuccessPlan);
+    triggerFileDownload(_dlFilename('TAM Success and Posture Optimization Plan', scopeLabel, 'txt'), docs.customerSuccessPlan);
   } else if (type === 'PROBLEM_STATEMENTS') {
-    triggerFileDownload(`problem_statements_${cleanScope}.txt`, docs.problemStatements);
+    triggerFileDownload(_dlFilename('Executive Risk Assessment', scopeLabel, 'txt'), docs.problemStatements);
   } else if (type === 'IMPLEMENTATION') {
-    triggerFileDownload(`implementation_runbook_${cleanScope}.txt`, docs.implementationPlans);
+    triggerFileDownload(_dlFilename('CLI Runbooks and Upgrade Execution Plans', scopeLabel, 'txt'), docs.implementationPlans);
   } else if (type === 'SALES_PROPOSAL') {
-    triggerFileDownload(`sales_refresh_proposal_${cleanScope}.txt`, docs.salesProposals);
+    triggerFileDownload(_dlFilename('Sales Refresh and Renewal Proposal', scopeLabel, 'txt'), docs.salesProposals);
   } else if (type === 'SOLUTION_PROPOSAL') {
-    triggerFileDownload(`solution_architecture_proposal_${cleanScope}.txt`, docs.solutionProposals);
+    triggerFileDownload(_dlFilename('Technical Solution and Architecture Proposal', scopeLabel, 'txt'), docs.solutionProposals);
   } else if (type === 'QBR_PACK') {
-    triggerFileDownload(`tam_qbr_pack_${cleanScope}.txt`, docs.qbrPack);
+    triggerFileDownload(_dlFilename('TAM Quarterly Business Review Pack', scopeLabel, 'txt'), docs.qbrPack);
   } else if (type === 'MSP_REPORT') {
-    triggerFileDownload(`msp_service_report_${cleanScope}.txt`, docs.mspReport);
+    triggerFileDownload(_dlFilename('MSP Service Delivery Report', scopeLabel, 'txt'), docs.mspReport);
   } else if (type === 'HANDOVER_BRIEF') {
-    triggerFileDownload(`account_handover_brief_${cleanScope}.txt`, docs.handoverBrief);
+    triggerFileDownload(_dlFilename('Account Handover and Transition Brief', scopeLabel, 'txt'), docs.handoverBrief);
   } else if (type === 'RISK_REMEDIATION_BRIEF') {
-    triggerFileDownload(`risk_remediation_brief_${cleanScope}.txt`, docs.riskRemediationBrief || compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+    triggerFileDownload(_dlFilename('Risk and Remediation Brief', scopeLabel, 'txt'), docs.riskRemediationBrief || compileRiskRemediationBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'SECURITY_BRIEF') {
-    triggerFileDownload(`security_brief_${cleanScope}.txt`, docs.securityBrief || compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+    triggerFileDownload(_dlFilename('Security Posture Executive Brief', scopeLabel, 'txt'), docs.securityBrief || compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CUSTOMER_REPORT') {
-    triggerFileDownload(`customer_report_${cleanScope}.md`, docs.customerReport);
+    triggerFileDownload(_dlFilename('Customer Health and Lifecycle Report', scopeLabel, 'md'), docs.customerReport);
   } else if (type === 'SUSTAINABILITY_REPORT') {
-    triggerFileDownload(`sustainability_report_${cleanScope}.txt`, docs.sustainabilityReport || compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
+    triggerFileDownload(_dlFilename('Sustainability and ESG Report', scopeLabel, 'txt'), docs.sustainabilityReport || compileSustainabilityReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle.replace(/_/g, ' ')));
   } else if (type === 'CSV') {
     const headers = ["Customer Name", "System Name", "Cluster Name", "Serial Number", "Model", "Platform Type", "ONTAP Version", "Status", "Risks Count", "Support Contract End Date", "TAM Owner"];
     const rows = targetSystems.map(sys => [
@@ -32898,9 +32912,9 @@ function downloadDeliverable(type) {
     ]);
     const csvContent = [headers.join(","), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
     
-    triggerFileDownload(`systems_audit_${cleanScope}.csv`, csvContent);
+    triggerFileDownload(_dlFilename('Systems Audit', scopeLabel, 'csv'), csvContent, { single: true });
   } else if (type === 'VALUE_REPORT') {
-    triggerFileDownload(`customer_value_report_${cleanScope}.md`, docs.valueReport);
+    triggerFileDownload(_dlFilename('Customer Value Report', scopeLabel, 'md'), docs.valueReport);
   }
 }
 
@@ -33655,7 +33669,6 @@ function downloadAsBuiltXlsx() {
   else if (selectValue.startsWith("SYS:")) { const serial = selectValue.substring(4); const found = state.systems.find(s => s.serialNumber === serial); if (found) targetSystems = [found]; scopeTitle = `System: ${found ? found.systemName : serial}`; }
 
   if (!targetSystems.length) { alert("No systems in the current scope to export."); return; }
-  const cleanScope = scopeTitle.replace(/[^a-z0-9]/gi, '_');
   const _v = v => (v !== undefined && v !== null && v !== '') ? v : '';
   const _num = v => (v !== undefined && v !== null && v !== '' && isFinite(parseFloat(v))) ? parseFloat(v) : '';
 
@@ -33723,7 +33736,7 @@ function downloadAsBuiltXlsx() {
   if (riskRows.length) sheets.push({ name: 'Risks', headers: riskHeaders, rows: riskRows });
 
   try {
-    _dlBlob(`as_built_config_${cleanScope}.xlsx`, _buildXlsx(sheets));
+    _dlBlob(_dlFilename('As-Built Configuration Document', scopeTitle, 'xlsx'), _buildXlsx(sheets));
   } catch (e) {
     console.error('[xlsx] build failed:', e);
     alert('Excel export failed to build. Check the browser console for details.');
@@ -33752,6 +33765,17 @@ function _askFormat(run, label, keepMs) {
 }
 function _getDownloadFormat() { try { const v = localStorage.getItem('aiq_dl_format'); return ['txt', 'md', 'docx'].includes(v) ? v : 'txt'; } catch (e) { return 'txt'; } }
 function setDownloadFormat(v) { try { localStorage.setItem('aiq_dl_format', v); } catch (e) { /* storage blocked: the choice just is not remembered */ } }
+// Standard filename for every downloadable deliverable (txt/md/docx/xlsx/pptx/csv):
+// "<Document Title> - <Customer/Scope> - <DD Month YYYY>.<ext>". One place so every
+// download follows the same convention instead of each call site inventing its own
+// underscored fragment. `base` also becomes the Word title block via _buildDocx(),
+// so this fixes the in-document title for free, not just the filename on disk.
+function _dlFilename(title, scope, ext) {
+  const d = new Date();
+  const dateStr = `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'long' })} ${d.getFullYear()}`;
+  const clean = s => String(s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+  return [clean(title), clean(scope), dateStr].filter(Boolean).join(' - ') + '.' + ext;
+}
 function triggerFileDownload(filename, text, opts) {
   const _scope = window.__dlScope || ''; window.__dlScope = '';   // one-shot: set by downloadDeliverable(), never leaks into a later download from another scope
   const m = String(filename).match(/^(.*)\.(txt|md)$/i);

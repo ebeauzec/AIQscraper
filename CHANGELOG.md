@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.178] - 2026-09-29
+
+### Changed
+- Every downloadable deliverable now saves as "<Document Title> - <Customer> - <DD Month YYYY>" instead of each download type inventing its own underscored filename. Covers the deliverable suite (Email, Risk Assessment, QBR Pack, Customer Report, CSV, Value Report, etc.), the As-Built TXT and the As-Built Excel export. The same title also becomes the Word document's title block.
+
+---
+
 ## [5.6.177] - 2026-09-29
 
 ### Changed
