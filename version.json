@@ -1,8 +1,8 @@
 {
-  "version": "5.6.176",
+  "version": "5.6.177",
   "major": 5,
   "minor": 6,
-  "patch": 176,
+  "patch": 177,
   "date": "2026-09-29",
-  "notes": "Recommendations: an all-clear sentence with a stray non-zero score (e.g. 4%) now shows 100% (all clear)."
+  "notes": "Upgrade decision reasons now total across clusters ('6 critical findings in total (2 of 5 clusters)') instead of repeating per-cluster counts."
 }

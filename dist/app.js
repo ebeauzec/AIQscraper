@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.176";
+const APP_VERSION = "5.6.177";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.177",
+    date: "29 September 2026",
+    title: "Decisions: Cluster Reasons Are Totals, Not Repeats",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- 'Upgrade ONTAP on N clusters first' Listed Two Different Critical Counts",
+        color: "#22c55e",
+        items: [
+          "The first upgrade decision (every document's Decisions Needed) joined each cluster's own reason strings, so a group of clusters printed '4 critical findings, 2 critical findings'. The reasons are now counted by cause across the group: 'past end of limited support on 3 of 5; 6 critical findings in total (2 of 5 clusters)'. A single cluster reads simply '1 critical finding'.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.176",
     date: "29 September 2026",
@@ -18650,6 +18665,20 @@ function _dfTrendWindows(customerName) {
   });
 }
 // Plain-text "Risk Trend (30/60/90 Days)" section, or '' when there's nothing to show yet.
+// One reason line for a group of clusters. Each cluster carries its own reason strings ("4 critical findings"),
+// so joining the distinct strings printed "4 critical findings, 2 critical findings". Count by cause instead.
+function _dfWave1Reasons(cl) {
+  const n = cl.length, at = k => n === 1 ? '' : (k === n ? ` on all ${n}` : ` on ${k} of ${n}`);
+  const cnt = f => cl.filter(f).length, parts = [];
+  const rc = cnt(c => c.rc), ltd = cnt(c => c.pastLimited), full = cnt(c => c.pastFull && !c.pastLimited), iom = cnt(c => c.iom6);
+  const crit = cl.reduce((t, c) => t + (c.crit || 0), 0), critOn = cnt(c => c.crit > 0);
+  if (rc) parts.push('pre-release ONTAP build' + at(rc));
+  if (ltd) parts.push('past end of limited support' + at(ltd));
+  if (full) parts.push('past end of full support' + at(full));
+  if (crit) parts.push(n === 1 ? `${crit} critical finding${crit !== 1 ? 's' : ''}` : `${crit} critical finding${crit !== 1 ? 's' : ''} in total (${critOn === n ? `all ${n} clusters` : `${critOn} of ${n} clusters`})`);
+  if (iom) parts.push('IOM6 shelf modules block 9.16.1+' + at(iom));
+  return parts.join('; ');
+}
 function _dfTrendText(customerName, heading) {
   const windows = _dfTrendWindows(customerName);
   if (!windows) return '';
@@ -26224,7 +26253,7 @@ function _dfActionPlan(systems, allRisks, openCases) {
   if (contracts.expired.length) plan.push({ sev: 1, action: `Reinstate support on ${_dfPlural(contracts.expired.length, 'system')} whose contract has lapsed (${names(contracts.expired, 4)})${_lapsedDrained ? `; ${_lapsedDrained} of them are on clusters whose data is being migrated off, so confirm whether they are being decommissioned rather than renewing` : ''}.`, why: 'Without an active contract there is no hardware replacement, no software support and no access to fixes or NetApp Support cases.', type: 'Commercial (no change to systems)', when: '0-7 days', owner: 'NetApp account team with the customer' });
   if (kev.length) plan.push({ sev: 1, action: `Address the actively exploited vulnerability ${kev[0].id} (${_dfPlural(kev[0].systems.size, 'system')}).`, why: 'Actively exploited vulnerabilities are used in real attacks; this is the most urgent security item.', type: 'Depends on the fix (see the advisory)', when: '0-7 days', owner: 'Customer storage/security team with NetApp Support' });
   const w1 = waves.wave1;
-  if (w1.length) plan.push({ sev: 1, action: `Upgrade ONTAP on ${_dfPlural(w1.length, 'cluster')} first (${names(w1.map(c => ({ systemName: c.name })), 4)}): ${[...new Set(w1.flatMap(c => c.reasons))].join(', ')}.`, why: 'These clusters carry the highest-severity findings or run software that is no longer fully supported, so they gain the most from an upgrade.', type: 'Non-disruptive rolling upgrade, one cluster at a time', when: '8-30 days', owner: 'Customer storage team; NetApp TAM to plan' });
+  if (w1.length) plan.push({ sev: 1, action: `Upgrade ONTAP on ${_dfPlural(w1.length, 'cluster')} first (${names(w1.map(c => ({ systemName: c.name })), 4)}): ${_dfWave1Reasons(w1)}.`, why: 'These clusters carry the highest-severity findings or run software that is no longer fully supported, so they gain the most from an upgrade.', type: 'Non-disruptive rolling upgrade, one cluster at a time', when: '8-30 days', owner: 'Customer storage team; NetApp TAM to plan' });
   const _io6 = [...w1, ...waves.wave2].filter(c => c.iom6);
   if (_io6.length) plan.push({ sev: 2, action: `Do not upgrade ${_dfPlural(_io6.length, 'cluster')} with IOM6 shelf modules to ONTAP 9.16.1 or newer (${names(_io6.map(c => ({ systemName: c.name })), 4)}): stay on the latest 9.15.1 patch, or replace the IOM6 modules with IOM12 first.`, why: 'ONTAP 9.16.1 and later do not support IOM6 modules (DS2246, DS4246, DS4486 shelves); upgrading creates an unsupported configuration and possible shelf errors. The shelves are also past end of support.', type: 'Hardware change (IOM12 module swap) or hold the ONTAP target', when: 'Before the upgrade', owner: 'Customer storage team with NetApp support' });
   if (arp.disabled > 0) plan.push({ sev: 2, action: `Enable Autonomous Ransomware Protection on the ${arp.disabled} ONTAP system${arp.disabled !== 1 ? 's' : ''} where it is disabled${arp.unknown ? ` and confirm the ${arp.unknown} not reported` : ''}.`, why: 'ARP detects ransomware-like encryption activity on NAS volumes and takes a protective snapshot automatically, limiting the damage of an attack.', type: 'Non-disruptive configuration change', when: '8-30 days', owner: 'Customer storage team' });

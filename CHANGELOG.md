@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.177] - 2026-09-29
+
+### Changed
+- Decisions Needed 'Upgrade ONTAP on N clusters first': reasons are now counted by cause across the clusters (e.g. 'past end of limited support on 3 of 5; 6 critical findings in total') instead of listing each cluster's own count ('4 critical findings, 2 critical findings').
+
+---
+
 ## [5.6.176] - 2026-09-29
 
 ### Changed
