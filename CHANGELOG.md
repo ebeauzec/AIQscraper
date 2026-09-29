@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.165] - 2026-09-29
+
+### Fixed
+- Word downloads: the Security Brief's "Feature Gap Analysis" table (and any space-aligned column table) came out scrambled -- a row with single spaces inside a cell was re-split on every space, and the sentence beneath the table was swallowed as a row. Rows now split only on real column gaps (short rows padded), a non-table line ends the table, and trailing columns no row fills are dropped.
+
+---
+
 ## [5.6.164] - 2026-09-29
 
 ### Changed

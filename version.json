@@ -1,8 +1,8 @@
 {
-  "version": "5.6.164",
+  "version": "5.6.165",
   "major": 5,
   "minor": 6,
-  "patch": 164,
+  "patch": 165,
   "date": "2026-09-29",
-  "notes": "Word (.docx) deliverables now download to one professional standard -- title block, running header/footer with page numbers, styled tables, shaded CLI blocks, real lists, consistent headings -- so they need no manual reformatting before going to a customer."
+  "notes": "Fixed the Word download of the Security Brief's Feature Gap Analysis table, whose cells were scrambled across the wrong columns; column tables now split only on real column gaps."
 }

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.164";
+const APP_VERSION = "5.6.165";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.165",
+    date: "29 September 2026",
+    title: "Word Deliverables: Fix Garbled Column Tables",
+    sections: [
+      {
+        icon: "🛠",
+        label: "Fixed -- Security Brief 'Feature Gap Analysis' Table Scrambled in Word",
+        color: "#22c55e",
+        items: [
+          "In the Word download of the Security Brief (and any deliverable with a space-aligned column table), a row whose cell text contained single spaces was re-split on every space, scattering its words across the wrong columns, and the sentence line under the table was swallowed as a row. Rows now split only on the real column gaps, short rows are padded, a non-table line ends the table, and trailing columns that no row fills are dropped.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.164",
     date: "29 September 2026",
@@ -32952,8 +32967,11 @@ function _dxParse(text, isMd, ctx) {
     if (hc.length >= 3 && _dxLooksHeader(hc) && !_DX_KV_ALIGNED.test(l)) {
       const rows = [hc]; let j = i + 1;
       if (j < L.length && _dxIsRule(L[j])) j++;
-      while (j < L.length && L[j].trim() && !_dxIsRule(L[j])) { let c = _dxSplitCols(L[j]); if (c.length !== hc.length) { const tk = L[j].trim().split(/\s+/); if (tk.length >= hc.length) c = [tk.slice(0, tk.length - hc.length + 1).join(' ')].concat(tk.slice(tk.length - hc.length + 1)); else break; } rows.push(c.map(_dxClean)); j++; }
-      if (rows.length >= 2) { i = j - 1; push({ t: 'table', rows, header: true }); continue; }
+      while (j < L.length && L[j].trim() && !_dxIsRule(L[j])) { let c = _dxSplitCols(L[j]); if (c.length !== hc.length) { const tk = L[j].trim().split(/\s+/); if (tk.length === hc.length) c = tk; else if (c.length >= 2 && c.length < hc.length) c = c.concat(Array(hc.length - c.length).fill('')); else break; } rows.push(c.map(_dxClean)); j++; }
+      if (rows.length >= 2) {
+        while (rows[0].length > 2 && rows.slice(1).every(r => !r[rows[0].length - 1])) rows.forEach(r => r.pop());   // drop trailing columns that no row fills
+        i = j - 1; push({ t: 'table', rows, header: true }); continue;
+      }
     }
     // aligned "Label:   value" runs -> key/value table
     if (_DX_KV_ALIGNED.test(l)) {
