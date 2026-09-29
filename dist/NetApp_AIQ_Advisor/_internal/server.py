@@ -2082,42 +2082,76 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # into SYSTEMS_FIELDS_TAM would.
         try:
             _asar2_by_serial = {}
-            _asar2_cursor = None
-            while True:
-                _after = f', after: "{_asar2_cursor}"' if _asar2_cursor else ""
-                _asar2_q = """{
-                  systems(pageSize: 50, ontapPersonalities: [ASAR2]""" + _after + """) {
-                    cursor
-                    systems {
-                      serialNumber
-                      ... on ONTAPSystem {
-                        ontapPersonality
-                        luns(pageSize: 1000) { totalCount luns { capacity { usableKiB } } }
-                        namespaces(pageSize: 1000) { totalCount namespaces { capacity { usableKiB } } }
+
+            def _asar2_fetch_scope(_wl):
+                """One watchlist (or None for unfiltered), paginated. Returns (rows, privilege_blocked)."""
+                _rows, _cursor, _blocked = [], None, False
+                while True:
+                    _wl_arg = f', watchlistId: "{_wl}"' if _wl else ""
+                    _after = f', after: "{_cursor}"' if _cursor else ""
+                    _q = """{
+                      systems(pageSize: 50, ontapPersonalities: [ASAR2]""" + _wl_arg + _after + """) {
+                        cursor
+                        systems {
+                          serialNumber
+                          ... on ONTAPSystem {
+                            ontapPersonality
+                            luns(pageSize: 1000) { totalCount luns { capacity { usableKiB } } }
+                            namespaces(pageSize: 1000) { totalCount namespaces { capacity { usableKiB } } }
+                          }
+                        }
                       }
-                    }
-                  }
-                }"""
-                _, _asar2_resp = _gql(token, _asar2_q)
-                _asar2_data = ((_asar2_resp or {}).get("data") or {}).get("systems") or {}
-                _asar2_page = _asar2_data.get("systems") or []
-                for _r in _asar2_page:
-                    _luns = (_r.get("luns") or {}).get("luns") or []
-                    _nss  = (_r.get("namespaces") or {}).get("namespaces") or []
-                    _lun_bytes = sum((l.get("capacity") or {}).get("usableKiB") or 0 for l in _luns)
-                    _ns_bytes  = sum((n.get("capacity") or {}).get("usableKiB") or 0 for n in _nss)
-                    _asar2_by_serial[_r.get("serialNumber")] = {
-                        "ontapPersonality": _r.get("ontapPersonality") or "",
-                        "lunCount": (_r.get("luns") or {}).get("totalCount") or 0,
-                        "namespaceCount": (_r.get("namespaces") or {}).get("totalCount") or 0,
-                        # usableKiB is mislabeled (actually bytes) -- convert straight to KiB here
-                        # so downstream code can treat it like every other *KiB capacity field.
-                        "usableKiB": round((_lun_bytes + _ns_bytes) / 1024),
-                    }
-                _new_cursor = _asar2_data.get("cursor")
-                if not _asar2_page or not _new_cursor or _new_cursor == _asar2_cursor:
-                    break
-                _asar2_cursor = _new_cursor
+                    }"""
+                    _, _resp = _gql(token, _q)
+                    if isinstance(_resp, dict) and _resp.get("errors"):
+                        _err = _resp["errors"][0].get("message", "")
+                        if any(p in _err.lower() for p in _PRIVILEGE_PHRASES):
+                            _blocked = True
+                        break
+                    _data = ((_resp or {}).get("data") or {}).get("systems") or {}
+                    _page = _data.get("systems") or []
+                    _rows.extend(_page)
+                    _new_cursor = _data.get("cursor")
+                    if not _page or not _new_cursor or _new_cursor == _cursor:
+                        break
+                    _cursor = _new_cursor
+                return _rows, _blocked
+
+            # Try unfiltered first (cheap, one scope) -- works for any account with
+            # unfiltered_system_access. Only fall back to per-watchlist scoping
+            # (auto-discovered _early_watchlists) on a genuine privilege block,
+            # confirmed live on a real second account in this fleet ("At least one
+            # mandatory argument is required for users without the
+            # unfiltered_system_access privilege"). Falling back whenever
+            # watchlist_ids was merely empty (rather than only on a real privilege
+            # block) was tried and made things WORSE for the account that DOES have
+            # the privilege -- _early_watchlists is auto-discovered from a different,
+            # incomplete source than what that account's unfiltered query covers.
+            if watchlist_ids:
+                _asar2_page = []
+                for _wl in list(watchlist_ids):
+                    _rows, _ = _asar2_fetch_scope(_wl)
+                    _asar2_page.extend(_rows)
+            else:
+                _asar2_page, _asar2_blocked = _asar2_fetch_scope(None)
+                if _asar2_blocked:
+                    _asar2_page = []
+                    for _wl in (_early_watchlists or []):
+                        _rows, _ = _asar2_fetch_scope(_wl)
+                        _asar2_page.extend(_rows)
+            for _r in _asar2_page:
+                _luns = (_r.get("luns") or {}).get("luns") or []
+                _nss  = (_r.get("namespaces") or {}).get("namespaces") or []
+                _lun_bytes = sum((l.get("capacity") or {}).get("usableKiB") or 0 for l in _luns)
+                _ns_bytes  = sum((n.get("capacity") or {}).get("usableKiB") or 0 for n in _nss)
+                _asar2_by_serial[_r.get("serialNumber")] = {
+                    "ontapPersonality": _r.get("ontapPersonality") or "",
+                    "lunCount": (_r.get("luns") or {}).get("totalCount") or 0,
+                    "namespaceCount": (_r.get("namespaces") or {}).get("totalCount") or 0,
+                    # usableKiB is mislabeled (actually bytes) -- convert straight to KiB here
+                    # so downstream code can treat it like every other *KiB capacity field.
+                    "usableKiB": round((_lun_bytes + _ns_bytes) / 1024),
+                }
             _asar2_hits = 0
             for _s in all_systems:
                 _ac = _asar2_by_serial.get(_s.get("serialNumber"))
@@ -2131,9 +2165,30 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # ── LUN / NAS volume inventory summary merge (see LUN_VOLUME_FIELDS) ──
         try:
             _lv_by_serial = {}
-            for _lv_scope in (list(watchlist_ids) if watchlist_ids else [None]):
-                _lv_rows, _ = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, _lv_scope)
-                for _r in _lv_rows:
+            # Try unfiltered first (cheap, one query) -- works fine for any account
+            # that has unfiltered_system_access. Only fall back to per-watchlist
+            # scoping (auto-discovered _early_watchlists) when that's genuinely
+            # blocked by privilege, confirmed live on a real second account in this
+            # fleet ("At least one mandatory argument is required for users without
+            # the unfiltered_system_access privilege"). Preferring _early_watchlists
+            # whenever watchlist_ids was merely empty (instead of only on an actual
+            # privilege block) was tried and made things WORSE for the account that
+            # DOES have the privilege: _early_watchlists is auto-discovered from a
+            # different, incomplete source (4 watchlists / 27 systems here) than
+            # what the main harvest's own unfiltered path actually covers (165).
+            if watchlist_ids:
+                _lv_all_rows = []
+                for _lv_scope in list(watchlist_ids):
+                    _rows, _ = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, _lv_scope)
+                    _lv_all_rows.extend(_rows)
+            else:
+                _lv_all_rows, _lv_blocked = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, None)
+                if _lv_blocked or not _lv_all_rows:
+                    _lv_all_rows = []
+                    for _lv_scope in (_early_watchlists or []):
+                        _rows, _ = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, _lv_scope)
+                        _lv_all_rows.extend(_rows)
+            for _r in _lv_all_rows:
                     _luns = (_r.get("luns") or {}).get("luns") or []
                     _lun_total = (_r.get("luns") or {}).get("totalCount") or 0
                     _lun_kib = round(sum((l.get("capacity") or {}).get("usableKiB") or 0 for l in _luns) / 1024)

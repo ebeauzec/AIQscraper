@@ -27,9 +27,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.183";
+const APP_VERSION = "5.6.184";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.184",
+    date: "29 September 2026",
+    title: "LUN/Volume Data for Privilege-Restricted Accounts, Action Plan Formatting, Lighter Palette",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- LUN/Volume and ASA r2 Data Was Silently Missing for Some Accounts",
+        color: "#22c55e",
+        items: [
+          "The v5.6.180/181 LUN/volume and ASA r2 capacity harvests queried Active IQ unfiltered (no watchlist scope), which the API flatly rejects for any account without the unfiltered_system_access privilege -- confirmed live on a real second account in this fleet, which silently returned zero hits for its ~900 systems every harvest since. Both merges now try unfiltered first (fast, works for privileged accounts) and only fall back to the account's auto-discovered watchlists on a genuine privilege block. Verified live: the affected account went from 0 to 703 of 918 systems with LUN/volume data merged correctly.",
+        ],
+      },
+      {
+        icon: "📄",
+        label: "Changed -- Action Plan Download Now Matches Other Deliverables' Formatting",
+        color: "#22c55e",
+        items: [
+          "The whole-plan download (v5.6.183) previously flattened every section to plain text, losing all tables/lists/headings. It now converts the rendered page into the same Markdown conventions every other deliverable's Word export understands (real headings, pipe tables, bullets), so the downloaded .docx gets real Word tables and headings instead of squashed paragraphs.",
+          "Lightened the shared Word-document color palette (headings and solid-fill title bars/table headers) one step -- was 1F3864/2E5597, now 2A4D82/3D6BB3 -- across every deliverable, per feedback that the previous navy was too dark.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.183",
     date: "29 September 2026",
@@ -33391,7 +33415,11 @@ function _mdToPlain(t) { return t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|[\
 // as plain text / Markdown; _dxParse() turns either into a neutral block list (title, headings with
 // a normalised level scale, tables, key/value lines, bullets, numbered items, CLI blocks) and
 // _dxRender() writes the blocks out as WordprocessingML. Change the look in _DX / _dxStyles() only.
-const _DX = { NAVY: '1F3864', ACC: '2E5597', GREY: '5B6577', RULE: 'C9D3E3', BAND: 'F4F7FB', KV: 'EAF0F8', W: 9638 };   // W: A4 portrait, 2 cm margins -> usable width in twips
+// NAVY/ACC lightened one step from the original 1F3864/2E5597 -- the user found
+// the heading text and the solid-fill "boxes" (table header rows, card title
+// bars, both white-text-on-NAVY) too dark. Still dark enough for readable white
+// text on the fills; just not near-black.
+const _DX = { NAVY: '2A4D82', ACC: '3D6BB3', GREY: '5B6577', RULE: 'C9D3E3', BAND: 'F4F7FB', KV: 'EAF0F8', W: 9638 };   // W: A4 portrait, 2 cm margins -> usable width in twips
 const _DX_ACRONYMS = new Set(['ontap', 'cve', 'cves', 'arp', 'qbr', 'msp', 'tam', 'csp', 'esg', 'cli', 'dr', 'ha', 'svm', 'svms', 'lif', 'lifs', 'cisa', 'kev', 'nas', 'san', 'sla', 'os', 'fw', 'sp', 'bmc', 'raid', 'nist', 'sans', 'itil', 'cab', 'cvss', 'ems', 'dqp', 'hw', 'aff', 'fas', 'iq', 'raci', 'sam', 'asup', 'eosa', 'fru', 'csm', 'ntap', 'api', 'nfs', 'smb', 'cifs', 'iscsi', 'fc', 'ip', 'dns', 'ntp', 'ssh', 'tls', 'ssl', 'ai', 'it', 'coi', 'rbac', 'mfa', 'sso', 'imt', 'eoa', 'eos', 'ilm', 'nic', 'crc', 'cpu', 'vm']);
 const _DX_SPECIAL = { autosupport: 'AutoSupport', storagegrid: 'StorageGRID', netapp: 'NetApp', 'e-series': 'E-Series', snapmirror: 'SnapMirror', metrocluster: 'MetroCluster', snapshot: 'Snapshot', santricity: 'SANtricity', flexgroup: 'FlexGroup' };
 const _DX_SMALL = new Set(['and', 'of', 'the', 'to', 'in', 'for', 'on', 'a', 'an', 'or', 'vs', 'with', 'by', 'at', '&']);
@@ -34046,6 +34074,55 @@ function triggerFileDownload(filename, text, opts) {
   return _dlBlob(base + '.txt', new Blob([isMd ? _mdToPlain(text) : text], { type: 'text/plain;charset=utf-8' }));
 }
 
+// Converts a rendered DOM subtree into the Markdown conventions _dxParse()'s
+// markdown mode understands (# / ## headings, "- " bullets, "1. " numbered
+// lists, "| a | b |" pipe tables) so a docx built from it gets the same real
+// Word headings/tables/bullets as every other deliverable, instead of the
+// squashed, structure-free text plain .innerText would produce.
+function _domToMarkdown(root, headingLevel) {
+  const lines = [];
+  const text = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+  const heading = (lvl, t) => { if (t) lines.push('#'.repeat(Math.min(6, Math.max(1, lvl))) + ' ' + t, ''); };
+  function walkTable(table) {
+    const rows = Array.from(table.querySelectorAll('tr')).map(tr =>
+      Array.from(tr.children).map(td => text(td).replace(/\|/g, '\\|') || ' '));
+    if (!rows.length) return;
+    const width = Math.max(...rows.map(r => r.length));
+    rows.forEach(r => { while (r.length < width) r.push(''); });
+    lines.push('| ' + rows[0].join(' | ') + ' |');
+    lines.push('|' + rows[0].map(() => ' --- ').join('|') + '|');
+    rows.slice(1).forEach(r => lines.push('| ' + r.join(' | ') + ' |'));
+    lines.push('');
+  }
+  function walkList(list, ordered) {
+    Array.from(list.children).filter(c => c.tagName === 'LI').forEach((li, idx) => {
+      const t = text(li);
+      if (t) lines.push((ordered ? `${idx + 1}. ` : '- ') + t);
+    });
+    lines.push('');
+  }
+  function walk(node, lvl) {
+    Array.from(node.children).forEach(el => {
+      const tag = el.tagName;
+      if (tag === 'TABLE') { walkTable(el); return; }
+      if (tag === 'UL') { walkList(el, false); return; }
+      if (tag === 'OL') { walkList(el, true); return; }
+      if (tag === 'DETAILS') {
+        const summary = el.querySelector(':scope > summary');
+        if (summary) heading(lvl + 1, text(summary));
+        Array.from(el.children).filter(c => c.tagName !== 'SUMMARY').forEach(r => walk(r, lvl + 1));
+        return;
+      }
+      if (/^H[1-6]$/.test(tag)) { heading(parseInt(tag[1], 10), text(el)); return; }
+      if (tag === 'TEXTAREA') { const t = (el.value || el.innerText || '').trim(); if (t) lines.push(t, ''); return; }
+      if (el.children.length === 0) { const t = text(el); if (t) lines.push(t); return; }
+      walk(el, lvl); // container div/span -- recurse, same heading level
+    });
+  }
+  walk(root, headingLevel || 1);
+  return lines.join('\n');
+}
+
 // Whole-plan download (every generated section, not just one) using the same
 // txt/md/docx format dialog every other deliverable uses -- replaces the old
 // print-to-PDF-only export as the button's default action.
@@ -34073,17 +34150,11 @@ function downloadFullActionPlan() {
   Array.from(originalBody.children).forEach(sec => {
     if (!sec.classList || !sec.classList.contains('plan-section')) return;
     const clone = sec.cloneNode(true);
-    // Textarea values aren't reflected by innerText -- swap each for its live value first.
-    clone.querySelectorAll('textarea').forEach(ta => {
-      const div = document.createElement('div');
-      div.innerText = ta.value || ta.innerText || '';
-      ta.parentNode.replaceChild(div, ta);
-    });
     clone.querySelectorAll('button, .action-btn, select').forEach(el => el.remove());
     const h2 = clone.querySelector('h2, h3');
     const title = h2 ? h2.innerText.trim() : '';
     if (h2) h2.remove();
-    const body = clone.innerText.trim();
+    const body = _domToMarkdown(clone, 2).trim();
     if (!body) return;
     text += (title ? `## ${title}\n\n` : '') + body + '\n\n';
   });

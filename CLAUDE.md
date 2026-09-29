@@ -184,9 +184,61 @@ opened with txt/md/docx options, clicked the docx option for real, and confirmed
 with the correct `<Title> - <Scope> - <Date>` filename (monkey-patched `_dlBlob` to capture instead of
 triggering a save dialog, same technique as the earlier filename-standardization verification).
 
-**Git:** branch `main`, v5.6.178 through v5.6.183 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild183`, synced into `dist/NetApp_AIQ_Advisor/` +
-`dist/app.js`; v5.6.180-181 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
+**8. LUN/volume data missing for one account -- real bug, found via the user's live debugging (shipped,
+v5.6.184).** User reported the new SAN & NAS Storage tab (point 7's sibling feature, shipped v5.6.181) showed
+nothing, even after a relaunch and manual sync. Traced live, with the user relaunching their own app instance
+while I inspected the same `aiq_cache.db` this session's dev server also uses:
+- Root cause, confirmed live: the "NetApp" account (918 of this fleet's 1083 systems -- the majority) lacks
+  Active IQ's `unfiltered_system_access` privilege. Both the v5.6.180 ASA r2 merge and the v5.6.181 LUN/volume
+  merge queried `systems(...)` with no `watchlistId` argument at all, which the API flatly rejects for that
+  account: `"At least one mandatory argument is required for users without the unfiltered_system_access
+  privilege"`. Both merges swallowed this (checked for exceptions, not GraphQL `errors` in a 200 response) and
+  silently produced 0 hits every harvest since those features shipped -- no error surfaced anywhere, which is
+  exactly why it looked like a caching/staleness issue at first rather than a real gap.
+- The main system harvest already had a working fallback for this (REST-based watchlist auto-discovery,
+  `_early_watchlists`, populated near the top of `_do_full_harvest` at ~line 1828) -- neither of my two merges
+  reused it.
+- **First fix attempt was wrong and made the privileged account (Sithabile) WORSE**: unconditionally preferring
+  `_early_watchlists` whenever `watchlist_ids` was empty dropped Sithabile's LUN/volume hits from 143 to 24,
+  because `_early_watchlists` is auto-discovered from a different, incomplete source (4 watchlists / 27
+  systems) than what that account's unfiltered query actually covers (165 systems, since it DOES have the
+  privilege). Caught by re-running the fix and comparing hit counts before/after, not assumed correct on the
+  first pass.
+- **Correct fix**: both merges now try unfiltered first (one cheap query, correct for privileged accounts)
+  and only fall back to per-watchlist scoping via `_early_watchlists` on an actual privilege-error response
+  (checked via the same `_PRIVILEGE_PHRASES` tuple the main harvest's `_fetch_systems_for_scope` already uses,
+  ~line 1870). The ASA r2 merge (raw `_gql` calls, not `_fetch_systems_for_scope`) got its own small
+  `_asar2_fetch_scope()` helper that returns `(rows, privilege_blocked)` to mirror the same pattern.
+- Verified live end-to-end, twice (first attempt's regression caught and fixed before shipping): after the
+  correct fix, a fresh multi-account sync gave Sithabile 143/165 (restored) and NetApp 703/918 (was 0) systems
+  with LUN/volume data; `/api/harvest` merged total 846/1083. **Re-hit the same "read /api/harvest before the
+  harvest actually finished" trap from point 2 one more time while verifying this** -- worth internalizing as
+  a real recurring hazard in this codebase's multi-account setup (NetApp's harvest alone took ~300s), not
+  re-documenting as if new each time.
+
+Also shipped in v5.6.184, smaller and unrelated:
+- **Action Plan download formatting** (user: "make the action plan docx formatting match the formatting of
+  all the other deliverables"): `downloadFullActionPlan()` (point 7) was extracting `.innerText` from each
+  section, which flattens tables/lists/headings to unstructured text. Added `_domToMarkdown(root, headingLevel)`
+  (app.js, right before `downloadFullActionPlan()`): walks the cloned section DOM and emits real Markdown --
+  `<table>` -> pipe table, `<ul>/<ol>` -> `-`/`1.` lists, `<h1-6>`/`<details><summary>` -> `#`-headings,
+  `<textarea>` -> its live value -- so `_dxParse()`'s markdown mode (triggered by the `# ` the text already
+  starts with) renders real Word tables/bullets/headings instead of squashed paragraphs. Caught and worked
+  around a real hazard while verifying: generating this for the "Total Portfolio" (all 1052+ systems) scope
+  produced a 48 MB Markdown string / 351 MB claimed blob size, because the As-Built section's DOM for that
+  scope is already ~144 MB of HTML (a full per-system detail card for every system at once) -- pre-existing to
+  this session's change, not something `_domToMarkdown` introduced (its output is smaller than the raw
+  innerText/HTML, not larger). Verified instead against a realistic single-customer scope (413 KB text, 2.3 MB
+  docx) -- this whole-plan download is not really usable at true fleet-wide "ALL" scope and that's a
+  pre-existing limitation of the As-Built section's rendering approach, not something fixed this session.
+- **Word palette lightened** (user, twice, converging on "just a tick lighter"): `_DX.NAVY`/`_DX.ACC`
+  (app.js ~line 33394) went from `1F3864`/`2E5597` to `2A4D82`/`3D6BB3` -- affects every deliverable's Word
+  export (heading text color, solid-fill card title bars and table header rows, all white-text-on-fill so kept
+  dark enough for contrast).
+
+**Git:** branch `main`, v5.6.178 through v5.6.184 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild184`, synced into `dist/NetApp_AIQ_Advisor/` +
+`dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
 harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
 session that touched HTML). Working tree otherwise shows harvest data files modified by the running server
 (`data/*.json`) and untracked docs images -- never commit those with code changes.

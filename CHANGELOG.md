@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.184] - 2026-09-29
+
+### Fixed
+- LUN/volume and ASA r2 capacity harvests were querying Active IQ unfiltered, which the API rejects for accounts without the `unfiltered_system_access` privilege -- silently zero hits for any such account. Both merges now fall back to per-watchlist scoping on a genuine privilege block. Verified: an affected account went from 0 to 703/918 systems with LUN/volume data.
+
+### Changed
+- The whole-plan download's Word export now converts sections into proper Markdown (real headings, pipe tables, bullets) instead of flattening everything to plain text, matching every other deliverable's formatting.
+- Lightened the shared Word-document color palette (1F3864/2E5597 → 2A4D82/3D6BB3) across every deliverable.
+
+---
+
 ## [5.6.183] - 2026-09-29
 
 ### Changed

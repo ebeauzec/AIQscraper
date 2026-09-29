@@ -1,8 +1,8 @@
 {
-  "version": "5.6.183",
+  "version": "5.6.184",
   "major": 5,
   "minor": 6,
-  "patch": 183,
+  "patch": 184,
   "date": "2026-09-29",
-  "notes": "Action Planner's Print/PDF button now downloads the full plan as Text/Markdown/Word, same as every other deliverable."
+  "notes": "Fixed LUN/volume data missing for privilege-restricted accounts; Action Plan Word export now matches other deliverables' formatting; lightened the shared Word palette."
 }
