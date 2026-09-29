@@ -236,8 +236,37 @@ Also shipped in v5.6.184, smaller and unrelated:
   export (heading text color, solid-fill card title bars and table header rows, all white-text-on-fill so kept
   dark enough for contrast).
 
-**Git:** branch `main`, v5.6.178 through v5.6.184 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild184`, synced into `dist/NetApp_AIQ_Advisor/` +
+**9. Word document column-table audit (shipped, v5.6.185).** User, after seeing the Feature Adoption Scorecard
+corruption fixed: "recheck the rendering and formatting of ALL the documents downloadable as docx... make sure
+there is none of this nonsense going forward." Delegated to a background `general-purpose` agent with a very
+precise brief (the exact bug shape: a plain-text table with a header + a `_dxSegRule`-style segmented
+box-drawing-dash rule line, then a data row whose interpolated value has variable character width followed by
+more literal/interpolated content on the same line -- `_dxParse`'s column cutter reads boundaries from the
+rule line's dash-segment positions, so anything after a variable-width value silently shifts per row).
+Found and fixed three more real instances beyond the one already fixed this session: MSP Service Report's
+per-customer health dashboard (`compileMSPServiceReport`, an operator-precedence bug --
+`String(asupP)+'%'.padEnd(7)` only pads the literal `'%'`, not the combined value, because `.padEnd()` binds
+tighter than `+`), the Security Posture Brief's Feature Gap Matrix (`_fGap`/`_fRatio` helpers sitting unused
+right above the bug -- looked like a prior half-finished fix attempt, left the dead helpers alone since wiring
+them up wasn't in scope), and the Sustainability Report's per-system trend column. Grepped the whole file for
+the same `X + '...'.padEnd(n)` precedence anti-pattern afterward -- no further instances. Left several
+similar-looking tables alone after confirming they're NOT at risk (already use `.padEnd()` correctly, or use a
+single unbroken dash rule / dynamic-width split that tolerates variable content) -- see the agent's full report
+in this session's transcript if auditing further. **Only checked plain-text/Markdown table alignment** -- did
+not re-verify every deliverable's visual layout in an actual generated Word document end-to-end; if the user
+finds more corruption, it's a different bug class, not this one recurring.
+
+**10. Snapshot best-practice reporting -- requested, NOT started.** User, immediately after the column-table
+audit shipped: "also look at snapshots... align with best practices, and look for, for example, snapshots that
+are stale, large, etc." This is a new, similarly-sized feature request to the LUN/NAS work (point 7/8/9's
+sibling) -- **before writing any code, repeat the same discipline that worked for LUN/volume**: check the live
+GraphQL schema (the same `__schema` introspection technique, reusing `server.py`'s own `_gql`/token-exchange
+functions in a one-off script) for what snapshot fields Active IQ's API actually exposes (per-volume snapshot
+count/age/size, snapshot policy/schedule, snapshot reserve %, orphaned/locked snapshots, etc.) before assuming
+anything is buildable. Session ended before this was scoped or started.
+
+**Git:** branch `main`, v5.6.178 through v5.6.185 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild185`, synced into `dist/NetApp_AIQ_Advisor/` +
 `dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
 harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
 session that touched HTML). Working tree otherwise shows harvest data files modified by the running server

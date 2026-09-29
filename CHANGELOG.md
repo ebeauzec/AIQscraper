@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.185] - 2026-09-29
+
+### Fixed
+- Audited every Word deliverable's plain-text tables for misaligned columns caused by variable-width interpolated values (the class of bug behind "snapmirror show" rendering split as "snapmir" / "ror show" across two cells in the TAM Success Plan's Feature Adoption Scorecard). Fixed four instances: TAM Success Plan (Feature Adoption Scorecard), MSP Service Report (per-customer health dashboard), Security Posture Brief (Feature Gap Matrix), Sustainability Report (per-system trend column). Every fix pads the variable-width value to the header's exact column width.
+
+---
+
 ## [5.6.184] - 2026-09-29
 
 ### Fixed

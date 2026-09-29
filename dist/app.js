@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.184";
+const APP_VERSION = "5.6.185";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.185",
+    date: "29 September 2026",
+    title: "Word Documents: Fixed Every Misaligned Column Table We Could Find",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Table Columns That Shifted and Merged Text Across Cells",
+        color: "#22c55e",
+        items: [
+          "The TAM Success Plan's Feature Adoption Scorecard rendered 'snapmirror show' as 'snapmir' in one cell and 'ror show' in the next -- the Enabled/Total/Coverage values were variable width (e.g. '0%' vs '100%'), so the CLI command text after them landed at a different column for every row than the header's fixed rule line expected. Audited every Word document's plain-text tables for the same class of bug (a fixed-width column header/rule followed by a data row with a variable-width value and more content after it) and fixed three more real instances: the MSP Service Report's per-customer health dashboard (ASUP%/Contract% columns), the Security Posture Brief's Feature Gap Matrix (ARP gap/action-required columns), and the Sustainability Report's per-system trend column. Every fix pads the variable-width value to the header's exact column width instead of relying on a fixed number of literal spaces that only happened to line up for one example value.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.184",
     date: "29 September 2026",
@@ -23286,10 +23301,22 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   const haKnownSys = targetSystems.filter(s => _platformFamily(s) === 'ontap' && (s.haConfigured != null || s.isHAConfigured != null || (s.snapmirror && s.snapmirror.isHAConfigured != null)));
   const haCount = haKnownSys.filter(s => s.haConfigured || s.isHAConfigured || (s.snapmirror && s.snapmirror.isHAConfigured)).length;
 
-  // Helper: format ratio as "enabled/known" or "N/A*" when no systems report the feature
-  const _fmtAdopt = (enabled, knownLen, totalLen) => knownLen > 0 && totalLen > 0
-    ? `${enabled}         ${totalLen}      ${Math.round(enabled/totalLen*100)}%`
-    : `N/A*        ${totalLen}      N/A*`;
+  // Helper: format ratio as "enabled/known" or "N/A*" when no systems report the feature.
+  // Fixed-width (32 chars total: 11 + 1 + 8 + 1 + 11), matching the FEATURE ADOPTION
+  // SCORECARD header's column rule below (Enabled/Total/Coverage segments) exactly --
+  // the old version's width varied with the digits in enabled/pct (e.g. "0%" vs
+  // "100%"), which shifted the literal CLI-command text that follows out of alignment
+  // with the "CLI Command" column, and the docx renderer's segment-based column
+  // cutter (which reads column boundaries from the header's rule line) sliced that
+  // text at the wrong position -- "snapmirror show" rendered as "snapmir" / "ror show"
+  // across two cells. Confirmed live from a real generated TAM Success Plan doc.
+  const _fmtAdopt = (enabled, knownLen, totalLen) => {
+    const ok = knownLen > 0 && totalLen > 0;
+    const enStr  = (ok ? String(enabled) : 'N/A*').padEnd(11);
+    const totStr = String(totalLen).padEnd(8);
+    const pctStr = (ok ? `${Math.round(enabled / totalLen * 100)}%` : 'N/A*').padEnd(11);
+    return enStr + ' ' + totStr + ' ' + pctStr;
+  };
 
   // Age and EOA/EOS status: hardwareAgeMonths/isEOA/isEOS are NOT real fields on
   // the system object (there is no such data anywhere in the harvest) -- reading
@@ -23598,9 +23625,9 @@ ${platformLines}
 * FEATURE ADOPTION SCORECARD [STANDARDS & ADOPTION]
   Feature                       Enabled     Total    Coverage    CLI Command
   ───────────────────────────── ─────────── ──────── ─────────── ──────────────────────────
-  Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, _ontapN)}      security anti-ransomware volume ...
-  SnapMirror DR                 ${_fmtAdopt(snapMirrorCount, smKnownSys.length, _ontapN)}      snapmirror show
-  HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, _ontapN)}      cluster ha show
+  Anti-Ransomware (ARP)         ${_fmtAdopt(arpCount, arpKnownSys.length, _ontapN)} security anti-ransomware volume ...
+  SnapMirror DR                 ${_fmtAdopt(snapMirrorCount, smKnownSys.length, _ontapN)} snapmirror show
+  HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, _ontapN)} cluster ha show
 
 * RISK POSTURE SUMMARY:
   - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
@@ -24386,7 +24413,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     const asupP = tot > 0 ? Math.round(data.asup / tot * 100) : 0;
     const contractP = tot > 0 ? Math.round(data.contract / tot * 100) : 0;
     const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
-    return `  ${name.padEnd(_nw)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${String(asupP)+'%'.padEnd(7)} ${String(contractP)+'%'.padEnd(7)} ${drr}:1`;
+    return `  ${name.padEnd(_nw)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${(String(asupP)+'%').padEnd(6)} ${(String(contractP)+'%').padEnd(6)} ${drr}:1`;
   }).sort().join('\n');
 
   let totalPhys = 0, totalAvail = 0, totalRunway = 0, rCount = 0;
@@ -25363,7 +25390,7 @@ ${_kevAckLines}
 
   let featureLines = `    Feature                 Enabled    Gap      Action Required
     ─────────────────────── ────────── ──────── ──────────────────────────────
-    ARP (Anti-Ransomware)   ${(_ontapCountSec > 0 ? arpEnabled + '/' + _ontapCountSec : 'N/A').padEnd(10)} ${(_ontapCountSec > 0 ? String(arpKnown - arpEnabled) + ' confirmed disabled' : 'N/A')}${_ontapCountSec > arpKnown ? ', ' + (_ontapCountSec - arpKnown) + ' not reported' : ''}
+    ARP (Anti-Ransomware)   ${(_ontapCountSec > 0 ? arpEnabled + '/' + _ontapCountSec : 'N/A').padEnd(10)} ${(_ontapCountSec > 0 ? String(arpKnown - arpEnabled) : 'N/A').padEnd(8)} ${_ontapCountSec > 0 ? 'confirmed disabled' : ''}${_ontapCountSec > arpKnown ? ', ' + (_ontapCountSec - arpKnown) + ' not reported' : ''}
     ${_ontapCountSec > arpKnown ? 'Systems not reported by Active IQ should be verified on-cluster.' : ''}\n`;
 
   return `================================================================================
@@ -25496,7 +25523,7 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     }
     if (isFP) fabricPoolCount++;
 
-    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${hasScoreData ? score.toString().padEnd(6) : 'N/A'.padEnd(6)} ${trend > 0 ? '+'+trend : trend}%   ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)}\n`;
+    perSystemLines += `    ${(s.systemName || 'Unknown').padEnd(27)} ${hasScoreData ? score.toString().padEnd(6) : 'N/A'.padEnd(6)} ${((trend > 0 ? '+'+trend : trend) + '%').padEnd(6)} ${drRatio.toString().padEnd(8)} ${saved.toString().padEnd(8)}\n`;
 
     // Real 0 scores (hasScoreData true, score genuinely 0) now correctly still
     // get a recommendation — previously indistinguishable from "no data" and
