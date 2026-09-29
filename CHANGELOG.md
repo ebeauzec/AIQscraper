@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.176] - 2026-09-29
+
+### Changed
+- Recommendation scores: 'No systems have been set to Decline AutoSupport' with a stray Active IQ score of 4 now shows 100% (all clear) in the QBR Pack, TAM Recommendations and Value Insights; problem-rate and normal scores are unchanged.
+
+---
+
 ## [5.6.175] - 2026-09-29
 
 ### Changed

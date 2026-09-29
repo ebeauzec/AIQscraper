@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.175";
+const APP_VERSION = "5.6.176";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.176",
+    date: "29 September 2026",
+    title: "Recommendations: All-Clear Text Wins Over a Leftover Score",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- 'No systems have been set to Decline AutoSupport' Showed Score 4%",
+        color: "#22c55e",
+        items: [
+          "Active IQ sometimes attaches a small non-zero score to an all-clear recommendation, so the QBR Pack, Section 12 and Value Insights printed 'Score 4%' beside the sentence 'No systems have been set to Decline AutoSupport' and three 100% lines. An all-clear sentence now wins over a leftover raw score and shows 100% (all clear). A raw 100, a problem-rate sentence ('26% of ...') and normal scores are unchanged.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.175",
     date: "29 September 2026",
@@ -28094,7 +28109,10 @@ function _resolveRecommendationScore(r) {
     /^no\s+\w+.*\bend of support\b/i, /^all systems have valid entitlement/i,
     /^all.*entitlements? are current/i,
   ];
-  const isAllClear = rawScore === 0 && allClearPatterns.some(p => p.test(recText));
+  // An all-clear sentence is authoritative over a leftover raw score: Active IQ sometimes attaches a small
+  // non-zero score (e.g. 4) to "No systems have been set to Decline AutoSupport", which printed as "Score 4%"
+  // next to three "100%" lines. A raw 100 already reads as healthy, and a "N% of ..." sentence is a problem rate.
+  const isAllClear = rawScore !== 100 && !isProblemRate && allClearPatterns.some(p => p.test(recText));
 
   let effectiveScore, corrected = false;
   if (isProblemRate) {
