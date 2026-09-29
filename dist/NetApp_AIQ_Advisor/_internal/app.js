@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.179";
+const APP_VERSION = "5.6.180";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.180",
+    date: "29 September 2026",
+    title: "ASA r2: Real Capacity From LUN/Namespace Data",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- ASA r2 Capacity Was Reported as Unavailable; Active IQ Actually Has It",
+        color: "#22c55e",
+        items: [
+          "v5.6.179 shipped an honest 'no capacity data' note for ASA systems Active IQ reports nothing for -- but for true ASA r2 systems (ontapPersonality \"ASAR2\", confirmed live via GraphQL schema introspection), Active IQ DOES have capacity: per-LUN and per-namespace provisioned size, which the harvester never queried. The harvester now fetches ontapPersonality plus each ASA r2 system's LUNs/namespaces (confirmed live: the API's usableKiB field is mislabeled and is actually bytes, not KiB -- verified by cross-checking the sum against a working system's known-good usable capacity) and sums them into real raw/usable capacity figures, with a note clarifying they're provisioned size, not bytes written. Systems where Active IQ genuinely has nothing (no LUNs either) still get the honest note from v5.6.179.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.179",
     date: "29 September 2026",
@@ -17299,6 +17314,7 @@ function renderCSMTab() {
         <div style="font-size: 1.2rem; font-weight: 700; color: #fff;">${(sys.efficiency.spaceSavedTB || 0).toFixed(1)} TB</div>
         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Dedupe + compaction savings only</div>
       </div>
+      ${sys.efficiency.physicalUsedTB === 0 && sys.efficiency.platformNote ? `<div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">${sys.efficiency.platformNote}</div>` : ''}
     </div>
   `;
 
@@ -19035,10 +19051,11 @@ function enrichSystemTelemetry(s) {
     /^(28|57|40)\d{2}$/.test(modelLower.trim()) ||
     (!isAFF && !isASA && !isFAS && !isCVO && !isStorageGrid && _osLooksLikeSANtricity);
 
-  // ASA r2 (new architecture — personality: ASA_R2; no aggregates, uses Storage Availability Zone)
+  // ASA r2 (new architecture — ontapPersonality: "ASAR2", confirmed live via GraphQL
+  // introspection; no aggregates, capacity reported per LUN/namespace instead)
   // Detected via: API personality field OR model prefix 'ASA A' + isDisaggregated flag from server.py harvest
   const personalityRaw = (s.personality || "").toUpperCase();
-  const isASAr2 = personalityRaw === "ASA_R2" || personalityRaw === "ASAER2" ||
+  const isASAr2 = personalityRaw === "ASAR2" || personalityRaw === "ASA_R2" || personalityRaw === "ASAER2" ||
                   (isASA && (s.isDisaggregated === true));
 
   // AFX (disaggregated NAS/AI platform — ONTAP 9.17.1+, pNFS + S3, announced Oct 2025)
@@ -19299,6 +19316,17 @@ function enrichSystemTelemetry(s) {
       rawTBfinal    = Math.round(((s.sazTotalRawKiB   || 0) / (1024 ** 3)) * 1000) / 1000;
       usableTBfinal = Math.round(((s.sazEffectiveCapacityKiB || s.sazTotalRawKiB || 0) / (1024 ** 3)) * 1000) / 1000;
     }
+    // ASA r2: capacity{physical{...}} comes back null from Active IQ for these systems
+    // (confirmed live) -- what IS available is per-LUN/namespace provisioned size,
+    // summed server-side into asaLunUsableKiB. That's usable/provisioned capacity, not
+    // bytes actually written, so it only ever fills raw/usable here, never physical used.
+    const asaLunUsableTB = (s.asaLunUsableKiB || 0) / (1024 ** 3);
+    let _asaLunFallbackUsed = false;
+    if (isASAr2 && rawTBfinal === 0 && asaLunUsableTB > 0) {
+      rawTBfinal    = Math.round(asaLunUsableTB * 1000) / 1000;
+      usableTBfinal = Math.round(asaLunUsableTB * 1000) / 1000;
+      _asaLunFallbackUsed = true;
+    }
     // AFX: disaggregated pools — same physical path but flag for display note
     // logTBfinal: use the ratio we computed (snapshot-free) to derive logical capacity
     const ratioNum = ratioVal ? parseFloat(ratioVal) : 0;
@@ -19356,13 +19384,18 @@ function enrichSystemTelemetry(s) {
       _capacityUnavailable: _sgEseriesCapGap || false,
       _eseriesCapacity: !!(isEseries && s.eseriesCapacity),
       _storagegridCapacity: !!(isStorageGrid && s.storagegridCapacity),
-      platformNote: isASAr2 ? 'ASA r2 — capacity via Storage Availability Zone (SAZ). 4:1 efficiency SLA guaranteed by NetApp.' :
-                   isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' :
-                   _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — capacity is reported per grid, on the admin-node system of each grid; Active IQ returned none for this system (an individual node, or a grid with no recent AutoSupport capacity report). Check the StorageGRID Grid Manager for current figures.' :
-                   (isStorageGrid && s.storagegridCapacity) ? 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.' :
+      // _sgEseriesCapGap (truly no capacity from any source, including the LUN/namespace
+      // fallback above) is checked FIRST per platform, ahead of the unconditional ASA r2/
+      // AFX notes below -- otherwise an ASA r2 system with NO LUN data either would show
+      // "capacity via LUN/namespace" inside the honest "no capacity" card, which is wrong.
+      platformNote: _sgEseriesCapGap && isStorageGrid ? 'StorageGRID — capacity is reported per grid, on the admin-node system of each grid; Active IQ returned none for this system (an individual node, or a grid with no recent AutoSupport capacity report). Check the StorageGRID Grid Manager for current figures.' :
                    _sgEseriesCapGap && isEseries    ? 'E-Series — Active IQ returned no SANtricity capacity for this system (no recent AutoSupport capacity report). Check SANtricity System Manager for current figures.' :
-                   (isEseries && s.eseriesCapacity) ? 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.' :
-                   _sgEseriesCapGap && isASA        ? 'ASA — Active IQ returned no capacity for this all-SAN array cluster (no recent AutoSupport capacity report). Check System Manager for current figures.' : null,
+                   _sgEseriesCapGap && isASA        ? 'ASA — Active IQ returned no capacity for this all-SAN array cluster (no recent AutoSupport capacity report). Check System Manager for current figures.' :
+                   _asaLunFallbackUsed ? 'ASA r2 — Active IQ doesn\'t report physical/aggregate capacity for r2 systems; the figures shown are provisioned size summed from this system\'s LUNs/namespaces (usable capacity, not bytes actually written). 4:1 efficiency SLA guaranteed by NetApp.' :
+                   isASAr2 ? 'ASA r2 — disaggregated architecture (Storage Availability Zones, not aggregates). 4:1 efficiency SLA guaranteed by NetApp.' :
+                   isAFX   ? 'AFX — disaggregated ONTAP. Capacity pools independently scalable from compute.' :
+                   (isStorageGrid && s.storagegridCapacity) ? 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.' :
+                   (isEseries && s.eseriesCapacity) ? 'E-Series — capacity from SANtricity AutoSupport. "Allocated" is space assigned to volume groups/disk pools, not data written, and E-Series has no data-reduction ratio.' : null,
     };
 
   } else if (!efficiency) {

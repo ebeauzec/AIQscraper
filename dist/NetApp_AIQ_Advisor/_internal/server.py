@@ -2033,6 +2033,72 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         except Exception as _e:
             print(f"  [HARVEST] WARNING: E-Series capacity fetch failed: {_e}", flush=True)
 
+        # ── ASA r2 capacity merge (LUN/namespace provisioned size) ──
+        # ASA r2 systems (ontapPersonality "ASAR2" — confirmed live, distinct casing
+        # from the enum's declared "ASAR2" name) return `capacity { physical {...} }`
+        # as null: they're disaggregated and don't report through the aggregate/
+        # cluster capacity path every other ONTAP system uses. Confirmed live: what
+        # they DO report is per-LUN/namespace capacity via `luns`/`namespaces`, whose
+        # `capacity.usableKiB` field is mislabeled — comparing its sum against a
+        # working (non-r2) ASA system's known-good clusterUsableCapacityTB shows the
+        # field is actually BYTES, not KiB (dividing by 1024**4, not 1024**3, lands
+        # in the right order of magnitude; the KiB interpretation was 1000x too high
+        # — implausible thin-provisioning ratios like 150 PB of LUNs on a 2-node
+        # ASA-A70). This is a genuine capacity source Active IQ has for these systems
+        # (an ASA r2 TAM checking the portal sees it as LUN/namespace sizes) that the
+        # main systems query never fetched — only `luns { totalCount }`, no capacity.
+        # Scoped to ontapPersonalities: [ASAR2] so this never touches the ~2,890
+        # non-r2 systems in a real fleet (only ~8 systems, confirmed live) and can't
+        # push the main query over Active IQ's field-count limit like inlining it
+        # into SYSTEMS_FIELDS_TAM would.
+        try:
+            _asar2_by_serial = {}
+            _asar2_cursor = None
+            while True:
+                _after = f', after: "{_asar2_cursor}"' if _asar2_cursor else ""
+                _asar2_q = """{
+                  systems(pageSize: 50, ontapPersonalities: [ASAR2]""" + _after + """) {
+                    cursor
+                    systems {
+                      serialNumber
+                      ... on ONTAPSystem {
+                        ontapPersonality
+                        luns(pageSize: 1000) { totalCount luns { capacity { usableKiB } } }
+                        namespaces(pageSize: 1000) { totalCount namespaces { capacity { usableKiB } } }
+                      }
+                    }
+                  }
+                }"""
+                _, _asar2_resp = _gql(token, _asar2_q)
+                _asar2_data = ((_asar2_resp or {}).get("data") or {}).get("systems") or {}
+                _asar2_page = _asar2_data.get("systems") or []
+                for _r in _asar2_page:
+                    _luns = (_r.get("luns") or {}).get("luns") or []
+                    _nss  = (_r.get("namespaces") or {}).get("namespaces") or []
+                    _lun_bytes = sum((l.get("capacity") or {}).get("usableKiB") or 0 for l in _luns)
+                    _ns_bytes  = sum((n.get("capacity") or {}).get("usableKiB") or 0 for n in _nss)
+                    _asar2_by_serial[_r.get("serialNumber")] = {
+                        "ontapPersonality": _r.get("ontapPersonality") or "",
+                        "lunCount": (_r.get("luns") or {}).get("totalCount") or 0,
+                        "namespaceCount": (_r.get("namespaces") or {}).get("totalCount") or 0,
+                        # usableKiB is mislabeled (actually bytes) -- convert straight to KiB here
+                        # so downstream code can treat it like every other *KiB capacity field.
+                        "usableKiB": round((_lun_bytes + _ns_bytes) / 1024),
+                    }
+                _new_cursor = _asar2_data.get("cursor")
+                if not _asar2_page or not _new_cursor or _new_cursor == _asar2_cursor:
+                    break
+                _asar2_cursor = _new_cursor
+            _asar2_hits = 0
+            for _s in all_systems:
+                _ac = _asar2_by_serial.get(_s.get("serialNumber"))
+                if _ac:
+                    _s["asaR2Capacity"] = _ac
+                    _asar2_hits += 1
+            print(f"  [HARVEST] ASA r2 LUN/namespace capacity merged for {_asar2_hits} systems ({len(_asar2_by_serial)} ASA r2 systems found)", flush=True)
+        except Exception as _e:
+            print(f"  [HARVEST] WARNING: ASA r2 capacity fetch failed: {_e}", flush=True)
+
         # ── Shelf module firmware currency merge (see SHELVES_SUMMARY_FIELDS) ──
         try:
             _shsum_by_serial = {}
@@ -3471,21 +3537,34 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "storageConfiguration": s.get("storageConfiguration", ""),
                 "isFabricPool": s.get("isFabricPool"),
                 "hasPvr": s.get("hasPvr"),
-                # ── Platform personality (ASA r2 / AFX — detected via model name) ──
-                "personality": "",
-                "isDisaggregated": False,
-                "isAsaR2": hw.get("name", "").upper().startswith("ASA A"),
+                # ── Platform personality (ASA r2 / AFX) ──
+                # ontapPersonality is a real GQL field ("Unified"/"ASAR2"/"AFX", confirmed
+                # live -- casing is inconsistent between the enum's declared name and the
+                # value actually returned, so app.js compares case-insensitively). Only
+                # populated when the ASA r2 capacity merge below found this system;
+                # falls back to the model-name guess otherwise.
+                "personality": (s.get("asaR2Capacity") or {}).get("ontapPersonality") or "",
+                "isDisaggregated": bool(s.get("asaR2Capacity")),
+                "isAsaR2": bool(s.get("asaR2Capacity")) or hw.get("name", "").upper().startswith("ASA A"),
                 "isAfx": "EF50" in hw.get("name", "").upper() or "EF80" in hw.get("name", "").upper() or "AFX" in hw.get("name", "").upper(),
-                # SAZ capacity not available via API
+                # True SAZ (Storage Availability Zone) capacity isn't queried -- not
+                # confirmed to exist as a GQL field. What IS confirmed live: ASA r2
+                # systems' capacity{physical{...}} comes back null, but they report
+                # capacity per LUN/namespace via the "ASA r2 capacity merge" pass above.
+                # That's provisioned/usable size, not bytes actually written, so it only
+                # ever fills usable/raw capacity in app.js's enrichment, never physical-used.
                 "sazTotalRawKiB": 0,
                 "sazUsedKiB": 0,
                 "sazAvailableKiB": 0,
                 "sazProvisionedKiB": 0,
                 "sazEffectiveCapacityKiB": 0,
                 "sazDataReductionRatio": None,
-                # ASA r2 / storage unit counts not available via API
                 "consistencyGroupCount": 0,
-                "storageUnitCount": 0,
+                "storageUnitCount": ((s.get("asaR2Capacity") or {}).get("lunCount") or 0) + ((s.get("asaR2Capacity") or {}).get("namespaceCount") or 0),
+                # LUN/namespace-derived usable capacity for ASA r2 (see above) -- kept
+                # separate from the saz* fields since it's a different, confirmed-real
+                # data source, not the (unconfirmed) Storage Availability Zone API.
+                "asaLunUsableKiB": (s.get("asaR2Capacity") or {}).get("usableKiB") or 0,
                 # ── Contacts & personnel ──
                 "contactFirstName": contact.get("firstName", ""),
                 "contactLastName": contact.get("lastName", ""),

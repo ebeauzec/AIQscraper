@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.180] - 2026-09-29
+
+### Fixed
+- ASA r2 systems (ontapPersonality "ASAR2", confirmed live) now get real capacity from Active IQ instead of the "no capacity data" note: the harvester fetches each system's LUNs/namespaces and sums their provisioned size (the API's `usableKiB` field is confirmed to actually be bytes, not KiB). Systems with genuinely no capacity data at all (no LUNs either) still show the honest note from v5.6.179.
+
+---
+
 ## [5.6.179] - 2026-09-29
 
 ### Fixed
