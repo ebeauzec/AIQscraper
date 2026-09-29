@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.175] - 2026-09-29
+
+### Changed
+- Audit of all Word documents: fixed the Handover Brief Environment Inventory table (header swallowed as heading; platform names cut mid-word), literal '##' headings in the MSP report and Security Brief, '[POST-CHANGE VERIFICATION]'-style headings in the runbook, and 'Caveats: a | b' lines.
+
+---
+
 ## [5.6.174] - 2026-09-29
 
 ### Changed

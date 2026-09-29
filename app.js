@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.174";
+const APP_VERSION = "5.6.175";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.175",
+    date: "29 September 2026",
+    title: "Word Audit: Tables, Truncation and Stray Markup Fixed",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Issues Found by Auditing Every Word Document",
+        color: "#22c55e",
+        items: [
+          "Audited all 15 Word deliverables for two demo customers for rule-only rows, leftover Markdown/HTML, stray pipes, truncated text and empty columns. Fixed: the Handover Brief's Environment Inventory table (its header was swallowed as a heading, leaving loose pipe text) and its platform column cut mid-word ('StorageGRID Webscale (Objec'); a literal '##' heading in the MSP report and Security Brief; bracket headings such as '[POST-CHANGE VERIFICATION]' in the CLI Runbook; and 'Caveats: a | b' lines, now one bullet each. Pipe-delimited header rows are no longer mistaken for banner headings.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.174",
     date: "29 September 2026",
@@ -24715,12 +24730,12 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
   const invHeader = '  System               | Cluster             | Platform                    | OS Version   | Serial         | Site              | Contract';
   const invSep    = '  ' + '─'.repeat(145);
   const invRows = targetSystems.map(s => {
-    const sysN = (s.systemName || '').padEnd(20).substring(0, 20);
-    const clN  = (s.clusterName || '').padEnd(19).substring(0, 19);
-    const plat = (s.platform || '').padEnd(27).substring(0, 27);
-    const osV  = (s.osVersion || s.ontapVersion || '').padEnd(12).substring(0, 12);
-    const ser  = (s.serialNumber || '').padEnd(14).substring(0, 14);
-    const site = (s.siteName || '').padEnd(17).substring(0, 17);
+    const sysN = (s.systemName || '').padEnd(20);
+    const clN  = (s.clusterName || '').padEnd(19);
+    const plat = (s.platform || '').padEnd(27);
+    const osV  = (s.osVersion || s.ontapVersion || '').padEnd(12);
+    const ser  = (s.serialNumber || '').padEnd(14);
+    const site = (s.siteName || '').padEnd(17);
     const cSt  = s.contractActive === true ? 'Active' : s.contractActive === false ? 'Expired' : 'Unknown';
     return `  ${sysN} | ${clN} | ${plat} | ${osV} | ${ser} | ${site} | ${cSt}`;
   }).join('\n');
@@ -33166,7 +33181,7 @@ function _dxCollectCard(L, i, m) {
     else if ((mm = u.match(/^[•\-*▪●]\s+(.*)$/))) { if (!last) { last = ['Findings', [], 'Finding']; rows.push(last); seen++; } last[1].push('• ' + _dxClean(mm[1])); }
     else if ((mm = u.match(/^(\d+)\.\s+(.*)$/)) && last && /Steps/.test(last[2])) last[1].push(mm[1] + '. ' + _dxClean(mm[2]));
     else if ((mm = u.match(/^(Ref|Reference):\s*(.*)$/))) { last = ['Reference', [mm[2]], 'Reference']; rows.push(last); }
-    else if ((mm = u.match(/^([A-Z][A-Za-z\/ \-]{1,24}):\s*(.*)$/)) && _DX_CARD_LABELS.test(mm[1])) { last = [mm[1].trim(), mm[2] ? [_dxClean(mm[2])] : [], mm[1].trim()]; rows.push(last); seen++; }
+    else if ((mm = u.match(/^([A-Z][A-Za-z\/ \-]{1,24}):\s*(.*)$/)) && _DX_CARD_LABELS.test(mm[1])) { last = [mm[1].trim(), mm[2] ? (/^(Steps|Caveats|CLI Steps|Host\/3rd-Party)$/.test(mm[1].trim()) && / \| /.test(mm[2]) ? _dxSplitPipe(mm[2]) : [_dxClean(mm[2])]) : [], mm[1].trim()]; rows.push(last); seen++; }
     else if (last) last[1].push(_dxClean(u));
     else if (ind > ind0) { last = ['Detail', [_dxClean(u)], 'Finding']; rows.push(last); }
     else break;
@@ -33326,13 +33341,13 @@ function _dxParse(text, isMd, ctx) {
     const strong = /^[=\u2550]{6,}$/.test((L[i - 1] || '').trim());
     const noTag = s => s.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
     const segNext = i + 1 < L.length ? _dxSegRule(L[i + 1]) : null;   // a rule made of separate column segments underlines a column header, not a title
-    if (prevRule && nextRule && !segNext && (ind < 3 || strong) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // banner: rule / title / rule
+    if (prevRule && nextRule && !segNext && (t.match(/ \| /g) || []).length < 2 && (ind < 3 || strong) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // banner: rule / title / rule
       if (strong) { if (!doc.title) doc.title = _dxClean(noTag(t)); else setSection(1, _dxClean(noTag(t)), { brk: /^(CHANGE TICKET|SYSTEM \d+)/i.test(t) }); }
       else if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t)));
       else setSection(thinLvl, _dxClean(noTag(t)));
       continue;
     }
-    if (nextRule && !prevRule && !segNext && ind < 4 && t.length < 100 && !/^[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(t) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // heading with an underline
+    if (nextRule && !prevRule && !segNext && (t.match(/ \| /g) || []).length < 2 && ind < 4 && t.length < 100 && !/^[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(t) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // heading with an underline
       if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t))); else setSub(_dxClean(noTag(t)));
       continue;
     }
@@ -33358,6 +33373,8 @@ function _dxParse(text, isMd, ctx) {
       const pb = blocks[blocks.length - 1], more = L.slice(i + 1, i + 14).some(x => (x.match(/^\s*/) || [''])[0].length === ind && _dxCardStart(x.trim()));
       if (cs.label === '' && ((pb && pb.t === 'fix' && !pb.label) || more) && cs.sev) { const sp = _dxSplitTitle(_dxClean(cs.title)); push({ t: 'fix', n: cs.n, sev: cs.sev, cls: cs.cls || '', title: sp.title, label: '', rows: sp.rows }); continue; }
     } }   // an action / finding / CVE entry with its detail lines -> one card
+    if ((m = t.match(/^#{2,3}\s+(.+)$/))) { setSub(_dxClean(m[1])); continue; }
+    if ((m = t.match(/^\[([A-Z][A-Z \-\/]{3,})\]$/))) { setSub(_dxTitleCase(m[1])); continue; }   // "[POST-CHANGE VERIFICATION]"
     if (/^DECISIONS NEEDED/i.test(t)) { setSection(1, _dxClean(t.replace(/:$/, ''))); continue; }
     if ((m = t.match(/^---\s*(.+?)\s*---$/)) || (m = t.match(/^\u25ba\s*(.+)$/))) { setSub(_dxClean(m[1])); continue; }
     if (/^\[\d+\]\s+\[/.test(t) || /^Priority \d+: /.test(t)) { setItem(_dxClean(t)); continue; }
@@ -33403,9 +33420,11 @@ function _dxParse(text, isMd, ctx) {
     if ((m = l.match(/^(\s*)(\d+)\.\s+(.*)$/))) { push({ t: m[1].length >= 6 ? 'step' : 'num', n: m[2], text: _dxClean(m[3]) }); continue; }
     if (_dxIsCli(l) || /^\s{2,}\$ /.test(l)) { push({ t: 'code', text: t }); continue; }
     if (/^[A-Z][A-Za-z0-9 /&\-]{2,48}:$/.test(t)) { push({ t: 'label', text: t.replace(/:$/, '') }); continue; }
+    if ((m = t.match(/^(Caveats|Notes|Steps):\s+(.+ \| .+)$/))) { push({ t: 'label', text: m[1] }); _dxSplitPipe(m[2]).forEach(x => push({ t: 'bullet', lvl: 0, text: x })); continue; }   // "a | b" -> one bullet each
     let km = t.match(_DX_KV_CAPS);
     if (!km && (ind >= 5 || /:\s{2,}\S/.test(l))) km = t.match(_DX_KV);
     if (!km) { const k2 = t.match(_DX_KV); if (k2 && k2[1].split(' ').length <= 4 && k2[2].length < 110 && !k2[2].startsWith('//')) km = k2; }
+    if (km && /^(Caveats|Steps|Notes)$/.test(km[1].trim()) && / \| /.test(km[2])) { push({ t: 'label', text: km[1].trim() }); _dxSplitPipe(km[2]).forEach(x => push({ t: 'bullet', lvl: 0, text: x })); continue; }   // "a | b | c" -> one bullet each
     if (km) { const lab = km[1].trim(); push({ t: 'kv', k: _dxAllCaps(lab) ? _dxTitleCase(lab) : lab, v: _dxClean(km[2].trim()), deep: ind >= 5 }); continue; }
     push({ t: 'p', text: _dxClean(t).replace(/\s{3,}/g, '   \u00b7   ').replace(/ \* /g, ' \u2014 '), ind });
   }
