@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.170";
+const APP_VERSION = "5.6.171";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.171",
+    date: "29 September 2026",
+    title: "Word Cards: No More Bracket-Heavy Titles",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Card Titles No Longer Carry Nested Brackets",
+        color: "#22c55e",
+        items: [
+          "Corrective-action cards (QBR, MSP report, Handover Brief, Success Plan, proposals) put the whole '(14 findings across sys (platform), sys (platform) ...)' tail into the title bar, which was a wall of nested brackets. The title now keeps just the action, and the tail becomes a Findings row (e.g. '14 findings') and a Systems (n) row listing one system per line; other trailing parentheticals move to a Scope row.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.170",
     date: "29 September 2026",
@@ -33051,9 +33066,18 @@ function _dxSplitTop(s) { const items = []; let depth = 0, cur = ''; for (const 
 // returns { block, next } or null. m = the matched start line: {n, sev, cls, title, label}
 // long titles: the trailing parenthetical (counts / system lists) moves into a Scope row so the title bar stays one or two lines
 function _dxSplitTitle(title) {
-  let t = String(title).replace(/^FIX:\s*/i, '');
-  if (t.length > 110) { const k = t.search(/\s+\((?=[^()]*(?:\([^()]*\)[^()]*)*\)\s*$)/); if (k > 20) return { title: t.slice(0, k).trim(), scope: t.slice(k).trim().replace(/^\(|\)$/g, '') }; }
-  return { title: t, scope: '' };
+  const t = String(title).replace(/^FIX:\s*/i, '').trim();
+  if (t.endsWith(')')) {
+    let depth = 0, k = -1;
+    for (let x = t.length - 1; x >= 0; x--) { if (t[x] === ')') depth++; else if (t[x] === '(') { depth--; if (depth === 0) { k = x; break; } } }
+    const head = k > 0 ? t.slice(0, k).trim() : '', scope = k > 0 ? t.slice(k + 1, -1).trim() : '';
+    if (head.length >= 12 && (t.length > 90 || /findings?/i.test(scope))) {
+      const fm = scope.match(/^(\d+)\s+(?:distinct\s+)?(findings?)(?:,\s*\d+\s+occurrences?)?\s+(?:across|—|-)\s+(.+)$/i);
+      if (fm) { const sys = _dxSplitTop(fm[3]); return { title: head.replace(/[\s—-]+$/, ''), rows: [['Findings', [fm[1] + ' ' + fm[2].toLowerCase()]], ['Systems (' + sys.length + ')', sys]] }; }
+      return { title: head, rows: [['Scope', [scope]]] };
+    }
+  }
+  return { title: t, rows: [] };
 }
 function _dxCollectCard(L, i, m) {
   const ind0 = (L[i].match(/^\s*/) || [''])[0].length;
@@ -33084,7 +33108,7 @@ function _dxCollectCard(L, i, m) {
   let sev = m.sev || '', body = rows.filter(r => r[1].length && r[2] !== 'Severity' && r[2] !== 'Affected');
   if (sevRow || affRow) { sev = sev || (sevRow ? String(sevRow[1][0]).toUpperCase() : ''); body.push(['Exposure', [[sevRow ? sevRow[1][0] : 'not rated', affRow ? affRow[1][0] : ''].filter(Boolean).join('  ·  ')], 'Exposure']); }
   body.sort((a, c) => (_DX_CARD_RANK[a[2]] ?? 9) - (_DX_CARD_RANK[c[2]] ?? 9));
-  const sp = _dxSplitTitle(_dxClean(m.title)), out = body.map(r => [r[0], r[1]]); if (sp.scope) out.unshift(['Scope', [sp.scope]]);
+  const sp = _dxSplitTitle(_dxClean(m.title)), out = body.map(r => [r[0], r[1]]); out.unshift(...sp.rows.filter(r => !/^Systems/.test(r[0]))); out.push(...sp.rows.filter(r => /^Systems/.test(r[0])));
   return { block: { t: 'fix', n: m.n, sev, cls: m.cls || '', title: sp.title, label: m.label || '', rows: out }, next: j };
 }
 function _dxCardStart(t) {
@@ -33248,7 +33272,7 @@ function _dxParse(text, isMd, ctx) {
       if (cc) { i = cc.next - 1; push(cc.block); continue; }
       // an entry with no detail lines, sitting among card entries, keeps the list uniform as a title-only card
       const pb = blocks[blocks.length - 1], more = L.slice(i + 1, i + 14).some(x => (x.match(/^\s*/) || [''])[0].length === ind && _dxCardStart(x.trim()));
-      if (cs.label === '' && ((pb && pb.t === 'fix' && !pb.label) || more) && cs.sev) { const sp = _dxSplitTitle(_dxClean(cs.title)); push({ t: 'fix', n: cs.n, sev: cs.sev, cls: cs.cls || '', title: sp.title, label: '', rows: sp.scope ? [['Scope', [sp.scope]]] : [] }); continue; }
+      if (cs.label === '' && ((pb && pb.t === 'fix' && !pb.label) || more) && cs.sev) { const sp = _dxSplitTitle(_dxClean(cs.title)); push({ t: 'fix', n: cs.n, sev: cs.sev, cls: cs.cls || '', title: sp.title, label: '', rows: sp.rows }); continue; }
     } }   // an action / finding / CVE entry with its detail lines -> one card
     if (/^DECISIONS NEEDED/i.test(t)) { setSection(1, _dxClean(t.replace(/:$/, ''))); continue; }
     if ((m = t.match(/^---\s*(.+?)\s*---$/)) || (m = t.match(/^\u25ba\s*(.+)$/))) { setSub(_dxClean(m[1])); continue; }

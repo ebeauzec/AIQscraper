@@ -1,8 +1,8 @@
 {
-  "version": "5.6.170",
+  "version": "5.6.171",
   "major": 5,
   "minor": 6,
-  "patch": 170,
+  "patch": 171,
   "date": "2026-09-29",
-  "notes": "Word: decisions, roadmap actions, upgrade plans, support cases and nested bullet groups are cards; drift lists are tables; long card titles tidied."
+  "notes": "Word cards: the '(N findings across systems...)' tail moves out of the title into Findings and Systems rows -- no more nested brackets in title bars."
 }

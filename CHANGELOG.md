@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.171] - 2026-09-29
+
+### Changed
+- Word cards: corrective-action titles no longer contain the '(N findings across system (platform), ...)' tail; it becomes a Findings row and a one-per-line Systems row.
+
+---
+
 ## [5.6.170] - 2026-09-29
 
 ### Changed
