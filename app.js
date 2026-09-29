@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.181";
+const APP_VERSION = "5.6.182";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.182",
+    date: "29 September 2026",
+    title: "Feature Adoption Score Now Includes NAS Volume Efficiency",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- Thin Provisioning and Volume Efficiency Checks",
+        color: "#3b82f6",
+        items: [
+          "The Feature Adoption Score (used by the Success Plan checklist and every deliverable that cites it) now includes two checks for systems reporting NAS volumes: at least 50% thin-provisioned, and fewer than half the volumes showing 0% measured data-reduction savings. Rolled into the existing score rather than added as new standalone checklist rows, per the user's call on scorecard density.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.181",
     date: "29 September 2026",
@@ -18581,16 +18596,18 @@ function _getAsupConfiguredState(sys) {
 
 function computeFeatureAdoptionScore(sys) {
   // Returns {passed, total, pct} for actual OPTIONAL ONTAP FEATURE adoption
-  // only -- ARP, SnapMirror, HA, AutoSupport configured. This
-  // used to also count 10 unrelated operational/health checks (OS
-  // currency, risk count, contract status, ASUP compliance, EOS lifecycle,
-  // CVE count, capacity %, support cases, field actions) toward the same
-  // "/14" total, so every deliverable that shows this as a "Feature
-  // Adoption Score" -- including a table whose own columns only ever
-  // displayed 4 of the 14 things being scored -- was really showing a
-  // second, differently-weighted copy of the account health score under a
-  // label that promised something else. Unknown features (API didn't
-  // report them) are excluded from scoring, not counted as failing.
+  // only -- ARP, SnapMirror, HA, AutoSupport configured, plus (where the
+  // system reports NAS volumes) thin-provisioning adoption and volume
+  // efficiency savings. This used to also count 10 unrelated operational/
+  // health checks (OS currency, risk count, contract status, ASUP
+  // compliance, EOS lifecycle, CVE count, capacity %, support cases, field
+  // actions) toward the same "/14" total, so every deliverable that shows
+  // this as a "Feature Adoption Score" -- including a table whose own
+  // columns only ever displayed 4 of the 14 things being scored -- was
+  // really showing a second, differently-weighted copy of the account
+  // health score under a label that promised something else. Unknown
+  // features (API didn't report them) are excluded from scoring, not
+  // counted as failing.
   let passed = 0;
   let total = 0;
 
@@ -18608,6 +18625,14 @@ function computeFeatureAdoptionScore(sys) {
   // AutoSupport configured
   const asupVal = _getAsupConfiguredState(sys);
   if (asupVal != null) { total++; if (asupVal === true) passed++; }
+  // NAS volume thin-provisioning adoption and efficiency savings -- only
+  // scored for systems that reported at least one NAS volume (see the
+  // "LUN / NAS volume inventory summary merge" in server.py).
+  const lv = sys.lunVolumeSummary;
+  if (lv && lv.volumeCount > 0) {
+    total++; if ((lv.volumeThinProvisionedCount || 0) / lv.volumeCount >= 0.5) passed++;
+    total++; if ((lv.volumeNoEfficiencyCount || 0) / lv.volumeCount < 0.5) passed++;
+  }
 
   return { passed, total: total || 1, pct: Math.round((passed / (total || 1)) * 100) };
 }

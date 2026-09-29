@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.182] - 2026-09-29
+
+### Added
+- Feature Adoption Score now includes NAS volume thin-provisioning adoption and volume-efficiency checks (rolled into the existing score rather than new standalone checklist rows).
+
+---
+
 ## [5.6.181] - 2026-09-29
 
 ### Added

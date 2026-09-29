@@ -146,11 +146,31 @@ deliverable integration.
   wait for the harvest to actually complete (poll `/api/sync-status` or grep the server log for "Done in") before
   reading `/api/harvest` to verify a fix — a premature read looks exactly like stale/broken caching.**
 
-**Git:** branch `main`, v5.6.178 through v5.6.181 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild181`, synced into `dist/NetApp_AIQ_Advisor/` +
-`dist/app.js`; v5.6.180+ also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those are the first
-fixes this session that touched the harvester). Working tree otherwise shows harvest data files modified by
-the running server (`data/*.json`) and untracked docs images -- never commit those with code changes.
+**5. Feature Adoption Score extended (shipped, v5.6.182).** User asked how dedup/data-reduction applies to
+ASA (answered: same real ONTAP efficiency engine as AFF for classic ASA, confirmed live at `1.3:1` on a real
+ASA-A800; ASA r2 has no measured ratio available from Active IQ at all right now, only NetApp's marketed 4:1
+guarantee, which the app already labels as a guarantee not a measurement). That prompted a look at the
+Success Plan checklist screenshot (Operations & Security / Data Protection & Lifecycle, `_leftChecks`/
+`_rightChecks` in `renderCSMTab()` ~line 17010-17046) — agreed two new SAN/NAS checks were worth adding
+(thin-provisioning adoption, volume efficiency) but explicitly **rolled into `computeFeatureAdoptionScore()`**
+(~line 18582) rather than added as new standalone checklist rows, since the user flagged the checklist as
+already dense — see point 6 below for the follow-on plan on that. Verified against real data (serial
+952541000528): total checks 4→6, both new ones correctly fail (0% thin-provisioned, 404/405 volumes with no
+measured efficiency), no crash.
+
+**6. Scorecard density — plan requested, not yet executed.** User: "the scorecard is getting pretty dense....
+make a plan about that", referring to the same Operations & Security / Data Protection & Lifecycle checklist.
+**A plan was drafted this session but not yet approved or built** — see whatever this session's plan-mode
+output was (not captured in this file if the session ended before the user responded). Next session: check
+whether the user approved a plan and, if so, pick it up from there; if not, re-propose given this handoff's
+context above (the checklist is `_leftChecks`/`_rightChecks` inside `renderCSMTab()`, rendered by
+`_renderCheckColumn()`, ~lines 17010-17070).
+
+**Git:** branch `main`, v5.6.178 through v5.6.182 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild182`, synced into `dist/NetApp_AIQ_Advisor/` +
+`dist/app.js`; v5.6.180-181 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
+harvester). Working tree otherwise shows harvest data files modified by the running server (`data/*.json`)
+and untracked docs images -- never commit those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is
