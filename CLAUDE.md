@@ -127,14 +127,24 @@ deliverable integration.
   aggregate stats and the two expected best-practice findings. The Action Planner tab was verified via real
   DOM events (`.click()` on the actual tab-nav button, not `switchPlanTab()` called directly) rendering the
   empty-state correctly for a scope with no data.
-  **Known gap, not resolved this session:** end-to-end verification through the running app's own
-  `/api/harvest` cache was inconclusive — that endpoint kept serving pre-fix cached values for a known system
-  even after a server restart + forced re-sync confirmed fresh in the harvest log ("LUN/volume inventory
-  merged for 143 systems"). Isolated correctness was proven via a direct GQL call bypassing the app entirely,
-  so the fix itself is confirmed right, but there's an unexplained harvest-cache staleness behavior (unrelated
-  to this fix — worth checking next session, possibly the same class of issue as the Thread 1 security/
-  localStorage mystery below) that meant this could not be confirmed rendering live through a real click in
-  the running app before running out of session time.
+  **Follow-up (resolved): the "harvest-cache staleness" gap above was not a real bug.** Multi-account setup
+  (`aiq_config.json` has an `accounts` array with two real accounts, "Sithabile" and "NetApp" — `_sync_all_accounts`
+  harvests each sequentially via `_do_full_harvest(account=...)`, ~15-20+ seconds just for token exchange +
+  per-watchlist paging, ~110s total for one account in this fleet). My verification fetch ran immediately
+  after clicking the sync button, before the background harvest had actually finished and called
+  `_save_harvest_account` — so it read the previous (pre-fix) cached blob, which looked like staleness but was
+  just impatience. Confirmed by: (1) reading the raw SQLite row (`harvest_cache_accounts`, `result_json` column)
+  directly — already had the correct, fixed value; (2) calling `_get_merged_harvest(db)` directly in a fresh
+  Python process — also correct; (3) re-fetching `/api/harvest` from the browser after the harvest genuinely
+  finished (watch for `[HARVEST] Done in ...ms` in the server log, or poll `/api/sync-status` until
+  `isSyncing: false`, before trusting any `/api/harvest` read) — 165.3 TB, sane. Also verified the Action
+  Planner section itself end-to-end via real DOM events (real `.click()` on the tab-nav button and the actual
+  customer-select dropdown, not calling `switchPlanTab()`/`generateActionPlan()`'s internals directly) against
+  the real "Dept of Home Affairs - KZN" scope: 669.2 TB LUN / 282.2 TB volume capacity across 4 systems, with
+  the two expected best-practice findings rendering correctly. No code change was needed for this follow-up —
+  **lesson for next session: after triggering a sync (`triggerManualSync()` or `/api/harvest?force=1`), always
+  wait for the harvest to actually complete (poll `/api/sync-status` or grep the server log for "Done in") before
+  reading `/api/harvest` to verify a fix — a premature read looks exactly like stale/broken caching.**
 
 **Git:** branch `main`, v5.6.178 through v5.6.181 committed and pushed individually (exe rebuilt each time via
 PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild181`, synced into `dist/NetApp_AIQ_Advisor/` +
