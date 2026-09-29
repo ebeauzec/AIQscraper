@@ -574,7 +574,13 @@ Don't repeat this claim.
    `_merge_account_results()` (`server.py` ~1237) merges them -- not just concatenation: systems are
    deduped by serial and `tamRecommendations` cards are deduped by content (found live: overlapping accounts
    produced literal duplicate "ACTIVE_SUPPORT_CONTRACTS" cards before this fix). This is a partner/MSP shape
-   Digital Advisor's single-tenant model has no equivalent for.
+   Digital Advisor's single-tenant model has no equivalent for. **Built out concretely in v5.6.156/157** (see
+   that addendum below): a dedicated **Portfolio Dashboard** Action Planner section (ignores the scope
+   selector, rolls up every managed customer at once -- urgency-ranked accounts, fleet-wide 30/60/90-day
+   trend, CVEs and refresh windows shared by 2+ customers) and **cross-customer CVE exposure** (a CVE found
+   in one customer's scope shows which other managed customers are also exposed, in the Security Advisories
+   tab and two deliverables) are both direct, now-shipped manifestations of this edge -- not just the
+   underlying capability, but features a TAM/MSP can actually open and use.
 2. **Physical rear-panel diagrams.** Digital Advisor shows telemetry, not a chassis. ARIA's rear-panel
    program (the majority of this session's earlier work) draws the actual physical layout -- real port
    roles, cabling legend, LIF-to-physical-port mapping. Nothing in Active IQ's own UI does this. Hardest to
@@ -732,3 +738,73 @@ v5.6.151.
   untouched this pass -- already ARIA's strongest edge (rear-panel diagrams), no gap found there. Sustainability
   (I) deliberately left alone -- still a pass-through of Active IQ's own score, not something to fake a
   differentiator on top of.
+
+## Portfolio Dashboard, cross-customer CVE exposure, and a run of real-world bugfixes (v5.6.153 - v5.6.162)
+
+Continues directly from the addendum above. Full detail in `git log`/`CHANGELOG.md` for this range; summarized
+here so the differentiator claims and the deliverable/section inventory above stay accurate without re-deriving.
+
+**Two more differentiators actually shipped, both leaning on the multi-tenant fusion edge (see edge #1 above,
+now updated to point here):**
+- **Portfolio Dashboard** (`computePortfolioExecutiveDashboard()`/`_renderPortfolioExecutiveDashboard()`,
+  `app.js`, new Action Planner section, Overview group). Reads `state.systems` directly and ignores the scope
+  selector -- the point is seeing every managed customer at once, which a single-tenant view structurally
+  cannot do. KPI tiles, fleet-wide 30/60/90-day risk trend (`_dfTrendWindows(null)` -- `_get_fleet_trend()`
+  server-side already treats a null customer as fleet-wide), an urgency-ranked "Accounts Needing Attention"
+  table, a "Shared CVE Exposure" table (CVEs hitting 2+ customers), a "Shared Refresh Opportunities" table
+  (hardware models nearing EOS for 2+ customers). Gated on >=2 customers in the fleet. Verified live against
+  a real 78-customer, 2,898-system fleet: 385 critical risks, 109 systems within a year of EOS, a real CVE
+  affecting 74 of 78 customers, FAS8200 shared by 16 customers.
+- **Cross-customer CVE exposure** (`_dfCveIndex()` extended with a `customers` Set per CVE;
+  `_dfPortfolioCveExposure()`/`_dfPortfolioCveExposureText()`). Unlike the portfolio benchmark above, needs no
+  minimum-size gate -- even one other exposed customer is directly actionable. New "Portfolio Exposure" table
+  in the Security Advisories Action Planner section, plus text in the Security Posture Brief and MSP Report.
+
+**As-Built Excel export -- shipped, then two real corruption bugs, then two real data bugs, all found by the
+user actually opening the file, not by any verification I ran beforehand.** `_buildXlsx()`/`_xlsxSheetXml()`/
+`_colLetter()` (`app.js`, next to `_buildDocx()`): a from-scratch minimal XLSX writer (no library), same
+hand-rolled-OOXML-in-a-zip approach as the existing docx writer. Not a differentiator (Digital Advisor's own
+Upgrade Advisor already exports Excel) -- closes a parity gap, scoped to the As-Built document only since
+it's the one deliverable whose data is genuinely tabular.
+- Bug 1 (repair prompt): `xl/_rels/workbook.xml.rels` never declared a relationship to `styles.xml`.
+- Bug 2 (invisible headers): white header text sitting on a fill using a non-standard index layout that
+  didn't render -- fixed by conforming to the standard fills convention (0=none/1=gray125/2=custom) and
+  dropping the white color override entirely so visibility never depends on the fill rendering.
+- Bug 3/4 (blank data): risk titles read `r.title` (real field: `r.description`); contract dates read
+  `sys.contracts.hwEndDate`/`swEndDate`, which never existed (the real `contracts` object only has one
+  unified `endDate` plus a real `supportLevel` never surfaced before); firmware read `sys.firmware.*`, also
+  nonexistent (real fields: `sys.systemFirmware`/`motherboardFirmware`/`_resolveShelfModules()`). All four
+  were copied from the pre-existing As-Built TXT generator, which had carried the same bugs, undetected, for
+  an unknown number of prior sessions -- it was write-only (generated and downloaded, never read cell-by-cell
+  until the Excel export made the same fields visible in a grid).
+  **Lesson recorded in `CLAUDE.md`, worth repeating here**: after the repair-prompt bug, verification switched
+  to reproducing the exact file structure in Python and loading it with `openpyxl` (installed via pip, not
+  present by default in this dev environment) before calling anything "verified" -- a well-formed zip/XML is
+  necessary but nowhere near sufficient for Excel to accept it without complaint.
+
+**TAM Success & Posture Optimization Plan made genuinely executable (v5.6.162).** Asked to make it a real
+plan committable/executed against (the kind uploaded into Digital Advisor's own Success Plans), not a
+document requiring re-derivation. Three fixes in `compileCustomerSuccessPlanText()`: removed a "+N more"
+truncation on risk-group system lists (every affected system now named in full); ACTION 3.2 (Capacity) now
+names the actual systems approaching their threshold (reusing `computeFleetCapacityForecast()`'s real
+per-system `atRisk` data) instead of a generic templated command; ACTION 4.3 (ARP) now names the actual
+systems with ARP confirmed disabled instead of only a percentage. **Real, checked limit**: the request's own
+example asked for actual volume names -- Active IQ's GraphQL schema this tool queries never returns
+individual volume objects, only per-system/per-cluster counts, so no per-volume identifier exists anywhere in
+the harvest. System name is the deepest real identifier available; nothing was fabricated to go deeper.
+Separately confirmed live that the *other*, pre-existing "Success Plans" feature (`SUCCESS_PLAN_TEMPLATES`,
+the one with real Active IQ write-back via Adopt) already names every affected system individually from an
+earlier session's fix -- not the same bug, did not need the same fix.
+
+**Also this range**: sortable Capacity Breakdown by Node table + Customer column (CSM tab) -- shipped once
+against `index.html` (the compiled artifact the packaged exe bundles, never what `server.py` serves at `/` in
+dev mode) and reported as still broken, fixed for real in `index_src.html`; then the four new Portfolio
+Dashboard/Portfolio Exposure tables sorted their own header row into the results because they lacked the
+`<thead>`/`<tbody>` split every other sortable table already has, also caught from a screenshot. The
+Deliverables Suite (was one "Deliverables Suite (13)" tab, actually 15 documents) split into three tabs along
+its own pre-existing internal category dividers -- Risk & Remediation (A-C), Customer & Sales (D-I), TAM/MSP
+(J-O) -- each with its own scoped Download All; found and fixed `downloadAllDeliverables()` silently missing
+2 of the 15 real deliverables in the process.
+**Recurring lesson across this whole range, worth internalizing rather than re-learning per bug**: verify UI
+wiring with a real DOM event (`.click()`), never a direct function call -- a direct call proves the logic
+works, not that the page actually wires it up, and cannot catch a missing `<thead>` either.
