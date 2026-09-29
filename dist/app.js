@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.182";
+const APP_VERSION = "5.6.183";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.183",
+    date: "29 September 2026",
+    title: "Action Plan: Download Instead of Print-Only",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- Action Plan Now Downloads as Text, Markdown or Word",
+        color: "#22c55e",
+        items: [
+          "The Action Planner's 'Print / Save Action Plan (PDF)' button (which opened a browser print dialog) is now 'Download Action Plan', using the same Text/Markdown/Word format picker every other deliverable uses -- covers every generated section in one file, following the standard '<Title> - <Customer> - <Date>' filename.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.182",
     date: "29 September 2026",
@@ -34031,94 +34046,50 @@ function triggerFileDownload(filename, text, opts) {
   return _dlBlob(base + '.txt', new Blob([isMd ? _mdToPlain(text) : text], { type: 'text/plain;charset=utf-8' }));
 }
 
-function printActionPlan() {
+// Whole-plan download (every generated section, not just one) using the same
+// txt/md/docx format dialog every other deliverable uses -- replaces the old
+// print-to-PDF-only export as the button's default action.
+function downloadFullActionPlan() {
+  if (!window.__dlFmtOverride) return _askFormat(() => downloadFullActionPlan());
   const originalBody = document.getElementById("generatedPlanBody");
-  if (!originalBody) return;
+  if (!originalBody || !originalBody.children.length) { alert('Generate an action plan first.'); return; }
 
-  // Create temporary clone container to process HTML edits without affecting the user's dashboard view
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = originalBody.innerHTML;
-  
-  // Find all textareas (advisory email, proposal, ticket, success plan) and swap them for pre-wrap divs to display complete texts in printout
-  const textareas = tempDiv.querySelectorAll("textarea");
-  textareas.forEach(ta => {
-    const valText = ta.value || ta.innerText || "";
-    const replacement = document.createElement("div");
-    replacement.className = "print-textarea-replacement";
-    replacement.innerText = valText;
-    ta.parentNode.replaceChild(replacement, ta);
+  const selectEl = document.getElementById("planTargetSelect");
+  const selectValue = selectEl ? selectEl.value : "ALL";
+  let scopeTitle = "Total Portfolio";
+  if (selectValue.startsWith("CUST:")) scopeTitle = `Customer: ${selectValue.substring(5)}`;
+  else if (selectValue.startsWith("GRP:")) {
+    const grp = state.groups.find(g => g.id === selectValue.substring(4));
+    if (grp) scopeTitle = `Group: ${grp.name}`;
+  } else if (selectValue.startsWith("WL:")) {
+    const wl = state.watchlists.find(w => w.id === selectValue.substring(3));
+    if (wl) scopeTitle = `Watchlist: ${wl.name}`;
+  } else if (selectValue.startsWith("SYS:")) {
+    const found = state.systems.find(s => s.serialNumber === selectValue.substring(4));
+    scopeTitle = `System: ${found ? found.systemName : selectValue.substring(4)}`;
+  }
+
+  let text = `# Consolidated Action Plan\n\nScope: ${scopeTitle}\nDate Generated: ${new Date().toISOString().split('T')[0]}\n\n`;
+  Array.from(originalBody.children).forEach(sec => {
+    if (!sec.classList || !sec.classList.contains('plan-section')) return;
+    const clone = sec.cloneNode(true);
+    // Textarea values aren't reflected by innerText -- swap each for its live value first.
+    clone.querySelectorAll('textarea').forEach(ta => {
+      const div = document.createElement('div');
+      div.innerText = ta.value || ta.innerText || '';
+      ta.parentNode.replaceChild(div, ta);
+    });
+    clone.querySelectorAll('button, .action-btn, select').forEach(el => el.remove());
+    const h2 = clone.querySelector('h2, h3');
+    const title = h2 ? h2.innerText.trim() : '';
+    if (h2) h2.remove();
+    const body = clone.innerText.trim();
+    if (!body) return;
+    text += (title ? `## ${title}\n\n` : '') + body + '\n\n';
   });
-  
-  const printHtml = tempDiv.innerHTML;
-  const printWindow = window.open("", "_blank");
-  
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>NetApp Active IQ Consolidate Action Plan</title>
-        <style>
-          body {
-            background-color: #ffffff;
-            color: #111827;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            padding: 30px;
-            line-height: 1.5;
-          }
-          h1 { font-size: 1.8rem; font-weight: 700; color: #111827; margin-bottom: 8px; }
-          h2 { font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-top: 30px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
-          h3 { font-size: 1.1rem; font-weight: 600; color: #374151; margin-top: 20px; }
-          h4 { font-size: 0.95rem; font-weight: 600; color: #4b5563; }
-          .badge { display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; border: 1px solid transparent; }
-          .badge.critical { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
-          .badge.high { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
-          .badge.warning { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-          .badge.medium { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-          .badge.normal { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
-          .badge.optimal { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
-          .badge.info { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
-          ul, ol { margin-left: 20px; margin-top: 6px; }
-          li { margin-bottom: 8px; font-size: 0.85rem; color: #374151; }
-          code { font-family: SFMono-Regular, Consolas, Monaco, monospace; font-size: 0.85rem; background: #f3f4f6; padding: 2px 4px; border-radius: 4px; color: #1f2937; }
-          .plan-document-header { border-bottom: 3px solid #3b82f6; padding-bottom: 16px; margin-bottom: 30px; }
-          .print-textarea-replacement {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            padding: 12px 16px;
-            border-radius: 4px;
-            font-family: SFMono-Regular, Consolas, Monaco, monospace;
-            font-size: 0.8rem;
-            white-space: pre-wrap;
-            margin-top: 8px;
-            color: #1f2937;
-            line-height: 1.45;
-            border-left: 3px solid #3b82f6;
-          }
-          .plan-section {
-            display: block !important;
-            page-break-after: always;
-            margin-bottom: 40px;
-          }
-          .plan-section:last-child {
-            page-break-after: avoid;
-          }
-          button, .action-btn, .external-link { display: none !important; }
-          @media print {
-            body { padding: 0; }
-          }
-        </style>
-      </head>
-      <body>
-        ${printHtml}
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          }
-        <\/script>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
+
+  window.__dlScope = scopeTitle;
+  triggerFileDownload(_dlFilename('Consolidated Action Plan', scopeTitle, 'txt'), text);
 }
 
 // Print only the As-Built Configuration Document (Section 19) in a focused window

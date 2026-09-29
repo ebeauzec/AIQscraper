@@ -158,19 +158,38 @@ already dense — see point 6 below for the follow-on plan on that. Verified aga
 952541000528): total checks 4→6, both new ones correctly fail (0% thin-provisioned, 404/405 volumes with no
 measured efficiency), no crash.
 
-**6. Scorecard density — plan requested, not yet executed.** User: "the scorecard is getting pretty dense....
-make a plan about that", referring to the same Operations & Security / Data Protection & Lifecycle checklist.
-**A plan was drafted this session but not yet approved or built** — see whatever this session's plan-mode
-output was (not captured in this file if the session ended before the user responded). Next session: check
-whether the user approved a plan and, if so, pick it up from there; if not, re-propose given this handoff's
-context above (the checklist is `_leftChecks`/`_rightChecks` inside `renderCSMTab()`, rendered by
-`_renderCheckColumn()`, ~lines 17010-17070).
+**6. Scorecard density — plan requested, NOT drafted yet.** User: "the scorecard is getting pretty dense....
+make a plan about that", referring to the same Operations & Security / Data Protection & Lifecycle checklist
+(`_leftChecks`/`_rightChecks` inside `renderCSMTab()`, rendered by `_renderCheckColumn()`, ~lines 17010-17070,
+13 rows in the left column alone). **This was interrupted before a plan was actually produced** -- the very
+next user messages redirected to the Action Planner download-button change (point 7 below) and the session
+ended there. Next session: this still needs a real plan (ideas worth considering: collapsible categories,
+promoting only failing/at-risk items to a "needs attention" view with the rest collapsed, splitting into a
+tab of its own instead of two dense columns on the Success Plan page, or merging near-duplicate checks the
+way Feature Adoption absorption just did) -- don't assume any direction was chosen.
 
-**Git:** branch `main`, v5.6.178 through v5.6.182 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild182`, synced into `dist/NetApp_AIQ_Advisor/` +
+**7. Action Plan download button (shipped, v5.6.183).** User: change the Action Planner's "Print / Save Action
+Plan (PDF)" button to the standard txt/md/docx dialog, then "in fact, make that the default" (replace the
+print behavior entirely, not add an option alongside it). Added `downloadFullActionPlan()` (app.js, right
+before where `printActionPlan()` used to be, ~line 34080): walks every `.plan-section` child of
+`#generatedPlanBody` (whatever's currently generated, all tabs/sections at once), swaps textarea values into
+their text (same trick the old print function used, since `.innerText` doesn't reflect a textarea's live
+value), strips buttons/selects, and feeds the combined Markdown-ish text through the existing `_askFormat()` +
+`triggerFileDownload()` pipeline every other deliverable uses. **Deleted `printActionPlan()` entirely** (was
+~90 lines building a standalone print-window HTML/CSS document) since nothing referenced it anymore after the
+button's `onclick` changed -- confirmed via grep across app.js/index.html/index_src.html before removing.
+Button relabelled "⬇ Download Action Plan" in **both** `index.html` and `index_src.html` (per the standing
+HTML-dual-file rule). Verified via real DOM events: clicked the actual button, confirmed the format dialog
+opened with txt/md/docx options, clicked the docx option for real, and confirmed a real 210KB .docx blob built
+with the correct `<Title> - <Scope> - <Date>` filename (monkey-patched `_dlBlob` to capture instead of
+triggering a save dialog, same technique as the earlier filename-standardization verification).
+
+**Git:** branch `main`, v5.6.178 through v5.6.183 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild183`, synced into `dist/NetApp_AIQ_Advisor/` +
 `dist/app.js`; v5.6.180-181 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
-harvester). Working tree otherwise shows harvest data files modified by the running server (`data/*.json`)
-and untracked docs images -- never commit those with code changes.
+harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
+session that touched HTML). Working tree otherwise shows harvest data files modified by the running server
+(`data/*.json`) and untracked docs images -- never commit those with code changes.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
 `build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is

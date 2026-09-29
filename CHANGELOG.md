@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.183] - 2026-09-29
+
+### Changed
+- The Action Planner's "Print / Save Action Plan (PDF)" button is now "Download Action Plan": downloads the whole generated plan as Text, Markdown or Word, same format picker as every other deliverable, instead of opening a browser print dialog. Removed the now-unused `printActionPlan()`.
+
+---
+
 ## [5.6.182] - 2026-09-29
 
 ### Added
