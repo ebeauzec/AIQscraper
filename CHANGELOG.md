@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.174] - 2026-09-29
+
+### Changed
+- Success Plan RACI table no longer shows a row of lines under the header, and the Role column is no longer run into the next cell; pipe tables also skip rule-only rows.
+
+---
+
 ## [5.6.173] - 2026-09-29
 
 ### Changed

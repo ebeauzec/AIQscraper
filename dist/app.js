@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.173";
+const APP_VERSION = "5.6.174";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.174",
+    date: "29 September 2026",
+    title: "Success Plan RACI Table Cleaned Up",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Stray Line Row and Misaligned Roles in the RACI Table",
+        color: "#22c55e",
+        items: [
+          "The Success Plan's Stakeholder Matrix (RACI) table showed a row of dashes under its header and roles run into the next cell ('Risk Remediation| TAM'). The generator now spaces the Role column properly, and pipe tables in Word skip rule-only rows and tolerate a pipe with no space before it.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.173",
     date: "29 September 2026",
@@ -23353,12 +23368,12 @@ ${platformLines}
   Primary Contact:      ${activeContactName} (${activeContactEmail})
   Domestic Parent:      ${domesticParent}
 
-  Role            | Responsible | Accountable | Consulted | Informed
-  ─────────────── | ─────────── | ─────────── | ───────── | ────────
-  Risk Remediation| TAM         | Customer    | Sales     | Management
-  Upgrade Planning| TAM         | Customer    | Sales     | Management
-  Warranty Renewal| Sales       | Customer    | TAM       | Management
-  Feature Adoption| TAM         | Customer    | TAM       | Sales
+  Role             | Responsible | Accountable | Consulted | Informed
+  ──────────────── | ─────────── | ─────────── | ───────── | ────────
+  Risk Remediation | TAM         | Customer    | Sales     | Management
+  Upgrade Planning | TAM         | Customer    | Sales     | Management
+  Warranty Renewal | Sales       | Customer    | TAM       | Management
+  Feature Adoption | TAM         | Customer    | TAM       | Sales
 
 * OPERATIONAL HEALTH SCORECARD:
   - AutoSupport Compliance:  ${asupCompliant}/${systemCount} (${systemCount > 0 ? Math.round(asupCompliant/systemCount*100) : 0}%) — within 7-day telemetry window
@@ -33353,7 +33368,7 @@ function _dxParse(text, isMd, ctx) {
     // pipe rows -> table
     const pipeStart = i;
     if ((t.match(/ \| /g) || []).length >= 2) {
-      const rows = []; while (i < L.length && ((L[i].match(/ \| /g) || []).length >= 2 || (_dxIsRule(L[i]) && rows.length))) { if (!_dxIsRule(L[i])) rows.push(L[i].trim().split(/\s+\|\s+/).map(c => _dxClean(c.trim()))); i++; } i--;
+      const rows = []; while (i < L.length && ((L[i].match(/ \| /g) || []).length >= 2 || (_dxIsRule(L[i]) && rows.length))) { { const cells = L[i].trim().split(/\s*\|\s*/).map(c => _dxClean(c.trim())); if (!_dxIsRule(L[i]) && !cells.every(c => /^[─═\-=_]{2,}$/.test(c) || c === '')) rows.push(cells); } i++; } i--;
       if (rows.length >= 2) { push({ t: 'table', rows, header: _dxLooksHeader(rows[0]) }); continue; }
       i = pipeStart;   // a single " | " line is not a table: classify it as a normal line below
     }
