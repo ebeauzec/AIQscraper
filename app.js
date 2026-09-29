@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.163";
+const APP_VERSION = "5.6.164";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.164",
+    date: "29 September 2026",
+    title: "Word Deliverables: One Professional Standard",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- Every Word (.docx) Deliverable Now Downloads Customer-Ready",
+        color: "#22c55e",
+        items: [
+          "All 15 Deliverables Suite documents downloaded as Word now share one house format, so nothing needs reformatting before it goes to a customer: a title block (document title, customer, date), a running header with the document title and customer, a 'Confidential -- prepared for <customer>' footer with Page X of Y, and one consistent heading scale, Calibri body and colour palette.",
+          "Tables get a navy header row, banded rows and light rules; aligned 'Label: value' runs become key/value tables; space-aligned and pipe-delimited columns become real tables; CLI commands sit in shaded monospace blocks; bullets and numbered steps are real Word lists; the redundant Scope/Account/Date lines are folded into the title block; ALL-CAPS headings become title case; hard-wrapped lines are rejoined; stray float noise (126.55999999999999) is rounded.",
+          "Change Control Tickets and the CLI Runbook start each system/ticket on a new page. Built offline with no library as before (_dxParse -> _dxRender in app.js); the .txt and .md downloads are unchanged.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.163",
     date: "29 September 2026",
@@ -32501,6 +32518,7 @@ function downloadDeliverable(type) {
 
   // Sanitize filename scope string
   const cleanScope = scopeTitle.replace(/[^a-z0-9_]/gi, '_');
+  window.__dlScope = scopeTitle.replace(/_/g, ' ');   // read by _buildDocx for the Word title block / footer
 
   const allRisks = [];
   const allUpgrades = [];
@@ -32754,8 +32772,8 @@ async function generateCVRPptx(targetSystems, cleanScope) {
 
 // ── Downloads ────────────────────────────────────────────────────────────
 // Every text deliverable downloads as .txt, .md and .docx. The .docx is built here, offline
-// (no library): a minimal Word file with real headings, tables, bullets and bold text for
-// the Markdown deliverables, and a monospaced layout-preserving one for the plain-text ones.
+// (no library), to the ARIA Word standard described at _DX below (title block, running
+// header/footer, styled tables, CLI blocks, real lists) so it needs no reformatting.
 function _dlBlob(filename, blob) {
   const url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = filename; a.style.display = 'none';
@@ -32785,93 +32803,289 @@ function _zipStored(files) {   // files: [{name, data: Uint8Array}] -> Uint8Arra
 }
 function _xe(t) { return String(t).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function _mdToPlain(t) { return t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, '$1$2').replace(/`([^`]+)`/g, '$1').replace(/^#{1,6}\s+/gm, '').replace(/^\|?\s*-{3,}[\s|:-]*\|?\s*$/gm, ''); }
-function _docxRuns(text, base) {   // **bold**, _italic_, `code`
+// ── ARIA Word deliverable standard ───────────────────────────────────────────────────────────────
+// Every Word (.docx) deliverable is built here to one house standard so nothing needs reformatting
+// after download: title block (title, customer, date), Calibri body, navy heading scale, navy-header
+// banded tables, shaded monospace CLI blocks, real bullet lists, a running header, and a
+// "Confidential -- prepared for <customer>" footer with Page X of Y. The deliverables are compiled
+// as plain text / Markdown; _dxParse() turns either into a neutral block list (title, headings with
+// a normalised level scale, tables, key/value lines, bullets, numbered items, CLI blocks) and
+// _dxRender() writes the blocks out as WordprocessingML. Change the look in _DX / _dxStyles() only.
+const _DX = { NAVY: '1F3864', ACC: '2E5597', GREY: '5B6577', RULE: 'C9D3E3', BAND: 'F4F7FB', KV: 'EAF0F8', W: 9638 };   // W: A4 portrait, 2 cm margins -> usable width in twips
+const _DX_ACRONYMS = new Set(['ontap', 'cve', 'cves', 'arp', 'qbr', 'msp', 'tam', 'csp', 'esg', 'cli', 'dr', 'ha', 'svm', 'svms', 'lif', 'lifs', 'cisa', 'kev', 'nas', 'san', 'sla', 'os', 'fw', 'sp', 'bmc', 'raid', 'nist', 'sans', 'itil', 'cab', 'cvss', 'ems', 'dqp', 'hw', 'aff', 'fas', 'iq', 'raci', 'sam', 'asup', 'eosa', 'fru', 'csm', 'ntap', 'api', 'nfs', 'smb', 'cifs', 'iscsi', 'fc', 'ip', 'dns', 'ntp', 'ssh', 'tls', 'ssl', 'ai', 'it', 'coi', 'rbac', 'mfa', 'sso', 'imt', 'eoa', 'eos', 'ilm', 'nic', 'crc', 'cpu', 'vm']);
+const _DX_SPECIAL = { autosupport: 'AutoSupport', storagegrid: 'StorageGRID', netapp: 'NetApp', 'e-series': 'E-Series', snapmirror: 'SnapMirror', metrocluster: 'MetroCluster', snapshot: 'Snapshot', santricity: 'SANtricity', flexgroup: 'FlexGroup' };
+const _DX_SMALL = new Set(['and', 'of', 'the', 'to', 'in', 'for', 'on', 'a', 'an', 'or', 'vs', 'with', 'by', 'at', '&']);
+function _dxAllCaps(s) { const l = String(s).replace(/[^A-Za-z]/g, ''); return l.length >= 3 && l === l.toUpperCase(); }
+function _dxTitleCase(s) {
+  return String(s).split(' ').map((w, i) => {
+    const m = w.match(/^([^A-Za-z]*)([A-Za-z][A-Za-z\-/]*)(.*)$/); if (!m) return w;
+    let [, pre, core, post] = m; const lc = core.toLowerCase();
+    if (_DX_SPECIAL[lc]) core = _DX_SPECIAL[lc];
+    else if (_DX_ACRONYMS.has(lc) || (core.length <= 2 && core === core.toUpperCase() && core.length > 1 && !_DX_SMALL.has(lc))) core = core.toUpperCase();
+    else if (_DX_SMALL.has(lc) && i > 0 && core.length > 1) core = lc;
+    else if (core.length === 1) core = core.toUpperCase();
+    else if (/[-/]/.test(core)) core = core.replace(/[A-Za-z]+/g, x => _DX_SPECIAL[x.toLowerCase()] || (_DX_ACRONYMS.has(x.toLowerCase()) ? x.toUpperCase() : x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()));
+    else core = core.charAt(0).toUpperCase() + core.slice(1).toLowerCase();
+    return pre + core + post;
+  }).join(' ');
+}
+// Headings: ALL-CAPS -> Title Case; mixed-case headings only have their shouted words softened
+function _dxHeadText(t) {
+  t = t.replace(/\s+/g, ' ').trim();
+  if (_dxAllCaps(t) || /^(\d+[a-z]?\.\s+)?[A-Z][A-Z0-9 &/\-(),#]+$/.test(t)) return _dxTitleCase(t);
+  return t.split(' ').map(w => (_dxAllCaps(w) && w.length >= 3 && !w.startsWith('[') && !/\d/.test(w)) ? _dxTitleCase(w) : w).join(' ');
+}
+function _dxClean(s) {
+  return String(s).replace(/ -- /g, ' \u2014 ').replace(/->/g, '\u2192').replace(/\d+\.\d{5,}/g, m => (+m).toFixed(1)).replace(/:\s{2,}(?=\S)/g, ': ');
+}
+function _dxLongDate(s) {
+  const m = String(s).match(/\b(20\d\d)-(\d\d)-(\d\d)\b/); if (!m) return null;
+  const mo = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][+m[2] - 1];
+  return mo ? (+m[3]) + ' ' + mo + ' ' + m[1] : null;
+}
+
+// ---- inline runs: **bold**, _italic_, `code` ----
+function _docxRuns(text, base) {
   const out = []; const re = /(\*\*(.+?)\*\*)|(`([^`]+)`)|((?:^|(?<=[\s(]))_(.+?)_(?=[\s).,;:]|$))/g; let last = 0, m;
-  const run = (t, extra) => t ? `<w:r><w:rPr>${base || ''}${extra || ''}</w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>` : '';
-  while ((m = re.exec(text))) { out.push(run(text.slice(last, m.index))); if (m[2] != null) out.push(run(m[2], '<w:b/>')); else if (m[4] != null) out.push(run(m[4], '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="18"/>')); else out.push(run(m[6], '<w:i/>')); last = m.index + m[0].length; }
+  const run = (t, extra) => t ? `<w:r><w:rPr>${extra || ''}${base || ''}</w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>` : '';
+  while ((m = re.exec(text))) { out.push(run(text.slice(last, m.index))); if (m[2] != null) out.push(run(m[2], '<w:b/>')); else if (m[4] != null) out.push(run(m[4], '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="18"/>')); else out.push(run(m[6], '<w:i/>')); last = m.index + m[0].length; }
   out.push(run(text.slice(last))); return out.join('');
 }
-// Word body for both kinds of deliverable. Markdown is converted directly; the plain-text
-// deliverables are first turned into the same structure (banner titles -> Title/Heading 1,
-// underlined section titles -> Heading 2/3, "Label:   value" runs and " | " rows -> tables,
-// bullets -> bullets, CLI commands -> monospace) so the Word file is a real document, not a dump.
-const _DOCX_W = 9638;   // A4 portrait, 2 cm margins: usable width in twips
-function _docxTable(rows, opts) {
-  opts = opts || {};
-  const cols = Math.max(...rows.map(r => r.length)); let widths = opts.widths;
-  if (!widths) { const len = Array.from({ length: cols }, (_, c) => Math.max(4, Math.min(40, Math.max(...rows.map(r => String(r[c] || '').length))))); const tot = len.reduce((a, b) => a + b, 0); widths = len.map(l => Math.max(700, Math.floor(_DOCX_W * l / tot))); const sum = widths.reduce((a, b) => a + b, 0); widths = widths.map(w => Math.floor(w * _DOCX_W / sum)); }
-  const cell = (t, ri, ci) => `<w:tc><w:tcPr><w:tcW w:w="${widths[ci]}" w:type="dxa"/>${(opts.header && ri === 0) ? '<w:shd w:val="clear" w:color="auto" w:fill="DCE6F2"/>' : (opts.keyCol && ci === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="F3F6FA"/>' : '')}</w:tcPr><w:p><w:pPr><w:spacing w:before="30" w:after="30"/></w:pPr>${_docxRuns(String(t == null ? '' : t), ((opts.header && ri === 0) || (opts.keyCol && ci === 0) ? '<w:b/>' : '') + '<w:sz w:val="18"/>')}</w:p></w:tc>`;
-  return `<w:tbl><w:tblPr><w:tblW w:w="${_DOCX_W}" w:type="dxa"/><w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(x => `<w:${x} w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>`).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>` +
-    rows.map((r, ri) => `<w:tr>${(opts.header && ri === 0) ? '<w:trPr><w:tblHeader/></w:trPr>' : '<w:trPr><w:cantSplit/></w:trPr>'}${Array.from({ length: cols }, (_, ci) => cell(r[ci], ri, ci)).join('')}</w:tr>`).join('') + '</w:tbl><w:p><w:pPr><w:spacing w:after="80"/></w:pPr></w:p>';
-}
-function _docxBody(text, isMd) {
-  const L = String(text).replace(/\r/g, '').split('\n'); let b = '';
-  const para = (runs, ppr) => `<w:p><w:pPr>${ppr || ''}</w:pPr>${runs}</w:p>`;
-  const head = (t, lvl) => para(_docxRuns(t.replace(/\s+/g, ' '), '<w:b/>'), `<w:pStyle w:val="Heading${lvl}"/>`);
-  const mono = t => para(`<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="17"/><w:color w:val="1F2937"/></w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>`, '<w:shd w:val="clear" w:color="auto" w:fill="F3F4F6"/><w:spacing w:before="0" w:after="0"/><w:ind w:left="284"/>');
-  const bullet = (t, lvl) => para(_docxRuns('\u2022 ' + t), `<w:ind w:left="${360 + lvl * 300}" w:hanging="220"/><w:spacing w:after="40"/>`);
-  const isRule = l => /^[\s=\-\u2500\u2550_*]{6,}$/.test(l) && /[=\-\u2500\u2550_]{6,}/.test(l);
-  const isCli = l => /^\s{2,}(cluster|system|storage|network|event|vserver|security|snapmirror|volume|metrocluster|qos|statistics|version|lun|igroup|esxcli|aggr|node|set |run |debug)\b/.test(l) || /^\s{2,}[\$#] /.test(l);
+
+// ---- parsing: text/Markdown -> blocks ----
+const _DX_KV = /^([A-Za-z<][A-Za-z0-9 /&\-.()#<>%]{1,32}?):\s+(\S.*)$/;
+const _DX_KV_CAPS = /^([A-Z][A-Z0-9 /&\-()#]{2,30}?)\s*:\s+(.*)$/;
+const _DX_KV_ALIGNED = /^\s{0,4}[A-Za-z][A-Za-z0-9 /&()<>\u2264.\-']{1,38}:\s{2,}\S/;
+function _dxSplitCols(line) { return line.trim().split(/\s{2,}|\s\|\s/).map(c => c.trim()).filter(c => c !== ''); }
+function _dxLooksHeader(cols) { return cols.length >= 3 && cols.every(c => /^[A-Z]/.test(c) && !c.includes(':') && !c.endsWith(':') && c.length <= 30 && !/\d{4,}/.test(c)); }
+function _dxIsRule(l) { return /^[\s=\-\u2500\u2550_*]{6,}$/.test(l) && /[=\-\u2500\u2550_]{6,}/.test(l); }
+function _dxIsCli(l) { return /^\s{2,}(cluster|system|storage|network|event|vserver|security|snapmirror|volume|metrocluster|qos|statistics|version|lun|igroup|esxcli|aggr|node|set |run |debug)\b/.test(l) || /^\s{2,}[$#] /.test(l); }
+
+function _dxParse(text, isMd, ctx) {
+  const L = String(text).replace(/\r/g, '').split('\n');
+  const doc = { title: '', customer: (ctx && ctx.customer) || '', date: '', meta: [], blocks: [] };
+  const custKey = () => (doc.customer || '').toLowerCase();
+  const blocks = doc.blocks; let gap = false, curLvl = 1, secLvl = 1, bulletBase = 0;
+  const push = b => { b.gap = gap; gap = false; blocks.push(b); };
+  const setSection = (lvl, text, extra) => { curLvl = lvl; secLvl = lvl; push(Object.assign({ t: 'h', lvl, text }, extra)); };
+  const setSub = (text) => { const lvl = Math.min(3, secLvl + 1); curLvl = lvl; push({ t: 'h', lvl, text }); };
+  const setItem = (text) => push({ t: 'h', lvl: Math.min(3, curLvl + 1), text, item: true });
+  const noteMeta = (seg) => {   // one "Key: value" meta segment -> keep or fold into the title block
+    const m = seg.match(/^\s*([^:]+):\s*(.*)$/); if (!m) { if (seg.trim()) doc.meta.push(seg.trim()); return; }
+    const k = m[1].trim().toLowerCase(), v = m[2].trim();
+    if (['scope', 'account', 'customer'].includes(k)) { if (!doc.customer) doc.customer = v; return; }
+    if (['date', 'date generated', 'report date'].includes(k)) { doc.date = _dxLongDate(v) || doc.date; return; }
+    doc.meta.push(m[1].trim() + ': ' + v);
+  };
+
   if (isMd) {
     for (let i = 0; i < L.length; i++) {
       const l = L[i]; let m;
-      if (!l.trim()) continue;
-      if ((m = l.match(/^(#{1,3})\s+(.*)$/))) { b += head(m[2], m[1].length); continue; }
-      if (l.trim().startsWith('|')) {
-        const rows = []; while (i < L.length && L[i].trim().startsWith('|')) { if (!/^\|?\s*:?-{2,}/.test(L[i].trim().replace(/^\|/, '').trim())) rows.push(L[i].trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())); i++; } i--;
-        b += _docxTable(rows, { header: true }); continue;
+      if (!l.trim()) { gap = true; continue; }
+      if ((m = l.match(/^(#{1,3})\s+(.*)$/))) {
+        let h = _dxClean(m[2]).replace(/^Slide \d+\s+\u2014\s+/, '');
+        if (m[1].length === 1) { const c = doc.customer ? h.match(new RegExp('^' + doc.customer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+\u2014\\s+(.*)$', 'i')) : null; const pre = h.match(/^(.+?)\s+\u2014\s+(.*)$/); if (c) h = c[1]; else if (pre && !doc.customer) { doc.customer = pre[1]; h = pre[2]; } doc.title = h; continue; }
+        setSection(m[1].length - 1, h); continue;
       }
-      if ((m = l.match(/^\s*[-*]\s+(.*)$/))) { b += bullet(m[1], 0); continue; }
-      if ((m = l.match(/^\s*(\d+)\.\s+(.*)$/))) { b += para(_docxRuns(m[1] + '. ' + m[2]), '<w:ind w:left="400" w:hanging="300"/><w:spacing w:after="60"/>'); continue; }
+      if (l.trim().startsWith('|')) {
+        const rows = []; while (i < L.length && L[i].trim().startsWith('|')) { if (!/^\|?\s*:?-{2,}/.test(L[i].trim().replace(/^\|/, '').trim())) rows.push(L[i].trim().replace(/^\||\|$/g, '').split('|').map(c => _dxClean(c.trim()))); i++; } i--;
+        push({ t: 'table', rows, header: true }); continue;
+      }
+      if ((m = l.match(/^\s*[-*]\s+(.*)$/))) { push({ t: 'bullet', lvl: 0, text: _dxClean(m[1]) }); continue; }
+      if ((m = l.match(/^\s*(\d+)\.\s+(.*)$/))) { push({ t: 'num', n: m[1], text: _dxClean(m[2]) }); continue; }
       if (/^```/.test(l.trim())) continue;
-      b += para(_docxRuns(l), '<w:spacing w:after="100"/>');
+      let p = _dxClean(l.trim()); const pm = p.match(/^_(.*)_$/); if (pm) p = pm[1];
+      p = p.replace(/\s*One heading per slide\.?/, '').replace(/^Prepared (20\d\d-\d\d-\d\d)/, (x, d) => 'Prepared ' + _dxLongDate(d));
+      if (p) push({ t: 'p', text: p, ind: 0 });
     }
-    return b;
+    return doc;
   }
+
   // ---- plain-text deliverable ----
-  let firstTitle = true;
+  // pre-pass: fold the "Scope/Account | Date | Systems | TAM" lines at the top into the title block
+  const skip = new Set();
+  for (let i = 0, inMeta = false; i < Math.min(L.length, 50); i++) {
+    const l = L[i], ind = (l.match(/^\s*/) || [''])[0].length;
+    const head = /^\s*(Scope|Account|CUSTOMER|Customer|Date|DATE)\s*:/.test(l) && (ind === 0 || /\|\s*(Date|DATE)\s*:/.test(l));
+    const follow = inMeta && ind <= 2 && /^\s*[A-Z][A-Za-z ]{2,20}:.*(\||$)/.test(l) && l.trim() !== '' && !/^\s*[A-Z][A-Z ]{3,}:/.test(l);
+    if (head || follow) { inMeta = true; skip.add(i); l.split(/\s+\|\s+/).forEach(noteMeta); }
+    else if (l.trim() === '') { /* blank lines do not end the group */ if (inMeta && !(i + 1 < L.length && /^\s*(Prepared|Systems|Account|Date|Scope|CUSTOMER)\s*:/.test(L[i + 1]))) inMeta = false; }
+    else inMeta = false;
+  }
+  const strongCount = L.filter(l => /^[=\u2550]{20,}$/.test(l.trim())).length / 2;
+  const thinLvl = strongCount > 1 ? 2 : 1;
   for (let i = 0; i < L.length; i++) {
     const l = L[i], t = l.trim(); let m;
-    if (!t) continue;
-    if (isRule(l)) continue;
-    const prevRule = i > 0 && isRule(L[i - 1]), nextRule = i + 1 < L.length && isRule(L[i + 1]);
-    const strong = /^={6,}$/.test((L[i - 1] || '').trim()) || /^\u2550{6,}$/.test((L[i - 1] || '').trim());
-    if (prevRule && nextRule && !/^\s{3,}/.test(l) || (prevRule && nextRule && strong)) {   // banner: rule / title / rule
-      b += head(t.replace(/\[[^\]]*\]\s*$/, '').trim(), strong ? (firstTitle ? 1 : 1) : 2); firstTitle = false; continue;
+    if (skip.has(i)) continue;
+    if (!t) { gap = true; continue; }
+    if (_dxIsRule(l)) continue;
+    const ind = (l.match(/^\s*/) || [''])[0].length;
+    const prevRule = i > 0 && _dxIsRule(L[i - 1]), nextRule = i + 1 < L.length && _dxIsRule(L[i + 1]);
+    const strong = /^[=\u2550]{6,}$/.test((L[i - 1] || '').trim());
+    const noTag = s => s.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
+    if (prevRule && nextRule && (ind < 3 || strong) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // banner: rule / title / rule
+      if (strong) { if (!doc.title) doc.title = _dxClean(noTag(t)); else setSection(1, _dxClean(noTag(t)), { brk: /^(CHANGE TICKET|SYSTEM \d+)/i.test(t) }); }
+      else if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t)));
+      else setSection(thinLvl, _dxClean(noTag(t)));
+      continue;
     }
-    if (nextRule && !prevRule && !/^\s/.test(l) && t.length < 100) { b += head(t, 3); continue; }        // title with an underline
-    if (/^\s{0,2}\*\s+[A-Z]/.test(l) && /:\s*$|\[[A-Z ]+\]/.test(t)) { b += head(t.replace(/^\*\s+/, ''), 3); continue; }   // "* SECTION NAME:"
-    if (/^[A-Z][A-Z0-9 &\/,()\-:'\u2014.<>\u2264%]{5,}:?$/.test(t) && !/^\s{2,}/.test(l)) { b += head(t.replace(/:$/, ''), 3); continue; }   // ALL-CAPS label
-    if (/^(ACTION|PHASE|SYSTEM|CHANGE TICKET)\b.*/.test(t) && !/^\s{2,}/.test(l)) { b += head(t.replace(/\s+\[[A-Z \-+&]+\]$/, ''), 2); continue; }
-    // " | " rows -> table
+    if (nextRule && !prevRule && ind < 4 && t.length < 100 && !/^[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(t) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // heading with an underline
+      if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t))); else setSub(_dxClean(noTag(t)));
+      continue;
+    }
+    if (/^DECISIONS NEEDED/i.test(t)) { setSection(1, _dxClean(t.replace(/:$/, ''))); continue; }
+    if ((m = t.match(/^---\s*(.+?)\s*---$/)) || (m = t.match(/^\u25ba\s*(.+)$/))) { setSub(_dxClean(m[1])); continue; }
+    if (/^\[\d+\]\s+\[/.test(t) || /^Priority \d+: /.test(t)) { setItem(_dxClean(t)); continue; }
+    if (/^\s{0,2}\*\s+[A-Z]/.test(l) && /:\s*$|\[[A-Z ]+\]/.test(t)) { setSub(_dxClean(noTag(t.replace(/^\*\s+/, '').replace(/:$/, '')))); continue; }
+    if (/^[A-Z][A-Z0-9 &/,()\-:'\u2014.<>\u2264%]{5,}:?$/.test(t) && ind < 3 && !/:\s+\S/.test(t)) { setSub(_dxClean(t.replace(/:$/, ''))); continue; }
+    if (/^(ACTION|PHASE)\b.*/.test(t) && ind < 3) { setSub(_dxClean(t.replace(/\s+\[[A-Z \-+&]+\]$/, ''))); continue; }
+    if (_dxAllCaps(t.replace(/\(.*?\)/g, '')) && /:$/.test(t) && t.length < 70 && !/\d\./.test(t.slice(0, 3))) { setSub(_dxClean(t.replace(/:$/, ''))); continue; }
+    // pipe rows -> table
+    const pipeStart = i;
     if ((t.match(/ \| /g) || []).length >= 2) {
-      const rows = []; while (i < L.length && (L[i].match(/ \| /g) || []).length >= 2 || (i < L.length && isRule(L[i]) && rows.length)) { if (!isRule(L[i])) rows.push(L[i].trim().split(/\s+\|\s+/).map(c => c.trim())); i++; } i--;
-      if (rows.length >= 2) { b += _docxTable(rows, { header: true }); continue; }
-      rows.forEach(r => { b += para(_docxRuns(r.join(' | ')), '<w:spacing w:after="40"/>'); }); continue;
+      const rows = []; while (i < L.length && ((L[i].match(/ \| /g) || []).length >= 2 || (_dxIsRule(L[i]) && rows.length))) { if (!_dxIsRule(L[i])) rows.push(L[i].trim().split(/\s+\|\s+/).map(c => _dxClean(c.trim()))); i++; } i--;
+      if (rows.length >= 2) { push({ t: 'table', rows, header: _dxLooksHeader(rows[0]) }); continue; }
+      i = pipeStart;   // a single " | " line is not a table: classify it as a normal line below
     }
-    // "Label:   value" runs -> two-column table
-    if (/^\s{0,4}[A-Za-z][A-Za-z0-9 /&()<>\u2264.\-']{1,38}:\s{2,}\S/.test(l)) {
-      const rows = []; while (i < L.length && /^\s{0,4}[A-Za-z][A-Za-z0-9 /&()<>\u2264.\-']{1,38}:\s{2,}\S/.test(L[i])) { const mm = L[i].match(/^\s*([^:]+):\s+(.*)$/); rows.push([mm[1].trim(), mm[2].trim()]); i++; } i--;
-      b += _docxTable(rows, { keyCol: true, widths: [2900, _DOCX_W - 2900] }); continue;
+    // space-aligned columns under a header line -> table
+    const hc = _dxSplitCols(l);
+    if (hc.length >= 3 && _dxLooksHeader(hc) && !_DX_KV_ALIGNED.test(l)) {
+      const rows = [hc]; let j = i + 1;
+      if (j < L.length && _dxIsRule(L[j])) j++;
+      while (j < L.length && L[j].trim() && !_dxIsRule(L[j])) { let c = _dxSplitCols(L[j]); if (c.length !== hc.length) { const tk = L[j].trim().split(/\s+/); if (tk.length >= hc.length) c = [tk.slice(0, tk.length - hc.length + 1).join(' ')].concat(tk.slice(tk.length - hc.length + 1)); else break; } rows.push(c.map(_dxClean)); j++; }
+      if (rows.length >= 2) { i = j - 1; push({ t: 'table', rows, header: true }); continue; }
     }
-    if ((m = l.match(/^(\s*)([\u2022\-*\u2192\u25aa\u25cf]|\u26a0|\u2713|\u25a1)\s+(.*)$/))) { b += bullet(m[3], Math.min(2, Math.floor(m[1].length / 3))); continue; }
-    if ((m = l.match(/^(\s*)(\d+)\.\s+(.*)$/))) { b += para(_docxRuns(m[2] + '. ' + m[3]), `<w:ind w:left="${400 + Math.min(2, Math.floor(m[1].length / 3)) * 300}" w:hanging="300"/><w:spacing w:after="60"/>`); continue; }
-    if (isCli(l) || /^\s{2,}\$ /.test(l)) { b += mono(t); continue; }
-    b += para(_docxRuns(t), `<w:spacing w:after="60"/>${/^\s{4,}/.test(l) ? '<w:ind w:left="360"/>' : ''}`);
+    // aligned "Label:   value" runs -> key/value table
+    if (_DX_KV_ALIGNED.test(l)) {
+      const loose = x => /^\s{0,4}[A-Za-z][A-Za-z0-9 \/&()<>≤.\-']{1,38}:\s+\S/.test(x) && x.trim().split(':')[0].split(' ').length <= 5 && !_dxIsCli(x);
+      const rows = []; let j = i; while (j < L.length && (_DX_KV_ALIGNED.test(L[j]) || (rows.length && loose(L[j]))) && !skip.has(j)) { const mm = L[j].match(/^\s*([^:]+):\s+(.*)$/); rows.push([_dxClean(mm[1].trim()), _dxClean(mm[2].trim())]); j++; }
+      if (rows.length >= 2) { i = j - 1; push({ t: 'table', rows, header: false, keyCol: true }); continue; }
+    }
+    if ((m = l.match(/^(\s*)([\u2022\-*\u2192\u25aa\u25cf]|->|\u26a0|\u2713|\u25a1)\s+(.*)$/))) {
+      const rest = _dxClean(m[3]);
+      if (/^\d+\.\s/.test(rest)) { const nn = rest.match(/^(\d+)\.\s+(.*)$/); push({ t: 'step', n: nn[1], text: nn[2] }); continue; }
+      if (_dxAllCaps(rest.replace(/\[.*?\]/g, '')) && !rest.includes(':') && rest.split(' ').length >= 2) { setSub(_dxClean(noTag(rest))); continue; }
+      const pb = blocks[blocks.length - 1]; if (!(pb && pb.t === 'bullet' && !gap)) bulletBase = m[1].length; const cm = rest.match(/^([A-Z][A-Z0-9 &\/()\-#]{3,30}):\s+(.*)$/); push({ t: 'bullet', lvl: m[1].length > bulletBase ? Math.min(2, Math.ceil((m[1].length - bulletBase) / 3)) : 0, text: cm && _dxAllCaps(cm[1]) ? _dxTitleCase(cm[1]) + ': ' + cm[2] : rest }); continue;
+    }
+    if ((m = l.match(/^(\s*)(\d+)\.\s+(.*)$/))) { push({ t: m[1].length >= 6 ? 'step' : 'num', n: m[2], text: _dxClean(m[3]) }); continue; }
+    if (_dxIsCli(l) || /^\s{2,}\$ /.test(l)) { push({ t: 'code', text: t }); continue; }
+    if (/^[A-Z][A-Za-z0-9 /&\-]{2,48}:$/.test(t)) { push({ t: 'label', text: t.replace(/:$/, '') }); continue; }
+    let km = t.match(_DX_KV_CAPS);
+    if (!km && (ind >= 5 || /:\s{2,}\S/.test(l))) km = t.match(_DX_KV);
+    if (!km) { const k2 = t.match(_DX_KV); if (k2 && k2[1].split(' ').length <= 4 && k2[2].length < 110 && !k2[2].startsWith('//')) km = k2; }
+    if (km) { const lab = km[1].trim(); push({ t: 'kv', k: _dxAllCaps(lab) ? _dxTitleCase(lab) : lab, v: _dxClean(km[2].trim()), deep: ind >= 5 }); continue; }
+    push({ t: 'p', text: _dxClean(t).replace(/\s{3,}/g, '   \u00b7   ').replace(/ \* /g, ' \u2014 '), ind });
   }
-  return b;
+  // rejoin lines that were hard-wrapped mid-sentence
+  const out = [];
+  blocks.forEach(b => {
+    const p = out[out.length - 1];
+    if (p && !b.gap && b.t === 'p' && /^[a-z]/.test(b.text)) {
+      if (p.t === 'p' && p.ind === b.ind && p.text.length > 55 && !/[.:!?)\]]\s*$/.test(p.text) && !/\S {2,}\S/.test(b.text)) { p.text += ' ' + b.text; return; }
+      if (p.t === 'kv' && p.v.length > 40 && !/[.:!?)\]]\s*$/.test(p.v)) { p.v += ' ' + b.text; return; }
+    }
+    out.push(b);
+  });
+  doc.blocks = out;
+  return doc;
 }
-function _buildDocx(title, text) {
-  const isMd = /^#\s/.test(String(text).trimStart()), enc = new TextEncoder(), ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
-  const sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>';   // A4 portrait, 2 cm margins
-  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="20"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>` +
-    [[1, 32, '1F3864', 240, 120], [2, 26, '2E5597', 200, 80], [3, 23, '2E5597', 160, 60]].map(([n, sz, col, bef, aft]) => `<w:style w:type="paragraph" w:styleId="Heading${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="${bef}" w:after="${aft}"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:color w:val="${col}"/><w:sz w:val="${sz}"/></w:rPr></w:style>`).join('') + '</w:styles>';
+
+// ---- rendering: blocks -> WordprocessingML ----
+function _dxP(style, runs, o) {
+  o = o || {};
+  return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ''}${o.keepNext ? '<w:keepNext/>' : ''}${o.brk ? '<w:pageBreakBefore/>' : ''}${o.num != null ? `<w:numPr><w:ilvl w:val="${o.num}"/><w:numId w:val="90"/></w:numPr>` : ''}${o.spacing ? `<w:spacing ${o.spacing}/>` : ''}${o.ind ? `<w:ind ${o.ind}/>` : ''}</w:pPr>${runs}</w:p>`;
+}
+function _dxRun(t, o) { o = o || {}; return t === '' ? '' : `<w:r><w:rPr>${o.font ? `<w:rFonts w:ascii="${o.font}" w:hAnsi="${o.font}" w:cs="${o.font}"/>` : ''}${o.b ? '<w:b/>' : ''}${o.i ? '<w:i/>' : ''}${o.color ? `<w:color w:val="${o.color}"/>` : ''}${o.sz ? `<w:sz w:val="${o.sz}"/><w:szCs w:val="${o.sz}"/>` : ''}</w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>`; }
+function _docxTable(rows, opts) {
+  opts = opts || {}; rows = rows.filter(r => r && r.length);
+  const cols = Math.max(...rows.map(r => r.length)); let widths = opts.widths;
+  if (!widths) {
+    if (opts.keyCol && cols === 2) widths = [2900, _DX.W - 2900];
+    else { const len = Array.from({ length: cols }, (_, c) => Math.max(6, Math.min(40, Math.max(...rows.map(r => String(r[c] || '').length))))).map(x => x + 3); const tot = len.reduce((a, b) => a + b, 0); const hmin = c => opts.header ? Math.min(2400, String((rows[0] || [])[c] || '').split(' ').reduce((a, w) => Math.max(a, w.length), 0) * 105 + 260) : 600; widths = len.map((l, c) => Math.max(hmin(c), Math.floor(_DX.W * l / tot))); const sum = widths.reduce((a, b) => a + b, 0); widths = widths.map(w => Math.floor(w * _DX.W / sum)); widths[cols - 1] += _DX.W - widths.reduce((a, b) => a + b, 0); }
+  }
+  const hdr = !!opts.header;
+  const cell = (t, ri, ci) => {
+    const isH = hdr && ri === 0, isK = !hdr && opts.keyCol && ci === 0, di = ri - (hdr ? 1 : 0);
+    const fill = isH ? _DX.NAVY : isK ? _DX.KV : (di % 2 === 1 ? _DX.BAND : '');
+    const base = (isH ? `<w:color w:val="FFFFFF"/>` : '') + '';
+    return `<w:tc><w:tcPr><w:tcW w:w="${widths[ci]}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}${isH ? '<w:vAlign w:val="center"/>' : ''}</w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/></w:pPr>${_docxRuns(String(t == null ? '' : t), base + (isH || isK ? '<w:b/>' : ''))}</w:p></w:tc>`;
+  };
+  return `<w:tbl><w:tblPr><w:tblW w:w="${_DX.W}" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:bottom w:val="single" w:sz="8" w:space="0" w:color="${_DX.NAVY}"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="${_DX.RULE}"/></w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="20" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="20" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>` +
+    rows.map((r, ri) => `<w:tr><w:trPr><w:cantSplit/>${hdr && ri === 0 ? '<w:tblHeader/>' : ''}</w:trPr>${Array.from({ length: cols }, (_, ci) => cell(r[ci], ri, ci)).join('')}</w:tr>`).join('') + `</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="120" w:lineRule="exact"/></w:pPr></w:p>`;
+}
+function _dxRender(doc) {
+  const B = doc.blocks; let x = '';
+  x += _dxP('Title', _dxRun(doc.title || 'Report'));
+  x += _dxP('Subtitle', _dxRun((doc.customer ? doc.customer + '   \u00b7   ' : '') + doc.date));
+  doc.meta.forEach(m => { x += _dxP('Meta', _dxRun(m)); });
+  let firstBrk = true;
+  for (let i = 0; i < B.length; i++) {
+    const b = B[i];
+    switch (b.t) {
+      case 'h': x += _dxP('Heading' + b.lvl, _dxRun(_dxHeadText(b.text)), { brk: b.brk && !firstBrk, keepNext: true }); if (b.brk) firstBrk = false; break;
+      case 'table': x += _docxTable(b.rows, b); break;
+      case 'code': { const g = [b]; while (B[i + 1] && B[i + 1].t === 'code') g.push(B[++i]); g.forEach((c, k) => { x += _dxP('CodeBlock', `<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/></w:rPr><w:t xml:space="preserve">${_xe(c.text)}</w:t></w:r>`, { spacing: k === g.length - 1 ? 'w:before="0" w:after="140" w:line="240" w:lineRule="auto"' : '' }); }); break; }
+      case 'bullet': x += _dxP('BulletItem', _docxRuns(b.text), { num: b.lvl }); break;
+      case 'num': { const nx = B[i + 1], dec = nx && nx.t === 'kv' && /^(Why|When)$/.test(nx.k); x += _dxP('NumItem', _dxRun(b.n + '.', { b: 1, color: _DX.ACC }) + '<w:r><w:tab/></w:r>' + _docxRuns(b.text, dec ? '<w:b/>' : '')); break; }
+      case 'step': x += _dxP('StepItem', _dxRun(b.n + '.', { b: 1, color: _DX.ACC }) + '<w:r><w:tab/></w:r>' + _docxRuns(b.text)); break;
+      case 'label': x += _dxP(null, _dxRun(b.text, { b: 1, color: _DX.NAVY }), { keepNext: true, spacing: 'w:before="100" w:after="50"' }); break;
+      case 'kv': x += _dxP(b.deep ? 'Detail' : null, _dxRun(b.k + ': ', { b: 1, color: _DX.NAVY }) + _docxRuns(b.v), b.deep ? {} : { spacing: 'w:before="0" w:after="50"' }); break;
+      default: x += _dxP(b.ind >= 6 ? 'Detail' : null, _docxRuns(b.text));
+    }
+  }
+  return x;
+}
+function _dxStyles() {
+  const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"', f = n => `<w:rFonts w:ascii="${n}" w:hAnsi="${n}" w:cs="${n}" w:eastAsia="${n}"/>`;
+  const st = (id, name, ppr, rpr, based, nxt, def) => `<w:style w:type="paragraph"${def ? ' w:default="1"' : ''} w:styleId="${id}"><w:name w:val="${name}"/>${based ? `<w:basedOn w:val="${based}"/>` : ''}${nxt ? `<w:next w:val="${nxt}"/>` : ''}<w:qFormat/><w:pPr>${ppr}</w:pPr><w:rPr>${rpr}</w:rPr></w:style>`;
+  const h = (n, sz, col, bef, aft, bdr) => st('Heading' + n, 'heading ' + n, `<w:keepNext/><w:keepLines/>${bdr ? `<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="3" w:color="${_DX.RULE}"/></w:pBdr>` : ''}<w:spacing w:before="${bef}" w:after="${aft}"/><w:outlineLvl w:val="${n - 1}"/>`, `${f('Calibri')}<w:b/><w:color w:val="${col}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>`, 'Normal', 'Normal');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr>${f('Calibri')}<w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="en-US"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>` +
+    st('Normal', 'Normal', '', '<w:color w:val="1F2937"/>', null, null, true) +
+    h(1, 32, _DX.NAVY, 360, 140, true) + h(2, 26, _DX.ACC, 280, 100) + h(3, 22, _DX.NAVY, 220, 80) +
+    st('Title', 'Title', '<w:keepNext/><w:spacing w:before="0" w:after="80" w:line="240" w:lineRule="auto"/>', `<w:b/><w:color w:val="${_DX.NAVY}"/><w:sz w:val="52"/><w:szCs w:val="52"/>`, 'Normal', 'Normal') +
+    st('Subtitle', 'Subtitle', `<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="8" w:color="${_DX.ACC}"/></w:pBdr><w:spacing w:before="0" w:after="240"/>`, `<w:color w:val="${_DX.GREY}"/><w:sz w:val="24"/><w:szCs w:val="24"/>`, 'Normal', 'Normal') +
+    st('Meta', 'Meta', '<w:spacing w:after="40"/>', `<w:color w:val="${_DX.GREY}"/><w:sz w:val="19"/><w:szCs w:val="19"/>`, 'Normal') +
+    st('Detail', 'Detail', '<w:spacing w:after="50"/><w:ind w:left="284"/>', '<w:sz w:val="20"/><w:szCs w:val="20"/>', 'Normal') +
+    st('NumItem', 'Numbered Item', '<w:keepNext/><w:tabs><w:tab w:val="left" w:pos="360"/></w:tabs><w:spacing w:before="100" w:after="40"/><w:ind w:left="360" w:hanging="360"/>', '', 'Normal') +
+    st('StepItem', 'Step Item', '<w:tabs><w:tab w:val="left" w:pos="680"/></w:tabs><w:spacing w:after="40"/><w:ind w:left="680" w:hanging="340"/>', '<w:sz w:val="20"/><w:szCs w:val="20"/>', 'Normal') +
+    st('BulletItem', 'Bullet Item', '<w:spacing w:after="50"/>', '', 'Normal') +
+    st('CodeBlock', 'Code Block', `<w:pBdr><w:left w:val="single" w:sz="18" w:space="6" w:color="${_DX.ACC}"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F3F4F6"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:left="200" w:right="100"/>`, `${f('Consolas')}<w:color w:val="1F2937"/><w:sz w:val="17"/><w:szCs w:val="17"/>`, 'Normal') +
+    st('TableText', 'Table Text', '<w:spacing w:before="40" w:after="40" w:line="240" w:lineRule="auto"/>', '<w:sz w:val="18"/><w:szCs w:val="18"/>', 'Normal') +
+    st('HeaderFooter', 'Header Footer', '<w:spacing w:after="0"/>', `<w:color w:val="${_DX.GREY}"/><w:sz w:val="16"/><w:szCs w:val="16"/>`, 'Normal') + '</w:styles>';
+}
+function _buildDocx(title, text, opts) {
+  opts = opts || {};
+  const isMd = /^#\s/.test(String(text).trimStart()), enc = new TextEncoder();
+  const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const scope = String(opts.customer || '').replace(/_/g, ' ').replace(/^(Customer|Group|Watchlist|System)[ :]+/i, '').trim();
+  const doc = _dxParse(text, isMd, { customer: scope });
+  if (!doc.title) doc.title = _dxTitleCase(String(title || 'Report').replace(/_/g, ' ').replace(new RegExp('\\s*' + scope.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i'), '').replace(/\s*Customer\s*$/i, '').trim() || 'Report');
+  if (_dxAllCaps(doc.title)) doc.title = _dxTitleCase(doc.title);
+  if (!doc.customer) doc.customer = scope;
+  doc.customer = doc.customer.replace(/^(Customer|Group|Watchlist|System)[ :]+/i, '');
+  if (!doc.date) { const d = new Date(); doc.date = d.getDate() + ' ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][d.getMonth()] + ' ' + d.getFullYear(); }
+  const body = _dxRender(doc);
+  const sect = `<w:sectPr><w:headerReference w:type="default" r:id="rId3"/><w:headerReference w:type="first" r:id="rId4"/><w:footerReference w:type="default" r:id="rId5"/><w:footerReference w:type="first" r:id="rId6"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1247" w:right="1134" w:bottom="1134" w:left="1134" w:header="560" w:footer="500" w:gutter="0"/><w:titlePg/></w:sectPr>`;
+  const tabs = `<w:tabs><w:tab w:val="right" w:pos="${_DX.W}"/></w:tabs>`, rr = t => `<w:r><w:rPr><w:sz w:val="16"/><w:color w:val="${_DX.GREY}"/></w:rPr><w:t xml:space="preserve">${_xe(t)}</w:t></w:r>`;
+  const fld = ins => `<w:fldSimple w:instr=" ${ins} "><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="${_DX.GREY}"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>`;
+  const hf = (tag, bdr, inner) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:${tag} ${ns}><w:p><w:pPr><w:pStyle w:val="HeaderFooter"/>${bdr}${tabs}</w:pPr>${inner}</w:p></w:${tag}>`;
+  const topB = `<w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="${_DX.RULE}"/></w:pBdr>`, botB = `<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="4" w:color="${_DX.RULE}"/></w:pBdr>`;
+  const foot = rr('Confidential \u2014 prepared for ' + (doc.customer || 'the customer')) + '<w:r><w:tab/></w:r>' + rr('Page ') + fld('PAGE') + rr(' of ') + fld('NUMPAGES');
+  const numbering = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ${ns}><w:abstractNum w:abstractNumId="90"><w:multiLevelType w:val="hybridMultilevel"/>${[0, 1, 2].map(n => `<w:lvl w:ilvl="${n}"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="${['\u2022', '\u2013', '\u2013'][n]}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${400 + n * 300}" w:hanging="240"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:hint="default"/><w:color w:val="${_DX.ACC}"/></w:rPr></w:lvl>`).join('')}</w:abstractNum><w:num w:numId="90"><w:abstractNumId w:val="90"/></w:num></w:numbering>`;
+  const CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.', RT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
+  const xml = s => enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + s);
   const files = [
-    { name: '[Content_Types].xml', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>') },
-    { name: '_rels/.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>') },
-    { name: 'word/_rels/document.xml.rels', data: enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>') },
-    { name: 'word/styles.xml', data: enc.encode(styles) },
-    { name: 'word/document.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>${_docxBody(text, isMd)}${sect}</w:body></w:document>`) }
+    { name: '[Content_Types].xml', data: xml(`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="${CT}document.main+xml"/><Override PartName="/word/styles.xml" ContentType="${CT}styles+xml"/><Override PartName="/word/numbering.xml" ContentType="${CT}numbering+xml"/><Override PartName="/word/header1.xml" ContentType="${CT}header+xml"/><Override PartName="/word/header2.xml" ContentType="${CT}header+xml"/><Override PartName="/word/footer1.xml" ContentType="${CT}footer+xml"/><Override PartName="/word/footer2.xml" ContentType="${CT}footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`) },
+    { name: '_rels/.rels', data: xml(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`) },
+    { name: 'docProps/core.xml', data: xml(`<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${_xe(doc.title + (doc.customer ? ' \u2014 ' + doc.customer : ''))}</dc:title><dc:subject>${_xe(doc.customer)}</dc:subject><dc:creator>ARIA</dc:creator></cp:coreProperties>`) },
+    { name: 'word/_rels/document.xml.rels', data: xml(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}styles" Target="styles.xml"/><Relationship Id="rId2" Type="${RT}numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="${RT}header" Target="header1.xml"/><Relationship Id="rId4" Type="${RT}header" Target="header2.xml"/><Relationship Id="rId5" Type="${RT}footer" Target="footer1.xml"/><Relationship Id="rId6" Type="${RT}footer" Target="footer2.xml"/></Relationships>`) },
+    { name: 'word/styles.xml', data: enc.encode(_dxStyles()) },
+    { name: 'word/numbering.xml', data: enc.encode(numbering) },
+    { name: 'word/header1.xml', data: enc.encode(hf('hdr', botB, rr(doc.title) + '<w:r><w:tab/></w:r>' + rr(doc.customer))) },
+    { name: 'word/header2.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${ns}><w:p/></w:hdr>`) },
+    { name: 'word/footer1.xml', data: enc.encode(hf('ftr', topB, foot)) },
+    { name: 'word/footer2.xml', data: enc.encode(hf('ftr', topB, foot)) },
+    { name: 'word/document.xml', data: enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>${body}${sect}</w:body></w:document>`) }
   ];
   return new Blob([_zipStored(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
@@ -33030,10 +33244,11 @@ function _askFormat(run, label, keepMs) {
 function _getDownloadFormat() { try { const v = localStorage.getItem('aiq_dl_format'); return ['txt', 'md', 'docx'].includes(v) ? v : 'txt'; } catch (e) { return 'txt'; } }
 function setDownloadFormat(v) { try { localStorage.setItem('aiq_dl_format', v); } catch (e) { /* storage blocked: the choice just is not remembered */ } }
 function triggerFileDownload(filename, text, opts) {
+  const _scope = window.__dlScope || ''; window.__dlScope = '';   // one-shot: set by downloadDeliverable(), never leaks into a later download from another scope
   const m = String(filename).match(/^(.*)\.(txt|md)$/i);
   if (!m || (opts && opts.single)) return _dlBlob(filename, new Blob([text], { type: 'text/plain;charset=utf-8' }));
   const base = m[1], isMd = /^#\s/.test(String(text).trimStart()), fmt = (opts && opts.format) || window.__dlFmtOverride || _getDownloadFormat();
-  if (fmt === 'docx') { try { return _dlBlob(base + '.docx', _buildDocx(base, text)); } catch (e) { console.warn('[docx] build failed, falling back to text:', e); } }
+  if (fmt === 'docx') { try { return _dlBlob(base + '.docx', _buildDocx(base, text, { customer: _scope })); } catch (e) { console.warn('[docx] build failed, falling back to text:', e); } }
   if (fmt === 'md') return _dlBlob(base + '.md', new Blob([isMd ? text : '```text\n' + text + '\n```\n'], { type: 'text/markdown;charset=utf-8' }));
   return _dlBlob(base + '.txt', new Blob([isMd ? _mdToPlain(text) : text], { type: 'text/plain;charset=utf-8' }));
 }

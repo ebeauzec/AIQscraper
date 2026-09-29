@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.164] - 2026-09-29
+
+### Changed
+- Every Word (.docx) deliverable from the Deliverables Suite now downloads to one house standard and needs no reformatting: title block (title, customer, date), running header and "Confidential -- prepared for <customer>" footer with Page X of Y, one heading scale, navy-header banded tables, shaded monospace CLI blocks, real bullet/numbered lists. `_buildDocx()` was rebuilt as a parser (`_dxParse`: text/Markdown -> normalised blocks) plus renderer (`_dxRender`) in `app.js`; aligned "Label: value" runs, space-aligned and pipe-delimited columns become real tables, the redundant Scope/Account/Date lines fold into the title block, ALL-CAPS headings become title case, hard-wrapped lines are rejoined and float noise is rounded. Change Control Tickets and the CLI Runbook start each ticket/system on a new page. .txt and .md downloads are unchanged.
+
+---
+
 ## [5.6.163] - 2026-09-29
 
 ### Changed

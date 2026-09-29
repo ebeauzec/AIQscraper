@@ -1,8 +1,8 @@
 {
-  "version": "5.6.163",
+  "version": "5.6.164",
   "major": 5,
   "minor": 6,
-  "patch": 163,
+  "patch": 164,
   "date": "2026-09-29",
-  "notes": "Protocol Security Checklist (Technical Audit, SVM Hardening Audit) redesigned to one compact row per check instead of a title + full-sentence block -- explanation/remediation text moved to a hover tooltip. Dynamic per-system findings (e.g. a migrated-LIF count) stay visible inline as before."
+  "notes": "Word (.docx) deliverables now download to one professional standard -- title block, running header/footer with page numbers, styled tables, shaded CLI blocks, real lists, consistent headings -- so they need no manual reformatting before going to a customer."
 }
