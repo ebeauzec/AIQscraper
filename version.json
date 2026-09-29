@@ -1,8 +1,8 @@
 {
-  "version": "5.6.165",
+  "version": "5.6.166",
   "major": 5,
   "minor": 6,
-  "patch": 165,
+  "patch": 166,
   "date": "2026-09-29",
-  "notes": "Fixed the Word download of the Security Brief's Feature Gap Analysis table, whose cells were scrambled across the wrong columns; column tables now split only on real column gaps."
+  "notes": "Word downloads: Handover Brief Capacity & Growth Outlook and similar Label: value blocks now render as key/value tables, and the Success Plan Status line is a Plan/Stage/Status/Health/Owner table."
 }

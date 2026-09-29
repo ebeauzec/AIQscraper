@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.166] - 2026-09-29
+
+### Fixed
+- Word downloads: "Label: value" blocks whose first line was single-spaced, or whose labels contain `%` or start with `<` (Handover Brief "Capacity & Growth Outlook": "RED Zone (>85%)", "<60-day Runway"), came out as loose bold lines; they now become key/value tables (also in the QBR, Risk Assessment and proposals).
+- The Success Plan Status line is emitted as a Plan | Stage | Status | Health | Owner table instead of a run-on bullet (Handover Brief, Success Plan, QBR; text and Word).
+
+---
+
 ## [5.6.165] - 2026-09-29
 
 ### Fixed

@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.165";
+const APP_VERSION = "5.6.166";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.166",
+    date: "29 September 2026",
+    title: "Word Deliverables: Label/Value Blocks and Success Plan Status as Tables",
+    sections: [
+      {
+        icon: "🛠",
+        label: "Fixed -- Handover Brief 'Capacity & Growth Outlook' and 'Success Plan Status' in Word",
+        color: "#22c55e",
+        items: [
+          "A block of 'Label: value' lines whose first line was single-spaced (or whose label contained a % or started with '<', e.g. 'RED Zone (>85%)', '<60-day Runway') was not recognised as a run, so the Word file showed loose bold lines instead of a key/value table. Runs may now open with a single-spaced line and labels may contain %, so these blocks (Capacity & Growth Outlook and similar in the QBR, Risk Assessment and proposals) become proper tables.",
+          "The Success Plan Status line ('<plan> -- Stage: ..., Status: ..., Health: ... (Owner: ...)') is now emitted as a Plan | Stage | Status | Health | Owner table (in the Handover Brief, Success Plan and QBR text as well as Word).",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.165",
     date: "29 September 2026",
@@ -21322,7 +21338,8 @@ function getSuccessPlanAlignmentText(targetSystems) {
   if (!plans.length) {
     return '  No active Success Plan on file for this account -- see the Success Plans tab to create or adopt a suggested one.\n';
   }
-  return plans.map(p => `  • ${(p.name || p.title || 'Untitled Plan')} -- Stage: ${SUCCESS_PLAN_STAGE_LABELS[p.lifecycleStage] || p.lifecycleStage || 'Unspecified'}, Status: ${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status}, Health: ${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'}${p.tamOwnerEmail ? ` (Owner: ${p.tamOwnerEmail})` : ''}`).join('\n') + '\n';
+  // one pipe-delimited table (header + a row per plan) -- reads cleanly as text and becomes a real table in the Word download
+  return '  Plan | Stage | Status | Health | Owner\n' + plans.map(p => `  ${(p.name || p.title || 'Untitled Plan')} | ${SUCCESS_PLAN_STAGE_LABELS[p.lifecycleStage] || p.lifecycleStage || 'Unspecified'} | ${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status} | ${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'} | ${p.tamOwnerEmail || '—'}`).join('\n') + '\n';
 }
 
 function _filterAndDeduplicateRisks(risks, targetSystems) {
@@ -32870,7 +32887,7 @@ function _docxRuns(text, base) {
 // ---- parsing: text/Markdown -> blocks ----
 const _DX_KV = /^([A-Za-z<][A-Za-z0-9 /&\-.()#<>%]{1,32}?):\s+(\S.*)$/;
 const _DX_KV_CAPS = /^([A-Z][A-Z0-9 /&\-()#]{2,30}?)\s*:\s+(.*)$/;
-const _DX_KV_ALIGNED = /^\s{0,4}[A-Za-z][A-Za-z0-9 /&()<>\u2264.\-']{1,38}:\s{2,}\S/;
+const _DX_KV_ALIGNED = /^\s{0,4}[A-Za-z<][A-Za-z0-9 /&()<>%\u2264.\-']{1,38}:\s{2,}\S/;
 function _dxSplitCols(line) { return line.trim().split(/\s{2,}|\s\|\s/).map(c => c.trim()).filter(c => c !== ''); }
 function _dxLooksHeader(cols) { return cols.length >= 3 && cols.every(c => /^[A-Z]/.test(c) && !c.includes(':') && !c.endsWith(':') && c.length <= 30 && !/\d{4,}/.test(c)); }
 function _dxIsRule(l) { return /^[\s=\-\u2500\u2550_*]{6,}$/.test(l) && /[=\-\u2500\u2550_]{6,}/.test(l); }
@@ -32974,9 +32991,9 @@ function _dxParse(text, isMd, ctx) {
       }
     }
     // aligned "Label:   value" runs -> key/value table
-    if (_DX_KV_ALIGNED.test(l)) {
-      const loose = x => /^\s{0,4}[A-Za-z][A-Za-z0-9 \/&()<>≤.\-']{1,38}:\s+\S/.test(x) && x.trim().split(':')[0].split(' ').length <= 5 && !_dxIsCli(x);
-      const rows = []; let j = i; while (j < L.length && (_DX_KV_ALIGNED.test(L[j]) || (rows.length && loose(L[j]))) && !skip.has(j)) { const mm = L[j].match(/^\s*([^:]+):\s+(.*)$/); rows.push([_dxClean(mm[1].trim()), _dxClean(mm[2].trim())]); j++; }
+    const loose = x => /^\s{0,4}[A-Za-z<][A-Za-z0-9 \/&()<>%≤.\-']{1,38}:\s+\S/.test(x) && x.trim().split(':')[0].split(' ').length <= 5 && !_dxIsCli(x);
+    if (_DX_KV_ALIGNED.test(l) || (loose(l) && i + 1 < L.length && _DX_KV_ALIGNED.test(L[i + 1]))) {   // a run may open with a single-spaced line
+      const rows = []; let j = i; while (j < L.length && (_DX_KV_ALIGNED.test(L[j]) || loose(L[j])) && !skip.has(j)) { const mm = L[j].match(/^\s*([^:]+):\s+(.*)$/); rows.push([_dxClean(mm[1].trim()), _dxClean(mm[2].trim())]); j++; }
       if (rows.length >= 2) { i = j - 1; push({ t: 'table', rows, header: false, keyCol: true }); continue; }
     }
     if ((m = l.match(/^(\s*)([\u2022\-*\u2192\u25aa\u25cf]|->|\u26a0|\u2713|\u25a1)\s+(.*)$/))) {
