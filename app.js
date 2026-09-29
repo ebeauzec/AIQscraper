@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.171";
+const APP_VERSION = "5.6.172";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.172",
+    date: "29 September 2026",
+    title: "Word: MSP Tables, Full Customer Names, No Stray HTML",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- MSP Column Tables, Truncated Customer Names and Raw HTML in Word",
+        color: "#22c55e",
+        items: [
+          "The MSP report's Capacity Consumption and Per-Customer Health tables (columns with single spaces in their headers, e.g. 'Phys(TB) Avail(TB)') came out as loose text; column tables are now cut along the underline segments so any header works. The customer-name column in those tables was cut at 18 characters ('Harbourview Distri'); it now fits the longest name. Raw HTML from advisory / Active IQ text ('<br><br>', '&nbsp;') no longer shows in Word documents: a <br> inside a field becomes a space so the card row stays whole, other tags are removed, and CLI placeholders such as <svm> are kept.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.171",
     date: "29 September 2026",
@@ -24115,6 +24130,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     }
   });
 
+  const _nw = Math.max(18, ...Object.keys(mspCustomers).map(n => n.length));   // customer-name column: as wide as the longest name (was cut at 18 characters)
   const dashboardLines = Object.entries(mspCustomers).map(([name, data]) => {
     const tot = data.systems.length;
     // Same canonical 8-factor computeAccountHealthScore() used everywhere else
@@ -24127,7 +24143,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     const asupP = tot > 0 ? Math.round(data.asup / tot * 100) : 0;
     const contractP = tot > 0 ? Math.round(data.contract / tot * 100) : 0;
     const drr = data.phys > 0 ? (data.log / data.phys).toFixed(1) : '1.0';
-    return `  ${name.substring(0,18).padEnd(18)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${String(asupP)+'%'.padEnd(7)} ${String(contractP)+'%'.padEnd(7)} ${drr}:1`;
+    return `  ${name.padEnd(_nw)} ${String(hlth).padEnd(7)} ${String(data.risks).padEnd(6)} ${String(asupP)+'%'.padEnd(7)} ${String(contractP)+'%'.padEnd(7)} ${drr}:1`;
   }).sort().join('\n');
 
   let totalPhys = 0, totalAvail = 0, totalRunway = 0, rCount = 0;
@@ -24137,7 +24153,7 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
     totalPhys += data.phys;
     totalAvail += data.avail;
     if (rw != null) { totalRunway += rw; rCount++; }
-    return `  ${name.substring(0,18).padEnd(18)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${drr.padEnd(10)} ${rw != null ? rw + 'd' : 'n/a'}`;
+    return `  ${name.padEnd(_nw)} ${data.phys.toFixed(1).padEnd(8)} ${data.avail.toFixed(1).padEnd(12)} ${drr.padEnd(10)} ${rw != null ? rw + 'd' : 'n/a'}`;
   }).join('\n');
   const avgRunway = rCount > 0 ? Math.round(totalRunway / rCount) : null;
 
@@ -24254,8 +24270,8 @@ ${avgAge !== '—' ? `  Average System Age:        ${avgAge} years\n` : ''}
 --------------------------------------------------------------------------------
 2. PER-CUSTOMER HEALTH DASHBOARD [METRICS]
 --------------------------------------------------------------------------------
-  Customer           Health  Risks  ASUP   Supp   DRR
-  ────────────────── ─────── ────── ────── ────── ──────
+  ${'Customer'.padEnd(_nw)} Health  Risks  ASUP   Supp   DRR
+  ${'─'.repeat(_nw)} ─────── ────── ────── ────── ──────
 ${dashboardLines}
 
 --------------------------------------------------------------------------------
@@ -24285,11 +24301,11 @@ ${(() => {
 --------------------------------------------------------------------------------
 4. CAPACITY CONSUMPTION & RUNWAY REPORT [METRICS]
 --------------------------------------------------------------------------------
-  Customer           Phys(TB) Avail(TB)    DRR        Runway
-  ────────────────── ──────── ──────────── ────────── ──────
+  ${'Customer'.padEnd(_nw)} Phys(TB) Avail(TB)    DRR        Runway
+  ${'─'.repeat(_nw)} ──────── ──────────── ────────── ──────
 ${capacityLines}
-  ────────────────── ──────── ──────────── ────────── ──────
-  PORTFOLIO TOTAL    ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway != null ? avgRunway + 'd' : 'n/a'}
+  ${'─'.repeat(_nw)} ──────── ──────────── ────────── ──────
+  ${'PORTFOLIO TOTAL'.padEnd(_nw)} ${totalPhys.toFixed(1).padEnd(8)} ${totalAvail.toFixed(1).padEnd(12)} ${physTotal > 0 ? (logTotal / physTotal).toFixed(1) : '1.0'}:1       ${avgRunway != null ? avgRunway + 'd' : 'n/a'}
 
 --------------------------------------------------------------------------------
 5. INCIDENT & CASE MANAGEMENT [RISK EXPOSURE]
@@ -33057,6 +33073,10 @@ const _DX_KV_ALIGNED = /^\s{0,4}[A-Za-z<][A-Za-z0-9 /&()<>%\u2264.\-']{1,38}:\s{
 function _dxSplitCols(line) { return line.trim().split(/\s{2,}|\s\|\s/).map(c => c.trim()).filter(c => c !== ''); }
 function _dxLooksHeader(cols) { return cols.length >= 3 && cols.every(c => /^[A-Z]/.test(c) && !c.includes(':') && !c.endsWith(':') && c.length <= 30 && !/\d{4,}/.test(c)); }
 function _dxIsRule(l) { return /^[\s=\-\u2500\u2550_*]{6,}$/.test(l) && /[=\-\u2500\u2550_]{6,}/.test(l); }
+function _dxSegRule(line) {   // "───── ───── ─────" -> [[start, end], ...] when the rule is split into column segments
+  if (!/^\s*[─═\-=]{3,}(?:\s+[─═\-=]{3,})+\s*$/.test(line)) return null;
+  const out = []; const re = /[─═\-=]{3,}/g; let m; while ((m = re.exec(line))) out.push([m.index, m.index + m[0].length]); return out;
+}
 function _dxIsCli(l) { return /^\s{2,}(cluster|system|storage|network|event|vserver|security|snapmirror|volume|metrocluster|qos|statistics|version|lun|igroup|esxcli|aggr|node|set |run |debug)\b/.test(l) || /^\s{2,}[$#] /.test(l); }
 
 // ---- cards: an action / finding / CVE entry followed by its labelled detail lines becomes one card ----
@@ -33186,8 +33206,17 @@ function _dxSpecialCard(L, i) {
   return null;
 }
 
+// advisory / Active IQ text sometimes carries raw HTML ("<br><br>", "&nbsp;"); a whitelist of real tags is removed so CLI placeholders such as <svm> or <vol> survive
+function _dxStripHtml(s) {
+  return String(s)
+    .replace(/(?:\s*<br\s*\/?>\s*)+/gi, ' ')   // a <br> inside a field stays inside that field (one space), so a card row is not cut in two
+    .replace(/<\/?(?:p|li|div|tr|h[1-6])(?:\s[^>]*)?\/?>/gi, '\n')
+    .replace(/<\/?(?:ul|ol|b|i|u|strong|em|span|a|font|sup|sub|table|tbody|thead|td|th|code|pre)(?:\s[^>]*)?\/?>/gi, '')
+    .replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#0?39;/g, "'").replace(/&amp;/gi, '&')
+    .replace(/\n[ \t]*\n(?:[ \t]*\n)+/g, '\n\n');
+}
 function _dxParse(text, isMd, ctx) {
-  const L = String(text).replace(/\r/g, '').split('\n');
+  const L = _dxStripHtml(String(text).replace(/\r/g, '')).split('\n');
   const doc = { title: '', customer: (ctx && ctx.customer) || '', date: '', meta: [], blocks: [] };
   const custKey = () => (doc.customer || '').toLowerCase();
   const blocks = doc.blocks; let gap = false, curLvl = 1, secLvl = 1, bulletBase = 0;
@@ -33248,13 +33277,14 @@ function _dxParse(text, isMd, ctx) {
     const prevRule = i > 0 && _dxIsRule(L[i - 1]), nextRule = i + 1 < L.length && _dxIsRule(L[i + 1]);
     const strong = /^[=\u2550]{6,}$/.test((L[i - 1] || '').trim());
     const noTag = s => s.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
-    if (prevRule && nextRule && (ind < 3 || strong) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // banner: rule / title / rule
+    const segNext = i + 1 < L.length ? _dxSegRule(L[i + 1]) : null;   // a rule made of separate column segments underlines a column header, not a title
+    if (prevRule && nextRule && !segNext && (ind < 3 || strong) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // banner: rule / title / rule
       if (strong) { if (!doc.title) doc.title = _dxClean(noTag(t)); else setSection(1, _dxClean(noTag(t)), { brk: /^(CHANGE TICKET|SYSTEM \d+)/i.test(t) }); }
       else if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t)));
       else setSection(thinLvl, _dxClean(noTag(t)));
       continue;
     }
-    if (nextRule && !prevRule && ind < 4 && t.length < 100 && !/^[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(t) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // heading with an underline
+    if (nextRule && !prevRule && !segNext && ind < 4 && t.length < 100 && !/^[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(t) && !(_dxSplitCols(l).length >= 3 && _dxLooksHeader(_dxSplitCols(l)))) {   // heading with an underline
       if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t))); else setSub(_dxClean(noTag(t)));
       continue;
     }
@@ -33265,6 +33295,12 @@ function _dxParse(text, isMd, ctx) {
         while (j < L.length) { let k = j; while (k < L.length && !L[k].trim()) k++; const a = (L[k] || '').match(UP); if (!a) break; const b = (L[k + 1] || '').match(/^\s*Benefit:\s*(.*)$/); rows.push([a[1], a[2], a[3], a[4], b ? _dxClean(b[1]) : '']); j = k + (b ? 2 : 1); }
         if (rows.length >= 3) { i = j - 1; push({ t: 'table', rows, header: true }); continue; }
       }
+    }
+    if (segNext && segNext.length >= 3) {   // column table whose columns are marked by the underline segments (single-space gaps in the header are fine)
+      const cut = line => segNext.map((r, ci) => (ci === segNext.length - 1 ? line.slice(r[0]) : line.slice(r[0], segNext[ci + 1][0])).trim());
+      const rows = [cut(l).map(_dxClean)]; let j = i + 2;
+      while (j < L.length && L[j].trim()) { if (!_dxIsRule(L[j])) rows.push(cut(L[j]).map(_dxClean)); j++; }
+      if (rows.length >= 2) { i = j - 1; push({ t: 'table', header: true, rows }); continue; }
     }
     { const sc = _dxSpecialCard(L, i); if (sc) { i = sc.next - 1; push(sc.block); continue; } }   // decisions, roadmap actions, upgrade plans, support cases, drift lists
     { const cs = ind < 6 ? _dxCardStart(t) : null; if (cs) {
