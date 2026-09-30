@@ -22,9 +22,34 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.194)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.195)
 
-Three threads this session, all triggered by screenshots of generated deliverables.
+Four threads this session, all triggered by screenshots of generated deliverables.
+
+**17. Cross-site version parity recommendation added on top of point 16 (shipped, v5.6.195).** Immediate
+follow-up to point 16 below, same conversation: user first asked to make a "minimum ONTAP recommendation"
+for the non-CVE NetApp issues per customer/system; when reminded that individual findings don't cleanly map to
+one version (see point 16), user clarified the actual ask -- keep the per-system finding detail as-is, and ADD
+a separate, single customer-wide statement: all systems for a customer should converge on one version for
+cross-site parity. Implemented as `_dfNonCveParityVersion(systems)` (app.js, right after
+`_dfCriticalHighNonCveIssuesSummary`, ~line 19241): for systems with an outstanding non-CVE critical/high issue
+(from point 16's `_dfCriticalHighNonCveIssuesSummary`), takes each one's REAL Active-IQ-recommended target
+version (`sys.upgrades.targetVersion` where `source === 'active-iq'` only -- never the heuristic fallback,
+which is a guess Active IQ never made) and picks the highest per platform family (ONTAP/StorageGRID/SANtricity
+kept separate -- version numbers aren't comparable across product lines). This reuses a trusted, already-
+harvested field rather than parsing free text, so it doesn't reintroduce the version-fabrication risk flagged
+in point 16. Wired in as an ADDITIONAL statement (not a replacement) alongside the existing per-system detail
+in all 3 of the same places: a new banner at the top of the OS Upgrade Roadmap section (before the per-system
+cards), a "Cross-Site Version Parity Recommendation" block inside the Executive Risk Assessment's existing
+"CRITICAL NETAPP ISSUES (Non-CVE)" section (still followed by the per-system SYSTEM: breakdown), and one
+sentence appended to the TAM Success Plan's existing summary line. Verified live against a real account
+(Telkom SA Ltd.): 8 affected systems all converge on one ONTAP recommendation (9.16.1P15); a larger scope
+correctly drove a 9.19.1P2 recommendation from 111 affected systems while still listing all 111 individually
+below it. Confirmed via real DOM events (Action Planner) and captured text downloads (both compilers) that the
+per-system detail was NOT lost -- both the parity statement and the individual findings render together.
+
+**16. Critical CVEs vs. critical non-CVE NetApp issues split (shipped, v5.6.194).** User, from a screenshot of
+the OS Upgrade Roadmap card: asked to distinguish "critical CVEs" from "critical NetApp issues" since each
 
 **16. Critical CVEs vs. critical non-CVE NetApp issues split (shipped, v5.6.194).** User, from a screenshot of
 the OS Upgrade Roadmap card: asked to distinguish "critical CVEs" from "critical NetApp issues" since each
@@ -142,11 +167,11 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192, v5.6.193, and v5.6.194 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.195 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time). Exe rebuilt via PyInstaller
 (`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
-`%LOCALAPPDATA%\Temp\aiqbuild192`/`aiqbuild193`/`aiqbuild194`, never `build/build_windows.bat`. No `server.py`
+`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild195`, never `build/build_windows.bat`. No `server.py`
 or HTML changes this session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via

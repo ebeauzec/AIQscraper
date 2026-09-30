@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.195] - 2026-09-30
+
+### Added
+- Cross-site version parity recommendation for critical/high NetApp issues that aren't CVEs: per customer, takes the highest real Active IQ-recommended target version (never a guessed one) among systems with outstanding non-CVE critical/high findings and recommends that single version for every system in the account, grouped by platform family. Shown alongside -- not replacing -- the existing per-system, per-finding detail in the OS Upgrade Roadmap card, Executive Risk Assessment, and TAM Success Plan.
+
+---
+
 ## [5.6.194] - 2026-09-30
 
 ### Added

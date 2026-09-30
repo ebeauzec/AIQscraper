@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.195",
+    date: "30 September 2026",
+    title: "Cross-Site Version Parity Recommendation for Non-CVE NetApp Issues",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- One Target Version Per Customer to Clear Non-CVE Critical/High Findings",
+        color: "#3b82f6",
+        items: [
+          "The OS Upgrade Roadmap card, Executive Risk Assessment, and TAM Success Plan now add a per-customer 'Cross-Site Version Parity Recommendation' alongside the existing per-system Critical NetApp Issues (Non-CVE) detail: the highest real Active IQ-recommended target version (never guessed) among the systems with outstanding non-CVE critical/high findings, so every system in the account can converge on one baseline. Grouped by platform family (ONTAP/StorageGRID/SANtricity) since version numbers aren't comparable across product lines. Per-system findings are still listed individually -- this is an added summary statement, not a replacement.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.194",
     date: "30 September 2026",
     title: "Critical CVEs vs. Critical NetApp Issues Now Shown Separately",
@@ -19238,6 +19253,44 @@ function _dfCriticalHighNonCveIssuesSummary(systems) {
   return { rows, totalCount: rows.reduce((s, r) => s + r.count, 0) };
 }
 
+// Per-account version-parity recommendation for the non-CVE issues above.
+// There's no per-finding "fixed in" version for these (see
+// _dfCriticalHighNonCveIssues's own note), so rather than guess one, this
+// takes the HIGHEST real Active-IQ-recommended target version (source:
+// 'active-iq' only -- never the heuristic fallback, which is a guess Active
+// IQ never made) among the systems that actually have an outstanding
+// critical/high non-CVE issue, and recommends that ONE version for every
+// system in scope of the same platform family. The result: the whole account
+// converges on a single baseline per family rather than each flagged system
+// chasing its own separate target, and every flagged system's own real
+// Active-IQ recommendation is met or exceeded. Grouped by platform family
+// (ONTAP/StorageGRID/SANtricity) since version numbers aren't comparable
+// across product lines. Returns null when no affected system has a real
+// (non-heuristic) Active IQ target to build a recommendation from.
+function _dfNonCveParityVersion(systems) {
+  const nc = _dfCriticalHighNonCveIssuesSummary(systems);
+  if (!nc) return null;
+  const byName = {};
+  (systems || []).forEach(s => { if (s.systemName) byName[s.systemName] = s; });
+  const productLabel = { ontap: 'ONTAP', storagegrid: 'StorageGRID', eseries: 'SANtricity OS' };
+  const byFamily = new Map();
+  nc.rows.forEach(row => {
+    const sys = byName[row.systemName];
+    const up = sys && sys.upgrades;
+    if (!up || up.source !== 'active-iq' || !up.targetVersion || up.targetVersion === 'Up to Date') return;
+    const v = _dfVerParse(up.targetVersion);
+    if (!v) return;
+    const fam = _platformFamily(sys) || 'ontap';
+    if (!byFamily.has(fam)) byFamily.set(fam, { best: null, driverSystems: [] });
+    const e = byFamily.get(fam);
+    if (!e.best || _dfVerCmp(v, e.best) > 0) { e.best = v; e.driverSystems = [row.systemName]; }
+    else if (_dfVerCmp(v, e.best) === 0) e.driverSystems.push(row.systemName);
+  });
+  if (!byFamily.size) return null;
+  const results = [...byFamily.entries()].map(([fam, e]) => ({ family: fam, label: productLabel[fam] || fam, version: e.best.text, driverSystems: e.driverSystems }));
+  return { results, issueSystemCount: nc.rows.length, totalIssueCount: nc.totalCount };
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -23960,7 +24013,8 @@ ${_dfTable(['Critical', 'High', 'Medium'], [[critCount, highCount, medCount]])}
   - Support Cases: ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
 ${(() => { const ff = _dfCriticalHighFixFloorSummary(targetSystems); if (!ff) return ''; const worst = ff.rows.reduce((a, r) => !a || _dfVerCmp(_dfVerParse(r.fixedIn), _dfVerParse(a.fixedIn)) > 0 ? r : a, null);
   return `  - Security Fix Floor (Critical/High CVEs): ${_dfPlural(ff.rows.length, 'system')} below the version needed to clear all critical/high CVEs (highest requirement: ${worst.fixedIn})${ff.conflictCount > 0 ? ` -- ${_dfPlural(ff.conflictCount, 'system')} with a Customer Qualified Version set BELOW that floor (decision point for the account team)` : (ff.cqvSetCount > 0 ? ` -- ${_dfPlural(ff.cqvSetCount, 'system')} with a Customer Qualified Version set, none conflicting` : '')}`; })()}
-${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; return `  - Critical NetApp Issues (Non-CVE): ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that don't reduce to a single required software version (hardware, firmware, configuration, or lifecycle fixes instead) -- see Section 2 / As-Built for individual findings`; })()}
+${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; const parity = _dfNonCveParityVersion(targetSystems);
+  return `  - Critical NetApp Issues (Non-CVE): ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that don't reduce to a single required software version (hardware, firmware, configuration, or lifecycle fixes instead) -- see Section 2 / As-Built for individual findings${parity ? `. To maintain cross-site version parity, all systems for this customer should match at: ${parity.results.map(r => `${r.label} ${r.version}`).join(', ')} (the highest Active IQ-recommended target among the affected systems)` : ''}`; })()}
 
 ${compileSvmLifSummaryText(targetSystems)}
 
@@ -27398,8 +27452,10 @@ ${[...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { nu
 ${ff.cqvSetCount > 0 ? `  Customer Qualified Version (CQV) set on ${_dfPlural(ff.cqvSetCount, 'system')}.${ff.conflictCount > 0 ? ` ${ff.conflictCount} of those ${ff.conflictCount === 1 ? 'has' : 'have'} a CQV BELOW the fix floor -- the customer's qualified version does not clear a critical/high finding, a decision point for the account team: ${ff.rows.filter(r => r.conflict).slice(0, 5).map(r => `${r.systemName} (CQV ${r.cqv} < required ${r.fixedIn})`).join(', ')}${ff.conflictCount > 5 ? ` +${ff.conflictCount - 5} more` : ''}.` : ' None conflict with the fix floor above.'}` : ''}
 `; })()}
 
-${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; return `CRITICAL NETAPP ISSUES (Non-CVE)
-  ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that are NOT CVEs (hardware, firmware, lifecycle, configuration, capacity). Unlike the CVE-based Security Fix Floor above, these do not reduce to a single required software version -- the fix varies per finding (drive/shelf/BMC firmware, a config change, a hardware refresh) and some findings describe a version to avoid rather than one that fixes the issue, so each is listed for individual review rather than rolled into one target version.
+${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; const parity = _dfNonCveParityVersion(targetSystems); return `CRITICAL NETAPP ISSUES (Non-CVE)
+  ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that are NOT CVEs (hardware, firmware, lifecycle, configuration, capacity). Unlike the CVE-based Security Fix Floor above, these do not reduce to a single required software version per finding -- the fix varies per finding (drive/shelf/BMC firmware, a config change, a hardware refresh) and some findings describe a version to avoid rather than one that fixes the issue, so each finding is listed for individual review below.
+${parity ? `  Cross-Site Version Parity Recommendation: to maintain a consistent baseline across every site for this customer (meeting or exceeding each affected system's own Active IQ recommendation), all systems should match at --
+${parity.results.map(r => `    ${r.label}: ${r.version} (highest requirement, driven by: ${r.driverSystems.slice(0, 5).join(', ')}${r.driverSystems.length > 5 ? ` +${r.driverSystems.length - 5} more` : ''})`).join('\n')}` : ''}
 ${nc.rows.map(r => `  SYSTEM: ${r.systemName}${r.customerName ? ` (${r.customerName})` : ''}
 ${r.items.map(it => `    - [${it.severity.toUpperCase()}/${it.category}] ${it.description}`).join('\n')}`).join('\n')}
 `; })()}
@@ -32263,6 +32319,23 @@ function generateActionPlan() {
         <button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadPlanSection(5)" data-tooltip="Download Section 5 OS upgrade roadmap as a TXT file.">Download Roadmaps</button>
       </div>
   `;
+
+  html += (() => {
+    // Account-wide version-parity recommendation for outstanding critical/high
+    // NetApp issues that aren't CVEs (see _dfNonCveParityVersion): one target
+    // version per platform family, so every system in the account converges
+    // on the same baseline instead of each flagged system chasing its own.
+    const _parity = _dfNonCveParityVersion(targetSystems);
+    if (!_parity) return '';
+    return `
+    <div style="background:rgba(148,163,184,0.06); border:1px solid rgba(148,163,184,0.25); border-radius:6px; padding:14px 16px; margin-bottom:16px; font-size:0.82rem;">
+      <strong style="color:#94a3b8;">Cross-Site Version Parity Recommendation (Critical NetApp Issues, Non-CVE):</strong>
+      ${_dfPlural(_parity.issueSystemCount, 'system')} in this account ${_parity.issueSystemCount === 1 ? 'has' : 'have'} ${_dfPlural(_parity.totalIssueCount, 'outstanding critical/high non-CVE finding')} (see each system's own card below for details). To maintain a consistent version across every site for this customer:
+      <ul style="margin:6px 0 0 18px; padding:0;">
+        ${_parity.results.map(r => `<li>All ${r.label} systems should match at <code>${r.version}</code> (highest requirement, driven by: ${r.driverSystems.slice(0, 3).join(', ')}${r.driverSystems.length > 3 ? ` +${r.driverSystems.length - 3} more` : ''})</li>`).join('')}
+      </ul>
+    </div>`;
+  })();
 
   if (allUpgrades.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All systems are running target version baselines.</p>`;
